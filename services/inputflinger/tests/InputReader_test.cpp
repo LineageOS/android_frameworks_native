@@ -4384,6 +4384,7 @@ protected:
     void processSlot(MultiTouchInputMapper* mapper, int32_t slot);
     void processToolType(MultiTouchInputMapper* mapper, int32_t toolType);
     void processKey(MultiTouchInputMapper* mapper, int32_t code, int32_t value);
+    void processTimestamp(MultiTouchInputMapper* mapper, uint32_t value);
     void processMTSync(MultiTouchInputMapper* mapper);
     void processSync(MultiTouchInputMapper* mapper);
 };
@@ -4497,6 +4498,10 @@ void MultiTouchInputMapperTest::processToolType(
 void MultiTouchInputMapperTest::processKey(
         MultiTouchInputMapper* mapper, int32_t code, int32_t value) {
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, code, value);
+}
+
+void MultiTouchInputMapperTest::processTimestamp(MultiTouchInputMapper* mapper, uint32_t value) {
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_MSC, MSC_TIMESTAMP, value);
 }
 
 void MultiTouchInputMapperTest::processMTSync(MultiTouchInputMapper* mapper) {
@@ -5879,6 +5884,31 @@ TEST_F(MultiTouchInputMapperTest, Process_WhenAbsMTPressureIsPresent_HoversIfIts
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_EXIT, motionArgs.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0],
             toDisplayX(150), toDisplayY(250), 0, 0, 0, 0, 0, 0, 0, 0));
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_HandlesTimestamp) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+    NotifyMotionArgs args;
+
+    // By default, deviceTimestamp should be zero
+    processPosition(mapper, 100, 100);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(0U, args.deviceTimestamp);
+
+    // Now the timestamp of 1000 is reported by evdev and should appear in MotionArgs
+    processPosition(mapper, 0, 0);
+    processTimestamp(mapper, 1000);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(1000U, args.deviceTimestamp);
 }
 
 
