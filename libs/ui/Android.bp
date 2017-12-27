@@ -95,6 +95,7 @@ cc_library_shared {
     ],
 
     header_libs: [
+        "libbase_headers",
         "libnativebase_headers",
         "libhardware_headers",
     ],
@@ -107,6 +108,7 @@ cc_library_shared {
     ],
 
     export_header_lib_headers: [
+        "libbase_headers",
         "libnativebase_headers",
         "libhardware_headers",
     ],
