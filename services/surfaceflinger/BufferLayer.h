@@ -170,7 +170,7 @@ public:
     sp<IGraphicBufferProducer> getProducer() const;
 
 private:
-    sp<BufferLayerConsumer> mSurfaceFlingerConsumer;
+    sp<BufferLayerConsumer> mConsumer;
 
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
