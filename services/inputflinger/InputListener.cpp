@@ -36,6 +36,10 @@ NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(
         NotifyArgs(other.sequenceNum), eventTime(other.eventTime) {
 }
 
+bool NotifyConfigurationChangedArgs::operator==(const NotifyConfigurationChangedArgs& rhs) const {
+    return sequenceNum == rhs.sequenceNum && eventTime == rhs.eventTime;
+}
+
 void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
     listener->notifyConfigurationChanged(this);
 }
@@ -59,6 +63,21 @@ NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other) :
         action(other.action), flags(other.flags),
         keyCode(other.keyCode), scanCode(other.scanCode),
         metaState(other.metaState), downTime(other.downTime) {
+}
+
+bool NotifyKeyArgs::operator==(const NotifyKeyArgs& rhs) const {
+    return sequenceNum == rhs.sequenceNum
+            && eventTime == rhs.eventTime
+            && deviceId == rhs.deviceId
+            && source == rhs.source
+            && displayId == rhs.displayId
+            && policyFlags == rhs.policyFlags
+            && action == rhs.action
+            && flags == rhs.flags
+            && keyCode == rhs.keyCode
+            && scanCode == rhs.scanCode
+            && metaState == rhs.metaState
+            && downTime == rhs.downTime;
 }
 
 void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
@@ -105,6 +124,43 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
     }
 }
 
+bool NotifyMotionArgs::operator==(const NotifyMotionArgs& rhs) const {
+    bool equal =
+            sequenceNum == rhs.sequenceNum
+            && eventTime == rhs.eventTime
+            && deviceId == rhs.deviceId
+            && source == rhs.source
+            && displayId == rhs.displayId
+            && policyFlags == rhs.policyFlags
+            && action == rhs.action
+            && actionButton == rhs.actionButton
+            && flags == rhs.flags
+            && metaState == rhs.metaState
+            && buttonState == rhs.buttonState
+            && classification == rhs.classification
+            && edgeFlags == rhs.edgeFlags
+            && deviceTimestamp == rhs.deviceTimestamp
+            && pointerCount == rhs.pointerCount
+            // PointerProperties and PointerCoords are compared separately below
+            && xPrecision == rhs.xPrecision
+            && yPrecision == rhs.yPrecision
+            && downTime == rhs.downTime
+            && videoFrames == rhs.videoFrames;
+    if (!equal) {
+        return false;
+    }
+
+    for (size_t i = 0; i < pointerCount; i++) {
+        equal =
+                pointerProperties[i] == rhs.pointerProperties[i]
+                && pointerCoords[i] == rhs.pointerCoords[i];
+        if (!equal) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void NotifyMotionArgs::notify(const sp<InputListenerInterface>& listener) const {
     listener->notifyMotion(this);
 }
@@ -123,6 +179,14 @@ NotifySwitchArgs::NotifySwitchArgs(const NotifySwitchArgs& other) :
         switchValues(other.switchValues), switchMask(other.switchMask) {
 }
 
+bool NotifySwitchArgs::operator==(const NotifySwitchArgs rhs) const {
+    return sequenceNum == rhs.sequenceNum
+            && eventTime == rhs.eventTime
+            && policyFlags == rhs.policyFlags
+            && switchValues == rhs.switchValues
+            && switchMask == rhs.switchMask;
+}
+
 void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const {
     listener->notifySwitch(this);
 }
@@ -137,6 +201,12 @@ NotifyDeviceResetArgs::NotifyDeviceResetArgs(
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other) :
         NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId) {
+}
+
+bool NotifyDeviceResetArgs::operator==(const NotifyDeviceResetArgs& rhs) const {
+    return sequenceNum == rhs.sequenceNum
+            && eventTime == rhs.eventTime
+            && deviceId == rhs.deviceId;
 }
 
 void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) const {

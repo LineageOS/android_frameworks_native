@@ -23,7 +23,9 @@
 
 #include "EventHub.h"
 #include "InputReaderBase.h"
+#include "InputClassifier.h"
 #include "InputDispatcher.h"
+#include "InputReader.h"
 
 #include <input/Input.h>
 #include <input/InputTransport.h>
@@ -99,6 +101,8 @@ public:
 private:
     sp<InputReaderInterface> mReader;
     sp<InputReaderThread> mReaderThread;
+
+    sp<InputClassifierInterface> mClassifier;
 
     sp<InputDispatcherInterface> mDispatcher;
     sp<InputDispatcherThread> mDispatcherThread;
