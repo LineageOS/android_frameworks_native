@@ -78,7 +78,7 @@ struct CompositionInfo {
     } hwc;
     struct {
         Mesh* mesh;
-    } renderEngine;
+    } re;
 };
 
 class LayerBE {
