@@ -20,13 +20,23 @@
 
 #include <mutex>
 
+#include <android/dlext.h>
 #include <log/log.h>
-#include <nativeloader/dlext_namespaces.h>
-#include <nativeloader/native_loader.h>
 
 // TODO(b/37049319) Get this from a header once one exists
 extern "C" {
   android_namespace_t* android_get_exported_namespace(const char*);
+  android_namespace_t* android_create_namespace(const char* name,
+                                                const char* ld_library_path,
+                                                const char* default_library_path,
+                                                uint64_t type,
+                                                const char* permitted_when_isolated_path,
+                                                android_namespace_t* parent);
+
+  enum {
+     ANDROID_NAMESPACE_TYPE_ISOLATED = 1,
+     ANDROID_NAMESPACE_TYPE_SHARED = 2,
+  };
 }
 
 namespace android {
