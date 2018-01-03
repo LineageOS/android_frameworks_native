@@ -2954,8 +2954,8 @@ const int32_t TouchInputMapperTest::RAW_TOUCH_MIN = 0;
 const int32_t TouchInputMapperTest::RAW_TOUCH_MAX = 31;
 const int32_t TouchInputMapperTest::RAW_TOOL_MIN = 0;
 const int32_t TouchInputMapperTest::RAW_TOOL_MAX = 15;
-const int32_t TouchInputMapperTest::RAW_PRESSURE_MIN = RAW_TOUCH_MIN;
-const int32_t TouchInputMapperTest::RAW_PRESSURE_MAX = RAW_TOUCH_MAX;
+const int32_t TouchInputMapperTest::RAW_PRESSURE_MIN = 0;
+const int32_t TouchInputMapperTest::RAW_PRESSURE_MAX = 255;
 const int32_t TouchInputMapperTest::RAW_ORIENTATION_MIN = -7;
 const int32_t TouchInputMapperTest::RAW_ORIENTATION_MAX = 7;
 const int32_t TouchInputMapperTest::RAW_DISTANCE_MIN = 0;
@@ -5315,6 +5315,12 @@ TEST_F(MultiTouchInputMapperTest, Process_PressureAxis_AmplitudeCalibration) {
     addConfigurationProperty("touch.pressure.calibration", "amplitude");
     addConfigurationProperty("touch.pressure.scale", "0.01");
     addMapperAndConfigure(mapper);
+
+    InputDeviceInfo info;
+    mapper->populateDeviceInfo(&info);
+    ASSERT_NO_FATAL_FAILURE(assertMotionRange(info,
+            AINPUT_MOTION_RANGE_PRESSURE, AINPUT_SOURCE_TOUCHSCREEN,
+            0.0f, RAW_PRESSURE_MAX * 0.01, 0.0f, 0.0f));
 
     // These calculations are based on the input device calibration documentation.
     int32_t rawX = 100;
