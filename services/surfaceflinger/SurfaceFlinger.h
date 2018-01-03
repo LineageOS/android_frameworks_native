@@ -366,6 +366,9 @@ private:
     // Called on the main thread in response to setActiveColorMode()
     void setActiveColorModeInternal(const sp<DisplayDevice>& hw, android_color_mode_t colorMode);
 
+    // Called on the main thread in response to enableVSyncInjections()
+    void enableVSyncInjectionsInternal(bool enable);
+
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
 
