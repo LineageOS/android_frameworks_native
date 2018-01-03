@@ -292,19 +292,6 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 
     int slot = item.mSlot;
 
-    // Ensure we have a valid EglImageKHR for the slot, creating an EglImage
-    // if nessessary, for the gralloc buffer currently in the slot in
-    // ConsumerBase.
-    // We may have to do this even when item.mGraphicBuffer == NULL (which
-    // means the buffer was previously acquired).
-    const Rect& imageCrop = canUseImageCrop(item.mCrop) ? item.mCrop : Rect::EMPTY_RECT;
-    err = mImages[slot]->createIfNeeded(imageCrop);
-    if (err != NO_ERROR) {
-        BLC_LOGW("updateAndRelease: unable to createImage on slot=%d", slot);
-        releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
-        return UNKNOWN_ERROR;
-    }
-
     // Do whatever sync ops we need to do before releasing the old slot.
     if (slot != mCurrentTexture) {
         err = syncForReleaseLocked();
@@ -392,12 +379,12 @@ status_t BufferLayerConsumer::syncForReleaseLocked() {
 
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (SyncFeatures::getInstance().useNativeFenceSync()) {
-            int fenceFd = mRE.flush().release();
+            base::unique_fd fenceFd = mRE.flush();
             if (fenceFd == -1) {
                 BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
                 return UNKNOWN_ERROR;
             }
-            sp<Fence> fence(new Fence(fenceFd));
+            sp<Fence> fence(new Fence(std::move(fenceFd)));
             status_t err = addReleaseFenceLocked(mCurrentTexture,
                                                  mCurrentTextureImage->graphicBuffer(), fence);
             if (err != OK) {

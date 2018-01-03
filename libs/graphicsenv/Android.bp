@@ -22,7 +22,6 @@ cc_library_shared {
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
-        "libnativeloader",
         "liblog",
     ],
 
