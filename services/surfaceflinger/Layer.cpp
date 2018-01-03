@@ -1129,8 +1129,9 @@ bool Layer::setChildLayer(const sp<Layer>& childLayer, int32_t z) {
     if (childLayer->setLayer(z)) {
         mCurrentChildren.removeAt(idx);
         mCurrentChildren.add(childLayer);
+        return true;
     }
-    return true;
+    return false;
 }
 
 bool Layer::setChildRelativeLayer(const sp<Layer>& childLayer,
@@ -1142,12 +1143,13 @@ bool Layer::setChildRelativeLayer(const sp<Layer>& childLayer,
     if (childLayer->setRelativeLayer(relativeToHandle, relativeZ)) {
         mCurrentChildren.removeAt(idx);
         mCurrentChildren.add(childLayer);
+        return true;
     }
-    return true;
+    return false;
 }
 
 bool Layer::setLayer(int32_t z) {
-    if (mCurrentState.z == z) return false;
+    if (mCurrentState.z == z && !usingRelativeZ(LayerVector::StateSet::Current)) return false;
     mCurrentState.sequence++;
     mCurrentState.z = z;
     mCurrentState.modified = true;
@@ -1178,7 +1180,7 @@ void Layer::addZOrderRelative(const wp<Layer>& relative) {
     setTransactionFlags(eTransactionNeeded);
 }
 
-bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t z) {
+bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ) {
     sp<Handle> handle = static_cast<Handle*>(relativeToHandle.get());
     if (handle == nullptr) {
         return false;
@@ -1188,9 +1190,14 @@ bool Layer::setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t z) {
         return false;
     }
 
+    if (mCurrentState.z == relativeZ && usingRelativeZ(LayerVector::StateSet::Current) &&
+            mCurrentState.zOrderRelativeOf == relative) {
+        return false;
+    }
+
     mCurrentState.sequence++;
     mCurrentState.modified = true;
-    mCurrentState.z = z;
+    mCurrentState.z = relativeZ;
 
     auto oldZOrderRelativeOf = mCurrentState.zOrderRelativeOf.promote();
     if (oldZOrderRelativeOf != nullptr) {
