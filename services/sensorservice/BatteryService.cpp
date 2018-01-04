@@ -78,12 +78,13 @@ void BatteryService::cleanupImpl(uid_t uid) {
     if (checkService()) {
         Mutex::Autolock _l(mActivationsLock);
         int64_t identity = IPCThreadState::self()->clearCallingIdentity();
-        for (size_t i=0 ; i<mActivations.size() ; i++) {
+        for (size_t i=0 ; i<mActivations.size() ; ) {
             const Info& info(mActivations[i]);
             if (info.uid == uid) {
                 mBatteryStatService->noteStopSensor(info.uid, info.handle);
                 mActivations.removeAt(i);
-                i--;
+            } else {
+              i++;
             }
         }
         IPCThreadState::self()->restoreCallingIdentity(identity);
@@ -105,4 +106,3 @@ ANDROID_SINGLETON_STATIC_INSTANCE(BatteryService)
 
 // ---------------------------------------------------------------------------
 }; // namespace android
-
