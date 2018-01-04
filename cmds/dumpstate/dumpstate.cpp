@@ -831,28 +831,30 @@ static void DoKmsg() {
     }
 }
 
+static const long MINIMUM_LOGCAT_TIMEOUT_MS = 50000;
+
 static void DoLogcat() {
     unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
     // calculate timeout
     timeout_ms = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
-    if (timeout_ms < 20000) {
-        timeout_ms = 20000;
+    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
+        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
     RunCommand("SYSTEM LOG",
                {"logcat", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
                CommandOptions::WithTimeoutInMs(timeout_ms).Build());
     timeout_ms = logcat_timeout("events");
-    if (timeout_ms < 20000) {
-        timeout_ms = 20000;
+    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
+        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
     RunCommand("EVENT LOG",
                {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid",
                         "-d", "*:v"},
                CommandOptions::WithTimeoutInMs(timeout_ms).Build());
     timeout_ms = logcat_timeout("radio");
-    if (timeout_ms < 20000) {
-        timeout_ms = 20000;
+    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
+        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
     RunCommand("RADIO LOG",
                {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid",
