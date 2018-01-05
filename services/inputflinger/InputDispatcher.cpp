@@ -1805,7 +1805,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     ALOGD("channel '%s' ~ prepareDispatchCycle - flags=0x%08x, "
             "xOffset=%f, yOffset=%f, scaleFactor=%f, "
             "pointerIds=0x%x",
-            connection->getInputChannelName(), inputTarget->flags,
+            connection->getInputChannelName().c_str(), inputTarget->flags,
             inputTarget->xOffset, inputTarget->yOffset,
             inputTarget->scaleFactor, inputTarget->pointerIds.value);
 #endif
@@ -1815,7 +1815,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
     if (connection->status != Connection::STATUS_NORMAL) {
 #if DEBUG_DISPATCH_CYCLE
         ALOGD("channel '%s' ~ Dropping event because the channel status is %s",
-                connection->getInputChannelName(), connection->getStatusLabel());
+                connection->getInputChannelName().c_str(), connection->getStatusLabel());
 #endif
         return;
     }
@@ -1833,7 +1833,7 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
             }
 #if DEBUG_FOCUS
             ALOGD("channel '%s' ~ Split motion event.",
-                    connection->getInputChannelName());
+                    connection->getInputChannelName().c_str());
             logOutboundMotionDetailsLocked("  ", splitMotionEntry);
 #endif
             enqueueDispatchEntriesLocked(currentTime, connection,
@@ -1897,7 +1897,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(
                 dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags)) {
 #if DEBUG_DISPATCH_CYCLE
             ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: skipping inconsistent key event",
-                    connection->getInputChannelName());
+                    connection->getInputChannelName().c_str());
 #endif
             delete dispatchEntry;
             return; // skip the inconsistent event
@@ -1925,7 +1925,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(
                         motionEntry->deviceId, motionEntry->source, motionEntry->displayId)) {
 #if DEBUG_DISPATCH_CYCLE
         ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: filling in missing hover enter event",
-                connection->getInputChannelName());
+                connection->getInputChannelName().c_str());
 #endif
             dispatchEntry->resolvedAction = AMOTION_EVENT_ACTION_HOVER_ENTER;
         }
@@ -1942,7 +1942,7 @@ void InputDispatcher::enqueueDispatchEntryLocked(
                 dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags)) {
 #if DEBUG_DISPATCH_CYCLE
             ALOGD("channel '%s' ~ enqueueDispatchEntryLocked: skipping inconsistent motion event",
-                    connection->getInputChannelName());
+                    connection->getInputChannelName().c_str());
 #endif
             delete dispatchEntry;
             return; // skip the inconsistent event
@@ -1965,7 +1965,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
         const sp<Connection>& connection) {
 #if DEBUG_DISPATCH_CYCLE
     ALOGD("channel '%s' ~ startDispatchCycle",
-            connection->getInputChannelName());
+            connection->getInputChannelName().c_str());
 #endif
 
     while (connection->status == Connection::STATUS_NORMAL
@@ -2048,7 +2048,8 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                     ALOGE("channel '%s' ~ Could not publish event because the pipe is full. "
                             "This is unexpected because the wait queue is empty, so the pipe "
                             "should be empty and we shouldn't have any problems writing an "
-                            "event to it, status=%d", connection->getInputChannelName(), status);
+                            "event to it, status=%d", connection->getInputChannelName().c_str(),
+                            status);
                     abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
                 } else {
                     // Pipe is full and we are waiting for the app to finish process some events
@@ -2056,13 +2057,13 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
 #if DEBUG_DISPATCH_CYCLE
                     ALOGD("channel '%s' ~ Could not publish event because the pipe is full, "
                             "waiting for the application to catch up",
-                            connection->getInputChannelName());
+                            connection->getInputChannelName().c_str());
 #endif
                     connection->inputPublisherBlocked = true;
                 }
             } else {
                 ALOGE("channel '%s' ~ Could not publish event due to an unexpected error, "
-                        "status=%d", connection->getInputChannelName(), status);
+                        "status=%d", connection->getInputChannelName().c_str(), status);
                 abortBrokenDispatchCycleLocked(currentTime, connection, true /*notify*/);
             }
             return;
@@ -2080,7 +2081,7 @@ void InputDispatcher::finishDispatchCycleLocked(nsecs_t currentTime,
         const sp<Connection>& connection, uint32_t seq, bool handled) {
 #if DEBUG_DISPATCH_CYCLE
     ALOGD("channel '%s' ~ finishDispatchCycle - seq=%u, handled=%s",
-            connection->getInputChannelName(), seq, toString(handled));
+            connection->getInputChannelName().c_str(), seq, toString(handled));
 #endif
 
     connection->inputPublisherBlocked = false;
@@ -2098,7 +2099,7 @@ void InputDispatcher::abortBrokenDispatchCycleLocked(nsecs_t currentTime,
         const sp<Connection>& connection, bool notify) {
 #if DEBUG_DISPATCH_CYCLE
     ALOGD("channel '%s' ~ abortBrokenDispatchCycle - notify=%s",
-            connection->getInputChannelName(), toString(notify));
+            connection->getInputChannelName().c_str(), toString(notify));
 #endif
 
     // Clear the dispatch queues.
@@ -2151,7 +2152,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
         if (!(events & (ALOOPER_EVENT_ERROR | ALOOPER_EVENT_HANGUP))) {
             if (!(events & ALOOPER_EVENT_INPUT)) {
                 ALOGW("channel '%s' ~ Received spurious callback for unhandled poll event.  "
-                        "events=0x%x", connection->getInputChannelName(), events);
+                        "events=0x%x", connection->getInputChannelName().c_str(), events);
                 return 1;
             }
 
@@ -2178,7 +2179,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             notify = status != DEAD_OBJECT || !connection->monitor;
             if (notify) {
                 ALOGE("channel '%s' ~ Failed to receive finished signal.  status=%d",
-                        connection->getInputChannelName(), status);
+                        connection->getInputChannelName().c_str(), status);
             }
         } else {
             // Monitor channels are never explicitly unregistered.
@@ -2187,7 +2188,7 @@ int InputDispatcher::handleReceiveCallback(int fd, int events, void* data) {
             notify = !connection->monitor;
             if (notify) {
                 ALOGW("channel '%s' ~ Consumer closed input channel or an error occurred.  "
-                        "events=0x%x", connection->getInputChannelName(), events);
+                        "events=0x%x", connection->getInputChannelName().c_str(), events);
             }
         }
 
@@ -2237,7 +2238,7 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
 #if DEBUG_OUTBOUND_EVENT_DETAILS
         ALOGD("channel '%s' ~ Synthesized %zu cancelation events to bring channel back in sync "
                 "with reality: %s, mode=%d.",
-                connection->getInputChannelName(), cancelationEvents.size(),
+                connection->getInputChannelName().c_str(), cancelationEvents.size(),
                 options.reason, options.mode);
 #endif
         for (size_t i = 0; i < cancelationEvents.size(); i++) {
@@ -3285,7 +3286,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             const sp<Connection>& connection = mConnectionsByFd.valueAt(i);
             dump += StringPrintf(INDENT2 "%zu: channelName='%s', windowName='%s', "
                     "status=%s, monitor=%s, inputPublisherBlocked=%s\n",
-                    i, connection->getInputChannelName(), connection->getWindowName(),
+                    i, connection->getInputChannelName().c_str(),
+                    connection->getWindowName().c_str(),
                     connection->getStatusLabel(), toString(connection->monitor),
                     toString(connection->inputPublisherBlocked));
 
@@ -3451,7 +3453,7 @@ void InputDispatcher::onDispatchCycleFinishedLocked(
 void InputDispatcher::onDispatchCycleBrokenLocked(
         nsecs_t currentTime, const sp<Connection>& connection) {
     ALOGE("channel '%s' ~ Channel is unrecoverably broken and will be disposed!",
-            connection->getInputChannelName());
+            connection->getInputChannelName().c_str());
 
     CommandEntry* commandEntry = postCommandLocked(
             & InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible);
@@ -3568,7 +3570,7 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
         if (eventDuration > SLOW_EVENT_PROCESSING_WARNING_TIMEOUT) {
             std::string msg =
                     StringPrintf("Window '%s' spent %0.1fms processing the last input event: ",
-                    connection->getWindowName(), eventDuration * 0.000001f);
+                    connection->getWindowName().c_str(), eventDuration * 0.000001f);
             dispatchEntry->eventEntry->appendDescription(msg);
             ALOGI("%s", msg.c_str());
         }
@@ -3811,7 +3813,7 @@ void InputDispatcher::traceInboundQueueLengthLocked() {
 void InputDispatcher::traceOutboundQueueLengthLocked(const sp<Connection>& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "oq:%s", connection->getWindowName());
+        snprintf(counterName, sizeof(counterName), "oq:%s", connection->getWindowName().c_str());
         ATRACE_INT(counterName, connection->outboundQueue.count());
     }
 }
@@ -3819,7 +3821,7 @@ void InputDispatcher::traceOutboundQueueLengthLocked(const sp<Connection>& conne
 void InputDispatcher::traceWaitQueueLengthLocked(const sp<Connection>& connection) {
     if (ATRACE_ENABLED()) {
         char counterName[40];
-        snprintf(counterName, sizeof(counterName), "wq:%s", connection->getWindowName());
+        snprintf(counterName, sizeof(counterName), "wq:%s", connection->getWindowName().c_str());
         ATRACE_INT(counterName, connection->waitQueue.count());
     }
 }
@@ -4397,9 +4399,9 @@ InputDispatcher::Connection::Connection(const sp<InputChannel>& inputChannel,
 InputDispatcher::Connection::~Connection() {
 }
 
-const char* InputDispatcher::Connection::getWindowName() const {
+const std::string InputDispatcher::Connection::getWindowName() const {
     if (inputWindowHandle != NULL) {
-        return inputWindowHandle->getName().c_str();
+        return inputWindowHandle->getName();
     }
     if (monitor) {
         return "monitor";

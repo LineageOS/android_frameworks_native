@@ -831,9 +831,9 @@ private:
         explicit Connection(const sp<InputChannel>& inputChannel,
                 const sp<InputWindowHandle>& inputWindowHandle, bool monitor);
 
-        inline const char* getInputChannelName() const { return inputChannel->getName().c_str(); }
+        inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 
-        const char* getWindowName() const;
+        const std::string getWindowName() const;
         const char* getStatusLabel() const;
 
         DispatchEntry* findWaitQueueEntry(uint32_t seq);
