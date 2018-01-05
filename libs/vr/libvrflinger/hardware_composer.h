@@ -327,6 +327,9 @@ class HardwareComposer {
   // it's paused. This should only be called from surface flinger's main thread.
   void Disable();
 
+  // Called on a binder thread.
+  void OnBootFinished();
+
   // Get the HMD display metrics for the current display.
   display::Metrics GetHmdDisplayMetrics() const;
 
@@ -434,6 +437,16 @@ class HardwareComposer {
   // Called on the post thread when the post thread is paused or quits.
   void OnPostThreadPaused();
 
+  // Use post_thread_wait_ to wait for a specific condition, specified by pred.
+  // timeout_sec < 0 means wait indefinitely, otherwise it specifies the timeout
+  // in seconds.
+  // The lock must be held when this function is called.
+  // Returns true if the wait was interrupted because the post thread was asked
+  // to quit.
+  bool PostThreadCondWait(std::unique_lock<std::mutex>& lock,
+                          int timeout_sec,
+                          const std::function<bool()>& pred);
+
   // Map the given shared memory buffer to our broadcast ring to track updates
   // to the config parameters.
   int MapConfigBuffer(IonBuffer& ion_buffer);
@@ -481,6 +494,10 @@ class HardwareComposer {
   std::mutex post_thread_mutex_;
   std::condition_variable post_thread_wait_;
   std::condition_variable post_thread_ready_;
+
+  // When boot is finished this will be set to true and the post thread will be
+  // notified via post_thread_wait_.
+  bool boot_finished_ = false;
 
   // Backlight LED brightness sysfs node.
   pdx::LocalHandle backlight_brightness_fd_;

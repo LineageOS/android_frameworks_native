@@ -71,6 +71,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
 
   void GrantDisplayOwnership() { hardware_composer_.Enable(); }
   void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
+  void OnBootFinished() { hardware_composer_.OnBootFinished(); }
 
  private:
   friend BASE;

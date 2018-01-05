@@ -115,6 +115,7 @@ error:
 }
 
 void VrFlinger::OnBootFinished() {
+  display_service_->OnBootFinished();
   sp<IVrManager> vr_manager = interface_cast<IVrManager>(
       defaultServiceManager()->checkService(String16("vrmanager")));
   if (vr_manager.get()) {
