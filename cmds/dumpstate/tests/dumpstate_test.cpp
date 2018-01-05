@@ -58,6 +58,8 @@ class DumpstateListenerMock : public IDumpstateListener {
   public:
     MOCK_METHOD1(onProgressUpdated, binder::Status(int32_t progress));
     MOCK_METHOD1(onMaxProgressUpdated, binder::Status(int32_t max_progress));
+    MOCK_METHOD4(onSectionComplete, binder::Status(const ::std::string& name, int32_t status,
+                                                   int32_t size, int32_t durationMs));
 
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
@@ -601,27 +603,43 @@ class DumpstateServiceTest : public DumpstateBaseTest {
 TEST_F(DumpstateServiceTest, SetListenerNoName) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("", listener, &token).isOk());
+    EXPECT_TRUE(dss.setListener("", listener, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, IsNull());
 }
 
 TEST_F(DumpstateServiceTest, SetListenerNoPointer) {
     sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("whatever", nullptr, &token).isOk());
+    EXPECT_TRUE(
+        dss.setListener("whatever", nullptr, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, IsNull());
 }
 
 TEST_F(DumpstateServiceTest, SetListenerTwice) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("whatever", listener, &token).isOk());
+    EXPECT_TRUE(
+        dss.setListener("whatever", listener, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, NotNull());
     EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
+    EXPECT_FALSE(Dumpstate::GetInstance().report_section_);
 
     token.clear();
-    EXPECT_TRUE(dss.setListener("whatsoever", listener, &token).isOk());
+    EXPECT_TRUE(
+        dss.setListener("whatsoever", listener, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, IsNull());
     EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
+    EXPECT_FALSE(Dumpstate::GetInstance().report_section_);
+}
+
+TEST_F(DumpstateServiceTest, SetListenerWithSectionDetails) {
+    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
+    sp<IDumpstateToken> token;
+    Dumpstate::GetInstance().listener_ = nullptr;
+    EXPECT_TRUE(
+        dss.setListener("whatever", listener, /* getSectionDetails = */ true, &token).isOk());
+    ASSERT_THAT(token, NotNull());
+    EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
+    EXPECT_TRUE(Dumpstate::GetInstance().report_section_);
 }
 
 class ProgressTest : public DumpstateBaseTest {

@@ -30,6 +30,9 @@ interface IDumpstate {
      *
      * Returns a token used to monitor dumpstate death, or `nullptr` if the listener was already
      * set (the listener behaves like a Highlander: There Can be Only One).
+     * Set {@code getSectionDetails} to true in order to receive callbacks with per section
+     * progress details
      */
-    IDumpstateToken setListener(@utf8InCpp String name, IDumpstateListener listener);
+    IDumpstateToken setListener(@utf8InCpp String name, IDumpstateListener listener,
+                                boolean getSectionDetails);
 }
