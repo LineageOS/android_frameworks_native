@@ -31,6 +31,7 @@ Description::Description() {
     mOpaque = true;
     mTextureEnabled = false;
     mColorMatrixEnabled = false;
+    mIsWideGamut = false;
 }
 
 Description::~Description() {}
