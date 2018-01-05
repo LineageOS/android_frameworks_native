@@ -951,7 +951,8 @@ constexpr size_t IGraphicBufferProducer::QueueBufferInput::minFlattenedSize() {
 size_t IGraphicBufferProducer::QueueBufferInput::getFlattenedSize() const {
     return minFlattenedSize() +
             fence->getFlattenedSize() +
-            surfaceDamage.getFlattenedSize();
+            surfaceDamage.getFlattenedSize() +
+            hdrMetadata.getFlattenedSize();
 }
 
 size_t IGraphicBufferProducer::QueueBufferInput::getFdCount() const {
@@ -978,7 +979,12 @@ status_t IGraphicBufferProducer::QueueBufferInput::flatten(
     if (result != NO_ERROR) {
         return result;
     }
-    return surfaceDamage.flatten(buffer, size);
+    result = surfaceDamage.flatten(buffer, size);
+    if (result != NO_ERROR) {
+        return result;
+    }
+    FlattenableUtils::advance(buffer, size, surfaceDamage.getFlattenedSize());
+    return hdrMetadata.flatten(buffer, size);
 }
 
 status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
@@ -1002,7 +1008,12 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
     if (result != NO_ERROR) {
         return result;
     }
-    return surfaceDamage.unflatten(buffer, size);
+    result = surfaceDamage.unflatten(buffer, size);
+    if (result != NO_ERROR) {
+        return result;
+    }
+    FlattenableUtils::advance(buffer, size, surfaceDamage.getFlattenedSize());
+    return hdrMetadata.unflatten(buffer, size);
 }
 
 // ----------------------------------------------------------------------------

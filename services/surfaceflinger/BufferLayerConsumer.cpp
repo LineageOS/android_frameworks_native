@@ -340,6 +340,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     mCurrentScalingMode = item.mScalingMode;
     mCurrentTimestamp = item.mTimestamp;
     mCurrentDataSpace = item.mDataSpace;
+    mCurrentHdrMetadata = item.mHdrMetadata;
     mCurrentFence = item.mFence;
     mCurrentFenceTime = item.mFenceTime;
     mCurrentFrameNumber = item.mFrameNumber;
@@ -445,6 +446,12 @@ android_dataspace BufferLayerConsumer::getCurrentDataSpace() {
     BLC_LOGV("getCurrentDataSpace");
     Mutex::Autolock lock(mMutex);
     return mCurrentDataSpace;
+}
+
+const HdrMetadata& BufferLayerConsumer::getCurrentHdrMetadata() const {
+    BLC_LOGV("getCurrentHdrMetadata");
+    Mutex::Autolock lock(mMutex);
+    return mCurrentHdrMetadata;
 }
 
 uint64_t BufferLayerConsumer::getFrameNumber() {

@@ -31,6 +31,7 @@
 #include <ui/Region.h>
 
 #include <gui/FrameTimestamps.h>
+#include <gui/HdrMetadata.h>
 
 #include <hidl/HybridInterface.h>
 #include <android/hardware/graphics/bufferqueue/1.0/IGraphicBufferProducer.h>
@@ -354,6 +355,9 @@ public:
         const Region& getSurfaceDamage() const { return surfaceDamage; }
         void setSurfaceDamage(const Region& damage) { surfaceDamage = damage; }
 
+        const HdrMetadata& getHdrMetadata() const { return hdrMetadata; }
+        void setHdrMetadata(const HdrMetadata& metadata) { hdrMetadata = metadata; }
+
     private:
         int64_t timestamp{0};
         int isAutoTimestamp{0};
@@ -365,6 +369,7 @@ public:
         sp<Fence> fence;
         Region surfaceDamage;
         bool getFrameTimestamps{false};
+        HdrMetadata hdrMetadata;
     };
 
     struct QueueBufferOutput : public Flattenable<QueueBufferOutput> {

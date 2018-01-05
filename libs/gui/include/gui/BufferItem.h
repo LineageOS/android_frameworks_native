@@ -17,6 +17,8 @@
 #ifndef ANDROID_GUI_BUFFERITEM_H
 #define ANDROID_GUI_BUFFERITEM_H
 
+#include <gui/HdrMetadata.h>
+
 #include <ui/FenceTime.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -85,6 +87,9 @@ class BufferItem : public Flattenable<BufferItem> {
     // set by queueBuffer each time this slot is queued. The meaning of the
     // dataSpace is format-dependent.
     android_dataspace mDataSpace;
+
+    // mHdrMetadata is the HDR metadata associated with this buffer slot.
+    HdrMetadata mHdrMetadata;
 
     // mFrameNumber is the number of the queued frame for this slot.
     uint64_t mFrameNumber;

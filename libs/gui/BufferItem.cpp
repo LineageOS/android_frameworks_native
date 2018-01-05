@@ -98,6 +98,7 @@ size_t BufferItem::getFlattenedSize() const {
         size = FlattenableUtils::align<4>(size);
     }
     size += mSurfaceDamage.getFlattenedSize();
+    size += mHdrMetadata.getFlattenedSize();
     size = FlattenableUtils::align<8>(size);
     return size + getPodSize();
 }
@@ -150,6 +151,10 @@ status_t BufferItem::flatten(
     status_t err = mSurfaceDamage.flatten(buffer, size);
     if (err) return err;
     FlattenableUtils::advance(buffer, size, mSurfaceDamage.getFlattenedSize());
+
+    err = mHdrMetadata.flatten(buffer, size);
+    if (err) return err;
+    FlattenableUtils::advance(buffer, size, mHdrMetadata.getFlattenedSize());
 
     // Check we still have enough space
     if (size < getPodSize()) {
@@ -211,6 +216,10 @@ status_t BufferItem::unflatten(
     status_t err = mSurfaceDamage.unflatten(buffer, size);
     if (err) return err;
     FlattenableUtils::advance(buffer, size, mSurfaceDamage.getFlattenedSize());
+
+    err = mHdrMetadata.unflatten(buffer, size);
+    if (err) return err;
+    FlattenableUtils::advance(buffer, size, mHdrMetadata.getFlattenedSize());
 
     // Check we still have enough space
     if (size < getPodSize()) {

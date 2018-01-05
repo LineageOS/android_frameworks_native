@@ -92,6 +92,7 @@ cc_library_shared {
         "FrameTimestamps.cpp",
         "GLConsumer.cpp",
         "GuiConfig.cpp",
+        "HdrMetadata.cpp",
         "IDisplayEventConnection.cpp",
         "IConsumerListener.cpp",
         "IGraphicBufferConsumer.cpp",
