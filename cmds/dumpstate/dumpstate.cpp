@@ -43,8 +43,10 @@
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
+#include <android/hidl/manager/1.0/IServiceManager.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
+#include <hidl/ServiceManagement.h>
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
@@ -130,8 +132,6 @@ static const std::string kDumpstateBoardFiles[] = {
     "dumpstate_board.bin"
 };
 static const int NUM_OF_DUMPS = arraysize(kDumpstateBoardFiles);
-
-static const std::string kLsHalDebugPath = "/bugreports/dumpstate_lshal.txt";
 
 static constexpr char PROPERTY_EXTRA_OPTIONS[] = "dumpstate.options";
 static constexpr char PROPERTY_LAST_ID[] = "dumpstate.last_id";
@@ -1093,6 +1093,57 @@ static void RunDumpsysNormal() {
     }
 }
 
+static void DumpHals() {
+    using android::sp;
+    using android::hidl::manager::V1_0::IServiceManager;
+    using android::hardware::defaultServiceManager;
+
+    sp<IServiceManager> sm = defaultServiceManager();
+    if (sm == nullptr) {
+        MYLOGE("Could not retrieve hwservicemanager to dump hals.\n");
+        return;
+    }
+
+    auto ret = sm->list([&](const auto& interfaces) {
+        for (const std::string& interface : interfaces) {
+            std::string cleanName = interface;
+            std::replace_if(cleanName.begin(),
+                            cleanName.end(),
+                            [](char c) {
+                                return !isalnum(c) &&
+                                    std::string("@-_:.").find(c) == std::string::npos;
+                            }, '_');
+            const std::string path = kDumpstateBoardPath + "lshal_debug_" + cleanName;
+
+            {
+                auto fd = android::base::unique_fd(
+                    TEMP_FAILURE_RETRY(open(path.c_str(),
+                    O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+                if (fd < 0) {
+                    MYLOGE("Could not open %s to dump additional hal information.\n", path.c_str());
+                    continue;
+                }
+                RunCommandToFd(fd,
+                        "",
+                        {"lshal", "debug", interface},
+                        CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+
+                bool empty = 0 == lseek(fd, 0, SEEK_END);
+                if (!empty) {
+                    ds.AddZipEntry("lshal-debug/" + cleanName + ".txt", path);
+                }
+            }
+
+            unlink(path.c_str());
+        }
+    });
+
+    if (!ret.isOk()) {
+        MYLOGE("Could not list hals from hwservicemanager.\n");
+    }
+}
+
 static void dumpstate() {
     DurationReporter duration_reporter("DUMPSTATE");
 
@@ -1121,18 +1172,10 @@ static void dumpstate() {
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
     if (ds.IsZipping()) {
-        RunCommand(
-                "HARDWARE HALS",
-                {"lshal", std::string("--debug=") + kLsHalDebugPath},
-                CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
-
-        ds.AddZipEntry("lshal-debug.txt", kLsHalDebugPath);
-
-        unlink(kLsHalDebugPath.c_str());
+        RunCommand("HARDWARE HALS", {"lshal"}, CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+        DumpHals();
     } else {
-        RunCommand(
-                "HARDWARE HALS", {"lshal", "--debug"},
-                CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+        RunCommand("HARDWARE HALS", {"lshal", "--debug"}, CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
     }
 
     RunCommand("PRINTENV", {"printenv"});
