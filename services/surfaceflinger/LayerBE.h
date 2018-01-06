@@ -26,6 +26,7 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
 #include "RenderEngine/Mesh.h"
+#include "RenderEngine/Texture.h"
 
 namespace android {
 
@@ -78,6 +79,13 @@ struct CompositionInfo {
     } hwc;
     struct {
         Mesh* mesh;
+        bool blackoutLayer = false;
+        bool clearArea = false;
+        bool preMultipliedAlpha = false;
+        bool opaque = false;
+        half4 color;
+        Texture texture;
+        bool useIdentityTransform = false;
     } re;
 };
 
