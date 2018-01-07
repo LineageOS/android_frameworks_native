@@ -16,6 +16,7 @@
 
 #include "FileBlobCache.h"
 
+#include <errno.h>
 #include <inttypes.h>
 #include <log/log.h>
 #include <sys/mman.h>

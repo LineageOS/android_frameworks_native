@@ -4400,6 +4400,9 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
     int syncFd = -1;
     std::optional<status_t> captureResult;
 
+    const int uid = IPCThreadState::self()->getCallingUid();
+    const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
+
     sp<LambdaMessage> message = new LambdaMessage([&]() {
         // If there is a refresh pending, bug out early and tell the binder thread to try again
         // after the refresh.
@@ -4416,7 +4419,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         {
             Mutex::Autolock _l(mStateLock);
             result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
-                                             useIdentityTransform, &fd);
+                                             useIdentityTransform, forSystem, &fd);
         }
 
         {
@@ -4513,6 +4516,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
                                                  TraverseLayersFunction traverseLayers,
                                                  ANativeWindowBuffer* buffer,
                                                  bool useIdentityTransform,
+                                                 bool forSystem,
                                                  int* outSyncFd) {
     ATRACE_CALL();
 
@@ -4522,7 +4526,10 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         secureLayerIsVisible = secureLayerIsVisible || (layer->isVisible() && layer->isSecure());
     });
 
-    if (secureLayerIsVisible) {
+    // We allow the system server to take screenshots of secure layers for
+    // use in situations like the Screen-rotation animation and place
+    // the impetus on WindowManager to not persist them.
+    if (secureLayerIsVisible && !forSystem) {
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }

@@ -47,6 +47,9 @@ using Transaction = SurfaceComposerClient::Transaction;
 static bool hasWideColorDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
+static bool hasHdrDisplay =
+        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
+
 class FakeSurfaceComposer;
 class FakeProducerFrameEventHistory;
 
@@ -292,6 +295,68 @@ TEST_F(SurfaceTest, GetWideColorSupport) {
     // wide color in the BoardConfig but does not support
     // a wide-color color mode on the primary display.
     ASSERT_EQ(hasWideColorDisplay, supported);
+}
+
+TEST_F(SurfaceTest, GetHdrSupport) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setConsumerName(String8("TestConsumer"));
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+
+    bool supported;
+    status_t result = surface->getHdrSupport(&supported);
+    ASSERT_EQ(NO_ERROR, result);
+
+    // NOTE: This is not a CTS test.
+    // This test verifies that when the BoardConfig TARGET_HAS_HDR_DISPLAY
+    // is TRUE, getHdrSupport is also true.
+    // TODO: Add check for an HDR color mode on the primary display.
+    ASSERT_EQ(hasHdrDisplay, supported);
+}
+
+TEST_F(SurfaceTest, SetHdrMetadata) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setConsumerName(String8("TestConsumer"));
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+
+    bool supported;
+    status_t result = surface->getHdrSupport(&supported);
+    ASSERT_EQ(NO_ERROR, result);
+
+    if (!hasHdrDisplay || !supported) {
+        return;
+    }
+    const android_smpte2086_metadata smpte2086 = {
+        {0.680, 0.320},
+        {0.265, 0.690},
+        {0.150, 0.060},
+        {0.3127, 0.3290},
+        100.0,
+        0.1,
+    };
+    const android_cta861_3_metadata cta861_3 = {
+        78.0,
+        62.0,
+    };
+    int error = native_window_set_buffers_smpte2086_metadata(window.get(), &smpte2086);
+    ASSERT_EQ(error, NO_ERROR);
+    error = native_window_set_buffers_cta861_3_metadata(window.get(), &cta861_3);
+    ASSERT_EQ(error, NO_ERROR);
 }
 
 TEST_F(SurfaceTest, DynamicSetBufferCount) {
