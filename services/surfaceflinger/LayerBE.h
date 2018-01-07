@@ -40,6 +40,7 @@ struct CompositionInfo {
     std::shared_ptr<LayerBE> layer;
     struct {
         std::shared_ptr<HWC2::Layer> hwcLayer;
+        int32_t displayId = -1;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;

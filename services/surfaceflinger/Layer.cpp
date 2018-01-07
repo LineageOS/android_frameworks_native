@@ -772,16 +772,12 @@ void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool c
 }
 
 HWC2::Composition Layer::getCompositionType(int32_t displayId) const {
-    if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+    if (getBE().mHwcLayers.count(displayId) == 0) {
         // If we're querying the composition type for a display that does not
         // have a HWC counterpart, then it will always be Client
         return HWC2::Composition::Client;
     }
-    if (getBE().mHwcLayers.count(displayId) == 0) {
-        ALOGE("getCompositionType called with an invalid HWC layer");
-        return HWC2::Composition::Invalid;
-    }
-    return getBE().mHwcLayers.at(displayId).compositionType;
+    return getBE().mHwcLayers[displayId].compositionType;
 }
 
 void Layer::setClearClientTarget(int32_t displayId, bool clear) {
