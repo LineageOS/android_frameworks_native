@@ -467,7 +467,6 @@ Error Display::supportsDoze(bool* outSupport) const
 Error Display::getHdrCapabilities(
         std::unique_ptr<HdrCapabilities>* outCapabilities) const
 {
-    uint32_t numTypes = 0;
     float maxLuminance = -1.0f;
     float maxAverageLuminance = -1.0f;
     float minLuminance = -1.0f;
@@ -480,7 +479,6 @@ Error Display::getHdrCapabilities(
     for (auto type : intTypes) {
         types.push_back(static_cast<int32_t>(type));
     }
-    numTypes = types.size();
     if (error != Error::None) {
         return error;
     }
