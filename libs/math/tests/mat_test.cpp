@@ -35,7 +35,7 @@ protected:
 
 TEST_F(MatTest, Basics) {
     mat4 m0;
-    EXPECT_EQ(sizeof(mat4), sizeof(float)*16);
+    EXPECT_EQ(sizeof(m0), sizeof(float)*16);
 }
 
 TEST_F(MatTest, ComparisonOps) {
@@ -76,6 +76,7 @@ TEST_F(MatTest, Constructors) {
     EXPECT_EQ(m3, m1);
 
     mat4 m4(vec4(1), vec4(2), vec4(3), vec4(4));
+    EXPECT_NE(m4, m1);
 }
 
 TEST_F(MatTest, ArithmeticOps) {
@@ -172,7 +173,7 @@ protected:
 
 TEST_F(Mat3Test, Basics) {
     mat3 m0;
-    EXPECT_EQ(sizeof(mat3), sizeof(float)*9);
+    EXPECT_EQ(sizeof(m0), sizeof(float)*9);
 }
 
 TEST_F(Mat3Test, ComparisonOps) {
@@ -279,7 +280,7 @@ protected:
 
 TEST_F(Mat2Test, Basics) {
     mat2 m0;
-    EXPECT_EQ(sizeof(mat2), sizeof(float)*4);
+    EXPECT_EQ(sizeof(m0), sizeof(float)*4);
 }
 
 TEST_F(Mat2Test, ComparisonOps) {
