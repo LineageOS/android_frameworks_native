@@ -32,6 +32,7 @@ Description::Description() {
     mOpaque = true;
     mTextureEnabled = false;
     mColorMatrixEnabled = false;
+    mIsWideGamut = false;
 
     memset(mColor, 0, sizeof(mColor));
 }
