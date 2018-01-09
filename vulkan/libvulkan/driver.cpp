@@ -19,9 +19,9 @@
 #include <string.h>
 #include <sys/prctl.h>
 
+#include <dlfcn.h>
 #include <algorithm>
 #include <array>
-#include <dlfcn.h>
 #include <new>
 
 #include <log/log.h>
@@ -1086,17 +1086,54 @@ VkResult EnumeratePhysicalDeviceGroups(
     VkInstance instance,
     uint32_t* pPhysicalDeviceGroupCount,
     VkPhysicalDeviceGroupProperties* pPhysicalDeviceGroupProperties) {
+    VkResult result = VK_SUCCESS;
     const auto& data = GetData(instance);
 
-    VkResult result = data.driver.EnumeratePhysicalDeviceGroups(
-        instance, pPhysicalDeviceGroupCount, pPhysicalDeviceGroupProperties);
-    if ((result == VK_SUCCESS || result == VK_INCOMPLETE) &&
-        *pPhysicalDeviceGroupCount && pPhysicalDeviceGroupProperties) {
-        for (uint32_t i = 0; i < *pPhysicalDeviceGroupCount; i++) {
-            for (uint32_t j = 0;
-                 j < pPhysicalDeviceGroupProperties->physicalDeviceCount; j++) {
-                SetData(pPhysicalDeviceGroupProperties->physicalDevices[j],
+    if (!data.driver.EnumeratePhysicalDeviceGroups) {
+        uint32_t device_count = 0;
+        result = EnumeratePhysicalDevices(instance, &device_count, nullptr);
+        if (result < 0)
+            return result;
+        if (!pPhysicalDeviceGroupProperties) {
+            *pPhysicalDeviceGroupCount = device_count;
+            return result;
+        }
+
+        device_count = std::min(device_count, *pPhysicalDeviceGroupCount);
+        if (!device_count) {
+            *pPhysicalDeviceGroupCount = 0;
+            return result;
+        }
+
+        android::Vector<VkPhysicalDevice> devices;
+        devices.resize(device_count);
+
+        result = EnumeratePhysicalDevices(instance, &device_count,
+                                          devices.editArray());
+        if (result < 0)
+            return result;
+
+        devices.resize(device_count);
+        *pPhysicalDeviceGroupCount = device_count;
+        for (uint32_t i = 0; i < device_count; ++i) {
+            pPhysicalDeviceGroupProperties[i].physicalDeviceCount = 1;
+            pPhysicalDeviceGroupProperties[i].physicalDevices[0] = devices[i];
+            pPhysicalDeviceGroupProperties[i].subsetAllocation = 0;
+        }
+    } else {
+        result = data.driver.EnumeratePhysicalDeviceGroups(
+            instance, pPhysicalDeviceGroupCount,
+            pPhysicalDeviceGroupProperties);
+        if ((result == VK_SUCCESS || result == VK_INCOMPLETE) &&
+            *pPhysicalDeviceGroupCount && pPhysicalDeviceGroupProperties) {
+            for (uint32_t i = 0; i < *pPhysicalDeviceGroupCount; i++) {
+                for (uint32_t j = 0;
+                     j < pPhysicalDeviceGroupProperties[i].physicalDeviceCount;
+                     j++) {
+                    SetData(
+                        pPhysicalDeviceGroupProperties[i].physicalDevices[j],
                         data);
+                }
             }
         }
     }
