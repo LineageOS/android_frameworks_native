@@ -26,15 +26,6 @@
 
 namespace android {
 
-Description::Description() {
-    mPremultipliedAlpha = false;
-    mOpaque = true;
-    mTextureEnabled = false;
-    mColorMatrixEnabled = false;
-}
-
-Description::~Description() {}
-
 void Description::setPremultipliedAlpha(bool premultipliedAlpha) {
     mPremultipliedAlpha = premultipliedAlpha;
 }

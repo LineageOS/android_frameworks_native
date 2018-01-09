@@ -36,27 +36,27 @@ class Description {
     friend class ProgramCache;
 
     // whether textures are premultiplied
-    bool mPremultipliedAlpha;
+    bool mPremultipliedAlpha = false;
     // whether this layer is marked as opaque
-    bool mOpaque;
+    bool mOpaque = true;
 
     // Texture this layer uses
     Texture mTexture;
-    bool mTextureEnabled;
+    bool mTextureEnabled = false;
 
     // color used when texturing is disabled or when setting alpha.
     half4 mColor;
     // projection matrix
     mat4 mProjectionMatrix;
 
-    bool mColorMatrixEnabled;
+    bool mColorMatrixEnabled = false;
     mat4 mColorMatrix;
 
-    bool mIsWideGamut;
+    bool mIsWideGamut = false;
 
 public:
-    Description();
-    ~Description();
+    Description() = default;
+    ~Description() = default;
 
     void setPremultipliedAlpha(bool premultipliedAlpha);
     void setOpaque(bool opaque);
