@@ -5911,5 +5911,38 @@ TEST_F(MultiTouchInputMapperTest, Process_HandlesTimestamp) {
     ASSERT_EQ(1000U, args.deviceTimestamp);
 }
 
+TEST_F(MultiTouchInputMapperTest, WhenMapperIsReset_TimestampIsCleared) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+    NotifyMotionArgs args;
+
+    // Send a touch event with a timestamp
+    processPosition(mapper, 100, 100);
+    processTimestamp(mapper, 1);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(1U, args.deviceTimestamp);
+
+    // Since the data accumulates, and new timestamp has not arrived, deviceTimestamp won't change
+    processPosition(mapper, 100, 200);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(1U, args.deviceTimestamp);
+
+    mapper->reset(/* when */ 0);
+    // After the mapper is reset, deviceTimestamp should become zero again
+    processPosition(mapper, 100, 300);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(0U, args.deviceTimestamp);
+}
+
 
 } // namespace android
