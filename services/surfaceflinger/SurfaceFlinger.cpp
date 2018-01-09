@@ -136,6 +136,7 @@ uint64_t SurfaceFlinger::maxVirtualDisplaySize;
 bool SurfaceFlinger::hasSyncFramework;
 bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
+// TODO(courtneygo): Rename hasWideColorDisplay to clarify its actual meaning.
 bool SurfaceFlinger::hasWideColorDisplay;
 
 
@@ -2238,7 +2239,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 
                 if (dispSurface != nullptr) {
                     bool useWideColorMode = hasWideColorDisplay;
-                    if (state.isMainDisplay()) {
+                    if (!mForceNativeColorMode) {
                         bool hasWideColorModes = false;
                         std::vector<android_color_mode_t> modes =
                                 getHwComposer().getColorModes(state.type);
@@ -2253,26 +2254,23 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                                     break;
                             }
                         }
-                        useWideColorMode = hasWideColorModes && hasWideColorDisplay &&
-                                !mForceNativeColorMode;
+                        useWideColorMode = hasWideColorModes && hasWideColorDisplay;
                     }
 
                     sp<DisplayDevice> hw =
                             new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
                                               dispSurface, producer, useWideColorMode);
 
-                    if (state.isMainDisplay()) {
-                        android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
-                        if (useWideColorMode) {
-                            defaultColorMode = HAL_COLOR_MODE_SRGB;
-                        }
-                        setActiveColorModeInternal(hw, defaultColorMode);
-                        hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
+                    android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
+                    if (useWideColorMode) {
+                        defaultColorMode = HAL_COLOR_MODE_SRGB;
                     }
-
+                    setActiveColorModeInternal(hw, defaultColorMode);
+                    hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
                     hw->setLayerStack(state.layerStack);
                     hw->setProjection(state.orientation, state.viewport, state.frame);
                     hw->setDisplayName(state.displayName);
+
                     mDisplays.add(display, hw);
                     if (!state.isVirtualDisplay()) {
                         mEventThread->onHotplugReceived(state.type, true);
