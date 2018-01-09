@@ -18,6 +18,8 @@
 
 #include "Lshal.h"
 
+#include <hidl-util/FQName.h>
+
 namespace android {
 namespace lshal {
 
@@ -46,7 +48,15 @@ Status DebugCommand::main(const Arg &arg) {
     if (status != OK) {
         return status;
     }
+
     auto pair = splitFirst(mInterfaceName, '/');
+
+    FQName fqName(pair.first);
+    if (!fqName.isValid() || fqName.isIdentifier() || !fqName.isFullyQualified()) {
+        mLshal.err() << "Invalid fully-qualified name '" << pair.first << "'\n\n";
+        return USAGE;
+    }
+
     return mLshal.emitDebugInfo(
             pair.first, pair.second.empty() ? "default" : pair.second, mOptions,
             mLshal.out().buf(),
