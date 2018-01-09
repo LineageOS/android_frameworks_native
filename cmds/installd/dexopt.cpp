@@ -66,6 +66,7 @@ static constexpr bool kEnableMinidebugInfo = true;
 static constexpr const char* kMinidebugInfoSystemProperty = "dalvik.vm.dex2oat-minidebuginfo";
 static constexpr bool kMinidebugInfoSystemPropertyDefault = false;
 static constexpr const char* kMinidebugDex2oatFlag = "--generate-mini-debug-info";
+static constexpr const char* kDisableCompactDexFlag = "--compact-dex-level=none";
 
 // Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
 struct FreeDelete {
@@ -414,6 +415,10 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, relative_input_file_name, output_file_name);
 
+    // Disable cdex if update input vdex is true since this combination of options is not
+    // supported.
+    const bool disable_cdex = input_vdex_fd == output_vdex_fd;
+
     const char* argv[9  // program name, mandatory arguments and the final NULL
                      + (have_dex2oat_isa_variant ? 1 : 0)
                      + (have_dex2oat_isa_features ? 1 : 0)
@@ -432,6 +437,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (class_loader_context != nullptr ? 1 : 0)
                      + (has_base_dir ? 1 : 0)
                      + (have_dex2oat_large_app_threshold ? 1 : 0)
+                     + (disable_cdex ? 1 : 0)
                      + (generate_minidebug_info ? 1 : 0)];
     int i = 0;
     argv[i++] = dex2oat_bin;
@@ -498,6 +504,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     }
     if (generate_minidebug_info) {
         argv[i++] = kMinidebugDex2oatFlag;
+    }
+    if (disable_cdex) {
+        argv[i++] = kDisableCompactDexFlag;
     }
 
     // Do not add after dex2oat_flags, they should override others for debugging.
