@@ -4245,7 +4245,7 @@ status_t SurfaceFlinger::onTransact(
                 reply->writeBool(hasWideColorDisplay);
                 return NO_ERROR;
             }
-            case 1025: { // tracing
+            case 1025: { // Set layer tracing
                 n = data.readInt32();
                 if (n) {
                     ALOGV("LayerTracing enabled");
@@ -4257,6 +4257,10 @@ status_t SurfaceFlinger::onTransact(
                     status_t err = mTracing.disable();
                     reply->writeInt32(err);
                 }
+                return NO_ERROR;
+            }
+            case 1026: { // Get layer tracing status
+                reply->writeBool(mTracing.isEnabled());
                 return NO_ERROR;
             }
         }
@@ -4306,7 +4310,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
 }
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
-                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop, 
+                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
                                        float frameScale) {
     ATRACE_CALL();
 
