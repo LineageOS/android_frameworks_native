@@ -417,7 +417,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     // Disable cdex if update input vdex is true since this combination of options is not
     // supported.
-    const bool disable_cdex = input_vdex_fd == output_vdex_fd;
+    // Disable cdex for non-background compiles since we don't want to regress app install until
+    // there are enough benefits to justify the tradeoff.
+    const bool disable_cdex = !background_job_compile || (input_vdex_fd == output_vdex_fd);
 
     const char* argv[9  // program name, mandatory arguments and the final NULL
                      + (have_dex2oat_isa_variant ? 1 : 0)
