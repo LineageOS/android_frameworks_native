@@ -53,6 +53,9 @@ const char kDvrStandaloneProperty[] = "ro.boot.vr";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
 
+// How long to wait after boot finishes before we turn the display off.
+constexpr int kBootFinishedDisplayOffTimeoutSec = 10;
+
 // Get time offset from a vsync to when the pose for that vsync should be
 // predicted out to. For example, if scanout gets halfway through the frame
 // at the halfway point between vsyncs, then this could be half the period.
@@ -190,6 +193,16 @@ void HardwareComposer::Disable() {
   UpdatePostThreadState(PostThreadState::Suspended, true);
 }
 
+void HardwareComposer::OnBootFinished() {
+  std::lock_guard<std::mutex> lock(post_thread_mutex_);
+  if (boot_finished_)
+    return;
+  boot_finished_ = true;
+  post_thread_wait_.notify_one();
+  if (is_standalone_device_)
+    request_display_callback_(true);
+}
+
 // Update the post thread quiescent state based on idle and suspended inputs.
 void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
                                              bool suspend) {
@@ -274,6 +287,25 @@ void HardwareComposer::OnPostThreadPaused() {
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
+}
+
+bool HardwareComposer::PostThreadCondWait(std::unique_lock<std::mutex>& lock,
+                                          int timeout_sec,
+                                          const std::function<bool()>& pred) {
+  auto pred_with_quit = [&] {
+    return pred() || (post_thread_state_ & PostThreadState::Quit);
+  };
+  if (timeout_sec >= 0) {
+    post_thread_wait_.wait_for(lock, std::chrono::seconds(timeout_sec),
+                               pred_with_quit);
+  } else {
+    post_thread_wait_.wait(lock, pred_with_quit);
+  }
+  if (post_thread_state_ & PostThreadState::Quit) {
+    ALOGI("HardwareComposer::PostThread: Quitting.");
+    return true;
+  }
+  return false;
 }
 
 HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
@@ -508,7 +540,7 @@ void HardwareComposer::SetDisplaySurfaces(
     pending_surfaces_ = std::move(surfaces);
   }
 
-  if (request_display_callback_ && (!is_standalone_device_ || !composer_))
+  if (request_display_callback_ && !is_standalone_device_)
     request_display_callback_(!display_idle);
 
   // Set idle state based on whether there are any surfaces to handle.
@@ -697,6 +729,28 @@ void HardwareComposer::PostThread() {
 
   bool was_running = false;
 
+  if (is_standalone_device_) {
+    // First, wait until boot finishes.
+    std::unique_lock<std::mutex> lock(post_thread_mutex_);
+    if (PostThreadCondWait(lock, -1, [this] { return boot_finished_; })) {
+      return;
+    }
+
+    // Then, wait until we're either leaving the quiescent state, or the boot
+    // finished display off timeout expires.
+    if (PostThreadCondWait(lock, kBootFinishedDisplayOffTimeoutSec,
+                           [this] { return !post_thread_quiescent_; })) {
+      return;
+    }
+
+    LOG_ALWAYS_FATAL_IF(post_thread_state_ & PostThreadState::Suspended,
+                        "Vr flinger should own the display by now.");
+    post_thread_resumed_ = true;
+    post_thread_ready_.notify_all();
+    OnPostThreadResumed();
+    was_running = true;
+  }
+
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
 
@@ -715,12 +769,11 @@ void HardwareComposer::PostThread() {
       post_thread_resumed_ = false;
       post_thread_ready_.notify_all();
 
-      if (post_thread_state_ & PostThreadState::Quit) {
-        ALOGI("HardwareComposer::PostThread: Quitting.");
+      if (PostThreadCondWait(lock, -1,
+                             [this] { return !post_thread_quiescent_; })) {
+        // A true return value means we've been asked to quit.
         return;
       }
-
-      post_thread_wait_.wait(lock, [this] { return !post_thread_quiescent_; });
 
       post_thread_resumed_ = true;
       post_thread_ready_.notify_all();
