@@ -190,7 +190,7 @@ public:
         virtual status_t setLayer(size_t index) = 0;
         virtual HWCLayer* dup() = 0;
         static HWCLayer* copy(HWCLayer *rhs) {
-            return rhs ? rhs->dup() : NULL;
+            return rhs ? rhs->dup() : nullptr;
         }
     protected:
         virtual ~HWCLayer() { }
@@ -205,7 +205,7 @@ public:
         HWCLayer* const mLayerList;
         size_t mIndex;
 
-        LayerListIterator() : mLayerList(NULL), mIndex(0) { }
+        LayerListIterator() : mLayerList(nullptr), mIndex(0) { }
 
         LayerListIterator(HWCLayer* layer, size_t index)
             : mLayerList(layer), mIndex(index) { }
@@ -371,8 +371,8 @@ private:
     sp<SurfaceFlinger>              mFlinger;
     framebuffer_device_t*           mFbDev;
     struct hwc_composer_device_1*   mHwc;
-    // invariant: mLists[0] != NULL iff mHwc != NULL
-    // mLists[i>0] can be NULL. that display is to be ignored
+    // invariant: mLists[0] != nullptr iff mHwc != nullptr
+    // mLists[i>0] can be nullptr. that display is to be ignored
     struct hwc_display_contents_1*  mLists[MAX_HWC_DISPLAYS];
     DisplayData                     mDisplayData[MAX_HWC_DISPLAYS];
     // protect mDisplayData from races between prepare and dump

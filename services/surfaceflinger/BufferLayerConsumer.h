@@ -228,7 +228,7 @@ private:
 
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
         const native_handle* graphicBufferHandle() {
-            return mGraphicBuffer == NULL ? NULL : mGraphicBuffer->handle;
+            return mGraphicBuffer == nullptr ? nullptr : mGraphicBuffer->handle;
         }
 
         const RE::Image& image() const { return mImage; }
@@ -265,7 +265,7 @@ private:
     // computeCurrentTransformMatrixLocked computes the transform matrix for the
     // current texture.  It uses mCurrentTransform and the current GraphicBuffer
     // to compute this matrix and stores it in mCurrentTransformMatrix.
-    // mCurrentTextureImage must not be NULL.
+    // mCurrentTextureImage must not be nullptr.
     void computeCurrentTransformMatrixLocked();
 
     // doFenceWaitLocked inserts a wait command into the RenderEngine command
