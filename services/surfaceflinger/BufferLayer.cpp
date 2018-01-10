@@ -105,7 +105,8 @@ bool BufferLayer::isProtected() const {
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (getBE().compositionInfo.mBuffer != NULL || getBE().compositionInfo.hwc.sidebandStream != NULL);
+            (getBE().compositionInfo.mBuffer != nullptr ||
+             getBE().compositionInfo.hwc.sidebandStream != nullptr);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -377,7 +378,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         mSidebandStream = mConsumer->getSidebandStream();
         // replicated in LayerBE until FE/BE is ready to be synchronized
         getBE().compositionInfo.hwc.sidebandStream = mSidebandStream;
-        if (getBE().compositionInfo.hwc.sidebandStream != NULL) {
+        if (getBE().compositionInfo.hwc.sidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -492,7 +493,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
             mConsumer->getCurrentBuffer(&getBE().compositionInfo.mBufferSlot);
     // replicated in LayerBE until FE/BE is ready to be synchronized
     mActiveBuffer = getBE().compositionInfo.mBuffer;
-    if (getBE().compositionInfo.mBuffer == NULL) {
+    if (getBE().compositionInfo.mBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
         return outDirtyRegion;
     }
@@ -508,7 +509,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     mRefreshPending = true;
     mFrameLatencyNeeded = true;
-    if (oldBuffer == NULL) {
+    if (oldBuffer == nullptr) {
         // the first time we receive a buffer, we need to trigger a
         // geometry invalidation.
         recomputeVisibleRegions = true;
@@ -528,7 +529,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         recomputeVisibleRegions = true;
     }
 
-    if (oldBuffer != NULL) {
+    if (oldBuffer != nullptr) {
         uint32_t bufWidth = getBE().compositionInfo.mBuffer->getWidth();
         uint32_t bufHeight = getBE().compositionInfo.mBuffer->getHeight();
         if (bufWidth != uint32_t(oldBuffer->width) ||

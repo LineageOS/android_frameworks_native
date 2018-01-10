@@ -35,7 +35,7 @@ class String8;
 // possible.
 //
 // Some of the time values tracked may be set either as a specific timestamp
-// or a fence.  When a non-NULL fence is set for a given time value, the
+// or a fence.  When a non-nullptr fence is set for a given time value, the
 // signal time of that fence is used instead of the timestamp.
 class FrameTracker {
 

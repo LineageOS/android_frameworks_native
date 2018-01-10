@@ -216,7 +216,7 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
         size_t count = mDisplayEventConnections.size();
         for (size_t i=0 ; i<count ; ) {
             sp<Connection> connection(mDisplayEventConnections[i].promote());
-            if (connection != NULL) {
+            if (connection != nullptr) {
                 bool added = false;
                 if (connection->count >= 0) {
                     // we need vsync events because at least
@@ -346,7 +346,7 @@ void EventThread::dump(String8& result) const {
         sp<Connection> connection =
                 mDisplayEventConnections.itemAt(i).promote();
         result.appendFormat("    %p: count=%d\n",
-                connection.get(), connection!=NULL ? connection->count : 0);
+                connection.get(), connection != nullptr ? connection->count : 0);
     }
 }
 

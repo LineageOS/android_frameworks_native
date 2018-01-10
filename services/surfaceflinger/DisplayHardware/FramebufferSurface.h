@@ -80,7 +80,7 @@ private:
     // on/off.
     android_dataspace mDataSpace;
 
-    // mCurrentBuffer is the current buffer or NULL to indicate that there is
+    // mCurrentBuffer is the current buffer or nullptr to indicate that there is
     // no current buffer.
     sp<GraphicBuffer> mCurrentBuffer;
 

@@ -271,7 +271,7 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     // If item->mGraphicBuffer is not null, this buffer has not been acquired
     // before, so any prior EglImage created is using a stale buffer. This
     // replaces any old EglImage with a new one (using the new buffer).
-    if (item->mGraphicBuffer != NULL) {
+    if (item->mGraphicBuffer != nullptr) {
         mImages[item->mSlot] = new Image(item->mGraphicBuffer, mRE);
     }
 
@@ -306,8 +306,8 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     }
 
     BLC_LOGV("updateAndRelease: (slot=%d buf=%p) -> (slot=%d buf=%p)", mCurrentTexture,
-             mCurrentTextureImage != NULL ? mCurrentTextureImage->graphicBufferHandle() : 0, slot,
-             mSlots[slot].mGraphicBuffer->handle);
+             mCurrentTextureImage != nullptr ? mCurrentTextureImage->graphicBufferHandle() : 0,
+             slot, mSlots[slot].mGraphicBuffer->handle);
 
     // Hang onto the pointer so that it isn't freed in the call to
     // releaseBufferLocked() if we're in shared buffer mode and both buffers are
@@ -355,7 +355,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 status_t BufferLayerConsumer::bindTextureImageLocked() {
     mRE.checkErrors();
 
-    if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == NULL) {
+    if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == nullptr) {
         BLC_LOGE("bindTextureImage: no currently-bound texture");
         mRE.bindExternalTextureImage(mTexName, RE::Image(mRE));
         return NO_INIT;
@@ -414,11 +414,11 @@ void BufferLayerConsumer::setFilteringEnabled(bool enabled) {
     bool needsRecompute = mFilteringEnabled != enabled;
     mFilteringEnabled = enabled;
 
-    if (needsRecompute && mCurrentTextureImage == NULL) {
-        BLC_LOGD("setFilteringEnabled called with mCurrentTextureImage == NULL");
+    if (needsRecompute && mCurrentTextureImage == nullptr) {
+        BLC_LOGD("setFilteringEnabled called with mCurrentTextureImage == nullptr");
     }
 
-    if (needsRecompute && mCurrentTextureImage != NULL) {
+    if (needsRecompute && mCurrentTextureImage != nullptr) {
         computeCurrentTransformMatrixLocked();
     }
 }
@@ -429,7 +429,7 @@ void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
             (mCurrentTextureImage == nullptr) ? nullptr : mCurrentTextureImage->graphicBuffer();
     if (buf == nullptr) {
         BLC_LOGD("computeCurrentTransformMatrixLocked: "
-                 "mCurrentTextureImage is NULL");
+                 "mCurrentTextureImage is nullptr");
     }
     const Rect& cropRect = canUseImageCrop(mCurrentCrop) ? Rect::EMPTY_RECT : mCurrentCrop;
     GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf, cropRect, mCurrentTransform,
@@ -476,7 +476,7 @@ sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {
         *outSlot = mCurrentTexture;
     }
 
-    return (mCurrentTextureImage == nullptr) ? NULL : mCurrentTextureImage->graphicBuffer();
+    return (mCurrentTextureImage == nullptr) ? nullptr : mCurrentTextureImage->graphicBuffer();
 }
 
 Rect BufferLayerConsumer::getCurrentCrop() const {
@@ -564,7 +564,7 @@ void BufferLayerConsumer::onSidebandStreamChanged() {
         listener = mContentsChangedListener.promote();
     }
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onSidebandStreamChanged();
     }
 }

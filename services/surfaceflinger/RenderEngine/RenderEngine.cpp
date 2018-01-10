@@ -36,11 +36,11 @@ namespace android {
 std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags) {
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (!eglInitialize(display, NULL, NULL)) {
+    if (!eglInitialize(display, nullptr, nullptr)) {
         LOG_ALWAYS_FATAL("failed to initialize EGL");
     }
 
-    GLExtensions& extensions(GLExtensions::getInstance());
+    GLExtensions& extensions = GLExtensions::getInstance();
     extensions.initWithEGLStrings(eglQueryStringImplementationANDROID(display, EGL_VERSION),
                                   eglQueryStringImplementationANDROID(display, EGL_EXTENSIONS));
 
@@ -79,7 +79,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     contextAttributes.push_back(EGL_NONE);
     contextAttributes.push_back(EGL_NONE);
 
-    EGLContext ctxt = eglCreateContext(display, config, NULL, contextAttributes.data());
+    EGLContext ctxt = eglCreateContext(display, config, nullptr, contextAttributes.data());
 
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
@@ -132,7 +132,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
 }
 
 RenderEngine::RenderEngine()
-      : mEGLDisplay(EGL_NO_DISPLAY), mEGLConfig(NULL), mEGLContext(EGL_NO_CONTEXT) {}
+      : mEGLDisplay(EGL_NO_DISPLAY), mEGLConfig(nullptr), mEGLContext(EGL_NO_CONTEXT) {}
 
 RenderEngine::~RenderEngine() {
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -183,7 +183,7 @@ base::unique_fd RenderEngine::flush() {
         return base::unique_fd();
     }
 
-    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, nullptr);
     if (sync == EGL_NO_SYNC_KHR) {
         ALOGW("failed to create EGL native fence sync: %#x", eglGetError());
         return base::unique_fd();
@@ -208,7 +208,7 @@ bool RenderEngine::finish() {
         return false;
     }
 
-    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, NULL);
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, nullptr);
     if (sync == EGL_NO_SYNC_KHR) {
         ALOGW("failed to create EGL fence sync: %#x", eglGetError());
         return false;
@@ -347,7 +347,7 @@ void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* 
 }
 
 void RenderEngine::dump(String8& result) {
-    const GLExtensions& extensions(GLExtensions::getInstance());
+    const GLExtensions& extensions = GLExtensions::getInstance();
 
     result.appendFormat("EGL implementation : %s\n", extensions.getEGLVersion());
     result.appendFormat("%s\n", extensions.getEGLExtensions());
@@ -363,7 +363,7 @@ RenderEngine::BindNativeBufferAsFramebuffer::BindNativeBufferAsFramebuffer(
         RenderEngine& engine, ANativeWindowBuffer* buffer)
       : mEngine(engine) {
     mImage = eglCreateImageKHR(mEngine.mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
-                               buffer, NULL);
+                               buffer, nullptr);
     if (mImage == EGL_NO_IMAGE_KHR) {
         mStatus = GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
         return;
@@ -394,7 +394,7 @@ status_t RenderEngine::BindNativeBufferAsFramebuffer::getStatus() const {
 static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
                                          EGLint wanted, EGLConfig* outConfig) {
     EGLint numConfigs = -1, n = 0;
-    eglGetConfigs(dpy, NULL, 0, &numConfigs);
+    eglGetConfigs(dpy, nullptr, 0, &numConfigs);
     EGLConfig* const configs = new EGLConfig[numConfigs];
     eglChooseConfig(dpy, attrs, configs, numConfigs, &n);
 

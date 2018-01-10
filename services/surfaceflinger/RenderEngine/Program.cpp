@@ -115,7 +115,7 @@ String8& Program::dumpShader(String8& result, GLenum /*type*/) {
     GLint l;
     glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &l);
     char* src = new char[l];
-    glGetShaderSource(shader, l, NULL, src);
+    glGetShaderSource(shader, l, nullptr, src);
     result.append(src);
     delete[] src;
     return result;
