@@ -45,12 +45,17 @@ public:
     void setColorMatrix(const mat4& mtx);
     const mat4& getColorMatrix() const;
 
+    void setY410BT2020(bool enable);
+
     enum class TransferFunction : int {
         LINEAR,
         SRGB,
+        ST2084,
     };
     void setInputTransferFunction(TransferFunction transferFunction);
     void setOutputTransferFunction(TransferFunction transferFunction);
+
+    void enableToneMapping(bool enable);
 
 private:
     friend class Program;
@@ -73,9 +78,15 @@ private:
     bool mColorMatrixEnabled = false;
     mat4 mColorMatrix;
 
+    // true if the sampled pixel values are in Y410/BT2020 rather than RGBA
+    bool mY410BT2020 = false;
+
     // transfer functions for the input/output
     TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
     TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
+
+    // tone-map the color
+    bool mToneMappingEnabled = false;
 };
 
 } /* namespace android */
