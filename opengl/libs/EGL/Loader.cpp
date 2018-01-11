@@ -407,9 +407,8 @@ static void* load_system_driver(const char* kind) {
 
             DIR* d = opendir(search);
             if (d != NULL) {
-                struct dirent cur;
                 struct dirent* e;
-                while (readdir_r(d, &cur, &e) == 0 && e) {
+                while ((e = readdir(d)) != NULL) {
                     if (e->d_type == DT_DIR) {
                         continue;
                     }
