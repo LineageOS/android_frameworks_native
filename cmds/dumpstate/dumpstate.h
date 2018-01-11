@@ -341,9 +341,10 @@ class Dumpstate {
     // Pointer to the zip structure.
     std::unique_ptr<ZipWriter> zip_writer_;
 
-    // Binder object listing to progress.
+    // Binder object listening to progress.
     android::sp<android::os::IDumpstateListener> listener_;
     std::string listener_name_;
+    bool report_section_;
 
     // Notification title and description
     std::string notification_title;
@@ -432,6 +433,9 @@ void dump_emmc_ecsd(const char *ext_csd_path);
 
 /** Gets command-line arguments. */
 void format_args(int argc, const char *argv[], std::string *args);
+
+/** Main entry point for dumpstate. */
+int run_main(int argc, char* argv[]);
 
 #ifdef __cplusplus
 }

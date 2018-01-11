@@ -1588,7 +1588,8 @@ static void Vibrate(int duration_ms) {
     // clang-format on
 }
 
-int main(int argc, char *argv[]) {
+/** Main entry point for dumpstate. */
+int run_main(int argc, char* argv[]) {
     int do_add_date = 0;
     int do_zip_file = 0;
     int do_vibrate = 1;
@@ -1601,6 +1602,8 @@ int main(int argc, char *argv[]) {
     bool show_header_only = false;
     bool do_start_service = false;
     bool telephony_only = false;
+    int dup_stdout_fd;
+    int dup_stderr_fd;
 
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
@@ -1872,11 +1875,13 @@ int main(int argc, char *argv[]) {
     }
 
     if (is_redirecting) {
+        TEMP_FAILURE_RETRY(dup_stderr_fd = dup(fileno(stderr)));
         redirect_to_file(stderr, const_cast<char*>(ds.log_path_.c_str()));
         if (chown(ds.log_path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of dumpstate log file %s: %s\n",
                    ds.log_path_.c_str(), strerror(errno));
         }
+        TEMP_FAILURE_RETRY(dup_stdout_fd = dup(fileno(stdout)));
         /* TODO: rather than generating a text file now and zipping it later,
            it would be more efficient to redirect stdout to the zip entry
            directly, but the libziparchive doesn't support that option yet. */
@@ -1950,7 +1955,7 @@ int main(int argc, char *argv[]) {
 
     /* close output if needed */
     if (is_redirecting) {
-        fclose(stdout);
+        TEMP_FAILURE_RETRY(dup2(dup_stdout_fd, fileno(stdout)));
     }
 
     /* rename or zip the (now complete) .tmp file to its final location */
@@ -2081,7 +2086,7 @@ int main(int argc, char *argv[]) {
     MYLOGI("done (id %d)\n", ds.id_);
 
     if (is_redirecting) {
-        fclose(stderr);
+        TEMP_FAILURE_RETRY(dup2(dup_stderr_fd, fileno(stderr)));
     }
 
     if (use_control_socket && ds.control_socket_fd_ != -1) {
