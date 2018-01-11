@@ -206,7 +206,7 @@ status_t Client::destroySurface(const sp<IBinder>& handle) {
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
     sp<Layer> layer = getLayerUser(handle);
-    if (layer == NULL) {
+    if (layer == nullptr) {
         return NAME_NOT_FOUND;
     }
     layer->clearFrameStats();
@@ -215,7 +215,7 @@ status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
 
 status_t Client::getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const {
     sp<Layer> layer = getLayerUser(handle);
-    if (layer == NULL) {
+    if (layer == nullptr) {
         return NAME_NOT_FOUND;
     }
     layer->getFrameStats(outStats);

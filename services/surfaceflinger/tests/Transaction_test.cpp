@@ -148,8 +148,8 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g,
                              bool unlock = true) {
     ANativeWindow_Buffer outBuffer;
     sp<Surface> s = sc->getSurface();
-    ASSERT_TRUE(s != NULL);
-    ASSERT_EQ(NO_ERROR, s->lock(&outBuffer, NULL));
+    ASSERT_TRUE(s != nullptr);
+    ASSERT_EQ(NO_ERROR, s->lock(&outBuffer, nullptr));
     uint8_t* img = reinterpret_cast<uint8_t*>(outBuffer.bits);
     for (int y = 0; y < outBuffer.height; y++) {
         for (int x = 0; x < outBuffer.width; x++) {
@@ -279,7 +279,7 @@ public:
 
 private:
     sp<GraphicBuffer> mOutBuffer;
-    uint8_t* mPixels = NULL;
+    uint8_t* mPixels = nullptr;
 };
 
 class LayerTransactionTest : public ::testing::Test {
@@ -1483,14 +1483,14 @@ protected:
         mBGSurfaceControl =
                 mComposerClient->createSurface(String8("BG Test Surface"), displayWidth,
                                                displayHeight, PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mBGSurfaceControl != NULL);
+        ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
 
         // Foreground surface
         mFGSurfaceControl = mComposerClient->createSurface(String8("FG Test Surface"), 64, 64,
                                                            PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mFGSurfaceControl != NULL);
+        ASSERT_TRUE(mFGSurfaceControl != nullptr);
         ASSERT_TRUE(mFGSurfaceControl->isValid());
 
         fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
@@ -1498,7 +1498,7 @@ protected:
         // Synchronization surface
         mSyncSurfaceControl = mComposerClient->createSurface(String8("Sync Test Surface"), 1, 1,
                                                              PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mSyncSurfaceControl != NULL);
+        ASSERT_TRUE(mSyncSurfaceControl != nullptr);
         ASSERT_TRUE(mSyncSurfaceControl->isValid());
 
         fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
@@ -2018,7 +2018,7 @@ TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
             mNewComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
                                               PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
 
-    ASSERT_TRUE(mChildNewClient != NULL);
+    ASSERT_TRUE(mChildNewClient != nullptr);
     ASSERT_TRUE(mChildNewClient->isValid());
 
     fillSurfaceRGBA8(mChildNewClient, 200, 200, 200);
@@ -2210,7 +2210,7 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
 TEST_F(ChildLayerTest, ReparentFromNoParent) {
     sp<SurfaceControl> newSurface = mComposerClient->createSurface(String8("New Surface"), 10, 10,
                                                                    PIXEL_FORMAT_RGBA_8888, 0);
-    ASSERT_TRUE(newSurface != NULL);
+    ASSERT_TRUE(newSurface != nullptr);
     ASSERT_TRUE(newSurface->isValid());
 
     fillSurfaceRGBA8(newSurface, 63, 195, 63);

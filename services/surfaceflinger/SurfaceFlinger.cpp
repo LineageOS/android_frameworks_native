@@ -382,7 +382,7 @@ void SurfaceFlinger::createBuiltinDisplayLocked(DisplayDevice::DisplayType type)
 sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
     if (uint32_t(id) >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
         ALOGE("getDefaultDisplay: id=%d is not a valid default display id", id);
-        return NULL;
+        return nullptr;
     }
     return mBuiltinDisplays[id];
 }
@@ -531,7 +531,7 @@ private:
             }
         }
 
-        if (callback != NULL) {
+        if (callback != nullptr) {
             callback->onVSyncEvent(when);
         }
     }
@@ -737,7 +737,7 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
 
 status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         Vector<DisplayInfo>* configs) {
-    if ((configs == NULL) || (display.get() == NULL)) {
+    if (configs == nullptr || display.get() == nullptr) {
         return BAD_VALUE;
     }
 
@@ -761,7 +761,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         static int getDensityFromProperty(char const* propName) {
             char property[PROPERTY_VALUE_MAX];
             int density = 0;
-            if (property_get(propName, property, NULL) > 0) {
+            if (property_get(propName, property, nullptr) > 0) {
                 density = atoi(property);
             }
             return density;
@@ -842,7 +842,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
 
 status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& /* display */,
         DisplayStatInfo* stats) {
-    if (stats == NULL) {
+    if (stats == nullptr) {
         return BAD_VALUE;
     }
 
@@ -854,13 +854,13 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& /* display */,
 }
 
 int SurfaceFlinger::getActiveConfig(const sp<IBinder>& display) {
-    if (display == NULL) {
-        ALOGE("%s : display is NULL", __func__);
+    if (display == nullptr) {
+        ALOGE("%s : display is nullptr", __func__);
         return BAD_VALUE;
     }
 
     sp<const DisplayDevice> device(getDisplayDevice(display));
-    if (device != NULL) {
+    if (device != nullptr) {
         return device->getActiveConfig();
     }
 
@@ -905,7 +905,7 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& display, int mode) {
                 return true;
             }
             sp<DisplayDevice> hw(mFlinger.getDisplayDevice(mDisplay));
-            if (hw == NULL) {
+            if (hw == nullptr) {
                 ALOGE("Attempt to set active config = %d for null display %p",
                         mMode, mDisplay.get());
             } else if (hw->getDisplayType() >= DisplayDevice::DISPLAY_VIRTUAL) {
@@ -2165,7 +2165,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         const sp<const DisplayDevice> defaultDisplay(getDefaultDisplayDeviceLocked());
                         defaultDisplay->makeCurrent();
                         sp<DisplayDevice> hw(getDisplayDeviceLocked(draw.keyAt(i)));
-                        if (hw != NULL)
+                        if (hw != nullptr)
                             hw->disconnect(getHwComposer());
                         if (draw[i].type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES)
                             mEventThread->onHotplugReceived(draw[i].type, false);
@@ -2185,7 +2185,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         // from the drawing state, so that it get re-added
                         // below.
                         sp<DisplayDevice> hw(getDisplayDeviceLocked(display));
-                        if (hw != NULL)
+                        if (hw != nullptr)
                             hw->disconnect(getHwComposer());
                         mDisplays.removeItem(display);
                         mDrawingState.displays.removeItemsAt(i);
@@ -2195,7 +2195,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     }
 
                     const sp<DisplayDevice> disp(getDisplayDeviceLocked(display));
-                    if (disp != NULL) {
+                    if (disp != nullptr) {
                         if (state.layerStack != draw[i].layerStack) {
                             disp->setLayerStack(state.layerStack);
                         }
@@ -2231,7 +2231,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                         // Virtual displays without a surface are dormant:
                         // they have external state (layer stack, projection,
                         // etc.) but no internal state (i.e. a DisplayDevice).
-                        if (state.surface != NULL) {
+                        if (state.surface != nullptr) {
 
                             // Allow VR composer to use virtual displays.
                             if (mUseHwcVirtualDisplays || getBE().mHwc->isUsingVrComposer()) {
@@ -2268,7 +2268,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                             producer = vds;
                         }
                     } else {
-                        ALOGE_IF(state.surface!=NULL,
+                        ALOGE_IF(state.surface != nullptr,
                                 "adding a supported display, but rendering "
                                 "surface is provided (%p), ignoring it",
                                 state.surface.get());
@@ -2279,7 +2279,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                     }
 
                     const wp<IBinder>& display(curr.keyAt(i));
-                    if (dispSurface != NULL) {
+                    if (dispSurface != nullptr) {
                         sp<DisplayDevice> hw =
                                 new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
                                                   dispSurface, producer, hasWideColorDisplay);
@@ -2334,10 +2334,10 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
                     sp<const DisplayDevice> hw(mDisplays[dpy]);
                     if (layer->belongsToDisplay(hw->getLayerStack(), hw->isPrimary())) {
-                        if (disp == NULL) {
+                        if (disp == nullptr) {
                             disp = std::move(hw);
                         } else {
-                            disp = NULL;
+                            disp = nullptr;
                             break;
                         }
                     }
@@ -2345,7 +2345,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
             }
 
             if (transactionFlags & eDisplayTransactionNeeded) {
-                if (disp == NULL) {
+                if (disp == nullptr) {
                     // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
                     // redraw after transform hint changes. See bug 8508397.
 
@@ -2941,16 +2941,16 @@ void SurfaceFlinger::setTransactionState(
     for (size_t i=0 ; i<count ; i++) {
         const ComposerState& s(state[i]);
         // Here we need to check that the interface we're given is indeed
-        // one of our own. A malicious client could give us a NULL
+        // one of our own. A malicious client could give us a nullptr
         // IInterface, or one of its own or even one of our own but a
         // different type. All these situations would cause us to crash.
         //
         // NOTE: it would be better to use RTTI as we could directly check
         // that we have a Client*. however, RTTI is disabled in Android.
-        if (s.client != NULL) {
+        if (s.client != nullptr) {
             sp<IBinder> binder = IInterface::asBinder(s.client);
-            if (binder != NULL) {
-                if (binder->queryLocalInterface(ISurfaceComposerClient::descriptor) != NULL) {
+            if (binder != nullptr) {
+                if (binder->queryLocalInterface(ISurfaceComposerClient::descriptor) != nullptr) {
                     sp<Client> client( static_cast<Client *>(s.client.get()) );
                     transactionFlags |= setClientStateLocked(client, s.state);
                 }
@@ -3324,7 +3324,7 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     // called by a client when it wants to remove a Layer
     status_t err = NO_ERROR;
     sp<Layer> l(client->getLayerUser(handle));
-    if (l != NULL) {
+    if (l != nullptr) {
         mInterceptor.saveSurfaceDeletion(l);
         err = removeLayer(l);
         ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
@@ -3489,7 +3489,7 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
                     mDisplay(disp) { mMode = mode; }
         virtual bool handler() {
             sp<DisplayDevice> hw(mFlinger.getDisplayDevice(mDisplay));
-            if (hw == NULL) {
+            if (hw == nullptr) {
                 ALOGE("Attempt to set power mode = %d for null display %p",
                         mMode, mDisplay.get());
             } else if (hw->getDisplayType() >= DisplayDevice::DISPLAY_VIRTUAL) {
@@ -3978,7 +3978,7 @@ SurfaceFlinger::getLayerSortedByZForHwcDisplay(int id) {
             break;
         }
     }
-    if (dpy == NULL) {
+    if (dpy == nullptr) {
         ALOGE("getLayerSortedByZForHwcDisplay: invalid hwc display id %d", id);
         // Just use the primary display so we have something to return
         dpy = getBuiltInDisplay(DisplayDevice::DISPLAY_PRIMARY);
@@ -4245,7 +4245,7 @@ status_t SurfaceFlinger::onTransact(
                 reply->writeBool(hasWideColorDisplay);
                 return NO_ERROR;
             }
-            case 1025: { // tracing
+            case 1025: { // Set layer tracing
                 n = data.readInt32();
                 if (n) {
                     ALOGV("LayerTracing enabled");
@@ -4257,6 +4257,10 @@ status_t SurfaceFlinger::onTransact(
                     status_t err = mTracing.disable();
                     reply->writeInt32(err);
                 }
+                return NO_ERROR;
+            }
+            case 1026: { // Get layer tracing status
+                reply->writeBool(mTracing.isEnabled());
                 return NO_ERROR;
             }
         }
@@ -4306,7 +4310,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
 }
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
-                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop, 
+                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
                                        float frameScale) {
     ATRACE_CALL();
 

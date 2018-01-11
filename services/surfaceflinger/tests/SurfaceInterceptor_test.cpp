@@ -148,7 +148,7 @@ protected:
         mBGSurfaceControl = mComposerClient->createSurface(
                 String8("BG Interceptor Test Surface"), displayWidth, displayHeight,
                 PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mBGSurfaceControl != NULL);
+        ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         mBGLayerId = getSurfaceId("BG Interceptor Test Surface");
 

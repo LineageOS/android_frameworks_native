@@ -160,7 +160,7 @@ void DisplayDevice::disconnect(HWComposer& hwc) {
 }
 
 bool DisplayDevice::isValid() const {
-    return mFlinger != NULL;
+    return mFlinger != nullptr;
 }
 
 int DisplayDevice::getWidth() const {

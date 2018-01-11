@@ -108,7 +108,7 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc, int32_t dispId,
     mConsumer->setDefaultBufferSize(sinkWidth, sinkHeight);
     sink->setAsyncMode(true);
     IGraphicBufferProducer::QueueBufferOutput output;
-    mSource[SOURCE_SCRATCH]->connect(NULL, NATIVE_WINDOW_API_EGL, false, &output);
+    mSource[SOURCE_SCRATCH]->connect(nullptr, NATIVE_WINDOW_API_EGL, false, &output);
 }
 
 VirtualDisplaySurface::~VirtualDisplaySurface() {
@@ -203,7 +203,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
     }
 
     sp<GraphicBuffer> fbBuffer = mFbProducerSlot >= 0 ?
-            mProducerBuffers[mFbProducerSlot] : sp<GraphicBuffer>(NULL);
+            mProducerBuffers[mFbProducerSlot] : sp<GraphicBuffer>(nullptr);
     sp<GraphicBuffer> outBuffer = mProducerBuffers[mOutputProducerSlot];
     VDS_LOGV("advanceFrame: fb=%d(%p) out=%d(%p)",
             mFbProducerSlot, fbBuffer.get(),
@@ -214,7 +214,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
     mHwc.setOutputBuffer(mDisplayId, mOutputFence, outBuffer);
 
     status_t result = NO_ERROR;
-    if (fbBuffer != NULL) {
+    if (fbBuffer != nullptr) {
         uint32_t hwcSlot = 0;
         sp<GraphicBuffer> hwcBuffer;
         mHwcBufferCache.getHwcBuffer(mFbProducerSlot, fbBuffer,

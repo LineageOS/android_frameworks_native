@@ -41,7 +41,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
     mFreezeGeometryUpdates(freezePositionUpdates) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
-    if (buf == NULL) {
+    if (buf == nullptr) {
         return false;
     }
 

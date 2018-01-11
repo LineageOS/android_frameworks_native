@@ -98,7 +98,7 @@ void ProgramCache::primeCache() {
             continue;
         }
         Program* program = mCache.valueFor(shaderKey);
-        if (program == NULL) {
+        if (program == nullptr) {
             program = generateProgram(shaderKey);
             mCache.add(shaderKey, program);
             shaderCount++;
@@ -273,7 +273,7 @@ void ProgramCache::useProgram(const Description& description) {
 
     // look-up the program in the cache
     Program* program = mCache.valueFor(needs);
-    if (program == NULL) {
+    if (program == nullptr) {
         // we didn't find our program, so generate one...
         nsecs_t time = -systemTime();
         program = generateProgram(needs);

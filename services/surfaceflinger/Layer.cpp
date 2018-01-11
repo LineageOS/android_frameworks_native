@@ -265,7 +265,7 @@ Rect Layer::getContentCrop() const {
     if (!mCurrentCrop.isEmpty()) {
         // if the buffer crop is defined, we use that
         crop = mCurrentCrop;
-    } else if (getBE().compositionInfo.mBuffer != NULL) {
+    } else if (getBE().compositionInfo.mBuffer != nullptr) {
         // otherwise we use the whole buffer
         crop = getBE().compositionInfo.mBuffer->getBounds();
     } else {
