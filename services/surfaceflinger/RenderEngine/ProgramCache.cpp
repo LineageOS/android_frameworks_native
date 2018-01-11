@@ -126,9 +126,30 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
             .set(Key::OPACITY_MASK,
                  description.mOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
             .set(Key::COLOR_MATRIX_MASK,
-                 description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON : Key::COLOR_MATRIX_OFF)
-            .set(Key::WIDE_GAMUT_MASK,
-                 description.mIsWideGamut ? Key::WIDE_GAMUT_ON : Key::WIDE_GAMUT_OFF);
+                 description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON : Key::COLOR_MATRIX_OFF);
+
+    if (needs.hasColorMatrix()) {
+        switch (description.mInputTransferFunction) {
+            case Description::TransferFunction::LINEAR:
+            default:
+                needs.set(Key::INPUT_TF_MASK, Key::INPUT_TF_LINEAR);
+                break;
+            case Description::TransferFunction::SRGB:
+                needs.set(Key::INPUT_TF_MASK, Key::INPUT_TF_SRGB);
+                break;
+        }
+
+        switch (description.mOutputTransferFunction) {
+            case Description::TransferFunction::LINEAR:
+            default:
+                needs.set(Key::OUTPUT_TF_MASK, Key::OUTPUT_TF_LINEAR);
+                break;
+            case Description::TransferFunction::SRGB:
+                needs.set(Key::OUTPUT_TF_MASK, Key::OUTPUT_TF_SRGB);
+                break;
+        }
+    }
+
     return needs;
 }
 
@@ -172,51 +193,61 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
 
     if (needs.hasColorMatrix()) {
         fs << "uniform mat4 colorMatrix;";
-    }
-    if (needs.hasColorMatrix()) {
-        // When in wide gamut mode, the color matrix will contain a color space
-        // conversion matrix that needs to be applied in linear space
-        // When not in wide gamut, we can simply no-op the transfer functions
-        // and let the shader compiler get rid of them
-        if (needs.isWideGamut()) {
-            fs << R"__SHADER__(
-                  float OETF_sRGB(const float linear) {
-                      return linear <= 0.0031308 ?
-                              linear * 12.92 : (pow(linear, 1.0 / 2.4) * 1.055) - 0.055;
-                  }
 
-                  vec3 OETF_sRGB(const vec3 linear) {
-                      return vec3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
-                  }
+        switch (needs.getInputTF()) {
+            case Key::INPUT_TF_LINEAR:
+            default:
+                fs << R"__SHADER__(
+                    vec3 EOTF(const vec3 linear) {
+                        return linear;
+                    }
+                )__SHADER__";
+                break;
+            case Key::INPUT_TF_SRGB:
+                fs << R"__SHADER__(
+                    float EOTF_sRGB(float srgb) {
+                        return srgb <= 0.04045 ? srgb / 12.92 : pow((srgb + 0.055) / 1.055, 2.4);
+                    }
 
-                  vec3 OETF_scRGB(const vec3 linear) {
-                      return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
-                  }
+                    vec3 EOTF_sRGB(const vec3 srgb) {
+                        return vec3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                    }
 
-                  float EOTF_sRGB(float srgb) {
-                      return srgb <= 0.04045 ? srgb / 12.92 : pow((srgb + 0.055) / 1.055, 2.4);
-                  }
+                    vec3 EOTF(const vec3 srgb) {
+                        return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                    }
+                )__SHADER__";
+                break;
+        }
 
-                  vec3 EOTF_sRGB(const vec3 srgb) {
-                      return vec3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
-                  }
+        switch (needs.getOutputTF()) {
+            case Key::OUTPUT_TF_LINEAR:
+            default:
+                fs << R"__SHADER__(
+                    vec3 OETF(const vec3 linear) {
+                        return linear;
+                    }
+                )__SHADER__";
+                break;
+            case Key::OUTPUT_TF_SRGB:
+                fs << R"__SHADER__(
+                    float OETF_sRGB(const float linear) {
+                        return linear <= 0.0031308 ?
+                                linear * 12.92 : (pow(linear, 1.0 / 2.4) * 1.055) - 0.055;
+                    }
 
-                  vec3 EOTF_scRGB(const vec3 srgb) {
-                      return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
-                  }
-            )__SHADER__";
-        } else {
-            fs << R"__SHADER__(
-                  vec3 OETF_scRGB(const vec3 linear) {
-                      return linear;
-                  }
+                    vec3 OETF_sRGB(const vec3 linear) {
+                        return vec3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                    }
 
-                  vec3 EOTF_scRGB(const vec3 srgb) {
-                      return srgb;
-                  }
-            )__SHADER__";
+                    vec3 OETF(const vec3 linear) {
+                        return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                    }
+                )__SHADER__";
+                break;
         }
     }
+
     fs << "void main(void) {" << indent;
     if (needs.isTexturing()) {
         fs << "gl_FragColor = texture2D(sampler, outTexCoords);";
@@ -243,9 +274,9 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             // avoid divide by 0 by adding 0.5/256 to the alpha channel
             fs << "gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.a + 0.0019);";
         }
-        fs << "vec4 transformed = colorMatrix * vec4(EOTF_scRGB(gl_FragColor.rgb), 1);";
+        fs << "vec4 transformed = colorMatrix * vec4(EOTF(gl_FragColor.rgb), 1);";
         // We assume the last row is always {0,0,0,1} and we skip the division by w
-        fs << "gl_FragColor.rgb = OETF_scRGB(transformed.rgb);";
+        fs << "gl_FragColor.rgb = OETF(transformed.rgb);";
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";

@@ -61,8 +61,12 @@ const mat4& Description::getColorMatrix() const {
     return mColorMatrix;
 }
 
-void Description::setWideGamut(bool wideGamut) {
-    mIsWideGamut = wideGamut;
+void Description::setInputTransferFunction(TransferFunction transferFunction) {
+    mInputTransferFunction = transferFunction;
+}
+
+void Description::setOutputTransferFunction(TransferFunction transferFunction) {
+    mOutputTransferFunction = transferFunction;
 }
 
 } /* namespace android */

@@ -32,6 +32,27 @@ class Program;
  * Program and ProgramCache are friends and access the state directly
  */
 class Description {
+public:
+    Description() = default;
+    ~Description() = default;
+
+    void setPremultipliedAlpha(bool premultipliedAlpha);
+    void setOpaque(bool opaque);
+    void setTexture(const Texture& texture);
+    void disableTexture();
+    void setColor(const half4& color);
+    void setProjectionMatrix(const mat4& mtx);
+    void setColorMatrix(const mat4& mtx);
+    const mat4& getColorMatrix() const;
+
+    enum class TransferFunction : int {
+        LINEAR,
+        SRGB,
+    };
+    void setInputTransferFunction(TransferFunction transferFunction);
+    void setOutputTransferFunction(TransferFunction transferFunction);
+
+private:
     friend class Program;
     friend class ProgramCache;
 
@@ -52,21 +73,9 @@ class Description {
     bool mColorMatrixEnabled = false;
     mat4 mColorMatrix;
 
-    bool mIsWideGamut = false;
-
-public:
-    Description() = default;
-    ~Description() = default;
-
-    void setPremultipliedAlpha(bool premultipliedAlpha);
-    void setOpaque(bool opaque);
-    void setTexture(const Texture& texture);
-    void disableTexture();
-    void setColor(const half4& color);
-    void setProjectionMatrix(const mat4& mtx);
-    void setColorMatrix(const mat4& mtx);
-    const mat4& getColorMatrix() const;
-    void setWideGamut(bool wideGamut);
+    // transfer functions for the input/output
+    TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
+    TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
 };
 
 } /* namespace android */
