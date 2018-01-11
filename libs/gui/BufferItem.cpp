@@ -55,7 +55,8 @@ BufferItem::BufferItem() :
     mSurfaceDamage(),
     mAutoRefresh(false),
     mQueuedBuffer(true),
-    mIsStale(false) {
+    mIsStale(false),
+    mApi(0) {
 }
 
 BufferItem::~BufferItem() {}
@@ -84,6 +85,7 @@ size_t BufferItem::getPodSize() const {
     addAligned(size, mAutoRefresh);
     addAligned(size, mQueuedBuffer);
     addAligned(size, mIsStale);
+    addAligned(size, mApi);
     return size;
 }
 
@@ -177,6 +179,7 @@ status_t BufferItem::flatten(
     writeAligned(buffer, size, mAutoRefresh);
     writeAligned(buffer, size, mQueuedBuffer);
     writeAligned(buffer, size, mIsStale);
+    writeAligned(buffer, size, mApi);
 
     return NO_ERROR;
 }
@@ -247,6 +250,7 @@ status_t BufferItem::unflatten(
     readAligned(buffer, size, mAutoRefresh);
     readAligned(buffer, size, mQueuedBuffer);
     readAligned(buffer, size, mIsStale);
+    readAligned(buffer, size, mApi);
 
     return NO_ERROR;
 }

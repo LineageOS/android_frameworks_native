@@ -68,6 +68,7 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, R
         mCurrentFrameNumber(0),
         mCurrentTransformToDisplayInverse(false),
         mCurrentSurfaceDamage(),
+        mCurrentApi(0),
         mDefaultWidth(1),
         mDefaultHeight(1),
         mFilteringEnabled(true),
@@ -346,6 +347,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     mCurrentFrameNumber = item.mFrameNumber;
     mCurrentTransformToDisplayInverse = item.mTransformToDisplayInverse;
     mCurrentSurfaceDamage = item.mSurfaceDamage;
+    mCurrentApi = item.mApi;
 
     computeCurrentTransformMatrixLocked();
 
@@ -467,6 +469,11 @@ bool BufferLayerConsumer::getTransformToDisplayInverse() const {
 
 const Region& BufferLayerConsumer::getSurfaceDamage() const {
     return mCurrentSurfaceDamage;
+}
+
+int BufferLayerConsumer::getCurrentApi() const {
+    Mutex::Autolock lock(mMutex);
+    return mCurrentApi;
 }
 
 sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {

@@ -78,7 +78,7 @@ public:
             const wp<IBinder>& displayToken,
             const sp<DisplaySurface>& displaySurface,
             const sp<IGraphicBufferProducer>& producer,
-            bool supportWideColor);
+            bool supportWideColor, bool supportHdr);
     // clang-format on
 
     ~DisplayDevice();
@@ -128,6 +128,7 @@ public:
     status_t beginFrame(bool mustRecompose) const;
     status_t prepareFrame(HWComposer& hwc);
     bool getWideColorSupport() const { return mDisplayHasWideColor; }
+    bool getHdrSupport() const { return mDisplayHasHdr; }
 
     void swapBuffers(HWComposer& hwc) const;
 
@@ -235,6 +236,7 @@ private:
     // Initialized by SurfaceFlinger when the DisplayDevice is created.
     // Fed to RenderEngine during composition.
     bool mDisplayHasWideColor;
+    bool mDisplayHasHdr;
 };
 
 struct DisplayDeviceState {
