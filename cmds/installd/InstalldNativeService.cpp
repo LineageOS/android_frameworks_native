@@ -37,6 +37,7 @@
 #include <unistd.h>
 
 #include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
@@ -81,6 +82,8 @@ static constexpr const char* CODE_CACHE_DIR_POSTFIX = "/code_cache";
 static constexpr const char *kIdMapPath = "/system/bin/idmap";
 static constexpr const char* IDMAP_PREFIX = "/data/resource-cache/";
 static constexpr const char* IDMAP_SUFFIX = "@idmap";
+
+static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 
 // NOTE: keep in sync with Installer
 static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
@@ -2349,6 +2352,17 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
 
     bool res = delete_odex(apk_path, instruction_set, oat_dir);
     return res ? ok() : error();
+}
+
+binder::Status InstalldNativeService::installApkVerity(const std::string& /*filePath*/,
+        const ::android::base::unique_fd& /*verityInput*/) {
+    ENFORCE_UID(AID_SYSTEM);
+    if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
+        return ok();
+    }
+    // TODO: Append verity to filePath then issue ioctl to enable
+    // it and hide the tree.  See b/30972906.
+    return error("not implemented yet");
 }
 
 binder::Status InstalldNativeService::reconcileSecondaryDexFile(
