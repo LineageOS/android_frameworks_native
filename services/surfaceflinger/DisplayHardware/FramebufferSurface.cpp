@@ -76,6 +76,10 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, int disp,
             SurfaceFlinger::maxFrameBufferAcquiredBuffers - 1);
 }
 
+void FramebufferSurface::resizeBuffers(const uint32_t width, const uint32_t height) {
+    mConsumer->setDefaultBufferSize(width, height);
+}
+
 status_t FramebufferSurface::beginFrame(bool /*mustRecompose*/) {
     return NO_ERROR;
 }

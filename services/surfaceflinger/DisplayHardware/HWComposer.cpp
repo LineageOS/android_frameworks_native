@@ -119,23 +119,22 @@ void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
     }
 }
 
-void HWComposer::onHotplug(hwc2_display_t displayId,
+void HWComposer::onHotplug(hwc2_display_t displayId, int32_t displayType,
                            HWC2::Connection connection) {
-    ALOGV("hotplug: %" PRIu64 ", %s", displayId,
+    if (displayType >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
+        ALOGE("Invalid display type of %d", displayType);
+        return;
+    }
+
+    ALOGV("hotplug: %" PRIu64 ", %s %s", displayId,
+            displayType == DisplayDevice::DISPLAY_PRIMARY ? "primary" : "external",
             to_string(connection).c_str());
     mHwcDevice->onHotplug(displayId, connection);
-    if (!mDisplayData[0].hwcDisplay) {
-        ALOGE_IF(connection != HWC2::Connection::Connected, "Assumed primary"
-                " display would be connected");
-        mDisplayData[0].hwcDisplay = mHwcDevice->getDisplayById(displayId);
-        mHwcDisplaySlots[displayId] = 0;
-    } else {
-        // Disconnect is handled through HWComposer::disconnectDisplay via
-        // SurfaceFlinger's onHotplugReceived callback handling
-        if (connection == HWC2::Connection::Connected) {
-            mDisplayData[1].hwcDisplay = mHwcDevice->getDisplayById(displayId);
-            mHwcDisplaySlots[displayId] = 1;
-        }
+    // Disconnect is handled through HWComposer::disconnectDisplay via
+    // SurfaceFlinger's onHotplugReceived callback handling
+    if (connection == HWC2::Connection::Connected) {
+        mDisplayData[displayType].hwcDisplay = mHwcDevice->getDisplayById(displayId);
+        mHwcDisplaySlots[displayId] = displayType;
     }
 }
 
