@@ -2513,6 +2513,11 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
             }
         }
 
+        if (visibleRegion.isEmpty()) {
+            layer->clearVisibilityRegions();
+            return;
+        }
+
         // Clip the covered region to the visible region
         coveredRegion = aboveCoveredLayers.intersect(visibleRegion);
 
