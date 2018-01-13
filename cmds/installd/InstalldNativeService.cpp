@@ -19,16 +19,18 @@
 #define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
 #include <errno.h>
-#include <inttypes.h>
 #include <fstream>
 #include <fts.h>
+#include <inttypes.h>
 #include <regex>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
 #include <sys/file.h>
-#include <sys/resource.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/quota.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -41,6 +43,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <cutils/ashmem.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
@@ -84,6 +87,9 @@ static constexpr const char *kIdMapPath = "/system/bin/idmap";
 static constexpr const char* IDMAP_PREFIX = "/data/resource-cache/";
 static constexpr const char* IDMAP_SUFFIX = "@idmap";
 
+// fsverity assumes the page size is always 4096. If not, the feature can not be
+// enabled.
+static constexpr int kVerityPageSize = 4096;
 static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 
 // NOTE: keep in sync with Installer
@@ -181,6 +187,12 @@ binder::Status checkArgumentPackageName(const std::string& packageName) {
             checkArgumentPackageName((packageName));        \
     if (!status.isOk()) {                                   \
         return status;                                      \
+    }                                                       \
+}
+
+#define ASSERT_PAGE_SIZE_4K() {                             \
+    if (getpagesize() != kVerityPageSize) {                 \
+        return error("FSVerity only supports 4K page");     \
     }                                                       \
 }
 
@@ -2358,15 +2370,78 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
     return res ? ok() : error();
 }
 
-binder::Status InstalldNativeService::installApkVerity(const std::string& /*filePath*/,
-        const ::android::base::unique_fd& /*verityInput*/) {
+// This kernel feaeture is experimental.
+// TODO: remove local definition once upstreamed
+#ifndef FS_IOC_SET_FSVERITY
+struct fsverity_set {
+    __u64 offset;
+    __u64 flags;
+};
+
+#define FS_IOC_SET_FSVERITY            _IOW('f', 2734, struct fsverity_set)
+
+#define FSVERITY_FLAG_ENABLED          0x0001
+#endif
+
+binder::Status InstalldNativeService::installApkVerity(const std::string& filePath,
+        const ::android::base::unique_fd& verityInputAshmem) {
     ENFORCE_UID(AID_SYSTEM);
     if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
         return ok();
     }
-    // TODO: Append verity to filePath then issue ioctl to enable
-    // it and hide the tree.  See b/30972906.
-    return error("not implemented yet");
+#if DEBUG
+    ASSERT_PAGE_SIZE_4K();
+#endif
+    // TODO: also check fsverity support in the current file system if compiled with DEBUG.
+    // TODO: change ashmem to some temporary file to support huge apk.
+    if (!ashmem_valid(verityInputAshmem.get())) {
+        return error("FD is not an ashmem");
+    }
+
+    // TODO(71871109): Validate filePath.
+    // 1. Seek to the next page boundary beyond the end of the file.
+    ::android::base::unique_fd wfd(open(filePath.c_str(), O_WRONLY | O_APPEND));
+    if (wfd.get() < 0) {
+        return error("Failed to open " + filePath + ": " + strerror(errno));
+    }
+    struct stat st;
+    if (fstat(wfd.get(), &st) < 0) {
+        return error("Failed to stat " + filePath + ": " + strerror(errno));
+    }
+    // fsverity starts from the block boundary.
+    if (lseek(wfd.get(), (st.st_size + kVerityPageSize - 1) / kVerityPageSize, SEEK_SET) < 0) {
+        return error("Failed to lseek " + filePath + ": " + strerror(errno));
+    }
+
+    // 2. Write everything in the ashmem to the file.
+    int size = ashmem_get_size_region(verityInputAshmem.get());
+    if (size < 0) {
+        return error("Failed to get ashmem size: " + std::to_string(size));
+    }
+    void* data = mmap(NULL, size, PROT_READ, MAP_SHARED, wfd.get(), 0);
+    if (data == MAP_FAILED) {
+        return error("Failed to mmap the ashmem: " + std::string(strerror(errno)));
+    }
+    int remaining = size;
+    while (remaining > 0) {
+        int ret = TEMP_FAILURE_RETRY(write(wfd.get(), data, remaining));
+        if (ret < 0) {
+            munmap(data, size);
+            return error("Failed to write to " + filePath + " (" + std::to_string(remaining) +
+                         + "/" + std::to_string(size) + "): " + strerror(errno));
+        }
+        remaining -= ret;
+    }
+    munmap(data, size);
+
+    // 3. Enable fsverity. Once it's done, the file becomes immutable.
+    struct fsverity_set config;
+    config.offset = st.st_size;
+    config.flags = FSVERITY_FLAG_ENABLED;
+    if (ioctl(wfd.get(), FS_IOC_SET_FSVERITY, &config) < 0) {
+        return error("Failed to enable fsverity on " + filePath + ": " + strerror(errno));
+    }
+    return ok();
 }
 
 binder::Status InstalldNativeService::reconcileSecondaryDexFile(
