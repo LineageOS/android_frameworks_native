@@ -35,8 +35,10 @@
 
 namespace android {
 
+using namespace dvr;
+
 /* static */
-sp<BufferHubProducer> BufferHubProducer::Create(const std::shared_ptr<dvr::ProducerQueue>& queue) {
+sp<BufferHubProducer> BufferHubProducer::Create(const std::shared_ptr<ProducerQueue>& queue) {
     if (queue->metadata_size() != sizeof(DvrNativeBufferMetadata)) {
         ALOGE("BufferHubProducer::Create producer's metadata size is different "
               "than the size of DvrNativeBufferMetadata");
@@ -49,14 +51,14 @@ sp<BufferHubProducer> BufferHubProducer::Create(const std::shared_ptr<dvr::Produ
 }
 
 /* static */
-sp<BufferHubProducer> BufferHubProducer::Create(dvr::ProducerQueueParcelable parcelable) {
+sp<BufferHubProducer> BufferHubProducer::Create(ProducerQueueParcelable parcelable) {
     if (!parcelable.IsValid()) {
         ALOGE("BufferHubProducer::Create: Invalid producer parcelable.");
         return nullptr;
     }
 
     sp<BufferHubProducer> producer = new BufferHubProducer;
-    producer->queue_ = dvr::ProducerQueue::Import(parcelable.TakeChannelHandle());
+    producer->queue_ = ProducerQueue::Import(parcelable.TakeChannelHandle());
     return producer;
 }
 
@@ -102,9 +104,9 @@ status_t BufferHubProducer::setMaxDequeuedBufferCount(int max_dequeued_buffers) 
 
     if (max_dequeued_buffers <= 0 ||
         max_dequeued_buffers >
-                int(dvr::BufferHubQueue::kMaxQueueCapacity - kDefaultUndequeuedBuffers)) {
+                int(BufferHubQueue::kMaxQueueCapacity - kDefaultUndequeuedBuffers)) {
         ALOGE("setMaxDequeuedBufferCount: %d out of range (0, %zu]", max_dequeued_buffers,
-              dvr::BufferHubQueue::kMaxQueueCapacity);
+              BufferHubQueue::kMaxQueueCapacity);
         return BAD_VALUE;
     }
 
@@ -153,7 +155,7 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
                                           uint32_t height, PixelFormat format, uint64_t usage,
                                           uint64_t* /*outBufferAge*/,
                                           FrameEventHistoryDelta* /* out_timestamps */) {
-    ALOGV("dequeueBuffer: w=%u, h=%u, format=%d, usage=%" PRIu64, width, height, format, usage);
+    ALOGW("dequeueBuffer: w=%u, h=%u, format=%d, usage=%" PRIu64, width, height, format, usage);
 
     status_t ret;
     std::unique_lock<std::mutex> lock(mutex_);
@@ -174,9 +176,9 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
     }
 
     size_t slot = 0;
-    std::shared_ptr<dvr::BufferProducer> buffer_producer;
+    std::shared_ptr<BufferProducer> buffer_producer;
 
-    for (size_t retry = 0; retry < dvr::BufferHubQueue::kMaxQueueCapacity; retry++) {
+    for (size_t retry = 0; retry < BufferHubQueue::kMaxQueueCapacity; retry++) {
         LocalHandle fence;
         auto buffer_status = queue_->Dequeue(dequeue_timeout_ms_, &slot, &fence);
         if (!buffer_status) return NO_MEMORY;
@@ -225,7 +227,7 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
 
     buffers_[slot].mBufferState.freeQueued();
     buffers_[slot].mBufferState.dequeue();
-    ALOGV("dequeueBuffer: slot=%zu", slot);
+    ALOGW("dequeueBuffer: slot=%zu", slot);
 
     // TODO(jwcai) Handle fence properly. |BufferHub| has full fence support, we
     // just need to exopose that through |BufferHubQueue| once we need fence.
@@ -590,7 +592,7 @@ status_t BufferHubProducer::setDequeueTimeout(nsecs_t timeout) {
     ALOGV(__FUNCTION__);
 
     std::unique_lock<std::mutex> lock(mutex_);
-    dequeue_timeout_ms_ = int(timeout / (1000 * 1000));
+    dequeue_timeout_ms_ = static_cast<int>(timeout / (1000 * 1000));
     return NO_ERROR;
 }
 
@@ -620,7 +622,7 @@ status_t BufferHubProducer::getConsumerUsage(uint64_t* out_usage) const {
     return NO_ERROR;
 }
 
-status_t BufferHubProducer::TakeAsParcelable(dvr::ProducerQueueParcelable* out_parcelable) {
+status_t BufferHubProducer::TakeAsParcelable(ProducerQueueParcelable* out_parcelable) {
     if (!out_parcelable || out_parcelable->IsValid()) return BAD_VALUE;
 
     if (connected_api_ != kNoConnectedApi) {
@@ -684,7 +686,7 @@ status_t BufferHubProducer::RemoveBuffer(size_t slot) {
 }
 
 status_t BufferHubProducer::FreeAllBuffers() {
-    for (size_t slot = 0; slot < dvr::BufferHubQueue::kMaxQueueCapacity; slot++) {
+    for (size_t slot = 0; slot < BufferHubQueue::kMaxQueueCapacity; slot++) {
         // Reset in memory objects related the the buffer.
         buffers_[slot].mGraphicBuffer = nullptr;
         buffers_[slot].mBufferState.reset();
@@ -705,6 +707,30 @@ status_t BufferHubProducer::FreeAllBuffers() {
     }
 
     return NO_ERROR;
+}
+
+status_t BufferHubProducer::exportToParcel(Parcel* parcel) {
+    status_t res = TakeAsParcelable(&pending_producer_parcelable_);
+    if (res != NO_ERROR) return res;
+
+    if (!pending_producer_parcelable_.IsValid()) {
+        ALOGE("BufferHubProducer::exportToParcel: Invalid parcelable object.");
+        return BAD_VALUE;
+    }
+
+    res = parcel->writeUint32(USE_BUFFER_HUB);
+    if (res != NO_ERROR) {
+        ALOGE("BufferHubProducer::exportToParcel: Cannot write magic, res=%d.", res);
+        return res;
+    }
+
+    return pending_producer_parcelable_.writeToParcel(parcel);
+}
+
+IBinder* BufferHubProducer::onAsBinder() {
+    ALOGE("BufferHubProducer::onAsBinder: BufferHubProducer should never be used as an Binder "
+          "object.");
+    return nullptr;
 }
 
 } // namespace android

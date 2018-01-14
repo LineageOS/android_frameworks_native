@@ -19,12 +19,25 @@
 
 #include <gui/BufferSlot.h>
 #include <gui/IGraphicBufferProducer.h>
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+// The following headers are included without checking every warning.
+// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
+// in these headers and their dependencies.
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/buffer_hub_queue_parcelable.h>
 
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
 namespace android {
 
-class BufferHubProducer : public BnGraphicBufferProducer {
+class BufferHubProducer : public IGraphicBufferProducer {
 public:
     static constexpr int kNoConnectedApi = -1;
 
@@ -135,6 +148,12 @@ public:
     // invalid parcelable.
     status_t TakeAsParcelable(dvr::ProducerQueueParcelable* out_parcelable);
 
+    IBinder* onAsBinder() override;
+
+protected:
+    // See |IGraphicBufferProducer::exportToParcel|
+    status_t exportToParcel(Parcel* parcel) override;
+
 private:
     using LocalHandle = pdx::LocalHandle;
 
@@ -203,6 +222,9 @@ private:
 
     // A uniqueId used by IGraphicBufferProducer interface.
     const uint64_t unique_id_{genUniqueId()};
+
+    // A pending parcelable object which keeps the bufferhub channel alive.
+    dvr::ProducerQueueParcelable pending_producer_parcelable_;
 };
 
 } // namespace android

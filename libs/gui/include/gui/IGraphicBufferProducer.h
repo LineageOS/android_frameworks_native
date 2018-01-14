@@ -73,6 +73,14 @@ public:
         RELEASE_ALL_BUFFERS       = 0x2,
     };
 
+    enum {
+        // A parcelable magic indicates using Binder BufferQueue as transport
+        // backend.
+        USE_BUFFER_QUEUE = 0x62717565, // 'bque'
+        // A parcelable magic indicates using BufferHub as transport backend.
+        USE_BUFFER_HUB = 0x62687562, // 'bhub'
+    };
+
     // requestBuffer requests a new buffer for the given index. The server (i.e.
     // the IGraphicBufferProducer implementation) assigns the newly created
     // buffer to the given slot index, and the client is expected to mirror the
@@ -604,6 +612,24 @@ public:
     // returned by querying the now deprecated
     // NATIVE_WINDOW_CONSUMER_USAGE_BITS attribute.
     virtual status_t getConsumerUsage(uint64_t* outUsage) const = 0;
+
+    // Static method exports any IGraphicBufferProducer object to a parcel. It
+    // handles null producer as well.
+    static status_t exportToParcel(const sp<IGraphicBufferProducer>& producer,
+                                   Parcel* parcel);
+
+    // Factory method that creates a new IBGP instance from the parcel.
+    static sp<IGraphicBufferProducer> createFromParcel(const Parcel* parcel);
+
+protected:
+    // Exports the current producer as a binder parcelable object. Note that the
+    // producer must be disconnected to be exportable. After successful export,
+    // the producer queue can no longer be connected again. Returns NO_ERROR
+    // when the export is successful and writes an implementation defined
+    // parcelable object into the parcel. For traditional Android BufferQueue,
+    // it writes a strong binder object; for BufferHub, it writes a
+    // ProducerQueueParcelable object.
+    virtual status_t exportToParcel(Parcel* parcel);
 };
 
 // ----------------------------------------------------------------------------
