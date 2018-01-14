@@ -142,14 +142,14 @@ public:
     std::unique_ptr<RenderEngine> mRenderEngine;
     EGLContext mEGLContext;
     EGLDisplay mEGLDisplay;
-    
+
     FenceTimeline mGlCompositionDoneTimeline;
     FenceTimeline mDisplayTimeline;
 
     // protected by mCompositorTimingLock;
     mutable std::mutex mCompositorTimingLock;
     CompositorTiming mCompositorTiming;
-    
+
     // Only accessed from the main thread.
     struct CompositePresentTime {
         nsecs_t composite { -1 };
@@ -417,8 +417,7 @@ private:
     void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
                          int64_t timestamp) override;
     void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
-                           HWC2::Connection connection,
-                           bool primaryDisplay) override;
+                           HWC2::Connection connection) override;
     void onRefreshReceived(int32_t sequenceId, hwc2_display_t display) override;
 
     /* ------------------------------------------------------------------------
@@ -547,10 +546,6 @@ private:
     // called when starting, or restarting after system_server death
     void initializeDisplays();
 
-    // Create an IBinder for a builtin display and add it to current state
-    void createBuiltinDisplayLocked(DisplayDevice::DisplayType type);
-
-
     sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) const {
       Mutex::Autolock _l(mStateLock);
       return getDisplayDeviceLocked(dpy);
@@ -574,8 +569,6 @@ private:
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
         return getDisplayDeviceLocked(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
     }
-
-    void createDefaultDisplayDevice();
 
     int32_t getDisplayType(const sp<IBinder>& display) {
         if (!display.get()) return NAME_NOT_FOUND;
@@ -637,6 +630,10 @@ private:
     /* ------------------------------------------------------------------------
      * Display management
      */
+    DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
+            HWC2::Connection connection) const;
+    void processDisplayChangesLocked();
+    void processDisplayHotplugEventsLocked();
 
     /* ------------------------------------------------------------------------
      * VSync
@@ -737,6 +734,13 @@ private:
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
+
+    struct HotplugEvent {
+        hwc2_display_t display;
+        HWC2::Connection connection = HWC2::Connection::Invalid;
+    };
+    // protected by mStateLock
+    std::vector<HotplugEvent> mPendingHotplugEvents;
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held

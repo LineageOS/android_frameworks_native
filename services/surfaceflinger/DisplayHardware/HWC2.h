@@ -65,8 +65,7 @@ class Layer;
 class ComposerCallback {
  public:
     virtual void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
-                                   Connection connection,
-                                   bool primaryDisplay) = 0;
+                                   Connection connection) = 0;
     virtual void onRefreshReceived(int32_t sequenceId,
                                    hwc2_display_t display) = 0;
     virtual void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,

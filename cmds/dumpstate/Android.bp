@@ -83,7 +83,9 @@ cc_binary {
     ],
     srcs: [
         "DumpstateInternal.cpp",
+        "DumpstateSectionReporter.cpp",
         "DumpstateService.cpp",
+        "main.cpp",
         "utils.cpp",
         "dumpstate.cpp",
     ],

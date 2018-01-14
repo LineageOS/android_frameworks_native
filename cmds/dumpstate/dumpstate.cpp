@@ -833,6 +833,17 @@ static void DoKmsg() {
 
 static const long MINIMUM_LOGCAT_TIMEOUT_MS = 50000;
 
+static void DoKernelLogcat() {
+    unsigned long timeout_ms = logcat_timeout("kernel");
+    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
+        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
+    }
+    RunCommand(
+        "KERNEL LOG",
+        {"logcat", "-b", "kernel", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+}
+
 static void DoLogcat() {
     unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
@@ -848,25 +859,24 @@ static void DoLogcat() {
     if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
         timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
-    RunCommand("EVENT LOG",
-               {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"},
-               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    RunCommand(
+        "EVENT LOG",
+        {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
     timeout_ms = logcat_timeout("radio");
     if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
         timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
     }
-    RunCommand("RADIO LOG",
-               {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"},
-               CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    RunCommand(
+        "RADIO LOG",
+        {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
 
     RunCommand("LOG STATISTICS", {"logcat", "-b", "all", "-S"});
 
     /* kernels must set CONFIG_PSTORE_PMSG, slice up pstore with device tree */
-    RunCommand("LAST LOGCAT",
-                {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable", "-v", "uid",
-                        "-d", "*:v"});
+    RunCommand("LAST LOGCAT", {"logcat", "-L", "-b", "all", "-v", "threadtime", "-v", "printable",
+                               "-v", "uid", "-d", "*:v"});
 }
 
 static void DumpIpTablesAsRoot() {
@@ -1187,7 +1197,12 @@ static void dumpstate() {
         RunCommand("LSMOD", {"lsmod"});
     }
 
-    do_dmesg();
+    if (__android_logger_property_get_bool(
+            "ro.logd.kernel", BOOL_DEFAULT_TRUE | BOOL_DEFAULT_FLAG_ENG | BOOL_DEFAULT_FLAG_SVELTE)) {
+        DoKernelLogcat();
+    } else {
+        do_dmesg();
+    }
 
     RunCommand("LIST OF OPEN FILES", {"lsof"}, CommandOptions::AS_ROOT);
     for_each_pid(do_showmap, "SMAPS OF ALL PROCESSES");
@@ -1588,7 +1603,8 @@ static void Vibrate(int duration_ms) {
     // clang-format on
 }
 
-int main(int argc, char *argv[]) {
+/** Main entry point for dumpstate. */
+int run_main(int argc, char* argv[]) {
     int do_add_date = 0;
     int do_zip_file = 0;
     int do_vibrate = 1;
@@ -1601,6 +1617,8 @@ int main(int argc, char *argv[]) {
     bool show_header_only = false;
     bool do_start_service = false;
     bool telephony_only = false;
+    int dup_stdout_fd;
+    int dup_stderr_fd;
 
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
@@ -1872,11 +1890,13 @@ int main(int argc, char *argv[]) {
     }
 
     if (is_redirecting) {
+        TEMP_FAILURE_RETRY(dup_stderr_fd = dup(fileno(stderr)));
         redirect_to_file(stderr, const_cast<char*>(ds.log_path_.c_str()));
         if (chown(ds.log_path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of dumpstate log file %s: %s\n",
                    ds.log_path_.c_str(), strerror(errno));
         }
+        TEMP_FAILURE_RETRY(dup_stdout_fd = dup(fileno(stdout)));
         /* TODO: rather than generating a text file now and zipping it later,
            it would be more efficient to redirect stdout to the zip entry
            directly, but the libziparchive doesn't support that option yet. */
@@ -1950,7 +1970,7 @@ int main(int argc, char *argv[]) {
 
     /* close output if needed */
     if (is_redirecting) {
-        fclose(stdout);
+        TEMP_FAILURE_RETRY(dup2(dup_stdout_fd, fileno(stdout)));
     }
 
     /* rename or zip the (now complete) .tmp file to its final location */
@@ -2081,7 +2101,7 @@ int main(int argc, char *argv[]) {
     MYLOGI("done (id %d)\n", ds.id_);
 
     if (is_redirecting) {
-        fclose(stderr);
+        TEMP_FAILURE_RETRY(dup2(dup_stderr_fd, fileno(stderr)));
     }
 
     if (use_control_socket && ds.control_socket_fd_ != -1) {
