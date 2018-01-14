@@ -450,12 +450,19 @@ class Variant {
   Variant(Variant&& other)
       : index_{other.index_}, value_{std::move(other.value_), other.index_} {}
 
+// Recent Clang versions has a regression that produces bogus
+// unused-lambda-capture warning. Suppress the warning as a temporary
+// workaround. http://b/71356631
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-lambda-capture"
   // Copy and move construction from Variant types. Each element of OtherTypes
   // must be convertible to an element of Types.
   template <typename... OtherTypes>
   explicit Variant(const Variant<OtherTypes...>& other) {
     other.Visit([this](const auto& value) { Construct(value); });
   }
+#pragma clang diagnostic pop
+
   template <typename... OtherTypes>
   explicit Variant(Variant<OtherTypes...>&& other) {
     other.Visit([this](auto&& value) { Construct(std::move(value)); });
