@@ -1,5 +1,5 @@
-#ifndef LIBS_VR_LIBDVRCOMMON_INCLUDE_PRIVATE_DVR_EPOLL_FILE_DESCRIPTOR_H_
-#define LIBS_VR_LIBDVRCOMMON_INCLUDE_PRIVATE_DVR_EPOLL_FILE_DESCRIPTOR_H_
+#ifndef ANDROID_DVR_EPOLL_FILE_DESCRIPTOR_H_
+#define ANDROID_DVR_EPOLL_FILE_DESCRIPTOR_H_
 
 #include <android-base/unique_fd.h>
 #include <log/log.h>
@@ -61,4 +61,4 @@ class EpollFileDescriptor {
 }  // namespace dvr
 }  // namespace android
 
-#endif  // LIBS_VR_LIBDVRCOMMON_INCLUDE_PRIVATE_DVR_EPOLL_FILE_DESCRIPTOR_H_
+#endif  // ANDROID_DVR_EPOLL_FILE_DESCRIPTOR_H_
