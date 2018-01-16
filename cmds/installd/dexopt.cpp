@@ -212,7 +212,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
         bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
-        const char* class_loader_context) {
+        const char* class_loader_context, int target_sdk_version) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
@@ -323,6 +323,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     bool have_dex2oat_image_fd = false;
     char dex2oat_image_fd[arraysize("--app-image-fd=") + MAX_INT_LEN];
     size_t class_loader_context_size = arraysize("--class-loader-context=") + PKG_PATH_MAX;
+    char target_sdk_version_arg[arraysize("-Xtarget-sdk-version:") + MAX_INT_LEN];
     char class_loader_context_arg[class_loader_context_size];
     if (class_loader_context != nullptr) {
         snprintf(class_loader_context_arg, class_loader_context_size, "--class-loader-context=%s",
@@ -353,6 +354,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     if (have_dex2oat_Xmx_flag) {
         sprintf(dex2oat_Xmx_arg, "-Xmx%s", dex2oat_Xmx_flag);
     }
+    sprintf(target_sdk_version_arg, "-Xtarget-sdk-version:%d", target_sdk_version);
 
     // Compute compiler filter.
 
@@ -435,7 +437,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (has_base_dir ? 1 : 0)
                      + (have_dex2oat_large_app_threshold ? 1 : 0)
                      + (disable_cdex ? 1 : 0)
-                     + (generate_minidebug_info ? 1 : 0)];
+                     + (generate_minidebug_info ? 1 : 0)
+                     + (target_sdk_version != 0 ? 2 : 0)];
     int i = 0;
     argv[i++] = dex2oat_bin;
     argv[i++] = zip_fd_arg;
@@ -504,6 +507,10 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     }
     if (disable_cdex) {
         argv[i++] = kDisableCompactDexFlag;
+    }
+    if (target_sdk_version != 0) {
+        argv[i++] = RUNTIME_ARG;
+        argv[i++] = target_sdk_version_arg;
     }
 
     // Do not add after dex2oat_flags, they should override others for debugging.
@@ -1767,7 +1774,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
-        bool downgrade) {
+        bool downgrade, int target_sdk_version) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
     if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
@@ -1884,7 +1891,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     boot_complete,
                     background_job_compile,
                     reference_profile_fd.get(),
-                    class_loader_context);
+                    class_loader_context,
+                    target_sdk_version);
         _exit(68);   /* only get here on exec failure */
     } else {
         int res = wait_child(pid);
