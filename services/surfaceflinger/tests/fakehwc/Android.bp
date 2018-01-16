@@ -31,6 +31,9 @@ cc_test {
         "libtrace_proto",
         "libgmock"
     ],
+    header_libs: [
+        "android.hardware.graphics.composer@2.1-command-buffer",
+    ],
     cppflags: [
         "-std=c++1z",
     ],
