@@ -265,6 +265,9 @@ public:
         return "SurfaceFlinger";
     }
 
+    struct SkipInitializationTag {};
+    static constexpr SkipInitializationTag SkipInitialization;
+    explicit SurfaceFlinger(SkipInitializationTag) ANDROID_API;
     SurfaceFlinger() ANDROID_API;
 
     // must be called before clients can connect

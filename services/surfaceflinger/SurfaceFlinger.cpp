@@ -163,7 +163,7 @@ SurfaceFlingerBE::SurfaceFlingerBE()
         mComposerSequenceId(0) {
 }
 
-SurfaceFlinger::SurfaceFlinger()
+SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
       : BnSurfaceComposer(),
         mTransactionFlags(0),
         mTransactionPending(false),
@@ -195,7 +195,9 @@ SurfaceFlinger::SurfaceFlinger()
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
-        mCreateBufferQueue(&BufferQueue::createBufferQueue) {
+        mCreateBufferQueue(&BufferQueue::createBufferQueue) {}
+
+SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
 
     vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,

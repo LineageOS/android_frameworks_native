@@ -98,7 +98,7 @@ public:
         auto& mutableConfigs() { return this->mConfigs; }
     };
 
-    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger();
+    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(SurfaceFlinger::SkipInitialization);
 };
 
 } // namespace android
