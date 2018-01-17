@@ -57,10 +57,8 @@
     <!-- Feature to specify if the device support managed users. -->
     <feature name="android.software.managed_users" notLowRam="true"/>
 
-    <!-- Feature to specify if the device supports a VR mode.
-         feature name="android.software.vr.mode" -->
-    <!-- Devices with all optimizations required to be a "VR Ready" device that
-         pass all CTS tests for this feature must include feature
+    <!-- Devices with all optimizations required to support VR Mode and
+         pass all CDD requirements for this feature may include
          android.hardware.vr.high_performance -->
     <!-- Devices that support VR headtracking features and pass all CDD
          requirements may include
