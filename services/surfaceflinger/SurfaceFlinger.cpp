@@ -163,7 +163,7 @@ SurfaceFlingerBE::SurfaceFlingerBE()
 }
 
 SurfaceFlinger::SurfaceFlinger()
-    :   BnSurfaceComposer(),
+      : BnSurfaceComposer(),
         mTransactionFlags(0),
         mTransactionPending(false),
         mAnimTransactionPending(false),
@@ -193,8 +193,8 @@ SurfaceFlinger::SurfaceFlinger()
         mHasPoweredOff(false),
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
-        mMainThreadId(std::this_thread::get_id())
-{
+        mMainThreadId(std::this_thread::get_id()),
+        mCreateBufferQueue(&BufferQueue::createBufferQueue) {
     ALOGI("SurfaceFlinger is starting");
 
     vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
@@ -2213,7 +2213,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 sp<IGraphicBufferProducer> producer;
                 sp<IGraphicBufferProducer> bqProducer;
                 sp<IGraphicBufferConsumer> bqConsumer;
-                BufferQueue::createBufferQueue(&bqProducer, &bqConsumer);
+                mCreateBufferQueue(&bqProducer, &bqConsumer, false);
 
                 int32_t hwcId = -1;
                 if (state.isVirtualDisplay()) {

@@ -87,6 +87,8 @@ class ColorLayer;
 class DisplayEventConnection;
 class EventControlThread;
 class EventThread;
+class IGraphicBufferConsumer;
+class IGraphicBufferProducer;
 class InjectVSyncSource;
 class Layer;
 class Surface;
@@ -821,6 +823,12 @@ private:
 
     float mSaturation = 1.0f;
     bool mForceNativeColorMode = false;
+
+    using CreateBufferQueueFunction =
+            std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
+                               sp<IGraphicBufferConsumer>* /* outConsumer */,
+                               bool /* consumerIsSurfaceFlinger */)>;
+    CreateBufferQueueFunction mCreateBufferQueue;
 
     SurfaceFlingerBE mBE;
 };
