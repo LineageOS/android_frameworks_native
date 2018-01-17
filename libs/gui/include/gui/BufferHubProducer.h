@@ -1,14 +1,14 @@
-#ifndef ANDROID_DVR_BUFFER_HUB_QUEUE_PRODUCER_H_
-#define ANDROID_DVR_BUFFER_HUB_QUEUE_PRODUCER_H_
+#ifndef ANDROID_GUI_BUFFERHUBPRODUCER_H_
+#define ANDROID_GUI_BUFFERHUBPRODUCER_H_
 
+#include <gui/BufferSlot.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/buffer_hub_queue_parcelable.h>
 
 namespace android {
-namespace dvr {
 
-class BufferHubQueueProducer : public BnGraphicBufferProducer {
+class BufferHubProducer : public BnGraphicBufferProducer {
  public:
   static constexpr int kNoConnectedApi = -1;
 
@@ -18,15 +18,15 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // that.
   static constexpr int kDefaultUndequeuedBuffers = 1;
 
-  // Creates a BufferHubQueueProducer instance by importing an existing prodcuer
+  // Creates a BufferHubProducer instance by importing an existing prodcuer
   // queue.
-  static sp<BufferHubQueueProducer> Create(
-      const std::shared_ptr<ProducerQueue>& producer);
+  static sp<BufferHubProducer> Create(
+      const std::shared_ptr<dvr::ProducerQueue>& producer);
 
-  // Creates a BufferHubQueueProducer instance by importing an existing prodcuer
+  // Creates a BufferHubProducer instance by importing an existing prodcuer
   // parcelable. Note that this call takes the ownership of the parcelable
   // object and is guaranteed to succeed if parcelable object is valid.
-  static sp<BufferHubQueueProducer> Create(ProducerQueueParcelable parcelable);
+  static sp<BufferHubProducer> Create(dvr::ProducerQueueParcelable parcelable);
 
   // See |IGraphicBufferProducer::requestBuffer|
   status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override;
@@ -124,13 +124,13 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   // takeout is successful and out_parcelable will hold the new parcelable
   // object. Also note that out_parcelable cannot be NULL and must points to an
   // invalid parcelable.
-  status_t TakeAsParcelable(ProducerQueueParcelable* out_parcelable);
+  status_t TakeAsParcelable(dvr::ProducerQueueParcelable* out_parcelable);
 
  private:
   using LocalHandle = pdx::LocalHandle;
 
   // Private constructor to force use of |Create|.
-  BufferHubQueueProducer() {}
+  BufferHubProducer() {}
 
   static uint64_t genUniqueId() {
     static std::atomic<uint32_t> counter{0};
@@ -151,7 +151,7 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   status_t FreeAllBuffers();
 
   // Concreate implementation backed by BufferHubBuffer.
-  std::shared_ptr<ProducerQueue> queue_;
+  std::shared_ptr<dvr::ProducerQueue> queue_;
 
   // Mutex for thread safety.
   std::mutex mutex_;
@@ -160,7 +160,7 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
   int connected_api_{kNoConnectedApi};
 
   // |max_buffer_count_| sets the capacity of the underlying buffer queue.
-  int32_t max_buffer_count_{BufferHubQueue::kMaxQueueCapacity};
+  int32_t max_buffer_count_{dvr::BufferHubQueue::kMaxQueueCapacity};
 
   // |max_dequeued_buffer_count_| set the maximum number of buffers that can
   // be dequeued at the same momment.
@@ -168,7 +168,7 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
 
   // Sets how long dequeueBuffer or attachBuffer will block if a buffer or
   // slot is not yet available. The timeout is stored in milliseconds.
-  int dequeue_timeout_ms_{BufferHubQueue::kNoTimeOut};
+  int dequeue_timeout_ms_{dvr::BufferHubQueue::kNoTimeOut};
 
   // |generation_number_| stores the current generation number of the attached
   // producer. Any attempt to attach a buffer with a different generation
@@ -187,16 +187,15 @@ class BufferHubQueueProducer : public BnGraphicBufferProducer {
     BufferHubSlot() : mBufferProducer(nullptr), mIsReallocating(false) {}
     // BufferSlot comes from android framework, using m prefix to comply with
     // the name convention with the reset of data fields from BufferSlot.
-    std::shared_ptr<BufferProducer> mBufferProducer;
+    std::shared_ptr<dvr::BufferProducer> mBufferProducer;
     bool mIsReallocating;
   };
-  BufferHubSlot buffers_[BufferHubQueue::kMaxQueueCapacity];
+  BufferHubSlot buffers_[dvr::BufferHubQueue::kMaxQueueCapacity];
 
   // A uniqueId used by IGraphicBufferProducer interface.
   const uint64_t unique_id_{genUniqueId()};
 };
 
-}  // namespace dvr
 }  // namespace android
 
-#endif  // ANDROID_DVR_BUFFER_HUB_QUEUE_PRODUCER_H_
+#endif  // ANDROID_GUI_BUFFERHUBPRODUCER_H_

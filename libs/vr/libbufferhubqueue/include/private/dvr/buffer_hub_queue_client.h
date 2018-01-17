@@ -1,7 +1,7 @@
 #ifndef ANDROID_DVR_BUFFER_HUB_QUEUE_CLIENT_H_
 #define ANDROID_DVR_BUFFER_HUB_QUEUE_CLIENT_H_
 
-#include <gui/BufferQueueDefs.h>
+#include <ui/BufferQueueDefs.h>
 
 #include <pdx/client.h>
 #include <pdx/status.h>

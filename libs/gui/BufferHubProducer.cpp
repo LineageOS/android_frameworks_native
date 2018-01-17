@@ -1,49 +1,59 @@
-#include "include/private/dvr/buffer_hub_queue_producer.h"
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
 
+// The following headers are included without checking every warning.
+// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
+// in these headers and their dependencies.
 #include <dvr/dvr_api.h>
+#include <gui/BufferHubProducer.h>
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+
 #include <inttypes.h>
 #include <log/log.h>
 #include <system/window.h>
 
 namespace android {
-namespace dvr {
 
 /* static */
-sp<BufferHubQueueProducer> BufferHubQueueProducer::Create(
-    const std::shared_ptr<ProducerQueue>& queue) {
+sp<BufferHubProducer> BufferHubProducer::Create(
+    const std::shared_ptr<dvr::ProducerQueue>& queue) {
   if (queue->metadata_size() != sizeof(DvrNativeBufferMetadata)) {
     ALOGE(
-        "BufferHubQueueProducer::Create producer's metadata size is different "
+        "BufferHubProducer::Create producer's metadata size is different "
         "than the size of DvrNativeBufferMetadata");
     return nullptr;
   }
 
-  sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
+  sp<BufferHubProducer> producer = new BufferHubProducer;
   producer->queue_ = queue;
   return producer;
 }
 
 /* static */
-sp<BufferHubQueueProducer> BufferHubQueueProducer::Create(
-    ProducerQueueParcelable parcelable) {
+sp<BufferHubProducer> BufferHubProducer::Create(
+    dvr::ProducerQueueParcelable parcelable) {
   if (!parcelable.IsValid()) {
-    ALOGE("BufferHubQueueProducer::Create: Invalid producer parcelable.");
+    ALOGE("BufferHubProducer::Create: Invalid producer parcelable.");
     return nullptr;
   }
 
-  sp<BufferHubQueueProducer> producer = new BufferHubQueueProducer;
-  producer->queue_ = ProducerQueue::Import(parcelable.TakeChannelHandle());
+  sp<BufferHubProducer> producer = new BufferHubProducer;
+  producer->queue_ = dvr::ProducerQueue::Import(parcelable.TakeChannelHandle());
   return producer;
 }
 
-status_t BufferHubQueueProducer::requestBuffer(int slot,
-                                               sp<GraphicBuffer>* buf) {
-  ALOGD_IF(TRACE, "requestBuffer: slot=%d", slot);
+status_t BufferHubProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
+  ALOGV("requestBuffer: slot=%d", slot);
 
   std::unique_lock<std::mutex> lock(mutex_);
 
   if (connected_api_ == kNoConnectedApi) {
-    ALOGE("requestBuffer: BufferHubQueueProducer has no connected producer");
+    ALOGE("requestBuffer: BufferHubProducer has no connected producer");
     return NO_INIT;
   }
 
@@ -73,19 +83,18 @@ status_t BufferHubQueueProducer::requestBuffer(int slot,
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
+status_t BufferHubProducer::setMaxDequeuedBufferCount(
     int max_dequeued_buffers) {
-  ALOGD_IF(TRACE, "setMaxDequeuedBufferCount: max_dequeued_buffers=%d",
-           max_dequeued_buffers);
+  ALOGV("setMaxDequeuedBufferCount: max_dequeued_buffers=%d",
+        max_dequeued_buffers);
 
   std::unique_lock<std::mutex> lock(mutex_);
 
   if (max_dequeued_buffers <= 0 ||
       max_dequeued_buffers >
-          static_cast<int>(BufferHubQueue::kMaxQueueCapacity -
-                           kDefaultUndequeuedBuffers)) {
+          int(dvr::BufferHubQueue::kMaxQueueCapacity - kDefaultUndequeuedBuffers)) {
     ALOGE("setMaxDequeuedBufferCount: %d out of range (0, %zu]",
-          max_dequeued_buffers, BufferHubQueue::kMaxQueueCapacity);
+          max_dequeued_buffers, dvr::BufferHubQueue::kMaxQueueCapacity);
     return BAD_VALUE;
   }
 
@@ -109,7 +118,7 @@ status_t BufferHubQueueProducer::setMaxDequeuedBufferCount(
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::setAsyncMode(bool async) {
+status_t BufferHubProducer::setAsyncMode(bool async) {
   if (async) {
     // TODO(b/36724099) BufferHubQueue's consumer end always acquires the buffer
     // automatically and behaves differently from IGraphicBufferConsumer. Thus,
@@ -125,19 +134,19 @@ status_t BufferHubQueueProducer::setAsyncMode(bool async) {
     // See: IGraphicBufferProducer::setAsyncMode and
     // BufferQueueProducer::setAsyncMode for more about original implementation.
     ALOGW(
-        "BufferHubQueueProducer::setAsyncMode: BufferHubQueue should always be "
+        "BufferHubProducer::setAsyncMode: BufferHubQueue should always be "
         "asynchronous. This call makes no effact.");
     return NO_ERROR;
   }
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::dequeueBuffer(
+status_t BufferHubProducer::dequeueBuffer(
     int* out_slot, sp<Fence>* out_fence, uint32_t width, uint32_t height,
     PixelFormat format, uint64_t usage, uint64_t* /*outBufferAge*/,
     FrameEventHistoryDelta* /* out_timestamps */) {
-  ALOGD_IF(TRACE, "dequeueBuffer: w=%u, h=%u, format=%d, usage=%" PRIu64, width,
-           height, format, usage);
+  ALOGV("dequeueBuffer: w=%u, h=%u, format=%d, usage=%" PRIu64, width, height,
+        format, usage);
 
   status_t ret;
   std::unique_lock<std::mutex> lock(mutex_);
@@ -148,8 +157,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(
   }
 
   const uint32_t kLayerCount = 1;
-  if (static_cast<int32_t>(queue_->capacity()) <
-      max_dequeued_buffer_count_ + kDefaultUndequeuedBuffers) {
+  if (int32_t(queue_->capacity()) < max_dequeued_buffer_count_ + kDefaultUndequeuedBuffers) {
     // Lazy allocation. When the capacity of |queue_| has not reached
     // |max_dequeued_buffer_count_|, allocate new buffer.
     // TODO(jwcai) To save memory, the really reasonable thing to do is to go
@@ -159,10 +167,11 @@ status_t BufferHubQueueProducer::dequeueBuffer(
       return ret;
   }
 
-  size_t slot;
-  std::shared_ptr<BufferProducer> buffer_producer;
+  size_t slot = 0;
+  std::shared_ptr<dvr::BufferProducer> buffer_producer;
 
-  for (size_t retry = 0; retry < BufferHubQueue::kMaxQueueCapacity; retry++) {
+  for (size_t retry = 0; retry < dvr::BufferHubQueue::kMaxQueueCapacity;
+       retry++) {
     LocalHandle fence;
     auto buffer_status = queue_->Dequeue(dequeue_timeout_ms_, &slot, &fence);
     if (!buffer_status)
@@ -174,7 +183,7 @@ status_t BufferHubQueueProducer::dequeueBuffer(
 
     if (width == buffer_producer->width() &&
         height == buffer_producer->height() &&
-        static_cast<uint32_t>(format) == buffer_producer->format()) {
+        uint32_t(format) == buffer_producer->format()) {
       // The producer queue returns a buffer producer matches the request.
       break;
     }
@@ -217,12 +226,12 @@ status_t BufferHubQueueProducer::dequeueBuffer(
 
   buffers_[slot].mBufferState.freeQueued();
   buffers_[slot].mBufferState.dequeue();
-  ALOGD_IF(TRACE, "dequeueBuffer: slot=%zu", slot);
+  ALOGV("dequeueBuffer: slot=%zu", slot);
 
   // TODO(jwcai) Handle fence properly. |BufferHub| has full fence support, we
   // just need to exopose that through |BufferHubQueue| once we need fence.
   *out_fence = Fence::NO_FENCE;
-  *out_slot = slot;
+  *out_slot = int(slot);
   ret = NO_ERROR;
 
   if (buffers_[slot].mIsReallocating) {
@@ -233,30 +242,29 @@ status_t BufferHubQueueProducer::dequeueBuffer(
   return ret;
 }
 
-status_t BufferHubQueueProducer::detachBuffer(int /* slot */) {
-  ALOGE("BufferHubQueueProducer::detachBuffer not implemented.");
+status_t BufferHubProducer::detachBuffer(int /* slot */) {
+  ALOGE("BufferHubProducer::detachBuffer not implemented.");
   return INVALID_OPERATION;
 }
 
-status_t BufferHubQueueProducer::detachNextBuffer(
+status_t BufferHubProducer::detachNextBuffer(
     sp<GraphicBuffer>* /* out_buffer */, sp<Fence>* /* out_fence */) {
-  ALOGE("BufferHubQueueProducer::detachNextBuffer not implemented.");
+  ALOGE("BufferHubProducer::detachNextBuffer not implemented.");
   return INVALID_OPERATION;
 }
 
-status_t BufferHubQueueProducer::attachBuffer(
+status_t BufferHubProducer::attachBuffer(
     int* /* out_slot */, const sp<GraphicBuffer>& /* buffer */) {
   // With this BufferHub backed implementation, we assume (for now) all buffers
   // are allocated and owned by the BufferHub. Thus the attempt of transfering
   // ownership of a buffer to the buffer queue is intentionally unsupported.
-  LOG_ALWAYS_FATAL("BufferHubQueueProducer::attachBuffer not supported.");
+  LOG_ALWAYS_FATAL("BufferHubProducer::attachBuffer not supported.");
   return INVALID_OPERATION;
 }
 
-status_t BufferHubQueueProducer::queueBuffer(int slot,
-                                             const QueueBufferInput& input,
-                                             QueueBufferOutput* output) {
-  ALOGD_IF(TRACE, "queueBuffer: slot %d", slot);
+status_t BufferHubProducer::queueBuffer(int slot, const QueueBufferInput& input,
+                                        QueueBufferOutput* output) {
+  ALOGV("queueBuffer: slot %d", slot);
 
   if (output == nullptr) {
     return BAD_VALUE;
@@ -291,7 +299,6 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
     return BAD_VALUE;
   }
 
-  status_t ret;
   std::unique_lock<std::mutex> lock(mutex_);
 
   if (connected_api_ == kNoConnectedApi) {
@@ -333,14 +340,14 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
 
   DvrNativeBufferMetadata meta_data;
   meta_data.timestamp = timestamp;
-  meta_data.is_auto_timestamp = static_cast<int32_t>(is_auto_timestamp);
-  meta_data.dataspace = static_cast<int32_t>(dataspace);
+  meta_data.is_auto_timestamp = int32_t(is_auto_timestamp);
+  meta_data.dataspace = int32_t(dataspace);
   meta_data.crop_left = crop.left;
   meta_data.crop_top = crop.top;
   meta_data.crop_right = crop.right;
   meta_data.crop_bottom = crop.bottom;
-  meta_data.scaling_mode = static_cast<int32_t>(scaling_mode);
-  meta_data.transform = static_cast<int32_t>(transform);
+  meta_data.scaling_mode = int32_t(scaling_mode);
+  meta_data.transform = int32_t(transform);
 
   buffer_producer->PostAsync(&meta_data, fence_fd);
   buffers_[slot].mBufferState.queue();
@@ -362,9 +369,8 @@ status_t BufferHubQueueProducer::queueBuffer(int slot,
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::cancelBuffer(int slot,
-                                              const sp<Fence>& fence) {
-  ALOGD_IF(TRACE, __FUNCTION__);
+status_t BufferHubProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
+  ALOGV(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(mutex_);
 
@@ -387,16 +393,16 @@ status_t BufferHubQueueProducer::cancelBuffer(int slot,
   }
 
   auto buffer_producer = buffers_[slot].mBufferProducer;
-  queue_->Enqueue(buffer_producer, slot, 0ULL);
+  queue_->Enqueue(buffer_producer, size_t(slot), 0ULL);
   buffers_[slot].mBufferState.cancel();
   buffers_[slot].mFence = fence;
-  ALOGD_IF(TRACE, "cancelBuffer: slot %d", slot);
+  ALOGV("cancelBuffer: slot %d", slot);
 
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::query(int what, int* out_value) {
-  ALOGD_IF(TRACE, __FUNCTION__);
+status_t BufferHubProducer::query(int what, int* out_value) {
+  ALOGV(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(mutex_);
 
@@ -417,13 +423,13 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       value = 0;
       break;
     case NATIVE_WINDOW_WIDTH:
-      value = queue_->default_width();
+      value = int32_t(queue_->default_width());
       break;
     case NATIVE_WINDOW_HEIGHT:
-      value = queue_->default_height();
+      value = int32_t(queue_->default_height());
       break;
     case NATIVE_WINDOW_FORMAT:
-      value = queue_->default_format();
+      value = int32_t(queue_->default_format());
       break;
     case NATIVE_WINDOW_CONSUMER_RUNNING_BEHIND:
       // BufferHubQueue is always operating in async mode, thus semantically
@@ -455,18 +461,19 @@ status_t BufferHubQueueProducer::query(int what, int* out_value) {
       return BAD_VALUE;
   }
 
-  ALOGD_IF(TRACE, "query: key=%d, v=%d", what, value);
+  ALOGV("query: key=%d, v=%d", what, value);
   *out_value = value;
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::connect(
-    const sp<IProducerListener>& /* listener */, int api,
-    bool /* producer_controlled_by_app */, QueueBufferOutput* output) {
+status_t BufferHubProducer::connect(const sp<IProducerListener>& /* listener */,
+                                    int api,
+                                    bool /* producer_controlled_by_app */,
+                                    QueueBufferOutput* output) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here. We only need to perform basic input
   // parameter checks here.
-  ALOGD_IF(TRACE, __FUNCTION__);
+  ALOGV(__FUNCTION__);
 
   if (output == nullptr) {
     return BAD_VALUE;
@@ -480,7 +487,7 @@ status_t BufferHubQueueProducer::connect(
 
   if (!queue_->is_connected()) {
     ALOGE(
-        "BufferHubQueueProducer::connect: This BufferHubQueueProducer is not "
+        "BufferHubProducer::connect: This BufferHubProducer is not "
         "connected to bufferhud. Has it been taken out as a parcelable?");
     return BAD_VALUE;
   }
@@ -503,18 +510,18 @@ status_t BufferHubQueueProducer::connect(
 
       break;
     default:
-      ALOGE("BufferHubQueueProducer::connect: unknow API %d", api);
+      ALOGE("BufferHubProducer::connect: unknow API %d", api);
       return BAD_VALUE;
   }
 
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::disconnect(int api, DisconnectMode /*mode*/) {
+status_t BufferHubProducer::disconnect(int api, DisconnectMode /*mode*/) {
   // Consumer interaction are actually handled by buffer hub, and we need
   // to maintain consumer operations here.  We only need to perform basic input
   // parameter checks here.
-  ALOGD_IF(TRACE, __FUNCTION__);
+  ALOGV(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(mutex_);
 
@@ -529,8 +536,7 @@ status_t BufferHubQueueProducer::disconnect(int api, DisconnectMode /*mode*/) {
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::setSidebandStream(
-    const sp<NativeHandle>& stream) {
+status_t BufferHubProducer::setSidebandStream(const sp<NativeHandle>& stream) {
   if (stream != nullptr) {
     // TODO(jwcai) Investigate how is is used, maybe use BufferHubBuffer's
     // metadata.
@@ -540,42 +546,40 @@ status_t BufferHubQueueProducer::setSidebandStream(
   return NO_ERROR;
 }
 
-void BufferHubQueueProducer::allocateBuffers(uint32_t /* width */,
-                                             uint32_t /* height */,
-                                             PixelFormat /* format */,
-                                             uint64_t /* usage */) {
+void BufferHubProducer::allocateBuffers(uint32_t /* width */,
+                                        uint32_t /* height */,
+                                        PixelFormat /* format */,
+                                        uint64_t /* usage */) {
   // TODO(jwcai) |allocateBuffers| aims to preallocate up to the maximum number
   // of buffers permitted by the current BufferQueue configuration (aka
   // |max_buffer_count_|).
-  ALOGE("BufferHubQueueProducer::allocateBuffers not implemented.");
+  ALOGE("BufferHubProducer::allocateBuffers not implemented.");
 }
 
-status_t BufferHubQueueProducer::allowAllocation(bool /* allow */) {
-  ALOGE("BufferHubQueueProducer::allowAllocation not implemented.");
+status_t BufferHubProducer::allowAllocation(bool /* allow */) {
+  ALOGE("BufferHubProducer::allowAllocation not implemented.");
   return INVALID_OPERATION;
 }
 
-status_t BufferHubQueueProducer::setGenerationNumber(
-    uint32_t generation_number) {
-  ALOGD_IF(TRACE, __FUNCTION__);
+status_t BufferHubProducer::setGenerationNumber(uint32_t generation_number) {
+  ALOGV(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(mutex_);
   generation_number_ = generation_number;
   return NO_ERROR;
 }
 
-String8 BufferHubQueueProducer::getConsumerName() const {
+String8 BufferHubProducer::getConsumerName() const {
   // BufferHub based implementation could have one to many producer/consumer
   // relationship, thus |getConsumerName| from the producer side does not
   // make any sense.
-  ALOGE("BufferHubQueueProducer::getConsumerName not supported.");
+  ALOGE("BufferHubProducer::getConsumerName not supported.");
   return String8("BufferHubQueue::DummyConsumer");
 }
 
-status_t BufferHubQueueProducer::setSharedBufferMode(bool shared_buffer_mode) {
+status_t BufferHubProducer::setSharedBufferMode(bool shared_buffer_mode) {
   if (shared_buffer_mode) {
-    ALOGE(
-        "BufferHubQueueProducer::setSharedBufferMode(true) is not supported.");
+    ALOGE("BufferHubProducer::setSharedBufferMode(true) is not supported.");
     // TODO(b/36373181) Front buffer mode for buffer hub queue as ANativeWindow.
     return INVALID_OPERATION;
   }
@@ -583,65 +587,65 @@ status_t BufferHubQueueProducer::setSharedBufferMode(bool shared_buffer_mode) {
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::setAutoRefresh(bool auto_refresh) {
+status_t BufferHubProducer::setAutoRefresh(bool auto_refresh) {
   if (auto_refresh) {
-    ALOGE("BufferHubQueueProducer::setAutoRefresh(true) is not supported.");
+    ALOGE("BufferHubProducer::setAutoRefresh(true) is not supported.");
     return INVALID_OPERATION;
   }
   // Setting to default should just work as a no-op.
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::setDequeueTimeout(nsecs_t timeout) {
-  ALOGD_IF(TRACE, __FUNCTION__);
+status_t BufferHubProducer::setDequeueTimeout(nsecs_t timeout) {
+  ALOGV(__FUNCTION__);
 
   std::unique_lock<std::mutex> lock(mutex_);
-  dequeue_timeout_ms_ = static_cast<int>(timeout / (1000 * 1000));
+  dequeue_timeout_ms_ = int(timeout / (1000 * 1000));
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::getLastQueuedBuffer(
+status_t BufferHubProducer::getLastQueuedBuffer(
     sp<GraphicBuffer>* /* out_buffer */, sp<Fence>* /* out_fence */,
     float /*out_transform_matrix*/[16]) {
-  ALOGE("BufferHubQueueProducer::getLastQueuedBuffer not implemented.");
+  ALOGE("BufferHubProducer::getLastQueuedBuffer not implemented.");
   return INVALID_OPERATION;
 }
 
-void BufferHubQueueProducer::getFrameTimestamps(
+void BufferHubProducer::getFrameTimestamps(
     FrameEventHistoryDelta* /*outDelta*/) {
-  ALOGE("BufferHubQueueProducer::getFrameTimestamps not implemented.");
+  ALOGE("BufferHubProducer::getFrameTimestamps not implemented.");
 }
 
-status_t BufferHubQueueProducer::getUniqueId(uint64_t* out_id) const {
-  ALOGD_IF(TRACE, __FUNCTION__);
+status_t BufferHubProducer::getUniqueId(uint64_t* out_id) const {
+  ALOGV(__FUNCTION__);
 
   *out_id = unique_id_;
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::getConsumerUsage(uint64_t* out_usage) const {
-  ALOGD_IF(TRACE, __FUNCTION__);
+status_t BufferHubProducer::getConsumerUsage(uint64_t* out_usage) const {
+  ALOGV(__FUNCTION__);
 
   // same value as returned by querying NATIVE_WINDOW_CONSUMER_USAGE_BITS
   *out_usage = 0;
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::TakeAsParcelable(
-    ProducerQueueParcelable* out_parcelable) {
+status_t BufferHubProducer::TakeAsParcelable(
+    dvr::ProducerQueueParcelable* out_parcelable) {
   if (!out_parcelable || out_parcelable->IsValid())
     return BAD_VALUE;
 
   if (connected_api_ != kNoConnectedApi) {
     ALOGE(
-        "BufferHubQueueProducer::TakeAsParcelable: BufferHubQueueProducer has "
+        "BufferHubProducer::TakeAsParcelable: BufferHubProducer has "
         "connected client. Must disconnect first.");
     return BAD_VALUE;
   }
 
   if (!queue_->is_connected()) {
     ALOGE(
-        "BufferHubQueueProducer::TakeAsParcelable: This BufferHubQueueProducer "
+        "BufferHubProducer::TakeAsParcelable: This BufferHubProducer "
         "is not connected to bufferhud. Has it been taken out as a "
         "parcelable?");
     return BAD_VALUE;
@@ -650,7 +654,7 @@ status_t BufferHubQueueProducer::TakeAsParcelable(
   auto status = queue_->TakeAsParcelable();
   if (!status) {
     ALOGE(
-        "BufferHubQueueProducer::TakeAsParcelable: Failed to take out "
+        "BufferHubProducer::TakeAsParcelable: Failed to take out "
         "ProducuerQueueParcelable from the producer queue, error: %s.",
         status.GetErrorMessage().c_str());
     return BAD_VALUE;
@@ -660,16 +664,14 @@ status_t BufferHubQueueProducer::TakeAsParcelable(
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
-                                                uint32_t layer_count,
-                                                PixelFormat format,
-                                                uint64_t usage) {
-  auto status =
-      queue_->AllocateBuffer(width, height, layer_count, format, usage);
+status_t BufferHubProducer::AllocateBuffer(uint32_t width, uint32_t height,
+                                           uint32_t layer_count,
+                                           PixelFormat format, uint64_t usage) {
+  auto status = queue_->AllocateBuffer(width, height, layer_count,
+                                       uint32_t(format), usage);
   if (!status) {
-    ALOGE(
-        "BufferHubQueueProducer::AllocateBuffer: Failed to allocate buffer: %s",
-        status.GetErrorMessage().c_str());
+    ALOGE("BufferHubProducer::AllocateBuffer: Failed to allocate buffer: %s",
+          status.GetErrorMessage().c_str());
     return NO_MEMORY;
   }
 
@@ -684,10 +686,10 @@ status_t BufferHubQueueProducer::AllocateBuffer(uint32_t width, uint32_t height,
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::RemoveBuffer(size_t slot) {
+status_t BufferHubProducer::RemoveBuffer(size_t slot) {
   auto status = queue_->RemoveBuffer(slot);
   if (!status) {
-    ALOGE("BufferHubQueueProducer::RemoveBuffer: Failed to remove buffer: %s",
+    ALOGE("BufferHubProducer::RemoveBuffer: Failed to remove buffer: %s",
           status.GetErrorMessage().c_str());
     return INVALID_OPERATION;
   }
@@ -699,8 +701,8 @@ status_t BufferHubQueueProducer::RemoveBuffer(size_t slot) {
   return NO_ERROR;
 }
 
-status_t BufferHubQueueProducer::FreeAllBuffers() {
-  for (size_t slot = 0; slot < BufferHubQueue::kMaxQueueCapacity; slot++) {
+status_t BufferHubProducer::FreeAllBuffers() {
+  for (size_t slot = 0; slot < dvr::BufferHubQueue::kMaxQueueCapacity; slot++) {
     // Reset in memory objects related the the buffer.
     buffers_[slot].mGraphicBuffer = nullptr;
     buffers_[slot].mBufferState.reset();
@@ -712,18 +714,17 @@ status_t BufferHubQueueProducer::FreeAllBuffers() {
   auto status = queue_->FreeAllBuffers();
   if (!status) {
     ALOGE(
-        "BufferHubQueueProducer::FreeAllBuffers: Failed to free all buffers on "
+        "BufferHubProducer::FreeAllBuffers: Failed to free all buffers on "
         "the queue: %s",
         status.GetErrorMessage().c_str());
   }
 
   if (queue_->capacity() != 0 || queue_->count() != 0) {
     LOG_ALWAYS_FATAL(
-        "BufferHubQueueProducer::FreeAllBuffers: Not all buffers are freed.");
+        "BufferHubProducer::FreeAllBuffers: Not all buffers are freed.");
   }
 
   return NO_ERROR;
 }
 
-}  // namespace dvr
 }  // namespace android
