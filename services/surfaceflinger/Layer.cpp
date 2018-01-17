@@ -871,6 +871,12 @@ void Layer::setVisibleNonTransparentRegion(const Region& setVisibleNonTransparen
     this->visibleNonTransparentRegion = setVisibleNonTransparentRegion;
 }
 
+void Layer::clearVisibilityRegions() {
+    visibleRegion.clear();
+    visibleNonTransparentRegion.clear();
+    coveredRegion.clear();
+}
+
 // ----------------------------------------------------------------------------
 // transaction
 // ----------------------------------------------------------------------------
