@@ -9,7 +9,6 @@
 #include <private/dvr/buffer_hub_queue_parcelable.h>
 #include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/epoll_file_descriptor.h>
-#include <private/dvr/ring_buffer.h>
 
 #include <memory>
 #include <queue>
@@ -157,7 +156,7 @@ class BufferHubQueue : public pdx::Client {
                                       int poll_events);
   pdx::Status<void> HandleQueueEvent(int poll_events);
 
-  // Entry in the ring buffer of available buffers that stores related
+  // Entry in the priority queue of available buffers that stores related
   // per-buffer data.
   struct Entry {
     Entry() : slot(0) {}
@@ -242,7 +241,6 @@ class BufferHubQueue : public pdx::Client {
   std::array<std::shared_ptr<BufferHubBuffer>, kMaxQueueCapacity> buffers_;
 
   // Buffers and related data that are available for dequeue.
-  // RingBuffer<Entry> available_buffers_{kMaxQueueCapacity};
   std::priority_queue<Entry, std::vector<Entry>, EntryComparator>
       available_buffers_;
 
