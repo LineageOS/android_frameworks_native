@@ -106,6 +106,9 @@ void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExt
     if (hasEGLExtension("EGL_EXT_protected_content")) {
         mHasProtectedContent = true;
     }
+    if (hasEGLExtension("EGL_IMG_context_priority")) {
+        mHasContextPriority = true;
+    }
 }
 
 char const* GLExtensions::getEGLVersion() const {

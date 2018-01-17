@@ -66,6 +66,8 @@ class RenderEngine {
                                         uint32_t* status) = 0;
     virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName) = 0;
 
+    static bool overrideUseContextPriorityFromConfig(bool useContextPriority);
+
 protected:
     RenderEngine();
 

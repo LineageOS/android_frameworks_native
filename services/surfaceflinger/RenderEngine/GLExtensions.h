@@ -41,6 +41,7 @@ class GLExtensions : public Singleton<GLExtensions> {
     bool mHasWaitSync = false;
     bool mHasImageCrop = false;
     bool mHasProtectedContent = false;
+    bool mHasContextPriority = false;
 
     String8 mVendor;
     String8 mRenderer;
@@ -67,6 +68,7 @@ public:
     bool hasWaitSync() const { return mHasWaitSync; }
     bool hasImageCrop() const { return mHasImageCrop; }
     bool hasProtectedContent() const { return mHasProtectedContent; }
+    bool hasContextPriority() const { return mHasContextPriority; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);

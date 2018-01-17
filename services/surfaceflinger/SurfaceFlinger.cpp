@@ -129,7 +129,6 @@ const String16 sDump("android.permission.DUMP");
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
 int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
-bool SurfaceFlinger::useContextPriority;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
 uint64_t SurfaceFlinger::maxVirtualDisplaySize;
@@ -206,9 +205,6 @@ SurfaceFlinger::SurfaceFlinger()
 
     hasSyncFramework = getBool< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::hasSyncFramework>(true);
-
-    useContextPriority = getBool< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::useContextPriority>(false);
 
     dispSyncPresentTimeOffset = getInt64< ISurfaceFlingerConfigs,
             &ISurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs>(0);
@@ -3692,7 +3688,6 @@ void SurfaceFlinger::logFrameStats() {
 void SurfaceFlinger::appendSfConfigString(String8& result) const
 {
     result.append(" [sf");
-    result.appendFormat(" HAS_CONTEXT_PRIORITY=%d", useContextPriority);
 
     if (isLayerTripleBufferingDisabled())
         result.append(" DISABLE_TRIPLE_BUFFERING");
