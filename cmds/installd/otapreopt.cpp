@@ -178,6 +178,7 @@ private:
         const char* shared_libraries;
         const char* se_info;
         bool downgrade;
+        int target_sdk_version;
     };
 
     bool ReadSystemProperties() {
@@ -358,6 +359,8 @@ private:
                 return ReadArgumentsV2(argc, argv, true);
             case 3:
                 return ReadArgumentsV3(argc, argv);
+            case 4:
+                return ReadArgumentsV4(argc, argv);
 
             default:
                 LOG(ERROR) << "Unsupported version " << version;
@@ -440,6 +443,10 @@ private:
         // filter, which is not the case during ota.
         package_parameters_.downgrade = false;
 
+        // Set target_sdk_version to 0, ie the platform SDK version. This is
+        // conservative and may force some classes to verify at runtime.
+        package_parameters_.target_sdk_version = 0;
+
         if (param_index != 11) {
             LOG(ERROR) << "Not enough parameters";
             return false;
@@ -515,6 +522,97 @@ private:
 
                 case 11:
                     package_parameters_.downgrade = ParseBool(param);
+                    break;
+
+                default:
+                    LOG(ERROR) << "Too many arguments, got " << param;
+                    return false;
+            }
+        }
+
+        // Set target_sdk_version to 0, ie the platform SDK version. This is
+        // conservative and may force some classes to verify at runtime.
+        package_parameters_.target_sdk_version = 0;
+
+        if (param_index != 12) {
+            LOG(ERROR) << "Not enough parameters";
+            return false;
+        }
+
+        return true;
+    }
+
+    bool ReadArgumentsV4(int argc ATTRIBUTE_UNUSED, char** argv) {
+        size_t dexopt_index = 3;
+
+        // Check for "dexopt".
+        if (argv[dexopt_index] == nullptr) {
+            LOG(ERROR) << "Missing parameters";
+            return false;
+        }
+        if (std::string("dexopt").compare(argv[dexopt_index]) != 0) {
+            LOG(ERROR) << "Expected \"dexopt\"";
+            return false;
+        }
+
+        size_t param_index = 0;
+        for (;; ++param_index) {
+            const char* param = argv[dexopt_index + 1 + param_index];
+            if (param == nullptr) {
+                break;
+            }
+
+            switch (param_index) {
+                case 0:
+                    package_parameters_.apk_path = param;
+                    break;
+
+                case 1:
+                    package_parameters_.uid = atoi(param);
+                    break;
+
+                case 2:
+                    package_parameters_.pkgName = param;
+                    break;
+
+                case 3:
+                    package_parameters_.instruction_set = param;
+                    break;
+
+                case 4:
+                    package_parameters_.dexopt_needed = atoi(param);
+                    break;
+
+                case 5:
+                    package_parameters_.oat_dir = param;
+                    break;
+
+                case 6:
+                    package_parameters_.dexopt_flags = atoi(param);
+                    break;
+
+                case 7:
+                    package_parameters_.compiler_filter = param;
+                    break;
+
+                case 8:
+                    package_parameters_.volume_uuid = ParseNull(param);
+                    break;
+
+                case 9:
+                    package_parameters_.shared_libraries = ParseNull(param);
+                    break;
+
+                case 10:
+                    package_parameters_.se_info = ParseNull(param);
+                    break;
+
+                case 11:
+                    package_parameters_.downgrade = ParseBool(param);
+                    break;
+
+                case 12:
+                    package_parameters_.target_sdk_version = atoi(param);
                     break;
 
                 default:
@@ -633,6 +731,10 @@ private:
         // Set downgrade to false. It is only relevant when downgrading compiler
         // filter, which is not the case during ota.
         package_parameters_.downgrade = false;
+
+        // Set target_sdk_version to 0, ie the platform SDK version. This is
+        // conservative and may force some classes to verify at runtime.
+        package_parameters_.target_sdk_version = 0;
 
         return true;
     }
@@ -920,7 +1022,8 @@ private:
                       package_parameters_.volume_uuid,
                       package_parameters_.shared_libraries,
                       package_parameters_.se_info,
-                      package_parameters_.downgrade);
+                      package_parameters_.downgrade,
+                      package_parameters_.target_sdk_version);
     }
 
     int RunPreopt() {

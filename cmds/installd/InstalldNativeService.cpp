@@ -1894,7 +1894,7 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
         int32_t dexoptNeeded, const std::unique_ptr<std::string>& outputPath, int32_t dexFlags,
         const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
         const std::unique_ptr<std::string>& classLoaderContext,
-        const std::unique_ptr<std::string>& seInfo, bool downgrade) {
+        const std::unique_ptr<std::string>& seInfo, bool downgrade, int32_t targetSdkVersion) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     if (packageName && *packageName != "*") {
@@ -1912,7 +1912,7 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     const char* se_info = seInfo ? seInfo->c_str() : nullptr;
     int res = android::installd::dexopt(apk_path, uid, pkgname, instruction_set, dexoptNeeded,
             oat_dir, dexFlags, compiler_filter, volume_uuid, class_loader_context, se_info,
-            downgrade);
+            downgrade, targetSdkVersion);
     return res ? error(res, "Failed to dexopt") : ok();
 }
 
