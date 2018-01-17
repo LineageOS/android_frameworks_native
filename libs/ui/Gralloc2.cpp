@@ -57,8 +57,7 @@ uint64_t getValid11UsageBits() {
         for (const auto bit : hardware::hidl_enum_iterator<BufferUsage>()) {
             bits = bits | bit;
         }
-        // Return only the overlapping bits.
-        return bits & ~getValid10UsageBits();
+        return bits;
     }();
     return valid11UsageBits;
 }
@@ -71,7 +70,7 @@ void Mapper::preload() {
 
 Mapper::Mapper()
 {
-    mMapper = IMapper::getService();
+    mMapper = hardware::graphics::mapper::V2_0::IMapper::getService();
     if (mMapper == nullptr) {
         LOG_ALWAYS_FATAL("gralloc-mapper is missing");
     }
@@ -80,7 +79,7 @@ Mapper::Mapper()
     }
 
     // IMapper 2.1 is optional
-    mMapperV2_1 = hardware::graphics::mapper::V2_1::IMapper::castFrom(mMapper);
+    mMapperV2_1 = IMapper::castFrom(mMapper);
 }
 
 Gralloc2::Error Mapper::validateBufferDescriptorInfo(
@@ -102,30 +101,34 @@ Error Mapper::createDescriptor(
         const IMapper::BufferDescriptorInfo& descriptorInfo,
         BufferDescriptor* outDescriptor) const
 {
-    Error error;
-
-    if (descriptorInfo.usage & getValid11UsageBits()) {
-        // TODO(b/66900669): Use mMapperV2_1->createDescriptorV2_1().
-        ALOGW("full support for new usage bits is unimplemented 0x%" PRIx64,
-              descriptorInfo.usage & getValid11UsageBits());
-        return Error::BAD_VALUE;
-    }
-
-    error = validateBufferDescriptorInfo(descriptorInfo);
+    Error error = validateBufferDescriptorInfo(descriptorInfo);
     if (error != Error::NONE) {
         return error;
     }
 
-    auto ret = mMapper->createDescriptor(descriptorInfo,
-            [&](const auto& tmpError, const auto& tmpDescriptor)
-            {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    auto hidl_cb = [&](const auto& tmpError, const auto& tmpDescriptor)
+                   {
+                       error = tmpError;
+                       if (error != Error::NONE) {
+                           return;
+                       }
 
-                *outDescriptor = tmpDescriptor;
-            });
+                       *outDescriptor = tmpDescriptor;
+                   };
+
+    hardware::Return<void> ret;
+    if (mMapperV2_1 != nullptr) {
+        ret = mMapperV2_1->createDescriptor_2_1(descriptorInfo, hidl_cb);
+    } else {
+        const hardware::graphics::mapper::V2_0::IMapper::BufferDescriptorInfo info = {
+            descriptorInfo.width,
+            descriptorInfo.height,
+            descriptorInfo.layerCount,
+            static_cast<hardware::graphics::common::V1_0::PixelFormat>(descriptorInfo.format),
+            descriptorInfo.usage,
+        };
+        ret = mMapper->createDescriptor(info, hidl_cb);
+    }
 
     return (ret.isOk()) ? error : kTransactionError;
 }
