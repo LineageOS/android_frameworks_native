@@ -24,6 +24,8 @@
 
 #include "MockComposer.h"
 #include "MockEventThread.h"
+#include "MockGraphicBufferConsumer.h"
+#include "MockGraphicBufferProducer.h"
 #include "MockRenderEngine.h"
 #include "TestableSurfaceFlinger.h"
 
@@ -53,6 +55,8 @@ protected:
     void setupComposer(int virtualDisplayCount);
     void setupPrimaryDisplay(int width, int height);
 
+    void expectFramebufferQueuePairCreation(int width, int height);
+
     TestableSurfaceFlinger mFlinger;
     mock::EventThread* mEventThread = new mock::EventThread();
 
@@ -61,12 +65,20 @@ protected:
     // to keep a reference to them for use in setting up call expectations.
     RE::mock::RenderEngine* mRenderEngine = new RE::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = new Hwc2::mock::Composer();
+
+    // These mocks are created only when expected to be created via a factory.
+    sp<mock::GraphicBufferConsumer> mConsumer;
+    sp<mock::GraphicBufferProducer> mProducer;
 };
 
 DisplayTransactionTest::DisplayTransactionTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
+
+    mFlinger.setCreateBufferQueueFunction([](auto, auto, auto) {
+        ADD_FAILURE() << "Unexpected request to create a buffer queue.";
+    });
 
     mFlinger.mutableEventThread().reset(mEventThread);
     mFlinger.setupRenderEngine(std::unique_ptr<RE::RenderEngine>(mRenderEngine));
@@ -122,6 +134,27 @@ void DisplayTransactionTest::setupPrimaryDisplay(int width, int height) {
     Mock::VerifyAndClear(mComposer);
 }
 
+void DisplayTransactionTest::expectFramebufferQueuePairCreation(int width, int height) {
+    mConsumer = new mock::GraphicBufferConsumer();
+    mProducer = new mock::GraphicBufferProducer();
+
+    mFlinger.setCreateBufferQueueFunction([this](auto outProducer, auto outConsumer, bool) {
+        *outProducer = mProducer;
+        *outConsumer = mConsumer;
+    });
+
+    EXPECT_CALL(*mConsumer, consumerConnect(_, false)).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(*mConsumer, setConsumerName(_)).WillRepeatedly(Return(NO_ERROR));
+    EXPECT_CALL(*mConsumer,
+                setConsumerUsageBits(GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_COMPOSER |
+                                     GRALLOC_USAGE_HW_FB))
+            .WillRepeatedly(Return(NO_ERROR));
+    EXPECT_CALL(*mConsumer, setDefaultBufferSize(width, height)).WillRepeatedly(Return(NO_ERROR));
+    EXPECT_CALL(*mConsumer, setMaxAcquiredBufferCount(_)).WillRepeatedly(Return(NO_ERROR));
+
+    EXPECT_CALL(*mProducer, allocateBuffers(0, 0, 0, 0)).WillRepeatedly(Return());
+}
+
 TEST_F(DisplayTransactionTest, processDisplayChangesLockedProcessesPrimaryDisplayConnected) {
     using android::hardware::graphics::common::V1_0::ColorMode;
 
@@ -135,9 +168,10 @@ TEST_F(DisplayTransactionTest, processDisplayChangesLockedProcessesPrimaryDispla
     EXPECT_CALL(*mComposer, getColorModes(DisplayDevice::DISPLAY_PRIMARY, _))
             .WillOnce(DoAll(SetArgPointee<1>(std::vector<ColorMode>({ColorMode::NATIVE})),
                             Return(Error::NONE)));
-
     EXPECT_CALL(*mComposer, getHdrCapabilities(DisplayDevice::DISPLAY_PRIMARY, _, _, _, _))
             .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hdr>()), Return(Error::NONE)));
+
+    expectFramebufferQueuePairCreation(1920, 1080);
 
     auto reSurface = new RE::mock::Surface();
     EXPECT_CALL(*mRenderEngine, createSurface())
@@ -166,6 +200,8 @@ TEST_F(DisplayTransactionTest, processDisplayChangesLockedProcessesPrimaryDispla
 
     EXPECT_CALL(*mComposer, setVsyncEnabled(0, IComposerClient::Vsync::DISABLE))
             .WillOnce(Return(Error::NONE));
+
+    EXPECT_CALL(*mConsumer, consumerDisconnect()).Times(1);
 }
 
 } // namespace

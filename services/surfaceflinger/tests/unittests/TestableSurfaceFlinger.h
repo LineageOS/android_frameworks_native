@@ -50,6 +50,12 @@ public:
                                           HWC2::Connection::Connected);
     }
 
+    using CreateBufferQueueFunction = SurfaceFlinger::CreateBufferQueueFunction;
+
+    void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
+        mFlinger->mCreateBufferQueue = f;
+    }
+
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */
