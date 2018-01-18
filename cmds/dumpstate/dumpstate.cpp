@@ -657,12 +657,18 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
     return 0;
 }
 
-/* timeout in ms */
-static unsigned long logcat_timeout(const char *name) {
-    log_id_t id = android_name_to_log_id(name);
-    unsigned long property_size = __android_logger_get_buffer_size(id);
-    /* Engineering margin is ten-fold our guess */
-    return 10 * (property_size + worst_write_perf) / worst_write_perf;
+static const long MINIMUM_LOGCAT_TIMEOUT_MS = 50000;
+
+/* timeout in ms to read a list of buffers */
+static unsigned long logcat_timeout(const std::vector<std::string>& buffers) {
+    unsigned long timeout_ms = 0;
+    for (const auto& buffer : buffers) {
+        log_id_t id = android_name_to_log_id(buffer.c_str());
+        unsigned long property_size = __android_logger_get_buffer_size(id);
+        /* Engineering margin is ten-fold our guess */
+        timeout_ms += 10 * (property_size + worst_write_perf) / worst_write_perf;
+    }
+    return timeout_ms > MINIMUM_LOGCAT_TIMEOUT_MS ? timeout_ms : MINIMUM_LOGCAT_TIMEOUT_MS;
 }
 
 void Dumpstate::PrintHeader() const {
@@ -831,13 +837,8 @@ static void DoKmsg() {
     }
 }
 
-static const long MINIMUM_LOGCAT_TIMEOUT_MS = 50000;
-
 static void DoKernelLogcat() {
-    unsigned long timeout_ms = logcat_timeout("kernel");
-    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
-        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
-    }
+    unsigned long timeout_ms = logcat_timeout({"kernel"});
     RunCommand(
         "KERNEL LOG",
         {"logcat", "-b", "kernel", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
@@ -848,25 +849,21 @@ static void DoLogcat() {
     unsigned long timeout_ms;
     // DumpFile("EVENT LOG TAGS", "/etc/event-log-tags");
     // calculate timeout
-    timeout_ms = logcat_timeout("main") + logcat_timeout("system") + logcat_timeout("crash");
-    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
-        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
-    }
+    timeout_ms = logcat_timeout({"main", "system", "crash"});
     RunCommand("SYSTEM LOG",
                {"logcat", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
                CommandOptions::WithTimeoutInMs(timeout_ms).Build());
-    timeout_ms = logcat_timeout("events");
-    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
-        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
-    }
+    timeout_ms = logcat_timeout({"events"});
     RunCommand(
         "EVENT LOG",
         {"logcat", "-b", "events", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
         CommandOptions::WithTimeoutInMs(timeout_ms).Build());
-    timeout_ms = logcat_timeout("radio");
-    if (timeout_ms < MINIMUM_LOGCAT_TIMEOUT_MS) {
-        timeout_ms = MINIMUM_LOGCAT_TIMEOUT_MS;
-    }
+    timeout_ms = logcat_timeout({"stats"});
+    RunCommand(
+        "STATS LOG",
+        {"logcat", "-b", "stats", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
+        CommandOptions::WithTimeoutInMs(timeout_ms).Build());
+    timeout_ms = logcat_timeout({"radio"});
     RunCommand(
         "RADIO LOG",
         {"logcat", "-b", "radio", "-v", "threadtime", "-v", "printable", "-v", "uid", "-d", "*:v"},
