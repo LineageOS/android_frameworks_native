@@ -24,7 +24,8 @@ Khronos.
 0x314A               EGL_IMAGE_CROP_RIGHT_ANDROID (EGL_ANDROID_image_crop)
 0x314B               EGL_IMAGE_CROP_BOTTOM_ANDROID (EGL_ANDROID_image_crop)
 0x314C               EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID (EGL_ANDROID_front_buffer_auto_refresh)
-0x314D - 0x314F      (unused)
+0x314D               EGL_GL_COLORSPACE_DEFAULT_EXT (EGL_EXT_image_gl_colorspace)
+0x314E - 0x314F      (unused)
 
      Value                       Extension
 ================     ==================================
