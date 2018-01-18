@@ -118,6 +118,7 @@ LIBVULKAN {
     vkFreeCommandBuffers;
     vkFreeDescriptorSets;
     vkFreeMemory;
+    vkGetAndroidHardwareBufferPropertiesANDROID; # introduced=28
     vkGetBufferMemoryRequirements;
     vkGetBufferMemoryRequirements2; # introduced=28
     vkGetDescriptorSetLayoutSupport; # introduced=28
@@ -136,6 +137,7 @@ LIBVULKAN {
     vkGetImageSparseMemoryRequirements2; # introduced=28
     vkGetImageSubresourceLayout;
     vkGetInstanceProcAddr;
+    vkGetMemoryAndroidHardwareBufferANDROID; # introduced=28
     vkGetPhysicalDeviceExternalBufferProperties; # introduced=28
     vkGetPhysicalDeviceExternalFenceProperties; # introduced=28
     vkGetPhysicalDeviceExternalSemaphoreProperties; # introduced=28
