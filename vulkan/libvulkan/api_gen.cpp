@@ -128,6 +128,16 @@ VKAPI_ATTR VkResult disabledCreateAndroidSurfaceKHR(VkInstance instance, const V
     return VK_SUCCESS;
 }
 
+VKAPI_ATTR VkResult disabledGetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer*, VkAndroidHardwareBufferPropertiesANDROID*) {
+    driver::Logger(device).Err(device, "VK_ANDROID_external_memory_android_hardware_buffer not enabled. Exported vkGetAndroidHardwareBufferPropertiesANDROID not executed.");
+    return VK_SUCCESS;
+}
+
+VKAPI_ATTR VkResult disabledGetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID*, struct AHardwareBuffer**) {
+    driver::Logger(device).Err(device, "VK_ANDROID_external_memory_android_hardware_buffer not enabled. Exported vkGetMemoryAndroidHardwareBufferANDROID not executed.");
+    return VK_SUCCESS;
+}
+
 // clang-format on
 
 }  // namespace
@@ -328,6 +338,8 @@ bool InitDispatchTable(
     INIT_PROC_EXT(KHR_swapchain, false, dev, GetDeviceGroupPresentCapabilitiesKHR);
     INIT_PROC_EXT(KHR_swapchain, false, dev, GetDeviceGroupSurfacePresentModesKHR);
     INIT_PROC_EXT(KHR_swapchain, false, dev, AcquireNextImage2KHR);
+    INIT_PROC_EXT(ANDROID_external_memory_android_hardware_buffer, false, dev, GetAndroidHardwareBufferPropertiesANDROID);
+    INIT_PROC_EXT(ANDROID_external_memory_android_hardware_buffer, false, dev, GetMemoryAndroidHardwareBufferANDROID);
     // clang-format on
 
     return success;
@@ -509,6 +521,8 @@ VKAPI_ATTR VkResult GetDeviceGroupSurfacePresentModesKHR(VkDevice device, VkSurf
 VKAPI_ATTR VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice physicalDevice, VkSurfaceKHR surface, uint32_t* pRectCount, VkRect2D* pRects);
 VKAPI_ATTR VkResult AcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR* pAcquireInfo, uint32_t* pImageIndex);
 VKAPI_ATTR VkResult CreateAndroidSurfaceKHR(VkInstance instance, const VkAndroidSurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface);
+VKAPI_ATTR VkResult GetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer, VkAndroidHardwareBufferPropertiesANDROID* pProperties);
+VKAPI_ATTR VkResult GetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID* pInfo, struct AHardwareBuffer** pBuffer);
 
 VKAPI_ATTR VkResult EnumeratePhysicalDevices(VkInstance instance, uint32_t* pPhysicalDeviceCount, VkPhysicalDevice* pPhysicalDevices) {
     return GetData(instance).dispatch.EnumeratePhysicalDevices(instance, pPhysicalDeviceCount, pPhysicalDevices);
@@ -729,6 +743,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkFreeCommandBuffers", reinterpret_cast<PFN_vkVoidFunction>(FreeCommandBuffers) },
         { "vkFreeDescriptorSets", reinterpret_cast<PFN_vkVoidFunction>(FreeDescriptorSets) },
         { "vkFreeMemory", reinterpret_cast<PFN_vkVoidFunction>(FreeMemory) },
+        { "vkGetAndroidHardwareBufferPropertiesANDROID", reinterpret_cast<PFN_vkVoidFunction>(GetAndroidHardwareBufferPropertiesANDROID) },
         { "vkGetBufferMemoryRequirements", reinterpret_cast<PFN_vkVoidFunction>(GetBufferMemoryRequirements) },
         { "vkGetBufferMemoryRequirements2", reinterpret_cast<PFN_vkVoidFunction>(GetBufferMemoryRequirements2) },
         { "vkGetDescriptorSetLayoutSupport", reinterpret_cast<PFN_vkVoidFunction>(GetDescriptorSetLayoutSupport) },
@@ -747,6 +762,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const cha
         { "vkGetImageSparseMemoryRequirements2", reinterpret_cast<PFN_vkVoidFunction>(GetImageSparseMemoryRequirements2) },
         { "vkGetImageSubresourceLayout", reinterpret_cast<PFN_vkVoidFunction>(GetImageSubresourceLayout) },
         { "vkGetInstanceProcAddr", reinterpret_cast<PFN_vkVoidFunction>(GetInstanceProcAddr) },
+        { "vkGetMemoryAndroidHardwareBufferANDROID", reinterpret_cast<PFN_vkVoidFunction>(GetMemoryAndroidHardwareBufferANDROID) },
         { "vkGetPipelineCacheData", reinterpret_cast<PFN_vkVoidFunction>(GetPipelineCacheData) },
         { "vkGetQueryPoolResults", reinterpret_cast<PFN_vkVoidFunction>(GetQueryPoolResults) },
         { "vkGetRenderAreaGranularity", reinterpret_cast<PFN_vkVoidFunction>(GetRenderAreaGranularity) },
@@ -1458,6 +1474,14 @@ VKAPI_ATTR VkResult AcquireNextImage2KHR(VkDevice device, const VkAcquireNextIma
 
 VKAPI_ATTR VkResult CreateAndroidSurfaceKHR(VkInstance instance, const VkAndroidSurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface) {
     return GetData(instance).dispatch.CreateAndroidSurfaceKHR(instance, pCreateInfo, pAllocator, pSurface);
+}
+
+VKAPI_ATTR VkResult GetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer, VkAndroidHardwareBufferPropertiesANDROID* pProperties) {
+    return GetData(device).dispatch.GetAndroidHardwareBufferPropertiesANDROID(device, buffer, pProperties);
+}
+
+VKAPI_ATTR VkResult GetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID* pInfo, struct AHardwareBuffer** pBuffer) {
+    return GetData(device).dispatch.GetMemoryAndroidHardwareBufferANDROID(device, pInfo, pBuffer);
 }
 
 
@@ -2368,6 +2392,16 @@ VKAPI_ATTR VkResult vkAcquireNextImage2KHR(VkDevice device, const VkAcquireNextI
 __attribute__((visibility("default")))
 VKAPI_ATTR VkResult vkCreateAndroidSurfaceKHR(VkInstance instance, const VkAndroidSurfaceCreateInfoKHR* pCreateInfo, const VkAllocationCallbacks* pAllocator, VkSurfaceKHR* pSurface) {
     return vulkan::api::CreateAndroidSurfaceKHR(instance, pCreateInfo, pAllocator, pSurface);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR VkResult vkGetAndroidHardwareBufferPropertiesANDROID(VkDevice device, const struct AHardwareBuffer* buffer, VkAndroidHardwareBufferPropertiesANDROID* pProperties) {
+    return vulkan::api::GetAndroidHardwareBufferPropertiesANDROID(device, buffer, pProperties);
+}
+
+__attribute__((visibility("default")))
+VKAPI_ATTR VkResult vkGetMemoryAndroidHardwareBufferANDROID(VkDevice device, const VkMemoryGetAndroidHardwareBufferInfoANDROID* pInfo, struct AHardwareBuffer** pBuffer) {
+    return vulkan::api::GetMemoryAndroidHardwareBufferANDROID(device, pInfo, pBuffer);
 }
 
 // clang-format on
