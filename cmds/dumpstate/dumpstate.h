@@ -226,8 +226,14 @@ class Dumpstate {
 
     /*
      * Adds a new entry to the existing zip file.
+     *
+     * |entry_name| destination path of the new entry.
+     * |fd| file descriptor to read from.
+     * |timeout| timeout to terminate the read if not completed. Set
+     * value of 0s (default) to disable timeout.
      */
-    bool AddZipEntryFromFd(const std::string& entry_name, int fd);
+    android::status_t AddZipEntryFromFd(const std::string& entry_name, int fd,
+                                        std::chrono::milliseconds timeout);
 
     /*
      * Adds a text entry entry to the existing zip file.

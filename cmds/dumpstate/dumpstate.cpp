@@ -25,6 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/poll.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/stat.h>
@@ -46,22 +47,39 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
+#include <dumpsys.h>
 #include <hidl/ServiceManagement.h>
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
-
+#include <serviceutils/PriorityDumper.h>
 #include "DumpstateInternal.h"
+#include "DumpstateSectionReporter.h"
 #include "DumpstateService.h"
 #include "dumpstate.h"
 
 using ::android::hardware::dumpstate::V1_0::IDumpstateDevice;
+using ::std::literals::chrono_literals::operator""ms;
+using ::std::literals::chrono_literals::operator""s;
 
 // TODO: remove once moved to namespace
+using android::defaultServiceManager;
+using android::Dumpsys;
+using android::INVALID_OPERATION;
+using android::IServiceManager;
+using android::OK;
+using android::sp;
+using android::status_t;
+using android::String16;
+using android::String8;
+using android::TIMED_OUT;
+using android::UNKNOWN_ERROR;
+using android::Vector;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
-using android::os::dumpstate::PropertiesHelper;
+using android::os::dumpstate::DumpstateSectionReporter;
 using android::os::dumpstate::GetPidByName;
+using android::os::dumpstate::PropertiesHelper;
 
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
@@ -127,6 +145,8 @@ static const std::string ZIP_ROOT_DIR = "FS";
 
 // Must be hardcoded because dumpstate HAL implementation need SELinux access to it
 static const std::string kDumpstateBoardPath = "/bugreports/";
+static const std::string kProtoPath = "proto/";
+static const std::string kProtoExt = ".proto";
 static const std::string kDumpstateBoardFiles[] = {
     "dumpstate_board.txt",
     "dumpstate_board.bin"
@@ -221,7 +241,7 @@ static bool AddDumps(const std::vector<DumpData>::const_iterator start,
         }
 
         if (ds.IsZipping() && add_to_zip) {
-            if (!ds.AddZipEntryFromFd(ZIP_ROOT_DIR + name, fd)) {
+            if (ds.AddZipEntryFromFd(ZIP_ROOT_DIR + name, fd, /* timeout = */ 0ms) != OK) {
                 MYLOGE("Unable to add %s to zip file, addZipEntryFromFd failed\n", name.c_str());
             }
         } else {
@@ -708,11 +728,12 @@ static const std::set<std::string> PROBLEMATIC_FILE_EXTENSIONS = {
       ".shb", ".sys", ".vb",  ".vbe", ".vbs", ".vxd", ".wsc", ".wsf", ".wsh"
 };
 
-bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
+status_t Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd,
+                                      std::chrono::milliseconds timeout = 0ms) {
     if (!IsZipping()) {
         MYLOGD("Not adding zip entry %s from fd because it's not a zipped bugreport\n",
                entry_name.c_str());
-        return false;
+        return INVALID_OPERATION;
     }
     std::string valid_name = entry_name;
 
@@ -734,32 +755,55 @@ bool Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd) {
     if (err != 0) {
         MYLOGE("zip_writer_->StartEntryWithTime(%s): %s\n", valid_name.c_str(),
                ZipWriter::ErrorCodeString(err));
-        return false;
+        return UNKNOWN_ERROR;
     }
+    auto start = std::chrono::steady_clock::now();
+    auto end = start + timeout;
+    struct pollfd pfd = {fd, POLLIN};
 
     std::vector<uint8_t> buffer(65536);
     while (1) {
+        if (timeout.count() > 0) {
+            // lambda to recalculate the timeout.
+            auto time_left_ms = [end]() {
+                auto now = std::chrono::steady_clock::now();
+                auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - now);
+                return std::max(diff.count(), 0LL);
+            };
+
+            int rc = TEMP_FAILURE_RETRY(poll(&pfd, 1, time_left_ms()));
+            if (rc < 0) {
+                MYLOGE("Error in poll while adding from fd to zip entry %s:%s", entry_name.c_str(),
+                       strerror(errno));
+                return -errno;
+            } else if (rc == 0) {
+                MYLOGE("Timed out adding from fd to zip entry %s:%s Timeout:%lldms",
+                       entry_name.c_str(), strerror(errno), timeout.count());
+                return TIMED_OUT;
+            }
+        }
+
         ssize_t bytes_read = TEMP_FAILURE_RETRY(read(fd, buffer.data(), buffer.size()));
         if (bytes_read == 0) {
             break;
         } else if (bytes_read == -1) {
             MYLOGE("read(%s): %s\n", entry_name.c_str(), strerror(errno));
-            return false;
+            return -errno;
         }
         err = zip_writer_->WriteBytes(buffer.data(), bytes_read);
         if (err) {
             MYLOGE("zip_writer_->WriteBytes(): %s\n", ZipWriter::ErrorCodeString(err));
-            return false;
+            return UNKNOWN_ERROR;
         }
     }
 
     err = zip_writer_->FinishEntry();
     if (err != 0) {
         MYLOGE("zip_writer_->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
-        return false;
+        return UNKNOWN_ERROR;
     }
 
-    return true;
+    return OK;
 }
 
 bool Dumpstate::AddZipEntry(const std::string& entry_name, const std::string& entry_path) {
@@ -770,12 +814,12 @@ bool Dumpstate::AddZipEntry(const std::string& entry_name, const std::string& en
         return false;
     }
 
-    return AddZipEntryFromFd(entry_name, fd.get());
+    return (AddZipEntryFromFd(entry_name, fd.get()) == OK);
 }
 
 /* adds a file to the existing zipped bugreport */
 static int _add_file_from_fd(const char* title __attribute__((unused)), const char* path, int fd) {
-    return ds.AddZipEntryFromFd(ZIP_ROOT_DIR + path, fd) ? 0 : 1;
+    return (ds.AddZipEntryFromFd(ZIP_ROOT_DIR + path, fd) == OK) ? 0 : 1;
 }
 
 void Dumpstate::AddDir(const std::string& dir, bool recursive) {
@@ -1069,11 +1113,97 @@ static void DumpIpAddrAndRules() {
     RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
 }
 
+void RunDumpsysText(const std::string& title, int priority, std::chrono::milliseconds timeout,
+                    std::chrono::milliseconds service_timeout) {
+    sp<android::IServiceManager> sm = defaultServiceManager();
+    Dumpsys dumpsys(sm.get());
+    DurationReporter duration_reporter(title);
+    Vector<String16> args;
+    Dumpsys::setServiceArgs(args, /* asProto = */ false, priority);
+
+    if (!title.empty()) {
+        dprintf(STDOUT_FILENO, "------ %s (%s) ------\n", title.c_str(), "/system/bin/dumpsys");
+        fsync(STDOUT_FILENO);
+    }
+
+    auto start = std::chrono::steady_clock::now();
+    Vector<String16> services = dumpsys.listServices(priority, /* supports_proto = */ false);
+    for (const String16& service : services) {
+        std::string path(title);
+        path.append(" - ").append(String8(service).c_str());
+        DumpstateSectionReporter section_reporter(path, ds.listener_, ds.report_section_);
+        size_t bytes_written = 0;
+        status_t status = dumpsys.startDumpThread(service, args);
+        if (status == OK) {
+            dumpsys.writeDumpHeader(STDOUT_FILENO, service, priority);
+            std::chrono::duration<double> elapsed_seconds;
+            status = dumpsys.writeDump(STDOUT_FILENO, service, service_timeout,
+                                       /* as_proto = */ false, elapsed_seconds, bytes_written);
+            section_reporter.setSize(bytes_written);
+            dumpsys.writeDumpFooter(STDOUT_FILENO, service, elapsed_seconds);
+            bool dump_complete = (status == OK);
+            dumpsys.stopDumpThread(dump_complete);
+        }
+        section_reporter.setStatus(status);
+
+        auto elapsed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start);
+        if (elapsed_duration > timeout) {
+            MYLOGE("*** command '%s' timed out after %llums\n", title.c_str(),
+                   elapsed_duration.count());
+            break;
+        }
+    }
+}
+
+void RunDumpsysProto(const std::string& title, int priority, std::chrono::milliseconds timeout,
+                     std::chrono::milliseconds service_timeout) {
+    sp<android::IServiceManager> sm = defaultServiceManager();
+    Dumpsys dumpsys(sm.get());
+    Vector<String16> args;
+    Dumpsys::setServiceArgs(args, /* asProto = */ true, priority);
+    DurationReporter duration_reporter(title);
+
+    auto start = std::chrono::steady_clock::now();
+    Vector<String16> services = dumpsys.listServices(priority, /* supports_proto = */ true);
+    for (const String16& service : services) {
+        std::string path(kProtoPath);
+        path.append(String8(service).c_str());
+        if (priority == IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL) {
+            path.append("_CRITICAL");
+        } else if (priority == IServiceManager::DUMP_FLAG_PRIORITY_HIGH) {
+            path.append("_HIGH");
+        }
+        path.append(kProtoExt);
+        DumpstateSectionReporter section_reporter(path, ds.listener_, ds.report_section_);
+        status_t status = dumpsys.startDumpThread(service, args);
+        if (status == OK) {
+            status = ds.AddZipEntryFromFd(path, dumpsys.getDumpFd(), service_timeout);
+            bool dumpTerminated = (status == OK);
+            dumpsys.stopDumpThread(dumpTerminated);
+        }
+        ZipWriter::FileEntry file_entry;
+        ds.zip_writer_->GetLastEntry(&file_entry);
+        section_reporter.setSize(file_entry.compressed_size);
+        section_reporter.setStatus(status);
+
+        auto elapsed_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - start);
+        if (elapsed_duration > timeout) {
+            MYLOGE("*** command '%s' timed out after %llums\n", title.c_str(),
+                   elapsed_duration.count());
+            break;
+        }
+    }
+}
+
 // Runs dumpsys on services that must dump first and and will take less than 100ms to dump.
 static void RunDumpsysCritical() {
     if (ds.CurrentVersionSupportsPriorityDumps()) {
-        RunDumpsys("DUMPSYS CRITICAL", {"--priority", "CRITICAL"},
-                   CommandOptions::WithTimeout(5).DropRoot().Build());
+        RunDumpsysText("DUMPSYS CRITICAL", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
+                       /* timeout= */ 5s, /* service_timeout= */ 500ms);
+        RunDumpsysProto("DUMPSYS CRITICAL PROTO", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
+                        /* timeout= */ 5s, /* service_timeout= */ 500ms);
     } else {
         RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
                    CommandOptions::WithTimeout(90).DropRoot().Build());
@@ -1085,8 +1215,13 @@ static void RunDumpsysCritical() {
 // Runs dumpsys on services that must dump first but can take up to 250ms to dump.
 static void RunDumpsysHigh() {
     if (ds.CurrentVersionSupportsPriorityDumps()) {
-        RunDumpsys("DUMPSYS HIGH", {"--priority", "HIGH"},
-                   CommandOptions::WithTimeout(20).DropRoot().Build());
+        // TODO meminfo takes ~10s, connectivity takes ~5sec to dump. They are both
+        // high priority. Reduce timeout once they are able to dump in a shorter time or
+        // moved to a parallel task.
+        RunDumpsysText("DUMPSYS HIGH", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
+                       /* timeout= */ 90s, /* service_timeout= */ 30s);
+        RunDumpsysProto("DUMPSYS HIGH PROTO", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
+                        /* timeout= */ 5s, /* service_timeout= */ 1s);
     } else {
         RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"});
     }
@@ -1095,8 +1230,10 @@ static void RunDumpsysHigh() {
 // Runs dumpsys on services that must dump but can take up to 10s to dump.
 static void RunDumpsysNormal() {
     if (ds.CurrentVersionSupportsPriorityDumps()) {
-        RunDumpsys("DUMPSYS NORMAL", {"--priority", "NORMAL"},
-                   CommandOptions::WithTimeout(90).DropRoot().Build());
+        RunDumpsysText("DUMPSYS", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
+                       /* timeout= */ 90s, /* service_timeout= */ 10s);
+        RunDumpsysProto("DUMPSYS PROTO", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
+                        /* timeout= */ 90s, /* service_timeout= */ 10s);
     } else {
         RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"},
                    CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
