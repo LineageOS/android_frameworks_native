@@ -35,6 +35,14 @@ Status DebugCommand::parseArgs(const Arg &arg) {
     if (optind >= arg.argc) {
         return USAGE;
     }
+
+    // Optargs cannnot be used because the flag should not be considered set
+    // if it should really be contained in mOptions.
+    if (std::string(arg.argv[optind]) == "-E") {
+        mExcludesParentInstances = true;
+        optind++;
+    }
+
     mInterfaceName = arg.argv[optind];
     ++optind;
     for (; optind < arg.argc; ++optind) {
@@ -59,6 +67,7 @@ Status DebugCommand::main(const Arg &arg) {
 
     return mLshal.emitDebugInfo(
             pair.first, pair.second.empty() ? "default" : pair.second, mOptions,
+            mExcludesParentInstances,
             mLshal.out().buf(),
             mLshal.err());
 }
@@ -67,8 +76,9 @@ void DebugCommand::usage() const {
 
     static const std::string debug =
             "debug:\n"
-            "    lshal debug <interface> [options [options [...]]] \n"
+            "    lshal debug [-E] <interface> [options [options [...]]] \n"
             "        Print debug information of a specified interface.\n"
+            "        -E: excludes debug output if HAL is actually a subclass.\n"
             "        <inteface>: Format is `android.hardware.foo@1.0::IFoo/default`.\n"
             "            If instance name is missing `default` is used.\n"
             "        options: space separated options to IBase::debug.\n";
