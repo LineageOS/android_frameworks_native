@@ -523,10 +523,12 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
     static const char* const known_non_device_names[] = {
         "vkCreateAndroidSurfaceKHR",
         "vkCreateDebugReportCallbackEXT",
+        "vkCreateDebugUtilsMessengerEXT",
         "vkCreateDevice",
         "vkCreateInstance",
         "vkDebugReportMessageEXT",
         "vkDestroyDebugReportCallbackEXT",
+        "vkDestroyDebugUtilsMessengerEXT",
         "vkDestroyInstance",
         "vkDestroySurfaceKHR",
         "vkEnumerateDeviceExtensionProperties",
@@ -575,6 +577,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetPhysicalDeviceSurfaceFormatsKHR",
         "vkGetPhysicalDeviceSurfacePresentModesKHR",
         "vkGetPhysicalDeviceSurfaceSupportKHR",
+        "vkSubmitDebugUtilsMessageEXT",
     };
     // clang-format on
     constexpr size_t count =

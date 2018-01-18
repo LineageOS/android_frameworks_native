@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 61
+define VERSION_PATCH 68
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -39,8 +39,12 @@ define VK_MAX_MEMORY_TYPES              32
 define VK_MAX_MEMORY_HEAPS              16    /// The maximum number of unique memory heaps, each of which supporting 1 or more memory types.
 @vulkan1_1
 define VK_MAX_DEVICE_GROUP_SIZE         32
+@vulkan1_1
 define VK_LUID_SIZE                     8
+@vulkan1_1
 define VK_QUEUE_FAMILY_EXTERNAL         -2
+@extension("VK_EXT_queue_family_foreign")
+define VK_QUEUE_FAMILY_FOREIGN_EXT      -3
 
 // API keywords
 define VK_TRUE        1
@@ -160,6 +164,14 @@ define NULL_HANDLE 0
 // 42
 @extension("VK_AMD_texture_gather_bias_lod") define VK_AMD_TEXTURE_GATHER_BIAS_LOD_SPEC_VERSION 1
 @extension("VK_AMD_texture_gather_bias_lod") define VK_AMD_TEXTURE_GATHER_BIAS_LOD_EXTENSION_NAME "VK_AMD_texture_gather_bias_lod"
+
+// 43
+@extension("VK_AMD_shader_info") define VK_AMD_SHADER_INFO_SPEC_VERSION 1
+@extension("VK_AMD_shader_info") define VK_AMD_SHADER_INFO_EXTENSION_NAME "VK_AMD_shader_info"
+
+// 47
+@extension("VK_AMD_shader_image_load_store_lod") define VK_AMD_SHADER_IMAGE_LOAD_STORE_LOD_SPEC_VERSION 1
+@extension("VK_AMD_shader_image_load_store_lod") define VK_AMD_SHADER_IMAGE_LOAD_STORE_LOD_EXTENSION_NAME "VK_AMD_shader_image_load_store_lod"
 
 // 54
 @extension("VK_KHR_multiview") define VK_KHR_MULTIVIEW_SPEC_VERSION 1
@@ -321,6 +333,10 @@ define NULL_HANDLE 0
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_SPEC_VERSION 1
 @extension("VK_EXT_discard_rectangles") define VK_EXT_DISCARD_RECTANGLES_EXTENSION_NAME "VK_EXT_discard_rectangles"
 
+// 102
+@extension("VK_EXT_conservative_rasterization") define VK_EXT_CONSERVATIVE_RASTERIZATION_SPEC_VERSION 1
+@extension("VK_EXT_conservative_rasterization") define VK_EXT_CONSERVATIVE_RASTERIZATION_EXTENSION_NAME "VK_EXT_conservative_rasterization"
+
 // 105
 @extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_SPEC_VERSION 3
 @extension("VK_EXT_swapchain_colorspace") define VK_EXT_SWAPCHAIN_COLORSPACE_EXTENSION_NAME "VK_EXT_swapchain_colorspace"
@@ -369,9 +385,21 @@ define NULL_HANDLE 0
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_SPEC_VERSION 1
 @extension("VK_MVK_macos_surface") define VK_MVK_MACOS_SURFACE_EXTENSION_NAME "VK_MVK_macos_surface"
 
+// 126
+@extension("VK_EXT_external_memory_dma_buf") define VK_EXT_EXTERNAL_MEMORY_DMA_BUF_SPEC_VERSION 1
+@extension("VK_EXT_external_memory_dma_buf") define VK_EXT_EXTERNAL_MEMORY_DMA_BUF_EXTENSION_NAME "VK_EXT_external_memory_dma_buf"
+
+// 127
+@extension("VK_EXT_queue_family_foreign") define VK_EXT_QUEUE_FAMILY_FOREIGN_SPEC_VERSION 1
+@extension("VK_EXT_queue_family_foreign") define VK_EXT_QUEUE_FAMILY_FOREIGN_EXTENSION_NAME "VK_EXT_queue_family_foreign"
+
 // 128
 @extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_SPEC_VERSION 3
 @extension("VK_KHR_dedicated_allocation") define VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME "VK_KHR_dedicated_allocation"
+
+// 128
+@extension("VK_EXT_debug_utils") define VK_EXT_DEBUG_UTILS_SPEC_VERSION 1
+@extension("VK_EXT_debug_utils") define VK_EXT_DEBUG_UTILS_EXTENSION_NAME "VK_EXT_debug_utils"
 
 // 131
 @extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_SPEC_VERSION 1
@@ -453,6 +481,14 @@ define NULL_HANDLE 0
 @extension("VK_KHR_maintenance3") define VK_KHR_MAINTENANCE3_SPEC_VERSION 1
 @extension("VK_KHR_maintenance3") define VK_KHR_MAINTENANCE3_EXTENSION_NAME "VK_KHR_maintenance3"
 
+// 175
+@extension("VK_EXT_global_priority") define VK_EXT_GLOBAL_PRIORITY_SPEC_VERSION 1
+@extension("VK_EXT_global_priority") define VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME "VK_EXT_global_priority"
+
+// 179
+@extension("VK_EXT_external_memory_host") define VK_EXT_EXTERNAL_MEMORY_HOST_SPEC_VERSION 1
+@extension("VK_EXT_external_memory_host") define VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME "VK_EXT_external_memory_host"
+
 /////////////
 //  Types  //
 /////////////
@@ -514,6 +550,9 @@ type u32 VkSampleMask
 // 87
 @extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkObjectTableNVX
 @extension("VK_NVX_device_generated_commands") @nonDispatchHandle type u64 VkIndirectCommandsLayoutNVX
+
+// 129
+@extension("VK_EXT_debug_utils") @nonDispatchHandle type u64 VkDebugUtilsMessengerEXT
 
 // 157
 @extension("VK_KHR_sampler_ycbcr_conversion") @nonDispatchHandle type u64 VkSamplerYcbcrConversionKHR
@@ -1418,6 +1457,10 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DISCARD_RECTANGLE_PROPERTIES_EXT  = 1000099000,
     VK_STRUCTURE_TYPE_PIPELINE_DISCARD_RECTANGLE_STATE_CREATE_INFO_EXT  = 1000099001,
 
+    //@extension("VK_EXT_conservative_rasterization") // 102
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONSERVATIVE_RASTERIZATION_PROPERTIES_EXT = 1000101000,
+    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_CONSERVATIVE_STATE_CREATE_INFO_EXT = 1000101001,
+
     //@extension("VK_EXT_hdr_metadata") // 106
     VK_STRUCTURE_TYPE_HDR_METADATA_EXT                          = 1000105000,
 
@@ -1463,6 +1506,13 @@ enum VkStructureType {
     //@extension("VK_KHR_dedicated_allocation") // 128
     VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS_KHR         = 1000127000,
     VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR        = 1000127001,
+
+    //@extension("VK_EXT_debug_utils") // 129
+    VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT          = 1000128000,
+    VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_TAG_INFO_EXT           = 1000128001,
+    VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT                     = 1000128002,
+    VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT   = 1000128003,
+    VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT     = 1000128004,
 
     //@extension("VK_EXT_sampler_filter_minmax") // 131
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES_EXT = 1000130000,
@@ -1515,6 +1565,14 @@ enum VkStructureType {
     //@extension("VK_KHR_maintenance3") // 169
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES_KHR      = 1000168000,
     VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_SUPPORT_KHR                 = 1000168001,
+
+    //@extension("VK_EXT_global_priority") // 175
+    VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_EXT      = 1000174000,
+
+    //@extension("VK_EXT_external_memory_host") // 179
+    VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT                   = 1000178000,
+    VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT                    = 1000178001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT   = 1000178002,
 }
 
 enum VkSubpassContents {
@@ -1576,6 +1634,9 @@ enum VkResult {
 
     //@extension("VK_KHR_maintenance1") // 70
     VK_ERROR_OUT_OF_POOL_MEMORY_KHR                         = 0xC4642878, // -1000069000
+
+    //@extension("VK_EXT_global_priority") // 175
+    VK_ERROR_NOT_PERMITTED_EXT                              = 0xC4628E4F, // -1000174001
 
     //@extension("VK_KHR_external_memory") // 73
     VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR                    = 0xC4641CBD, // -1000072003
@@ -1653,6 +1714,9 @@ enum VkObjectType {
     //@extension("VK_NVX_device_generated_commands") // 87
     VK_OBJECT_TYPE_OBJECT_TABLE_NVX                         = 1000086000,
     VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX             = 1000086001,
+
+    //@extension("VK_EXT_debug_utils") // 129
+    VK_OBJECT_TYPE_DEBUG_UTILS_MESSENGER_EXT                = 1000128000,
 
     //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
     VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_KHR             = 1000156000,
@@ -1767,7 +1831,7 @@ enum VkDebugReportObjectTypeEXT {
     VK_DEBUG_REPORT_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NVX_EXT = 32,
 
     //extension("VK_EXT_validation_cache") // 161
-    VK_DEBUG_REPORT_OBJECT_TYPE_VALIDATION_CACHE_EXT        = 33,
+    VK_DEBUG_REPORT_OBJECT_TYPE_VALIDATION_CACHE_EXT_EXT    = 33,
 
     //extension("VK_KHR_descriptor_update_template") // 86
     VK_DEBUG_REPORT_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_KHR_EXT = 1000085000,
@@ -1780,6 +1844,13 @@ enum VkDebugReportObjectTypeEXT {
 enum VkRasterizationOrderAMD {
     VK_RASTERIZATION_ORDER_STRICT_AMD                       = 0,
     VK_RASTERIZATION_ORDER_RELAXED_AMD                      = 1,
+}
+
+@extension("VK_AMD_shader_info") // 43
+enum VkShaderInfoTypeAMD {
+    VK_SHADER_INFO_TYPE_STATISTICS_AMD                      = 0,
+    VK_SHADER_INFO_TYPE_BINARY_AMD                          = 1,
+    VK_SHADER_INFO_TYPE_DISASSEMBLY_AMD                     = 2,
 }
 
 @extension("VK_EXT_validation_flags") // 62
@@ -1850,6 +1921,13 @@ enum VkDiscardRectangleModeEXT {
     VK_DISCARD_RECTANGLE_MODE_EXCLUSIVE_EXT = 1,
 }
 
+@extension("VK_EXT_conservative_rasterization") // 102
+enum VkConservativeRasterizationModeEXT {
+    VK_CONSERVATIVE_RASTERIZATION_MODE_DISABLED_EXT         = 0,
+    VK_CONSERVATIVE_RASTERIZATION_MODE_OVERESTIMATE_EXT     = 1,
+    VK_CONSERVATIVE_RASTERIZATION_MODE_UNDERESTIMATE_EXT    = 2,
+}
+
 @extension("VK_KHR_maintenance2") // 118
 enum VkPointClippingBehaviorKHR {
     VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES_KHR          = 0,
@@ -1908,6 +1986,14 @@ enum VkChromaLocationKHR {
 @extension("VK_EXT_validation_cache") // 161
 enum VkValidationCacheHeaderVersionEXT {
     VK_VALIDATION_CACHE_HEADER_VERSION_ONE_EXT              = 1,
+}
+
+@extension("VK_EXT_global_priority") // 175
+enum VkQueueGlobalPriorityEXT {
+    VK_QUEUE_GLOBAL_PRIORITY_LOW_EXT                        = 128,
+    VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_EXT                     = 256,
+    VK_QUEUE_GLOBAL_PRIORITY_HIGH_EXT                       = 512,
+    VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT                   = 1024,
 }
 
 /////////////////
@@ -2054,7 +2140,7 @@ bitfield VkImageCreateFlagBits {
 
     //@vulkan1_1
     VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT                 = 0x00000020,
-    VK_IMAGE_CREATE_BIND_SFR_BIT                            = 0x00000040,
+    VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT         = 0x00000040,
     VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT         = 0x00000080,
     VK_IMAGE_CREATE_EXTENDED_USAGE_BIT                      = 0x00000100,
     VK_IMAGE_CREATE_DISJOINT_BIT                            = 0x00000200,
@@ -2518,6 +2604,13 @@ bitfield VkExternalMemoryHandleTypeFlagBits {
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT    = 0x00000010,
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT           = 0x00000020,
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT       = 0x00000040,
+
+    //@extension("VK_EXT_external_memory_dma_buf") // 126
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT          = 0x00000200,
+
+    //@extension("VK_EXT_external_memory_host") // 179
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT            = 0x00000080,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT = 0x00000100,
 }
 
 /// External memory feature flags
@@ -2603,7 +2696,7 @@ type VkFlags VkSwapchainCreateFlagsKHR
 @extension("VK_KHR_swapchain") // 2
 bitfield VkSwapchainCreateFlagBitsKHR {
     //@vulkan1_1
-    VK_SWAPCHAIN_CREATE_BIND_SFR_BIT_KHR                    = 0x00000001,
+    VK_SWAPCHAIN_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT_KHR = 0x00000001,
     VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR                   = 0x00000002,
 }
 
@@ -2834,6 +2927,12 @@ type VkFlags VkPipelineDiscardRectangleStateCreateFlagsEXT
 //bitfield VkPipelineDiscardRectangleStateCreateFlagBitsEXT {
 //}
 
+@extension("VK_EXT_conservative_rasterization") // 102
+type VkFlags VkPipelineRasterizationConservativeStateCreateFlagsEXT
+//@extension("VK_EXT_conservative_rasterization") // 102
+//bitfield VkPipelineRasterizationConservativeStateCreateFlagBitsEXT {
+//}
+
 @extension("VK_KHR_external_fence_capabilities") // 113
 type VkFlags VkExternalFenceHandleTypeFlagsKHR
 @extension("VK_KHR_external_fence_capabilities") // 113
@@ -2870,6 +2969,37 @@ type VkFlags VkMacOSSurfaceCreateFlagsMVK
 //@extension("VK_MVK_macos_surface") // 124
 //bitfield VkMacOSSurfaceCreateFlagBitsMVK {
 //}
+
+@extension("VK_EXT_debug_utils") // 129
+type VkFlags VkDebugUtilsMessengerCallbackDataFlagsEXT
+//@extension("VK_EXT_debug_utils") // 129
+//bitfield VkDebugUtilsMessengerCallbackDataFlagBitsEXT {
+//}
+
+@extension("VK_EXT_debug_utils") // 129
+type VkFlags VkDebugUtilsMessengerCreateFlagsEXT
+//@extension("VK_EXT_debug_utils") // 129
+//bitfield VkDebugUtilsMessengerCreateFlagBitsEXT {
+//}
+
+@extension("VK_EXT_debug_utils") // 129
+type VkFlags VkDebugUtilsMessageSeverityFlagsEXT
+@extension("VK_EXT_debug_utils") // 129
+bitfield VkDebugUtilsMessageSeverityFlagBitsEXT {
+    VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT = 0x00000001,
+    VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT    = 0x00000010,
+    VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT = 0x00000100,
+    VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT   = 0x00001000,
+}
+
+@extension("VK_EXT_debug_utils") // 129
+type VkFlags VkDebugUtilsMessageTypeFlagsEXT
+@extension("VK_EXT_debug_utils") // 129
+bitfield VkDebugUtilsMessageTypeFlagBitsEXT {
+    VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT     = 0x00000001,
+    VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT  = 0x00000002,
+    VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT = 0x00000004,
+}
 
 @extension("VK_NV_fragment_coverage_to_color") // 150
 type VkFlags VkPipelineCoverageToColorStateCreateFlagsNV
@@ -4094,8 +4224,8 @@ class VkBindImageMemoryDeviceGroupInfo {
     const void*                         pNext
     u32                                 deviceIndexCount
     const u32*                          pDeviceIndices
-    u32                                 SFRRectCount
-    const VkRect2D*                     pSFRRects
+    u32                                 splitInstanceBindRegionCount
+    const VkRect2D*                     pSplitInstanceBindRegions
 }
 
 class VkPhysicalDeviceGroupProperties {
@@ -4818,6 +4948,26 @@ class VkTextureLODGatherFormatPropertiesAMD {
     VkStructureType                             sType
     void*                                       pNext
     VkBool32                                    supportsTextureGatherLODBiasAMD
+}
+
+@extension("VK_AMD_shader_info") // 43
+class VkShaderResourceUsageAMD {
+    u32                                         numUsedVgprs
+    u32                                         numUsedSgprs
+    u32                                         ldsSizePerLocalWorkGroup
+    platform.size_t                             ldsUsageSizeInBytes
+    platform.size_t                             scratchMemUsageInBytes
+}
+
+@extension("VK_AMD_shader_info") // 43
+class VkShaderStatisticsInfoAMD {
+    VkShaderStageFlags                          shaderStageMask
+    VkShaderResourceUsageAMD                    resourceUsage
+    u32                                         numPhysicalVgprs
+    u32                                         numPhysicalSgprs
+    u32                                         numAvailableVgprs
+    u32                                         numAvailableSgprs
+    u32[3]                                      computeWorkGroupSize
 }
 
 @extension("VK_KHR_multiview") // 54
@@ -5601,6 +5751,30 @@ class VkPipelineDiscardRectangleStateCreateInfoEXT {
     const VkRect2D*                                 pDiscardRectangles
 }
 
+@extension("VK_EXT_conservative_rasterization") // 102
+class VkPhysicalDeviceConservativeRasterizationPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    f32                                             primitiveOverestimationSize
+    f32                                             maxExtraPrimitiveOverestimationSize
+    f32                                             extraPrimitiveOverestimationSizeGranularity
+    VkBool32                                        primitiveUnderestimation
+    VkBool32                                        conservativePointAndLineRasterization
+    VkBool32                                        degenerateTrianglesRasterized
+    VkBool32                                        degenerateLinesRasterized
+    VkBool32                                        fullyCoveredFragmentShaderInputVariable
+    VkBool32                                        conservativeRasterizationPostDepthCoverage
+}
+
+@extension("VK_EXT_conservative_rasterization") // 102
+class VkPipelineRasterizationConservativeStateCreateInfoEXT {
+    VkStructureType                                           sType
+    const void*                                               pNext
+    VkPipelineRasterizationConservativeStateCreateFlagsEXT    flags
+    VkConservativeRasterizationModeEXT                        conservativeRasterizationMode
+    f32                                                       extraPrimitiveOverestimationSize
+}
+
 @extension("VK_EXT_hdr_metadata") // 106
 class VkXYColorEXT {
     f32                                             x
@@ -5794,6 +5968,61 @@ class VkMemoryDedicatedAllocateInfoKHR {
     VkBuffer                                        buffer
 }
 
+@extension("VK_EXT_debug_utils") // 129
+class VkDebugUtilsObjectNameInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkObjectType                                    objectType
+    u64                                             objectHandle
+    const char*                                     pObjectName
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+class VkDebugUtilsObjectTagInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkObjectType                                    objectType
+    u64                                             objectHandle
+    u64                                             tagName
+    platform.size_t                                 tagSize
+    const void*                                     pTag
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+class VkDebugUtilsLabelEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    const char*                                     pLabelName
+    f32[4]                                          color
+}
+
+@extension("VK_EXT_debug_utils") // 129
+class VkDebugUtilsMessengerCallbackDataEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkDebugUtilsMessengerCallbackDataFlagsEXT       flags
+    const char*                                     pMessageIdName
+    s32                                             messageIdNumber
+    const char*                                     pMessage
+    u32                                             queueLabelCount
+    VkDebugUtilsLabelEXT*                           pQueueLabels
+    u32                                             cmdBufLabelCount
+    VkDebugUtilsLabelEXT*                           pCmdBufLabels
+    u32                                             objectCount
+    VkDebugUtilsObjectNameInfoEXT*                  pObjects
+}
+
+@extension("VK_EXT_debug_utils") // 129
+class VkDebugUtilsMessengerCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkDebugUtilsMessengerCreateFlagsEXT             flags
+    VkDebugUtilsMessageSeverityFlagsEXT             messageSeverity
+    VkDebugUtilsMessageTypeFlagsEXT                 messageType
+    PFN_vkDebugUtilsMessengerCallbackEXT            pfnUserCallback
+    void*                                           pUserData
+}
+
 @extension("VK_EXT_sampler_filter_minmax") // 131
 class VkSamplerReductionModeCreateInfoEXT {
     VkStructureType                                 sType
@@ -5844,7 +6073,7 @@ class VkRenderPassSampleLocationsBeginInfoEXT {
     u32                                             attachmentInitialSampleLocationsCount
     const VkAttachmentSampleLocationsEXT*           pAttachmentInitialSampleLocations
     u32                                             postSubpassSampleLocationsCount
-    const VkSubpassSampleLocationsEXT*              pSubpassSampleLocations
+    const VkSubpassSampleLocationsEXT*              pPostSubpassSampleLocations
 }
 
 @extension("VK_EXT_sample_locations") // 144
@@ -6060,6 +6289,35 @@ class VkDescriptorSetLayoutSupportKHR {
     VkStructureType                                 sType
     void*                                           pNext
     VkBool32                                        supported
+}
+
+@extension("VK_EXT_global_priority") // 175
+class VkDeviceQueueGlobalPriorityCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkQueueGlobalPriorityEXT                        globalPriority
+}
+
+@extension("VK_EXT_external_memory_host") // 179
+class VkImportMemoryHostPointerInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkExternalMemoryHandleTypeFlagBits              handleType
+    void*                                           pHostPointer
+}
+
+@extension("VK_EXT_external_memory_host") // 179
+class VkMemoryHostPointerPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             memoryTypeBits
+}
+
+@extension("VK_EXT_external_memory_host") // 179
+class VkPhysicalDeviceExternalMemoryHostPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkDeviceSize                                    minImportedHostPointerAlignment
 }
 
 
@@ -9005,6 +9263,17 @@ cmd void vkCmdDrawIndexedIndirectCountAMD(
         u32                                         stride) {
 }
 
+@extension("VK_AMD_shader_info") // 43
+cmd VkResult vkGetShaderInfoAMD(
+        VkDevice                                    device,
+        VkPipeline                                  pipeline,
+        VkShaderStageFlagBits                       shaderStage,
+        VkShaderInfoTypeAMD                         infoType,
+        platform.size_t*                            pInfoSize,
+        void*                                       pInfo) {
+    return ?
+}
+
 @extension("VK_NV_external_memory_capabilities") // 56
 cmd VkResult vkGetPhysicalDeviceExternalImageFormatPropertiesNV(
         VkPhysicalDevice                            physicalDevice,
@@ -9527,6 +9796,87 @@ cmd VkResult vkCreateMacOSSurfaceMVK(
     return ?
 }
 
+@extension("VK_EXT_debug_utils") // 129
+@external type void* PFN_vkDebugUtilsMessengerCallbackEXT
+@extension("VK_EXT_debug_utils") // 129
+@pfn cmd VkBool32 vkDebugUtilsMessengerCallbackEXT(
+        VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT             messageType,
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+        void*                                       pUserData) {
+    return ?
+}
+
+@extension("VK_EXT_debug_utils") // 129
+cmd VkResult vkSetDebugUtilsObjectNameEXT(
+        VkDevice                                    device,
+        const VkDebugUtilsObjectNameInfoEXT*        pNameInfo) {
+    return ?
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+cmd VkResult vkSetDebugUtilsObjectTagEXT(
+        VkDevice                                    device,
+        const VkDebugUtilsObjectTagInfoEXT*         pTagInfo) {
+    return ?
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkQueueBeginDebugUtilsLabelEXT(
+        VkQueue                                     queue,
+        const VkDebugUtilsLabelEXT*                 pLabelInfo) {
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkQueueEndDebugUtilsLabelEXT(VkQueue       queue) {
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkQueueInsertDebugUtilsLabelEXT(
+        VkQueue                                     queue,
+        const VkDebugUtilsLabelEXT*                 pLabelInfo) {
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkCmdBeginDebugUtilsLabelEXT(
+        VkCommandBuffer                             commandBuffer,
+        const VkDebugUtilsLabelEXT*                 pLabelInfo) {
+}
+ 
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkCmdEndDebugUtilsLabelEXT(VkCommandBuffer commandBuffer) {
+}
+
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkCmdInsertDebugUtilsLabelEXT(
+        VkCommandBuffer                             commandBuffer,
+        const VkDebugUtilsLabelEXT*                 pLabelInfo) {
+}
+
+@extension("VK_EXT_debug_utils") // 129
+cmd VkResult vkCreateDebugUtilsMessengerEXT(
+        VkInstance                                  instance,
+        const VkDebugUtilsMessengerCreateInfoEXT*   pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkDebugUtilsMessengerEXT*                   pMessenger) {
+    return ?
+}
+
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkDestroyDebugUtilsMessengerEXT(
+        VkInstance                                  instance,
+        VkDebugUtilsMessengerEXT                    messenger,
+        const VkAllocationCallbacks*                pAllocator) {
+}
+
+@extension("VK_EXT_debug_utils") // 129
+cmd void vkSubmitDebugUtilsMessageEXT(
+        VkInstance                                  instance,
+        VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+        VkDebugUtilsMessageTypeFlagsEXT             messageTypes,
+        const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData) {
+}
+
 @extension("VK_EXT_sample_locations") // 144
 cmd void vkCmdSetSampleLocationsEXT(
         VkCommandBuffer                             commandBuffer,
@@ -9633,6 +9983,15 @@ cmd void vkGetDescriptorSetLayoutSupportKHR(
         VkDevice                                    device,
         const VkDescriptorSetLayoutCreateInfo*      pCreateInfo,
         VkDescriptorSetLayoutSupportKHR*            pSupport) {
+}
+
+@extension("VK_EXT_external_memory_host") // 179
+cmd VkResult vkGetMemoryHostPointerPropertiesEXT(
+        VkDevice                                    device,
+        VkExternalMemoryHandleTypeFlagBits          handleType,
+        const void*                                 pHostPointer,
+        VkMemoryHostPointerPropertiesEXT*           pMemoryHostPointerProperties) {
+    return ?
 }
 
 ////////////////
