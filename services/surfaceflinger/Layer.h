@@ -435,6 +435,11 @@ public:
     void setVisibleNonTransparentRegion(const Region& visibleNonTransparentRegion);
 
     /*
+     * Clear the visible, covered, and non-transparent regions.
+     */
+    void clearVisibilityRegions();
+
+    /*
      * latchBuffer - called each time the screen is redrawn and returns whether
      * the visible regions need to be recomputed (this is a fairly heavy
      * operation, so this should be set only if needed). Typically this is used

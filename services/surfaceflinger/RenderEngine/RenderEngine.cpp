@@ -27,6 +27,12 @@
 #include <SurfaceFlinger.h>
 #include <vector>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
+
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
+
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 // ---------------------------------------------------------------------------
@@ -70,13 +76,11 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     contextAttributes.reserve(6);
     contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
     contextAttributes.push_back(contextClientVersion);
-#ifdef EGL_IMG_context_priority
-    if (SurfaceFlinger::useContextPriority) {
+    bool useContextPriority = overrideUseContextPriorityFromConfig(extensions.hasContextPriority());
+    if (useContextPriority) {
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
     }
-#endif
-    contextAttributes.push_back(EGL_NONE);
     contextAttributes.push_back(EGL_NONE);
 
     EGLContext ctxt = eglCreateContext(display, config, nullptr, contextAttributes.data());
@@ -129,6 +133,18 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
     eglDestroySurface(display, dummy);
 
     return engine;
+}
+
+bool RenderEngine::overrideUseContextPriorityFromConfig(bool useContextPriority) {
+    OptionalBool ret;
+    ISurfaceFlingerConfigs::getService()->useContextPriority([&ret](OptionalBool b) {
+        ret = b;
+    });
+    if (ret.specified) {
+        return ret.value;
+    } else {
+        return useContextPriority;
+    }
 }
 
 RenderEngine::RenderEngine()

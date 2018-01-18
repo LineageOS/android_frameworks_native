@@ -626,9 +626,15 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         transform = Transform(invTransform) * tr * bufferOrientation;
     }
 
+    // STOPSHIP (b/72106793): If we have less than 25% scaling, HWC usually needs to use the rotator
+    // to handle it. However, there is one guaranteed frame of jank when we switch to using the
+    // rotator. In the meantime, we force GL composition instead until we have a better fix for the
+    // HWC issue.
+    bool extremeScaling = abs(t[0][0]) <= 0.25 || abs(t[1][1]) <= 0.25;
+
     // this gives us only the "orientation" component of the transform
     const uint32_t orientation = transform.getOrientation();
-    if (orientation & Transform::ROT_INVALID) {
+    if (orientation & Transform::ROT_INVALID || extremeScaling) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
     } else {
@@ -869,6 +875,12 @@ void Layer::setCoveredRegion(const Region& coveredRegion) {
 void Layer::setVisibleNonTransparentRegion(const Region& setVisibleNonTransparentRegion) {
     // always called from main thread
     this->visibleNonTransparentRegion = setVisibleNonTransparentRegion;
+}
+
+void Layer::clearVisibilityRegions() {
+    visibleRegion.clear();
+    visibleNonTransparentRegion.clear();
+    coveredRegion.clear();
 }
 
 // ----------------------------------------------------------------------------

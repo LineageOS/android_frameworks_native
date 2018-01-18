@@ -258,6 +258,7 @@ protected:
         std::unique_ptr<std::string> class_loader_context_ptr(new std::string("&"));
         std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
         bool downgrade = false;
+        int32_t target_sdk_version = 0;  // default
 
         binder::Status result = service_->dexopt(path,
                                                  uid,
@@ -270,7 +271,8 @@ protected:
                                                  volume_uuid_,
                                                  class_loader_context_ptr,
                                                  se_info_ptr,
-                                                 downgrade);
+                                                 downgrade,
+                                                 target_sdk_version);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
         int expected_access = should_dex_be_compiled ? 0 : -1;
         std::string odex = GetSecondaryDexArtifact(path, "odex");

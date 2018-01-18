@@ -165,6 +165,12 @@ typedef enum OMX_COLOR_FORMATTYPE {
      *  format for it. */
     OMX_COLOR_FormatYUV420Flexible = 0x7F420888,
 
+    // 10-bit or 12-bit YUV format, LSB-justified (0's on higher bits)
+    OMX_COLOR_FormatYUV420Planar16 = 0x7F42016B,
+
+    // 32-bit RGBA format, 10-bit per channel, alpha channel in highest 2-bit
+    OMX_COLOR_Format32BitRGBA1010102 = 0x7F00AAAA,
+
     OMX_TI_COLOR_FormatYUV420PackedSemiPlanar = 0x7F000100,
     OMX_QCOM_COLOR_FormatYVU420SemiPlanar = 0x7FA30C00,
     OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka = 0x7FA30C03,
