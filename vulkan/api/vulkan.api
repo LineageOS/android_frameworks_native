@@ -401,6 +401,10 @@ define NULL_HANDLE 0
 @extension("VK_EXT_debug_utils") define VK_EXT_DEBUG_UTILS_SPEC_VERSION 1
 @extension("VK_EXT_debug_utils") define VK_EXT_DEBUG_UTILS_EXTENSION_NAME "VK_EXT_debug_utils"
 
+// 130
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") define VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_SPEC_VERSION 2
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") define VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME "VK_ANDROID_external_memory_android_hardware_buffer"
+
 // 131
 @extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_SPEC_VERSION 1
 @extension("VK_EXT_sampler_filter_minmax") define VK_EXT_SAMPLER_FILTER_MINMAX_EXTENSION_NAME "VK_EXT_sampler_filter_minmax"
@@ -1514,6 +1518,14 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CALLBACK_DATA_EXT   = 1000128003,
     VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT     = 1000128004,
 
+    //@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+    VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID             = 1000129000,
+    VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_PROPERTIES_ANDROID        = 1000129001,
+    VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_FORMAT_PROPERTIES_ANDROID = 1000129002,
+    VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID       = 1000129003,
+    VK_STRUCTURE_TYPE_MEMORY_GET_ANDROID_HARDWARE_BUFFER_INFO_ANDROID   = 1000129004,
+    VK_STRUCTURE_TYPE_EXTERNAL_FORMAT_ANDROID                           = 1000129005,
+
     //@extension("VK_EXT_sampler_filter_minmax") // 131
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES_EXT = 1000130000,
     VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT = 1000130001,
@@ -2605,12 +2617,15 @@ bitfield VkExternalMemoryHandleTypeFlagBits {
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_HEAP_BIT           = 0x00000020,
     VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D12_RESOURCE_BIT       = 0x00000040,
 
-    //@extension("VK_EXT_external_memory_dma_buf") // 126
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT          = 0x00000200,
-
     //@extension("VK_EXT_external_memory_host") // 179
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT            = 0x00000080,
-    VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT = 0x00000100,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT              = 0x00000080,
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_MAPPED_FOREIGN_MEMORY_BIT_EXT   = 0x00000100,
+
+    //@extension("VK_EXT_external_memory_dma_buf") // 126
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT                      = 0x00000200,
+
+    //@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+    VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID  = 0x00000400,
 }
 
 /// External memory feature flags
@@ -6021,6 +6036,56 @@ class VkDebugUtilsMessengerCreateInfoEXT {
     VkDebugUtilsMessageTypeFlagsEXT                 messageType
     PFN_vkDebugUtilsMessengerCallbackEXT            pfnUserCallback
     void*                                           pUserData
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 131
+class VkAndroidHardwareBufferUsageANDROID {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u64                                             androidHardwareBufferUsage
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+class VkAndroidHardwareBufferPropertiesANDROID {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkDeviceSize                                    allocationSize
+    u32                                             memoryTypeBits
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+class VkAndroidHardwareBufferFormatPropertiesANDROID {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkFormat                                        format
+    u64                                             externalFormat
+    VkFormatFeatureFlags                            formatFeatures
+    VkComponentMapping                              samplerYcbcrConversionComponents
+    VkSamplerYcbcrModelConversion                   suggestedYcbcrModel
+    VkSamplerYcbcrRange                             suggestedYcbcrRange
+    VkChromaLocation                                suggestedXChromaOffset
+    VkChromaLocation                                suggestedYChromaOffset
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+class VkImportAndroidHardwareBufferInfoANDROID {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    platform.AHardwareBuffer*                       buffer
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+class VkMemoryGetAndroidHardwareBufferInfoANDROID {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkDeviceMemory                                  memory
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+class VkExternalFormatANDROID {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u64                                             externalFormat
 }
 
 @extension("VK_EXT_sampler_filter_minmax") // 131
@@ -9875,6 +9940,24 @@ cmd void vkSubmitDebugUtilsMessageEXT(
         VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
         VkDebugUtilsMessageTypeFlagsEXT             messageTypes,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData) {
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+@vulkan1_1 // extension requires 1.1, and should become non-optional when 1.1 does
+cmd VkResult vkGetAndroidHardwareBufferPropertiesANDROID(
+        VkDevice                                    device,
+        const platform.AHardwareBuffer*             buffer,
+        VkAndroidHardwareBufferPropertiesANDROID*   pProperties) {
+    return ?
+}
+
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") // 130
+@vulkan1_1 // extension requires 1.1, and should become non-optional when 1.1 does
+cmd VkResult vkGetMemoryAndroidHardwareBufferANDROID(
+        VkDevice                                            device,
+        const VkMemoryGetAndroidHardwareBufferInfoANDROID*  pInfo,
+        platform.AHardwareBuffer**                          pBuffer) {
+    return ?
 }
 
 @extension("VK_EXT_sample_locations") // 144
