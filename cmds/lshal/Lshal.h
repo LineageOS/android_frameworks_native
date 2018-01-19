@@ -51,6 +51,7 @@ public:
             const std::string &interfaceName,
             const std::string &instanceName,
             const std::vector<std::string> &options,
+            bool excludesParentInstances,
             std::ostream &out,
             NullableOStream<std::ostream> err) const;
 
