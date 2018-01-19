@@ -23,6 +23,7 @@
 #include <string>
 
 #include <hidl/ServiceManagement.h>
+#include <hidl/HidlTransportUtils.h>
 
 #include "DebugCommand.h"
 #include "ListCommand.h"
@@ -97,9 +98,11 @@ Status Lshal::emitDebugInfo(
         const std::string &interfaceName,
         const std::string &instanceName,
         const std::vector<std::string> &options,
+        bool excludesParentInstances,
         std::ostream &out,
         NullableOStream<std::ostream> err) const {
     using android::hidl::base::V1_0::IBase;
+    using android::hardware::details::getDescriptor;
 
     hardware::Return<sp<IBase>> retBase = serviceManager()->get(interfaceName, instanceName);
 
@@ -118,6 +121,18 @@ Status Lshal::emitDebugInfo(
         err << msg << std::endl;
         LOG(ERROR) << msg;
         return NO_INTERFACE;
+    }
+
+    if (excludesParentInstances) {
+        const std::string descriptor = getDescriptor(base.get());
+        if (descriptor.empty()) {
+            std::string msg = interfaceName + "/" + instanceName + " getDescriptor failed";
+            err << msg << std::endl;
+            LOG(ERROR) << msg;
+        }
+        if (descriptor != interfaceName) {
+            return OK;
+        }
     }
 
     PipeRelay relay(out);
