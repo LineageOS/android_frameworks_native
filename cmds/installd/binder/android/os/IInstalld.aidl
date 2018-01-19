@@ -92,4 +92,8 @@ interface IInstalld {
 
     void invalidateMounts();
     boolean isQuotaSupported(@nullable @utf8InCpp String uuid);
+
+    boolean prepareAppProfile(@utf8InCpp String packageName,
+        int userId, int appId, @utf8InCpp String profileName, @utf8InCpp String codePath,
+        @nullable @utf8InCpp String dexMetadata);
 }

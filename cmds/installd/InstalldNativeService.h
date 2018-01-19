@@ -131,6 +131,11 @@ public:
     binder::Status isQuotaSupported(const std::unique_ptr<std::string>& volumeUuid,
             bool* _aidl_return);
 
+    binder::Status prepareAppProfile(const std::string& packageName,
+            int32_t userId, int32_t appId, const std::string& profileName,
+            const std::string& codePath, const std::unique_ptr<std::string>& dexMetadata,
+            bool* _aidl_return);
+
 private:
     std::recursive_mutex mLock;
 
