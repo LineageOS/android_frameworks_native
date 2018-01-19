@@ -80,10 +80,17 @@ std::string create_primary_ref_profile_dir_path();
 std::string create_primary_reference_profile_package_dir_path(const std::string& package_name);
 
 std::string create_current_profile_path(
-        userid_t user, const std::string& package_name, bool is_secondary_dex);
+        userid_t user,
+        const std::string& package_name,
+        const std::string& location,
+        bool is_secondary_dex);
 std::string create_reference_profile_path(
-        const std::string& package_name, bool is_secondary_dex);
-std::string create_snapshot_profile_path(const std::string& package, const std::string& code_path);
+        const std::string& package_name,
+        const std::string& location,
+        bool is_secondary_dex);
+std::string create_snapshot_profile_path(
+        const std::string& package,
+        const std::string& profile_name);
 
 std::vector<userid_t> get_known_users(const char* volume_uuid);
 
