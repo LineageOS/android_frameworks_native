@@ -621,7 +621,7 @@ private:
             }
         }
 
-        if (param_index != 12) {
+        if (param_index != 13) {
             LOG(ERROR) << "Not enough parameters";
             return false;
         }
