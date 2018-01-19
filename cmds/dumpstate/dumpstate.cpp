@@ -1136,7 +1136,7 @@ static void DumpHals() {
                 }
                 RunCommandToFd(fd,
                         "",
-                        {"lshal", "debug", interface},
+                        {"lshal", "debug", "-E", interface},
                         CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
 
                 bool empty = 0 == lseek(fd, 0, SEEK_END);
