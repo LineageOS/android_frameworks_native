@@ -59,6 +59,12 @@ static void CloseDescriptor(const char* descriptor_string) {
 // The file descriptor denoted by status-fd will be closed. The rest of the parameters will
 // be passed on to otapreopt in the chroot.
 static int otapreopt_chroot(const int argc, char **arg) {
+    // Validate arguments
+    // We need the command, status channel and target slot, at a minimum.
+    if(argc < 3) {
+        PLOG(ERROR) << "Not enough arguments.";
+        exit(208);
+    }
     // Close all file descriptors. They are coming from the caller, we do not want to pass them
     // on across our fork/exec into a different domain.
     // 1) Default descriptors.
