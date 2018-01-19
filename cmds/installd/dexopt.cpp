@@ -2479,5 +2479,55 @@ bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
     return true;
 }
 
+bool prepare_app_profile(const std::string& package_name,
+                         userid_t user_id,
+                         appid_t app_id,
+                         const std::string& profile_name,
+                         const std::string& code_path ATTRIBUTE_UNUSED,
+                         const std::unique_ptr<std::string>& dex_metadata) {
+    // Prepare the current profile.
+    std::string cur_profile  = create_current_profile_path(user_id, package_name, profile_name,
+            /*is_secondary_dex*/ false);
+    uid_t uid = multiuser_get_uid(user_id, app_id);
+    if (fs_prepare_file_strict(cur_profile.c_str(), 0600, uid, uid) != 0) {
+        PLOG(ERROR) << "Failed to prepare " << cur_profile;
+        return false;
+    }
+
+    // Check if we need to install the profile from the dex metadata.
+    if (dex_metadata == nullptr) {
+        return true;
+    }
+
+    // We have a dex metdata. Merge the profile into the reference profile.
+    unique_fd ref_profile_fd = open_reference_profile(uid, package_name, profile_name,
+            /*read_write*/ true, /*is_secondary_dex*/ false);
+    unique_fd dex_metadata_fd(TEMP_FAILURE_RETRY(
+            open(dex_metadata->c_str(), O_RDONLY | O_NOFOLLOW)));
+    std::vector<unique_fd> profiles_fd;
+    profiles_fd.push_back(std::move(dex_metadata_fd));
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        /* child -- drop privileges before continuing */
+        gid_t app_shared_gid = multiuser_get_shared_gid(user_id, app_id);
+        drop_capabilities(app_shared_gid);
+
+        // TODO(calin): the dex metadata profile might embed different names for the
+        // same code path (e.g. YouTube.apk or base.apk, depending on how the initial
+        // profile was captured). We should pass the code path to adjust the names in the profile.
+        run_profman_merge(profiles_fd, ref_profile_fd);
+        exit(42);   /* only get here on exec failure */
+    }
+
+    /* parent */
+    int return_code = wait_child(pid);
+    if (!WIFEXITED(return_code)) {
+        PLOG(WARNING) << "profman failed for " << package_name << ":" << profile_name;
+        return false;
+    }
+    return true;
+}
+
 }  // namespace installd
 }  // namespace android
