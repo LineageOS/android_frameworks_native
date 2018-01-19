@@ -2,7 +2,7 @@
 #include "include/dvr/dvr_buffer_queue.h"
 
 #include <android/native_window.h>
-#include <private/dvr/buffer_hub_queue_producer.h>
+#include <gui/BufferHubProducer.h>
 
 #include "dvr_internal.h"
 #include "dvr_buffer_queue_internal.h"
@@ -10,7 +10,6 @@
 using namespace android;
 using android::dvr::BufferConsumer;
 using android::dvr::BufferHubBuffer;
-using android::dvr::BufferHubQueueProducer;
 using android::dvr::BufferProducer;
 using android::dvr::ConsumerQueue;
 using android::dvr::ProducerQueue;
@@ -30,8 +29,7 @@ int DvrWriteBufferQueue::GetNativeWindow(ANativeWindow** out_window) {
   if (native_window_ == nullptr) {
     // Lazy creation of |native_window|, as not everyone is using
     // DvrWriteBufferQueue as an external surface.
-    sp<IGraphicBufferProducer> gbp =
-        BufferHubQueueProducer::Create(producer_queue_);
+    sp<IGraphicBufferProducer> gbp = BufferHubProducer::Create(producer_queue_);
     native_window_ = new Surface(gbp, true);
   }
 
