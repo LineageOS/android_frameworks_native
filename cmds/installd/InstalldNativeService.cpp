@@ -18,6 +18,7 @@
 
 #define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
+#include <algorithm>
 #include <errno.h>
 #include <fstream>
 #include <fts.h>
@@ -90,6 +91,7 @@ static constexpr const char* IDMAP_SUFFIX = "@idmap";
 // fsverity assumes the page size is always 4096. If not, the feature can not be
 // enabled.
 static constexpr int kVerityPageSize = 4096;
+static constexpr size_t kSha256Size = 32;
 static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 
 // NOTE: keep in sync with Installer
@@ -2357,6 +2359,14 @@ struct fsverity_set {
     __u64 flags;
 };
 
+struct fsverity_root_hash {
+    short root_hash_algorithm;
+    short flags;
+    __u8 reserved[4];
+    __u8 root_hash[64];
+};
+
+#define FS_IOC_MEASURE_FSVERITY        _IOW('f', 2733, struct fsverity_root_hash)
 #define FS_IOC_SET_FSVERITY            _IOW('f', 2734, struct fsverity_set)
 
 #define FSVERITY_FLAG_ENABLED          0x0001
@@ -2421,6 +2431,36 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
         return error("Failed to enable fsverity on " + filePath + ": " + strerror(errno));
     }
     return ok();
+}
+
+binder::Status InstalldNativeService::assertFsverityRootHashMatches(const std::string& filePath,
+        const std::vector<uint8_t>& expectedHash) {
+    ENFORCE_UID(AID_SYSTEM);
+    if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
+        return ok();
+    }
+    // TODO: also check fsverity support in the current file system if compiled with DEBUG.
+    if (expectedHash.size() != kSha256Size) {
+        return error("verity hash size should be " + std::to_string(kSha256Size) + " but is " +
+                     std::to_string(expectedHash.size()));
+    }
+
+    // TODO(71871109): Validate filePath.
+    ::android::base::unique_fd fd(open(filePath.c_str(), O_RDONLY));
+    if (fd.get() < 0) {
+        return error("Failed to open " + filePath + ": " + strerror(errno));
+    }
+
+    struct fsverity_root_hash config;
+    memset(&config, 0, sizeof(config));
+    config.root_hash_algorithm = 0;  // SHA256
+    memcpy(config.root_hash, expectedHash.data(), std::min(sizeof(config.root_hash), kSha256Size));
+    if (ioctl(fd.get(), FS_IOC_MEASURE_FSVERITY, &config) < 0) {
+        // This includes an expected failure case with no FSVerity setup. It normally happens when
+        // the apk does not contains the Merkle tree root hash.
+        return error("Failed to measure fsverity on " + filePath + ": " + strerror(errno));
+    }
+    return ok();  // hashes match
 }
 
 binder::Status InstalldNativeService::reconcileSecondaryDexFile(
