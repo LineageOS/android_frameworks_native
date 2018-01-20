@@ -72,6 +72,7 @@ status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
     info.layerCount = layerCount;
     info.format = static_cast<Gralloc2::PixelFormat>(format);
     info.usage = usage;
+
     error = mMapper->validateBufferSize(bufferHandle, info, stride);
     if (error != Gralloc2::Error::NONE) {
         ALOGE("validateBufferSize(%p) failed: %d", rawHandle, error);
