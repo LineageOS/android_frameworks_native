@@ -110,6 +110,11 @@ public:
 
         /*
         DISABLE_RINGTONE_SYNC                 = IBinder::FIRST_CALL_TRANSACTION + 71,
+        GET_FOCUS_RAMP_TIME_MS                = IBinder::FIRST_CALL_TRANSACTION + 72,
+        DISPATCH_FOCUS_CHANGE                 = IBinder::FIRST_CALL_TRANSACTION + 73,
+        PLAYER_HAS_OP_PLAY_AUDIO              = IBinder::FIRST_CALL_TRANSACTION + 74,
+        SET_BLUETOOTH_A2DP_DEVICE_CONNECTION_STATE_SUPPRESS_NOISY_INTENT
+                                              = IBinder::FIRST_CALL_TRANSACTION + 75,
         */
     };
 
