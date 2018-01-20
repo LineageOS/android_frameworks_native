@@ -49,7 +49,8 @@ class SensorService::SensorEventConnection:
 
 public:
     SensorEventConnection(const sp<SensorService>& service, uid_t uid, String8 packageName,
-                          bool isDataInjectionMode, const String16& opPackageName);
+                          bool isDataInjectionMode, const String16& opPackageName,
+                          bool hasSensorAccess);
 
     status_t sendEvents(sensors_event_t const* buffer, size_t count, sensors_event_t* scratch,
                         wp<const SensorEventConnection> const * mapFlushEventsToConnections = NULL);
@@ -65,6 +66,8 @@ public:
     String8 getPackageName() const;
 
     uid_t getUid() const { return mUid; }
+
+    void setSensorAccess(const bool hasAccess);
 
 private:
     virtual ~SensorEventConnection();
@@ -167,6 +170,7 @@ private:
 
     mutable Mutex mDestroyLock;
     bool mDestroyed;
+    bool mHasSensorAccess;
 };
 
 } // namepsace android
