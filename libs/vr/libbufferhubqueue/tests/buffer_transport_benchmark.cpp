@@ -5,10 +5,10 @@
 #include <binder/IServiceManager.h>
 #include <dvr/dvr_api.h>
 #include <dvr/performance_client_api.h>
+#include <gui/BufferHubProducer.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/Surface.h>
-#include <private/dvr/buffer_hub_queue_producer.h>
 #include <utils/Trace.h>
 
 #include <chrono>
@@ -338,7 +338,7 @@ class BufferHubTransport : public BufferTransport {
         }
       });
 
-      producer_ = BufferHubQueueProducer::Create(producer_queue_);
+      producer_ = BufferHubProducer::Create(producer_queue_);
     }
 
     int count_ = 0;

@@ -22,6 +22,7 @@
 #include <binder/ProcessState.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
+#include <inttypes.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -869,7 +870,7 @@ protected:
                 (iOldFrame == NO_FRAME_INDEX) ? nullptr : &mFrames[iOldFrame];
         FrameEvents* newFrame = &mFrames[iNewFrame];
 
-        uint64_t nOldFrame = iOldFrame + 1;
+        uint64_t nOldFrame = (iOldFrame == NO_FRAME_INDEX) ? 0 : iOldFrame + 1;
         uint64_t nNewFrame = iNewFrame + 1;
 
         // Latch, Composite, and Release the frames in a plausible order.

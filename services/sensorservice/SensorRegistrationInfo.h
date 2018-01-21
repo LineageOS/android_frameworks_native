@@ -35,12 +35,12 @@ public:
     }
 
     SensorRegistrationInfo(int32_t handle, const String8 &packageName,
-                           int32_t samplingRateNs, int32_t maxReportLatencyNs, bool activate) {
+                           int64_t samplingRateNs, int64_t maxReportLatencyNs, bool activate) {
         mSensorHandle = handle;
         mPackageName = packageName;
 
-        mSamplingRateUs = static_cast<int32_t>(samplingRateNs/1000);
-        mMaxReportLatencyUs = static_cast<int32_t>(maxReportLatencyNs/1000);
+        mSamplingRateUs = static_cast<int64_t>(samplingRateNs/1000);
+        mMaxReportLatencyUs = static_cast<int64_t>(maxReportLatencyNs/1000);
         mActivated = activate;
 
         IPCThreadState *thread = IPCThreadState::self();
@@ -82,8 +82,8 @@ private:
     String8 mPackageName;
     pid_t   mPid;
     uid_t   mUid;
-    int32_t mSamplingRateUs;
-    int32_t mMaxReportLatencyUs;
+    int64_t mSamplingRateUs;
+    int64_t mMaxReportLatencyUs;
     bool mActivated;
     int8_t mHour, mMin, mSec;
 

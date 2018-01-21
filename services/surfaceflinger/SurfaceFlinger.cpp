@@ -4645,6 +4645,9 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& hw, 
             continue;
         }
         layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
+            if (!layer->belongsToDisplay(hw->getLayerStack(), false)) {
+                return;
+            }
             if (!layer->isVisible()) {
                 return;
             }

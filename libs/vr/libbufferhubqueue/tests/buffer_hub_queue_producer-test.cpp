@@ -1,6 +1,5 @@
-#include <private/dvr/buffer_hub_queue_producer.h>
-
 #include <base/logging.h>
+#include <gui/BufferHubProducer.h>
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
 #include <pdx/default_transport/channel_parcelable.h>
@@ -101,7 +100,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
     auto queue = ProducerQueue::Create(config, UsagePolicy{});
     ASSERT_TRUE(queue != nullptr);
 
-    mProducer = BufferHubQueueProducer::Create(std::move(queue));
+    mProducer = BufferHubProducer::Create(std::move(queue));
     ASSERT_TRUE(mProducer != nullptr);
     mSurface = new Surface(mProducer, true);
     ASSERT_TRUE(mSurface != nullptr);
@@ -145,7 +144,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
 
   const sp<IProducerListener> kDummyListener{new DummyProducerListener};
 
-  sp<BufferHubQueueProducer> mProducer;
+  sp<BufferHubProducer> mProducer;
   sp<Surface> mSurface;
 };
 
@@ -596,8 +595,8 @@ TEST_F(BufferHubQueueProducerTest, TakeAsParcelable) {
 
   // Create a new producer from the parcelable and connect to kTestApi should
   // succeed.
-  sp<BufferHubQueueProducer> new_producer =
-      BufferHubQueueProducer::Create(std::move(producer_parcelable));
+  sp<BufferHubProducer> new_producer =
+      BufferHubProducer::Create(std::move(producer_parcelable));
   ASSERT_TRUE(new_producer != nullptr);
   EXPECT_EQ(new_producer->connect(kDummyListener, kTestApi,
                                   kTestControlledByApp, &output),

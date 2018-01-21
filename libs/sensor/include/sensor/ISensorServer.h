@@ -60,6 +60,9 @@ public:
 class BnSensorServer : public BnInterface<ISensorServer>
 {
 public:
+    virtual status_t shellCommand(int in, int out, int err,
+                                  Vector<String16>& args) = 0;
+
     virtual status_t    onTransact( uint32_t code,
                                     const Parcel& data,
                                     Parcel* reply,

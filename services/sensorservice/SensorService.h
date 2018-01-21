@@ -21,6 +21,7 @@
 #include "RecentEventLogger.h"
 
 #include <binder/BinderService.h>
+#include <binder/IUidObserver.h>
 #include <cutils/compiler.h>
 #include <sensor/ISensorServer.h>
 #include <sensor/ISensorEventConnection.h>
@@ -85,6 +86,9 @@ public:
     status_t flushSensor(const sp<SensorEventConnection>& connection,
                          const String16& opPackageName);
 
+
+    virtual status_t shellCommand(int in, int out, int err, Vector<String16>& args);
+
 private:
     friend class BinderService<SensorService>;
 
@@ -92,6 +96,40 @@ private:
     class SensorRecord;
     class SensorEventAckReceiver;
     class SensorRegistrationInfo;
+
+    // If accessing a sensor we need to make sure the UID has access to it. If
+    // the app UID is idle then it cannot access sensors and gets no trigger
+    // events, no on-change events, flush event behavior does not change, and
+    // recurring events are the same as the first one delivered in idle state
+    // emulating no sensor change. As soon as the app UID transitions to an
+    // active state we will start reporting events as usual and vise versa. This
+    // approach transparently handles observing sensors while the app UID transitions
+    // between idle/active state avoiding to get stuck in a state receiving sensor
+    // data while idle or not receiving sensor data while active.
+    class UidPolicy : public BnUidObserver {
+        public:
+            explicit UidPolicy(wp<SensorService> service)
+                    : mService(service) {}
+            void registerSelf();
+            void unregisterSelf();
+
+            bool isUidActive(uid_t uid);
+
+            void onUidGone(uid_t uid, bool disabled);
+            void onUidActive(uid_t uid);
+            void onUidIdle(uid_t uid, bool disabled);
+
+            void addOverrideUid(uid_t uid, bool active);
+            void removeOverrideUid(uid_t uid);
+        private:
+            bool isUidActiveLocked(uid_t uid);
+            void updateOverrideUid(uid_t uid, bool active, bool insert);
+
+            Mutex mUidLock;
+            wp<SensorService> mService;
+            std::unordered_set<uid_t> mActiveUids;
+            std::unordered_map<uid_t, bool> mOverrideUids;
+    };
 
     enum Mode {
        // The regular operating mode where any application can register/unregister/call flush on
@@ -161,7 +199,6 @@ private:
     virtual int setOperationParameter(
             int32_t handle, int32_t type, const Vector<float> &floats, const Vector<int32_t> &ints);
     virtual status_t dump(int fd, const Vector<String16>& args);
-
     String8 getSensorName(int handle) const;
     bool isVirtualSensor(int handle) const;
     sp<SensorInterface> getSensorInterfaceFromHandle(int handle) const;
@@ -225,6 +262,18 @@ private:
     // Enable SCHED_FIFO priority for thread
     void enableSchedFifoMode();
 
+    // Sets whether the given UID can get sensor data
+    void setSensorAccess(uid_t uid, bool hasAccess);
+
+    // Overrides the UID state as if it is idle
+    status_t handleSetUidState(Vector<String16>& args, int err);
+    // Clears the override for the UID state
+    status_t handleResetUidState(Vector<String16>& args, int err);
+    // Gets the UID state
+    status_t handleGetUidState(Vector<String16>& args, int out, int err);
+    // Prints the shell command help
+    status_t printHelp(int out);
+
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
 
@@ -257,6 +306,8 @@ private:
 
     int mNextSensorRegIndex;
     Vector<SensorRegistrationInfo> mLastNSensorRegistrations;
+
+    sp<UidPolicy> mUidPolicy;
 };
 
 } // namespace android

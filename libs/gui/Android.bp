@@ -62,6 +62,9 @@ cc_library_shared {
         // Allow documentation warnings
         "-Wno-documentation",
 
+        // Allow implicit instantiation for templated class function
+        "-Wno-undefined-func-template",
+
         "-DDEBUG_ONLY_CODE=0",
     ],
 
@@ -79,6 +82,7 @@ cc_library_shared {
 
     srcs: [
         "BitTube.cpp",
+        "BufferHubProducer.cpp",
         "BufferItem.cpp",
         "BufferItemConsumer.cpp",
         "BufferQueue.cpp",
@@ -131,7 +135,15 @@ cc_library_shared {
         "android.hardware.configstore-utils",
     ],
 
+    // TODO(b/70046255): Remove these once BufferHub is integrated into libgui.
+    static_libs: [
+        "libbufferhub",
+        "libbufferhubqueue",
+        "libpdx_default_transport",
+    ],
+
     header_libs: [
+        "libdvr_headers",
         "libnativebase_headers",
         "libgui_headers",
     ],

@@ -85,6 +85,7 @@ cc_library_shared {
         "libhwbinder",
         "libsync",
         "libutils",
+        "libutilscallstack",
         "liblog",
     ],
 

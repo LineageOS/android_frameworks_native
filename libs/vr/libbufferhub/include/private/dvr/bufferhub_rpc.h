@@ -2,8 +2,8 @@
 #define ANDROID_DVR_BUFFERHUB_RPC_H_
 
 #include <cutils/native_handle.h>
-#include <gui/BufferQueueDefs.h>
 #include <sys/types.h>
+#include <ui/BufferQueueDefs.h>
 
 #include <dvr/dvr_api.h>
 #include <pdx/channel_handle.h>

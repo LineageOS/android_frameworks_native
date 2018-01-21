@@ -15,7 +15,6 @@
 sourceFiles = [
     "buffer_hub_queue_client.cpp",
     "buffer_hub_queue_parcelable.cpp",
-    "buffer_hub_queue_producer.cpp",
 ]
 
 includeFiles = [
@@ -35,7 +34,6 @@ sharedLibraries = [
     "liblog",
     "libui",
     "libutils",
-    "libgui",
 ]
 
 headerLibraries = [
@@ -61,6 +59,10 @@ cc_library {
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
+    vendor_available: false,
+    vndk: {
+        enabled: true,
+    },
 }
 
 subdirs = ["tests"]
