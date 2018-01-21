@@ -63,7 +63,10 @@ bool analyze_primary_profiles(uid_t uid,
 bool create_profile_snapshot(int32_t app_id, const std::string& package,
         const std::string& profile_name);
 
-bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
+bool dump_profiles(int32_t uid,
+                   const std::string& pkgname,
+                   const std::string& profile_name,
+                   const std::string& code_path);
 
 bool copy_system_profile(const std::string& system_profile,
                          uid_t packageUid,
