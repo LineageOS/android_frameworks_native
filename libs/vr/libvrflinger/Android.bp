@@ -27,7 +27,6 @@ includeFiles = [ "include" ]
 
 staticLibraries = [
     "libsurfaceflingerincludes",
-    "libhwcomposer-command-buffer",
     "libbufferhub",
     "libbufferhubqueue",
     "libdisplay",
@@ -64,7 +63,8 @@ sharedLibraries = [
 ]
 
 headerLibraries = [
-    "libdvr_headers"
+    "libdvr_headers",
+    "android.hardware.graphics.composer@2.1-command-buffer",
 ]
 
 cc_library_static {

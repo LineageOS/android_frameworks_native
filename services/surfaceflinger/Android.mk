@@ -59,12 +59,14 @@ LOCAL_CFLAGS += -DGL_GLEXT_PROTOTYPES -DEGL_EGLEXT_PROTOTYPES
 LOCAL_CFLAGS += -fvisibility=hidden -Werror=format
 
 LOCAL_STATIC_LIBRARIES := \
-    libhwcomposer-command-buffer \
     libtrace_proto \
     libvkjson \
     libvr_manager \
     libvrflinger \
     libserviceutils
+
+LOCAL_HEADER_LIBRARIES := \
+    android.hardware.graphics.composer@2.1-command-buffer
 
 LOCAL_EXPORT_STATIC_LIBRARY_HEADERS := libserviceutils
 
