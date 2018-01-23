@@ -77,9 +77,14 @@ public:
             int32_t hwcId,
             bool isSecure,
             const wp<IBinder>& displayToken,
+            const sp<ANativeWindow>& nativeWindow,
             const sp<DisplaySurface>& displaySurface,
-            const sp<IGraphicBufferProducer>& producer,
-            bool supportWideColor, bool supportHdr);
+            std::unique_ptr<RE::Surface> renderSurface,
+            int displayWidth,
+            int displayHeight,
+            bool supportWideColor,
+            bool supportHdr,
+            int initialPowerMode);
     // clang-format on
 
     ~DisplayDevice();
