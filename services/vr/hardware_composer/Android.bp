@@ -32,6 +32,10 @@ cc_library_shared {
     "libutils",
   ],
 
+  header_libs: [
+    "android.hardware.graphics.composer@2.1-command-buffer",
+  ],
+
   export_static_lib_headers: [
     "libhwcomposer-client",
   ],

@@ -80,6 +80,48 @@ enum {
      * the buffer size in bytes.
      */
     AHARDWAREBUFFER_FORMAT_BLOB                     = 0x21,
+
+    /**
+     * Corresponding formats:
+     *   Vulkan: VK_FORMAT_D16_UNORM
+     *   OpenGL ES: GL_DEPTH_COMPONENT16
+     */
+    AHARDWAREBUFFER_FORMAT_D16_UNORM                = 0x30,
+
+    /**
+     * Corresponding formats:
+     *   Vulkan: VK_FORMAT_X8_D24_UNORM_PACK32
+     *   OpenGL ES: GL_DEPTH_COMPONENT24
+     */
+    AHARDWAREBUFFER_FORMAT_D24_UNORM                = 0x31,
+
+    /**
+     * Corresponding formats:
+     *   Vulkan: VK_FORMAT_D24_UNORM_S8_UINT
+     *   OpenGL ES: GL_DEPTH24_STENCIL8
+     */
+    AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT        = 0x32,
+
+    /**
+     * Corresponding formats:
+     *   Vulkan: VK_FORMAT_D32_SFLOAT
+     *   OpenGL ES: GL_DEPTH_COMPONENT32F
+     */
+    AHARDWAREBUFFER_FORMAT_D32_FLOAT                = 0x33,
+
+    /**
+     * Corresponding formats:
+     *   Vulkan: VK_FORMAT_D32_SFLOAT_S8_UINT
+     *   OpenGL ES: GL_DEPTH32F_STENCIL8
+     */
+    AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT        = 0x34,
+
+    /**
+     * Corresponding formats:
+     *   Vulkan: VK_FORMAT_S8_UINT
+     *   OpenGL ES: GL_STENCIL_INDEX8
+     */
+    AHARDWAREBUFFER_FORMAT_S8_UINT                  = 0x35,
 };
 
 enum {
@@ -109,10 +151,14 @@ enum {
     AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT      = 1UL << 14,
     /* The buffer will be read by a hardware video encoder */
     AHARDWAREBUFFER_USAGE_VIDEO_ENCODE           = 1UL << 16,
-    /** The buffer will be used for sensor direct data */
+    /* The buffer will be used for sensor direct data */
     AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA     = 1UL << 23,
-    /* The buffer will be used as a shader storage or uniform buffer object*/
+    /* The buffer will be used as a shader storage or uniform buffer object */
     AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER        = 1UL << 24,
+    /* The buffer will be used as a cube map texture */
+    AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP               = 1UL << 25,
+    /* The buffer contains a complete mipmap hierarchy */
+    AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE        = 1UL << 26,
 
     AHARDWAREBUFFER_USAGE_VENDOR_0  = 1ULL << 28,
     AHARDWAREBUFFER_USAGE_VENDOR_1  = 1ULL << 29,

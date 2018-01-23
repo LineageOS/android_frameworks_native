@@ -60,7 +60,7 @@ cc_library {
         "liblog",
         "libutils",
         "libui",
-        "android.hardware.graphics.common@1.0",
+        "android.hardware.graphics.common@1.1",
     ],
 
     static_libs: [

@@ -130,14 +130,12 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
         // Compute sRGB to DisplayP3 color transform
         // NOTE: For now, we are limiting wide-color support to
         // Display-P3 only.
-        mat3 srgbToP3 =
-                ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::DisplayP3()).getTransform();
+        mSrgbToDisplayP3 = mat4(
+                ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::DisplayP3()).getTransform());
 
-        // color transform needs to be expanded to 4x4 to be what the shader wants
-        // mat has an initializer that expands mat3 to mat4, but
-        // not an assignment operator
-        mat4 gamutTransform(srgbToP3);
-        mSrgbToDisplayP3 = gamutTransform;
+        // Compute BT2020 to DisplayP3 color transform
+        mBt2020ToDisplayP3 = mat4(
+                ColorSpaceConnector(ColorSpace::BT2020(), ColorSpace::DisplayP3()).getTransform());
     }
 }
 
@@ -235,6 +233,10 @@ void GLES20RenderEngine::setSourceDataSpace(android_dataspace source) {
     mDataSpace = source;
 }
 
+void GLES20RenderEngine::setSourceY410BT2020(bool enable) {
+    mState.setY410BT2020(enable);
+}
+
 void GLES20RenderEngine::setWideColor(bool hasWideColor) {
     ALOGV("setWideColor: %s", hasWideColor ? "true" : "false");
     mDisplayHasWideColor = hasWideColor;
@@ -324,10 +326,22 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
     if (usesWideColor()) {
         Description wideColorState = mState;
-        if (mDataSpace != HAL_DATASPACE_DISPLAY_P3) {
-            wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
-            wideColorState.setWideGamut(true);
-            ALOGV("drawMesh: gamut transform applied");
+        switch (mDataSpace) {
+            case HAL_DATASPACE_DISPLAY_P3:
+                // input matches output
+                break;
+            case HAL_DATASPACE_BT2020_PQ:
+                wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
+                wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
+                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
+                wideColorState.enableToneMapping(true);
+                break;
+            default:
+                wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
+                wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
+                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
+                ALOGV("drawMesh: gamut transform applied");
+                break;
         }
         ProgramCache::getInstance().useProgram(wideColorState);
 

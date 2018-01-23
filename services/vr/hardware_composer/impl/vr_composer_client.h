@@ -17,9 +17,9 @@
 #ifndef ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
 #define ANDROID_DVR_HARDWARE_COMPOSER_IMPL_VR_COMPOSER_CLIENT_H
 
-#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <ComposerClient.h>
-#include <IComposerCommandBuffer.h>
+#include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
+#include <composer-command-buffer/2.1/ComposerCommandBuffer.h>
 
 namespace android {
 namespace dvr {

@@ -127,6 +127,9 @@ class BufferItem : public Flattenable<BufferItem> {
     // Indicates that this BufferItem contains a stale buffer which has already
     // been released by the BufferQueue.
     bool mIsStale;
+
+    // Indicates the API (NATIVE_WINDOW_API_xxx) that queues the buffer.
+    int mApi;
 };
 
 } // namespace android

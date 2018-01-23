@@ -20,6 +20,7 @@
 #include <string>
 
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
+#include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/mapper/2.0/IMapper.h>
 #include <android/hardware/graphics/mapper/2.1/IMapper.h>
 #include <utils/StrongPointer.h>
@@ -29,8 +30,8 @@ namespace android {
 namespace Gralloc2 {
 
 using hardware::graphics::allocator::V2_0::IAllocator;
-using hardware::graphics::common::V1_0::BufferUsage;
 using hardware::graphics::common::V1_0::PixelFormat;
+using hardware::graphics::common::V1_1::BufferUsage;
 using hardware::graphics::mapper::V2_0::BufferDescriptor;
 using hardware::graphics::mapper::V2_0::Error;
 using hardware::graphics::mapper::V2_0::IMapper;
@@ -80,6 +81,10 @@ public:
     int unlock(buffer_handle_t bufferHandle) const;
 
 private:
+    // Determines whether the passed info is compatible with the mapper.
+    Error validateBufferDescriptorInfo(
+            const IMapper::BufferDescriptorInfo& descriptorInfo) const;
+
     sp<IMapper> mMapper;
     sp<hardware::graphics::mapper::V2_1::IMapper> mMapperV2_1;
 };

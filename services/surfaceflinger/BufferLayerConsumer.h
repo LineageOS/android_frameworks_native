@@ -138,6 +138,9 @@ public:
     // must be called from SF main thread
     const Region& getSurfaceDamage() const;
 
+    // getCurrentApi retrieves the API which queues the current buffer.
+    int getCurrentApi() const;
+
     // See GLConsumer::setDefaultBufferSize.
     status_t setDefaultBufferSize(uint32_t width, uint32_t height);
 
@@ -336,6 +339,8 @@ private:
 
     // The portion of this surface that has changed since the previous frame
     Region mCurrentSurfaceDamage;
+
+    int mCurrentApi;
 
     uint32_t mDefaultWidth, mDefaultHeight;
 
