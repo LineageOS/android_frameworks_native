@@ -647,6 +647,141 @@ using HdrDolbyVisionDisplayCase =
              HdrDolbyVisionSupportedVariant<PrimaryDisplayVariant>>;
 
 /* ------------------------------------------------------------------------
+ *
+ * SurfaceFlinger::onHotplugReceived
+ */
+
+TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
+    constexpr int currentSequenceId = 123;
+    constexpr hwc2_display_t displayId1 = 456;
+    constexpr hwc2_display_t displayId2 = 654;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // Set the current sequence id for accepted events
+    mFlinger.mutableComposerSequenceId() = currentSequenceId;
+
+    // Set the main thread id so that the current thread does not appear to be
+    // the main thread.
+    mFlinger.mutableMainThreadId() = std::thread::id();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We expect invalidate() to be invoked once to trigger display transaction
+    // processing.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    // Simulate two hotplug events (a connect and a disconnect)
+    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Connected);
+    mFlinger.onHotplugReceived(currentSequenceId, displayId2, HWC2::Connection::Disconnected);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display transaction needed flag should be set.
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // All events should be in the pending event queue.
+    const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
+    ASSERT_EQ(2u, pendingEvents.size());
+    EXPECT_EQ(displayId1, pendingEvents[0].display);
+    EXPECT_EQ(HWC2::Connection::Connected, pendingEvents[0].connection);
+    EXPECT_EQ(displayId2, pendingEvents[1].display);
+    EXPECT_EQ(HWC2::Connection::Disconnected, pendingEvents[1].connection);
+}
+
+TEST_F(DisplayTransactionTest, hotplugDiscardsUnexpectedEvents) {
+    constexpr int currentSequenceId = 123;
+    constexpr int otherSequenceId = 321;
+    constexpr hwc2_display_t displayId = 456;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // Set the current sequence id for accepted events
+    mFlinger.mutableComposerSequenceId() = currentSequenceId;
+
+    // Set the main thread id so that the current thread does not appear to be
+    // the main thread.
+    mFlinger.mutableMainThreadId() = std::thread::id();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We do not expect any calls to invalidate().
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(0);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    // Call with an unexpected sequence id
+    mFlinger.onHotplugReceived(otherSequenceId, displayId, HWC2::Connection::Invalid);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display transaction needed flag should not be set
+    EXPECT_FALSE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // There should be no pending events
+    EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
+}
+
+TEST_F(DisplayTransactionTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThread) {
+    constexpr int currentSequenceId = 123;
+    constexpr hwc2_display_t displayId1 = 456;
+
+    // --------------------------------------------------------------------
+    // Note:
+    // --------------------------------------------------------------------
+    // This test case is a bit tricky. We want to verify that
+    // onHotplugReceived() calls processDisplayHotplugEventsLocked(), but we
+    // don't really want to provide coverage for everything the later function
+    // does as there are specific tests for it.
+    // --------------------------------------------------------------------
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // Set the current sequence id for accepted events
+    mFlinger.mutableComposerSequenceId() = currentSequenceId;
+
+    // Set the main thread id so that the current thread does appear to be the
+    // main thread.
+    mFlinger.mutableMainThreadId() = std::this_thread::get_id();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We expect invalidate() to be invoked once to trigger display transaction
+    // processing.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    // Simulate a disconnect on a display id that is not connected. This should
+    // be enqueued by onHotplugReceived(), and dequeued by
+    // processDisplayHotplugEventsLocked(), but then ignored as invalid.
+    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Disconnected);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display transaction needed flag should be set.
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // There should be no event queued on return, as it should have been
+    // processed.
+    EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
+}
+
+/* ------------------------------------------------------------------------
  * SurfaceFlinger::setupNewDisplayDeviceInternal
  */
 

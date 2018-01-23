@@ -72,6 +72,11 @@ public:
         return mFlinger->handleTransactionLocked(transactionFlags);
     }
 
+    auto onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
+                           HWC2::Connection connection) {
+        return mFlinger->onHotplugReceived(sequenceId, display, connection);
+    }
+
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
@@ -88,10 +93,12 @@ public:
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
     auto& mutableEventThread() { return mFlinger->mEventThread; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
+    auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableUseHwcVirtualDisplays() { return mFlinger->mUseHwcVirtualDisplays; }
 
+    auto& mutableComposerSequenceId() { return mFlinger->getBE().mComposerSequenceId; }
     auto& mutableHwcDisplayData() { return mFlinger->getBE().mHwc->mDisplayData; }
     auto& mutableHwcDisplaySlots() { return mFlinger->getBE().mHwc->mHwcDisplaySlots; }
 
