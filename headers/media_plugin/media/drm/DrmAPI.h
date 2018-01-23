@@ -123,6 +123,45 @@ namespace android {
             KeyStatusType mType;
         };
 
+        // Enumerate HDCP output protection levels
+        enum HdcpLevel {
+            // Failure to access HDCP level, an error occurred
+            kHdcpLevelUnknown,
+            // HDCP is not supported on this device, content is unprotected
+            kHdcpNone,
+            // HDCP version 1.0
+            kHdcpV1,
+            // HDCP version 2.0 Type 1.
+            kHdcpV2,
+            // HDCP version 2.1 Type 1.
+            kHdcpV2_1,
+            // HDCP version 2.2 Type 1.
+            kHdcpV2_2,
+            // No digital output, implicitly secure
+            kHdcpNoOutput = 0x7fff
+        };
+
+        // SecurityLevel indicates the level of robustness of the DRM
+        // implementation on the device
+        enum SecurityLevel {
+            // Failure to access security level, an error occurred
+            kSecurityLevelUnknown,
+            // Software-based whitebox crypto
+            kSecurityLevelSwSecureCrypto,
+            // Software-based whitebox crypto and an obfuscated decoder
+            kSecurityLevelSwSecureDecode,
+            // DRM key management and crypto operations are performed within a
+            // hardware backed trusted execution environment
+            kSecurityLevelHwSecureCrypto,
+            // DRM key management, crypto operations and decoding of content
+            // are performed within a hardware backed trusted execution environment
+            kSecurityLevelHwSecureDecode,
+            // DRM key management, crypto operations, decoding of content  and all
+            // handling of the media (compressed and uncompressed) is handled within
+            // a hardware backed trusted execution environment.
+            kSecurityLevelHwSecureAll
+        };
+
         DrmPlugin() {}
         virtual ~DrmPlugin() {}
 
