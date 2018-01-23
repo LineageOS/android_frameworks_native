@@ -639,9 +639,8 @@ void SurfaceFlinger::init() {
         }
     }
 
-    mEventControlThread = std::make_unique<EventControlThread>([this](bool enabled) {
-        setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled);
-    });
+    mEventControlThread = std::make_unique<impl::EventControlThread>(
+            [this](bool enabled) { setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled); });
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
