@@ -24,6 +24,7 @@ cc_test {
         "MockEventThread.cpp",
         "MockGraphicBufferConsumer.cpp",
         "MockGraphicBufferProducer.cpp",
+        "MockMessageQueue.cpp",
         "MockRenderEngine.cpp",
     ],
     static_libs: [
