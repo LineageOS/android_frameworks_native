@@ -27,6 +27,7 @@ cc_test {
         "MockGraphicBufferConsumer.cpp",
         "MockGraphicBufferProducer.cpp",
         "MockMessageQueue.cpp",
+        "MockNativeWindow.cpp",
         "MockRenderEngine.cpp",
         "MockSurfaceInterceptor.cpp",
     ],
