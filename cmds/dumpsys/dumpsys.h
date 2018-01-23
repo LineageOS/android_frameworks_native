@@ -49,7 +49,7 @@ class Dumpsys {
      * @param priorityFlags indicates priority of dump by passing additional priority args
      * to the service
      */
-    void setServiceArgs(Vector<String16>& args, bool asProto, int priorityFlags) const;
+    static void setServiceArgs(Vector<String16>& args, bool asProto, int priorityFlags);
 
     /**
      * Starts a thread to connect to a service and get its dump output. The thread redirects
