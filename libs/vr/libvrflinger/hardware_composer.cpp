@@ -191,6 +191,11 @@ void HardwareComposer::Enable() {
 
 void HardwareComposer::Disable() {
   UpdatePostThreadState(PostThreadState::Suspended, true);
+
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  post_thread_ready_.wait(lock, [this] {
+    return !post_thread_resumed_;
+  });
 }
 
 void HardwareComposer::OnBootFinished() {
@@ -232,11 +237,6 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
     eventfd_read(post_thread_event_fd_.Get(), &value);
     post_thread_wait_.notify_one();
   }
-
-  // Wait until the post thread is in the requested state.
-  post_thread_ready_.wait(lock, [this, effective_suspend] {
-    return effective_suspend != post_thread_resumed_;
-  });
 }
 
 void HardwareComposer::OnPostThreadResumed() {
