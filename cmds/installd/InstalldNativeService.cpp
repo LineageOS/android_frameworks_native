@@ -1940,27 +1940,6 @@ binder::Status InstalldNativeService::markBootComplete(const std::string& instru
     return ok();
 }
 
-void mkinnerdirs(char* path, int basepos, mode_t mode, int uid, int gid,
-        struct stat* statbuf)
-{
-    while (path[basepos] != 0) {
-        if (path[basepos] == '/') {
-            path[basepos] = 0;
-            if (lstat(path, statbuf) < 0) {
-                ALOGV("Making directory: %s\n", path);
-                if (mkdir(path, mode) == 0) {
-                    chown(path, uid, gid);
-                } else {
-                    ALOGW("Unable to make directory %s: %s\n", path, strerror(errno));
-                }
-            }
-            path[basepos] = '/';
-            basepos++;
-        }
-        basepos++;
-    }
-}
-
 binder::Status InstalldNativeService::linkNativeLibraryDirectory(
         const std::unique_ptr<std::string>& uuid, const std::string& packageName,
         const std::string& nativeLibPath32, int32_t userId) {
