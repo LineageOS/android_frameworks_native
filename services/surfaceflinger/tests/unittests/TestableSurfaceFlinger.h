@@ -60,6 +60,12 @@ public:
      * Forwarding for functions being tested
      */
 
+    auto createDisplay(const String8& displayName, bool secure) {
+        return mFlinger->createDisplay(displayName, secure);
+    }
+
+    auto destroyDisplay(const sp<IBinder>& display) { return mFlinger->destroyDisplay(display); }
+
     auto setupNewDisplayDeviceInternal(const wp<IBinder>& display, int hwcId,
                                        const DisplayDeviceState& state,
                                        const sp<DisplaySurface>& dispSurface,

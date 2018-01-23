@@ -782,6 +782,125 @@ TEST_F(DisplayTransactionTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThrea
 }
 
 /* ------------------------------------------------------------------------
+ * SurfaceFlinger::createDisplay
+ */
+
+TEST_F(DisplayTransactionTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
+    const String8 name("virtual.test");
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call should notify the interceptor that a display was created.
+    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    sp<IBinder> displayToken = mFlinger.createDisplay(name, false);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been added to the current state
+    ASSERT_TRUE(hasCurrentDisplayState(displayToken));
+    const auto& display = getCurrentDisplayState(displayToken);
+    EXPECT_EQ(DisplayDevice::DISPLAY_VIRTUAL, display.type);
+    EXPECT_EQ(false, display.isSecure);
+    EXPECT_EQ(name.string(), display.displayName);
+
+    // --------------------------------------------------------------------
+    // Cleanup conditions
+
+    // Destroying the display invalidates the display state.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+}
+
+TEST_F(DisplayTransactionTest, createDisplaySetsCurrentStateForSecureDisplay) {
+    const String8 name("virtual.test");
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call should notify the interceptor that a display was created.
+    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    sp<IBinder> displayToken = mFlinger.createDisplay(name, true);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been added to the current state
+    ASSERT_TRUE(hasCurrentDisplayState(displayToken));
+    const auto& display = getCurrentDisplayState(displayToken);
+    EXPECT_EQ(DisplayDevice::DISPLAY_VIRTUAL, display.type);
+    EXPECT_EQ(true, display.isSecure);
+    EXPECT_EQ(name.string(), display.displayName);
+
+    // --------------------------------------------------------------------
+    // Cleanup conditions
+
+    // Destroying the display invalidates the display state.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+}
+
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::destroyDisplay
+ */
+
+TEST_F(DisplayTransactionTest, destroyDisplayClearsCurrentStateForDisplay) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A virtual display exists
+    auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
+    existing.inject();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call should notify the interceptor that a display was created.
+    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
+
+    // Destroying the display invalidates the display state.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.destroyDisplay(existing.token());
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been removed from the current state
+    EXPECT_FALSE(hasCurrentDisplayState(existing.token()));
+
+    // Ths display should still exist in the drawing state
+    EXPECT_TRUE(hasDrawingDisplayState(existing.token()));
+
+    // The display transaction needed flasg should be set
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+}
+
+TEST_F(DisplayTransactionTest, destroyDisplayHandlesUnknownDisplay) {
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    sp<BBinder> displayToken = new BBinder();
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.destroyDisplay(displayToken);
+}
+
+/* ------------------------------------------------------------------------
  * SurfaceFlinger::setupNewDisplayDeviceInternal
  */
 
