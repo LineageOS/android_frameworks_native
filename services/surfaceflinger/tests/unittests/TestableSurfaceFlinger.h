@@ -45,26 +45,40 @@ public:
     }
 
     using CreateBufferQueueFunction = SurfaceFlinger::CreateBufferQueueFunction;
-
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
         mFlinger->mCreateBufferQueue = f;
     }
 
+    using CreateNativeWindowSurfaceFunction = SurfaceFlinger::CreateNativeWindowSurfaceFunction;
+    void setCreateNativeWindowSurface(CreateNativeWindowSurfaceFunction f) {
+        mFlinger->mCreateNativeWindowSurface = f;
+    }
+
+    using HotplugEvent = SurfaceFlinger::HotplugEvent;
+
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */
-    auto processDisplayChangesLocked() { return mFlinger->processDisplayChangesLocked(); }
+
+    auto handleTransactionLocked(uint32_t transactionFlags) {
+        return mFlinger->handleTransactionLocked(transactionFlags);
+    }
 
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
      */
+
     auto& mutableBuiltinDisplays() { return mFlinger->mBuiltinDisplays; }
-    auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
+    auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
-    auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableEventControlThread() { return mFlinger->mEventControlThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
+    auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableInterceptor() { return mFlinger->mInterceptor; }
+    auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
+    auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
 
     auto& mutableHwcDisplayData() { return mFlinger->getBE().mHwc->mDisplayData; }
     auto& mutableHwcDisplaySlots() { return mFlinger->getBE().mHwc->mHwcDisplaySlots; }
@@ -75,7 +89,10 @@ public:
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
         mutableDisplays().clear();
+        mutableEventControlThread().reset();
+        mutableEventQueue().reset();
         mutableEventThread().reset();
+        mutableInterceptor().reset();
         mFlinger->getBE().mHwc.reset();
         mFlinger->getBE().mRenderEngine.reset();
     }
