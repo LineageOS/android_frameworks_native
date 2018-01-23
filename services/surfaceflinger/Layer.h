@@ -66,6 +66,10 @@ class SurfaceFlinger;
 class LayerDebugInfo;
 class LayerBE;
 
+namespace impl {
+class SurfaceInterceptor;
+}
+
 // ---------------------------------------------------------------------------
 
 struct CompositionInfo {
@@ -593,7 +597,7 @@ protected:
 
     virtual void onFirstRef();
 
-    friend class SurfaceInterceptor;
+    friend class impl::SurfaceInterceptor;
 
     void commitTransaction(const State& stateToCommit);
 

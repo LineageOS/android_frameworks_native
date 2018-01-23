@@ -186,7 +186,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mLastTransactionTime(0),
         mBootFinished(false),
         mForceFullDamage(false),
-        mInterceptor(this),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
@@ -350,7 +349,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
     DisplayDeviceState info(DisplayDevice::DISPLAY_VIRTUAL, secure);
     info.displayName = displayName;
     mCurrentState.displays.add(token, info);
-    mInterceptor.saveDisplayCreation(info);
+    mInterceptor->saveDisplayCreation(info);
     return token;
 }
 
@@ -368,7 +367,7 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& display) {
         ALOGE("destroyDisplay called for non-virtual display");
         return;
     }
-    mInterceptor.saveDisplayDeletion(info.displayId);
+    mInterceptor->saveDisplayDeletion(info.displayId);
     mCurrentState.displays.removeItemsAt(idx);
     setTransactionFlags(eDisplayTransactionNeeded);
 }
@@ -2131,7 +2130,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 info.displayName = displayType == DisplayDevice::DISPLAY_PRIMARY ?
                         "Built-in Screen" : "External Screen";
                 mCurrentState.displays.add(mBuiltinDisplays[displayType], info);
-                mInterceptor.saveDisplayCreation(info);
+                mInterceptor->saveDisplayCreation(info);
             }
         } else {
             ALOGV("Removing built in display %d", displayType);
@@ -2139,7 +2138,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             ssize_t idx = mCurrentState.displays.indexOfKey(mBuiltinDisplays[displayType]);
             if (idx >= 0) {
                 const DisplayDeviceState& info(mCurrentState.displays.valueAt(idx));
-                mInterceptor.saveDisplayDeletion(info.displayId);
+                mInterceptor->saveDisplayDeletion(info.displayId);
                 mCurrentState.displays.removeItemsAt(idx);
             }
             mBuiltinDisplays[displayType].clear();
@@ -3066,8 +3065,8 @@ void SurfaceFlinger::setTransactionState(
     }
 
     if (transactionFlags) {
-        if (mInterceptor.isEnabled()) {
-            mInterceptor.saveTransaction(states, mCurrentState.displays, displays, flags);
+        if (mInterceptor->isEnabled()) {
+            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags);
         }
 
         // this triggers the transaction
@@ -3370,7 +3369,7 @@ status_t SurfaceFlinger::createLayer(
     if (result != NO_ERROR) {
         return result;
     }
-    mInterceptor.saveSurfaceCreation(layer);
+    mInterceptor->saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
     return result;
@@ -3442,7 +3441,7 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     status_t err = NO_ERROR;
     sp<Layer> l(client->getLayerUser(handle));
     if (l != nullptr) {
-        mInterceptor.saveSurfaceDeletion(l);
+        mInterceptor->saveSurfaceDeletion(l);
         err = removeLayer(l);
         ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
                 "error removing layer=%p (%s)", l.get(), strerror(-err));
@@ -3524,14 +3523,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         return;
     }
 
-    if (mInterceptor.isEnabled()) {
+    if (mInterceptor->isEnabled()) {
         ConditionalLock lock(mStateLock, !stateLockHeld);
         ssize_t idx = mCurrentState.displays.indexOfKey(hw->getDisplayToken());
         if (idx < 0) {
             ALOGW("Surface Interceptor SavePowerMode: invalid display token");
             return;
         }
-        mInterceptor.savePowerModeUpdate(mCurrentState.displays.valueAt(idx).displayId, mode);
+        mInterceptor->savePowerModeUpdate(mCurrentState.displays.valueAt(idx).displayId, mode);
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
@@ -4335,11 +4334,11 @@ status_t SurfaceFlinger::onTransact(
                 n = data.readInt32();
                 if (n) {
                     ALOGV("Interceptor enabled");
-                    mInterceptor.enable(mDrawingState.layersSortedByZ, mDrawingState.displays);
+                    mInterceptor->enable(mDrawingState.layersSortedByZ, mDrawingState.displays);
                 }
                 else{
                     ALOGV("Interceptor disabled");
-                    mInterceptor.disable();
+                    mInterceptor->disable();
                 }
                 return NO_ERROR;
             }

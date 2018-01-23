@@ -777,7 +777,8 @@ private:
     bool mBootFinished;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
-    SurfaceInterceptor mInterceptor;
+    std::unique_ptr<SurfaceInterceptor> mInterceptor =
+            std::make_unique<impl::SurfaceInterceptor>(this);
     SurfaceTracing mTracing;
     bool mUseHwcVirtualDisplays = false;
 
