@@ -901,6 +901,55 @@ TEST_F(DisplayTransactionTest, destroyDisplayHandlesUnknownDisplay) {
 }
 
 /* ------------------------------------------------------------------------
+ * SurfaceFlinger::resetDisplayState
+ */
+
+TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // vsync is enabled and available
+    mFlinger.mutablePrimaryHWVsyncEnabled() = true;
+    mFlinger.mutableHWVsyncAvailable() = true;
+
+    // A display exists
+    auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
+    existing.inject();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call disable vsyncs
+    EXPECT_CALL(*mEventControlThread, setVsyncEnabled(false)).Times(1);
+
+    // The call clears the current render engine surface
+    EXPECT_CALL(*mRenderEngine, resetCurrentSurface());
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.resetDisplayState();
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // vsyncs should be off and not available.
+    EXPECT_FALSE(mFlinger.mutablePrimaryHWVsyncEnabled());
+    EXPECT_FALSE(mFlinger.mutableHWVsyncAvailable());
+
+    // The display should have been removed from the display map.
+    EXPECT_FALSE(hasDisplayDevice(existing.token()));
+
+    // The display should still exist in the current state
+    EXPECT_TRUE(hasCurrentDisplayState(existing.token()));
+
+    // The display should have been removed from the drawing state
+    EXPECT_FALSE(hasDrawingDisplayState(existing.token()));
+}
+
+/* ------------------------------------------------------------------------
  * SurfaceFlinger::setupNewDisplayDeviceInternal
  */
 

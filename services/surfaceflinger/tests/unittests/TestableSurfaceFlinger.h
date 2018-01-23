@@ -66,6 +66,8 @@ public:
 
     auto destroyDisplay(const sp<IBinder>& display) { return mFlinger->destroyDisplay(display); }
 
+    auto resetDisplayState() { return mFlinger->resetDisplayState(); }
+
     auto setupNewDisplayDeviceInternal(const wp<IBinder>& display, int hwcId,
                                        const DisplayDeviceState& state,
                                        const sp<DisplaySurface>& dispSurface,
@@ -98,9 +100,11 @@ public:
     auto& mutableEventControlThread() { return mFlinger->mEventControlThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
     auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableHWVsyncAvailable() { return mFlinger->mHWVsyncAvailable; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
+    auto& mutablePrimaryHWVsyncEnabled() { return mFlinger->mPrimaryHWVsyncEnabled; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableUseHwcVirtualDisplays() { return mFlinger->mUseHwcVirtualDisplays; }
 
