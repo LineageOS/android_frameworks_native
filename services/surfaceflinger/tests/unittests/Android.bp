@@ -26,6 +26,7 @@ cc_test {
         "MockGraphicBufferProducer.cpp",
         "MockMessageQueue.cpp",
         "MockRenderEngine.cpp",
+        "MockSurfaceInterceptor.cpp",
     ],
     static_libs: [
         "libgmock",
