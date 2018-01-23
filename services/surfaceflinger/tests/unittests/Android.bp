@@ -21,6 +21,7 @@ cc_test {
         ":libsurfaceflinger_sources",
         "DisplayTransactionTest.cpp",
         "MockComposer.cpp",
+        "MockEventControlThread.cpp",
         "MockEventThread.cpp",
         "MockGraphicBufferConsumer.cpp",
         "MockGraphicBufferProducer.cpp",
