@@ -278,7 +278,7 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
 
 void SurfaceFlinger::onFirstRef()
 {
-    mEventQueue.init(this);
+    mEventQueue->init(this);
 }
 
 SurfaceFlinger::~SurfaceFlinger()
@@ -584,9 +584,10 @@ void SurfaceFlinger::init() {
     mSfEventThreadSource =
             std::make_unique<DispSyncSource>(&mPrimaryDispSync,
                                              SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
+
     mSFEventThread = std::make_unique<impl::EventThread>(mSfEventThreadSource.get(), *this, true,
                                                          "sfEventThread");
-    mEventQueue.setEventThread(mSFEventThread.get());
+    mEventQueue->setEventThread(mSFEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
     getBE().mRenderEngine =
@@ -1075,10 +1076,10 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
                         std::make_unique<impl::EventThread>(mVSyncInjector.get(), *this, false,
                                                             "injEventThread");
             }
-            mEventQueue.setEventThread(mInjectorEventThread.get());
+            mEventQueue->setEventThread(mInjectorEventThread.get());
         } else {
             ALOGV("VSync Injections disabled");
-            mEventQueue.setEventThread(mSFEventThread.get());
+            mEventQueue->setEventThread(mSFEventThread.get());
         }
 
         mInjectVSyncs = enable;
@@ -1143,30 +1144,30 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
 // ----------------------------------------------------------------------------
 
 void SurfaceFlinger::waitForEvent() {
-    mEventQueue.waitMessage();
+    mEventQueue->waitMessage();
 }
 
 void SurfaceFlinger::signalTransaction() {
-    mEventQueue.invalidate();
+    mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::signalLayerUpdate() {
-    mEventQueue.invalidate();
+    mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::signalRefresh() {
     mRefreshPending = true;
-    mEventQueue.refresh();
+    mEventQueue->refresh();
 }
 
 status_t SurfaceFlinger::postMessageAsync(const sp<MessageBase>& msg,
         nsecs_t reltime, uint32_t /* flags */) {
-    return mEventQueue.postMessage(msg, reltime);
+    return mEventQueue->postMessage(msg, reltime);
 }
 
 status_t SurfaceFlinger::postMessageSync(const sp<MessageBase>& msg,
         nsecs_t reltime, uint32_t /* flags */) {
-    status_t res = mEventQueue.postMessage(msg, reltime);
+    status_t res = mEventQueue->postMessage(msg, reltime);
     if (res == NO_ERROR) {
         msg->wait();
     }

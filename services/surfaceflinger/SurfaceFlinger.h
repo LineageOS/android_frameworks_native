@@ -784,7 +784,7 @@ private:
     bool mLayerTripleBufferingDisabled = false;
 
     // these are thread safe
-    mutable MessageQueue mEventQueue;
+    mutable std::unique_ptr<MessageQueue> mEventQueue{std::make_unique<impl::MessageQueue>()};
     FrameTracker mAnimFrameTracker;
     DispSync mPrimaryDispSync;
 
