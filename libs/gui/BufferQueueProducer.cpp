@@ -878,6 +878,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mSurfaceDamage = surfaceDamage;
         item.mQueuedBuffer = true;
         item.mAutoRefresh = mCore->mSharedBufferMode && mCore->mAutoRefresh;
+        item.mApi = mCore->mConnectedApi;
 
         mStickyTransform = stickyTransform;
 

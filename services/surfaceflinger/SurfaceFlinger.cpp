@@ -1041,7 +1041,19 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
     std::unique_ptr<HdrCapabilities> capabilities =
             getBE().mHwc->getHdrCapabilities(displayDevice->getHwcDisplayId());
     if (capabilities) {
-        std::swap(*outCapabilities, *capabilities);
+        if (displayDevice->getWideColorSupport() && !displayDevice->getHdrSupport()) {
+            // insert HDR10 as we will force client composition for HDR10
+            // layers
+            std::vector<int32_t> types = capabilities->getSupportedHdrTypes();
+            types.push_back(HAL_HDR_HDR10);
+
+            *outCapabilities = HdrCapabilities(types,
+                    capabilities->getDesiredMaxLuminance(),
+                    capabilities->getDesiredMaxAverageLuminance(),
+                    capabilities->getDesiredMinLuminance());
+        } else {
+            *outCapabilities = std::move(*capabilities);
+        }
     } else {
         return BAD_VALUE;
     }
@@ -1793,7 +1805,7 @@ android_color_mode SurfaceFlinger::pickColorMode(android_dataspace dataSpace) co
 }
 
 android_dataspace SurfaceFlinger::bestTargetDataSpace(
-        android_dataspace a, android_dataspace b) const {
+        android_dataspace a, android_dataspace b, bool hasHdr) const {
     // Only support sRGB and Display-P3 right now.
     if (a == HAL_DATASPACE_DISPLAY_P3 || b == HAL_DATASPACE_DISPLAY_P3) {
         return HAL_DATASPACE_DISPLAY_P3;
@@ -1802,6 +1814,9 @@ android_dataspace SurfaceFlinger::bestTargetDataSpace(
         return HAL_DATASPACE_DISPLAY_P3;
     }
     if (a == HAL_DATASPACE_V0_SCRGB || b == HAL_DATASPACE_V0_SCRGB) {
+        return HAL_DATASPACE_DISPLAY_P3;
+    }
+    if (!hasHdr && (a == HAL_DATASPACE_BT2020_PQ || b == HAL_DATASPACE_BT2020_PQ)) {
         return HAL_DATASPACE_DISPLAY_P3;
     }
 
@@ -1885,6 +1900,11 @@ void SurfaceFlinger::setUpHWComposer() {
                     "display %zd: %d", displayId, result);
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+            if (layer->getDataSpace() == HAL_DATASPACE_BT2020_PQ &&
+                    !displayDevice->getHdrSupport()) {
+                layer->forceClientComposition(hwcId);
+            }
+
             if (layer->getForceClientComposition(hwcId)) {
                 ALOGV("[%s] Requesting Client composition", layer->getName().string());
                 layer->setCompositionType(hwcId, HWC2::Composition::Client);
@@ -1899,7 +1919,8 @@ void SurfaceFlinger::setUpHWComposer() {
             android_dataspace newDataSpace = HAL_DATASPACE_V0_SRGB;
 
             for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-                newDataSpace = bestTargetDataSpace(layer->getDataSpace(), newDataSpace);
+                newDataSpace = bestTargetDataSpace(layer->getDataSpace(), newDataSpace,
+                        displayDevice->getHdrSupport());
                 ALOGV("layer: %s, dataspace: %s (%#x), newDataSpace: %s (%#x)",
                       layer->getName().string(), dataspaceDetails(layer->getDataSpace()).c_str(),
                       layer->getDataSpace(), dataspaceDetails(newDataSpace).c_str(), newDataSpace);
@@ -2253,9 +2274,19 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                         useWideColorMode = hasWideColorModes && hasWideColorDisplay;
                     }
 
+                    bool hasHdrSupport = false;
+                    std::unique_ptr<HdrCapabilities> hdrCapabilities =
+                        getHwComposer().getHdrCapabilities(state.type);
+                    if (hdrCapabilities) {
+                        const std::vector<int32_t> types = hdrCapabilities->getSupportedHdrTypes();
+                        auto iter = std::find(types.cbegin(), types.cend(), HAL_HDR_HDR10);
+                        hasHdrSupport = iter != types.cend();
+                    }
+
                     sp<DisplayDevice> hw =
                             new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
-                                              dispSurface, producer, useWideColorMode);
+                                              dispSurface, producer, useWideColorMode,
+                                              hasHdrSupport);
 
                     android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
                     if (useWideColorMode) {

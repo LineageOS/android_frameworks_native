@@ -71,6 +71,7 @@ protected:
     // Color management related functions and state
     void setColorMode(android_color_mode mode);
     void setSourceDataSpace(android_dataspace source);
+    void setSourceY410BT2020(bool enable);
     void setWideColor(bool hasWideColor);
     bool usesWideColor();
 
@@ -85,8 +86,9 @@ protected:
     bool mUseWideColor = false;
     uint64_t mWideColorFrameCount = 0;
 
-    // Currently only supporting sRGB and DisplayP3 color spaces
+    // Currently only supporting sRGB, BT2020 and DisplayP3 color spaces
     mat4 mSrgbToDisplayP3;
+    mat4 mBt2020ToDisplayP3;
     bool mPlatformHasWideColor = false;
 
     virtual void setupLayerTexturing(const Texture& texture);

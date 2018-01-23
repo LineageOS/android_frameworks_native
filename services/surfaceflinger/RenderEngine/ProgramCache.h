@@ -50,30 +50,53 @@ public:
 
     public:
         enum {
-            BLEND_PREMULT = 0x00000001,
-            BLEND_NORMAL = 0x00000000,
-            BLEND_MASK = 0x00000001,
+            BLEND_SHIFT = 0,
+            BLEND_MASK = 1 << BLEND_SHIFT,
+            BLEND_PREMULT = 1 << BLEND_SHIFT,
+            BLEND_NORMAL = 0 << BLEND_SHIFT,
 
-            OPACITY_OPAQUE = 0x00000002,
-            OPACITY_TRANSLUCENT = 0x00000000,
-            OPACITY_MASK = 0x00000002,
+            OPACITY_SHIFT = 1,
+            OPACITY_MASK = 1 << OPACITY_SHIFT,
+            OPACITY_OPAQUE = 1 << OPACITY_SHIFT,
+            OPACITY_TRANSLUCENT = 0 << OPACITY_SHIFT,
 
-            ALPHA_LT_ONE = 0x00000004,
-            ALPHA_EQ_ONE = 0x00000000,
-            ALPHA_MASK = 0x00000004,
+            ALPHA_SHIFT = 2,
+            ALPHA_MASK = 1 << ALPHA_SHIFT,
+            ALPHA_LT_ONE = 1 << ALPHA_SHIFT,
+            ALPHA_EQ_ONE = 0 << ALPHA_SHIFT,
 
-            TEXTURE_OFF = 0x00000000,
-            TEXTURE_EXT = 0x00000008,
-            TEXTURE_2D = 0x00000010,
-            TEXTURE_MASK = 0x00000018,
+            TEXTURE_SHIFT = 3,
+            TEXTURE_MASK = 3 << TEXTURE_SHIFT,
+            TEXTURE_OFF = 0 << TEXTURE_SHIFT,
+            TEXTURE_EXT = 1 << TEXTURE_SHIFT,
+            TEXTURE_2D = 2 << TEXTURE_SHIFT,
 
-            COLOR_MATRIX_OFF = 0x00000000,
-            COLOR_MATRIX_ON = 0x00000020,
-            COLOR_MATRIX_MASK = 0x00000020,
+            COLOR_MATRIX_SHIFT = 5,
+            COLOR_MATRIX_MASK = 1 << COLOR_MATRIX_SHIFT,
+            COLOR_MATRIX_OFF = 0 << COLOR_MATRIX_SHIFT,
+            COLOR_MATRIX_ON = 1 << COLOR_MATRIX_SHIFT,
 
-            WIDE_GAMUT_OFF = 0x00000000,
-            WIDE_GAMUT_ON = 0x00000040,
-            WIDE_GAMUT_MASK = 0x00000040,
+            INPUT_TF_SHIFT = 6,
+            INPUT_TF_MASK = 3 << INPUT_TF_SHIFT,
+            INPUT_TF_LINEAR = 0 << INPUT_TF_SHIFT,
+            INPUT_TF_SRGB = 1 << INPUT_TF_SHIFT,
+            INPUT_TF_ST2084 = 2 << INPUT_TF_SHIFT,
+
+            OUTPUT_TF_SHIFT = 8,
+            OUTPUT_TF_MASK = 3 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_LINEAR = 0 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_SRGB = 1 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_ST2084 = 2 << OUTPUT_TF_SHIFT,
+
+            TONE_MAPPING_SHIFT = 10,
+            TONE_MAPPING_MASK = 1 << TONE_MAPPING_SHIFT,
+            TONE_MAPPING_OFF = 0 << TONE_MAPPING_SHIFT,
+            TONE_MAPPING_ON = 1 << TONE_MAPPING_SHIFT,
+
+            Y410_BT2020_SHIFT = 11,
+            Y410_BT2020_MASK = 1 << Y410_BT2020_SHIFT,
+            Y410_BT2020_OFF = 0 << Y410_BT2020_SHIFT,
+            Y410_BT2020_ON = 1 << Y410_BT2020_SHIFT,
         };
 
         inline Key() : mKey(0) {}
@@ -90,7 +113,10 @@ public:
         inline bool isOpaque() const { return (mKey & OPACITY_MASK) == OPACITY_OPAQUE; }
         inline bool hasAlpha() const { return (mKey & ALPHA_MASK) == ALPHA_LT_ONE; }
         inline bool hasColorMatrix() const { return (mKey & COLOR_MATRIX_MASK) == COLOR_MATRIX_ON; }
-        inline bool isWideGamut() const { return (mKey & WIDE_GAMUT_MASK) == WIDE_GAMUT_ON; }
+        inline int getInputTF() const { return (mKey & INPUT_TF_MASK); }
+        inline int getOutputTF() const { return (mKey & OUTPUT_TF_MASK); }
+        inline bool hasToneMapping() const { return (mKey & TONE_MAPPING_MASK) == TONE_MAPPING_ON; }
+        inline bool isY410BT2020() const { return (mKey & Y410_BT2020_MASK) == Y410_BT2020_ON; }
 
         // this is the definition of a friend function -- not a method of class Needs
         friend inline int strictly_order_type(const Key& lhs, const Key& rhs) {

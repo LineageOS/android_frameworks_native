@@ -61,8 +61,20 @@ const mat4& Description::getColorMatrix() const {
     return mColorMatrix;
 }
 
-void Description::setWideGamut(bool wideGamut) {
-    mIsWideGamut = wideGamut;
+void Description::setY410BT2020(bool enable) {
+    mY410BT2020 = enable;
+}
+
+void Description::setInputTransferFunction(TransferFunction transferFunction) {
+    mInputTransferFunction = transferFunction;
+}
+
+void Description::setOutputTransferFunction(TransferFunction transferFunction) {
+    mOutputTransferFunction = transferFunction;
+}
+
+void Description::enableToneMapping(bool enable) {
+    mToneMappingEnabled = enable;
 }
 
 } /* namespace android */

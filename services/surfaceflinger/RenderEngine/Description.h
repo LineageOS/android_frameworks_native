@@ -32,6 +32,32 @@ class Program;
  * Program and ProgramCache are friends and access the state directly
  */
 class Description {
+public:
+    Description() = default;
+    ~Description() = default;
+
+    void setPremultipliedAlpha(bool premultipliedAlpha);
+    void setOpaque(bool opaque);
+    void setTexture(const Texture& texture);
+    void disableTexture();
+    void setColor(const half4& color);
+    void setProjectionMatrix(const mat4& mtx);
+    void setColorMatrix(const mat4& mtx);
+    const mat4& getColorMatrix() const;
+
+    void setY410BT2020(bool enable);
+
+    enum class TransferFunction : int {
+        LINEAR,
+        SRGB,
+        ST2084,
+    };
+    void setInputTransferFunction(TransferFunction transferFunction);
+    void setOutputTransferFunction(TransferFunction transferFunction);
+
+    void enableToneMapping(bool enable);
+
+private:
     friend class Program;
     friend class ProgramCache;
 
@@ -52,21 +78,15 @@ class Description {
     bool mColorMatrixEnabled = false;
     mat4 mColorMatrix;
 
-    bool mIsWideGamut = false;
+    // true if the sampled pixel values are in Y410/BT2020 rather than RGBA
+    bool mY410BT2020 = false;
 
-public:
-    Description() = default;
-    ~Description() = default;
+    // transfer functions for the input/output
+    TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
+    TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
 
-    void setPremultipliedAlpha(bool premultipliedAlpha);
-    void setOpaque(bool opaque);
-    void setTexture(const Texture& texture);
-    void disableTexture();
-    void setColor(const half4& color);
-    void setProjectionMatrix(const mat4& mtx);
-    void setColorMatrix(const mat4& mtx);
-    const mat4& getColorMatrix() const;
-    void setWideGamut(bool wideGamut);
+    // tone-map the color
+    bool mToneMappingEnabled = false;
 };
 
 } /* namespace android */

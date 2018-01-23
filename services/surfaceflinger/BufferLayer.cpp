@@ -821,8 +821,17 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
                               getColor());
     engine.setSourceDataSpace(mCurrentState.dataSpace);
+
+    if (mCurrentState.dataSpace == HAL_DATASPACE_BT2020_PQ &&
+        mConsumer->getCurrentApi() == NATIVE_WINDOW_API_MEDIA &&
+        getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102) {
+        engine.setSourceY410BT2020(true);
+    }
+
     engine.drawMesh(getBE().mMesh);
     engine.disableBlending();
+
+    engine.setSourceY410BT2020(false);
 }
 
 uint32_t BufferLayer::getProducerStickyTransform() const {

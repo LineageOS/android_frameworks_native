@@ -126,9 +126,42 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
             .set(Key::OPACITY_MASK,
                  description.mOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
             .set(Key::COLOR_MATRIX_MASK,
-                 description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON : Key::COLOR_MATRIX_OFF)
-            .set(Key::WIDE_GAMUT_MASK,
-                 description.mIsWideGamut ? Key::WIDE_GAMUT_ON : Key::WIDE_GAMUT_OFF);
+                 description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON : Key::COLOR_MATRIX_OFF);
+
+    needs.set(Key::Y410_BT2020_MASK,
+              description.mY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
+
+    if (needs.hasColorMatrix()) {
+        switch (description.mInputTransferFunction) {
+            case Description::TransferFunction::LINEAR:
+            default:
+                needs.set(Key::INPUT_TF_MASK, Key::INPUT_TF_LINEAR);
+                break;
+            case Description::TransferFunction::SRGB:
+                needs.set(Key::INPUT_TF_MASK, Key::INPUT_TF_SRGB);
+                break;
+            case Description::TransferFunction::ST2084:
+                needs.set(Key::INPUT_TF_MASK, Key::INPUT_TF_ST2084);
+                break;
+        }
+
+        switch (description.mOutputTransferFunction) {
+            case Description::TransferFunction::LINEAR:
+            default:
+                needs.set(Key::OUTPUT_TF_MASK, Key::OUTPUT_TF_LINEAR);
+                break;
+            case Description::TransferFunction::SRGB:
+                needs.set(Key::OUTPUT_TF_MASK, Key::OUTPUT_TF_SRGB);
+                break;
+            case Description::TransferFunction::ST2084:
+                needs.set(Key::OUTPUT_TF_MASK, Key::OUTPUT_TF_ST2084);
+                break;
+        }
+
+        needs.set(Key::TONE_MAPPING_MASK,
+                  description.mToneMappingEnabled ? Key::TONE_MAPPING_ON : Key::TONE_MAPPING_OFF);
+    }
+
     return needs;
 }
 
@@ -170,56 +203,186 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         fs << "uniform vec4 color;";
     }
 
+    if (needs.isY410BT2020()) {
+        fs << R"__SHADER__(
+            vec3 convertY410BT2020(const vec3 color) {
+                const vec3 offset = vec3(0.0625, 0.5, 0.5);
+                const mat3 transform = mat3(
+                    vec3(1.1678,  1.1678, 1.1678),
+                    vec3(   0.0, -0.1878, 2.1481),
+                    vec3(1.6836, -0.6523,   0.0));
+                // Y is in G, U is in R, and V is in B
+                return clamp(transform * (color.grb - offset), 0.0, 1.0);
+            }
+            )__SHADER__";
+    }
+
     if (needs.hasColorMatrix()) {
         fs << "uniform mat4 colorMatrix;";
-    }
-    if (needs.hasColorMatrix()) {
-        // When in wide gamut mode, the color matrix will contain a color space
-        // conversion matrix that needs to be applied in linear space
-        // When not in wide gamut, we can simply no-op the transfer functions
-        // and let the shader compiler get rid of them
-        if (needs.isWideGamut()) {
+
+        switch (needs.getInputTF()) {
+            case Key::INPUT_TF_LINEAR:
+            default:
+                fs << R"__SHADER__(
+                    vec3 EOTF(const vec3 linear) {
+                        return linear;
+                    }
+                )__SHADER__";
+                break;
+            case Key::INPUT_TF_SRGB:
+                fs << R"__SHADER__(
+                    float EOTF_sRGB(float srgb) {
+                        return srgb <= 0.04045 ? srgb / 12.92 : pow((srgb + 0.055) / 1.055, 2.4);
+                    }
+
+                    vec3 EOTF_sRGB(const vec3 srgb) {
+                        return vec3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                    }
+
+                    vec3 EOTF(const vec3 srgb) {
+                        return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                    }
+                )__SHADER__";
+                break;
+            case Key::INPUT_TF_ST2084:
+                fs << R"__SHADER__(
+                    vec3 EOTF(const highp vec3 color) {
+                        const highp float m1 = (2610.0 / 4096.0) / 4.0;
+                        const highp float m2 = (2523.0 / 4096.0) * 128.0;
+                        const highp float c1 = (3424.0 / 4096.0);
+                        const highp float c2 = (2413.0 / 4096.0) * 32.0;
+                        const highp float c3 = (2392.0 / 4096.0) * 32.0;
+
+                        highp vec3 tmp = pow(color, 1.0 / vec3(m2));
+                        tmp = max(tmp - c1, 0.0) / (c2 - c3 * tmp);
+                        return pow(tmp, 1.0 / vec3(m1));
+                    }
+                    )__SHADER__";
+                break;
+        }
+
+        switch (needs.getOutputTF()) {
+            case Key::OUTPUT_TF_LINEAR:
+            default:
+                fs << R"__SHADER__(
+                    vec3 OETF(const vec3 linear) {
+                        return linear;
+                    }
+                )__SHADER__";
+                break;
+            case Key::OUTPUT_TF_SRGB:
+                fs << R"__SHADER__(
+                    float OETF_sRGB(const float linear) {
+                        return linear <= 0.0031308 ?
+                                linear * 12.92 : (pow(linear, 1.0 / 2.4) * 1.055) - 0.055;
+                    }
+
+                    vec3 OETF_sRGB(const vec3 linear) {
+                        return vec3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                    }
+
+                    vec3 OETF(const vec3 linear) {
+                        return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                    }
+                )__SHADER__";
+                break;
+            case Key::OUTPUT_TF_ST2084:
+                fs << R"__SHADER__(
+                    vec3 OETF(const vec3 linear) {
+                        const float m1 = (2610.0 / 4096.0) / 4.0;
+                        const float m2 = (2523.0 / 4096.0) * 128.0;
+                        const float c1 = (3424.0 / 4096.0);
+                        const float c2 = (2413.0 / 4096.0) * 32.0;
+                        const float c3 = (2392.0 / 4096.0) * 32.0;
+
+                        vec3 tmp = pow(linear, vec3(m1));
+                        tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
+                        return pow(tmp, vec3(m2));
+                    }
+                )__SHADER__";
+                break;
+        }
+
+        if (needs.hasToneMapping()) {
             fs << R"__SHADER__(
-                  float OETF_sRGB(const float linear) {
-                      return linear <= 0.0031308 ?
-                              linear * 12.92 : (pow(linear, 1.0 / 2.4) * 1.055) - 0.055;
-                  }
+                float ToneMapChannel(const float color) {
+                    const float maxLumi = 10000.0;
+                    const float maxMasteringLumi = 1000.0;
+                    const float maxContentLumi = 1000.0;
+                    const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
+                    const float maxOutLumi = 500.0;
 
-                  vec3 OETF_sRGB(const vec3 linear) {
-                      return vec3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
-                  }
+                    // convert to nits first
+                    float nits = color * maxLumi;
 
-                  vec3 OETF_scRGB(const vec3 linear) {
-                      return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
-                  }
+                    // clamp to max input luminance
+                    nits = clamp(nits, 0.0, maxInLumi);
 
-                  float EOTF_sRGB(float srgb) {
-                      return srgb <= 0.04045 ? srgb / 12.92 : pow((srgb + 0.055) / 1.055, 2.4);
-                  }
+                    // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
+                    if (maxInLumi <= maxOutLumi) {
+                        nits *= maxOutLumi / maxInLumi;
+                    } else {
+                        // three control points
+                        const float x0 = 10.0;
+                        const float y0 = 17.0;
+                        const float x1 = maxOutLumi * 0.75;
+                        const float y1 = x1;
+                        const float x2 = x1 + (maxInLumi - x1) / 2.0;
+                        const float y2 = y1 + (maxOutLumi - y1) * 0.75;
 
-                  vec3 EOTF_sRGB(const vec3 srgb) {
-                      return vec3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
-                  }
+                        // horizontal distances between the last three control points
+                        const float h12 = x2 - x1;
+                        const float h23 = maxInLumi - x2;
+                        // tangents at the last three control points
+                        const float m1 = (y2 - y1) / h12;
+                        const float m3 = (maxOutLumi - y2) / h23;
+                        const float m2 = (m1 + m3) / 2.0;
 
-                  vec3 EOTF_scRGB(const vec3 srgb) {
-                      return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
-                  }
+                        if (nits < x0) {
+                            // scale [0.0, x0] to [0.0, y0] linearly
+                            const float slope = y0 / x0;
+                            nits *= slope;
+                        } else if (nits < x1) {
+                            // scale [x0, x1] to [y0, y1] linearly
+                            const float slope = (y1 - y0) / (x1 - x0);
+                            nits = y0 + (nits - x0) * slope;
+                        } else if (nits < x2) {
+                            // scale [x1, x2] to [y1, y2] using Hermite interp
+                            float t = (nits - x1) / h12;
+                            nits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) * (1.0 - t) +
+                                   (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
+                        } else {
+                            // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
+                            float t = (nits - x2) / h23;
+                            nits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) * (1.0 - t) +
+                                   (maxOutLumi * (3.0 - 2.0 * t) + h23 * m3 * (t - 1.0)) * t * t;
+                        }
+                    }
+
+                    // convert back to [0.0, 1.0]
+                    return nits / maxOutLumi;
+                }
+
+                vec3 ToneMap(const vec3 color) {
+                    return vec3(ToneMapChannel(color.r), ToneMapChannel(color.g),
+                                ToneMapChannel(color.b));
+                }
             )__SHADER__";
         } else {
             fs << R"__SHADER__(
-                  vec3 OETF_scRGB(const vec3 linear) {
-                      return linear;
-                  }
-
-                  vec3 EOTF_scRGB(const vec3 srgb) {
-                      return srgb;
-                  }
+                vec3 ToneMap(const vec3 color) {
+                    return color;
+                }
             )__SHADER__";
         }
     }
+
     fs << "void main(void) {" << indent;
     if (needs.isTexturing()) {
         fs << "gl_FragColor = texture2D(sampler, outTexCoords);";
+        if (needs.isY410BT2020()) {
+            fs << "gl_FragColor.rgb = convertY410BT2020(gl_FragColor.rgb);";
+        }
     } else {
         fs << "gl_FragColor.rgb = color.rgb;";
         fs << "gl_FragColor.a = 1.0;";
@@ -243,9 +406,12 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             // avoid divide by 0 by adding 0.5/256 to the alpha channel
             fs << "gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.a + 0.0019);";
         }
-        fs << "vec4 transformed = colorMatrix * vec4(EOTF_scRGB(gl_FragColor.rgb), 1);";
+        fs << "vec4 transformed = colorMatrix * vec4(ToneMap(EOTF(gl_FragColor.rgb)), 1);";
+        // the transformation from a wider colorspace to a narrower one can
+        // result in >1.0 or <0.0 pixel values
+        fs << "transformed.rgb = clamp(transformed.rgb, 0.0, 1.0);";
         // We assume the last row is always {0,0,0,1} and we skip the division by w
-        fs << "gl_FragColor.rgb = OETF_scRGB(transformed.rgb);";
+        fs << "gl_FragColor.rgb = OETF(transformed.rgb);";
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";
