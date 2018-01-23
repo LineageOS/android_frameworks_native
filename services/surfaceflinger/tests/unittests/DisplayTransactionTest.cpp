@@ -1232,5 +1232,199 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
     verifyDisplayIsNotConnected(existing.token());
 }
 
+TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr uint32_t oldLayerStack = 0u;
+    constexpr uint32_t newLayerStack = 123u;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the layerStack state
+    display.mutableDrawingDisplayState().layerStack = oldLayerStack;
+    display.mutableCurrentDisplayState().layerStack = newLayerStack;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newLayerStack, getDisplayDevice(display.token())->getLayerStack());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr int oldTransform = 0;
+    constexpr int newTransform = 2;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the orientation state
+    display.mutableDrawingDisplayState().orientation = oldTransform;
+    display.mutableCurrentDisplayState().orientation = newTransform;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newTransform, getDisplayDevice(display.token())->getOrientation());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    const Rect oldViewport(0, 0, 0, 0);
+    const Rect newViewport(0, 0, 123, 456);
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().viewport = oldViewport;
+    display.mutableCurrentDisplayState().viewport = newViewport;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newViewport, getDisplayDevice(display.token())->getViewport());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    const Rect oldFrame(0, 0, 0, 0);
+    const Rect newFrame(0, 0, 123, 456);
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().frame = oldFrame;
+    display.mutableCurrentDisplayState().frame = newFrame;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newFrame, getDisplayDevice(display.token())->getFrame());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr int oldWidth = 0;
+    constexpr int oldHeight = 10;
+    constexpr int newWidth = 123;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto nativeWindow = new mock::NativeWindow();
+    auto displaySurface = new mock::DisplaySurface();
+    auto renderSurface = new RE::mock::Surface();
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.setNativeWindow(nativeWindow);
+    display.setDisplaySurface(displaySurface);
+    display.setRenderSurface(std::unique_ptr<RE::Surface>(renderSurface));
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().width = oldWidth;
+    display.mutableDrawingDisplayState().height = oldHeight;
+    display.mutableCurrentDisplayState().width = newWidth;
+    display.mutableCurrentDisplayState().height = oldHeight;
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(newWidth, oldHeight)).Times(1);
+    EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
+    EXPECT_CALL(*renderSurface, queryWidth()).WillOnce(Return(newWidth));
+    EXPECT_CALL(*renderSurface, queryHeight()).WillOnce(Return(oldHeight));
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr int oldWidth = 0;
+    constexpr int oldHeight = 10;
+    constexpr int newHeight = 123;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto nativeWindow = new mock::NativeWindow();
+    auto displaySurface = new mock::DisplaySurface();
+    auto renderSurface = new RE::mock::Surface();
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.setNativeWindow(nativeWindow);
+    display.setDisplaySurface(displaySurface);
+    display.setRenderSurface(std::unique_ptr<RE::Surface>(renderSurface));
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().width = oldWidth;
+    display.mutableDrawingDisplayState().height = oldHeight;
+    display.mutableCurrentDisplayState().width = oldWidth;
+    display.mutableCurrentDisplayState().height = newHeight;
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(oldWidth, newHeight)).Times(1);
+    EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
+    EXPECT_CALL(*renderSurface, queryWidth()).WillOnce(Return(oldWidth));
+    EXPECT_CALL(*renderSurface, queryHeight()).WillOnce(Return(newHeight));
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+}
+
 } // namespace
 } // namespace android
