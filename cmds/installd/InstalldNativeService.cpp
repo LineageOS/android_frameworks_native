@@ -194,7 +194,7 @@ binder::Status checkArgumentPackageName(const std::string& packageName) {
 
 #define ASSERT_PAGE_SIZE_4K() {                             \
     if (getpagesize() != kVerityPageSize) {                 \
-        return error("FSVerity only supports 4K page");     \
+        return error("FSVerity only supports 4K pages");     \
     }                                                       \
 }
 
@@ -2351,7 +2351,7 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
     return res ? ok() : error();
 }
 
-// This kernel feaeture is experimental.
+// This kernel feature is experimental.
 // TODO: remove local definition once upstreamed
 #ifndef FS_IOC_SET_FSVERITY
 struct fsverity_set {
