@@ -102,7 +102,9 @@ namespace android {
             kKeyRequestType_Unknown,
             kKeyRequestType_Initial,
             kKeyRequestType_Renewal,
-            kKeyRequestType_Release
+            kKeyRequestType_Release,
+            kKeyRequestType_None,
+            kKeyRequestType_Update,
         };
 
         // Enumerate KeyStatusTypes which indicate the state of a key
