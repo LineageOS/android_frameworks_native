@@ -716,26 +716,33 @@ static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 3;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 4;
 
 static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
-        const unique_fd& reference_profile_fd) {
-    static const size_t MAX_INT_LEN = 32;
+        const unique_fd& reference_profile_fd, const std::vector<unique_fd>* apk_fds = nullptr) {
     const char* profman_bin = is_debug_runtime() ? "/system/bin/profmand" : "/system/bin/profman";
 
     std::vector<std::string> profile_args(profiles_fd.size());
-    char profile_buf[strlen("--profile-file-fd=") + MAX_INT_LEN];
     for (size_t k = 0; k < profiles_fd.size(); k++) {
-        sprintf(profile_buf, "--profile-file-fd=%d", profiles_fd[k].get());
-        profile_args[k].assign(profile_buf);
+        profile_args[k] = "--profile-file-fd=" + std::to_string(profiles_fd[k].get());
     }
-    char reference_profile_arg[strlen("--reference-profile-file-fd=") + MAX_INT_LEN];
-    sprintf(reference_profile_arg, "--reference-profile-file-fd=%d", reference_profile_fd.get());
+    std::string reference_profile_arg = "--reference-profile-file-fd="
+            + std::to_string(reference_profile_fd.get());
+
+    std::vector<std::string> apk_args;
+    if (apk_fds != nullptr) {
+        for (size_t k = 0; k < apk_fds->size(); k++) {
+            apk_args.push_back("--apk-fd=" + std::to_string((*apk_fds)[k].get()));
+        }
+    }
 
     // program name, reference profile fd, the final NULL and the profile fds
-    const char* argv[3 + profiles_fd.size()];
+    const char* argv[3 + profile_args.size() + apk_args.size()];
     int i = 0;
     argv[i++] = profman_bin;
-    argv[i++] = reference_profile_arg;
+    argv[i++] = reference_profile_arg.c_str();
     for (size_t k = 0; k < profile_args.size(); k++) {
         argv[i++] = profile_args[k].c_str();
+    }
+    for (size_t k = 0; k < apk_args.size(); k++) {
+        argv[i++] = apk_args[k].c_str();
     }
     // Do not add after dex2oat_flags, they should override others for debugging.
     argv[i] = NULL;
@@ -2441,8 +2448,24 @@ bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
     }
 }
 
-bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
-        const std::string& profile_name) {
+bool open_classpath_files(const std::string& classpath, std::vector<unique_fd>* apk_fds) {
+    std::vector<std::string> classpaths_elems = base::Split(classpath, ":");
+    for (const std::string& elem : classpaths_elems) {
+        unique_fd fd(TEMP_FAILURE_RETRY(open(elem.c_str(), O_RDONLY)));
+        if (fd < 0) {
+            PLOG(ERROR) << "Could not open classpath elem " << elem;
+            return false;
+        } else {
+            apk_fds->push_back(std::move(fd));
+        }
+    }
+    return true;
+}
+
+static bool create_app_profile_snapshot(int32_t app_id,
+                                        const std::string& package_name,
+                                        const std::string& profile_name,
+                                        const std::string& classpath) {
     int app_shared_gid = multiuser_get_shared_gid(/*user_id*/ 0, app_id);
 
     unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, profile_name);
@@ -2460,11 +2483,18 @@ bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
 
     profiles_fd.push_back(std::move(reference_profile_fd));
 
+    // Open the class paths elements. These will be used to filter out profile data that does
+    // not belong to the classpath during merge.
+    std::vector<unique_fd> apk_fds;
+    if (!open_classpath_files(classpath, &apk_fds)) {
+        return false;
+    }
+
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
         drop_capabilities(app_shared_gid);
-        run_profman_merge(profiles_fd, snapshot_fd);
+        run_profman_merge(profiles_fd, snapshot_fd, &apk_fds);
         exit(42);   /* only get here on exec failure */
     }
 
@@ -2476,6 +2506,94 @@ bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
     }
 
     return true;
+}
+
+static bool create_boot_image_profile_snapshot(const std::string& package_name,
+                                               const std::string& profile_name,
+                                               const std::string& classpath) {
+    // The reference profile directory for the android package might not be prepared. Do it now.
+    const std::string ref_profile_dir =
+            create_primary_reference_profile_package_dir_path(package_name);
+    if (fs_prepare_dir(ref_profile_dir.c_str(), 0770, AID_SYSTEM, AID_SYSTEM) != 0) {
+        PLOG(ERROR) << "Failed to prepare " << ref_profile_dir;
+        return false;
+    }
+
+    // Open and create the snapshot profile.
+    unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, profile_name);
+
+    // Collect all non empty profiles.
+    // The collection will traverse all applications profiles and find the non empty files.
+    // This has the potential of inspecting a large number of files and directories (depending
+    // on the number of applications and users). So there is a slight increase in the chance
+    // to get get occasionally I/O errors (e.g. for opening the file). When that happens do not
+    // fail the snapshot and aggregate whatever profile we could open.
+    //
+    // The profile snapshot is a best effort based on available data it's ok if some data
+    // from some apps is missing. It will be counter productive for the snapshot to fail
+    // because we could not open or read some of the files.
+    std::vector<std::string> profiles;
+    if (!collect_profiles(&profiles)) {
+        LOG(WARNING) << "There were errors while collecting the profiles for the boot image.";
+    }
+
+    // If we have no profiles return early.
+    if (profiles.empty()) {
+        return true;
+    }
+
+    // Open the classpath elements. These will be used to filter out profile data that does
+    // not belong to the classpath during merge.
+    std::vector<unique_fd> apk_fds;
+    if (!open_classpath_files(classpath, &apk_fds)) {
+        return false;
+    }
+
+    // If we could not open any files from the classpath return an error.
+    if (apk_fds.empty()) {
+        LOG(ERROR) << "Could not open any of the classpath elements.";
+        return false;
+    }
+
+    // Aggregate the profiles in batches of kAggregationBatchSize.
+    // We do this to avoid opening a huge a amount of files.
+    static constexpr size_t kAggregationBatchSize = 10;
+
+    std::vector<unique_fd> profiles_fd;
+    for (size_t i = 0; i < profiles.size(); )  {
+        for (size_t k = 0; k < kAggregationBatchSize && i < profiles.size(); k++, i++) {
+            unique_fd fd = open_profile(AID_SYSTEM, profiles[i], O_RDONLY);
+            if (fd.get() >= 0) {
+                profiles_fd.push_back(std::move(fd));
+            }
+        }
+        pid_t pid = fork();
+        if (pid == 0) {
+            /* child -- drop privileges before continuing */
+            drop_capabilities(AID_SYSTEM);
+
+            run_profman_merge(profiles_fd, snapshot_fd, &apk_fds);
+            exit(42);   /* only get here on exec failure */
+        }
+
+        /* parent */
+        int return_code = wait_child(pid);
+        if (!WIFEXITED(return_code)) {
+            PLOG(WARNING) << "profman failed for " << package_name << ":" << profile_name;
+            return false;
+        }
+        return true;
+    }
+    return true;
+}
+
+bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
+        const std::string& profile_name, const std::string& classpath) {
+    if (app_id == -1) {
+        return create_boot_image_profile_snapshot(package_name, profile_name, classpath);
+    } else {
+        return create_app_profile_snapshot(app_id, package_name, profile_name, classpath);
+    }
 }
 
 bool prepare_app_profile(const std::string& package_name,

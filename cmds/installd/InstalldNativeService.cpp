@@ -1854,12 +1854,13 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
 }
 
 binder::Status InstalldNativeService::createProfileSnapshot(int32_t appId,
-        const std::string& packageName, const std::string& profileName, bool* _aidl_return) {
+        const std::string& packageName, const std::string& profileName,
+        const std::string& classpath, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    *_aidl_return = create_profile_snapshot(appId, packageName, profileName);
+    *_aidl_return = create_profile_snapshot(appId, packageName, profileName, classpath);
     return ok();
 }
 
