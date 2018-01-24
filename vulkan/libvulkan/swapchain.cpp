@@ -1650,15 +1650,39 @@ VkResult GetSwapchainStatusKHR(
 }
 
 VKAPI_ATTR void SetHdrMetadataEXT(
-    VkDevice device,
+    VkDevice,
     uint32_t swapchainCount,
     const VkSwapchainKHR* pSwapchains,
     const VkHdrMetadataEXT* pHdrMetadataEXTs) {
-    // TODO: courtneygo: implement actual function
-    (void)device;
-    (void)swapchainCount;
-    (void)pSwapchains;
-    (void)pHdrMetadataEXTs;
+
+    for (uint32_t idx = 0; idx < swapchainCount; idx++) {
+        Swapchain* swapchain = SwapchainFromHandle(pSwapchains[idx]);
+        if (!swapchain)
+            continue;
+
+        if (swapchain->surface.swapchain_handle != pSwapchains[idx]) continue;
+
+        ANativeWindow* window = swapchain->surface.window.get();
+
+        VkHdrMetadataEXT vulkanMetadata = pHdrMetadataEXTs[idx];
+        const android_smpte2086_metadata smpteMetdata = {
+            {vulkanMetadata.displayPrimaryRed.x,
+             vulkanMetadata.displayPrimaryRed.y},
+            {vulkanMetadata.displayPrimaryGreen.x,
+             vulkanMetadata.displayPrimaryGreen.y},
+            {vulkanMetadata.displayPrimaryBlue.x,
+             vulkanMetadata.displayPrimaryBlue.y},
+            {vulkanMetadata.whitePoint.x, vulkanMetadata.whitePoint.y},
+            vulkanMetadata.maxLuminance,
+            vulkanMetadata.minLuminance};
+        native_window_set_buffers_smpte2086_metadata(window, &smpteMetdata);
+
+        const android_cta861_3_metadata cta8613Metadata = {
+            vulkanMetadata.maxContentLightLevel,
+            vulkanMetadata.maxFrameAverageLightLevel};
+        native_window_set_buffers_cta861_3_metadata(window, &cta8613Metadata);
+    }
+
     return;
 }
 
