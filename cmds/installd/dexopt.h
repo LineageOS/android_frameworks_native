@@ -52,6 +52,8 @@ bool analyze_primary_profiles(uid_t uid,
                               const std::string& profile_name);
 
 // Create a snapshot of the profile information for the given package profile.
+// If appId is -1, the method creates the profile snapshot for the boot image.
+//
 // The profile snapshot is the aggregation of all existing profiles (all current user
 // profiles & the reference profile) and is meant to capture the all the profile information
 // without performing a merge into the reference profile which might impact future dex2oat
@@ -60,8 +62,13 @@ bool analyze_primary_profiles(uid_t uid,
 // ownership is assigned to AID_SYSTEM.
 // The snapshot location is reference_profile_location.snapshot. If a snapshot is already
 // there, it will be truncated and overwritten.
-bool create_profile_snapshot(int32_t app_id, const std::string& package,
-        const std::string& profile_name);
+//
+// The classpath acts as filter: only profiling data belonging to elements of the classpath
+// will end up in the snapshot.
+bool create_profile_snapshot(int32_t app_id,
+                             const std::string& package,
+                             const std::string& profile_name,
+                             const std::string& classpath);
 
 bool dump_profiles(int32_t uid,
                    const std::string& pkgname,
