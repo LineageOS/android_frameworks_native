@@ -524,6 +524,33 @@ class ProfileTest : public DexoptTest {
         ASSERT_TRUE(AreFilesEqual(ref_profile_content, ref_profile_));
     }
 
+    // TODO(calin): add dex metadata tests once the ART change is merged.
+    void preparePackageProfile(const std::string& package_name, const std::string& profile_name,
+            bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->prepareAppProfile(
+                package_name, kTestUserId, kTestAppId, profile_name, /*code path*/ "base.apk",
+                /*dex_metadata*/ nullptr, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        std::string code_path_cur_prof = create_current_profile_path(
+                kTestUserId, package_name, profile_name, /*is_secondary_dex*/ false);
+        std::string code_path_ref_profile = create_reference_profile_path(package_name,
+                profile_name, /*is_secondary_dex*/ false);
+
+        // Check that we created the current profile.
+        CheckFileAccess(code_path_cur_prof, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+
+        // Without dex metadata we don't generate a reference profile.
+        ASSERT_EQ(-1, access(code_path_ref_profile.c_str(), R_OK));
+    }
+
   private:
     void TransitionToSystemServer() {
         ASSERT_TRUE(DropCapabilities(kSystemUid, kSystemGid));
@@ -664,6 +691,24 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
     CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
     CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
+}
+
+TEST_F(ProfileTest, ProfilePrepareOk) {
+    LOG(INFO) << "ProfilePrepareOk";
+    preparePackageProfile(package_name_, "split.prof", /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfilePrepareFailInvalidPackage) {
+    LOG(INFO) << "ProfilePrepareFailInvalidPackage";
+    preparePackageProfile("not.there.package", "split.prof", /*expected_result*/ false);
+}
+
+TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
+    LOG(INFO) << "ProfilePrepareFailProfileChangedUid";
+    SetupProfiles(/*setup_ref*/ false);
+    // Change the uid on the profile to trigger a failure.
+    ::chown(cur_profile_.c_str(), kTestAppUid + 1, kTestAppGid + 1);
+    preparePackageProfile(package_name_, "primary.prof", /*expected_result*/ false);
 }
 
 }  // namespace installd
