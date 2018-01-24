@@ -30,11 +30,11 @@ namespace android {
 namespace Gralloc2 {
 
 using hardware::graphics::allocator::V2_0::IAllocator;
-using hardware::graphics::common::V1_0::PixelFormat;
 using hardware::graphics::common::V1_1::BufferUsage;
+using hardware::graphics::common::V1_1::PixelFormat;
+using hardware::graphics::mapper::V2_1::IMapper;
 using hardware::graphics::mapper::V2_0::BufferDescriptor;
 using hardware::graphics::mapper::V2_0::Error;
-using hardware::graphics::mapper::V2_0::IMapper;
 using hardware::graphics::mapper::V2_0::YCbCrLayout;
 
 // A wrapper to IMapper
@@ -85,8 +85,8 @@ private:
     Error validateBufferDescriptorInfo(
             const IMapper::BufferDescriptorInfo& descriptorInfo) const;
 
-    sp<IMapper> mMapper;
-    sp<hardware::graphics::mapper::V2_1::IMapper> mMapperV2_1;
+    sp<hardware::graphics::mapper::V2_0::IMapper> mMapper;
+    sp<IMapper> mMapperV2_1;
 };
 
 // A wrapper to IAllocator
