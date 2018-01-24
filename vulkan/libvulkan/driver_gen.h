@@ -45,6 +45,7 @@ struct ProcHook {
         KHR_swapchain,
         KHR_get_surface_capabilities2,
         KHR_get_physical_device_properties2,
+        ANDROID_external_memory_android_hardware_buffer,
 
         EXTENSION_CORE,  // valid bit
         EXTENSION_COUNT,

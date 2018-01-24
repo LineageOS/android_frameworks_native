@@ -622,10 +622,10 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
         setCompositionType(hwcId, HWC2::Composition::Device);
     }
 
-    ALOGV("setPerFrameData: dataspace = %d", mCurrentState.dataSpace);
-    error = hwcLayer->setDataspace(mCurrentState.dataSpace);
+    ALOGV("setPerFrameData: dataspace = %d", mDrawingState.dataSpace);
+    error = hwcLayer->setDataspace(mDrawingState.dataSpace);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentState.dataSpace,
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 

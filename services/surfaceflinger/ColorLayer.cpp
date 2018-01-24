@@ -69,8 +69,19 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+        visible.dump(LOG_TAG);
+    }
 
     setCompositionType(hwcId, HWC2::Composition::SolidColor);
+
+    error = hwcLayer->setDataspace(mDrawingState.dataSpace);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    }
 
     half4 color = getColor();
     error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
