@@ -2396,7 +2396,7 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
 
     // TODO(71871109): Validate filePath.
     // 1. Seek to the next page boundary beyond the end of the file.
-    ::android::base::unique_fd wfd(open(filePath.c_str(), O_WRONLY | O_APPEND));
+    ::android::base::unique_fd wfd(open(filePath.c_str(), O_WRONLY));
     if (wfd.get() < 0) {
         return error("Failed to open " + filePath + ": " + strerror(errno));
     }
@@ -2405,7 +2405,11 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
         return error("Failed to stat " + filePath + ": " + strerror(errno));
     }
     // fsverity starts from the block boundary.
-    if (lseek(wfd.get(), (st.st_size + kVerityPageSize - 1) / kVerityPageSize, SEEK_SET) < 0) {
+    off_t padding = kVerityPageSize - st.st_size % kVerityPageSize;
+    if (padding == kVerityPageSize) {
+        padding = 0;
+    }
+    if (lseek(wfd.get(), st.st_size + padding, SEEK_SET) < 0) {
         return error("Failed to lseek " + filePath + ": " + strerror(errno));
     }
 
@@ -2414,18 +2418,20 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
     if (size < 0) {
         return error("Failed to get ashmem size: " + std::to_string(size));
     }
-    void* data = mmap(NULL, size, PROT_READ, MAP_SHARED, wfd.get(), 0);
+    void* data = mmap(NULL, size, PROT_READ, MAP_SHARED, verityInputAshmem.get(), 0);
     if (data == MAP_FAILED) {
         return error("Failed to mmap the ashmem: " + std::string(strerror(errno)));
     }
+    char* cursor = reinterpret_cast<char*>(data);
     int remaining = size;
     while (remaining > 0) {
-        int ret = TEMP_FAILURE_RETRY(write(wfd.get(), data, remaining));
+        int ret = TEMP_FAILURE_RETRY(write(wfd.get(), cursor, remaining));
         if (ret < 0) {
             munmap(data, size);
             return error("Failed to write to " + filePath + " (" + std::to_string(remaining) +
                          + "/" + std::to_string(size) + "): " + strerror(errno));
         }
+        cursor += ret;
         remaining -= ret;
     }
     munmap(data, size);
