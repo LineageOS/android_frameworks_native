@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstdlib>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -153,6 +154,7 @@ protected:
     InstalldNativeService* service_;
     std::unique_ptr<std::string> volume_uuid_;
     std::string package_name_;
+    std::string apk_path_;
     std::string app_apk_dir_;
     std::string app_private_dir_ce_;
     std::string app_private_dir_de_;
@@ -202,8 +204,8 @@ protected:
         service_->createOatDir(app_oat_dir, kRuntimeIsa);
 
         // Copy the primary apk.
-        std::string apk_path = app_apk_dir_ + "/base.jar";
-        ASSERT_TRUE(WriteBase64ToFile(kDexFile, apk_path, kSystemUid, kSystemGid, 0644));
+        apk_path_ = app_apk_dir_ + "/base.jar";
+        ASSERT_TRUE(WriteBase64ToFile(kDexFile, apk_path_, kSystemUid, kSystemGid, 0644));
 
         // Create the app user data.
         ASSERT_TRUE(service_->createAppData(
@@ -470,7 +472,7 @@ class ProfileTest : public DexoptTest {
             bool expected_result) {
         bool result;
         binder::Status binder_result = service_->createProfileSnapshot(
-                appid, package_name, kPrimaryProfile, &result);
+                appid, package_name, kPrimaryProfile, apk_path_, &result);
         ASSERT_TRUE(binder_result.isOk());
         ASSERT_EQ(expected_result, result);
 
@@ -561,7 +563,7 @@ class ProfileTest : public DexoptTest {
         ASSERT_EQ(-1, access(code_path_ref_profile.c_str(), R_OK));
     }
 
-  private:
+  protected:
     void TransitionToSystemServer() {
         ASSERT_TRUE(DropCapabilities(kSystemUid, kSystemGid));
         int32_t res = selinux_android_setcontext(
@@ -717,6 +719,112 @@ TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
     // Change the uid on the profile to trigger a failure.
     ::chown(cur_profile_.c_str(), kTestAppUid + 1, kTestAppGid + 1);
     preparePackageProfile(package_name_, "primary.prof", /*expected_result*/ false);
+}
+
+
+class BootProfileTest : public ProfileTest {
+  public:
+    virtual void setup() {
+        ProfileTest::SetUp();
+        intial_android_profiles_dir = android_profiles_dir;
+    }
+
+    virtual void TearDown() {
+        android_profiles_dir = intial_android_profiles_dir;
+        ProfileTest::TearDown();
+    }
+
+    void UpdateAndroidProfilesDir(const std::string& profile_dir) {
+        android_profiles_dir = profile_dir;
+        // We need to create the reference profile directory in the new profile dir.
+        run_cmd("mkdir -p " + profile_dir + "/ref");
+    }
+
+    void createBootImageProfileSnapshot(const std::string& classpath, bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->createProfileSnapshot(
+                -1, "android", "android.prof", classpath, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        // Check that the snapshot was created with he expected access flags.
+        const std::string boot_profile = create_snapshot_profile_path("android", "android.prof");
+        CheckFileAccess(boot_profile, kSystemUid, kSystemGid, 0600 | S_IFREG);
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            /* child */
+            TransitionToSystemServer();
+
+            // System server should be able to open the snapshot.
+            unique_fd fd(open(boot_profile.c_str(), O_RDONLY));
+            ASSERT_TRUE(fd > -1) << "Failed to open profile as kSystemUid: " << strerror(errno);
+            _exit(0);
+        }
+        /* parent */
+        ASSERT_TRUE(WIFEXITED(wait_child(pid)));
+    }
+  protected:
+    std::string intial_android_profiles_dir;
+};
+
+TEST_F(BootProfileTest, BootProfileSnapshotOk) {
+    LOG(INFO) << "BootProfileSnapshotOk";
+    char* boot_classpath = getenv("BOOTCLASSPATH");
+    ASSERT_TRUE(boot_classpath != nullptr);
+    createBootImageProfileSnapshot(boot_classpath, /*expected_result*/ true);
+}
+
+TEST_F(BootProfileTest, BootProfileSnapshotFailEmptyClasspath) {
+    LOG(INFO) << "BootProfileSnapshotFailEmptyClasspath";
+
+    createBootImageProfileSnapshot(/*boot_classpath*/ "", /*expected_result*/ false);
+}
+
+TEST_F(BootProfileTest, BootProfileSnapshotOkNoProfiles) {
+    LOG(INFO) << "BootProfileSnapshotOkNoProfiles";
+    char* boot_classpath = getenv("BOOTCLASSPATH");
+    ASSERT_TRUE(boot_classpath != nullptr);
+
+    // The app_apk_dir has no profiles. So we shouldn't be able to merge anything.
+    // Still, this is not a failure case.
+    UpdateAndroidProfilesDir(app_apk_dir_);
+    createBootImageProfileSnapshot(boot_classpath, /*expected_result*/ true);
+}
+
+// Verify that profile collection.
+TEST_F(BootProfileTest, CollectProfiles) {
+    LOG(INFO) << "CollectProfiles";
+
+    // Create some profile directories mimicking the real profile structure.
+    run_cmd("mkdir -p " + app_private_dir_de_ + "/profiles/ref");
+    run_cmd("mkdir -p " + app_private_dir_de_ + "/profiles/cur/0/");
+    run_cmd("mkdir -p " + app_private_dir_de_ + "/profiles/cur/1/");
+    // Create an empty profile.
+    run_cmd("touch " + app_private_dir_de_ + "/profiles/cur/1/primary.prof");
+    // Create a random file.
+    run_cmd("touch " + app_private_dir_de_ + "/profiles/cur/0/non.profile.file");
+
+    // Create some non-empty profiles.
+    std::string current_prof = app_private_dir_de_ + "/profiles/cur/0/primary.prof";
+    run_cmd("echo 1 > " + current_prof);
+    std::string ref_prof = app_private_dir_de_ + "/profiles/ref/primary.prof";
+    run_cmd("echo 1 > " + ref_prof);
+
+    UpdateAndroidProfilesDir(app_private_dir_de_ + "/profiles");
+
+    std::vector<std::string> profiles;
+    collect_profiles(&profiles);
+
+    // Only two profiles should be in the output.
+    ASSERT_EQ(2u, profiles.size());
+    ASSERT_TRUE(std::find(profiles.begin(), profiles.end(), current_prof) != profiles.end());
+    ASSERT_TRUE(std::find(profiles.begin(), profiles.end(), ref_prof) != profiles.end());
 }
 
 }  // namespace installd

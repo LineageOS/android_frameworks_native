@@ -65,7 +65,7 @@ interface IInstalld {
     void destroyAppProfiles(@utf8InCpp String packageName);
 
     boolean createProfileSnapshot(int appId, @utf8InCpp String packageName,
-            @utf8InCpp String profileName);
+            @utf8InCpp String profileName, @utf8InCpp String classpath);
     void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
     void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
