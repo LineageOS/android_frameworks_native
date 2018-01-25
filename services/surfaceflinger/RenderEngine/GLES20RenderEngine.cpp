@@ -326,11 +326,12 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
     if (usesWideColor()) {
         Description wideColorState = mState;
-        switch (mDataSpace) {
+        switch (int(mDataSpace)) {
             case HAL_DATASPACE_DISPLAY_P3:
                 // input matches output
                 break;
             case HAL_DATASPACE_BT2020_PQ:
+            case HAL_DATASPACE_BT2020_ITU_PQ:
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
                 wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
                 wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
