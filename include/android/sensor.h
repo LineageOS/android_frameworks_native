@@ -65,9 +65,14 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 #define ASENSOR_FIFO_COUNT_INVALID     (-1)
 #define ASENSOR_DELAY_INVALID          INT32_MIN
 
+/* (Keep in sync with hardware/sensors-base.h and Sensor.java.) */
+
 /**
  * Sensor types.
- * (keep in sync with hardware/sensors.h)
+ *
+ * See
+ * [android.hardware.SensorEvent#values](https://developer.android.com/reference/android/hardware/SensorEvent.html#values)
+ * for detailed explanations of the data returned for each of these types.
  */
 enum {
     /**
@@ -106,6 +111,12 @@ enum {
      */
     ASENSOR_TYPE_LIGHT               = 5,
     /**
+     * {@link ASENSOR_TYPE_PRESSURE}
+     *
+     * The pressure sensor value is returned in hPa (millibar).
+     */
+    ASENSOR_TYPE_PRESSURE            = 6,
+    /**
      * {@link ASENSOR_TYPE_PROXIMITY}
      * reporting-mode: on-change
      *
@@ -117,13 +128,93 @@ enum {
      */
     ASENSOR_TYPE_PROXIMITY           = 8,
     /**
+     * {@link ASENSOR_TYPE_GRAVITY}
+     *
+     * All values are in SI units (m/s^2) and measure the direction and
+     * magnitude of gravity. When the device is at rest, the output of
+     * the gravity sensor should be identical to that of the accelerometer.
+     */
+    ASENSOR_TYPE_GRAVITY             = 9,
+    /**
      * {@link ASENSOR_TYPE_LINEAR_ACCELERATION}
      * reporting-mode: continuous
      *
      *  All values are in SI units (m/s^2) and measure the acceleration of the
      *  device not including the force of gravity.
      */
-    ASENSOR_TYPE_LINEAR_ACCELERATION = 10
+    ASENSOR_TYPE_LINEAR_ACCELERATION = 10,
+    /**
+     * {@link ASENSOR_TYPE_ROTATION_VECTOR}
+     */
+    ASENSOR_TYPE_ROTATION_VECTOR     = 11,
+    /**
+     * {@link ASENSOR_TYPE_RELATIVE_HUMIDITY}
+     *
+     * The relative humidity sensor value is returned in percent.
+     */
+    ASENSOR_TYPE_RELATIVE_HUMIDITY   = 12,
+    /**
+     * {@link ASENSOR_TYPE_AMBIENT_TEMPERATURE}
+     *
+     * The ambient temperature sensor value is returned in Celcius.
+     */
+    ASENSOR_TYPE_AMBIENT_TEMPERATURE = 13,
+    /**
+     * {@link ASENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED}
+     */
+    ASENSOR_TYPE_MAGNETIC_FIELD_UNCALIBRATED = 14,
+    /**
+     * {@link ASENSOR_TYPE_GAME_ROTATION_VECTOR}
+     */
+    ASENSOR_TYPE_GAME_ROTATION_VECTOR = 15,
+    /**
+     * {@link ASENSOR_TYPE_GYROSCOPE_UNCALIBRATED}
+     */
+    ASENSOR_TYPE_GYROSCOPE_UNCALIBRATED = 16,
+    /**
+     * {@link ASENSOR_TYPE_SIGNIFICANT_MOTION}
+     */
+    ASENSOR_TYPE_SIGNIFICANT_MOTION = 17,
+    /**
+     * {@link ASENSOR_TYPE_STEP_DETECTOR}
+     */
+    ASENSOR_TYPE_STEP_DETECTOR = 18,
+    /**
+     * {@link ASENSOR_TYPE_STEP_COUNTER}
+     */
+    ASENSOR_TYPE_STEP_COUNTER = 19,
+    /**
+     * {@link ASENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR}
+     */
+    ASENSOR_TYPE_GEOMAGNETIC_ROTATION_VECTOR = 20,
+    /**
+     * {@link ASENSOR_TYPE_HEART_RATE}
+     */
+    ASENSOR_TYPE_HEART_RATE = 21,
+    /**
+     * {@link ASENSOR_TYPE_POSE_6DOF}
+     */
+    ASENSOR_TYPE_POSE_6DOF = 28,
+    /**
+     * {@link ASENSOR_TYPE_STATIONARY_DETECT}
+     */
+    ASENSOR_TYPE_STATIONARY_DETECT = 29,
+    /**
+     * {@link ASENSOR_TYPE_MOTION_DETECT}
+     */
+    ASENSOR_TYPE_MOTION_DETECT = 30,
+    /**
+     * {@link ASENSOR_TYPE_HEART_BEAT}
+     */
+    ASENSOR_TYPE_HEART_BEAT = 31,
+    /**
+     * {@link ASENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT}
+     */
+    ASENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT = 34,
+    /**
+     * {@link ASENSOR_TYPE_ACCELEROMETER_UNCALIBRATED}
+     */
+    ASENSOR_TYPE_ACCELEROMETER_UNCALIBRATED = 35,
 };
 
 /**

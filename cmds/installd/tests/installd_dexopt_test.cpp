@@ -431,17 +431,22 @@ class ProfileTest : public DexoptTest {
     std::string ref_profile_;
     std::string snap_profile_;
 
+    static constexpr const char* kPrimaryProfile = "primary.prof";
+
     virtual void SetUp() {
         DexoptTest::SetUp();
         cur_profile_ = create_current_profile_path(
-                kTestUserId, package_name_, /*is_secondary_dex*/ false);
-        ref_profile_ = create_reference_profile_path(package_name_, /*is_secondary_dex*/ false);
-        snap_profile_ = create_snapshot_profile_path(package_name_, "base.jar");
+                kTestUserId, package_name_, kPrimaryProfile, /*is_secondary_dex*/ false);
+        ref_profile_ = create_reference_profile_path(package_name_, kPrimaryProfile,
+                /*is_secondary_dex*/ false);
+        snap_profile_ = create_snapshot_profile_path(package_name_, kPrimaryProfile);
     }
 
-    void SetupProfile(const std::string& path, uid_t uid, gid_t gid, mode_t mode, int32_t seed) {
-        run_cmd("profman --generate-test-profile-seed=" + std::to_string(seed) +
-                " --generate-test-profile-num-dex=2 --generate-test-profile=" + path);
+    void SetupProfile(const std::string& path, uid_t uid, gid_t gid, mode_t mode,
+            int32_t num_dex) {
+        run_cmd("profman --generate-test-profile-seed=" + std::to_string(num_dex) +
+                " --generate-test-profile-num-dex=" + std::to_string(num_dex) +
+                " --generate-test-profile=" + path);
         ::chmod(path.c_str(), mode);
         ::chown(path.c_str(), uid, gid);
     }
@@ -449,7 +454,7 @@ class ProfileTest : public DexoptTest {
     void SetupProfiles(bool setup_ref) {
         SetupProfile(cur_profile_, kTestAppUid, kTestAppGid, 0600, 1);
         if (setup_ref) {
-            SetupProfile(ref_profile_, kTestAppUid, kTestAppGid, 0060, 2);
+            SetupProfile(ref_profile_, kTestAppUid, kTestAppGid, 0600, 2);
         }
     }
 
@@ -457,7 +462,7 @@ class ProfileTest : public DexoptTest {
             bool expected_result) {
         bool result;
         binder::Status binder_result = service_->createProfileSnapshot(
-                appid, package_name, "base.jar", &result);
+                appid, package_name, kPrimaryProfile, &result);
         ASSERT_TRUE(binder_result.isOk());
         ASSERT_EQ(expected_result, result);
 
@@ -491,6 +496,59 @@ class ProfileTest : public DexoptTest {
         }
         /* parent */
         ASSERT_TRUE(WIFEXITED(wait_child(pid)));
+    }
+
+    void mergePackageProfiles(const std::string& package_name, bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->mergeProfiles(
+                kTestAppUid, package_name, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        // Check that the snapshot was created witht he expected acess flags.
+        CheckFileAccess(ref_profile_, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+
+        // The snapshot should be equivalent to the merge of profiles.
+        std::string ref_profile_content = ref_profile_ + ".expected";
+        run_cmd("rm -f " + ref_profile_content);
+        run_cmd("touch " + ref_profile_content);
+        run_cmd("profman --profile-file=" + cur_profile_ +
+                " --profile-file=" + ref_profile_ +
+                " --reference-profile-file=" + ref_profile_content);
+
+        ASSERT_TRUE(AreFilesEqual(ref_profile_content, ref_profile_));
+    }
+
+    // TODO(calin): add dex metadata tests once the ART change is merged.
+    void preparePackageProfile(const std::string& package_name, const std::string& profile_name,
+            bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->prepareAppProfile(
+                package_name, kTestUserId, kTestAppId, profile_name, /*code path*/ "base.apk",
+                /*dex_metadata*/ nullptr, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        std::string code_path_cur_prof = create_current_profile_path(
+                kTestUserId, package_name, profile_name, /*is_secondary_dex*/ false);
+        std::string code_path_ref_profile = create_reference_profile_path(package_name,
+                profile_name, /*is_secondary_dex*/ false);
+
+        // Check that we created the current profile.
+        CheckFileAccess(code_path_cur_prof, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+
+        // Without dex metadata we don't generate a reference profile.
+        ASSERT_EQ(-1, access(code_path_ref_profile.c_str(), R_OK));
     }
 
   private:
@@ -559,11 +617,34 @@ TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     SetupProfiles(/*setup_ref*/ true);
     createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 
-    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, "base.jar");
+    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, kPrimaryProfile);
     ASSERT_TRUE(binder_result.isOk());
     struct stat st;
     ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
     ASSERT_EQ(ENOENT, errno);
+}
+
+TEST_F(ProfileTest, ProfileMergeOk) {
+    LOG(INFO) << "ProfileMergeOk";
+
+    SetupProfiles(/*setup_ref*/ true);
+    mergePackageProfiles(package_name_, /*expected_result*/ true);
+}
+
+// The reference profile is created on the fly. We need to be able to
+// merge without one.
+TEST_F(ProfileTest, ProfileMergeOkNoReference) {
+    LOG(INFO) << "ProfileMergeOkNoReference";
+
+    SetupProfiles(/*setup_ref*/ false);
+    mergePackageProfiles(package_name_, /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfileMergeFailWrongPackage) {
+    LOG(INFO) << "ProfileMergeFailWrongPackage";
+
+    SetupProfiles(/*setup_ref*/ true);
+    mergePackageProfiles("not.there", /*expected_result*/ false);
 }
 
 TEST_F(ProfileTest, ProfileDirOk) {
@@ -572,7 +653,7 @@ TEST_F(ProfileTest, ProfileDirOk) {
     std::string cur_profile_dir = create_primary_current_profile_package_dir_path(
             kTestUserId, package_name_);
     std::string cur_profile_file = create_current_profile_path(kTestUserId, package_name_,
-            /*is_secondary_dex*/false);
+            kPrimaryProfile, /*is_secondary_dex*/false);
     std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
 
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
@@ -588,7 +669,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     std::string cur_profile_dir = create_primary_current_profile_package_dir_path(
             kTestUserId, package_name_);
     std::string cur_profile_file = create_current_profile_path(kTestUserId, package_name_,
-            /*is_secondary_dex*/false);
+            kPrimaryProfile, /*is_secondary_dex*/false);
     std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
 
     // Simulate a pre-P setup by changing the owner to kTestAppGid and permissions to 0700.
@@ -610,6 +691,24 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
     CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
     CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
+}
+
+TEST_F(ProfileTest, ProfilePrepareOk) {
+    LOG(INFO) << "ProfilePrepareOk";
+    preparePackageProfile(package_name_, "split.prof", /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfilePrepareFailInvalidPackage) {
+    LOG(INFO) << "ProfilePrepareFailInvalidPackage";
+    preparePackageProfile("not.there.package", "split.prof", /*expected_result*/ false);
+}
+
+TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
+    LOG(INFO) << "ProfilePrepareFailProfileChangedUid";
+    SetupProfiles(/*setup_ref*/ false);
+    // Change the uid on the profile to trigger a failure.
+    ::chown(cur_profile_.c_str(), kTestAppUid + 1, kTestAppGid + 1);
+    preparePackageProfile(package_name_, "primary.prof", /*expected_result*/ false);
 }
 
 }  // namespace installd

@@ -1463,10 +1463,8 @@ static void dumpstate() {
     printf("========================================================\n");
 }
 
-// This method collects dumpsys for telephony debugging only
-static void DumpstateTelephonyOnly() {
-    DurationReporter duration_reporter("DUMPSTATE");
-
+// This method collects common dumpsys for telephony and wifi
+static void DumpstateRadioCommon() {
     DumpIpTablesAsRoot();
 
     if (!DropRootUser()) {
@@ -1482,6 +1480,13 @@ static void DumpstateTelephonyOnly() {
 
     RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"},
                CommandOptions::WithTimeout(10).Build());
+}
+
+// This method collects dumpsys for telephony debugging only
+static void DumpstateTelephonyOnly() {
+    DurationReporter duration_reporter("DUMPSTATE");
+
+    DumpstateRadioCommon();
 
     RunCommand("SYSTEM PROPERTIES", {"getprop"});
 
@@ -1499,6 +1504,26 @@ static void DumpstateTelephonyOnly() {
     printf("========================================================\n");
 
     RunDumpsys("TELEPHONY SERVICES", {"activity", "service", "TelephonyDebugService"});
+
+    printf("========================================================\n");
+    printf("== dumpstate: done (id %d)\n", ds.id_);
+    printf("========================================================\n");
+}
+
+// This method collects dumpsys for wifi debugging only
+static void DumpstateWifiOnly() {
+    DurationReporter duration_reporter("DUMPSTATE");
+
+    DumpstateRadioCommon();
+
+    printf("========================================================\n");
+    printf("== Android Framework Services\n");
+    printf("========================================================\n");
+
+    RunDumpsys("DUMPSYS", {"connectivity"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
 
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
@@ -1751,6 +1776,7 @@ int run_main(int argc, char* argv[]) {
     bool show_header_only = false;
     bool do_start_service = false;
     bool telephony_only = false;
+    bool wifi_only = false;
     int dup_stdout_fd;
     int dup_stderr_fd;
 
@@ -1823,6 +1849,9 @@ int run_main(int argc, char* argv[]) {
             do_zip_file = 1;
         } else if (ds.extra_options_ == "bugreporttelephony") {
             telephony_only = true;
+        } else if (ds.extra_options_ == "bugreportwifi") {
+            wifi_only = true;
+            do_zip_file = 1;
         } else {
             MYLOGE("Unknown extra option: %s\n", ds.extra_options_.c_str());
         }
@@ -1943,6 +1972,8 @@ int run_main(int argc, char* argv[]) {
 
         if (telephony_only) {
             ds.base_name_ += "-telephony";
+        } else if (wifi_only) {
+            ds.base_name_ += "-wifi";
         }
 
         if (do_fb) {
@@ -2052,6 +2083,8 @@ int run_main(int argc, char* argv[]) {
     if (telephony_only) {
         DumpstateTelephonyOnly();
         ds.DumpstateBoard();
+    } else if (wifi_only) {
+        DumpstateWifiOnly();
     } else {
         // Dumps systrace right away, otherwise it will be filled with unnecessary events.
         // First try to dump anrd trace if the daemon is running. Otherwise, dump

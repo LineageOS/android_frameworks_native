@@ -1013,6 +1013,7 @@ private:
     }
 
     // Run dexopt with the parameters of package_parameters_.
+    // TODO(calin): embed the profile name in the parameters.
     int Dexopt() {
         return dexopt(package_parameters_.apk_path,
                       package_parameters_.uid,
@@ -1026,7 +1027,8 @@ private:
                       package_parameters_.shared_libraries,
                       package_parameters_.se_info,
                       package_parameters_.downgrade,
-                      package_parameters_.target_sdk_version);
+                      package_parameters_.target_sdk_version,
+                      "primary.prof");
     }
 
     int RunPreopt() {
