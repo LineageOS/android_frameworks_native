@@ -259,7 +259,14 @@ protected:
         std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
         bool downgrade = false;
         int32_t target_sdk_version = 0;  // default
+        std::unique_ptr<std::string> profile_name_ptr(new std::string("primary.prof"));
 
+        bool prof_result;
+        binder::Status prof_binder_result = service_->prepareAppProfile(
+                package_name_, kTestUserId, kTestAppId, *profile_name_ptr, /*code path*/ "base.apk",
+                /*dex_metadata*/ nullptr, &prof_result);
+        ASSERT_TRUE(prof_binder_result.isOk());
+        ASSERT_TRUE(prof_result);
         binder::Status result = service_->dexopt(path,
                                                  uid,
                                                  package_name_ptr,
@@ -272,7 +279,8 @@ protected:
                                                  class_loader_context_ptr,
                                                  se_info_ptr,
                                                  downgrade,
-                                                 target_sdk_version);
+                                                 target_sdk_version,
+                                                 profile_name_ptr);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
         int expected_access = should_dex_be_compiled ? 0 : -1;
         std::string odex = GetSecondaryDexArtifact(path, "odex");
@@ -498,10 +506,12 @@ class ProfileTest : public DexoptTest {
         ASSERT_TRUE(WIFEXITED(wait_child(pid)));
     }
 
-    void mergePackageProfiles(const std::string& package_name, bool expected_result) {
+    void mergePackageProfiles(const std::string& package_name,
+                              const std::string& code_path,
+                              bool expected_result) {
         bool result;
         binder::Status binder_result = service_->mergeProfiles(
-                kTestAppUid, package_name, &result);
+                kTestAppUid, package_name, code_path, &result);
         ASSERT_TRUE(binder_result.isOk());
         ASSERT_EQ(expected_result, result);
 
@@ -628,7 +638,7 @@ TEST_F(ProfileTest, ProfileMergeOk) {
     LOG(INFO) << "ProfileMergeOk";
 
     SetupProfiles(/*setup_ref*/ true);
-    mergePackageProfiles(package_name_, /*expected_result*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
 }
 
 // The reference profile is created on the fly. We need to be able to
@@ -637,14 +647,14 @@ TEST_F(ProfileTest, ProfileMergeOkNoReference) {
     LOG(INFO) << "ProfileMergeOkNoReference";
 
     SetupProfiles(/*setup_ref*/ false);
-    mergePackageProfiles(package_name_, /*expected_result*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
 }
 
 TEST_F(ProfileTest, ProfileMergeFailWrongPackage) {
     LOG(INFO) << "ProfileMergeFailWrongPackage";
 
     SetupProfiles(/*setup_ref*/ true);
-    mergePackageProfiles("not.there", /*expected_result*/ false);
+    mergePackageProfiles("not.there", "primary.prof", /*expected_result*/ false);
 }
 
 TEST_F(ProfileTest, ProfileDirOk) {
@@ -657,7 +667,6 @@ TEST_F(ProfileTest, ProfileDirOk) {
     std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
 
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
-    CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
     CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
 }
 
@@ -689,7 +698,6 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
 
     // Check the file access.
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
-    CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
     CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
 }
 

@@ -85,22 +85,24 @@ public:
             const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
             const std::unique_ptr<std::string>& classLoaderContext,
             const std::unique_ptr<std::string>& seInfo, bool downgrade,
-            int32_t targetSdkVersion);
+            int32_t targetSdkVersion, const std::unique_ptr<std::string>& profileName);
 
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
-    binder::Status mergeProfiles(int32_t uid, const std::string& packageName, bool* _aidl_return);
+    binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
+            const std::string& profileName, bool* _aidl_return);
     binder::Status dumpProfiles(int32_t uid, const std::string& packageName,
-            const std::string& codePaths, bool* _aidl_return);
+            const std::string& profileName, const std::string& codePath, bool* _aidl_return);
     binder::Status copySystemProfile(const std::string& systemProfile,
-            int32_t uid, const std::string& packageName, bool* _aidl_return);
-    binder::Status clearAppProfiles(const std::string& packageName);
+            int32_t uid, const std::string& packageName, const std::string& profileName,
+            bool* _aidl_return);
+    binder::Status clearAppProfiles(const std::string& packageName, const std::string& profileName);
     binder::Status destroyAppProfiles(const std::string& packageName);
 
     binder::Status createProfileSnapshot(int32_t appId, const std::string& packageName,
-            const std::string& codePath, bool* _aidl_return);
+            const std::string& profileName, bool* _aidl_return);
     binder::Status destroyProfileSnapshot(const std::string& packageName,
-            const std::string& codePath);
+            const std::string& profileName);
 
     binder::Status idmap(const std::string& targetApkPath, const std::string& overlayApkPath,
             int32_t uid);

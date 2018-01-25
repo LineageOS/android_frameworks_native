@@ -876,13 +876,14 @@ static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
     exit(68);   /* only get here on exec failure */
 }
 
-bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths) {
+bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& profile_name,
+        const std::string& code_path) {
     std::vector<unique_fd> profile_fds;
     unique_fd reference_profile_fd;
-    std::string out_file_name = StringPrintf("/data/misc/profman/%s.txt", pkgname.c_str());
+    std::string out_file_name = StringPrintf("/data/misc/profman/%s-%s.txt",
+        pkgname.c_str(), profile_name.c_str());
 
-    // TODO(calin): get the profile name as a parameter.
-    open_profile_files(uid, pkgname, "primary.prof", /*is_secondary_dex*/false,
+    open_profile_files(uid, pkgname, profile_name, /*is_secondary_dex*/false,
             &profile_fds, &reference_profile_fd);
 
     const bool has_reference_profile = (reference_profile_fd.get() != -1);
@@ -896,22 +897,20 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_pat
     unique_fd output_fd(open(out_file_name.c_str(),
             O_WRONLY | O_CREAT | O_TRUNC | O_NOFOLLOW, 0644));
     if (fchmod(output_fd, S_IRUSR|S_IWUSR|S_IRGRP|S_IROTH) < 0) {
-        ALOGE("installd cannot chmod '%s' dump_profile\n", out_file_name.c_str());
+        LOG(ERROR) << "installd cannot chmod file for dump_profile" << out_file_name;
         return false;
     }
-    std::vector<std::string> code_full_paths = base::Split(code_paths, ";");
+
     std::vector<std::string> dex_locations;
     std::vector<unique_fd> apk_fds;
-    for (const std::string& code_full_path : code_full_paths) {
-        const char* full_path = code_full_path.c_str();
-        unique_fd apk_fd(open(full_path, O_RDONLY | O_NOFOLLOW));
-        if (apk_fd == -1) {
-            ALOGE("installd cannot open '%s'\n", full_path);
-            return false;
-        }
-        dex_locations.push_back(get_location_from_path(full_path));
-        apk_fds.push_back(std::move(apk_fd));
+    unique_fd apk_fd(open(code_path.c_str(), O_RDONLY | O_NOFOLLOW));
+    if (apk_fd == -1) {
+        PLOG(ERROR) << "installd cannot open " << code_path.c_str();
+        return false;
     }
+    dex_locations.push_back(get_location_from_path(code_path.c_str()));
+    apk_fds.push_back(std::move(apk_fd));
+
 
     pid_t pid = fork();
     if (pid == 0) {

@@ -51,20 +51,22 @@ interface IInstalld {
             @nullable @utf8InCpp String outputPath, int dexFlags,
             @utf8InCpp String compilerFilter, @nullable @utf8InCpp String uuid,
             @nullable @utf8InCpp String sharedLibraries,
-            @nullable @utf8InCpp String seInfo, boolean downgrade, int targetSdkVersion);
+            @nullable @utf8InCpp String seInfo, boolean downgrade, int targetSdkVersion,
+            @nullable @utf8InCpp String profileName);
 
     void rmdex(@utf8InCpp String codePath, @utf8InCpp String instructionSet);
 
-    boolean mergeProfiles(int uid, @utf8InCpp String packageName);
-    boolean dumpProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String codePaths);
+    boolean mergeProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String profileName);
+    boolean dumpProfiles(int uid, @utf8InCpp String packageName, @utf8InCpp String  profileName,
+            @utf8InCpp String codePath);
     boolean copySystemProfile(@utf8InCpp String systemProfile, int uid,
-            @utf8InCpp String packageName);
-    void clearAppProfiles(@utf8InCpp String packageName);
+            @utf8InCpp String packageName, @utf8InCpp String profileName);
+    void clearAppProfiles(@utf8InCpp String packageName, @utf8InCpp String profileName);
     void destroyAppProfiles(@utf8InCpp String packageName);
 
     boolean createProfileSnapshot(int appId, @utf8InCpp String packageName,
-            @utf8InCpp String codePath);
-    void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String codePath);
+            @utf8InCpp String profileName);
+    void destroyProfileSnapshot(@utf8InCpp String packageName, @utf8InCpp String profileName);
 
     void idmap(@utf8InCpp String targetApkPath, @utf8InCpp String overlayApkPath, int uid);
     void removeIdmap(@utf8InCpp String overlayApkPath);
