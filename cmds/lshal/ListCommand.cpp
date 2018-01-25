@@ -265,9 +265,6 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
          << "       <interface> declared; users will have to write them by hand." << std::endl
          << "    4. A HAL with lower minor version can be overridden by a HAL with" << std::endl
          << "       higher minor version if they have the same name and major version." << std::endl
-         << "    5. sepolicy version is set to 0.0. It is recommended that the entry" << std::endl
-         << "       is removed from the manifest file and written by assemble_vintf" << std::endl
-         << "       at build time." << std::endl
          << "-->" << std::endl;
 
     vintf::HalManifest manifest;
@@ -364,7 +361,7 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
             }
         }
     });
-    out << vintf::gHalManifestConverter(manifest);
+    out << vintf::gHalManifestConverter(manifest, vintf::SerializeFlag::HALS_ONLY);
 }
 
 static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
