@@ -316,6 +316,9 @@ private:
     friend class BufferLayer;
     friend class MonitoredProducer;
 
+    // For unit tests
+    friend class TestableSurfaceFlinger;
+
     // This value is specified in number of frames.  Log frame stats at most
     // every half hour.
     enum { LOG_FRAME_STATS_PERIOD =  30*60*60 };
