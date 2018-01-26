@@ -6,6 +6,7 @@ header_libraries = [
 shared_libraries = [
     "libbase",
     "libbinder",
+    "libbufferhubqueue",
     "libcutils",
     "libgui",
     "liblog",
@@ -13,14 +14,12 @@ shared_libraries = [
     "libui",
     "libutils",
     "libnativewindow",
+    "libpdx_default_transport",
 ]
 
 static_libraries = [
-    "libbufferhubqueue",
-    "libbufferhub",
     "libchrome",
     "libdvrcommon",
-    "libpdx_default_transport",
     "libperformance",
 ]
 

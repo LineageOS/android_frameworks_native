@@ -23,21 +23,20 @@ includeFiles = [
 
 staticLibraries = [
     "libdisplay",
-    "libbufferhub",
-    "libbufferhubqueue",
     "libdvrcommon",
     "libbroadcastring",
-    "libpdx_default_transport",
 ]
 
 sharedLibraries = [
     "libbase",
     "libbinder",
+    "libbufferhubqueue",
     "libcutils",
     "libhardware",
     "liblog",
     "libutils",
     "libui",
+    "libpdx_default_transport",
 ]
 
 cc_library {

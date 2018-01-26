@@ -27,7 +27,6 @@ headerLibraries := \
 
 staticLibraries := \
 	libperformance \
-	libpdx_default_transport \
 	libbufferhub
 
 sharedLibraries := \
@@ -38,7 +37,8 @@ sharedLibraries := \
 	libsync \
 	libutils \
         libgui \
-        libui
+        libui \
+	libpdx_default_transport \
 
 include $(CLEAR_VARS)
 LOCAL_SRC_FILES := $(sourceFiles)
