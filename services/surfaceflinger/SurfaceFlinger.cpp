@@ -1816,8 +1816,13 @@ android_dataspace SurfaceFlinger::bestTargetDataSpace(
     if (a == HAL_DATASPACE_V0_SCRGB || b == HAL_DATASPACE_V0_SCRGB) {
         return HAL_DATASPACE_DISPLAY_P3;
     }
-    if (!hasHdr && (a == HAL_DATASPACE_BT2020_PQ || b == HAL_DATASPACE_BT2020_PQ)) {
-        return HAL_DATASPACE_DISPLAY_P3;
+    if (!hasHdr) {
+        if (a == HAL_DATASPACE_BT2020_PQ || b == HAL_DATASPACE_BT2020_PQ) {
+            return HAL_DATASPACE_DISPLAY_P3;
+        }
+        if (a == HAL_DATASPACE_BT2020_ITU_PQ || b == HAL_DATASPACE_BT2020_ITU_PQ) {
+            return HAL_DATASPACE_DISPLAY_P3;
+        }
     }
 
     return HAL_DATASPACE_V0_SRGB;
@@ -1900,7 +1905,8 @@ void SurfaceFlinger::setUpHWComposer() {
                     "display %zd: %d", displayId, result);
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            if (layer->getDataSpace() == HAL_DATASPACE_BT2020_PQ &&
+            if ((layer->getDataSpace() == HAL_DATASPACE_BT2020_PQ ||
+                 layer->getDataSpace() == HAL_DATASPACE_BT2020_ITU_PQ) &&
                     !displayDevice->getHdrSupport()) {
                 layer->forceClientComposition(hwcId);
             }
