@@ -31,6 +31,7 @@
 #include <chrono>
 
 using namespace android::hardware::graphics::composer::V2_1;
+using namespace android::hardware::graphics::composer::V2_1::hal;
 using namespace android::hardware::graphics::composer::V2_1::implementation;
 using namespace android::hardware;
 using namespace std::chrono_literals;
@@ -54,7 +55,7 @@ namespace sftest {
 constexpr Display PRIMARY_DISPLAY = static_cast<Display>(HWC_DISPLAY_PRIMARY);
 constexpr Display EXTERNAL_DISPLAY = static_cast<Display>(HWC_DISPLAY_EXTERNAL);
 
-class FakeComposerClient : public ComposerBase {
+class FakeComposerClient : public ComposerHal {
 public:
     FakeComposerClient();
     virtual ~FakeComposerClient();

@@ -33,6 +33,11 @@ cc_library_shared {
 
   header_libs: [
     "android.hardware.graphics.composer@2.1-command-buffer",
+    "android.hardware.graphics.composer@2.1-hal",
+  ],
+
+  export_header_lib_headers: [
+    "android.hardware.graphics.composer@2.1-hal",
   ],
 
   export_static_lib_headers: [
