@@ -65,4 +65,4 @@ cc_library_shared {
     },
 }
 
-subdirs = ["tests"]
+subdirs = ["benchmarks", "tests"]

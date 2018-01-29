@@ -1,14 +1,13 @@
-#include <android/native_window.h>
 #include <android-base/logging.h>
+#include <android/native_window.h>
 #include <benchmark/benchmark.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <dvr/dvr_api.h>
-#include <dvr/performance_client_api.h>
-#include <gui/BufferHubProducer.h>
 #include <gui/BufferItem.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/Surface.h>
+#include <private/dvr/epoll_file_descriptor.h>
 #include <utils/Trace.h>
 
 #include <chrono>
@@ -17,7 +16,9 @@
 #include <thread>
 #include <vector>
 
+#include <dlfcn.h>
 #include <poll.h>
+#include <sys/epoll.h>
 #include <sys/wait.h>
 
 // Use ALWAYS at the tag level. Control is performed manually during command
@@ -28,7 +29,6 @@
 #define ATRACE_TAG ATRACE_TAG_ALWAYS
 
 using namespace android;
-using namespace android::dvr;
 using ::benchmark::State;
 
 static const String16 kBinderService = String16("bufferTransport");
@@ -37,9 +37,11 @@ static const uint32_t kBufferHeight = 1;
 static const uint32_t kBufferFormat = HAL_PIXEL_FORMAT_BLOB;
 static const uint64_t kBufferUsage =
     GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
+static const uint32_t kBufferLayer = 1;
 static const int kMaxAcquiredImages = 1;
 static const int kQueueDepth = 2;  // We are double buffering for this test.
 static const size_t kMaxQueueCounts = 128;
+static const int kInvalidFence = -1;
 
 enum BufferTransportServiceCode {
   CREATE_BUFFER_QUEUE = IBinder::FIRST_CALL_TRANSACTION,
@@ -62,7 +64,7 @@ class BufferTransportService : public BBinder {
       case CREATE_BUFFER_QUEUE: {
         auto new_queue = std::make_shared<BufferQueueHolder>(this);
         reply->writeStrongBinder(
-            IGraphicBufferProducer::asBinder(new_queue->producer_));
+            IGraphicBufferProducer::asBinder(new_queue->producer));
         buffer_queues_.push_back(new_queue);
         return NO_ERROR;
       }
@@ -109,18 +111,20 @@ class BufferTransportService : public BBinder {
 
   struct BufferQueueHolder {
     explicit BufferQueueHolder(BufferTransportService* service) {
-      BufferQueue::createBufferQueue(&producer_, &consumer_);
+      BufferQueue::createBufferQueue(&producer, &consumer);
 
       sp<BufferItemConsumer> buffer_item_consumer =
-          new BufferItemConsumer(consumer_, kBufferUsage, kMaxAcquiredImages,
+          new BufferItemConsumer(consumer, kBufferUsage, kMaxAcquiredImages,
                                  /*controlledByApp=*/true);
       buffer_item_consumer->setName(String8("BinderBufferTransport"));
       frame_listener_ = new FrameListener(service, buffer_item_consumer);
       buffer_item_consumer->setFrameAvailableListener(frame_listener_);
     }
 
-    sp<IGraphicBufferProducer> producer_;
-    sp<IGraphicBufferConsumer> consumer_;
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+
+   private:
     sp<FrameListener> frame_listener_;
   };
 
@@ -199,6 +203,28 @@ class BinderBufferTransport : public BufferTransport {
   sp<IBinder> service_;
 };
 
+class DvrApi {
+ public:
+  DvrApi() {
+    handle_ = dlopen("libdvr.so", RTLD_NOW | RTLD_LOCAL);
+    CHECK(handle_);
+
+    auto dvr_get_api =
+        reinterpret_cast<decltype(&dvrGetApi)>(dlsym(handle_, "dvrGetApi"));
+    int ret = dvr_get_api(&api_, sizeof(api_), /*version=*/1);
+
+    CHECK(ret == 0);
+  }
+
+  ~DvrApi() { dlclose(handle_); }
+
+  const DvrApi_v1& Api() { return api_; }
+
+ private:
+  void* handle_ = nullptr;
+  DvrApi_v1 api_;
+};
+
 // BufferHub/PDX-based buffer transport.
 //
 // On Start() a new thread will be swapned to run an epoll polling thread which
@@ -227,16 +253,9 @@ class BufferHubTransport : public BufferTransport {
 
     // Create the reader thread.
     reader_thread_ = std::thread([this]() {
-      int ret = dvrSetSchedulerClass(0, "graphics");
+      int ret = dvr_.Api().PerformanceSetSchedulerPolicy(0, "graphics");
       if (ret < 0) {
-        LOG(ERROR) << "Failed to set thread priority";
-        return;
-      }
-
-
-      ret = dvrSetCpuPartition(0, "/system/performance");
-      if (ret < 0) {
-        LOG(ERROR) << "Failed to set thread cpu partition";
+        LOG(ERROR) << "Failed to set scheduler policy, ret=" << ret;
         return;
       }
 
@@ -259,8 +278,9 @@ class BufferHubTransport : public BufferTransport {
 
         const int num_events = ret;
         for (int i = 0; i < num_events; i++) {
-          uint32_t surface_index = events[i].data.u32;
-          buffer_queues_[surface_index]->consumer_queue_->HandleQueueEvents();
+          uint32_t index = events[i].data.u32;
+          dvr_.Api().ReadBufferQueueHandleEvents(
+              buffer_queues_[index]->GetReadQueue());
         }
       }
 
@@ -272,88 +292,122 @@ class BufferHubTransport : public BufferTransport {
 
   sp<Surface> CreateSurface() override {
     auto new_queue = std::make_shared<BufferQueueHolder>();
-    if (new_queue->producer_ == nullptr) {
-      LOG(ERROR) << "Failed to create buffer producer.";
+    if (!new_queue->IsReady()) {
+      LOG(ERROR) << "Failed to create BufferHub-based BufferQueue.";
       return nullptr;
     }
 
-    sp<Surface> surface =
-        new Surface(new_queue->producer_, /*controlledByApp=*/true);
-
     // Set buffer dimension.
-    ANativeWindow* window = static_cast<ANativeWindow*>(surface.get());
-    ANativeWindow_setBuffersGeometry(window, kBufferWidth, kBufferHeight,
-                                     kBufferFormat);
+    ANativeWindow_setBuffersGeometry(new_queue->GetSurface(), kBufferWidth,
+                                     kBufferHeight, kBufferFormat);
 
     // Use the next position as buffer_queue index.
     uint32_t index = buffer_queues_.size();
     epoll_event event = {.events = EPOLLIN | EPOLLET, .data = {.u32 = index}};
-    const int ret = epoll_fd_.Control(
-        EPOLL_CTL_ADD, new_queue->consumer_queue_->queue_fd(), &event);
+    int queue_fd =
+        dvr_.Api().ReadBufferQueueGetEventFd(new_queue->GetReadQueue());
+    const int ret = epoll_fd_.Control(EPOLL_CTL_ADD, queue_fd, &event);
     if (ret < 0) {
       LOG(ERROR) << "Failed to track consumer queue: " << strerror(-ret)
-                 << ", consumer queue fd: "
-                 << new_queue->consumer_queue_->queue_fd();
+                 << ", consumer queue fd: " << queue_fd;
       return nullptr;
     }
 
-    new_queue->queue_index_ = index;
     buffer_queues_.push_back(new_queue);
-    return surface;
+    ANativeWindow_acquire(new_queue->GetSurface());
+    return static_cast<Surface*>(new_queue->GetSurface());
   }
 
  private:
   struct BufferQueueHolder {
     BufferQueueHolder() {
-      ProducerQueueConfigBuilder config_builder;
-      producer_queue_ =
-          ProducerQueue::Create(config_builder.SetDefaultWidth(kBufferWidth)
-                                    .SetDefaultHeight(kBufferHeight)
-                                    .SetDefaultFormat(kBufferFormat)
-                                    .SetMetadata<DvrNativeBufferMetadata>()
-                                    .Build(),
-                                UsagePolicy{});
-      consumer_queue_ = producer_queue_->CreateConsumerQueue();
-      consumer_queue_->SetBufferAvailableCallback([this]() {
-        size_t index = 0;
-        pdx::LocalHandle fence;
-        DvrNativeBufferMetadata meta;
-        pdx::Status<std::shared_ptr<BufferConsumer>> status;
+      int ret = 0;
+      ret = dvr_.Api().WriteBufferQueueCreate(
+          kBufferWidth, kBufferHeight, kBufferFormat, kBufferLayer,
+          kBufferUsage, 0, sizeof(DvrNativeBufferMetadata), &write_queue_);
+      if (ret < 0) {
+        LOG(ERROR) << "Failed to create write buffer queue, ret=" << ret;
+        return;
+      }
 
-        {
-          ATRACE_NAME("AcquireBuffer");
-          status = consumer_queue_->Dequeue(0, &index, &meta, &fence);
-        }
-        if (!status.ok()) {
-          LOG(ERROR) << "Failed to dequeue consumer buffer, error: "
-                     << status.GetErrorMessage().c_str();
-          return;
-        }
+      ret = dvr_.Api().WriteBufferQueueCreateReadQueue(write_queue_,
+                                                       &read_queue_);
+      if (ret < 0) {
+        LOG(ERROR) << "Failed to create read buffer queue, ret=" << ret;
+        return;
+      }
 
-        auto buffer = status.take();
+      ret = dvr_.Api().ReadBufferQueueSetBufferAvailableCallback(
+          read_queue_, BufferAvailableCallback, this);
+      if (ret < 0) {
+        LOG(ERROR) << "Failed to create buffer available callback, ret=" << ret;
+        return;
+      }
 
-        if (buffer) {
-          ATRACE_NAME("ReleaseBuffer");
-          buffer->ReleaseAsync();
-        }
-      });
-
-      producer_ = BufferHubProducer::Create(producer_queue_);
+      ret =
+          dvr_.Api().WriteBufferQueueGetANativeWindow(write_queue_, &surface_);
+      if (ret < 0) {
+        LOG(ERROR) << "Failed to create surface, ret=" << ret;
+        return;
+      }
     }
 
-    int count_ = 0;
-    int queue_index_;
-    std::shared_ptr<ProducerQueue> producer_queue_;
-    std::shared_ptr<ConsumerQueue> consumer_queue_;
-    sp<IGraphicBufferProducer> producer_;
+    static void BufferAvailableCallback(void* context) {
+      BufferQueueHolder* thiz = static_cast<BufferQueueHolder*>(context);
+      thiz->HandleBufferAvailable();
+    }
+
+    DvrReadBufferQueue* GetReadQueue() { return read_queue_; }
+
+    ANativeWindow* GetSurface() { return surface_; }
+
+    bool IsReady() {
+      return write_queue_ != nullptr && read_queue_ != nullptr &&
+             surface_ != nullptr;
+    }
+
+    void HandleBufferAvailable() {
+      int ret = 0;
+      DvrNativeBufferMetadata meta;
+      DvrReadBuffer* buffer = nullptr;
+      DvrNativeBufferMetadata metadata;
+      int acquire_fence = kInvalidFence;
+
+      {
+        ATRACE_NAME("AcquireBuffer");
+        ret = dvr_.Api().ReadBufferQueueAcquireBuffer(
+            read_queue_, 0, &buffer, &metadata, &acquire_fence);
+      }
+      if (ret < 0) {
+        LOG(ERROR) << "Failed to acquire consumer buffer, error: " << ret;
+        return;
+      }
+
+      if (buffer != nullptr) {
+        ATRACE_NAME("ReleaseBuffer");
+        ret = dvr_.Api().ReadBufferQueueReleaseBuffer(read_queue_, buffer,
+                                                      &meta, kInvalidFence);
+      }
+      if (ret < 0) {
+        LOG(ERROR) << "Failed to release consumer buffer, error: " << ret;
+      }
+    }
+
+   private:
+    DvrWriteBufferQueue* write_queue_ = nullptr;
+    DvrReadBufferQueue* read_queue_ = nullptr;
+    ANativeWindow* surface_ = nullptr;
   };
 
+  static DvrApi dvr_;
   std::atomic<bool> stopped_;
   std::thread reader_thread_;
 
-  EpollFileDescriptor epoll_fd_;
+  dvr::EpollFileDescriptor epoll_fd_;
   std::vector<std::shared_ptr<BufferQueueHolder>> buffer_queues_;
 };
+
+DvrApi BufferHubTransport::dvr_ = {};
 
 enum TransportType {
   kBinderBufferTransport,
@@ -508,8 +562,7 @@ int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     if (std::string(argv[i]) == "--help") {
       std::cout << "Usage: binderThroughputTest [OPTIONS]" << std::endl;
-      std::cout << "\t--trace: Enable systrace logging."
-                << std::endl;
+      std::cout << "\t--trace: Enable systrace logging." << std::endl;
       return 0;
     }
     if (std::string(argv[i]) == "--trace") {
@@ -524,7 +577,7 @@ int main(int argc, char** argv) {
 
   pid_t pid = fork();
   if (pid == 0) {
-    // parent, i.e. the client side.
+    // Child, i.e. the client side.
     ProcessState::self()->startThreadPool();
 
     ::benchmark::Initialize(&argc, argv);
