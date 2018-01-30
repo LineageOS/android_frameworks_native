@@ -35,29 +35,29 @@ class ComposerClientImpl : public ComposerClient {
   virtual ~ComposerClientImpl();
 
  private:
-  class VrCommandReader : public ComposerClient::CommandReader {
+  class VrCommandEngine : public ComposerCommandEngine {
    public:
-    VrCommandReader(ComposerClientImpl& client);
-    ~VrCommandReader() override;
+    VrCommandEngine(ComposerClientImpl& client);
+    ~VrCommandEngine() override;
 
-    bool parseCommand(IComposerClient::Command command,
-                      uint16_t length) override;
+    bool executeCommand(IComposerClient::Command command,
+                        uint16_t length) override;
 
    private:
-    bool parseSetLayerInfo(uint16_t length);
-    bool parseSetClientTargetMetadata(uint16_t length);
-    bool parseSetLayerBufferMetadata(uint16_t length);
+    bool executeSetLayerInfo(uint16_t length);
+    bool executeSetClientTargetMetadata(uint16_t length);
+    bool executeSetLayerBufferMetadata(uint16_t length);
 
     IVrComposerClient::BufferMetadata readBufferMetadata();
 
     ComposerClientImpl& mVrClient;
     android::dvr::VrHwc& mVrHal;
 
-    VrCommandReader(const VrCommandReader&) = delete;
-    void operator=(const VrCommandReader&) = delete;
+    VrCommandEngine(const VrCommandEngine&) = delete;
+    void operator=(const VrCommandEngine&) = delete;
   };
 
-  std::unique_ptr<CommandReader> createCommandReader() override;
+  std::unique_ptr<ComposerCommandEngine> createCommandEngine() override;
 
   dvr::VrHwc& mVrHal;
 
@@ -70,38 +70,39 @@ ComposerClientImpl::ComposerClientImpl(android::dvr::VrHwc& hal)
 
 ComposerClientImpl::~ComposerClientImpl() {}
 
-std::unique_ptr<ComposerClient::CommandReader>
-ComposerClientImpl::createCommandReader() {
-  return std::unique_ptr<CommandReader>(new VrCommandReader(*this));
+std::unique_ptr<ComposerCommandEngine>
+ComposerClientImpl::createCommandEngine() {
+  return std::unique_ptr<VrCommandEngine>(new VrCommandEngine(*this));
 }
 
-ComposerClientImpl::VrCommandReader::VrCommandReader(ComposerClientImpl& client)
-    : CommandReader(client), mVrClient(client), mVrHal(client.mVrHal) {}
+ComposerClientImpl::VrCommandEngine::VrCommandEngine(ComposerClientImpl& client)
+    : ComposerCommandEngine(&client.mHal, client.mResources.get()), mVrClient(client),
+      mVrHal(client.mVrHal) {}
 
-ComposerClientImpl::VrCommandReader::~VrCommandReader() {}
+ComposerClientImpl::VrCommandEngine::~VrCommandEngine() {}
 
-bool ComposerClientImpl::VrCommandReader::parseCommand(
+bool ComposerClientImpl::VrCommandEngine::executeCommand(
     IComposerClient::Command command, uint16_t length) {
   IVrComposerClient::VrCommand vrCommand =
       static_cast<IVrComposerClient::VrCommand>(command);
   switch (vrCommand) {
     case IVrComposerClient::VrCommand::SET_LAYER_INFO:
-      return parseSetLayerInfo(length);
+      return executeSetLayerInfo(length);
     case IVrComposerClient::VrCommand::SET_CLIENT_TARGET_METADATA:
-      return parseSetClientTargetMetadata(length);
+      return executeSetClientTargetMetadata(length);
     case IVrComposerClient::VrCommand::SET_LAYER_BUFFER_METADATA:
-      return parseSetLayerBufferMetadata(length);
+      return executeSetLayerBufferMetadata(length);
     default:
-      return CommandReader::parseCommand(command, length);
+      return ComposerCommandEngine::executeCommand(command, length);
   }
 }
 
-bool ComposerClientImpl::VrCommandReader::parseSetLayerInfo(uint16_t length) {
+bool ComposerClientImpl::VrCommandEngine::executeSetLayerInfo(uint16_t length) {
   if (length != 2) {
     return false;
   }
 
-  auto err = mVrHal.setLayerInfo(mDisplay, mLayer, read(), read());
+  auto err = mVrHal.setLayerInfo(mCurrentDisplay, mCurrentLayer, read(), read());
   if (err != Error::NONE) {
     mWriter.setError(getCommandLoc(), err);
   }
@@ -109,24 +110,24 @@ bool ComposerClientImpl::VrCommandReader::parseSetLayerInfo(uint16_t length) {
   return true;
 }
 
-bool ComposerClientImpl::VrCommandReader::parseSetClientTargetMetadata(
+bool ComposerClientImpl::VrCommandEngine::executeSetClientTargetMetadata(
     uint16_t length) {
   if (length != 7)
     return false;
 
-  auto err = mVrHal.setClientTargetMetadata(mDisplay, readBufferMetadata());
+  auto err = mVrHal.setClientTargetMetadata(mCurrentDisplay, readBufferMetadata());
   if (err != Error::NONE)
     mWriter.setError(getCommandLoc(), err);
 
   return true;
 }
 
-bool ComposerClientImpl::VrCommandReader::parseSetLayerBufferMetadata(
+bool ComposerClientImpl::VrCommandEngine::executeSetLayerBufferMetadata(
     uint16_t length) {
   if (length != 7)
     return false;
 
-  auto err = mVrHal.setLayerBufferMetadata(mDisplay, mLayer,
+  auto err = mVrHal.setLayerBufferMetadata(mCurrentDisplay, mCurrentLayer,
                                            readBufferMetadata());
   if (err != Error::NONE)
     mWriter.setError(getCommandLoc(), err);
@@ -135,7 +136,7 @@ bool ComposerClientImpl::VrCommandReader::parseSetLayerBufferMetadata(
 }
 
 IVrComposerClient::BufferMetadata
-ComposerClientImpl::VrCommandReader::readBufferMetadata() {
+ComposerClientImpl::VrCommandEngine::readBufferMetadata() {
   IVrComposerClient::BufferMetadata metadata = {
     .width = read(),
     .height = read(),

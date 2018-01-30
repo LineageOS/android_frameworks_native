@@ -20,6 +20,7 @@
 #include <ComposerClient.h>
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <composer-command-buffer/2.1/ComposerCommandBuffer.h>
+#include <composer-hal/2.1/ComposerCommandEngine.h>
 
 namespace android {
 namespace dvr {
@@ -27,6 +28,7 @@ namespace dvr {
 class VrHwc;
 
 using hardware::graphics::common::V1_0::PixelFormat;
+using hardware::graphics::composer::V2_1::hal::ComposerCommandEngine;
 using hardware::graphics::composer::V2_1::implementation::ComposerClient;
 
 class VrComposerClient : public IVrComposerClient {
