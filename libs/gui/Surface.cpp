@@ -881,6 +881,10 @@ int Surface::query(int what, int* value) const {
                 *value = mGraphicBufferProducer != nullptr ? 1 : 0;
                 return NO_ERROR;
             }
+            case NATIVE_WINDOW_DATASPACE: {
+                *value = static_cast<int>(mDataSpace);
+                return NO_ERROR;
+            }
         }
     }
     return mGraphicBufferProducer->query(what, value);
