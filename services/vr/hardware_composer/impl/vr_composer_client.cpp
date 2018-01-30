@@ -24,64 +24,31 @@
 
 namespace android {
 namespace dvr {
-namespace {
 
 using android::hardware::graphics::common::V1_0::PixelFormat;
 using android::frameworks::vr::composer::V1_0::IVrComposerClient;
 
-class ComposerClientImpl : public ComposerClient {
- public:
-  ComposerClientImpl(android::dvr::VrHwc& hal);
-  virtual ~ComposerClientImpl();
+VrComposerClient::VrComposerClient(dvr::VrHwc& hal)
+    : ComposerClient(&hal), mVrHal(hal) {
+  if (!init()) {
+      LOG_ALWAYS_FATAL("failed to initialize VrComposerClient");
+  }
+}
 
- private:
-  class VrCommandEngine : public ComposerCommandEngine {
-   public:
-    VrCommandEngine(ComposerClientImpl& client);
-    ~VrCommandEngine() override;
-
-    bool executeCommand(IComposerClient::Command command,
-                        uint16_t length) override;
-
-   private:
-    bool executeSetLayerInfo(uint16_t length);
-    bool executeSetClientTargetMetadata(uint16_t length);
-    bool executeSetLayerBufferMetadata(uint16_t length);
-
-    IVrComposerClient::BufferMetadata readBufferMetadata();
-
-    ComposerClientImpl& mVrClient;
-    android::dvr::VrHwc& mVrHal;
-
-    VrCommandEngine(const VrCommandEngine&) = delete;
-    void operator=(const VrCommandEngine&) = delete;
-  };
-
-  std::unique_ptr<ComposerCommandEngine> createCommandEngine() override;
-
-  dvr::VrHwc& mVrHal;
-
-  ComposerClientImpl(const ComposerClientImpl&) = delete;
-  void operator=(const ComposerClientImpl&) = delete;
-};
-
-ComposerClientImpl::ComposerClientImpl(android::dvr::VrHwc& hal)
-    : ComposerClient(hal), mVrHal(hal) {}
-
-ComposerClientImpl::~ComposerClientImpl() {}
+VrComposerClient::~VrComposerClient() {}
 
 std::unique_ptr<ComposerCommandEngine>
-ComposerClientImpl::createCommandEngine() {
+VrComposerClient::createCommandEngine() {
   return std::unique_ptr<VrCommandEngine>(new VrCommandEngine(*this));
 }
 
-ComposerClientImpl::VrCommandEngine::VrCommandEngine(ComposerClientImpl& client)
-    : ComposerCommandEngine(&client.mHal, client.mResources.get()), mVrClient(client),
+VrComposerClient::VrCommandEngine::VrCommandEngine(VrComposerClient& client)
+    : ComposerCommandEngine(client.mHal, client.mResources.get()), mVrClient(client),
       mVrHal(client.mVrHal) {}
 
-ComposerClientImpl::VrCommandEngine::~VrCommandEngine() {}
+VrComposerClient::VrCommandEngine::~VrCommandEngine() {}
 
-bool ComposerClientImpl::VrCommandEngine::executeCommand(
+bool VrComposerClient::VrCommandEngine::executeCommand(
     IComposerClient::Command command, uint16_t length) {
   IVrComposerClient::VrCommand vrCommand =
       static_cast<IVrComposerClient::VrCommand>(command);
@@ -97,7 +64,7 @@ bool ComposerClientImpl::VrCommandEngine::executeCommand(
   }
 }
 
-bool ComposerClientImpl::VrCommandEngine::executeSetLayerInfo(uint16_t length) {
+bool VrComposerClient::VrCommandEngine::executeSetLayerInfo(uint16_t length) {
   if (length != 2) {
     return false;
   }
@@ -110,7 +77,7 @@ bool ComposerClientImpl::VrCommandEngine::executeSetLayerInfo(uint16_t length) {
   return true;
 }
 
-bool ComposerClientImpl::VrCommandEngine::executeSetClientTargetMetadata(
+bool VrComposerClient::VrCommandEngine::executeSetClientTargetMetadata(
     uint16_t length) {
   if (length != 7)
     return false;
@@ -122,7 +89,7 @@ bool ComposerClientImpl::VrCommandEngine::executeSetClientTargetMetadata(
   return true;
 }
 
-bool ComposerClientImpl::VrCommandEngine::executeSetLayerBufferMetadata(
+bool VrComposerClient::VrCommandEngine::executeSetLayerBufferMetadata(
     uint16_t length) {
   if (length != 7)
     return false;
@@ -136,7 +103,7 @@ bool ComposerClientImpl::VrCommandEngine::executeSetLayerBufferMetadata(
 }
 
 IVrComposerClient::BufferMetadata
-ComposerClientImpl::VrCommandEngine::readBufferMetadata() {
+VrComposerClient::VrCommandEngine::readBufferMetadata() {
   IVrComposerClient::BufferMetadata metadata = {
     .width = read(),
     .height = read(),
@@ -146,137 +113,6 @@ ComposerClientImpl::VrCommandEngine::readBufferMetadata() {
     .usage = read64(),
   };
   return metadata;
-}
-
-}  // namespace
-
-VrComposerClient::VrComposerClient(dvr::VrHwc& hal)
-    : client_(new ComposerClientImpl(hal)) {
-  client_->initialize();
-}
-
-VrComposerClient::~VrComposerClient() {}
-
-void VrComposerClient::onHotplug(Display display,
-    IComposerCallback::Connection connected) {
-  client_->onHotplug(display, connected);
-}
-
-void VrComposerClient::onRefresh(Display display) {
-  client_->onRefresh(display);
-}
-
-Return<void> VrComposerClient::registerCallback(
-    const sp<IComposerCallback>& callback) {
-  return client_->registerCallback(callback);
-}
-
-Return<uint32_t> VrComposerClient::getMaxVirtualDisplayCount() {
-  return client_->getMaxVirtualDisplayCount();
-}
-
-Return<void> VrComposerClient::createVirtualDisplay(uint32_t width,
-    uint32_t height, PixelFormat formatHint, uint32_t outputBufferSlotCount,
-    createVirtualDisplay_cb hidl_cb) {
-  return client_->createVirtualDisplay(
-      width, height, formatHint, outputBufferSlotCount, hidl_cb);
-}
-
-Return<Error> VrComposerClient::destroyVirtualDisplay(Display display) {
-  return client_->destroyVirtualDisplay(display);
-}
-
-Return<void> VrComposerClient::createLayer(Display display,
-    uint32_t bufferSlotCount, createLayer_cb hidl_cb) {
-  return client_->createLayer(display, bufferSlotCount, hidl_cb);
-}
-
-Return<Error> VrComposerClient::destroyLayer(Display display, Layer layer) {
-  return client_->destroyLayer(display, layer);
-}
-
-Return<void> VrComposerClient::getActiveConfig(Display display,
-    getActiveConfig_cb hidl_cb) {
-  return client_->getActiveConfig(display, hidl_cb);
-}
-
-Return<Error> VrComposerClient::getClientTargetSupport(Display display,
-    uint32_t width, uint32_t height, PixelFormat format, Dataspace dataspace) {
-  return client_->getClientTargetSupport(display, width, height, format,
-                                         dataspace);
-}
-
-Return<void> VrComposerClient::getColorModes(Display display,
-    getColorModes_cb hidl_cb) {
-  return client_->getColorModes(display, hidl_cb);
-}
-
-Return<void> VrComposerClient::getDisplayAttribute(Display display,
-    Config config, Attribute attribute, getDisplayAttribute_cb hidl_cb) {
-  return client_->getDisplayAttribute(display, config, attribute, hidl_cb);
-}
-
-Return<void> VrComposerClient::getDisplayConfigs(Display display,
-    getDisplayConfigs_cb hidl_cb) {
-  return client_->getDisplayConfigs(display, hidl_cb);
-}
-
-Return<void> VrComposerClient::getDisplayName(Display display,
-    getDisplayName_cb hidl_cb) {
-  return client_->getDisplayName(display, hidl_cb);
-}
-
-Return<void> VrComposerClient::getDisplayType(Display display,
-    getDisplayType_cb hidl_cb) {
-  return client_->getDisplayType(display, hidl_cb);
-}
-
-Return<void> VrComposerClient::getDozeSupport(
-    Display display, getDozeSupport_cb hidl_cb) {
-  return client_->getDozeSupport(display, hidl_cb);
-}
-
-Return<void> VrComposerClient::getHdrCapabilities(
-    Display display, getHdrCapabilities_cb hidl_cb) {
-  return client_->getHdrCapabilities(display, hidl_cb);
-}
-
-Return<Error> VrComposerClient::setActiveConfig(Display display,
-    Config config) {
-  return client_->setActiveConfig(display, config);
-}
-
-Return<Error> VrComposerClient::setColorMode(Display display, ColorMode mode) {
-  return client_->setColorMode(display, mode);
-}
-
-Return<Error> VrComposerClient::setPowerMode(Display display, PowerMode mode) {
-  return client_->setPowerMode(display, mode);
-}
-
-Return<Error> VrComposerClient::setVsyncEnabled(Display display,
-    Vsync enabled) {
-  return client_->setVsyncEnabled(display, enabled);
-}
-
-Return<Error> VrComposerClient::setClientTargetSlotCount(
-    Display display, uint32_t clientTargetSlotCount) {
-  return client_->setClientTargetSlotCount(display, clientTargetSlotCount);
-}
-
-Return<Error> VrComposerClient::setInputCommandQueue(
-    const hardware::MQDescriptorSync<uint32_t>& descriptor) {
-  return client_->setInputCommandQueue(descriptor);
-}
-
-Return<void> VrComposerClient::getOutputCommandQueue(
-    getOutputCommandQueue_cb hidl_cb) {
-  return client_->getOutputCommandQueue(hidl_cb);
-}
-
-Return<void> VrComposerClient::executeCommands(uint32_t inLength,
-    const hidl_vec<hidl_handle>& inHandles, executeCommands_cb hidl_cb) {
-  return client_->executeCommands(inLength, inHandles, hidl_cb);
 }
 
 }  // namespace dvr

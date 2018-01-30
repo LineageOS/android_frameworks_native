@@ -29,7 +29,6 @@ cc_test {
         "libutils",
     ],
     static_libs: [
-        "libhwcomposer-client",
         "libtrace_proto",
         "libgmock"
     ],

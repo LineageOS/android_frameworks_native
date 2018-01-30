@@ -8,7 +8,6 @@ cc_library_shared {
 
   static_libs: [
     "libbroadcastring",
-    "libhwcomposer-client",
     "libdisplay",
   ],
 
@@ -38,10 +37,6 @@ cc_library_shared {
 
   export_header_lib_headers: [
     "android.hardware.graphics.composer@2.1-hal",
-  ],
-
-  export_static_lib_headers: [
-    "libhwcomposer-client",
   ],
 
   export_shared_lib_headers: [

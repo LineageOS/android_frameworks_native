@@ -18,7 +18,7 @@
 
 #define HWC2_USE_CPP11
 #define HWC2_INCLUDE_STRINGIFICATION
-#include "ComposerClient.h"
+#include <composer-hal/2.1/ComposerClient.h>
 #undef HWC2_USE_CPP11
 #undef HWC2_INCLUDE_STRINGIFICATION
 #include "RenderState.h"
@@ -32,7 +32,6 @@
 
 using namespace android::hardware::graphics::composer::V2_1;
 using namespace android::hardware::graphics::composer::V2_1::hal;
-using namespace android::hardware::graphics::composer::V2_1::implementation;
 using namespace android::hardware;
 using namespace std::chrono_literals;
 
