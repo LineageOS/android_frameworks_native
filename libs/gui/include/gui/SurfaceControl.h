@@ -87,7 +87,8 @@ private:
     SurfaceControl(
             const sp<SurfaceComposerClient>& client,
             const sp<IBinder>& handle,
-            const sp<IGraphicBufferProducer>& gbp);
+            const sp<IGraphicBufferProducer>& gbp,
+            bool owned);
 
     ~SurfaceControl();
 
@@ -100,6 +101,7 @@ private:
     sp<IGraphicBufferProducer>  mGraphicBufferProducer;
     mutable Mutex               mLock;
     mutable sp<Surface>         mSurfaceData;
+    bool                        mOwned;
 };
 
 }; // namespace android

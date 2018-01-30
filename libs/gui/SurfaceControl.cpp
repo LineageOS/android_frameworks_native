@@ -48,8 +48,9 @@ namespace android {
 SurfaceControl::SurfaceControl(
         const sp<SurfaceComposerClient>& client,
         const sp<IBinder>& handle,
-        const sp<IGraphicBufferProducer>& gbp)
-    : mClient(client), mHandle(handle), mGraphicBufferProducer(gbp)
+        const sp<IGraphicBufferProducer>& gbp,
+        bool owned)
+    : mClient(client), mHandle(handle), mGraphicBufferProducer(gbp), mOwned(owned)
 {
 }
 
@@ -60,7 +61,9 @@ SurfaceControl::~SurfaceControl()
 
 void SurfaceControl::destroy()
 {
-    if (isValid()) {
+    // Avoid destroying the server-side surface if we are not the owner of it, meaning that we
+    // retrieved it from another process.
+    if (isValid() && mOwned) {
         mClient->destroySurface(mHandle);
     }
     // clear all references and trigger an IPC now, to make sure things
@@ -184,9 +187,11 @@ sp<SurfaceControl> SurfaceControl::readFromParcel(Parcel* parcel)
     }
     sp<IBinder> gbp;
     parcel->readNullableStrongBinder(&gbp);
+
+    // We aren't the original owner of the surface.
     return new SurfaceControl(new SurfaceComposerClient(
                     interface_cast<ISurfaceComposerClient>(client)),
-            handle.get(), interface_cast<IGraphicBufferProducer>(gbp));
+            handle.get(), interface_cast<IGraphicBufferProducer>(gbp), false /* owned */);
 }
 
 // ----------------------------------------------------------------------------

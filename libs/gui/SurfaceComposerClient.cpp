@@ -615,7 +615,7 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
                 windowType, ownerUid, &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            sur = new SurfaceControl(this, handle, gbp);
+            sur = new SurfaceControl(this, handle, gbp, true /* owned */);
         }
     }
     return sur;
