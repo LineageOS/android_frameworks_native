@@ -207,8 +207,9 @@ class VrHwc : public IComposer, public ComposerHal, public ComposerView {
   // ComposerHal
   bool hasCapability(hwc2_capability_t capability) override;
 
-  void removeClient() override;
-  void enableCallback(bool enable) override;
+  std::string dumpDebugInfo() override { return {}; }
+  void registerEventCallback(EventCallback* callback) override;
+  void unregisterEventCallback() override {}
 
   uint32_t getMaxVirtualDisplayCount() override;
   Error createVirtualDisplay(uint32_t width, uint32_t height,
@@ -304,6 +305,7 @@ class VrHwc : public IComposer, public ComposerHal, public ComposerView {
   std::unordered_map<Display, std::unique_ptr<HwcDisplay>> displays_;
   Display display_count_ = 2;
 
+  EventCallback* event_callback_ = nullptr;
   Observer* observer_ = nullptr;
 
   VrHwc(const VrHwc&) = delete;

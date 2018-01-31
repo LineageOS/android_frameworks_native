@@ -234,13 +234,10 @@ VrHwc::~VrHwc() {}
 
 bool VrHwc::hasCapability(hwc2_capability_t /* capability */) { return false; }
 
-void VrHwc::removeClient() {
-  std::lock_guard<std::mutex> guard(mutex_);
-  client_ = nullptr;
-}
+void VrHwc::registerEventCallback(EventCallback* callback) {
+  event_callback_ = callback;
 
-void VrHwc::enableCallback(bool enable) {
-  if (enable && client_ != nullptr) {
+  if (client_ != nullptr) {
     {
       int32_t width, height;
       GetPrimaryDisplaySize(&width, &height);
@@ -249,8 +246,8 @@ void VrHwc::enableCallback(bool enable) {
       // VR HWC and SurfaceFlinger.
       displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
     }
-    client_.promote()->onHotplug(kDefaultDisplayId,
-                                 IComposerCallback::Connection::CONNECTED);
+    event_callback_->onHotplug(kDefaultDisplayId,
+                               IComposerCallback::Connection::CONNECTED);
   }
 }
 
@@ -857,9 +854,9 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
 
 void VrHwc::ForceDisplaysRefresh() {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (client_ != nullptr) {
+  if (event_callback_ != nullptr) {
     for (const auto& pair : displays_)
-      client_.promote()->onRefresh(pair.first);
+      event_callback_->onRefresh(pair.first);
   }
 }
 

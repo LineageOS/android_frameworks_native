@@ -61,8 +61,10 @@ public:
 
     bool hasCapability(hwc2_capability_t capability) override;
 
-    void removeClient() override;
-    void enableCallback(bool enable) override;
+    std::string dumpDebugInfo() override;
+    void registerEventCallback(EventCallback* callback) override;
+    void unregisterEventCallback() override;
+
     uint32_t getMaxVirtualDisplayCount() override;
     Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
                                Display* outDisplay) override;
@@ -147,8 +149,7 @@ public:
 private:
     LayerImpl& getLayerImpl(Layer handle);
 
-    bool mCallbacksOn;
-    ComposerClient* mClient;
+    EventCallback* mEventCallback;
     Config mCurrentConfig;
     bool mVsyncEnabled;
     std::vector<std::unique_ptr<LayerImpl>> mLayers;
