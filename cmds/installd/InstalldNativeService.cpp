@@ -1877,13 +1877,18 @@ binder::Status InstalldNativeService::destroyProfileSnapshot(const std::string& 
     return ok();
 }
 
+static const char* getCStr(const std::unique_ptr<std::string>& data,
+        const char* default_value = nullptr) {
+    return data == nullptr ? default_value : data->c_str();
+}
 binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t uid,
         const std::unique_ptr<std::string>& packageName, const std::string& instructionSet,
         int32_t dexoptNeeded, const std::unique_ptr<std::string>& outputPath, int32_t dexFlags,
         const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
         const std::unique_ptr<std::string>& classLoaderContext,
         const std::unique_ptr<std::string>& seInfo, bool downgrade, int32_t targetSdkVersion,
-        const std::unique_ptr<std::string>& profileName) {
+        const std::unique_ptr<std::string>& profileName,
+        const std::unique_ptr<std::string>& dexMetadataPath) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     if (packageName && *packageName != "*") {
@@ -1892,17 +1897,18 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
-    const char* pkgname = packageName ? packageName->c_str() : "*";
+    const char* pkgname = getCStr(packageName, "*");
     const char* instruction_set = instructionSet.c_str();
-    const char* oat_dir = outputPath ? outputPath->c_str() : nullptr;
+    const char* oat_dir = getCStr(outputPath);
     const char* compiler_filter = compilerFilter.c_str();
-    const char* volume_uuid = uuid ? uuid->c_str() : nullptr;
-    const char* class_loader_context = classLoaderContext ? classLoaderContext->c_str() : nullptr;
-    const char* se_info = seInfo ? seInfo->c_str() : nullptr;
-    const char* profile_name = profileName ? profileName->c_str() : nullptr;
+    const char* volume_uuid = getCStr(uuid);
+    const char* class_loader_context = getCStr(classLoaderContext);
+    const char* se_info = getCStr(seInfo);
+    const char* profile_name = getCStr(profileName);
+    const char* dm_path = getCStr(dexMetadataPath);
     int res = android::installd::dexopt(apk_path, uid, pkgname, instruction_set, dexoptNeeded,
             oat_dir, dexFlags, compiler_filter, volume_uuid, class_loader_context, se_info,
-            downgrade, targetSdkVersion, profile_name);
+            downgrade, targetSdkVersion, profile_name, dm_path);
     return res ? error(res, "Failed to dexopt") : ok();
 }
 

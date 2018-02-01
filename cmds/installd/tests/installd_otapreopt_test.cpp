@@ -85,6 +85,11 @@ protected:
         } else {
             ASSERT_STREQ(params.profile_name, "primary.prof");
         }
+        if (version > 5) {
+            ASSERT_STREQ(params.dex_metadata_path, ParseNull(args[i++]));
+        } else {
+            ASSERT_STREQ(params.dex_metadata_path, nullptr);
+        }
     }
 
     const char* getVersionCStr(uint32_t version) {
@@ -94,6 +99,7 @@ protected:
             case 3: return "3";
             case 4: return "4";
             case 5: return "5";
+            case 6: return "6";
         }
         return nullptr;
     }
@@ -129,6 +135,9 @@ protected:
         if (version > 4) {
             args.push_back("split_a.prof");  // profile_name
         }
+        if (version > 5) {
+            args.push_back("dex_metadata.dm");  // dex_metadata_path
+        }
         args.push_back(nullptr);  // we have to end with null.
         return args;
     }
@@ -163,6 +172,10 @@ TEST_F(OTAPreoptTest, ReadArgumentsV4) {
 
 TEST_F(OTAPreoptTest, ReadArgumentsV5) {
     VerifyReadArguments(5, true);
+}
+
+TEST_F(OTAPreoptTest, ReadArgumentsV6) {
+    VerifyReadArguments(6, true);
 }
 
 TEST_F(OTAPreoptTest, ReadArgumentsFailToManyArgs) {
