@@ -1290,7 +1290,7 @@ unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
 // Opens the reference profiles if needed.
 // Note that the reference profile might not exist so it's OK if the fd will be -1.
 Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
-        const std::string& dex_path, const std::string& profile_name, bool profile_guided,
+        const std::string& dex_path, const char* profile_name, bool profile_guided,
         bool is_public, int uid, bool is_secondary_dex) {
     // Public apps should not be compiled with profile information ever. Same goes for the special
     // package '*' used for the system server.
@@ -1299,7 +1299,17 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
     }
 
     // Open reference profile in read only mode as dex2oat does not get write permissions.
-    const std::string location = is_secondary_dex ? dex_path : profile_name;
+    std::string location;
+    if (is_secondary_dex) {
+        location = dex_path;
+    } else {
+        if (profile_name == nullptr) {
+            // This path is taken for system server re-compilation lunched from ZygoteInit.
+            return Dex2oatFileWrapper();
+        } else {
+            location = profile_name;
+        }
+    }
     unique_fd ufd = open_reference_profile(uid, pkgname, location, /*read_write*/false,
             is_secondary_dex);
     const auto& cleanup = [pkgname, location, is_secondary_dex]() {
