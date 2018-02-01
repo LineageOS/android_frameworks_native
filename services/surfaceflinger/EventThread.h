@@ -29,7 +29,6 @@
 #include <private/gui/BitTube.h>
 
 #include <utils/Errors.h>
-#include <utils/RefBase.h>
 #include <utils/SortedVector.h>
 
 #include "DisplayDevice.h"
@@ -43,9 +42,9 @@ class String8;
 
 // ---------------------------------------------------------------------------
 
-class VSyncSource : public virtual RefBase {
+class VSyncSource {
 public:
-    class Callback : public virtual RefBase {
+    class Callback {
     public:
         virtual ~Callback() {}
         virtual void onVSyncEvent(nsecs_t when) = 0;
@@ -53,14 +52,14 @@ public:
 
     virtual ~VSyncSource() {}
     virtual void setVSyncEnabled(bool enable) = 0;
-    virtual void setCallback(const sp<Callback>& callback) = 0;
+    virtual void setCallback(Callback* callback) = 0;
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
 };
 
-class EventThread : public virtual RefBase, private VSyncSource::Callback {
+class EventThread : private VSyncSource::Callback {
     class Connection : public BnDisplayEventConnection {
     public:
-        explicit Connection(const sp<EventThread>& eventThread);
+        explicit Connection(EventThread* eventThread);
         status_t postEvent(const DisplayEventReceiver::Event& event);
 
         // count >= 1 : continuous event. count is the vsync rate
@@ -74,12 +73,12 @@ class EventThread : public virtual RefBase, private VSyncSource::Callback {
         status_t stealReceiveChannel(gui::BitTube* outChannel) override;
         status_t setVsyncRate(uint32_t count) override;
         void requestNextVsync() override; // asynchronous
-        sp<EventThread> const mEventThread;
+        EventThread* const mEventThread;
         gui::BitTube mChannel;
     };
 
 public:
-    EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger, bool interceptVSyncs,
+    EventThread(VSyncSource* src, SurfaceFlinger& flinger, bool interceptVSyncs,
                 const char* threadName);
     ~EventThread();
 
@@ -116,7 +115,7 @@ private:
     void onVSyncEvent(nsecs_t timestamp) override;
 
     // constants
-    sp<VSyncSource> mVSyncSource GUARDED_BY(mMutex);
+    VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
     SurfaceFlinger& mFlinger;
 
     std::thread mThread;

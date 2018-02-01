@@ -48,7 +48,7 @@ class DispSyncThread;
 // needed.
 class DispSync {
 public:
-    class Callback : public virtual RefBase {
+    class Callback {
     public:
         virtual ~Callback(){};
         virtual void onDispSyncEvent(nsecs_t when) = 0;
@@ -106,12 +106,12 @@ public:
     // given phase offset from the hardware vsync events.  The callback is
     // called from a separate thread and it should return reasonably quickly
     // (i.e. within a few hundred microseconds).
-    status_t addEventListener(const char* name, nsecs_t phase, const sp<Callback>& callback);
+    status_t addEventListener(const char* name, nsecs_t phase, Callback* callback);
 
     // removeEventListener removes an already-registered event callback.  Once
     // this method returns that callback will no longer be called by the
     // DispSync object.
-    status_t removeEventListener(const sp<Callback>& callback);
+    status_t removeEventListener(Callback* callback);
 
     // computeNextRefresh computes when the next refresh is expected to begin.
     // The periodOffset value can be used to move forward or backward; an
@@ -188,6 +188,8 @@ private:
     // Ignore present (retire) fences if the device doesn't have support for the
     // sync framework
     bool mIgnorePresentFences;
+
+    std::unique_ptr<Callback> mZeroPhaseTracer;
 };
 
 } // namespace android

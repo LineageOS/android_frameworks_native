@@ -719,10 +719,12 @@ private:
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
-    sp<EventThread> mEventThread;
-    sp<EventThread> mSFEventThread;
-    sp<EventThread> mInjectorEventThread;
-    sp<InjectVSyncSource> mVSyncInjector;
+    std::unique_ptr<EventThread> mEventThread;
+    std::unique_ptr<EventThread> mSFEventThread;
+    std::unique_ptr<EventThread> mInjectorEventThread;
+    std::unique_ptr<VSyncSource> mEventThreadSource;
+    std::unique_ptr<VSyncSource> mSfEventThreadSource;
+    std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
 

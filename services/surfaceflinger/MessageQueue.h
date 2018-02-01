@@ -93,7 +93,7 @@ class MessageQueue {
 
     sp<SurfaceFlinger> mFlinger;
     sp<Looper> mLooper;
-    sp<EventThread> mEventThread;
+    EventThread* mEventThread;
     sp<IDisplayEventConnection> mEvents;
     gui::BitTube mEventTube;
     sp<Handler> mHandler;
@@ -110,7 +110,7 @@ public:
     MessageQueue();
     ~MessageQueue();
     void init(const sp<SurfaceFlinger>& flinger);
-    void setEventThread(const sp<EventThread>& events);
+    void setEventThread(EventThread* events);
 
     void waitMessage();
     status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0);

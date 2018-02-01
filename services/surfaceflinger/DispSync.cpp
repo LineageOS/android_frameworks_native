@@ -168,8 +168,7 @@ public:
         return false;
     }
 
-    status_t addEventListener(const char* name, nsecs_t phase,
-                              const sp<DispSync::Callback>& callback) {
+    status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback) {
         if (kTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
@@ -195,7 +194,7 @@ public:
         return NO_ERROR;
     }
 
-    status_t removeEventListener(const sp<DispSync::Callback>& callback) {
+    status_t removeEventListener(DispSync::Callback* callback) {
         if (kTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
@@ -223,11 +222,11 @@ private:
         const char* mName;
         nsecs_t mPhase;
         nsecs_t mLastEventTime;
-        sp<DispSync::Callback> mCallback;
+        DispSync::Callback* mCallback;
     };
 
     struct CallbackInvocation {
-        sp<DispSync::Callback> mCallback;
+        DispSync::Callback* mCallback;
         nsecs_t mEventTime;
     };
 
@@ -388,7 +387,8 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
         // not needed because any time there is an event registered we will
         // turn on the HW vsync events.
         if (!mIgnorePresentFences && kEnableZeroPhaseTracer) {
-            addEventListener("ZeroPhaseTracer", 0, new ZeroPhaseTracer());
+            mZeroPhaseTracer = std::make_unique<ZeroPhaseTracer>();
+            addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get());
         }
     }
 }
@@ -470,7 +470,7 @@ bool DispSync::addResyncSample(nsecs_t timestamp) {
 
 void DispSync::endResync() {}
 
-status_t DispSync::addEventListener(const char* name, nsecs_t phase, const sp<Callback>& callback) {
+status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* callback) {
     Mutex::Autolock lock(mMutex);
     return mThread->addEventListener(name, phase, callback);
 }
@@ -482,7 +482,7 @@ void DispSync::setRefreshSkipCount(int count) {
     updateModelLocked();
 }
 
-status_t DispSync::removeEventListener(const sp<Callback>& callback) {
+status_t DispSync::removeEventListener(Callback* callback) {
     Mutex::Autolock lock(mMutex);
     return mThread->removeEventListener(callback);
 }

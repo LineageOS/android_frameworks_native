@@ -43,7 +43,7 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-EventThread::EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger, bool interceptVSyncs,
+EventThread::EventThread(VSyncSource* src, SurfaceFlinger& flinger, bool interceptVSyncs,
                          const char* threadName)
       : mVSyncSource(src), mFlinger(flinger), mInterceptVSyncs(interceptVSyncs) {
     for (auto& event : mVSyncEvent) {
@@ -339,7 +339,7 @@ void EventThread::enableVSyncLocked() {
         // never enable h/w VSYNC when screen is off
         if (!mVsyncEnabled) {
             mVsyncEnabled = true;
-            mVSyncSource->setCallback(static_cast<VSyncSource::Callback*>(this));
+            mVSyncSource->setCallback(this);
             mVSyncSource->setVSyncEnabled(true);
         }
     }
@@ -370,7 +370,7 @@ void EventThread::dump(String8& result) const {
 
 // ---------------------------------------------------------------------------
 
-EventThread::Connection::Connection(const sp<EventThread>& eventThread)
+EventThread::Connection::Connection(EventThread* eventThread)
       : count(-1), mEventThread(eventThread), mChannel(gui::BitTube::DefaultSize) {}
 
 EventThread::Connection::~Connection() {

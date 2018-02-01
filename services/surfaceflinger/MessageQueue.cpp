@@ -82,7 +82,7 @@ void MessageQueue::init(const sp<SurfaceFlinger>& flinger) {
     mHandler = new Handler(*this);
 }
 
-void MessageQueue::setEventThread(const sp<EventThread>& eventThread) {
+void MessageQueue::setEventThread(EventThread* eventThread) {
     if (mEventThread == eventThread) {
         return;
     }
