@@ -513,11 +513,11 @@ static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
                             found = true;
                         }
                     }
-                    if (found && dp->haveExtension("EGL_KHR_gl_colorspace")) {
-                        stripped = true;
-                    } else {
+                    if (found || !dp->haveExtension("EGL_KHR_gl_colorspace")) {
                         stripped_attrib_list.push_back(attr[0]);
                         stripped_attrib_list.push_back(attr[1]);
+                    } else {
+                        stripped = true;
                     }
                 }
                 break;
