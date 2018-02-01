@@ -284,14 +284,23 @@ Vector<String16> Dumpsys::listServices(int priorityFilterFlags, bool filterByPro
 }
 
 void Dumpsys::setServiceArgs(Vector<String16>& args, bool asProto, int priorityFlags) {
-    if ((priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_ALL) ||
-        (priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_NORMAL)) {
-        args.add(String16("-a"));
-    }
+    // Add proto flag if dumping service as proto.
     if (asProto) {
         args.insertAt(String16(PriorityDumper::PROTO_ARG), 0);
     }
-    if (priorityFlags != IServiceManager::DUMP_FLAG_PRIORITY_ALL) {
+
+    // Add -a (dump all) flag if dumping all services, dumping normal services or
+    // services not explicitly registered to a priority bucket (default services).
+    if ((priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_ALL) ||
+        (priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_NORMAL) ||
+        (priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT)) {
+        args.insertAt(String16("-a"), 0);
+    }
+
+    // Add priority flags when dumping services registered to a specific priority bucket.
+    if ((priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL) ||
+        (priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_HIGH) ||
+        (priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_NORMAL)) {
         String16 priorityType = ConvertBitmaskToPriorityType(priorityFlags);
         args.insertAt(String16(PriorityDumper::PRIORITY_ARG), 0);
         args.insertAt(priorityType, 1);
@@ -349,7 +358,8 @@ void Dumpsys::writeDumpHeader(int fd, const String16& serviceName, int priorityF
         "----------------------------------------"
         "---------------------------------------\n");
     if (priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_ALL ||
-        priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_NORMAL) {
+        priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_NORMAL ||
+        priorityFlags == IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT) {
         StringAppendF(&msg, "DUMP OF SERVICE %s:\n", String8(serviceName).c_str());
     } else {
         String16 priorityType = ConvertBitmaskToPriorityType(priorityFlags);
