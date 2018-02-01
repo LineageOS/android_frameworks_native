@@ -28,11 +28,8 @@ class OTAPreoptParameters {
     bool ReadArguments(int argc, const char** argv);
 
   private:
-    bool ReadArgumentsV1(int argc, const char** argv);
-    bool ReadArgumentsV2(int argc, const char** argv, bool versioned);
-    bool ReadArgumentsV3(int argc, const char** argv);
-    bool ReadArgumentsV4(int argc, const char** argv);
-    bool ReadArgumentsV5(int argc, const char** argv);
+    bool ReadArgumentsV1(const char** argv);
+    bool ReadArgumentsPostV1(uint32_t version, const char** argv, bool versioned);
 
     const char* apk_path;
     uid_t uid;
