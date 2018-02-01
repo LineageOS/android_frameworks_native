@@ -97,6 +97,14 @@ VKAPI_ATTR VkResult EnumeratePhysicalDevices(VkInstance /*instance*/,
     return VK_SUCCESS;
 }
 
+VKAPI_ATTR VkResult
+EnumeratePhysicalDeviceGroups(VkInstance /*instance*/,
+                              uint32_t* count,
+                              VkPhysicalDeviceGroupProperties* /*properties*/) {
+    *count = 0;
+    return VK_SUCCESS;
+}
+
 VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance,
                                                   const char* name) {
     if (strcmp(name, "vkCreateInstance") == 0)
@@ -108,6 +116,9 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance,
             EnumerateInstanceExtensionProperties);
     if (strcmp(name, "vkEnumeratePhysicalDevices") == 0)
         return reinterpret_cast<PFN_vkVoidFunction>(EnumeratePhysicalDevices);
+    if (strcmp(name, "vkEnumeratePhysicalDeviceGroups") == 0)
+        return reinterpret_cast<PFN_vkVoidFunction>(
+            EnumeratePhysicalDeviceGroups);
     if (strcmp(name, "vkGetInstanceProcAddr") == 0)
         return reinterpret_cast<PFN_vkVoidFunction>(GetInstanceProcAddr);
     // Per the spec, return NULL if instance is NULL.
