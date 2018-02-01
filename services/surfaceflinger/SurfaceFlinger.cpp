@@ -579,21 +579,11 @@ void SurfaceFlinger::init() {
     // start the EventThread
     sp<VSyncSource> vsyncSrc =
             new DispSyncSource(&mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
-    mEventThread = new EventThread(vsyncSrc, *this, false);
+    mEventThread = new EventThread(vsyncSrc, *this, false, "appEventThread");
     sp<VSyncSource> sfVsyncSrc =
             new DispSyncSource(&mPrimaryDispSync, SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
-    mSFEventThread = new EventThread(sfVsyncSrc, *this, true);
+    mSFEventThread = new EventThread(sfVsyncSrc, *this, true, "sfEventThread");
     mEventQueue.setEventThread(mSFEventThread);
-
-    // set EventThread and SFEventThread to SCHED_FIFO to minimize jitter
-    struct sched_param param = {0};
-    param.sched_priority = 2;
-    if (sched_setscheduler(mSFEventThread->getTid(), SCHED_FIFO, &param) != 0) {
-        ALOGE("Couldn't set SCHED_FIFO for SFEventThread");
-    }
-    if (sched_setscheduler(mEventThread->getTid(), SCHED_FIFO, &param) != 0) {
-        ALOGE("Couldn't set SCHED_FIFO for EventThread");
-    }
 
     // Get a RenderEngine for the given display / config (can't fail)
     getBE().mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
@@ -1074,7 +1064,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             ALOGV("VSync Injections enabled");
             if (mVSyncInjector.get() == nullptr) {
                 mVSyncInjector = new InjectVSyncSource();
-                mInjectorEventThread = new EventThread(mVSyncInjector, *this, false);
+                mInjectorEventThread = new EventThread(mVSyncInjector, *this, false,
+                                                       "injEventThread");
             }
             mEventQueue.setEventThread(mInjectorEventThread);
         } else {
