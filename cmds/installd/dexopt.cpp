@@ -1327,9 +1327,21 @@ unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
 Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
         const std::string& dex_path, const char* profile_name, bool profile_guided,
         bool is_public, int uid, bool is_secondary_dex) {
-    // Public apps should not be compiled with profile information ever. Same goes for the special
-    // package '*' used for the system server.
-    if (!profile_guided || is_public || (pkgname[0] == '*')) {
+    // If we are not profile guided compilation, or we are compiling system server
+    // do not bother to open the profiles; we won't be using them.
+    if (!profile_guided || (pkgname[0] == '*')) {
+        return Dex2oatFileWrapper();
+    }
+
+    // If this is a secondary dex path which is public do not open the profile.
+    // We cannot compile public secondary dex paths with profiles. That's because
+    // it will expose how the dex files are used by their owner.
+    //
+    // Note that the PackageManager is responsible to set the is_public flag for
+    // primary apks and we do not check it here. In some cases, e.g. when
+    // compiling with a public profile from the .dm file the PackageManager will
+    // set is_public toghether with the profile guided compilation.
+    if (is_secondary_dex && is_public) {
         return Dex2oatFileWrapper();
     }
 
