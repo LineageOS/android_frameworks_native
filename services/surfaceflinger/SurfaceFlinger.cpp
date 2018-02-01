@@ -636,8 +636,9 @@ void SurfaceFlinger::init() {
         }
     }
 
-    mEventControlThread = new EventControlThread(this);
-    mEventControlThread->run("EventControl", PRIORITY_URGENT_DISPLAY);
+    mEventControlThread = std::make_unique<EventControlThread>([this](bool enabled) {
+        setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled);
+    });
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -1101,7 +1102,8 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const {
+status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const
+        NO_THREAD_SAFETY_ANALYSIS {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
@@ -3567,7 +3569,8 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
 
 // ---------------------------------------------------------------------------
 
-status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asProto) {
+status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asProto)
+        NO_THREAD_SAFETY_ANALYSIS {
     String8 result;
 
     IPCThreadState* ipc = IPCThreadState::self();

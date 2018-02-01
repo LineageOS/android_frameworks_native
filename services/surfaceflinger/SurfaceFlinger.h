@@ -723,7 +723,7 @@ private:
     sp<EventThread> mSFEventThread;
     sp<EventThread> mInjectorEventThread;
     sp<InjectVSyncSource> mVSyncInjector;
-    sp<EventControlThread> mEventControlThread;
+    std::unique_ptr<EventControlThread> mEventControlThread;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
 
     // Can only accessed from the main thread, these members

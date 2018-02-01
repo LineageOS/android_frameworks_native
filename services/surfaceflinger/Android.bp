@@ -4,6 +4,7 @@ cc_defaults {
         "-DLOG_TAG=\"SurfaceFlinger\"",
         "-Wall",
         "-Werror",
+        "-Wthread-safety",
         "-Wunused",
         "-Wunreachable-code",
     ],
