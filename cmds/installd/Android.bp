@@ -92,4 +92,28 @@ filegroup {
     ],
 }
 
+//
+// Static library for otapreopt used in testing
+//
+cc_library_static {
+    name: "libotapreoptparameters",
+    cflags: [
+        "-Wall",
+        "-Werror"
+    ],
+    clang: true,
+
+    srcs: [
+        "otapreopt_parameters.cpp"],
+
+    export_include_dirs: ["."],
+
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "liblog",
+        "libutils",
+    ],
+}
+
 subdirs = ["tests"]
