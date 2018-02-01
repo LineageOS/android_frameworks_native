@@ -20,13 +20,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <private/gui/BitTube.h>
 #include <gui/DisplayEventReceiver.h>
 #include <gui/IDisplayEventConnection.h>
+#include <private/gui/BitTube.h>
 
 #include <utils/Errors.h>
-#include <utils/threads.h>
 #include <utils/SortedVector.h>
+#include <utils/threads.h>
 
 #include "DisplayDevice.h"
 
@@ -39,10 +39,9 @@ class String8;
 
 // ---------------------------------------------------------------------------
 
-
 class VSyncSource : public virtual RefBase {
 public:
-    class Callback: public virtual RefBase {
+    class Callback : public virtual RefBase {
     public:
         virtual ~Callback() {}
         virtual void onVSyncEvent(nsecs_t when) = 0;
@@ -70,13 +69,12 @@ class EventThread : public Thread, private VSyncSource::Callback {
         virtual void onFirstRef();
         status_t stealReceiveChannel(gui::BitTube* outChannel) override;
         status_t setVsyncRate(uint32_t count) override;
-        void requestNextVsync() override;    // asynchronous
+        void requestNextVsync() override; // asynchronous
         sp<EventThread> const mEventThread;
         gui::BitTube mChannel;
     };
 
 public:
-
     EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger, bool interceptVSyncs);
 
     sp<Connection> createEventConnection() const;
@@ -94,16 +92,15 @@ public:
     // called when receiving a hotplug event
     void onHotplugReceived(int type, bool connected);
 
-    Vector< sp<EventThread::Connection> > waitForEvent(
-            DisplayEventReceiver::Event* event);
+    Vector<sp<EventThread::Connection> > waitForEvent(DisplayEventReceiver::Event* event);
 
     void dump(String8& result) const;
 
     void setPhaseOffset(nsecs_t phaseOffset);
 
 private:
-    virtual bool        threadLoop();
-    virtual void        onFirstRef();
+    virtual bool threadLoop();
+    virtual void onFirstRef();
 
     virtual void onVSyncEvent(nsecs_t timestamp);
 
@@ -119,8 +116,8 @@ private:
     mutable Condition mCondition;
 
     // protected by mLock
-    SortedVector< wp<Connection> > mDisplayEventConnections;
-    Vector< DisplayEventReceiver::Event > mPendingEvents;
+    SortedVector<wp<Connection> > mDisplayEventConnections;
+    Vector<DisplayEventReceiver::Event> mPendingEvents;
     DisplayEventReceiver::Event mVSyncEvent[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
     bool mUseSoftwareVSync;
     bool mVsyncEnabled;

@@ -19,10 +19,8 @@
 
 namespace android {
 
-EventControlThread::EventControlThread(const sp<SurfaceFlinger>& flinger):
-        mFlinger(flinger),
-        mVsyncEnabled(false) {
-}
+EventControlThread::EventControlThread(const sp<SurfaceFlinger>& flinger)
+      : mFlinger(flinger), mVsyncEnabled(false) {}
 
 void EventControlThread::setVsyncEnabled(bool enabled) {
     Mutex::Autolock lock(mMutex);
@@ -31,24 +29,21 @@ void EventControlThread::setVsyncEnabled(bool enabled) {
 }
 
 bool EventControlThread::threadLoop() {
-    enum class VsyncState {Unset, On, Off};
+    enum class VsyncState { Unset, On, Off };
     auto currentVsyncState = VsyncState::Unset;
 
     while (true) {
         auto requestedVsyncState = VsyncState::On;
         {
             Mutex::Autolock lock(mMutex);
-            requestedVsyncState =
-                    mVsyncEnabled ? VsyncState::On : VsyncState::Off;
+            requestedVsyncState = mVsyncEnabled ? VsyncState::On : VsyncState::Off;
             while (currentVsyncState == requestedVsyncState) {
                 status_t err = mCond.wait(mMutex);
                 if (err != NO_ERROR) {
-                    ALOGE("error waiting for new events: %s (%d)",
-                          strerror(-err), err);
+                    ALOGE("error waiting for new events: %s (%d)", strerror(-err), err);
                     return false;
                 }
-                requestedVsyncState =
-                        mVsyncEnabled ? VsyncState::On : VsyncState::Off;
+                requestedVsyncState = mVsyncEnabled ? VsyncState::On : VsyncState::Off;
             }
         }
 

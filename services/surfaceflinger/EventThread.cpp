@@ -21,8 +21,8 @@
 
 #include <cutils/compiler.h>
 
-#include <gui/IDisplayEventConnection.h>
 #include <gui/DisplayEventReceiver.h>
+#include <gui/IDisplayEventConnection.h>
 
 #include <utils/Errors.h>
 #include <utils/String8.h>
@@ -36,18 +36,17 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 EventThread::EventThread(const sp<VSyncSource>& src, SurfaceFlinger& flinger, bool interceptVSyncs)
-    : mVSyncSource(src),
-      mFlinger(flinger),
-      mUseSoftwareVSync(false),
-      mVsyncEnabled(false),
-      mDebugVsyncEnabled(false),
-      mInterceptVSyncs(interceptVSyncs) {
-
-    for (int32_t i=0 ; i<DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES ; i++) {
+      : mVSyncSource(src),
+        mFlinger(flinger),
+        mUseSoftwareVSync(false),
+        mVsyncEnabled(false),
+        mDebugVsyncEnabled(false),
+        mInterceptVSyncs(interceptVSyncs) {
+    for (int32_t i = 0; i < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES; i++) {
         mVSyncEvent[i].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
         mVSyncEvent[i].header.id = 0;
         mVSyncEvent[i].header.timestamp = 0;
-        mVSyncEvent[i].vsync.count =  0;
+        mVSyncEvent[i].vsync.count = 0;
     }
 }
 
@@ -72,14 +71,12 @@ status_t EventThread::registerDisplayEventConnection(
     return NO_ERROR;
 }
 
-void EventThread::removeDisplayEventConnection(
-        const wp<EventThread::Connection>& connection) {
+void EventThread::removeDisplayEventConnection(const wp<EventThread::Connection>& connection) {
     Mutex::Autolock _l(mLock);
     mDisplayEventConnections.remove(connection);
 }
 
-void EventThread::setVsyncRate(uint32_t count,
-        const sp<EventThread::Connection>& connection) {
+void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>& connection) {
     if (int32_t(count) >= 0) { // server must protect against bad params
         Mutex::Autolock _l(mLock);
         const int32_t new_count = (count == 0) ? -1 : count;
@@ -90,8 +87,7 @@ void EventThread::setVsyncRate(uint32_t count,
     }
 }
 
-void EventThread::requestNextVsync(
-        const sp<EventThread::Connection>& connection) {
+void EventThread::requestNextVsync(const sp<EventThread::Connection>& connection) {
     Mutex::Autolock _l(mLock);
 
     mFlinger.resyncWithRateLimit();
@@ -131,7 +127,7 @@ void EventThread::onVSyncEvent(nsecs_t timestamp) {
 
 void EventThread::onHotplugReceived(int type, bool connected) {
     ALOGE_IF(type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES,
-            "received hotplug event for an invalid display (id=%d)", type);
+             "received hotplug event for an invalid display (id=%d)", type);
 
     Mutex::Autolock _l(mLock);
     if (type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
@@ -147,12 +143,12 @@ void EventThread::onHotplugReceived(int type, bool connected) {
 
 bool EventThread::threadLoop() {
     DisplayEventReceiver::Event event;
-    Vector< sp<EventThread::Connection> > signalConnections;
+    Vector<sp<EventThread::Connection> > signalConnections;
     signalConnections = waitForEvent(&event);
 
     // dispatch events to listeners...
     const size_t count = signalConnections.size();
-    for (size_t i=0 ; i<count ; i++) {
+    for (size_t i = 0; i < count; i++) {
         const sp<Connection>& conn(signalConnections[i]);
         // now see if we still need to report this event
         status_t err = conn->postEvent(event);
@@ -162,8 +158,8 @@ bool EventThread::threadLoop() {
             // FIXME: Note that some events cannot be dropped and would have
             // to be re-sent later.
             // Right-now we don't have the ability to do this.
-            ALOGW("EventThread: dropping event (%08x) for connection %p",
-                    event.header.type, conn.get());
+            ALOGW("EventThread: dropping event (%08x) for connection %p", event.header.type,
+                  conn.get());
         } else if (err < 0) {
             // handle any other error on the pipe as fatal. the only
             // reasonable thing to do is to clean-up this connection.
@@ -176,11 +172,9 @@ bool EventThread::threadLoop() {
 
 // This will return when (1) a vsync event has been received, and (2) there was
 // at least one connection interested in receiving it when we started waiting.
-Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
-        DisplayEventReceiver::Event* event)
-{
+Vector<sp<EventThread::Connection> > EventThread::waitForEvent(DisplayEventReceiver::Event* event) {
     Mutex::Autolock _l(mLock);
-    Vector< sp<EventThread::Connection> > signalConnections;
+    Vector<sp<EventThread::Connection> > signalConnections;
 
     do {
         bool eventPending = false;
@@ -188,7 +182,7 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
 
         size_t vsyncCount = 0;
         nsecs_t timestamp = 0;
-        for (int32_t i=0 ; i<DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES ; i++) {
+        for (int32_t i = 0; i < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES; i++) {
             timestamp = mVSyncEvent[i].header.timestamp;
             if (timestamp) {
                 // we have a vsync event to dispatch
@@ -214,7 +208,7 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
 
         // find out connections waiting for events
         size_t count = mDisplayEventConnections.size();
-        for (size_t i=0 ; i<count ; ) {
+        for (size_t i = 0; i < count;) {
             sp<Connection> connection(mDisplayEventConnections[i].promote());
             if (connection != nullptr) {
                 bool added = false;
@@ -231,7 +225,7 @@ Vector< sp<EventThread::Connection> > EventThread::waitForEvent(
                             signalConnections.add(connection);
                             added = true;
                         } else if (connection->count == 1 ||
-                                (vsyncCount % connection->count) == 0) {
+                                   (vsyncCount % connection->count) == 0) {
                             // continuous event, and time to report it
                             signalConnections.add(connection);
                             added = true;
@@ -335,28 +329,22 @@ void EventThread::disableVSyncLocked() {
 
 void EventThread::dump(String8& result) const {
     Mutex::Autolock _l(mLock);
-    result.appendFormat("VSYNC state: %s\n",
-            mDebugVsyncEnabled?"enabled":"disabled");
-    result.appendFormat("  soft-vsync: %s\n",
-            mUseSoftwareVSync?"enabled":"disabled");
+    result.appendFormat("VSYNC state: %s\n", mDebugVsyncEnabled ? "enabled" : "disabled");
+    result.appendFormat("  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
     result.appendFormat("  numListeners=%zu,\n  events-delivered: %u\n",
-            mDisplayEventConnections.size(),
-            mVSyncEvent[DisplayDevice::DISPLAY_PRIMARY].vsync.count);
-    for (size_t i=0 ; i<mDisplayEventConnections.size() ; i++) {
-        sp<Connection> connection =
-                mDisplayEventConnections.itemAt(i).promote();
-        result.appendFormat("    %p: count=%d\n",
-                connection.get(), connection != nullptr ? connection->count : 0);
+                        mDisplayEventConnections.size(),
+                        mVSyncEvent[DisplayDevice::DISPLAY_PRIMARY].vsync.count);
+    for (size_t i = 0; i < mDisplayEventConnections.size(); i++) {
+        sp<Connection> connection = mDisplayEventConnections.itemAt(i).promote();
+        result.appendFormat("    %p: count=%d\n", connection.get(),
+                            connection != nullptr ? connection->count : 0);
     }
 }
 
 // ---------------------------------------------------------------------------
 
-EventThread::Connection::Connection(
-        const sp<EventThread>& eventThread)
-    : count(-1), mEventThread(eventThread), mChannel(gui::BitTube::DefaultSize)
-{
-}
+EventThread::Connection::Connection(const sp<EventThread>& eventThread)
+      : count(-1), mEventThread(eventThread), mChannel(gui::BitTube::DefaultSize) {}
 
 EventThread::Connection::~Connection() {
     // do nothing here -- clean-up will happen automatically
@@ -382,8 +370,7 @@ void EventThread::Connection::requestNextVsync() {
     mEventThread->requestNextVsync(this);
 }
 
-status_t EventThread::Connection::postEvent(
-        const DisplayEventReceiver::Event& event) {
+status_t EventThread::Connection::postEvent(const DisplayEventReceiver::Event& event) {
     ssize_t size = DisplayEventReceiver::sendEvents(&mChannel, &event, 1);
     return size < 0 ? status_t(size) : status_t(NO_ERROR);
 }
