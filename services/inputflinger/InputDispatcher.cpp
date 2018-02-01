@@ -889,12 +889,13 @@ bool InputDispatcher::dispatchMotionLocked(
 
 void InputDispatcher::logOutboundMotionDetailsLocked(const char* prefix, const MotionEntry* entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-    ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, policyFlags=0x%x, "
+    ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
+            ", policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, "
             "metaState=0x%x, buttonState=0x%x,"
             "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
             prefix,
-            entry->eventTime, entry->deviceId, entry->source, entry->policyFlags,
+            entry->eventTime, entry->deviceId, entry->source, entry->displayId, entry->policyFlags,
             entry->action, entry->actionButton, entry->flags,
             entry->metaState, entry->buttonState,
             entry->edgeFlags, entry->xPrecision, entry->yPrecision,
@@ -2349,6 +2350,7 @@ InputDispatcher::splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet
             originalMotionEntry->eventTime,
             originalMotionEntry->deviceId,
             originalMotionEntry->source,
+            originalMotionEntry->displayId,
             originalMotionEntry->policyFlags,
             action,
             originalMotionEntry->actionButton,
@@ -2359,7 +2361,6 @@ InputDispatcher::splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet
             originalMotionEntry->xPrecision,
             originalMotionEntry->yPrecision,
             originalMotionEntry->downTime,
-            originalMotionEntry->displayId,
             splitPointerCount, splitPointerProperties, splitPointerCoords, 0, 0);
 
     if (originalMotionEntry->injectionState) {
@@ -2486,10 +2487,11 @@ bool InputDispatcher::shouldSendKeyToInputFilterLocked(const NotifyKeyArgs* args
 
 void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
-    ALOGD("notifyMotion - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, policyFlags=0x%x, "
+    ALOGD("notifyMotion - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
+            ", policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x,"
             "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
-            args->eventTime, args->deviceId, args->source, args->policyFlags,
+            args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
             args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
             args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime);
     for (uint32_t i = 0; i < args->pointerCount; i++) {
@@ -2527,7 +2529,8 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             mLock.unlock();
 
             MotionEvent event;
-            event.initialize(args->deviceId, args->source, args->action, args->actionButton,
+            event.initialize(args->deviceId, args->source, args->displayId,
+                    args->action, args->actionButton,
                     args->flags, args->edgeFlags, args->metaState, args->buttonState,
                     0, 0, args->xPrecision, args->yPrecision,
                     args->downTime, args->eventTime,
@@ -2543,11 +2546,10 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 
         // Just enqueue a new motion event.
         MotionEntry* newEntry = new MotionEntry(args->eventTime,
-                args->deviceId, args->source, policyFlags,
+                args->deviceId, args->source, args->displayId, policyFlags,
                 args->action, args->actionButton, args->flags,
                 args->metaState, args->buttonState,
                 args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime,
-                args->displayId,
                 args->pointerCount, args->pointerProperties, args->pointerCoords, 0, 0);
 
         needWake = enqueueInboundEventLocked(newEntry);
@@ -2596,14 +2598,13 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     }
 }
 
-int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t displayId,
+int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
         uint32_t policyFlags) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("injectInputEvent - eventType=%d, injectorPid=%d, injectorUid=%d, "
-            "syncMode=%d, timeoutMillis=%d, policyFlags=0x%08x, displayId=%d",
-            event->getType(), injectorPid, injectorUid, syncMode, timeoutMillis, policyFlags,
-            displayId);
+            "syncMode=%d, timeoutMillis=%d, policyFlags=0x%08x",
+            event->getType(), injectorPid, injectorUid, syncMode, timeoutMillis, policyFlags);
 #endif
 
     nsecs_t endTime = now() + milliseconds_to_nanoseconds(timeoutMillis);
@@ -2661,12 +2662,13 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t displ
         const nsecs_t* sampleEventTimes = motionEvent->getSampleEventTimes();
         const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
         firstInjectedEntry = new MotionEntry(*sampleEventTimes,
-                motionEvent->getDeviceId(), motionEvent->getSource(), policyFlags,
+                motionEvent->getDeviceId(), motionEvent->getSource(), motionEvent->getDisplayId(),
+                policyFlags,
                 action, actionButton, motionEvent->getFlags(),
                 motionEvent->getMetaState(), motionEvent->getButtonState(),
                 motionEvent->getEdgeFlags(),
                 motionEvent->getXPrecision(), motionEvent->getYPrecision(),
-                motionEvent->getDownTime(), displayId,
+                motionEvent->getDownTime(),
                 uint32_t(pointerCount), pointerProperties, samplePointerCoords,
                 motionEvent->getXOffset(), motionEvent->getYOffset());
         lastInjectedEntry = firstInjectedEntry;
@@ -2674,12 +2676,13 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t displ
             sampleEventTimes += 1;
             samplePointerCoords += pointerCount;
             MotionEntry* nextInjectedEntry = new MotionEntry(*sampleEventTimes,
-                    motionEvent->getDeviceId(), motionEvent->getSource(), policyFlags,
+                    motionEvent->getDeviceId(), motionEvent->getSource(),
+                    motionEvent->getDisplayId(), policyFlags,
                     action, actionButton, motionEvent->getFlags(),
                     motionEvent->getMetaState(), motionEvent->getButtonState(),
                     motionEvent->getEdgeFlags(),
                     motionEvent->getXPrecision(), motionEvent->getYPrecision(),
-                    motionEvent->getDownTime(), displayId,
+                    motionEvent->getDownTime(),
                     uint32_t(pointerCount), pointerProperties, samplePointerCoords,
                     motionEvent->getXOffset(), motionEvent->getYOffset());
             lastInjectedEntry->next = nextInjectedEntry;
@@ -3965,18 +3968,19 @@ void InputDispatcher::KeyEntry::recycle() {
 // --- InputDispatcher::MotionEntry ---
 
 InputDispatcher::MotionEntry::MotionEntry(nsecs_t eventTime, int32_t deviceId,
-        uint32_t source, uint32_t policyFlags, int32_t action, int32_t actionButton,
+        uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
+        int32_t actionButton,
         int32_t flags, int32_t metaState, int32_t buttonState, int32_t edgeFlags,
         float xPrecision, float yPrecision, nsecs_t downTime,
-        int32_t displayId, uint32_t pointerCount,
+        uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
         float xOffset, float yOffset) :
         EventEntry(TYPE_MOTION, eventTime, policyFlags),
         eventTime(eventTime),
-        deviceId(deviceId), source(source), action(action), actionButton(actionButton),
-        flags(flags), metaState(metaState), buttonState(buttonState),
+        deviceId(deviceId), source(source), displayId(displayId), action(action),
+        actionButton(actionButton), flags(flags), metaState(metaState), buttonState(buttonState),
         edgeFlags(edgeFlags), xPrecision(xPrecision), yPrecision(yPrecision),
-        downTime(downTime), displayId(displayId), pointerCount(pointerCount) {
+        downTime(downTime), pointerCount(pointerCount) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
         this->pointerCoords[i].copyFrom(pointerCoords[i]);
@@ -3990,11 +3994,12 @@ InputDispatcher::MotionEntry::~MotionEntry() {
 }
 
 void InputDispatcher::MotionEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, action=%d, actionButton=0x%08x, "
+    msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
+            ", action=%d, actionButton=0x%08x, "
             "flags=0x%08x, metaState=0x%08x, buttonState=0x%08x, "
-            "edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, displayId=%d, pointers=[",
-            deviceId, source, action, actionButton, flags, metaState, buttonState, edgeFlags,
-            xPrecision, yPrecision, displayId);
+            "edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, pointers=[",
+            deviceId, source, displayId, action, actionButton, flags, metaState, buttonState,
+            edgeFlags, xPrecision, yPrecision);
     for (uint32_t i = 0; i < pointerCount; i++) {
         if (i) {
             msg += ", ";
@@ -4123,8 +4128,8 @@ bool InputDispatcher::InputState::trackMotion(const MotionEntry* entry,
         }
 #if DEBUG_OUTBOUND_EVENT_DETAILS
         ALOGD("Dropping inconsistent motion up or cancel event: deviceId=%d, source=%08x, "
-                "actionMasked=%d",
-                entry->deviceId, entry->source, actionMasked);
+                "displayId=%" PRId32 ", actionMasked=%d",
+                entry->deviceId, entry->source, entry->displayId, actionMasked);
 #endif
         return false;
     }
@@ -4176,8 +4181,8 @@ bool InputDispatcher::InputState::trackMotion(const MotionEntry* entry,
         }
 #if DEBUG_OUTBOUND_EVENT_DETAILS
         ALOGD("Dropping inconsistent motion pointer up/down or move event: "
-                "deviceId=%d, source=%08x, actionMasked=%d",
-                entry->deviceId, entry->source, actionMasked);
+                "deviceId=%d, source=%08x, displayId=%" PRId32 ", actionMasked=%d",
+                entry->deviceId, entry->source, entry->displayId, actionMasked);
 #endif
         return false;
     }
@@ -4189,8 +4194,9 @@ bool InputDispatcher::InputState::trackMotion(const MotionEntry* entry,
             return true;
         }
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-        ALOGD("Dropping inconsistent motion hover exit event: deviceId=%d, source=%08x",
-                entry->deviceId, entry->source);
+        ALOGD("Dropping inconsistent motion hover exit event: deviceId=%d, source=%08x, "
+                "displayId=%" PRId32,
+                entry->deviceId, entry->source, entry->displayId);
 #endif
         return false;
     }
@@ -4256,11 +4262,11 @@ void InputDispatcher::InputState::addMotionMemento(const MotionEntry* entry,
     MotionMemento& memento = mMotionMementos.editTop();
     memento.deviceId = entry->deviceId;
     memento.source = entry->source;
+    memento.displayId = entry->displayId;
     memento.flags = flags;
     memento.xPrecision = entry->xPrecision;
     memento.yPrecision = entry->yPrecision;
     memento.downTime = entry->downTime;
-    memento.displayId = entry->displayId;
     memento.setPointers(entry);
     memento.hovering = hovering;
     memento.policyFlags = entry->policyFlags;
@@ -4290,13 +4296,12 @@ void InputDispatcher::InputState::synthesizeCancelationEvents(nsecs_t currentTim
         const MotionMemento& memento = mMotionMementos.itemAt(i);
         if (shouldCancelMotion(memento, options)) {
             outEvents.push(new MotionEntry(currentTime,
-                    memento.deviceId, memento.source, memento.policyFlags,
+                    memento.deviceId, memento.source, memento.displayId, memento.policyFlags,
                     memento.hovering
                             ? AMOTION_EVENT_ACTION_HOVER_EXIT
                             : AMOTION_EVENT_ACTION_CANCEL,
                     memento.flags, 0, 0, 0, 0,
                     memento.xPrecision, memento.yPrecision, memento.downTime,
-                    memento.displayId,
                     memento.pointerCount, memento.pointerProperties, memento.pointerCoords,
                     0, 0));
         }

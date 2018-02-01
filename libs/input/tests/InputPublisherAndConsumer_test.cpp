@@ -89,9 +89,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    int32_t displayId;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event,
-            &displayId);
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
@@ -131,23 +129,23 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
 void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     status_t status;
 
-    const uint32_t seq = 15;
-    const int32_t deviceId = 1;
-    const int32_t source = AINPUT_SOURCE_TOUCHSCREEN;
-    int32_t displayId = 0;
-    const int32_t action = AMOTION_EVENT_ACTION_MOVE;
-    const int32_t actionButton = 0;
-    const int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
-    const int32_t edgeFlags = AMOTION_EVENT_EDGE_FLAG_TOP;
-    const int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
-    const int32_t buttonState = AMOTION_EVENT_BUTTON_PRIMARY;
-    const float xOffset = -10;
-    const float yOffset = -20;
-    const float xPrecision = 0.25;
-    const float yPrecision = 0.5;
-    const nsecs_t downTime = 3;
-    const size_t pointerCount = 3;
-    const nsecs_t eventTime = 4;
+    constexpr uint32_t seq = 15;
+    constexpr int32_t deviceId = 1;
+    constexpr int32_t source = AINPUT_SOURCE_TOUCHSCREEN;
+    constexpr int32_t displayId = 0;
+    constexpr int32_t action = AMOTION_EVENT_ACTION_MOVE;
+    constexpr int32_t actionButton = 0;
+    constexpr int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;
+    constexpr int32_t edgeFlags = AMOTION_EVENT_EDGE_FLAG_TOP;
+    constexpr int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
+    constexpr int32_t buttonState = AMOTION_EVENT_BUTTON_PRIMARY;
+    constexpr float xOffset = -10;
+    constexpr float yOffset = -20;
+    constexpr float xPrecision = 0.25;
+    constexpr float yPrecision = 0.5;
+    constexpr nsecs_t downTime = 3;
+    constexpr size_t pointerCount = 3;
+    constexpr nsecs_t eventTime = 4;
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
     for (size_t i = 0; i < pointerCount; i++) {
@@ -176,8 +174,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
 
     uint32_t consumeSeq;
     InputEvent* event;
-    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event,
-            &displayId);
+    status = mConsumer->consume(&mEventFactory, true /*consumeBatches*/, -1, &consumeSeq, &event);
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
@@ -190,6 +187,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     EXPECT_EQ(seq, consumeSeq);
     EXPECT_EQ(deviceId, motionEvent->getDeviceId());
     EXPECT_EQ(source, motionEvent->getSource());
+    EXPECT_EQ(displayId, motionEvent->getDisplayId());
     EXPECT_EQ(action, motionEvent->getAction());
     EXPECT_EQ(flags, motionEvent->getFlags());
     EXPECT_EQ(edgeFlags, motionEvent->getEdgeFlags());

@@ -22,6 +22,9 @@
 
 namespace android {
 
+// Default display id.
+static constexpr int32_t DISPLAY_ID = ADISPLAY_ID_DEFAULT;
+
 class BaseTest : public testing::Test {
 protected:
     virtual void SetUp() { }
@@ -248,7 +251,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MAJOR, 26);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_TOOL_MINOR, 27);
     pointerCoords[1].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, 28);
-    event->initialize(2, AINPUT_SOURCE_TOUCHSCREEN, AMOTION_EVENT_ACTION_MOVE, 0,
+    event->initialize(2, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE, 0,
             AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED,
             AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
             X_OFFSET, Y_OFFSET, 2.0f, 2.1f,
@@ -301,6 +304,7 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
     ASSERT_EQ(2, event->getDeviceId());
     ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_TOUCHSCREEN), event->getSource());
+    ASSERT_EQ(DISPLAY_ID, event->getDisplayId());
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, event->getAction());
     ASSERT_EQ(AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED, event->getFlags());
     ASSERT_EQ(AMOTION_EVENT_EDGE_FLAG_TOP, event->getEdgeFlags());
@@ -434,6 +438,11 @@ TEST_F(MotionEventTest, Properties) {
     event.setSource(AINPUT_SOURCE_JOYSTICK);
     ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_JOYSTICK), event.getSource());
 
+    // Set displayId.
+    constexpr int32_t newDisplayId = 2;
+    event.setDisplayId(newDisplayId);
+    ASSERT_EQ(newDisplayId, event.getDisplayId());
+
     // Set action.
     event.setAction(AMOTION_EVENT_ACTION_CANCEL);
     ASSERT_EQ(AMOTION_EVENT_ACTION_CANCEL, event.getAction());
@@ -557,7 +566,7 @@ TEST_F(MotionEventTest, Transform) {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, angle);
     }
     MotionEvent event;
-    event.initialize(0, 0, AMOTION_EVENT_ACTION_MOVE, 0, 0, 0, 0, 0,
+    event.initialize(0, 0, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE, 0, 0, 0, 0, 0,
             0, 0, 0, 0, 0, 0, pointerCount, pointerProperties, pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
