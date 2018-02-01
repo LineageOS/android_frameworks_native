@@ -223,7 +223,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
         bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
-        const char* class_loader_context, int target_sdk_version, bool disable_hidden_api_checks) {
+        const char* class_loader_context, int target_sdk_version, bool disable_hidden_api_checks,
+        int dex_metadata_fd) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
@@ -420,6 +421,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         sprintf(base_dir, "--classpath-dir=%s", apk_dir.c_str());
     }
 
+    std::string dex_metadata_fd_arg = "--dm-fd=" + std::to_string(dex_metadata_fd);
 
     ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, relative_input_file_name, output_file_name);
 
@@ -450,7 +452,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (disable_cdex ? 1 : 0)
                      + (generate_minidebug_info ? 1 : 0)
                      + (target_sdk_version != 0 ? 2 : 0)
-                     + (disable_hidden_api_checks ? 2 : 0)];
+                     + (disable_hidden_api_checks ? 2 : 0)
+                     + (dex_metadata_fd > -1 ? 1 : 0)];
     int i = 0;
     argv[i++] = dex2oat_bin;
     argv[i++] = zip_fd_arg;
@@ -529,6 +532,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         argv[i++] = "-Xno-hidden-api-checks";
     }
 
+    if (dex_metadata_fd > -1) {
+        argv[i++] = dex_metadata_fd_arg.c_str();
+    }
     // Do not add after dex2oat_flags, they should override others for debugging.
     argv[i] = NULL;
 
@@ -1846,7 +1852,8 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
-        bool downgrade, int target_sdk_version, const char* profile_name) {
+        bool downgrade, int target_sdk_version, const char* profile_name,
+        const char* dex_metadata_path) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
     if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
@@ -1937,6 +1944,14 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     Dex2oatFileWrapper reference_profile_fd = maybe_open_reference_profile(
             pkgname, dex_path, profile_name, profile_guided, is_public, uid, is_secondary_dex);
 
+    unique_fd dex_metadata_fd;
+    if (dex_metadata_path != nullptr) {
+        dex_metadata_fd.reset(TEMP_FAILURE_RETRY(open(dex_metadata_path, O_RDONLY | O_NOFOLLOW)));
+        if (dex_metadata_fd.get() < 0) {
+            PLOG(ERROR) << "Failed to open dex metadata file " << dex_metadata_path;
+        }
+    }
+
     ALOGV("DexInv: --- BEGIN '%s' ---\n", dex_path);
 
     pid_t pid = fork();
@@ -1966,7 +1981,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     reference_profile_fd.get(),
                     class_loader_context,
                     target_sdk_version,
-                    disable_hidden_api_checks);
+                    disable_hidden_api_checks,
+                    dex_metadata_fd.get());
         _exit(68);   /* only get here on exec failure */
     } else {
         int res = wait_child(pid);

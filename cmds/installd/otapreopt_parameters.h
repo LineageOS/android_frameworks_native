@@ -45,6 +45,7 @@ class OTAPreoptParameters {
     bool downgrade;
     int target_sdk_version;
     const char* profile_name;
+    const char* dex_metadata_path;
 
     std::string target_slot;
 
