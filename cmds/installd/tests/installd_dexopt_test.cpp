@@ -159,6 +159,7 @@ protected:
     std::string app_private_dir_ce_;
     std::string app_private_dir_de_;
     std::string se_info_;
+    std::string app_oat_dir_;
 
     int64_t ce_data_inode_;
 
@@ -199,9 +200,9 @@ protected:
 
     void create_mock_app() {
         // Create the oat dir.
-        std::string app_oat_dir = app_apk_dir_ + "/oat";
+        app_oat_dir_ = app_apk_dir_ + "/oat";
         mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755);
-        service_->createOatDir(app_oat_dir, kRuntimeIsa);
+        service_->createOatDir(app_oat_dir_, kRuntimeIsa);
 
         // Copy the primary apk.
         apk_path_ = app_apk_dir_ + "/base.jar";
@@ -261,14 +262,8 @@ protected:
         std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
         bool downgrade = false;
         int32_t target_sdk_version = 0;  // default
-        std::unique_ptr<std::string> profile_name_ptr(new std::string("primary.prof"));
+        std::unique_ptr<std::string> profile_name_ptr = nullptr;
 
-        bool prof_result;
-        binder::Status prof_binder_result = service_->prepareAppProfile(
-                package_name_, kTestUserId, kTestAppId, *profile_name_ptr, /*code path*/ "base.apk",
-                /*dex_metadata*/ nullptr, &prof_result);
-        ASSERT_TRUE(prof_binder_result.isOk());
-        ASSERT_TRUE(prof_result);
         binder::Status result = service_->dexopt(path,
                                                  uid,
                                                  package_name_ptr,
@@ -330,6 +325,106 @@ protected:
         ASSERT_EQ(gid, st.st_gid);
         ASSERT_EQ(mode, st.st_mode);
     }
+
+    void CompilePrimaryDexOk(std::string compiler_filter,
+                             int32_t dex_flags,
+                             const char* oat_dir,
+                             int32_t uid,
+                             int32_t dexopt_needed,
+                             bool downgrade = false) {
+        return CompilePrimaryDex(
+                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, downgrade, true);
+    }
+
+    void CompilePrimaryDexFail(std::string compiler_filter,
+                               int32_t dex_flags,
+                               const char* oat_dir,
+                               int32_t uid,
+                               int32_t dexopt_needed,
+                               bool downgrade = false) {
+        return CompilePrimaryDex(
+                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, downgrade, false);
+    }
+
+    void CompilePrimaryDex(std::string compiler_filter,
+                           int32_t dex_flags,
+                           const char* oat_dir,
+                           int32_t uid,
+                           int32_t dexopt_needed,
+                           bool downgrade,
+                           bool should_binder_call_succeed) {
+        std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
+        std::unique_ptr<std::string> out_path(
+                oat_dir == nullptr ? nullptr : new std::string(oat_dir));
+        std::unique_ptr<std::string> class_loader_context_ptr(new std::string("&"));
+        std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
+        int32_t target_sdk_version = 0;  // default
+        std::unique_ptr<std::string> profile_name_ptr(new std::string("primary.prof"));
+
+        bool prof_result;
+        binder::Status prof_binder_result = service_->prepareAppProfile(
+                package_name_, kTestUserId, kTestAppId, *profile_name_ptr, /*code path*/ "base.apk",
+                /*dex_metadata*/ nullptr, &prof_result);
+
+        ASSERT_TRUE(prof_binder_result.isOk());
+        ASSERT_TRUE(prof_result);
+
+        binder::Status result = service_->dexopt(apk_path_,
+                                                 uid,
+                                                 package_name_ptr,
+                                                 kRuntimeIsa,
+                                                 dexopt_needed,
+                                                 out_path,
+                                                 dex_flags,
+                                                 compiler_filter,
+                                                 volume_uuid_,
+                                                 class_loader_context_ptr,
+                                                 se_info_ptr,
+                                                 downgrade,
+                                                 target_sdk_version,
+                                                 profile_name_ptr);
+        ASSERT_EQ(should_binder_call_succeed, result.isOk());
+
+        if (!should_binder_call_succeed) {
+            return;
+        }
+        // Check the access to the compiler output.
+        //  - speed-profile artifacts are not world-wide readable.
+        //  - files are owned by the system uid.
+        std::string odex = GetPrimaryDexArtifact(oat_dir, apk_path_, "odex");
+        std::string vdex = GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex");
+        std::string art = GetPrimaryDexArtifact(oat_dir, apk_path_, "art");
+
+        mode_t mode = S_IFREG | (compiler_filter == "speed-profile" ? 0640 : 0644);
+        CheckFileAccess(odex, kSystemUid, uid, mode);
+        CheckFileAccess(vdex, kSystemUid, uid, mode);
+        CheckFileAccess(odex, kSystemUid, uid, mode);
+
+        // empty profiles do not generate an image.
+        // todo: add tests with non-empty profiles.
+        struct stat st;
+        ASSERT_EQ(-1, stat(art.c_str(), &st));
+    }
+
+    std::string GetPrimaryDexArtifact(const char* oat_dir,
+                                      const std::string& dex_path,
+                                      const std::string& type) {
+        if (oat_dir == nullptr) {
+            std::string path = dex_path;
+            for (auto it = path.begin() + 1; it < path.end(); ++it) {
+                if (*it == '/') {
+                    *it = '@';
+                }
+            }
+            return android_data_dir + DALVIK_CACHE + '/' + kRuntimeIsa + "/" + path
+                    + "@classes.dex";
+        } else {
+            std::string::size_type name_end = dex_path.rfind('.');
+            std::string::size_type name_start = dex_path.rfind('/');
+            return std::string(oat_dir) + "/" + kRuntimeIsa + "/" +
+                    dex_path.substr(name_start + 1, name_end - name_start) + type;
+        }
+    }
 };
 
 
@@ -376,6 +471,87 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
         /*binder_ok*/ false,  /*compile_ok*/ false, kSystemUid);
 }
 
+TEST_F(DexoptTest, DexoptPrimaryPublic) {
+    LOG(INFO) << "DexoptPrimaryPublic";
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
+    LOG(INFO) << "DexoptPrimaryProfileNonPublic";
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_BOOTCOMPLETE,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryProfilePublic) {
+    LOG(INFO) << "DexoptPrimaryProfilePublic";
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
+    LOG(INFO) << "DexoptPrimaryBackgroundOk";
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_IDLE_BACKGROUND_JOB,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
+    LOG(INFO) << "DexoptPrimaryFailedInvalidFilter";
+    CompilePrimaryDexFail("awesome-filter",
+                          DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
+                          app_oat_dir_.c_str(),
+                          kTestAppGid,
+                          DEX2OAT_FROM_SCRATCH);
+}
+
+class PrimaryDexReCompilationTest : public DexoptTest {
+  public:
+    virtual void SetUp() {
+        DexoptTest::SetUp();
+        CompilePrimaryDexOk("verify",
+                            DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                            app_oat_dir_.c_str(),
+                            kTestAppGid,
+                            DEX2OAT_FROM_SCRATCH);
+        std::string odex = GetSecondaryDexArtifact(apk_path_, "odex");
+        std::string vdex = GetSecondaryDexArtifact(apk_path_, "vdex");
+
+        first_compilation_odex_fd_.reset(open(odex.c_str(), O_RDONLY));
+        first_compilation_vdex_fd_.reset(open(vdex.c_str(), O_RDONLY));
+    }
+
+    virtual void TearDown() {
+        first_compilation_odex_fd_.reset(-1);
+        first_compilation_vdex_fd_.reset(-1);
+        DexoptTest::TearDown();
+    }
+
+  protected:
+    unique_fd first_compilation_odex_fd_;
+    unique_fd first_compilation_vdex_fd_;
+};
+
+TEST_F(PrimaryDexReCompilationTest, DexoptPrimaryUpdateInPlaceVdex) {
+    LOG(INFO) << "DexoptPrimaryUpdateInPlaceVdex";
+
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FOR_BOOT_IMAGE);
+}
 
 class ReconcileTest : public DexoptTest {
     virtual void SetUp() {
