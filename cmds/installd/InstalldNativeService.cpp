@@ -2356,8 +2356,8 @@ struct fsverity_root_hash {
     __u8 root_hash[64];
 };
 
-#define FS_IOC_MEASURE_FSVERITY        _IOW('f', 2733, struct fsverity_root_hash)
-#define FS_IOC_SET_FSVERITY            _IOW('f', 2734, struct fsverity_set)
+#define FS_IOC_MEASURE_FSVERITY        _IOW('f', 133, struct fsverity_root_hash)
+#define FS_IOC_SET_FSVERITY            _IOW('f', 134, struct fsverity_set)
 
 #define FSVERITY_FLAG_ENABLED          0x0001
 #endif
