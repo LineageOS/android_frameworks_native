@@ -23,11 +23,14 @@
 #include <vector>
 #include <iostream>
 
+#include <procpartition/procpartition.h>
+
 #include "TextTable.h"
 
 namespace android {
 namespace lshal {
 
+using android::procpartition::Partition;
 using Pids = std::vector<int32_t>;
 
 enum : unsigned int {
@@ -77,6 +80,7 @@ struct TableEntry {
     Architecture arch{ARCH_UNKNOWN};
     // empty: unknown, all zeros: unreleased, otherwise: released
     std::string hash{};
+    Partition partition{Partition::UNKNOWN};
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
