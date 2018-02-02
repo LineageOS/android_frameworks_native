@@ -26,14 +26,11 @@ sourceFiles = [
 includeFiles = [ "include" ]
 
 staticLibraries = [
-    "libbufferhub",
-    "libbufferhubqueue",
     "libdisplay",
     "libdvrcommon",
     "libperformance",
     "libvrsensor",
     "libbroadcastring",
-    "libpdx_default_transport",
     "libvr_manager",
     "libbroadcastring",
 ]
@@ -44,6 +41,7 @@ sharedLibraries = [
     "android.hardware.graphics.composer@2.1",
     "libbinder",
     "libbase",
+    "libbufferhubqueue",
     "libcutils",
     "liblog",
     "libhardware",
@@ -59,6 +57,7 @@ sharedLibraries = [
     "libhidlbase",
     "libhidltransport",
     "libfmq",
+    "libpdx_default_transport",
 ]
 
 headerLibraries = [

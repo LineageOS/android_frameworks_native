@@ -120,6 +120,8 @@ cc_library_shared {
     shared_libs: [
         "libsync",
         "libbinder",
+        "libbufferhubqueue",  // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
+        "libpdx_default_transport",
         "libcutils",
         "libEGL",
         "libGLESv2",
@@ -133,13 +135,6 @@ cc_library_shared {
         "android.hardware.graphics.bufferqueue@1.0",
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
-    ],
-
-    // TODO(b/70046255): Remove these once BufferHub is integrated into libgui.
-    static_libs: [
-        "libbufferhub",
-        "libbufferhubqueue",
-        "libpdx_default_transport",
     ],
 
     header_libs: [

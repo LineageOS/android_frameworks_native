@@ -44,8 +44,6 @@ srcs = [
 
 static_libs = [
     "libbroadcastring",
-    "libbufferhub",
-    "libbufferhubqueue",
     "libvrsensor",
     "libdisplay",
     "libvirtualtouchpadclient",
@@ -53,13 +51,13 @@ static_libs = [
     "libvr_hwc-binder",
     "libgrallocusage",
     "libperformance",
-    "libpdx_default_transport",
 ]
 
 shared_libs = [
     "android.hardware.graphics.bufferqueue@1.0",
     "android.hidl.token@1.0-utils",
     "libbase",
+    "libbufferhubqueue",
     "libbinder",
     "liblog",
     "libcutils",
@@ -67,6 +65,7 @@ shared_libs = [
     "libnativewindow",
     "libgui",
     "libui",
+    "libpdx_default_transport",
 ]
 
 cc_library_shared {
