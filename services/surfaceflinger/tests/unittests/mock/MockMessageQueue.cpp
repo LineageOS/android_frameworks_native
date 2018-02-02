@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "MockDisplaySurface.h"
+#include "mock/MockMessageQueue.h"
 
 namespace android {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-DisplaySurface::DisplaySurface() = default;
-DisplaySurface::~DisplaySurface() = default;
+MessageQueue::MessageQueue() = default;
+MessageQueue::~MessageQueue() = default;
 
 } // namespace mock
 } // namespace android

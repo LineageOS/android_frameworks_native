@@ -14,14 +14,22 @@
  * limitations under the License.
  */
 
-#include "MockSurfaceInterceptor.h"
+#include "mock/RenderEngine/MockRenderEngine.h"
 
 namespace android {
+namespace RE {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-SurfaceInterceptor::SurfaceInterceptor() = default;
-SurfaceInterceptor::~SurfaceInterceptor() = default;
+RenderEngine::RenderEngine() = default;
+RenderEngine::~RenderEngine() = default;
+
+Surface::Surface() = default;
+Surface::~Surface() = default;
+
+Image::Image() = default;
+Image::~Image() = default;
 
 } // namespace mock
+} // namespace RE
 } // namespace android
