@@ -36,7 +36,6 @@ static_libraries = [
 
 cc_test {
     srcs: [
-        "dvr_buffer_queue-test.cpp",
         "dvr_display_manager-test.cpp",
         "dvr_named_buffer-test.cpp",
     ],
@@ -52,4 +51,26 @@ cc_test {
         "-g",
     ],
     name: "dvr_api-test",
+}
+
+cc_test {
+    srcs: [
+        "dvr_buffer_queue-test.cpp",
+    ],
+
+    header_libs: [
+        "libdvr_headers",
+        "libbase_headers",
+    ],
+    shared_libs: [
+        "liblog",
+        "libnativewindow",
+    ],
+    cflags: [
+        "-DLOG_TAG=\"dvr_buffer_queue-test\"",
+        "-DTRACE=0",
+        "-O0",
+        "-g",
+    ],
+    name: "dvr_buffer_queue-test",
 }
