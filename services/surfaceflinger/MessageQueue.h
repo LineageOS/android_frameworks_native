@@ -17,16 +17,16 @@
 #ifndef ANDROID_MESSAGE_QUEUE_H
 #define ANDROID_MESSAGE_QUEUE_H
 
-#include <stdint.h>
 #include <errno.h>
+#include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/threads.h>
-#include <utils/Timers.h>
 #include <utils/Looper.h>
+#include <utils/Timers.h>
+#include <utils/threads.h>
 
-#include <private/gui/BitTube.h>
 #include <gui/DisplayEventReceiver.h>
+#include <private/gui/BitTube.h>
 
 #include "Barrier.h"
 
@@ -40,11 +40,10 @@ class SurfaceFlinger;
 
 // ---------------------------------------------------------------------------
 
-class MessageBase : public MessageHandler
-{
+class MessageBase : public MessageHandler {
 public:
     MessageBase();
-    
+
     // return true if message has a handler
     virtual bool handler() = 0;
 
@@ -79,15 +78,12 @@ private:
 
 class MessageQueue {
     class Handler : public MessageHandler {
-        enum {
-            eventMaskInvalidate     = 0x1,
-            eventMaskRefresh        = 0x2,
-            eventMaskTransaction    = 0x4
-        };
+        enum { eventMaskInvalidate = 0x1, eventMaskRefresh = 0x2, eventMaskTransaction = 0x4 };
         MessageQueue& mQueue;
         int32_t mEventMask;
+
     public:
-        explicit Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) { }
+        explicit Handler(MessageQueue& queue) : mQueue(queue), mEventMask(0) {}
         virtual void handleMessage(const Message& message);
         void dispatchRefresh();
         void dispatchInvalidate();
@@ -97,28 +93,27 @@ class MessageQueue {
 
     sp<SurfaceFlinger> mFlinger;
     sp<Looper> mLooper;
-    sp<EventThread> mEventThread;
+    EventThread* mEventThread;
     sp<IDisplayEventConnection> mEvents;
     gui::BitTube mEventTube;
     sp<Handler> mHandler;
-
 
     static int cb_eventReceiver(int fd, int events, void* data);
     int eventReceiver(int fd, int events);
 
 public:
     enum {
-        INVALIDATE  = 0,
-        REFRESH     = 1,
+        INVALIDATE = 0,
+        REFRESH = 1,
     };
 
     MessageQueue();
     ~MessageQueue();
     void init(const sp<SurfaceFlinger>& flinger);
-    void setEventThread(const sp<EventThread>& events);
+    void setEventThread(EventThread* events);
 
     void waitMessage();
-    status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime=0);
+    status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0);
 
     // sends INVALIDATE message at next VSYNC
     void invalidate();
