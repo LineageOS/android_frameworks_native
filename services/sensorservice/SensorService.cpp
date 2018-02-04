@@ -1254,6 +1254,20 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
 
 bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         const String16& opPackageName) {
+
+    // Due to the new MOTION_SENSOR AppOp, which does not correspond to any permission,
+    // we need to check for the AppOp BEFORE checking any permission
+    const int32_t opCode = sensor.getRequiredAppOp();
+    if (opCode >= 0) {
+        AppOpsManager appOps;
+        if (appOps.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName)
+                        != AppOpsManager::MODE_ALLOWED) {
+            ALOGE("%s a sensor (%s) without enabled required app op: %d",
+                    operation, sensor.getName().string(), opCode);
+            return false;
+        }
+    }
+
     const String8& requiredPermission = sensor.getRequiredPermission();
 
     if (requiredPermission.length() <= 0) {
@@ -1274,17 +1288,6 @@ bool SensorService::canAccessSensor(const Sensor& sensor, const char* operation,
         ALOGE("%s a sensor (%s) without holding its required permission: %s",
                 operation, sensor.getName().string(), sensor.getRequiredPermission().string());
         return false;
-    }
-
-    const int32_t opCode = sensor.getRequiredAppOp();
-    if (opCode >= 0) {
-        AppOpsManager appOps;
-        if (appOps.noteOp(opCode, IPCThreadState::self()->getCallingUid(), opPackageName)
-                        != AppOpsManager::MODE_ALLOWED) {
-            ALOGE("%s a sensor (%s) without enabled required app op: %d",
-                    operation, sensor.getName().string(), opCode);
-            return false;
-        }
     }
 
     return true;
