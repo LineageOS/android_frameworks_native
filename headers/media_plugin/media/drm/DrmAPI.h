@@ -148,6 +148,9 @@ namespace android {
         enum SecurityLevel {
             // Failure to access security level, an error occurred
             kSecurityLevelUnknown,
+            // The maximum security level of the device. This is the default when
+            // a session is opened if no security level is specified
+            kSecurityLevelMax,
             // Software-based whitebox crypto
             kSecurityLevelSwSecureCrypto,
             // Software-based whitebox crypto and an obfuscated decoder
