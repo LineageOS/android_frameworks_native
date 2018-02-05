@@ -64,8 +64,8 @@ egl_surface_t::egl_surface_t(egl_display_t* dpy, EGLConfig config, EGLNativeWind
         cnx(cnx),
         connected(true),
         colorSpace(colorSpace),
-        smpte2086_metadata({}),
-        cta861_3_metadata({}) {
+        egl_smpte2086_metadata({}),
+        egl_cta861_3_metadata({}) {
     if (win) {
         win->incStrong(this);
     }
@@ -90,36 +90,35 @@ void egl_surface_t::disconnect() {
 
 EGLBoolean egl_surface_t::setSmpte2086Attribute(EGLint attribute, EGLint value) {
     switch (attribute) {
-            break;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT:
-            smpte2086_metadata.displayPrimaryRed.x = value;
+            egl_smpte2086_metadata.displayPrimaryRed.x = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT:
-            smpte2086_metadata.displayPrimaryRed.y = value;
+            egl_smpte2086_metadata.displayPrimaryRed.y = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT:
-            smpte2086_metadata.displayPrimaryGreen.x = value;
+            egl_smpte2086_metadata.displayPrimaryGreen.x = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT:
-            smpte2086_metadata.displayPrimaryGreen.y = value;
+            egl_smpte2086_metadata.displayPrimaryGreen.y = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT:
-            smpte2086_metadata.displayPrimaryBlue.x = value;
+            egl_smpte2086_metadata.displayPrimaryBlue.x = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT:
-            smpte2086_metadata.displayPrimaryBlue.y = value;
+            egl_smpte2086_metadata.displayPrimaryBlue.y = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_WHITE_POINT_X_EXT:
-            smpte2086_metadata.whitePoint.x = value;
+            egl_smpte2086_metadata.whitePoint.x = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_WHITE_POINT_Y_EXT:
-            smpte2086_metadata.whitePoint.y = value;
+            egl_smpte2086_metadata.whitePoint.y = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_MAX_LUMINANCE_EXT:
-            smpte2086_metadata.maxLuminance = value;
+            egl_smpte2086_metadata.maxLuminance = value;
             return EGL_TRUE;
         case EGL_SMPTE2086_MIN_LUMINANCE_EXT:
-            smpte2086_metadata.minLuminance = value;
+            egl_smpte2086_metadata.minLuminance = value;
             return EGL_TRUE;
     }
     return EGL_FALSE;
@@ -128,14 +127,38 @@ EGLBoolean egl_surface_t::setSmpte2086Attribute(EGLint attribute, EGLint value) 
 EGLBoolean egl_surface_t::setCta8613Attribute(EGLint attribute, EGLint value) {
     switch (attribute) {
         case EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT:
-            cta861_3_metadata.maxContentLightLevel = value;
+            egl_cta861_3_metadata.maxContentLightLevel = value;
             return EGL_TRUE;
         case EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT:
-            cta861_3_metadata.maxFrameAverageLightLevel = value;
+            egl_cta861_3_metadata.maxFrameAverageLightLevel = value;
             return EGL_TRUE;
     }
     return EGL_FALSE;
 }
+
+const android_smpte2086_metadata egl_surface_t::getSmpte2086Metadata() {
+    android_smpte2086_metadata metadata;
+    metadata.displayPrimaryRed.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryRed.x) / EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryRed.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryRed.y) / EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryGreen.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryGreen.x) / EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryGreen.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryGreen.y) / EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryBlue.x = static_cast<float>(egl_smpte2086_metadata.displayPrimaryBlue.x) / EGL_METADATA_SCALING_EXT;
+    metadata.displayPrimaryBlue.y = static_cast<float>(egl_smpte2086_metadata.displayPrimaryBlue.y) / EGL_METADATA_SCALING_EXT;
+    metadata.whitePoint.x = static_cast<float>(egl_smpte2086_metadata.whitePoint.x) / EGL_METADATA_SCALING_EXT;
+    metadata.whitePoint.y = static_cast<float>(egl_smpte2086_metadata.whitePoint.y) / EGL_METADATA_SCALING_EXT;
+    metadata.maxLuminance = static_cast<float>(egl_smpte2086_metadata.maxLuminance) / EGL_METADATA_SCALING_EXT;
+    metadata.minLuminance = static_cast<float>(egl_smpte2086_metadata.minLuminance) / EGL_METADATA_SCALING_EXT;
+
+    return metadata;
+}
+
+const android_cta861_3_metadata egl_surface_t::getCta8613Metadata() {
+    android_cta861_3_metadata metadata;
+    metadata.maxContentLightLevel = static_cast<float>(egl_cta861_3_metadata.maxContentLightLevel) / EGL_METADATA_SCALING_EXT;
+    metadata.maxFrameAverageLightLevel = static_cast<float>(egl_cta861_3_metadata.maxFrameAverageLightLevel) / EGL_METADATA_SCALING_EXT;
+    return metadata;
+}
+
 
 EGLBoolean egl_surface_t::getColorSpaceAttribute(EGLint attribute, EGLint* value) const {
     if (attribute == EGL_GL_COLORSPACE_KHR) {
@@ -148,43 +171,43 @@ EGLBoolean egl_surface_t::getColorSpaceAttribute(EGLint attribute, EGLint* value
 EGLBoolean egl_surface_t::getSmpte2086Attribute(EGLint attribute, EGLint *value) const {
     switch (attribute) {
         case EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.displayPrimaryRed.x);
+            *value = egl_smpte2086_metadata.displayPrimaryRed.x;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.displayPrimaryRed.y);
+            *value = egl_smpte2086_metadata.displayPrimaryRed.y;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.displayPrimaryGreen.x);
+            *value = egl_smpte2086_metadata.displayPrimaryGreen.x;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.displayPrimaryGreen.y);
+            *value = egl_smpte2086_metadata.displayPrimaryGreen.y;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.displayPrimaryBlue.x);
+            *value = egl_smpte2086_metadata.displayPrimaryBlue.x;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.displayPrimaryBlue.y);
+            *value = egl_smpte2086_metadata.displayPrimaryBlue.y;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_WHITE_POINT_X_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.whitePoint.x);
+            *value = egl_smpte2086_metadata.whitePoint.x;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_WHITE_POINT_Y_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.whitePoint.y);
+            *value = egl_smpte2086_metadata.whitePoint.y;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_MAX_LUMINANCE_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.maxLuminance);
+            *value = egl_smpte2086_metadata.maxLuminance;
             return EGL_TRUE;
             break;
         case EGL_SMPTE2086_MIN_LUMINANCE_EXT:
-            *value = *reinterpret_cast<const int*>(&smpte2086_metadata.minLuminance);
+            *value = egl_smpte2086_metadata.minLuminance;
             return EGL_TRUE;
             break;
     }
@@ -194,11 +217,11 @@ EGLBoolean egl_surface_t::getSmpte2086Attribute(EGLint attribute, EGLint *value)
 EGLBoolean egl_surface_t::getCta8613Attribute(EGLint attribute, EGLint *value) const {
     switch (attribute) {
         case EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT:
-            *value = *reinterpret_cast<const int*>(&cta861_3_metadata.maxContentLightLevel);
+            *value = egl_cta861_3_metadata.maxContentLightLevel;
             return EGL_TRUE;
             break;
         case EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT:
-            *value = *reinterpret_cast<const int*>(&cta861_3_metadata.maxFrameAverageLightLevel);
+            *value = egl_cta861_3_metadata.maxFrameAverageLightLevel;
             return EGL_TRUE;
             break;
     }

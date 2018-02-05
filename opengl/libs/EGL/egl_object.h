@@ -142,8 +142,8 @@ public:
     EGLBoolean getColorSpaceAttribute(EGLint attribute, EGLint* value) const;
     EGLBoolean getSmpte2086Attribute(EGLint attribute, EGLint* value) const;
     EGLBoolean getCta8613Attribute(EGLint attribute, EGLint* value) const;
-    const android_smpte2086_metadata* getSmpte2086Metadata() const { return &smpte2086_metadata; }
-    const android_cta861_3_metadata* getCta8613Metadata() const { return &cta861_3_metadata; }
+    const android_smpte2086_metadata getSmpte2086Metadata();
+    const android_cta861_3_metadata getCta8613Metadata();
 
     // Try to keep the order of these fields and size unchanged. It's not public API, but
     // it's not hard to imagine native games accessing them.
@@ -157,8 +157,27 @@ private:
     bool connected;
     void disconnect();
     EGLint colorSpace;
-    android_smpte2086_metadata smpte2086_metadata;
-    android_cta861_3_metadata cta861_3_metadata;
+
+    struct egl_xy_color {
+        EGLint x;
+        EGLint y;
+    };
+
+    struct egl_smpte2086_metadata {
+        struct egl_xy_color displayPrimaryRed;
+        struct egl_xy_color displayPrimaryGreen;
+        struct egl_xy_color displayPrimaryBlue;
+        struct egl_xy_color whitePoint;
+        EGLint maxLuminance;
+        EGLint minLuminance;
+    };
+
+    struct egl_cta861_3_metadata {
+        EGLint maxContentLightLevel;
+        EGLint maxFrameAverageLightLevel;
+    };
+    egl_smpte2086_metadata egl_smpte2086_metadata;
+    egl_cta861_3_metadata egl_cta861_3_metadata;
 };
 
 class egl_context_t: public egl_object_t {

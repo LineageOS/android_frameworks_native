@@ -479,8 +479,8 @@ static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
 // Return true if we stripped any EGL_GL_COLORSPACE_KHR or HDR metadata attributes.
 // Protect devices from attributes they don't recognize that are  managed by Android
 static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
-                                           EGLint format,
-                                           std::vector<EGLint>& stripped_attrib_list) {
+                                  EGLint format,
+                                  std::vector<EGLint>& stripped_attrib_list) {
     std::vector<EGLint> allowedColorSpaces;
     switch (format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
@@ -513,11 +513,11 @@ static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
                             found = true;
                         }
                     }
-                    if (found && dp->haveExtension("EGL_KHR_gl_colorspace")) {
-                        stripped = true;
-                    } else {
+                    if (found || !dp->haveExtension("EGL_KHR_gl_colorspace")) {
                         stripped_attrib_list.push_back(attr[0]);
                         stripped_attrib_list.push_back(attr[1]);
+                    } else {
+                        stripped = true;
                     }
                 }
                 break;
@@ -712,7 +712,8 @@ EGLBoolean setSurfaceMetadata(egl_surface_t* s, NativeWindowType window,
         cta8613 |= s->setCta8613Attribute(attr[0], attr[1]);
     }
     if (smpte2086) {
-        int err = native_window_set_buffers_smpte2086_metadata(window, s->getSmpte2086Metadata());
+        android_smpte2086_metadata metadata = s->getSmpte2086Metadata();
+        int err = native_window_set_buffers_smpte2086_metadata(window, &metadata);
         if (err != 0) {
             ALOGE("error setting native window smpte2086 metadata: %s (%d)",
                   strerror(-err), err);
@@ -721,7 +722,8 @@ EGLBoolean setSurfaceMetadata(egl_surface_t* s, NativeWindowType window,
         }
     }
     if (cta8613) {
-        int err = native_window_set_buffers_cta861_3_metadata(window, s->getCta8613Metadata());
+        android_cta861_3_metadata metadata = s->getCta8613Metadata();
+        int err = native_window_set_buffers_cta861_3_metadata(window, &metadata);
         if (err != 0) {
             ALOGE("error setting native window CTS 861.3 metadata: %s (%d)",
                   strerror(-err), err);
@@ -1578,7 +1580,11 @@ EGLBoolean eglSurfaceAttrib(
         return (err == 0) ? EGL_TRUE : setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
     }
 
-    if (s->cnx->egl.eglSurfaceAttrib) {
+    if (s->setSmpte2086Attribute(attribute, value)) {
+        return EGL_TRUE;
+    } else if (s->setCta8613Attribute(attribute, value)) {
+        return EGL_TRUE;
+    } else if (s->cnx->egl.eglSurfaceAttrib) {
         return s->cnx->egl.eglSurfaceAttrib(
                 dp->disp.dpy, s->surface, attribute, value);
     }

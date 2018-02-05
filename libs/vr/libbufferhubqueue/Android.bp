@@ -23,7 +23,6 @@ includeFiles = [
 
 staticLibraries = [
     "libbufferhub",
-    "libpdx_default_transport",
 ]
 
 sharedLibraries = [
@@ -34,6 +33,7 @@ sharedLibraries = [
     "liblog",
     "libui",
     "libutils",
+    "libpdx_default_transport",
 ]
 
 headerLibraries = [
@@ -41,7 +41,7 @@ headerLibraries = [
     "libnativebase_headers",
 ]
 
-cc_library {
+cc_library_shared {
     name: "libbufferhubqueue",
     cflags: [
         "-DLOG_TAG=\"libbufferhubqueue\"",
@@ -65,4 +65,4 @@ cc_library {
     },
 }
 
-subdirs = ["tests"]
+subdirs = ["benchmarks", "tests"]

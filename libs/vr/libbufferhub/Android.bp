@@ -22,10 +22,6 @@ localIncludeFiles = [
     "include",
 ]
 
-staticLibraries = [
-    "libpdx_default_transport",
-]
-
 sharedLibraries = [
     "libbase",
     "libbinder",
@@ -34,7 +30,8 @@ sharedLibraries = [
     "liblog",
     "libui",
     "libutils",
-    "libnativewindow"
+    "libnativewindow",
+    "libpdx_default_transport",
 ]
 
 headerLibraries = [
@@ -52,7 +49,6 @@ cc_library {
         "-Werror",
     ],
     export_include_dirs: localIncludeFiles,
-    static_libs: staticLibraries,
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
     name: "libbufferhub",
@@ -68,7 +64,7 @@ cc_library {
 cc_test {
     tags: ["optional"],
     srcs: ["buffer_hub-test.cpp"],
-    static_libs: ["libbufferhub"] + staticLibraries,
+    static_libs: ["libbufferhub"],
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
     name: "buffer_hub-test",

@@ -6,6 +6,7 @@ header_libraries = [
 shared_libraries = [
     "libbase",
     "libbinder",
+    "libbufferhubqueue",
     "libcutils",
     "libgui",
     "liblog",
@@ -13,14 +14,12 @@ shared_libraries = [
     "libui",
     "libutils",
     "libnativewindow",
+    "libpdx_default_transport",
 ]
 
 static_libraries = [
-    "libbufferhubqueue",
-    "libbufferhub",
     "libchrome",
     "libdvrcommon",
-    "libpdx_default_transport",
     "libperformance",
 ]
 
@@ -56,21 +55,5 @@ cc_test {
         "-Werror",
     ],
     name: "buffer_hub_queue_producer-test",
-    tags: ["optional"],
-}
-
-cc_benchmark {
-    srcs: ["buffer_transport_benchmark.cpp"],
-    static_libs: static_libraries,
-    shared_libs: shared_libraries,
-    header_libs: header_libraries,
-    cflags: [
-        "-DLOG_TAG=\"buffer_transport_benchmark\"",
-        "-DTRACE=0",
-        "-O2",
-        "-Wall",
-        "-Werror",
-    ],
-    name: "buffer_transport_benchmark",
     tags: ["optional"],
 }

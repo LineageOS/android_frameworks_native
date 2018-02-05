@@ -50,16 +50,13 @@ namespace android {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
+#define METADATA_SCALE(x) (static_cast<EGLint>(x * EGL_METADATA_SCALING_EXT))
+
 static bool hasWideColorDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
 static bool hasHdrDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
-
-union FlexAttribute {
-    EGLint uint_value;
-    float float_value;
-};
 
 class EGLTest : public ::testing::Test {
 public:
@@ -425,108 +422,81 @@ void EGLTest::get8BitConfig(EGLConfig& config) {
 }
 
 void EGLTest::addOptionalWindowMetadata(std::vector<EGLint>& attrs) {
-    FlexAttribute data;
     if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_SMPTE2086_metadata")) {
         attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT);
-        data.float_value = 0.640;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.640));
         attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT);
-        data.float_value = 0.330;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.330));
         attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT);
-        data.float_value = 0.290;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.290));
         attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT);
-        data.float_value = 0.600;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.600));
         attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT);
-        data.float_value = 0.150;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.150));
         attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT);
-        data.float_value = 0.060;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.060));
         attrs.push_back(EGL_SMPTE2086_WHITE_POINT_X_EXT);
-        data.float_value = 0.3127;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.3127));
         attrs.push_back(EGL_SMPTE2086_WHITE_POINT_Y_EXT);
-        data.float_value = 0.3290;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.3290));
         attrs.push_back(EGL_SMPTE2086_MAX_LUMINANCE_EXT);
-        data.float_value = 300.0;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(300));
         attrs.push_back(EGL_SMPTE2086_MIN_LUMINANCE_EXT);
-        data.float_value = 0.7;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(0.7));
     }
 
     if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_CTA861_3_metadata")) {
         attrs.push_back(EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT);
-        data.float_value = 300.0;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(300));
         attrs.push_back(EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT);
-        data.float_value = 75.0;
-        attrs.push_back(data.uint_value);
+        attrs.push_back(METADATA_SCALE(75));
     }
 }
 
 void EGLTest::checkOptionalWindowMetadata(EGLSurface eglSurface) {
     EGLBoolean success;
     EGLint value;
-    FlexAttribute expected;
 
     if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_SMPTE2086_metadata")) {
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.640;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.640), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.330;
-        ASSERT_EQ(expected.uint_value, value);
-        ASSERT_EQ(0, value);
+        ASSERT_EQ(METADATA_SCALE(0.330), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.290;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.290), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.600;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.600), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.150;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.150), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.060;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.060), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_WHITE_POINT_X_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.3127;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.3127), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_WHITE_POINT_Y_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.3290;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.3290), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_MAX_LUMINANCE_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 300.0;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(300.0), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_SMPTE2086_MIN_LUMINANCE_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 0.7;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(0.7), value);
     }
 
     if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_CTA861_3_metadata")) {
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 300.0;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(300.0), value);
         success = eglQuerySurface(mEglDisplay, eglSurface, EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT, &value);
         ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
-        expected.float_value = 75.0;
-        ASSERT_EQ(expected.uint_value, value);
+        ASSERT_EQ(METADATA_SCALE(75.0), value);
     }
 }
 

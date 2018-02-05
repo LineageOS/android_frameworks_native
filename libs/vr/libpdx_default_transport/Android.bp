@@ -30,12 +30,24 @@ cc_defaults {
     whole_static_libs: ["libpdx_uds"],
 }
 
-cc_library_static {
+cc_library_shared {
     name: "libpdx_default_transport",
     defaults: [
         "pdx_default_transport_compiler_defaults",
         "pdx_default_transport_lib_defaults",
         "pdx_use_transport_uds",
+    ],
+    vendor_available: false,
+    vndk: {
+        enabled: true,
+    },
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "libcutils",
+        "liblog",
+        "libutils",
+        "libcrypto",
     ],
 }
 
@@ -49,8 +61,6 @@ cc_binary {
         "libbinder",
         "libcutils",
         "liblog",
-    ],
-    static_libs: [
         "libpdx_default_transport",
     ],
 }
@@ -69,8 +79,6 @@ cc_binary {
         "libcutils",
         "liblog",
         "libutils",
-    ],
-    static_libs: [
         "libpdx_default_transport",
     ],
 }
