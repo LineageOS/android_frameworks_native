@@ -25,6 +25,7 @@
 #include <sstream>
 #include <regex>
 
+#include <android-base/file.h>
 #include <android-base/parseint.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl-hash/Hash.h>
@@ -32,6 +33,7 @@
 #include <private/android_filesystem_config.h>
 #include <sys/stat.h>
 #include <vintf/HalManifest.h>
+#include <vintf/parse_string.h>
 #include <vintf/parse_xml.h>
 
 #include "Lshal.h"
@@ -47,6 +49,10 @@ using ::android::hidl::manager::V1_0::IServiceManager;
 
 namespace android {
 namespace lshal {
+
+vintf::SchemaType toSchemaType(Partition p) {
+    return (p == Partition::SYSTEM) ? vintf::SchemaType::FRAMEWORK : vintf::SchemaType::DEVICE;
+}
 
 NullableOStream<std::ostream> ListCommand::out() const {
     return mLshal.out();
@@ -64,13 +70,7 @@ std::string ListCommand::getSimpleDescription() const {
 }
 
 std::string ListCommand::parseCmdline(pid_t pid) const {
-    std::ifstream ifs("/proc/" + std::to_string(pid) + "/cmdline");
-    std::string cmdline;
-    if (!ifs.is_open()) {
-        return "";
-    }
-    ifs >> cmdline;
-    return cmdline;
+    return android::procpartition::getCmdline(pid);
 }
 
 const std::string &ListCommand::getCmdline(pid_t pid) {
@@ -87,6 +87,42 @@ void ListCommand::removeDeadProcesses(Pids *pids) {
     pids->erase(std::remove_if(pids->begin(), pids->end(), [this](auto pid) {
         return pid == myPid || this->getCmdline(pid).empty();
     }), pids->end());
+}
+
+Partition ListCommand::getPartition(pid_t pid) {
+    auto it = mPartitions.find(pid);
+    if (it != mPartitions.end()) {
+        return it->second;
+    }
+    Partition partition = android::procpartition::getPartition(pid);
+    mPartitions.emplace(pid, partition);
+    return partition;
+}
+
+// Give sensible defaults when nothing can be inferred from runtime.
+// process: Partition inferred from executable location or cmdline.
+Partition ListCommand::resolvePartition(Partition process, const FQName& fqName) const {
+    if (fqName.inPackage("vendor") ||
+        fqName.inPackage("com")) {
+        return Partition::VENDOR;
+    }
+
+    if (fqName.inPackage("android.frameworks") ||
+        fqName.inPackage("android.system") ||
+        fqName.inPackage("android.hidl")) {
+        return Partition::SYSTEM;
+    }
+
+    // Some android.hardware HALs are served from system. Check the value from executable
+    // location / cmdline first.
+    if (fqName.inPackage("android.hardware")) {
+        if (process != Partition::UNKNOWN) {
+            return process;
+        }
+        return Partition::VENDOR;
+    }
+
+    return process;
 }
 
 static bool scanBinderContext(pid_t pid,
@@ -209,6 +245,9 @@ void ListCommand::postprocess() {
                 entry.clientCmdlines.push_back(this->getCmdline(pid));
             }
         }
+        for (TableEntry& entry : table) {
+            entry.partition = getPartition(entry.serverPid);
+        }
     });
     // use a double for loop here because lshal doesn't care about efficiency.
     for (TableEntry &packageEntry : mImplementationsTable) {
@@ -256,18 +295,10 @@ static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Vers
 
 void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
     using vintf::operator|=;
-    out << "<!-- " << std::endl
-         << "    This is a skeleton device manifest. Notes: " << std::endl
-         << "    1. android.hidl.*, android.frameworks.*, android.system.* are not included." << std::endl
-         << "    2. If a HAL is supported in both hwbinder and passthrough transport, " << std::endl
-         << "       only hwbinder is shown." << std::endl
-         << "    3. It is likely that HALs in passthrough transport does not have" << std::endl
-         << "       <interface> declared; users will have to write them by hand." << std::endl
-         << "    4. A HAL with lower minor version can be overridden by a HAL with" << std::endl
-         << "       higher minor version if they have the same name and major version." << std::endl
-         << "-->" << std::endl;
+    using vintf::operator<<;
 
     vintf::HalManifest manifest;
+    manifest.setType(toSchemaType(mVintfPartition));
     forEachTable([this, &manifest] (const Table &table) {
         for (const TableEntry &entry : table) {
 
@@ -284,12 +315,23 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
                      << "' is not a valid FQName." << std::endl;
                 continue;
             }
-            // Strip out system libs.
-            if (fqName.inPackage("android.hidl") ||
-                fqName.inPackage("android.frameworks") ||
-                fqName.inPackage("android.system")) {
+
+            if (fqName.package() == gIBaseFqName.package()) {
+                continue; // always remove IBase from manifest
+            }
+
+            Partition partition = resolvePartition(entry.partition, fqName);
+
+            if (partition == Partition::UNKNOWN) {
+                err() << "Warning: Cannot guess the partition of instance " << fqInstanceName
+                      << ". It is removed from the generated manifest." << std::endl;
                 continue;
             }
+
+            if (partition != mVintfPartition) {
+                continue; // strip out instances that is in a different partition.
+            }
+
             std::string interfaceName =
                     &table == &mImplementationsTable ? "" : fqName.name();
             std::string instanceName =
@@ -361,8 +403,21 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
             }
         }
     });
+    out << "<!-- " << std::endl
+         << "    This is a skeleton " << manifest.type() << " manifest. Notes: " << std::endl
+         << INIT_VINTF_NOTES
+         << "-->" << std::endl;
     out << vintf::gHalManifestConverter(manifest, vintf::SerializeFlag::HALS_ONLY);
 }
+
+std::string ListCommand::INIT_VINTF_NOTES{
+    "    1. If a HAL is supported in both hwbinder and passthrough transport, \n"
+    "       only hwbinder is shown.\n"
+    "    2. It is likely that HALs in passthrough transport does not have\n"
+    "       <interface> declared; users will have to write them by hand.\n"
+    "    3. A HAL with lower minor version can be overridden by a HAL with\n"
+    "       higher minor version if they have the same name and major version.\n"
+};
 
 static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
     switch (a) {
@@ -710,9 +765,18 @@ void ListCommand::registerAllOptions() {
     // long options without short alternatives
     mOptions.push_back({'\0', "init-vintf", no_argument, v++, [](ListCommand* thiz, const char* arg) {
         thiz->mVintf = true;
+        if (thiz->mVintfPartition == Partition::UNKNOWN)
+            thiz->mVintfPartition = Partition::VENDOR;
         if (arg) thiz->mFileOutputPath = arg;
         return OK;
     }, "form a skeleton HAL manifest to specified file,\nor stdout if no file specified."});
+    mOptions.push_back({'\0', "init-vintf-partition", required_argument, v++, [](ListCommand* thiz, const char* arg) {
+        if (!arg) return USAGE;
+        thiz->mVintfPartition = android::procpartition::parsePartition(arg);
+        if (thiz->mVintfPartition == Partition::UNKNOWN) return USAGE;
+        return OK;
+    }, "Specify the partition of the HAL manifest\ngenerated by --init-vintf.\n"
+       "Valid values are 'system', 'vendor', and 'odm'. Default is 'vendor'."});
     mOptions.push_back({'\0', "sort", required_argument, v++, [](ListCommand* thiz, const char* arg) {
         if (strcmp(arg, "interface") == 0 || strcmp(arg, "i") == 0) {
             thiz->mSortColumn = TableEntry::sortByInterfaceName;

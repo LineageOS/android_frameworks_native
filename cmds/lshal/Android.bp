@@ -24,6 +24,9 @@ cc_library_shared {
         "libhidl-gen-utils",
         "libvintf",
     ],
+    static_libs: [
+        "libprocpartition",
+    ],
     srcs: [
         "DebugCommand.cpp",
         "HelpCommand.cpp",
@@ -45,9 +48,13 @@ cc_defaults {
     shared_libs: [
         "libbase",
         "libhidlbase",
+        "libhidl-gen-utils",
         "libhidltransport",
         "liblshal",
         "libutils",
+    ],
+    static_libs: [
+        "libprocpartition",
     ],
     cflags: ["-Wall", "-Werror"],
 }

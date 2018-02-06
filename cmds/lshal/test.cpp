@@ -206,6 +206,7 @@ public:
     MOCK_METHOD0(postprocess, void());
     MOCK_CONST_METHOD2(getPidInfo, bool(pid_t, PidInfo*));
     MOCK_CONST_METHOD1(parseCmdline, std::string(pid_t));
+    MOCK_METHOD1(getPartition, Partition(pid_t));
 };
 
 class ListParseArgsTest : public ::testing::Test {
@@ -333,6 +334,7 @@ public:
                 table.setDescription("[fake description " + std::to_string(i++) + "]");
             });
         }));
+        ON_CALL(*mockList, getPartition(_)).WillByDefault(Return(Partition::VENDOR));
     }
 
     void initMockServiceManager() {
@@ -418,17 +420,7 @@ TEST_F(ListTest, Fetch) {
 TEST_F(ListTest, DumpVintf) {
     const std::string expected =
         "<!-- \n"
-        "    This is a skeleton device manifest. Notes: \n"
-        "    1. android.hidl.*, android.frameworks.*, android.system.* are not included.\n"
-        "    2. If a HAL is supported in both hwbinder and passthrough transport, \n"
-        "       only hwbinder is shown.\n"
-        "    3. It is likely that HALs in passthrough transport does not have\n"
-        "       <interface> declared; users will have to write them by hand.\n"
-        "    4. A HAL with lower minor version can be overridden by a HAL with\n"
-        "       higher minor version if they have the same name and major version.\n"
-        "    5. sepolicy version is set to 0.0. It is recommended that the entry\n"
-        "       is removed from the manifest file and written by assemble_vintf\n"
-        "       at build time.\n"
+        "    This is a skeleton device manifest. Notes: \n" + ListCommand::INIT_VINTF_NOTES +
         "-->\n"
         "<manifest version=\"1.0\" type=\"device\">\n"
         "    <hal format=\"hidl\">\n"
@@ -477,9 +469,6 @@ TEST_F(ListTest, DumpVintf) {
         "        <transport arch=\"32\">passthrough</transport>\n"
         "        <version>6.0</version>\n"
         "    </hal>\n"
-        "    <sepolicy>\n"
-        "        <version>0.0</version>\n"
-        "    </sepolicy>\n"
         "</manifest>\n";
 
     optind = 1; // mimic Lshal::parseArg()
