@@ -145,19 +145,13 @@ class Progress {
  *
  * See bugreport-format.md for more info.
  */
-static std::string VERSION_CURRENT = "1.0";
+static std::string VERSION_CURRENT = "2.0";
 
 /*
  * Temporary version that adds a anr-traces.txt entry. Once tools support it, the current version
- * will be bumped to 2.0.
+ * will be bumped to 3.0.
  */
-static std::string VERSION_SPLIT_ANR = "2.0-dev-split-anr";
-
-/*
- * Temporary version that adds priority based dumps. Once tools support it, the current version
- * will be bumped to 2.0.
- */
-static std::string VERSION_PRIORITY_DUMPS = "2.0-dev-priority-dumps";
+static std::string VERSION_SPLIT_ANR = "3.0-dev-split-anr";
 
 /*
  * "Alias" for the current version.

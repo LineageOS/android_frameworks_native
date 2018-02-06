@@ -1110,20 +1110,14 @@ static void DumpIpAddrAndRules() {
     RunCommand("IP RULES v6", {"ip", "-6", "rule", "show"});
 }
 
-void RunDumpsysText(const std::string& title, int priority, std::chrono::milliseconds timeout,
-                    std::chrono::milliseconds service_timeout) {
+static void RunDumpsysTextByPriority(const std::string& title, int priority,
+                                     std::chrono::milliseconds timeout,
+                                     std::chrono::milliseconds service_timeout) {
+    auto start = std::chrono::steady_clock::now();
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
-    DurationReporter duration_reporter(title);
     Vector<String16> args;
     Dumpsys::setServiceArgs(args, /* asProto = */ false, priority);
-
-    if (!title.empty()) {
-        dprintf(STDOUT_FILENO, "------ %s (%s) ------\n", title.c_str(), "/system/bin/dumpsys");
-        fsync(STDOUT_FILENO);
-    }
-
-    auto start = std::chrono::steady_clock::now();
     Vector<String16> services = dumpsys.listServices(priority, /* supports_proto = */ false);
     for (const String16& service : services) {
         std::string path(title);
@@ -1153,8 +1147,31 @@ void RunDumpsysText(const std::string& title, int priority, std::chrono::millise
     }
 }
 
-void RunDumpsysProto(const std::string& title, int priority, std::chrono::milliseconds timeout,
-                     std::chrono::milliseconds service_timeout) {
+static void RunDumpsysText(const std::string& title, int priority,
+                           std::chrono::milliseconds timeout,
+                           std::chrono::milliseconds service_timeout) {
+    DurationReporter duration_reporter(title);
+    dprintf(STDOUT_FILENO, "------ %s (/system/bin/dumpsys) ------\n", title.c_str());
+    fsync(STDOUT_FILENO);
+    RunDumpsysTextByPriority(title, priority, timeout, service_timeout);
+}
+
+/* Dump all services registered with Normal or Default priority. */
+static void RunDumpsysTextNormalPriority(const std::string& title,
+                                         std::chrono::milliseconds timeout,
+                                         std::chrono::milliseconds service_timeout) {
+    DurationReporter duration_reporter(title);
+    dprintf(STDOUT_FILENO, "------ %s (/system/bin/dumpsys) ------\n", title.c_str());
+    fsync(STDOUT_FILENO);
+    RunDumpsysTextByPriority(title, IServiceManager::DUMP_FLAG_PRIORITY_NORMAL, timeout,
+                             service_timeout);
+    RunDumpsysTextByPriority(title, IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT, timeout,
+                             service_timeout);
+}
+
+static void RunDumpsysProto(const std::string& title, int priority,
+                            std::chrono::milliseconds timeout,
+                            std::chrono::milliseconds service_timeout) {
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
     Vector<String16> args;
@@ -1196,45 +1213,28 @@ void RunDumpsysProto(const std::string& title, int priority, std::chrono::millis
 
 // Runs dumpsys on services that must dump first and and will take less than 100ms to dump.
 static void RunDumpsysCritical() {
-    if (ds.CurrentVersionSupportsPriorityDumps()) {
-        RunDumpsysText("DUMPSYS CRITICAL", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
-                       /* timeout= */ 5s, /* service_timeout= */ 500ms);
-        RunDumpsysProto("DUMPSYS CRITICAL PROTO", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
-                        /* timeout= */ 5s, /* service_timeout= */ 500ms);
-    } else {
-        RunDumpsys("DUMPSYS MEMINFO", {"meminfo", "-a"},
-                   CommandOptions::WithTimeout(90).DropRoot().Build());
-        RunDumpsys("DUMPSYS CPUINFO", {"cpuinfo", "-a"},
-                   CommandOptions::WithTimeout(10).DropRoot().Build());
-    }
+    RunDumpsysText("DUMPSYS CRITICAL", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
+                   /* timeout= */ 5s, /* service_timeout= */ 500ms);
+    RunDumpsysProto("DUMPSYS CRITICAL PROTO", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
+                    /* timeout= */ 5s, /* service_timeout= */ 500ms);
 }
 
 // Runs dumpsys on services that must dump first but can take up to 250ms to dump.
 static void RunDumpsysHigh() {
-    if (ds.CurrentVersionSupportsPriorityDumps()) {
-        // TODO meminfo takes ~10s, connectivity takes ~5sec to dump. They are both
-        // high priority. Reduce timeout once they are able to dump in a shorter time or
-        // moved to a parallel task.
-        RunDumpsysText("DUMPSYS HIGH", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
-                       /* timeout= */ 90s, /* service_timeout= */ 30s);
-        RunDumpsysProto("DUMPSYS HIGH PROTO", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
-                        /* timeout= */ 5s, /* service_timeout= */ 1s);
-    } else {
-        RunDumpsys("NETWORK DIAGNOSTICS", {"connectivity", "--diag"});
-    }
+    // TODO meminfo takes ~10s, connectivity takes ~5sec to dump. They are both
+    // high priority. Reduce timeout once they are able to dump in a shorter time or
+    // moved to a parallel task.
+    RunDumpsysText("DUMPSYS HIGH", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
+                   /* timeout= */ 90s, /* service_timeout= */ 30s);
+    RunDumpsysProto("DUMPSYS HIGH PROTO", IServiceManager::DUMP_FLAG_PRIORITY_HIGH,
+                    /* timeout= */ 5s, /* service_timeout= */ 1s);
 }
 
 // Runs dumpsys on services that must dump but can take up to 10s to dump.
 static void RunDumpsysNormal() {
-    if (ds.CurrentVersionSupportsPriorityDumps()) {
-        RunDumpsysText("DUMPSYS", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
-                       /* timeout= */ 90s, /* service_timeout= */ 10s);
-        RunDumpsysProto("DUMPSYS PROTO", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
-                        /* timeout= */ 90s, /* service_timeout= */ 10s);
-    } else {
-        RunDumpsys("DUMPSYS", {"--skip", "meminfo", "cpuinfo"},
-                   CommandOptions::WithTimeout(90).Build(), SEC_TO_MSEC(10));
-    }
+    RunDumpsysTextNormalPriority("DUMPSYS", /* timeout= */ 90s, /* service_timeout= */ 10s);
+    RunDumpsysProto("DUMPSYS PROTO", IServiceManager::DUMP_FLAG_PRIORITY_NORMAL,
+                    /* timeout= */ 90s, /* service_timeout= */ 10s);
 }
 
 static void DumpHals() {
@@ -1893,12 +1893,10 @@ int run_main(int argc, char* argv[]) {
         ds.version_ = VERSION_CURRENT;
     }
 
-    if (ds.version_ != VERSION_CURRENT && ds.version_ != VERSION_SPLIT_ANR &&
-        ds.version_ != VERSION_PRIORITY_DUMPS) {
-        MYLOGE(
-            "invalid version requested ('%s'); suppported values are: ('%s', '%s', '%s', '%s')\n",
-            ds.version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str(),
-            VERSION_SPLIT_ANR.c_str(), VERSION_PRIORITY_DUMPS.c_str());
+    if (ds.version_ != VERSION_CURRENT && ds.version_ != VERSION_SPLIT_ANR) {
+        MYLOGE("invalid version requested ('%s'); suppported values are: ('%s', '%s', '%s')\n",
+               ds.version_.c_str(), VERSION_DEFAULT.c_str(), VERSION_CURRENT.c_str(),
+               VERSION_SPLIT_ANR.c_str());
         exit(1);
     }
 

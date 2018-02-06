@@ -351,6 +351,65 @@ TEST_F(DumpsysTest, DumpWithArgsRunningService) {
     AssertOutput("I DO!");
 }
 
+// Tests dumpsys passes the -a flag when called on all services
+TEST_F(DumpsysTest, PassAllFlagsToServices) {
+    ExpectListServices({"Locksmith", "Valet"});
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+    ExpectDumpWithArgs("Locksmith", {"-a"}, "dumped1");
+    ExpectDumpWithArgs("Valet", {"-a"}, "dumped2");
+
+    CallMain({"-T", "500"});
+
+    AssertDumped("Locksmith", "dumped1");
+    AssertDumped("Valet", "dumped2");
+}
+
+// Tests dumpsys passes the -a flag when called on NORMAL priority services
+TEST_F(DumpsysTest, PassAllFlagsToNormalServices) {
+    ExpectListServicesWithPriority({"Locksmith", "Valet"},
+                                   IServiceManager::DUMP_FLAG_PRIORITY_NORMAL);
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+    ExpectDumpWithArgs("Locksmith", {"-a", "--dump-priority", "NORMAL"}, "dump1");
+    ExpectDumpWithArgs("Valet", {"-a", "--dump-priority", "NORMAL"}, "dump2");
+
+    CallMain({"--priority", "NORMAL"});
+
+    AssertDumped("Locksmith", "dump1");
+    AssertDumped("Valet", "dump2");
+}
+
+// Tests dumpsys passes only priority flags when called on CRITICAL priority services
+TEST_F(DumpsysTest, PassPriorityFlagsToCriticalServices) {
+    ExpectListServicesWithPriority({"Locksmith", "Valet"},
+                                   IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL);
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+    ExpectDumpWithArgs("Locksmith", {"--dump-priority", "CRITICAL"}, "dump1");
+    ExpectDumpWithArgs("Valet", {"--dump-priority", "CRITICAL"}, "dump2");
+
+    CallMain({"--priority", "CRITICAL"});
+
+    AssertDumpedWithPriority("Locksmith", "dump1", PriorityDumper::PRIORITY_ARG_CRITICAL);
+    AssertDumpedWithPriority("Valet", "dump2", PriorityDumper::PRIORITY_ARG_CRITICAL);
+}
+
+// Tests dumpsys passes only priority flags when called on HIGH priority services
+TEST_F(DumpsysTest, PassPriorityFlagsToHighServices) {
+    ExpectListServicesWithPriority({"Locksmith", "Valet"},
+                                   IServiceManager::DUMP_FLAG_PRIORITY_HIGH);
+    ExpectCheckService("Locksmith");
+    ExpectCheckService("Valet");
+    ExpectDumpWithArgs("Locksmith", {"--dump-priority", "HIGH"}, "dump1");
+    ExpectDumpWithArgs("Valet", {"--dump-priority", "HIGH"}, "dump2");
+
+    CallMain({"--priority", "HIGH"});
+
+    AssertDumpedWithPriority("Locksmith", "dump1", PriorityDumper::PRIORITY_ARG_HIGH);
+    AssertDumpedWithPriority("Valet", "dump2", PriorityDumper::PRIORITY_ARG_HIGH);
+}
+
 // Tests 'dumpsys' with no arguments
 TEST_F(DumpsysTest, DumpMultipleServices) {
     ExpectListServices({"running1", "stopped2", "running3"});
