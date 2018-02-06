@@ -76,6 +76,7 @@ cc_defaults {
         "libdebuggerd_client",
         "libdumpstateaidl",
         "libdumpstateutil",
+        "libdumputils",
         "libhidlbase",
         "libhidltransport",
         "liblog",
