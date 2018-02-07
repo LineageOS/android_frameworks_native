@@ -472,6 +472,17 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeome
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroySurface(
+        const sp<SurfaceControl>& sc) {
+    layer_state_t* s = getLayerStateLocked(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eDestroySurface;
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayStateLocked(const sp<IBinder>& token) {
