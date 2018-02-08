@@ -675,7 +675,8 @@ class ProfileTest : public DexoptTest {
         run_cmd("touch " + expected_profile_content);
         run_cmd("profman --profile-file=" + cur_profile_ +
                 " --profile-file=" + ref_profile_ +
-                " --reference-profile-file=" + expected_profile_content);
+                " --reference-profile-file=" + expected_profile_content +
+                " --apk=" + apk_path_);
 
         ASSERT_TRUE(AreFilesEqual(expected_profile_content, snap_profile_));
 

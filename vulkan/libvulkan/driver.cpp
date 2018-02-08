@@ -1170,8 +1170,7 @@ void GetDeviceQueue2(VkDevice device,
     const auto& data = GetData(device);
 
     data.driver.GetDeviceQueue2(device, pQueueInfo, pQueue);
-    if (pQueue != VK_NULL_HANDLE)
-        SetData(*pQueue, data);
+    if (*pQueue != VK_NULL_HANDLE) SetData(*pQueue, data);
 }
 
 VKAPI_ATTR VkResult
