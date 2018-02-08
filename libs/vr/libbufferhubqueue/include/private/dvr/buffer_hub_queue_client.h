@@ -385,10 +385,7 @@ class ConsumerQueue : public BufferHubQueue {
   // used to avoid participation in the buffer lifecycle by a consumer queue
   // that is only used to spawn other consumer queues, such as in an
   // intermediate service.
-  static std::unique_ptr<ConsumerQueue> Import(pdx::LocalChannelHandle handle) {
-    return std::unique_ptr<ConsumerQueue>(
-        new ConsumerQueue(std::move(handle)));
-  }
+  static std::unique_ptr<ConsumerQueue> Import(pdx::LocalChannelHandle handle);
 
   // Import newly created buffers from the service side.
   // Returns number of buffers successfully imported or an error.

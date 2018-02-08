@@ -582,6 +582,12 @@ pdx::Status<ProducerQueueParcelable> ProducerQueue::TakeAsParcelable() {
   return {std::move(queue_parcelable)};
 }
 
+/*static */
+std::unique_ptr<ConsumerQueue> ConsumerQueue::Import(
+    LocalChannelHandle handle) {
+  return std::unique_ptr<ConsumerQueue>(new ConsumerQueue(std::move(handle)));
+}
+
 ConsumerQueue::ConsumerQueue(LocalChannelHandle handle)
     : BufferHubQueue(std::move(handle)) {
   auto status = ImportQueue();
