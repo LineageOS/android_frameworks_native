@@ -410,12 +410,11 @@ void SurfaceFlinger::bootFinished()
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
     class MessageDestroyGLTexture : public MessageBase {
-        RenderEngine& engine;
+        RE::RenderEngine& engine;
         uint32_t texture;
     public:
-        MessageDestroyGLTexture(RenderEngine& engine, uint32_t texture)
-            : engine(engine), texture(texture) {
-        }
+        MessageDestroyGLTexture(RE::RenderEngine& engine, uint32_t texture)
+              : engine(engine), texture(texture) {}
         virtual bool handler() {
             engine.deleteTextures(1, &texture);
             return true;
@@ -575,25 +574,30 @@ void SurfaceFlinger::init() {
     Mutex::Autolock _l(mStateLock);
 
     // start the EventThread
-
-    mEventThreadSource = std::make_unique<DispSyncSource>(
-            &mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
-    mEventThread = std::make_unique<EventThread>(
-            mEventThreadSource.get(), *this, false, "sfEventThread");
-    mSfEventThreadSource = std::make_unique<DispSyncSource>(
-            &mPrimaryDispSync, SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
-    mSFEventThread = std::make_unique<EventThread>(
-            mSfEventThreadSource.get(), *this, true, "appEventThread");
+    mEventThreadSource =
+            std::make_unique<DispSyncSource>(&mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs,
+                                             true, "app");
+    mEventThread = std::make_unique<impl::EventThread>(mEventThreadSource.get(), *this, false,
+                                                       "appEventThread");
+    mSfEventThreadSource =
+            std::make_unique<DispSyncSource>(&mPrimaryDispSync,
+                                             SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
+    mSFEventThread = std::make_unique<impl::EventThread>(mSfEventThreadSource.get(), *this, true,
+                                                         "sfEventThread");
     mEventQueue.setEventThread(mSFEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
-    getBE().mRenderEngine = RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
-            hasWideColorDisplay ? RenderEngine::WIDE_COLOR_SUPPORT : 0);
+    getBE().mRenderEngine =
+            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
+                                           hasWideColorDisplay
+                                                   ? RE::RenderEngine::WIDE_COLOR_SUPPORT
+                                                   : 0);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
-    getBE().mHwc.reset(new HWComposer(getBE().mHwcServiceName));
+    getBE().mHwc.reset(
+            new HWComposer(std::make_unique<Hwc2::impl::Composer>(getBE().mHwcServiceName)));
     getBE().mHwc->registerCallback(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
@@ -1065,8 +1069,9 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             ALOGV("VSync Injections enabled");
             if (mVSyncInjector.get() == nullptr) {
                 mVSyncInjector = std::make_unique<InjectVSyncSource>();
-                mInjectorEventThread = std::make_unique<EventThread>(
-                        mVSyncInjector.get(), *this, false, "injEvThread");
+                mInjectorEventThread =
+                        std::make_unique<impl::EventThread>(mVSyncInjector.get(), *this, false,
+                                                            "injEventThread");
             }
             mEventQueue.setEventThread(mInjectorEventThread.get());
         } else {
@@ -1342,7 +1347,8 @@ void SurfaceFlinger::updateVrFlinger() {
 
     resetDisplayState();
     getBE().mHwc.reset(); // Delete the current instance before creating the new one
-    getBE().mHwc.reset(new HWComposer(vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName));
+    getBE().mHwc.reset(new HWComposer(std::make_unique<Hwc2::impl::Composer>(
+            vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName)));
     getBE().mHwc->registerCallback(this, ++getBE().mComposerSequenceId);
 
     LOG_ALWAYS_FATAL_IF(!getBE().mHwc->getComposer()->isRemote(),
@@ -1471,7 +1477,7 @@ void SurfaceFlinger::doDebugFlashRegions()
 
                 // and draw the dirty region
                 const int32_t height = hw->getHeight();
-                RenderEngine& engine(getRenderEngine());
+                auto& engine(getRenderEngine());
                 engine.fillRegionWithColor(dirtyRegion, height, 1, 0, 1, 1);
 
                 hw->swapBuffers(getHwComposer());
@@ -2854,7 +2860,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
 
 void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const {
     const int32_t height = displayDevice->getHeight();
-    RenderEngine& engine(getRenderEngine());
+    auto& engine(getRenderEngine());
     engine.fillRegionWithColor(region, height, 0, 0, 0, 0);
 }
 
@@ -4516,7 +4522,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                             bool useIdentityTransform) {
     ATRACE_CALL();
 
-    RenderEngine& engine(getRenderEngine());
+    auto& engine(getRenderEngine());
 
     // get screen geometry
     const auto raWidth = renderArea.getWidth();
@@ -4595,7 +4601,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
 
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    RenderEngine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    RE::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
     if (bufferBond.getStatus() != NO_ERROR) {
         ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;

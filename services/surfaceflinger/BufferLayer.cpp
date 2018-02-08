@@ -200,7 +200,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
 
     bool blackOutLayer = isProtected() || (isSecure() && !renderArea.isSecure());
 
-    RenderEngine& engine(mFlinger->getRenderEngine());
+    auto& engine(mFlinger->getRenderEngine());
 
     if (!blackOutLayer) {
         // TODO: we could be more subtle with isFixedSize()
@@ -817,7 +817,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     texCoords[2] = vec2(right, 1.0f - bottom);
     texCoords[3] = vec2(right, 1.0f - top);
 
-    RenderEngine& engine(mFlinger->getRenderEngine());
+    auto& engine(mFlinger->getRenderEngine());
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
                               getColor());
     engine.setSourceDataSpace(mCurrentState.dataSpace);

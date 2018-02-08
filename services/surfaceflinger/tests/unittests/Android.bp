@@ -20,6 +20,9 @@ cc_test {
     srcs: [
         ":libsurfaceflinger_sources",
         "DisplayTransactionTest.cpp",
+        "MockComposer.cpp",
+        "MockEventThread.cpp",
+        "MockRenderEngine.cpp",
     ],
     static_libs: [
         "libgmock",

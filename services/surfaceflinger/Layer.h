@@ -90,7 +90,7 @@ struct CompositionInfo {
         hwc_color_t color;
     } hwc;
     struct {
-        RenderEngine* renderEngine;
+        RE::RenderEngine* renderEngine;
         Mesh* mesh;
     } renderEngine;
 };

@@ -84,12 +84,7 @@ private:
 
 // Device methods
 
-Device::Device(const std::string& serviceName)
-  : mComposer(std::make_unique<Hwc2::Composer>(serviceName)),
-    mCapabilities(),
-    mDisplays(),
-    mRegisteredCallback(false)
-{
+Device::Device(std::unique_ptr<android::Hwc2::Composer> composer) : mComposer(std::move(composer)) {
     loadCapabilities();
 }
 

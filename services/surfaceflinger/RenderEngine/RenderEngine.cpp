@@ -37,7 +37,12 @@ extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy
 
 // ---------------------------------------------------------------------------
 namespace android {
+namespace RE {
 // ---------------------------------------------------------------------------
+
+RenderEngine::~RenderEngine() = default;
+
+namespace impl {
 
 std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags) {
     // initialize EGL for the default display
@@ -137,9 +142,7 @@ std::unique_ptr<RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featu
 
 bool RenderEngine::overrideUseContextPriorityFromConfig(bool useContextPriority) {
     OptionalBool ret;
-    ISurfaceFlingerConfigs::getService()->useContextPriority([&ret](OptionalBool b) {
-        ret = b;
-    });
+    ISurfaceFlingerConfigs::getService()->useContextPriority([&ret](OptionalBool b) { ret = b; });
     if (ret.specified) {
         return ret.value;
     } else {
@@ -177,7 +180,22 @@ bool RenderEngine::isCurrent() const {
     return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
 }
 
-bool RenderEngine::setCurrentSurface(const RE::Surface& surface) {
+std::unique_ptr<RE::Surface> RenderEngine::createSurface() {
+    return std::make_unique<Surface>(*this);
+}
+
+std::unique_ptr<RE::Image> RenderEngine::createImage() {
+    return std::make_unique<Image>(*this);
+}
+
+bool RenderEngine::setCurrentSurface(const android::RE::Surface& surface) {
+    // Note: RE::Surface is an abstract interface. This implementation only ever
+    // creates RE::impl::Surface's, so it is safe to just cast to the actual
+    // type.
+    return setCurrentSurface(static_cast<const android::RE::impl::Surface&>(surface));
+}
+
+bool RenderEngine::setCurrentSurface(const android::RE::impl::Surface& surface) {
     bool success = true;
     EGLSurface eglSurface = surface.getEGLSurface();
     if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
@@ -349,7 +367,14 @@ void RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
     glDeleteTextures(count, names);
 }
 
-void RenderEngine::bindExternalTextureImage(uint32_t texName, const RE::Image& image) {
+void RenderEngine::bindExternalTextureImage(uint32_t texName, const android::RE::Image& image) {
+    // Note: RE::Image is an abstract interface. This implementation only ever
+    // creates RE::impl::Image's, so it is safe to just cast to the actual type.
+    return bindExternalTextureImage(texName, static_cast<const android::RE::impl::Image&>(image));
+}
+
+void RenderEngine::bindExternalTextureImage(uint32_t texName,
+                                            const android::RE::impl::Image& image) {
     const GLenum target = GL_TEXTURE_EXTERNAL_OES;
 
     glBindTexture(target, texName);
@@ -375,34 +400,33 @@ void RenderEngine::dump(String8& result) {
 
 // ---------------------------------------------------------------------------
 
-RenderEngine::BindNativeBufferAsFramebuffer::BindNativeBufferAsFramebuffer(
-        RenderEngine& engine, ANativeWindowBuffer* buffer)
-      : mEngine(engine) {
-    mImage = eglCreateImageKHR(mEngine.mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
-                               buffer, nullptr);
-    if (mImage == EGL_NO_IMAGE_KHR) {
-        mStatus = GL_FRAMEBUFFER_INCOMPLETE_ATTACHMENT;
+void RenderEngine::bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
+                                                 RE::BindNativeBufferAsFramebuffer* bindHelper) {
+    bindHelper->mImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
+                                           buffer, nullptr);
+    if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
+        bindHelper->mStatus = NO_MEMORY;
         return;
     }
 
-    mEngine.bindImageAsFramebuffer(mImage, &mTexName, &mFbName, &mStatus);
+    uint32_t glStatus;
+    bindImageAsFramebuffer(bindHelper->mImage, &bindHelper->mTexName, &bindHelper->mFbName,
+                           &glStatus);
 
-    ALOGE_IF(mStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
-             mStatus);
+    ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
+             glStatus);
+
+    bindHelper->mStatus = glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
 
-RenderEngine::BindNativeBufferAsFramebuffer::~BindNativeBufferAsFramebuffer() {
-    if (mImage == EGL_NO_IMAGE_KHR) {
+void RenderEngine::unbindNativeBufferAsFrameBuffer(RE::BindNativeBufferAsFramebuffer* bindHelper) {
+    if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
         return;
     }
 
     // back to main framebuffer
-    mEngine.unbindFramebuffer(mTexName, mFbName);
-    eglDestroyImageKHR(mEngine.mEGLDisplay, mImage);
-}
-
-status_t RenderEngine::BindNativeBufferAsFramebuffer::getStatus() const {
-    return mStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
+    unbindFramebuffer(bindHelper->mTexName, bindHelper->mFbName);
+    eglDestroyImageKHR(mEGLDisplay, bindHelper->mImage);
 }
 
 // ---------------------------------------------------------------------------
@@ -564,5 +588,7 @@ void RenderEngine::primeCache() const {
 }
 
 // ---------------------------------------------------------------------------
-}; // namespace android
-// ---------------------------------------------------------------------------
+
+} // namespace impl
+} // namespace RE
+} // namespace android

@@ -35,6 +35,9 @@ class String8;
 class Mesh;
 class Texture;
 
+namespace RE {
+namespace impl {
+
 class GLES20RenderEngine : public RenderEngine {
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
@@ -105,7 +108,9 @@ protected:
 };
 
 // ---------------------------------------------------------------------------
-}; // namespace android
+} // namespace impl
+} // namespace RE
+} // namespace android
 // ---------------------------------------------------------------------------
 
 #endif /* SF_GLES20RENDERENGINE_H_ */
