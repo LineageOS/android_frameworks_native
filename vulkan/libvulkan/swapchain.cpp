@@ -573,8 +573,15 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     }
 
     // TODO(jessehall): Figure out what the min/max values should be.
+    int max_buffer_count;
+    err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &max_buffer_count);
+    if (err != 0) {
+        ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
+              strerror(-err), err);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
     capabilities->minImageCount = 2;
-    capabilities->maxImageCount = 3;
+    capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
 
     capabilities->currentExtent =
         VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
