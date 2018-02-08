@@ -67,7 +67,6 @@ cc_test {
         "libnativewindow",
     ],
     cflags: [
-        "-DLOG_TAG=\"dvr_buffer_queue-test\"",
         "-DTRACE=0",
         "-O0",
         "-g",
