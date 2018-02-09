@@ -1533,6 +1533,12 @@ void Layer::miniDump(String8& result, int32_t displayId) const {
     const FloatRect& crop = hwcInfo.sourceCrop;
     result.appendFormat("%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right, crop.bottom);
 
+    result.append("- - - - - - - - - - - - - - - -\n");
+
+    std::string compositionInfoStr;
+    getBE().compositionInfo.dump(compositionInfoStr, "compositionInfo");
+    result.append(compositionInfoStr.c_str());
+
     result.append("- - - - - - - - - - - - - - - -");
     result.append("- - - - - - - - - - - - - - - -");
     result.append("- - - - - - - - - - - - - - -\n");

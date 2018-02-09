@@ -227,6 +227,7 @@ public:
     int32_t mComposerSequenceId;
 
     std::unordered_map<int32_t, std::vector<CompositionInfo>> mCompositionInfo;
+    std::unordered_map<int32_t, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
 };
 
 
@@ -753,6 +754,7 @@ private:
     void dumpBufferingStats(String8& result) const;
     void dumpDisplayIdentificationData(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
+    void dumpFrameCompositionInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
     LayersProto dumpVisibleLayersProtoInfo(const DisplayDevice& display) const;
 

@@ -91,6 +91,8 @@
 
 #include <cutils/compiler.h>
 
+#include "android-base/stringprintf.h"
+
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
@@ -1463,13 +1465,15 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
-    mLayersWithQueuedFrames.clear();
+    getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
     for (const auto& [token, display] : mDisplays) {
         const auto displayId = display->getId();
-        for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
+        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[displayId]) {
             compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
+
+    mLayersWithQueuedFrames.clear();
 }
 
 
@@ -3911,6 +3915,13 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
             }
 
             if ((index < numArgs) &&
+                    (args[index] == String16("--frame-composition"))) {
+                index++;
+                dumpFrameCompositionInfo(result);
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) &&
                 (args[index] == String16("--display-identification"))) {
                 index++;
                 dumpDisplayIdentificationData(result);
@@ -4167,6 +4178,31 @@ void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
     result.append("\n");
 }
 
+void SurfaceFlinger::dumpFrameCompositionInfo(String8& result) const {
+    std::string stringResult;
+
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
+        if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+            continue;
+        }
+
+        const auto& compositionInfoIt = getBE().mEndOfFrameCompositionInfo.find(displayId);
+        if (compositionInfoIt == getBE().mEndOfFrameCompositionInfo.end()) {
+            break;
+        }
+        const auto& compositionInfoList = compositionInfoIt->second;
+        stringResult += base::StringPrintf("Display: %d\n", displayId);
+        stringResult += base::StringPrintf("numComponents: %zu\n", compositionInfoList.size());
+        for (const auto& compositionInfo : compositionInfoList) {
+            compositionInfo.dump(stringResult, nullptr);
+            stringResult += base::StringPrintf("\n");
+        }
+    }
+
+    result.append(stringResult.c_str());
+}
+
 LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
     LayersProto layersProto;
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
@@ -4291,6 +4327,10 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
     auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
     result.append(LayerProtoParser::layersToString(std::move(layerTree)).c_str());
+    result.append("\n");
+
+    result.append("\nFrame-Composition information:\n");
+    dumpFrameCompositionInfo(result);
     result.append("\n");
 
     /*
