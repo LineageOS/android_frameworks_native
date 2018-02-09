@@ -10,6 +10,8 @@
 #include <array>
 #include <unordered_map>
 
+#define LOG_TAG "dvr_buffer_queue-test"
+
 #ifndef ALOGD
 #define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #endif
