@@ -65,6 +65,9 @@ cc_library_shared {
         // Allow implicit instantiation for templated class function
         "-Wno-undefined-func-template",
 
+        // Allow explicitly marking struct as packed even when unnecessary
+        "-Wno-packed",
+
         "-DDEBUG_ONLY_CODE=0",
     ],
 

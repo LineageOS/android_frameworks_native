@@ -14,21 +14,8 @@
  * limitations under the License.
  */
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-#endif
-
-// The following headers are included without checking every warning.
-// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
-// in these headers and their dependencies.
 #include <dvr/dvr_api.h>
 #include <gui/BufferHubProducer.h>
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
-
 #include <inttypes.h>
 #include <log/log.h>
 #include <system/window.h>

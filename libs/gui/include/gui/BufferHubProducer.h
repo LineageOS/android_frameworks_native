@@ -19,21 +19,8 @@
 
 #include <gui/BufferSlot.h>
 #include <gui/IGraphicBufferProducer.h>
-
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Weverything"
-#endif
-
-// The following headers are included without checking every warning.
-// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
-// in these headers and their dependencies.
 #include <private/dvr/buffer_hub_queue_client.h>
 #include <private/dvr/buffer_hub_queue_parcelable.h>
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 
 namespace android {
 
