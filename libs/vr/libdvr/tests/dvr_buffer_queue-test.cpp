@@ -1,4 +1,3 @@
-#include <android-base/unique_fd.h>
 #include <android/log.h>
 #include <android/native_window.h>
 #include <dlfcn.h>
@@ -9,6 +8,8 @@
 
 #include <array>
 #include <unordered_map>
+
+#define LOG_TAG "dvr_buffer_queue-test"
 
 #ifndef ALOGD
 #define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
@@ -44,7 +45,14 @@ class DvrBufferQueueTest : public ::testing::Test {
 
  protected:
   void SetUp() override {
-    platform_handle_ = dlopen("libdvr.so", RTLD_NOW | RTLD_LOCAL);
+    int flags = RTLD_NOW | RTLD_LOCAL;
+
+    // Here we need to ensure that libdvr is loaded with RTLD_NODELETE flag set
+    // (so that calls to `dlclose` don't actually unload the library). This is a
+    // workaround for an Android NDK bug. See more detail:
+    // https://github.com/android-ndk/ndk/issues/360
+    flags |= RTLD_NODELETE;
+    platform_handle_ = dlopen("libdvr.so", flags);
     ASSERT_NOT_NULL(platform_handle_) << "Dvr shared library missing.";
 
     auto dvr_get_api = reinterpret_cast<decltype(&dvrGetApi)>(
@@ -190,7 +198,7 @@ TEST_F(DvrBufferQueueTest, AcquirePostGainRelease) {
   ASSERT_TRUE(api_.WriteBufferIsValid(wb));
   ALOGD_IF(TRACE, "TestDequeuePostDequeueRelease, gain buffer %p, fence_fd=%d",
            wb, fence_fd);
-  android::base::unique_fd release_fence(fence_fd);
+  close(fence_fd);
 
   // Post buffer to the read_queue.
   meta1.timestamp = 42;
@@ -215,7 +223,7 @@ TEST_F(DvrBufferQueueTest, AcquirePostGainRelease) {
   ALOGD_IF(TRACE,
            "TestDequeuePostDequeueRelease, acquire buffer %p, fence_fd=%d", rb,
            fence_fd);
-  android::base::unique_fd acquire_fence(fence_fd);
+  close(fence_fd);
 
   // Release buffer to the write_queue.
   ret = api_.ReadBufferQueueReleaseBuffer(read_queue, rb, &meta2,
@@ -302,7 +310,7 @@ TEST_F(DvrBufferQueueTest, ResizeBuffer) {
   ASSERT_EQ(0, ret);
   ASSERT_TRUE(api_.WriteBufferIsValid(wb1));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p", wb1);
-  android::base::unique_fd release_fence1(fence_fd);
+  close(fence_fd);
 
   // Check the buffer dimension.
   ret = api_.WriteBufferGetAHardwareBuffer(wb1, &ahb1);
@@ -330,7 +338,7 @@ TEST_F(DvrBufferQueueTest, ResizeBuffer) {
   ASSERT_TRUE(api_.WriteBufferIsValid(wb2));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb2,
            fence_fd);
-  android::base::unique_fd release_fence2(fence_fd);
+  close(fence_fd);
 
   // Check the buffer dimension, should be new width
   ret = api_.WriteBufferGetAHardwareBuffer(wb2, &ahb2);
@@ -357,7 +365,7 @@ TEST_F(DvrBufferQueueTest, ResizeBuffer) {
   ASSERT_TRUE(api_.WriteBufferIsValid(wb3));
   ALOGD_IF(TRACE, "TestResizeBuffer, gain buffer %p, fence_fd=%d", wb3,
            fence_fd);
-  android::base::unique_fd release_fence3(fence_fd);
+  close(fence_fd);
 
   // Check the buffer dimension, should be new width
   ret = api_.WriteBufferGetAHardwareBuffer(wb3, &ahb3);

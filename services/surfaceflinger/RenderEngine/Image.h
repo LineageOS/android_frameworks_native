@@ -24,30 +24,39 @@
 struct ANativeWindowBuffer;
 
 namespace android {
-
-class RenderEngine;
-
 namespace RE {
 
 class Image {
 public:
-    Image(const RenderEngine& engine);
-    ~Image();
+    virtual ~Image() = 0;
+    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected,
+                                       int32_t cropWidth, int32_t cropHeight) = 0;
+};
+
+namespace impl {
+
+class RenderEngine;
+
+class Image : public RE::Image {
+public:
+    explicit Image(const RenderEngine& engine);
+    ~Image() override;
 
     Image(const Image&) = delete;
     Image& operator=(const Image&) = delete;
 
     bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected, int32_t cropWidth,
-                               int32_t cropHeight);
+                               int32_t cropHeight) override;
 
 private:
     // methods internal to RenderEngine
-    friend class android::RenderEngine;
+    friend class RenderEngine;
     EGLSurface getEGLImage() const { return mEGLImage; }
 
     EGLDisplay mEGLDisplay;
     EGLImageKHR mEGLImage = EGL_NO_IMAGE_KHR;
 };
 
+} // namespace impl
 } // namespace RE
 } // namespace android

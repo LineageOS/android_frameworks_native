@@ -244,7 +244,7 @@ void HardwareComposer::OnPostThreadResumed() {
   // Standalones only create the composer client once and then use SetPowerMode
   // to control the screen on pause/resume.
   if (!is_standalone_device_ || !composer_) {
-    composer_.reset(new Hwc2::Composer("default"));
+    composer_.reset(new Hwc2::impl::Composer("default"));
     composer_callback_ = new ComposerCallback;
     composer_->registerCallback(composer_callback_);
     LOG_ALWAYS_FATAL_IF(!composer_callback_->HasDisplayId(),

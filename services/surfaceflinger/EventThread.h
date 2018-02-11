@@ -56,7 +56,29 @@ public:
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
 };
 
-class EventThread : private VSyncSource::Callback {
+class EventThread {
+public:
+    virtual ~EventThread();
+
+    virtual sp<BnDisplayEventConnection> createEventConnection() const = 0;
+
+    // called before the screen is turned off from main thread
+    virtual void onScreenReleased() = 0;
+
+    // called after the screen is turned on from main thread
+    virtual void onScreenAcquired() = 0;
+
+    // called when receiving a hotplug event
+    virtual void onHotplugReceived(int type, bool connected) = 0;
+
+    virtual void dump(String8& result) const = 0;
+
+    virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+};
+
+namespace impl {
+
+class EventThread : public android::EventThread, private VSyncSource::Callback {
     class Connection : public BnDisplayEventConnection {
     public:
         explicit Connection(EventThread* eventThread);
@@ -82,24 +104,24 @@ public:
                 const char* threadName);
     ~EventThread();
 
-    sp<Connection> createEventConnection() const;
+    sp<BnDisplayEventConnection> createEventConnection() const override;
     status_t registerDisplayEventConnection(const sp<Connection>& connection);
 
     void setVsyncRate(uint32_t count, const sp<Connection>& connection);
     void requestNextVsync(const sp<Connection>& connection);
 
     // called before the screen is turned off from main thread
-    void onScreenReleased();
+    void onScreenReleased() override;
 
     // called after the screen is turned on from main thread
-    void onScreenAcquired();
+    void onScreenAcquired() override;
 
     // called when receiving a hotplug event
-    void onHotplugReceived(int type, bool connected);
+    void onHotplugReceived(int type, bool connected) override;
 
-    void dump(String8& result) const;
+    void dump(String8& result) const override;
 
-    void setPhaseOffset(nsecs_t phaseOffset);
+    void setPhaseOffset(nsecs_t phaseOffset) override;
 
 private:
     void threadMain();
@@ -139,4 +161,5 @@ private:
 
 // ---------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace impl
+} // namespace android

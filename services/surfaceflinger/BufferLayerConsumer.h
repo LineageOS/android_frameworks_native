@@ -17,8 +17,6 @@
 #ifndef ANDROID_BUFFERLAYERCONSUMER_H
 #define ANDROID_BUFFERLAYERCONSUMER_H
 
-#include "RenderEngine/Image.h"
-
 #include <gui/BufferQueueDefs.h>
 #include <gui/ConsumerBase.h>
 #include <gui/HdrMetadata.h>
@@ -36,8 +34,12 @@ namespace android {
 
 class DispSync;
 class Layer;
-class RenderEngine;
 class String8;
+
+namespace RE {
+class RenderEngine;
+class Image;
+} // namespace RE
 
 /*
  * BufferLayerConsumer consumes buffers of graphics data from a BufferQueue,
@@ -70,8 +72,8 @@ public:
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.  The
     // tex parameter indicates the name of the RenderEngine texture to which
     // images are to be streamed.
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RenderEngine& engine, uint32_t tex,
-                        Layer* layer);
+    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RE::RenderEngine& engine,
+                        uint32_t tex, Layer* layer);
 
     // Sets the contents changed listener. This should be used instead of
     // ConsumerBase::setFrameAvailableListener().
@@ -220,7 +222,7 @@ private:
     // also only creating new RE::Images from buffers when required.
     class Image : public LightRefBase<Image> {
     public:
-        Image(sp<GraphicBuffer> graphicBuffer, const RenderEngine& engine);
+        Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEngine& engine);
 
         Image(const Image& rhs) = delete;
         Image& operator=(const Image& rhs) = delete;
@@ -234,18 +236,18 @@ private:
             return mGraphicBuffer == nullptr ? nullptr : mGraphicBuffer->handle;
         }
 
-        const RE::Image& image() const { return mImage; }
+        const RE::Image& image() const { return *mImage; }
 
     private:
         // Only allow instantiation using ref counting.
         friend class LightRefBase<Image>;
-        virtual ~Image() = default;
+        virtual ~Image();
 
         // mGraphicBuffer is the buffer that was used to create this image.
         sp<GraphicBuffer> mGraphicBuffer;
 
         // mImage is the image created from mGraphicBuffer.
-        RE::Image mImage;
+        std::unique_ptr<RE::Image> mImage;
         bool mCreated;
         int32_t mCropWidth;
         int32_t mCropHeight;
@@ -349,7 +351,7 @@ private:
     // setFilteringEnabled().
     bool mFilteringEnabled;
 
-    RenderEngine& mRE;
+    RE::RenderEngine& mRE;
 
     // mTexName is the name of the RenderEngine texture to which streamed
     // images will be bound when bindTexImage is called. It is set at

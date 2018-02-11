@@ -187,7 +187,7 @@ private:
     sp<ANativeWindow> mNativeWindow;
     sp<DisplaySurface> mDisplaySurface;
 
-    RE::Surface     mSurface;
+    std::unique_ptr<RE::Surface> mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
     mutable uint32_t mPageFlipCount;

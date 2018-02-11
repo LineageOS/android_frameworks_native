@@ -105,6 +105,8 @@ void writePPM(const char* basename, GLuint width, GLuint height) {
 
 // ---------------------------------------------------------------------------
 namespace android {
+namespace RE {
+namespace impl {
 // ---------------------------------------------------------------------------
 
 GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
@@ -379,7 +381,9 @@ void GLES20RenderEngine::dump(String8& result) {
 }
 
 // ---------------------------------------------------------------------------
-}; // namespace android
+} // namespace impl
+} // namespace RE
+} // namespace android
 // ---------------------------------------------------------------------------
 
 #if defined(__gl_h_)

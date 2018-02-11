@@ -26,6 +26,10 @@
 namespace android {
 namespace RE {
 
+Image::~Image() = default;
+
+namespace impl {
+
 Image::Image(const RenderEngine& engine) : mEGLDisplay(engine.getEGLDisplay()) {}
 
 Image::~Image() {
@@ -83,5 +87,6 @@ bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected,
     return true;
 }
 
+} // namespace impl
 } // namespace RE
 } // namespace android

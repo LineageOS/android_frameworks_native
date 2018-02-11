@@ -23,6 +23,7 @@
 
 #include "DispSync.h"
 #include "Layer.h"
+#include "RenderEngine/Image.h"
 #include "RenderEngine/RenderEngine.h"
 
 #include <inttypes.h>
@@ -56,8 +57,8 @@ namespace android {
 
 static const mat4 mtxIdentity;
 
-BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RenderEngine& engine,
-                                         uint32_t tex, Layer* layer)
+BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq,
+                                         RE::RenderEngine& engine, uint32_t tex, Layer* layer)
       : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -359,7 +360,7 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
 
     if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == nullptr) {
         BLC_LOGE("bindTextureImage: no currently-bound texture");
-        mRE.bindExternalTextureImage(mTexName, RE::Image(mRE));
+        mRE.bindExternalTextureImage(mTexName, *mRE.createImage());
         return NO_INIT;
     }
 
@@ -367,7 +368,7 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
     status_t err = mCurrentTextureImage->createIfNeeded(imageCrop);
     if (err != NO_ERROR) {
         BLC_LOGW("bindTextureImage: can't create image on slot=%d", mCurrentTexture);
-        mRE.bindExternalTextureImage(mTexName, RE::Image(mRE));
+        mRE.bindExternalTextureImage(mTexName, *mRE.createImage());
         return UNKNOWN_ERROR;
     }
 
@@ -604,12 +605,14 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
     ConsumerBase::dumpLocked(result, prefix);
 }
 
-BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer, const RenderEngine& engine)
+BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEngine& engine)
       : mGraphicBuffer(graphicBuffer),
-        mImage{engine},
+        mImage{engine.createImage()},
         mCreated(false),
         mCropWidth(0),
         mCropHeight(0) {}
+
+BufferLayerConsumer::Image::~Image() = default;
 
 status_t BufferLayerConsumer::Image::createIfNeeded(const Rect& imageCrop) {
     const int32_t cropWidth = imageCrop.width();
@@ -618,9 +621,9 @@ status_t BufferLayerConsumer::Image::createIfNeeded(const Rect& imageCrop) {
         return OK;
     }
 
-    mCreated = mImage.setNativeWindowBuffer(mGraphicBuffer->getNativeBuffer(),
-                                            mGraphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED,
-                                            cropWidth, cropHeight);
+    mCreated = mImage->setNativeWindowBuffer(mGraphicBuffer->getNativeBuffer(),
+                                             mGraphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED,
+                                             cropWidth, cropHeight);
     if (mCreated) {
         mCropWidth = cropWidth;
         mCropHeight = cropHeight;
