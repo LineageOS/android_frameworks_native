@@ -66,4 +66,32 @@ status_t HdrMetadata::unflatten(void const* buffer, size_t size) {
     return NO_ERROR;
 }
 
+bool HdrMetadata::operator==(const HdrMetadata& rhs) const {
+    if (validTypes != rhs.validTypes) return false;
+
+    if ((validTypes & SMPTE2086) == SMPTE2086) {
+        if (smpte2086.displayPrimaryRed.x != rhs.smpte2086.displayPrimaryRed.x ||
+            smpte2086.displayPrimaryRed.y != rhs.smpte2086.displayPrimaryRed.y ||
+            smpte2086.displayPrimaryGreen.x != rhs.smpte2086.displayPrimaryGreen.x ||
+            smpte2086.displayPrimaryGreen.y != rhs.smpte2086.displayPrimaryGreen.y ||
+            smpte2086.displayPrimaryBlue.x != rhs.smpte2086.displayPrimaryBlue.x ||
+            smpte2086.displayPrimaryBlue.y != rhs.smpte2086.displayPrimaryBlue.y ||
+            smpte2086.whitePoint.x != rhs.smpte2086.whitePoint.x ||
+            smpte2086.whitePoint.y != rhs.smpte2086.whitePoint.y ||
+            smpte2086.maxLuminance != rhs.smpte2086.maxLuminance ||
+            smpte2086.minLuminance != rhs.smpte2086.minLuminance) {
+            return false;
+        }
+    }
+
+    if ((validTypes & CTA861_3) == CTA861_3) {
+        if (cta8613.maxFrameAverageLightLevel != rhs.cta8613.maxFrameAverageLightLevel ||
+            cta8613.maxContentLightLevel != rhs.cta8613.maxContentLightLevel) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 } // namespace android
