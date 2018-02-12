@@ -39,6 +39,7 @@ sharedLibraries = [
     "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.allocator@2.0",
     "android.hardware.graphics.composer@2.1",
+    "android.hardware.graphics.composer@2.2",
     "libbinder",
     "libbase",
     "libbufferhubqueue",
@@ -62,6 +63,7 @@ sharedLibraries = [
 
 headerLibraries = [
     "android.hardware.graphics.composer@2.1-command-buffer",
+    "android.hardware.graphics.composer@2.2-command-buffer",
     "libdvr_headers",
     "libsurfaceflinger_headers",
 ]

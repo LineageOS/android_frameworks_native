@@ -37,6 +37,7 @@ using android::Fence;
 using android::FloatRect;
 using android::GraphicBuffer;
 using android::HdrCapabilities;
+using android::HdrMetadata;
 using android::Rect;
 using android::Region;
 using android::sp;
@@ -687,8 +688,7 @@ Layer* Display::getLayerById(hwc2_layer_t id) const
 
 // Layer methods
 
-Layer::Layer(android::Hwc2::Composer& composer,
-             const std::unordered_set<Capability>& capabilities,
+Layer::Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
              hwc2_display_t displayId, hwc2_layer_t layerId)
   : mComposer(composer),
     mCapabilities(capabilities),
@@ -785,6 +785,16 @@ Error Layer::setDataspace(android_dataspace_t dataspace)
     mDataSpace = dataspace;
     auto intDataspace = static_cast<Hwc2::Dataspace>(dataspace);
     auto intError = mComposer.setLayerDataspace(mDisplayId, mId, intDataspace);
+    return static_cast<Error>(intError);
+}
+
+Error Layer::setHdrMetadata(const android::HdrMetadata& metadata) {
+    if (metadata == mHdrMetadata) {
+        return Error::None;
+    }
+
+    mHdrMetadata = metadata;
+    auto intError = mComposer.setLayerHdrMetadata(mDisplayId, mId, metadata);
     return static_cast<Error>(intError);
 }
 
