@@ -52,6 +52,11 @@ headerLibraries = [
 cc_library {
     tags: ["tests"],
     srcs: sourceFiles,
+    arch: {
+        arm: {
+            instruction_set: "arm",
+        },
+    },
     cflags: ["-DLOG_TAG=\"libdisplay\"",
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
