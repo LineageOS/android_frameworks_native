@@ -82,6 +82,11 @@ cc_library_static {
         "-Wno-error=sign-compare", // to fix later
         "-Wno-unused-variable",
     ],
+    arch: {
+        arm: {
+            instruction_set: "arm",
+        },
+    },
     shared_libs: sharedLibraries,
     whole_static_libs: staticLibraries,
     header_libs: headerLibraries,
