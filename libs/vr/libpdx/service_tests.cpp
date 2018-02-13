@@ -180,8 +180,8 @@ TEST_F(ServiceTest, ConstructMessage) {
   EXPECT_EQ(kTestTid, message.GetThreadId());
   EXPECT_EQ(kTestCid, message.GetChannelId());
   EXPECT_EQ(kTestMid, message.GetMessageId());
-  EXPECT_EQ(kTestEuid, message.GetEffectiveUserId());
-  EXPECT_EQ(kTestEgid, message.GetEffectiveGroupId());
+  EXPECT_EQ((unsigned) kTestEuid, message.GetEffectiveUserId());
+  EXPECT_EQ((unsigned) kTestEgid, message.GetEffectiveGroupId());
   EXPECT_EQ(kTestOp, message.GetOp());
   EXPECT_EQ(service_, message.GetService());
   EXPECT_EQ(test_channel, message.GetChannel());
