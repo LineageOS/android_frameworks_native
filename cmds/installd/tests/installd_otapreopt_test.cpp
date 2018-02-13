@@ -39,8 +39,8 @@ static const char* ParseNull(const char* arg) {
 class OTAPreoptTest : public testing::Test {
 protected:
     virtual void SetUp() {
-        setenv("ANDROID_LOG_TAGS", "*:v", 1);
-        android::base::InitLogging(nullptr);
+        setenv("ANDROID_LOG_TAGS", "*:f", 1);
+        android::base::InitLogging(nullptr, android::base::StderrLogger);
     }
 
     void verifyPackageParameters(const OTAPreoptParameters& params,
@@ -68,7 +68,7 @@ protected:
         if (version > 1) {
             ASSERT_STREQ(params.se_info, ParseNull(args[i++]));
         } else {
-            ASSERT_STREQ(params.se_info, nullptr);
+            ASSERT_EQ(params.se_info, nullptr);
         }
         if (version > 2) {
             ASSERT_EQ(params.downgrade, ParseBool(args[i++]));
@@ -88,7 +88,7 @@ protected:
         if (version > 5) {
             ASSERT_STREQ(params.dex_metadata_path, ParseNull(args[i++]));
         } else {
-            ASSERT_STREQ(params.dex_metadata_path, nullptr);
+            ASSERT_EQ(params.dex_metadata_path, nullptr);
         }
     }
 
