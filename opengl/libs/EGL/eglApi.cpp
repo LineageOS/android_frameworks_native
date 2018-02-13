@@ -2006,22 +2006,13 @@ EGLSurface eglCreateStreamProducerSurfaceKHR(EGLDisplay dpy, EGLConfig config,
     egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_NO_SURFACE;
 
-    EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
-    android_dataspace dataSpace = HAL_DATASPACE_UNKNOWN;
-    // TODO: Probably need to update EGL_KHR_stream_producer_eglsurface to
-    // indicate support for EGL_GL_COLORSPACE_KHR.
-    // now select a corresponding sRGB format if needed
-    if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
-        ALOGE("error invalid colorspace: %d", colorSpace);
-        return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-    }
-
     egl_connection_t* const cnx = &gEGLImpl;
     if (cnx->dso && cnx->egl.eglCreateStreamProducerSurfaceKHR) {
         EGLSurface surface = cnx->egl.eglCreateStreamProducerSurfaceKHR(
                 dp->disp.dpy, config, stream, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface, colorSpace, cnx);
+            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface,
+                                                 EGL_GL_COLORSPACE_LINEAR_KHR, cnx);
             return s;
         }
     }

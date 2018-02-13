@@ -218,6 +218,9 @@ bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
     // Set the profile name to the primary apk profile.
     profile_name = "primary.prof";
 
+    // By default we don't have a dex metadata file.
+    dex_metadata_path = nullptr;
+
     return true;
 }
 
@@ -271,6 +274,9 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
 
     // Set the profile name to the primary apk profile.
     profile_name = "primary.prof";
+
+    // By default we don't have a dex metadata file.
+    dex_metadata_path = nullptr;
 
     for (size_t param_index = 0; param_index < num_args_actual; ++param_index) {
         const char* param = argv[dexopt_index + 1 + param_index];
@@ -332,11 +338,14 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
                 break;
 
             case 14:
-                 dex_metadata_path = ParseNull(param);
+                dex_metadata_path = ParseNull(param);
+                break;
 
             default:
-                CHECK(false) << "Should not get here. Did you call ReadArguments "
-                        << "with the right expectation?";
+                LOG(FATAL) << "Should not get here. Did you call ReadArguments "
+                        << "with the right expectation? index=" << param_index
+                        << " num_args=" << num_args_actual;
+                return false;
         }
     }
 
