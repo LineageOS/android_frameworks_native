@@ -18,6 +18,11 @@ cc_library_static {
         "ipc_helper.cpp",
         "service_endpoint.cpp",
     ],
+    arch: {
+        arm: {
+            instruction_set: "arm",
+        },
+    },
     static_libs: [
         "libcutils",
         "libbase",
