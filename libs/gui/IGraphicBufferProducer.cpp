@@ -27,6 +27,7 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
+#include <gui/BufferHubProducer.h>
 #include <gui/BufferQueueDefs.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
@@ -652,6 +653,75 @@ IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer,
         "android.gui.IGraphicBufferProducer");
 
 // ----------------------------------------------------------------------
+
+status_t IGraphicBufferProducer::exportToParcel(Parcel* parcel) {
+    status_t res = OK;
+    res = parcel->writeUint32(USE_BUFFER_QUEUE);
+    if (res != NO_ERROR) {
+        ALOGE("exportToParcel: Cannot write magic, res=%d.", res);
+        return res;
+    }
+
+    return parcel->writeStrongBinder(IInterface::asBinder(this));
+}
+
+/* static */
+status_t IGraphicBufferProducer::exportToParcel(const sp<IGraphicBufferProducer>& producer,
+                                                Parcel* parcel) {
+    if (parcel == nullptr) {
+        ALOGE("exportToParcel: Invalid parcel object.");
+        return BAD_VALUE;
+    }
+
+    if (producer == nullptr) {
+        status_t res = OK;
+        res = parcel->writeUint32(IGraphicBufferProducer::USE_BUFFER_QUEUE);
+        if (res != NO_ERROR) return res;
+        return parcel->writeStrongBinder(nullptr);
+    } else {
+        return producer->exportToParcel(parcel);
+    }
+}
+
+/* static */
+sp<IGraphicBufferProducer> IGraphicBufferProducer::createFromParcel(const Parcel* parcel) {
+    uint32_t outMagic = 0;
+    status_t res = NO_ERROR;
+
+    res = parcel->readUint32(&outMagic);
+    if (res != NO_ERROR) {
+        ALOGE("createFromParcel: Failed to read magic, error=%d.", res);
+        return nullptr;
+    }
+
+    switch (outMagic) {
+        case USE_BUFFER_QUEUE: {
+            sp<IBinder> binder;
+            res = parcel->readNullableStrongBinder(&binder);
+            if (res != NO_ERROR) {
+                ALOGE("createFromParcel: Can't read strong binder.");
+                return nullptr;
+            }
+            return interface_cast<IGraphicBufferProducer>(binder);
+        }
+        case USE_BUFFER_HUB: {
+            ALOGE("createFromParcel: BufferHub not implemented.");
+            dvr::ProducerQueueParcelable producerParcelable;
+            res = producerParcelable.readFromParcel(parcel);
+            if (res != NO_ERROR) {
+                ALOGE("createFromParcel: Failed to read from parcel, error=%d", res);
+                return nullptr;
+            }
+            return BufferHubProducer::Create(std::move(producerParcelable));
+        }
+        default: {
+            ALOGE("createFromParcel: Unexpected mgaic: 0x%x.", outMagic);
+            return nullptr;
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
 
 status_t BnGraphicBufferProducer::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)

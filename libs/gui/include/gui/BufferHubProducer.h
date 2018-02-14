@@ -24,7 +24,7 @@
 
 namespace android {
 
-class BufferHubProducer : public BnGraphicBufferProducer {
+class BufferHubProducer : public IGraphicBufferProducer {
 public:
     static constexpr int kNoConnectedApi = -1;
 
@@ -135,6 +135,12 @@ public:
     // invalid parcelable.
     status_t TakeAsParcelable(dvr::ProducerQueueParcelable* out_parcelable);
 
+    IBinder* onAsBinder() override;
+
+protected:
+    // See |IGraphicBufferProducer::exportToParcel|
+    status_t exportToParcel(Parcel* parcel) override;
+
 private:
     using LocalHandle = pdx::LocalHandle;
 
@@ -203,6 +209,9 @@ private:
 
     // A uniqueId used by IGraphicBufferProducer interface.
     const uint64_t unique_id_{genUniqueId()};
+
+    // A pending parcelable object which keeps the bufferhub channel alive.
+    dvr::ProducerQueueParcelable pending_producer_parcelable_;
 };
 
 } // namespace android

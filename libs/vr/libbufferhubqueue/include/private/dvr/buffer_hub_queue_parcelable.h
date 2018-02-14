@@ -1,7 +1,19 @@
 #ifndef ANDROID_DVR_BUFFER_HUB_QUEUE_PARCELABLE_H_
 #define ANDROID_DVR_BUFFER_HUB_QUEUE_PARCELABLE_H_
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+// The following headers are included without checking every warning.
+// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
+// in these headers and their dependencies.
 #include <pdx/channel_parcelable.h>
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 namespace android {
 namespace dvr {
@@ -17,8 +29,10 @@ class BufferHubQueueParcelable : public Parcelable {
   BufferHubQueueParcelable() = default;
 
   BufferHubQueueParcelable(BufferHubQueueParcelable&& other) = default;
-  BufferHubQueueParcelable& operator=(BufferHubQueueParcelable&& other) =
-      default;
+  BufferHubQueueParcelable& operator=(BufferHubQueueParcelable&& other) {
+    channel_parcelable_ = std::move(other.channel_parcelable_);
+    return *this;
+  }
 
   // Constructs an parcelable contains the channel parcelable.
   BufferHubQueueParcelable(

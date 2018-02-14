@@ -42,6 +42,10 @@
 #define TEST_CONTROLLED_BY_APP false
 #define TEST_PRODUCER_USAGE_BITS (0)
 
+#ifndef USE_BUFFER_HUB_AS_BUFFER_QUEUE
+#define USE_BUFFER_HUB_AS_BUFFER_QUEUE 0
+#endif
+
 namespace android {
 
 namespace {
@@ -66,9 +70,15 @@ namespace {
     const int QUEUE_BUFFER_INPUT_SCALING_MODE = 0;
     const int QUEUE_BUFFER_INPUT_TRANSFORM = 0;
     const sp<Fence> QUEUE_BUFFER_INPUT_FENCE = Fence::NO_FENCE;
+
+    // Enums to control which IGraphicBufferProducer backend to test.
+    enum IGraphicBufferProducerTestCode {
+        USE_BUFFER_QUEUE_PRODUCER = 0,
+        USE_BUFFER_HUB_PRODUCER,
+    };
 }; // namespace anonymous
 
-class IGraphicBufferProducerTest : public ::testing::Test {
+class IGraphicBufferProducerTest : public ::testing::TestWithParam<uint32_t> {
 protected:
 
     IGraphicBufferProducerTest() {}
@@ -81,10 +91,27 @@ protected:
 
         mDC = new DummyConsumer;
 
-        BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+        switch (GetParam()) {
+            case USE_BUFFER_QUEUE_PRODUCER: {
+                BufferQueue::createBufferQueue(&mProducer, &mConsumer);
+                break;
+            }
+            case USE_BUFFER_HUB_PRODUCER: {
+                BufferQueue::createBufferHubQueue(&mProducer, &mConsumer);
+                break;
+            }
+            default: {
+                // Should never reach here.
+                LOG_ALWAYS_FATAL("Invalid test params: %u", GetParam());
+                break;
+            }
+        }
 
         // Test check: Can't connect producer if no consumer yet
-        ASSERT_EQ(NO_INIT, TryConnectProducer());
+        if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+            // TODO(b/73267953): Make BufferHub honor producer and consumer connection.
+            ASSERT_EQ(NO_INIT, TryConnectProducer());
+        }
 
         // Must connect consumer before producer connects will succeed.
         ASSERT_OK(mConsumer->consumerConnect(mDC, /*controlledByApp*/false));
@@ -229,7 +256,7 @@ protected: // accessible from test body
     sp<IGraphicBufferConsumer> mConsumer;
 };
 
-TEST_F(IGraphicBufferProducerTest, ConnectFirst_ReturnsError) {
+TEST_P(IGraphicBufferProducerTest, ConnectFirst_ReturnsError) {
     IGraphicBufferProducer::QueueBufferOutput output;
 
     // NULL output returns BAD_VALUE
@@ -247,7 +274,7 @@ TEST_F(IGraphicBufferProducerTest, ConnectFirst_ReturnsError) {
     // TODO: get a token from a dead process somehow
 }
 
-TEST_F(IGraphicBufferProducerTest, ConnectAgain_ReturnsError) {
+TEST_P(IGraphicBufferProducerTest, ConnectAgain_ReturnsError) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     // Can't connect when there is already a producer connected
@@ -259,20 +286,23 @@ TEST_F(IGraphicBufferProducerTest, ConnectAgain_ReturnsError) {
 
     ASSERT_OK(mConsumer->consumerDisconnect());
     // Can't connect when IGBP is abandoned
-    EXPECT_EQ(NO_INIT, mProducer->connect(TEST_TOKEN,
-                                          TEST_API,
-                                          TEST_CONTROLLED_BY_APP,
-                                          &output));
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/73267953): Make BufferHub honor producer and consumer connection.
+        EXPECT_EQ(NO_INIT, mProducer->connect(TEST_TOKEN,
+                                              TEST_API,
+                                              TEST_CONTROLLED_BY_APP,
+                                              &output));
+    }
 }
 
-TEST_F(IGraphicBufferProducerTest, Disconnect_Succeeds) {
+TEST_P(IGraphicBufferProducerTest, Disconnect_Succeeds) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
 }
 
 
-TEST_F(IGraphicBufferProducerTest, Disconnect_ReturnsError) {
+TEST_P(IGraphicBufferProducerTest, Disconnect_ReturnsError) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     // Must disconnect with same API number
@@ -283,7 +313,7 @@ TEST_F(IGraphicBufferProducerTest, Disconnect_ReturnsError) {
     // TODO: somehow kill mProducer so that this returns DEAD_OBJECT
 }
 
-TEST_F(IGraphicBufferProducerTest, Query_Succeeds) {
+TEST_P(IGraphicBufferProducerTest, Query_Succeeds) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     int32_t value = -1;
@@ -308,7 +338,7 @@ TEST_F(IGraphicBufferProducerTest, Query_Succeeds) {
 
 }
 
-TEST_F(IGraphicBufferProducerTest, Query_ReturnsError) {
+TEST_P(IGraphicBufferProducerTest, Query_ReturnsError) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     // One past the end of the last 'query' enum value. Update this if we add more enums.
@@ -334,14 +364,17 @@ TEST_F(IGraphicBufferProducerTest, Query_ReturnsError) {
     ASSERT_OK(mConsumer->consumerDisconnect());
 
     // BQ was abandoned
-    EXPECT_EQ(NO_INIT, mProducer->query(NATIVE_WINDOW_FORMAT, &value));
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/73267953): Make BufferHub honor producer and consumer connection.
+        EXPECT_EQ(NO_INIT, mProducer->query(NATIVE_WINDOW_FORMAT, &value));
+    }
 
     // TODO: other things in window.h that are supported by Surface::query
     // but not by BufferQueue::query
 }
 
 // TODO: queue under more complicated situations not involving just a single buffer
-TEST_F(IGraphicBufferProducerTest, Queue_Succeeds) {
+TEST_P(IGraphicBufferProducerTest, Queue_Succeeds) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     int dequeuedSlot = -1;
@@ -371,16 +404,21 @@ TEST_F(IGraphicBufferProducerTest, Queue_Succeeds) {
         EXPECT_EQ(DEFAULT_WIDTH, output.width);
         EXPECT_EQ(DEFAULT_HEIGHT, output.height);
         EXPECT_EQ(DEFAULT_TRANSFORM_HINT, output.transformHint);
+
         // Since queueBuffer was called exactly once
-        EXPECT_EQ(1u, output.numPendingBuffers);
-        EXPECT_EQ(2u, output.nextFrameNumber);
+        if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+            // TODO(b/70041889): BufferHubProducer need to support metadata: numPendingBuffers
+            EXPECT_EQ(1u, output.numPendingBuffers);
+            // TODO(b/70041952): BufferHubProducer need to support metadata: nextFrameNumber
+            EXPECT_EQ(2u, output.nextFrameNumber);
+        }
     }
 
     // Buffer was not in the dequeued state
     EXPECT_EQ(BAD_VALUE, mProducer->queueBuffer(dequeuedSlot, input, &output));
 }
 
-TEST_F(IGraphicBufferProducerTest, Queue_ReturnsError) {
+TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     // Invalid slot number
@@ -463,15 +501,16 @@ TEST_F(IGraphicBufferProducerTest, Queue_ReturnsError) {
     ASSERT_OK(mConsumer->consumerDisconnect());
 
     // The buffer queue has been abandoned.
-    {
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
         IGraphicBufferProducer::QueueBufferInput input = CreateBufferInput();
         IGraphicBufferProducer::QueueBufferOutput output;
 
+        // TODO(b/73267953): Make BufferHub honor producer and consumer connection.
         EXPECT_EQ(NO_INIT, mProducer->queueBuffer(dequeuedSlot, input, &output));
     }
 }
 
-TEST_F(IGraphicBufferProducerTest, CancelBuffer_DoesntCrash) {
+TEST_P(IGraphicBufferProducerTest, CancelBuffer_DoesntCrash) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
     int dequeuedSlot = -1;
@@ -488,7 +527,7 @@ TEST_F(IGraphicBufferProducerTest, CancelBuffer_DoesntCrash) {
     mProducer->cancelBuffer(dequeuedSlot, dequeuedFence);
 }
 
-TEST_F(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
+TEST_P(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
     int minUndequeuedBuffers;
     ASSERT_OK(mProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
@@ -540,7 +579,7 @@ TEST_F(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Succeeds) {
     ASSERT_OK(mProducer->setMaxDequeuedBufferCount(maxBuffers-1));
 }
 
-TEST_F(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Fails) {
+TEST_P(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Fails) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
     int minUndequeuedBuffers;
     ASSERT_OK(mProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
@@ -578,12 +617,19 @@ TEST_F(IGraphicBufferProducerTest, SetMaxDequeuedBufferCount_Fails) {
     ASSERT_OK(mConsumer->consumerDisconnect());
 
     // Fail because the buffer queue was abandoned
-    EXPECT_EQ(NO_INIT, mProducer->setMaxDequeuedBufferCount(minBuffers))
-            << "bufferCount: " << minBuffers;
-
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/73267953): Make BufferHub honor producer and consumer connection.
+        EXPECT_EQ(NO_INIT, mProducer->setMaxDequeuedBufferCount(minBuffers))
+                << "bufferCount: " << minBuffers;
+    }
 }
 
-TEST_F(IGraphicBufferProducerTest, SetAsyncMode_Succeeds) {
+TEST_P(IGraphicBufferProducerTest, SetAsyncMode_Succeeds) {
+    if (GetParam() == USE_BUFFER_HUB_PRODUCER) {
+        // TODO(b/36724099): Add support for BufferHubProducer::setAsyncMode(true)
+        return;
+    }
+
     ASSERT_OK(mConsumer->setMaxAcquiredBufferCount(1)) << "maxAcquire: " << 1;
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
     ASSERT_OK(mProducer->setAsyncMode(true)) << "async mode: " << true;
@@ -609,7 +655,7 @@ TEST_F(IGraphicBufferProducerTest, SetAsyncMode_Succeeds) {
     }
 }
 
-TEST_F(IGraphicBufferProducerTest, SetAsyncMode_Fails) {
+TEST_P(IGraphicBufferProducerTest, SetAsyncMode_Fails) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
     // Prerequisite to fail out a valid setBufferCount call
     {
@@ -628,11 +674,13 @@ TEST_F(IGraphicBufferProducerTest, SetAsyncMode_Fails) {
     ASSERT_OK(mConsumer->consumerDisconnect());
 
     // Fail because the buffer queue was abandoned
-    EXPECT_EQ(NO_INIT, mProducer->setAsyncMode(false)) << "asyncMode: "
-            << false;
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/36724099): Make BufferHub honor producer and consumer connection.
+        EXPECT_EQ(NO_INIT, mProducer->setAsyncMode(false)) << "asyncMode: " << false;
+    }
 }
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_dequeueBuffer) {
     int slot = -1;
     sp<Fence> fence;
@@ -642,15 +690,18 @@ TEST_F(IGraphicBufferProducerTest,
                                        TEST_PRODUCER_USAGE_BITS, nullptr, nullptr));
 }
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_detachNextBuffer) {
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
 
-    ASSERT_EQ(NO_INIT, mProducer->detachNextBuffer(&buffer, &fence));
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
+        ASSERT_EQ(NO_INIT, mProducer->detachNextBuffer(&buffer, &fence));
+    }
 }
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_requestBuffer) {
     ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
@@ -674,7 +725,7 @@ TEST_F(IGraphicBufferProducerTest,
 }
 
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_detachBuffer) {
     int slot = -1;
     sp<Fence> fence;
@@ -684,10 +735,13 @@ TEST_F(IGraphicBufferProducerTest,
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
 
-    ASSERT_EQ(NO_INIT, mProducer->detachBuffer(slot));
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
+        ASSERT_EQ(NO_INIT, mProducer->detachBuffer(slot));
+    }
 }
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_queueBuffer) {
     int slot = -1;
     sp<Fence> fence;
@@ -704,7 +758,7 @@ TEST_F(IGraphicBufferProducerTest,
     ASSERT_EQ(NO_INIT, mProducer->queueBuffer(slot, input, &output));
 }
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_cancelBuffer) {
     int slot = -1;
     sp<Fence> fence;
@@ -717,7 +771,7 @@ TEST_F(IGraphicBufferProducerTest,
     ASSERT_EQ(NO_INIT, mProducer->cancelBuffer(slot, fence));
 }
 
-TEST_F(IGraphicBufferProducerTest,
+TEST_P(IGraphicBufferProducerTest,
         DisconnectedProducerReturnsError_attachBuffer) {
     int slot = -1;
     sp<Fence> fence;
@@ -725,11 +779,27 @@ TEST_F(IGraphicBufferProducerTest,
 
     setupDequeueRequestBuffer(&slot, &fence, &buffer);
 
-    ASSERT_OK(mProducer->detachBuffer(slot));
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
+        ASSERT_OK(mProducer->detachBuffer(slot));
+    }
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
 
-    ASSERT_EQ(NO_INIT, mProducer->attachBuffer(&slot, buffer));
+    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
+        // TODO(b/69981968): Implement BufferHubProducer::attachBuffer
+        ASSERT_EQ(NO_INIT, mProducer->attachBuffer(&slot, buffer));
+    }
 }
+
+#if USE_BUFFER_HUB_AS_BUFFER_QUEUE
+INSTANTIATE_TEST_CASE_P(IGraphicBufferProducerBackends, IGraphicBufferProducerTest,
+                        ::testing::Values(USE_BUFFER_QUEUE_PRODUCER, USE_BUFFER_HUB_PRODUCER));
+#else
+// TODO(b/70046255): Remove the #ifdef here and always tests both backends once BufferHubQueue can
+// pass all existing libgui tests.
+INSTANTIATE_TEST_CASE_P(IGraphicBufferProducerBackends, IGraphicBufferProducerTest,
+                        ::testing::Values(USE_BUFFER_QUEUE_PRODUCER));
+#endif
 
 } // namespace android

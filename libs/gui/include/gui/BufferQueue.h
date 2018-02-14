@@ -79,6 +79,10 @@ public:
             sp<IGraphicBufferConsumer>* outConsumer,
             bool consumerIsSurfaceFlinger = false);
 
+    // Creates an IGraphicBufferProducer and IGraphicBufferConsumer pair backed by BufferHub.
+    static void createBufferHubQueue(sp<IGraphicBufferProducer>* outProducer,
+                                     sp<IGraphicBufferConsumer>* outConsumer);
+
     BufferQueue() = delete; // Create through createBufferQueue
 };
 

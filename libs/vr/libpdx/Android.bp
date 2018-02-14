@@ -8,6 +8,11 @@ cc_library_static {
         "-DLOG_TAG=\"libpdx\"",
         "-DTRACE=0",
     ],
+    arch: {
+        arm: {
+            instruction_set: "arm",
+        },
+    },
     export_include_dirs: ["private"],
     local_include_dirs: ["private"],
     srcs: [

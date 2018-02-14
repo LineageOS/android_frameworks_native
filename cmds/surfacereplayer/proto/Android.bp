@@ -7,6 +7,11 @@ cc_library_static {
         "-Wall",
         "-Werror",
     ],
+    arch: {
+        arm: {
+            instruction_set: "arm",
+        },
+    },
     proto: {
         type: "lite",
         export_proto_headers: true,
