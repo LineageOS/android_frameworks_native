@@ -100,8 +100,7 @@ status_t EventThread::registerDisplayEventConnection(
     return NO_ERROR;
 }
 
-void EventThread::removeDisplayEventConnection(const wp<EventThread::Connection>& connection) {
-    std::lock_guard<std::mutex> lock(mMutex);
+void EventThread::removeDisplayEventConnectionLocked(const wp<EventThread::Connection>& connection) {
     mDisplayEventConnections.remove(connection);
 }
 
@@ -195,7 +194,7 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
                 // handle any other error on the pipe as fatal. the only
                 // reasonable thing to do is to clean-up this connection.
                 // The most common error we'll get here is -EPIPE.
-                removeDisplayEventConnection(signalConnections[i]);
+                removeDisplayEventConnectionLocked(signalConnections[i]);
             }
         }
     }
