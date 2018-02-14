@@ -129,7 +129,7 @@ private:
                                                            DisplayEventReceiver::Event* event)
             REQUIRES(mMutex);
 
-    void removeDisplayEventConnection(const wp<Connection>& connection);
+    void removeDisplayEventConnectionLocked(const wp<Connection>& connection) REQUIRES(mMutex);
     void enableVSyncLocked() REQUIRES(mMutex);
     void disableVSyncLocked() REQUIRES(mMutex);
 
