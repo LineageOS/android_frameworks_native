@@ -78,8 +78,8 @@ static_assert(DEXOPT_SECONDARY_DEX  == 1 << 5, "DEXOPT_SECONDARY_DEX unexpected.
 static_assert(DEXOPT_FORCE          == 1 << 6, "DEXOPT_FORCE unexpected.");
 static_assert(DEXOPT_STORAGE_CE     == 1 << 7, "DEXOPT_STORAGE_CE unexpected.");
 static_assert(DEXOPT_STORAGE_DE     == 1 << 8, "DEXOPT_STORAGE_DE unexpected.");
-static_assert(DEXOPT_DISABLE_HIDDEN_API_CHECKS == 1 << 10,
-        "DEXOPT_DISABLE_HIDDEN_API_CHECKS unexpected");
+static_assert(DEXOPT_ENABLE_HIDDEN_API_CHECKS == 1 << 10,
+        "DEXOPT_ENABLE_HIDDEN_API_CHECKS unexpected");
 
 static_assert(DEXOPT_MASK           == 0x5fe, "DEXOPT_MASK unexpected.");
 

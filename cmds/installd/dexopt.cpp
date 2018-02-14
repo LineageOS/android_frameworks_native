@@ -212,7 +212,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
         bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
-        const char* class_loader_context, int target_sdk_version, bool disable_hidden_api_checks) {
+        const char* class_loader_context, int target_sdk_version, bool enable_hidden_api_checks) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
@@ -439,7 +439,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                      + (disable_cdex ? 1 : 0)
                      + (generate_minidebug_info ? 1 : 0)
                      + (target_sdk_version != 0 ? 2 : 0)
-                     + (disable_hidden_api_checks ? 2 : 0)];
+                     + (enable_hidden_api_checks ? 2 : 0)];
     int i = 0;
     argv[i++] = dex2oat_bin;
     argv[i++] = zip_fd_arg;
@@ -513,9 +513,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         argv[i++] = RUNTIME_ARG;
         argv[i++] = target_sdk_version_arg;
     }
-    if (disable_hidden_api_checks) {
+    if (enable_hidden_api_checks) {
         argv[i++] = RUNTIME_ARG;
-        argv[i++] = "-Xno-hidden-api-checks";
+        argv[i++] = "-Xhidden-api-checks";
     }
 
     // Do not add after dex2oat_flags, they should override others for debugging.
@@ -1801,7 +1801,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     bool profile_guided = (dexopt_flags & DEXOPT_PROFILE_GUIDED) != 0;
     bool is_secondary_dex = (dexopt_flags & DEXOPT_SECONDARY_DEX) != 0;
     bool background_job_compile = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
-    bool disable_hidden_api_checks = (dexopt_flags & DEXOPT_DISABLE_HIDDEN_API_CHECKS) != 0;
+    bool enable_hidden_api_checks = (dexopt_flags & DEXOPT_ENABLE_HIDDEN_API_CHECKS) != 0;
 
     // Check if we're dealing with a secondary dex file and if we need to compile it.
     std::string oat_dir_str;
@@ -1899,7 +1899,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     reference_profile_fd.get(),
                     class_loader_context,
                     target_sdk_version,
-                    disable_hidden_api_checks);
+                    enable_hidden_api_checks);
         _exit(68);   /* only get here on exec failure */
     } else {
         int res = wait_child(pid);
