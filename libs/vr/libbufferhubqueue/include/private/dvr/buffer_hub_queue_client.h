@@ -3,12 +3,24 @@
 
 #include <ui/BufferQueueDefs.h>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+// The following headers are included without checking every warning.
+// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
+// in these headers and their dependencies.
 #include <pdx/client.h>
 #include <pdx/status.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_parcelable.h>
 #include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/epoll_file_descriptor.h>
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #include <memory>
 #include <queue>
@@ -45,10 +57,10 @@ class BufferHubQueue : public pdx::Client {
   uint32_t default_width() const { return default_width_; }
 
   // Returns the default buffer height of this buffer queue.
-  uint32_t default_height() const { return default_height_; }
+  uint32_t default_height() const { return static_cast<uint32_t>(default_height_); }
 
   // Returns the default buffer format of this buffer queue.
-  uint32_t default_format() const { return default_format_; }
+  uint32_t default_format() const { return static_cast<uint32_t>(default_format_); }
 
   // Creates a new consumer in handle form for immediate transport over RPC.
   pdx::Status<pdx::LocalChannelHandle> CreateConsumerQueueHandle(
@@ -160,16 +172,16 @@ class BufferHubQueue : public pdx::Client {
   // per-buffer data.
   struct Entry {
     Entry() : slot(0) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& buffer, size_t slot,
-          uint64_t index)
-        : buffer(buffer), slot(slot), index(index) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& buffer,
-          std::unique_ptr<uint8_t[]> metadata, pdx::LocalHandle fence,
-          size_t slot)
-        : buffer(buffer),
-          metadata(std::move(metadata)),
-          fence(std::move(fence)),
-          slot(slot) {}
+    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer, size_t in_slot,
+          uint64_t in_index)
+        : buffer(in_buffer), slot(in_slot), index(in_index) {}
+    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer,
+          std::unique_ptr<uint8_t[]> in_metadata, pdx::LocalHandle in_fence,
+          size_t in_slot)
+        : buffer(in_buffer),
+          metadata(std::move(in_metadata)),
+          fence(std::move(in_fence)),
+          slot(in_slot) {}
     Entry(Entry&&) = default;
     Entry& operator=(Entry&&) = default;
 
@@ -227,13 +239,13 @@ class BufferHubQueue : public pdx::Client {
   bool is_async_{false};
 
   // Default buffer width that is set during ProducerQueue's creation.
-  size_t default_width_{1};
+  uint32_t default_width_{1};
 
   // Default buffer height that is set during ProducerQueue's creation.
-  size_t default_height_{1};
+  uint32_t default_height_{1};
 
   // Default buffer format that is set during ProducerQueue's creation.
-  int32_t default_format_{1};  // PIXEL_FORMAT_RGBA_8888
+  uint32_t default_format_{1};  // PIXEL_FORMAT_RGBA_8888
 
   // Tracks the buffers belonging to this queue. Buffers are stored according to
   // "slot" in this vector. Each slot is a logical id of the buffer within this
@@ -373,10 +385,7 @@ class ConsumerQueue : public BufferHubQueue {
   // used to avoid participation in the buffer lifecycle by a consumer queue
   // that is only used to spawn other consumer queues, such as in an
   // intermediate service.
-  static std::unique_ptr<ConsumerQueue> Import(pdx::LocalChannelHandle handle) {
-    return std::unique_ptr<ConsumerQueue>(
-        new ConsumerQueue(std::move(handle)));
-  }
+  static std::unique_ptr<ConsumerQueue> Import(pdx::LocalChannelHandle handle);
 
   // Import newly created buffers from the service side.
   // Returns number of buffers successfully imported or an error.
