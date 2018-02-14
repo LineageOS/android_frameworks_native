@@ -473,8 +473,10 @@ private:
     // Can only be called from the main thread or with mStateLock held
     uint32_t setTransactionFlags(uint32_t flags);
     void commitTransaction();
-    uint32_t setClientStateLocked(const sp<Client>& client, const layer_state_t& s);
+    bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
+    uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
+    void setDestroyStateLocked(const ComposerState& composerState);
 
     /* ------------------------------------------------------------------------
      * Layer management
@@ -506,6 +508,7 @@ private:
 
     // remove a layer from SurfaceFlinger immediately
     status_t removeLayer(const sp<Layer>& layer, bool topLevelOnly = false);
+    status_t removeLayerLocked(const Mutex&, const sp<Layer>& layer, bool topLevelOnly = false);
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client,

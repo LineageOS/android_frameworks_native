@@ -62,7 +62,8 @@ struct layer_state_t {
         eDetachChildren             = 0x00004000,
         eRelativeLayerChanged       = 0x00008000,
         eReparent                   = 0x00010000,
-        eColorChanged               = 0x00020000
+        eColorChanged               = 0x00020000,
+        eDestroySurface             = 0x00040000
     };
 
     layer_state_t()
