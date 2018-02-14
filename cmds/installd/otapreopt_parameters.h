@@ -31,6 +31,7 @@ class OTAPreoptParameters {
     bool ReadArgumentsV1(const char** argv);
     bool ReadArgumentsPostV1(uint32_t version, const char** argv, bool versioned);
 
+    void SetDefaultsForPostV1Arguments();
     const char* apk_path;
     uid_t uid;
     const char* pkgName;
@@ -46,6 +47,7 @@ class OTAPreoptParameters {
     int target_sdk_version;
     const char* profile_name;
     const char* dex_metadata_path;
+    const char* compilation_reason;
 
     std::string target_slot;
 

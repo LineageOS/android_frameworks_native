@@ -86,7 +86,8 @@ public:
             const std::unique_ptr<std::string>& classLoaderContext,
             const std::unique_ptr<std::string>& seInfo, bool downgrade,
             int32_t targetSdkVersion, const std::unique_ptr<std::string>& profileName,
-            const std::unique_ptr<std::string>& dexMetadataPath);
+            const std::unique_ptr<std::string>& dexMetadataPath,
+            const std::unique_ptr<std::string>& compilationReason);
 
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
