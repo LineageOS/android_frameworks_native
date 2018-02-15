@@ -229,6 +229,8 @@ public:
         // freezing the total geometry of a surface until a resize is completed.
         Transaction& setGeometryAppliesWithResize(const sp<SurfaceControl>& sc);
 
+        Transaction& destroySurface(const sp<SurfaceControl>& sc);
+
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 

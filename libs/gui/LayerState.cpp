@@ -231,6 +231,9 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eReparent;
         parentHandleForChild = other.parentHandleForChild;
     }
+    if (other.what & eDestroySurface) {
+        what |= eDestroySurface;
+    }
 }
 
 }; // namespace android

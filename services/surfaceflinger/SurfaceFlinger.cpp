@@ -2901,7 +2901,11 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
 
 status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) {
     Mutex::Autolock _l(mStateLock);
+    return removeLayerLocked(mStateLock, layer, topLevelOnly);
+}
 
+status_t SurfaceFlinger::removeLayerLocked(const Mutex&, const sp<Layer>& layer,
+                                           bool topLevelOnly) {
     if (layer->isPendingRemoval()) {
         return NO_ERROR;
     }
@@ -2965,14 +2969,40 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
     return old;
 }
 
+bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& states) {
+    for (const ComposerState& state : states) {
+        // Here we need to check that the interface we're given is indeed
+        // one of our own. A malicious client could give us a nullptr
+        // IInterface, or one of its own or even one of our own but a
+        // different type. All these situations would cause us to crash.
+        if (state.client == nullptr) {
+            return true;
+        }
+
+        sp<IBinder> binder = IInterface::asBinder(state.client);
+        if (binder == nullptr) {
+            return true;
+        }
+
+        if (binder->queryLocalInterface(ISurfaceComposerClient::descriptor) == nullptr) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void SurfaceFlinger::setTransactionState(
-        const Vector<ComposerState>& state,
+        const Vector<ComposerState>& states,
         const Vector<DisplayState>& displays,
         uint32_t flags)
 {
     ATRACE_CALL();
     Mutex::Autolock _l(mStateLock);
     uint32_t transactionFlags = 0;
+
+    if (containsAnyInvalidClientState(states)) {
+        return;
+    }
 
     if (flags & eAnimation) {
         // For window updates that are part of an animation we must wait for
@@ -2990,31 +3020,20 @@ void SurfaceFlinger::setTransactionState(
         }
     }
 
-    size_t count = displays.size();
-    for (size_t i=0 ; i<count ; i++) {
-        const DisplayState& s(displays[i]);
-        transactionFlags |= setDisplayStateLocked(s);
+    for (const DisplayState& display : displays) {
+        transactionFlags |= setDisplayStateLocked(display);
     }
 
-    count = state.size();
-    for (size_t i=0 ; i<count ; i++) {
-        const ComposerState& s(state[i]);
-        // Here we need to check that the interface we're given is indeed
-        // one of our own. A malicious client could give us a nullptr
-        // IInterface, or one of its own or even one of our own but a
-        // different type. All these situations would cause us to crash.
-        //
-        // NOTE: it would be better to use RTTI as we could directly check
-        // that we have a Client*. however, RTTI is disabled in Android.
-        if (s.client != nullptr) {
-            sp<IBinder> binder = IInterface::asBinder(s.client);
-            if (binder != nullptr) {
-                if (binder->queryLocalInterface(ISurfaceComposerClient::descriptor) != nullptr) {
-                    sp<Client> client( static_cast<Client *>(s.client.get()) );
-                    transactionFlags |= setClientStateLocked(client, s.state);
-                }
-            }
-        }
+    for (const ComposerState& state : states) {
+        transactionFlags |= setClientStateLocked(state);
+    }
+
+    // Iterate through all layers again to determine if any need to be destroyed. Marking layers
+    // as destroyed should only occur after setting all other states. This is to allow for a
+    // child re-parent to happen before marking its original parent as destroyed (which would
+    // then mark the child as destroyed).
+    for (const ComposerState& state : states) {
+        setDestroyStateLocked(state);
     }
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
@@ -3028,7 +3047,7 @@ void SurfaceFlinger::setTransactionState(
 
     if (transactionFlags) {
         if (mInterceptor.isEnabled()) {
-            mInterceptor.saveTransaction(state, mCurrentState.displays, displays, flags);
+            mInterceptor.saveTransaction(states, mCurrentState.displays, displays, flags);
         }
 
         // this triggers the transaction
@@ -3105,10 +3124,10 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s)
     return flags;
 }
 
-uint32_t SurfaceFlinger::setClientStateLocked(
-        const sp<Client>& client,
-        const layer_state_t& s)
-{
+uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState) {
+    const layer_state_t& s = composerState.state;
+    sp<Client> client(static_cast<Client*>(composerState.client.get()));
+
     sp<Layer> layer(client->getLayerUser(s.surface));
     if (layer == nullptr) {
         return 0;
@@ -3257,6 +3276,25 @@ uint32_t SurfaceFlinger::setClientStateLocked(
         // changed, we don't want this to cause any more work
     }
     return flags;
+}
+
+void SurfaceFlinger::setDestroyStateLocked(const ComposerState& composerState) {
+    const layer_state_t& state = composerState.state;
+    sp<Client> client(static_cast<Client*>(composerState.client.get()));
+
+    sp<Layer> layer(client->getLayerUser(state.surface));
+    if (layer == nullptr) {
+        return;
+    }
+
+    if (layer->isPendingRemoval()) {
+        ALOGW("Attempting to destroy on removed layer: %s", layer->getName().string());
+        return;
+    }
+
+    if (state.what & layer_state_t::eDestroySurface) {
+        removeLayerLocked(mStateLock, layer);
+    }
 }
 
 status_t SurfaceFlinger::createLayer(
