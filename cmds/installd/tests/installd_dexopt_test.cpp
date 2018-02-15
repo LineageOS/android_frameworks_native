@@ -264,6 +264,7 @@ protected:
         int32_t target_sdk_version = 0;  // default
         std::unique_ptr<std::string> profile_name_ptr = nullptr;
         std::unique_ptr<std::string> dm_path_ptr = nullptr;
+        std::unique_ptr<std::string> compilation_reason_ptr = nullptr;
 
         binder::Status result = service_->dexopt(path,
                                                  uid,
@@ -279,7 +280,8 @@ protected:
                                                  downgrade,
                                                  target_sdk_version,
                                                  profile_name_ptr,
-                                                 dm_path_ptr);
+                                                 dm_path_ptr,
+                                                 compilation_reason_ptr);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
         int expected_access = should_dex_be_compiled ? 0 : -1;
         std::string odex = GetSecondaryDexArtifact(path, "odex");
@@ -369,6 +371,7 @@ protected:
         if (dm_path != nullptr) {
             dm_path_ptr.reset(new std::string(dm_path));
         }
+        std::unique_ptr<std::string> compilation_reason_ptr(new std::string("test-reason"));
 
         bool prof_result;
         binder::Status prof_binder_result = service_->prepareAppProfile(
@@ -392,7 +395,8 @@ protected:
                                                  downgrade,
                                                  target_sdk_version,
                                                  profile_name_ptr,
-                                                 dm_path_ptr);
+                                                 dm_path_ptr,
+                                                 compilation_reason_ptr);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
 
         if (!should_binder_call_succeed) {
