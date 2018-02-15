@@ -70,6 +70,17 @@ bool copy_system_profile(const std::string& system_profile,
                          const std::string& pkgname,
                          const std::string& profile_name);
 
+// Prepare the app profile for the given code path:
+//  - create the current profile using profile_name
+//  - merge the profile from the dex metadata file (if present) into
+//    the reference profile.
+bool prepare_app_profile(const std::string& package_name,
+                         userid_t user_id,
+                         appid_t app_id,
+                         const std::string& profile_name,
+                         const std::string& code_path,
+                         const std::unique_ptr<std::string>& dex_metadata);
+
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
 bool reconcile_secondary_dex_file(const std::string& dex_path,
