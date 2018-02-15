@@ -405,15 +405,14 @@ protected:
         std::string vdex = GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex");
         std::string art = GetPrimaryDexArtifact(oat_dir, apk_path_, "art");
 
-        mode_t mode = S_IFREG | (compiler_filter == "speed-profile" ? 0640 : 0644);
+        bool is_public = (dex_flags & DEXOPT_PUBLIC) != 0;
+        mode_t mode = S_IFREG | (is_public ? 0644 : 0640);
         CheckFileAccess(odex, kSystemUid, uid, mode);
         CheckFileAccess(vdex, kSystemUid, uid, mode);
-        CheckFileAccess(odex, kSystemUid, uid, mode);
 
-        // empty profiles do not generate an image.
-        // todo: add tests with non-empty profiles.
-        struct stat st;
-        ASSERT_EQ(-1, stat(art.c_str(), &st));
+        if (compiler_filter == "speed-profile") {
+            CheckFileAccess(art, kSystemUid, uid, mode);
+        }
     }
 
     std::string GetPrimaryDexArtifact(const char* oat_dir,
@@ -490,10 +489,19 @@ TEST_F(DexoptTest, DexoptPrimaryPublic) {
                         DEX2OAT_FROM_SCRATCH);
 }
 
+TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
+    LOG(INFO) << "DexoptPrimaryFailedInvalidFilter";
+    CompilePrimaryDexFail("awesome-filter",
+                          DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
+                          app_oat_dir_.c_str(),
+                          kTestAppGid,
+                          DEX2OAT_FROM_SCRATCH);
+}
+
 TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
     LOG(INFO) << "DexoptPrimaryProfileNonPublic";
     CompilePrimaryDexOk("speed-profile",
-                        DEXOPT_BOOTCOMPLETE,
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED,
                         app_oat_dir_.c_str(),
                         kTestAppGid,
                         DEX2OAT_FROM_SCRATCH);
@@ -501,8 +509,8 @@ TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
 
 TEST_F(DexoptTest, DexoptPrimaryProfilePublic) {
     LOG(INFO) << "DexoptPrimaryProfilePublic";
-    CompilePrimaryDexOk("verify",
-                        DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC,
                         app_oat_dir_.c_str(),
                         kTestAppGid,
                         DEX2OAT_FROM_SCRATCH);
@@ -511,19 +519,10 @@ TEST_F(DexoptTest, DexoptPrimaryProfilePublic) {
 TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
     LOG(INFO) << "DexoptPrimaryBackgroundOk";
     CompilePrimaryDexOk("speed-profile",
-                        DEXOPT_IDLE_BACKGROUND_JOB,
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED,
                         app_oat_dir_.c_str(),
                         kTestAppGid,
                         DEX2OAT_FROM_SCRATCH);
-}
-
-TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
-    LOG(INFO) << "DexoptPrimaryFailedInvalidFilter";
-    CompilePrimaryDexFail("awesome-filter",
-                          DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
-                          app_oat_dir_.c_str(),
-                          kTestAppGid,
-                          DEX2OAT_FROM_SCRATCH);
 }
 
 class PrimaryDexReCompilationTest : public DexoptTest {
