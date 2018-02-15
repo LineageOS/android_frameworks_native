@@ -181,6 +181,7 @@ private:
         const char* se_info;
         bool downgrade;
         int target_sdk_version;
+        const char* profile_name;
     };
 
     bool ReadSystemProperties() {
@@ -363,6 +364,8 @@ private:
                 return ReadArgumentsV3(argc, argv);
             case 4:
                 return ReadArgumentsV4(argc, argv);
+            case 5:
+                return ReadArgumentsV5(argc, argv);
 
             default:
                 LOG(ERROR) << "Unsupported version " << version;
@@ -448,6 +451,9 @@ private:
         // Set target_sdk_version to 0, ie the platform SDK version. This is
         // conservative and may force some classes to verify at runtime.
         package_parameters_.target_sdk_version = 0;
+
+        // Set the profile name to the primary apk profile.
+        package_parameters_.profile_name = "primary.prof";
 
         if (param_index != 11) {
             LOG(ERROR) << "Not enough parameters";
@@ -536,6 +542,9 @@ private:
         // conservative and may force some classes to verify at runtime.
         package_parameters_.target_sdk_version = 0;
 
+        // Set the profile name to the primary apk profile.
+        package_parameters_.profile_name = "primary.prof";
+
         if (param_index != 12) {
             LOG(ERROR) << "Not enough parameters";
             return false;
@@ -623,7 +632,103 @@ private:
             }
         }
 
+        // Set the profile name to the primary apk profile.
+        package_parameters_.profile_name = "primary.prof";
+
         if (param_index != 13) {
+            LOG(ERROR) << "Not enough parameters";
+            return false;
+        }
+
+        return true;
+    }
+
+    // TODO: this pattern does not scale and result in a lot of code duplication.
+    // Either find a better pattern or refactor the code to eliminate the duplication.
+    bool ReadArgumentsV5(int argc ATTRIBUTE_UNUSED, char** argv) {
+        size_t dexopt_index = 3;
+
+        // Check for "dexopt".
+        if (argv[dexopt_index] == nullptr) {
+            LOG(ERROR) << "Missing parameters";
+            return false;
+        }
+        if (std::string("dexopt").compare(argv[dexopt_index]) != 0) {
+            LOG(ERROR) << "Expected \"dexopt\"";
+            return false;
+        }
+
+        size_t param_index = 0;
+        for (;; ++param_index) {
+            const char* param = argv[dexopt_index + 1 + param_index];
+            if (param == nullptr) {
+                break;
+            }
+
+            switch (param_index) {
+                case 0:
+                    package_parameters_.apk_path = param;
+                    break;
+
+                case 1:
+                    package_parameters_.uid = atoi(param);
+                    break;
+
+                case 2:
+                    package_parameters_.pkgName = param;
+                    break;
+
+                case 3:
+                    package_parameters_.instruction_set = param;
+                    break;
+
+                case 4:
+                    package_parameters_.dexopt_needed = atoi(param);
+                    break;
+
+                case 5:
+                    package_parameters_.oat_dir = param;
+                    break;
+
+                case 6:
+                    package_parameters_.dexopt_flags = atoi(param);
+                    break;
+
+                case 7:
+                    package_parameters_.compiler_filter = param;
+                    break;
+
+                case 8:
+                    package_parameters_.volume_uuid = ParseNull(param);
+                    break;
+
+                case 9:
+                    package_parameters_.shared_libraries = ParseNull(param);
+                    break;
+
+                case 10:
+                    package_parameters_.se_info = ParseNull(param);
+                    break;
+
+                case 11:
+                    package_parameters_.downgrade = ParseBool(param);
+                    break;
+
+                case 12:
+                    package_parameters_.target_sdk_version = atoi(param);
+                    break;
+
+                case 13:
+                    package_parameters_.profile_name = ParseNull(param);
+                    break;
+
+                default:
+                    LOG(ERROR) << "Too many arguments, got " << param;
+                    return false;
+            }
+        }
+
+        if (param_index != 14) {
             LOG(ERROR) << "Not enough parameters";
             return false;
         }
@@ -737,6 +842,9 @@ private:
         // Set target_sdk_version to 0, ie the platform SDK version. This is
         // conservative and may force some classes to verify at runtime.
         package_parameters_.target_sdk_version = 0;
+
+        // Set the profile name to the primary apk profile.
+        package_parameters_.profile_name = "primary.prof";
 
         return true;
     }
@@ -1027,7 +1135,7 @@ private:
                       package_parameters_.se_info,
                       package_parameters_.downgrade,
                       package_parameters_.target_sdk_version,
-                      "primary.prof");
+                      package_parameters_.profile_name);
     }
 
     int RunPreopt() {
