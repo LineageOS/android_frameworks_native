@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "cadf651f_21f0ab35",
+        "filename": "services/batteryservice/BatteryProperties.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-02-15T00:24:33Z",
+      "side": 1,
+      "message": "Mucking with existing parcelables from C++ to Java always makes me nervous.",
+      "range": {
+        "startLine": 48,
+        "startChar": 0,
+        "endLine": 51,
+        "endChar": 29
+      },
+      "revId": "e80946755c737dd2d46902eaa920273118dc487b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
