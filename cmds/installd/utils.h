@@ -136,6 +136,12 @@ int wait_child(pid_t pid);
 int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
         uid_t uid, gid_t gid);
 
+// Collect all non empty profiles from the global profile directory and
+// put then into profile_paths. The profiles are identified based on PROFILE_EXT extension.
+// If a subdirectory or profile file cannot be opened the method logs a warning and moves on.
+// It returns true if there were no errors at all, and false otherwise.
+bool collect_profiles(std::vector<std::string>* profiles_paths);
+
 }  // namespace installd
 }  // namespace android
 
