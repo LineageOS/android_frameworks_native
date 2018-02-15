@@ -24,6 +24,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libselinux",
         "libutils",
@@ -44,6 +45,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libselinux",
         "libutils",
@@ -64,6 +66,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libselinux",
         "libutils",

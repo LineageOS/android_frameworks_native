@@ -2379,6 +2379,22 @@ binder::Status InstalldNativeService::reconcileSecondaryDexFile(
     return result ? ok() : error();
 }
 
+binder::Status InstalldNativeService::hashSecondaryDexFile(
+        const std::string& dexPath, const std::string& packageName, int32_t uid,
+        const std::unique_ptr<std::string>& volumeUuid, int32_t storageFlag,
+        std::vector<uint8_t>* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID(volumeUuid);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+
+    // mLock is not taken here since we will never modify the file system.
+    // If a file is modified just as we are reading it this may result in an
+    // anomalous hash, but that's ok.
+    bool result = android::installd::hash_secondary_dex_file(
+        dexPath, packageName, uid, volumeUuid, storageFlag, _aidl_return);
+    return result ? ok() : error();
+}
+
 binder::Status InstalldNativeService::invalidateMounts() {
     ENFORCE_UID(AID_SYSTEM);
     std::lock_guard<std::recursive_mutex> lock(mMountsLock);
