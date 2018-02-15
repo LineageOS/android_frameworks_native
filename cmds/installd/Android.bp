@@ -18,6 +18,7 @@ cc_defaults {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "liblog",
         "liblogwrap",
@@ -88,6 +89,30 @@ filegroup {
     name: "installd_aidl",
     srcs: [
         "binder/android/os/IInstalld.aidl",
+    ],
+}
+
+//
+// Static library for otapreopt used in testing
+//
+cc_library_static {
+    name: "libotapreoptparameters",
+    cflags: [
+        "-Wall",
+        "-Werror"
+    ],
+    clang: true,
+
+    srcs: [
+        "otapreopt_parameters.cpp"],
+
+    export_include_dirs: ["."],
+
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "liblog",
+        "libutils",
     ],
 }
 

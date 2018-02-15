@@ -24,6 +24,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libselinux",
         "libutils",
@@ -44,6 +45,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libselinux",
         "libutils",
@@ -64,6 +66,7 @@ cc_test {
     shared_libs: [
         "libbase",
         "libbinder",
+        "libcrypto",
         "libcutils",
         "libselinux",
         "libutils",
@@ -75,3 +78,20 @@ cc_test {
         "liblogwrap",
     ],
 }
+
+cc_test {
+    name: "installd_otapreopt_test",
+    clang: true,
+    srcs: ["installd_otapreopt_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+    shared_libs: [
+        "libbase",
+        "libcutils",
+        "libutils",
+    ],
+    static_libs: [
+        "liblog",
+        "libotapreoptparameters"
+    ],
+}
+

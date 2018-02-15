@@ -80,10 +80,17 @@ std::string create_primary_ref_profile_dir_path();
 std::string create_primary_reference_profile_package_dir_path(const std::string& package_name);
 
 std::string create_current_profile_path(
-        userid_t user, const std::string& package_name, bool is_secondary_dex);
+        userid_t user,
+        const std::string& package_name,
+        const std::string& location,
+        bool is_secondary_dex);
 std::string create_reference_profile_path(
-        const std::string& package_name, bool is_secondary_dex);
-std::string create_snapshot_profile_path(const std::string& package, const std::string& code_path);
+        const std::string& package_name,
+        const std::string& location,
+        bool is_secondary_dex);
+std::string create_snapshot_profile_path(
+        const std::string& package,
+        const std::string& profile_name);
 
 std::vector<userid_t> get_known_users(const char* volume_uuid);
 
@@ -128,6 +135,12 @@ int wait_child(pid_t pid);
 
 int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t target_mode,
         uid_t uid, gid_t gid);
+
+// Collect all non empty profiles from the global profile directory and
+// put then into profile_paths. The profiles are identified based on PROFILE_EXT extension.
+// If a subdirectory or profile file cannot be opened the method logs a warning and moves on.
+// It returns true if there were no errors at all, and false otherwise.
+bool collect_profiles(std::vector<std::string>* profiles_paths);
 
 }  // namespace installd
 }  // namespace android

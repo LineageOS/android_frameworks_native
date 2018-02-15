@@ -23,10 +23,11 @@ LOCAL_CFLAGS += -DART_BASE_ADDRESS=$(LIBART_IMG_HOST_BASE_ADDRESS)
 LOCAL_CFLAGS += -DART_BASE_ADDRESS_MIN_DELTA=$(LOCAL_LIBART_IMG_HOST_MIN_BASE_ADDRESS_DELTA)
 LOCAL_CFLAGS += -DART_BASE_ADDRESS_MAX_DELTA=$(LOCAL_LIBART_IMG_HOST_MAX_BASE_ADDRESS_DELTA)
 
-LOCAL_SRC_FILES := otapreopt.cpp globals.cpp utils.cpp dexopt.cpp
+LOCAL_SRC_FILES := otapreopt.cpp otapreopt_parameters.cpp globals.cpp utils.cpp dexopt.cpp
 LOCAL_HEADER_LIBRARIES := dex2oat_headers
 LOCAL_SHARED_LIBRARIES := \
     libbase \
+    libcrypto \
     libcutils \
     liblog \
     liblogwrap \

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cstdlib>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -153,10 +154,12 @@ protected:
     InstalldNativeService* service_;
     std::unique_ptr<std::string> volume_uuid_;
     std::string package_name_;
+    std::string apk_path_;
     std::string app_apk_dir_;
     std::string app_private_dir_ce_;
     std::string app_private_dir_de_;
     std::string se_info_;
+    std::string app_oat_dir_;
 
     int64_t ce_data_inode_;
 
@@ -197,13 +200,13 @@ protected:
 
     void create_mock_app() {
         // Create the oat dir.
-        std::string app_oat_dir = app_apk_dir_ + "/oat";
+        app_oat_dir_ = app_apk_dir_ + "/oat";
         mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755);
-        service_->createOatDir(app_oat_dir, kRuntimeIsa);
+        service_->createOatDir(app_oat_dir_, kRuntimeIsa);
 
         // Copy the primary apk.
-        std::string apk_path = app_apk_dir_ + "/base.jar";
-        ASSERT_TRUE(WriteBase64ToFile(kDexFile, apk_path, kSystemUid, kSystemGid, 0644));
+        apk_path_ = app_apk_dir_ + "/base.jar";
+        ASSERT_TRUE(WriteBase64ToFile(kDexFile, apk_path_, kSystemUid, kSystemGid, 0644));
 
         // Create the app user data.
         ASSERT_TRUE(service_->createAppData(
@@ -259,6 +262,8 @@ protected:
         std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
         bool downgrade = false;
         int32_t target_sdk_version = 0;  // default
+        std::unique_ptr<std::string> profile_name_ptr = nullptr;
+        std::unique_ptr<std::string> dm_path_ptr = nullptr;
 
         binder::Status result = service_->dexopt(path,
                                                  uid,
@@ -272,7 +277,9 @@ protected:
                                                  class_loader_context_ptr,
                                                  se_info_ptr,
                                                  downgrade,
-                                                 target_sdk_version);
+                                                 target_sdk_version,
+                                                 profile_name_ptr,
+                                                 dm_path_ptr);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
         int expected_access = should_dex_be_compiled ? 0 : -1;
         std::string odex = GetSecondaryDexArtifact(path, "odex");
@@ -320,6 +327,113 @@ protected:
         ASSERT_EQ(gid, st.st_gid);
         ASSERT_EQ(mode, st.st_mode);
     }
+
+    void CompilePrimaryDexOk(std::string compiler_filter,
+                             int32_t dex_flags,
+                             const char* oat_dir,
+                             int32_t uid,
+                             int32_t dexopt_needed,
+                             const char* dm_path = nullptr,
+                             bool downgrade = false) {
+        return CompilePrimaryDex(
+                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, dm_path, downgrade, true);
+    }
+
+    void CompilePrimaryDexFail(std::string compiler_filter,
+                               int32_t dex_flags,
+                               const char* oat_dir,
+                               int32_t uid,
+                               int32_t dexopt_needed,
+                               const char* dm_path = nullptr,
+                               bool downgrade = false) {
+        return CompilePrimaryDex(
+                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, dm_path, downgrade, false);
+    }
+
+    void CompilePrimaryDex(std::string compiler_filter,
+                           int32_t dex_flags,
+                           const char* oat_dir,
+                           int32_t uid,
+                           int32_t dexopt_needed,
+                           const char* dm_path,
+                           bool downgrade,
+                           bool should_binder_call_succeed) {
+        std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
+        std::unique_ptr<std::string> out_path(
+                oat_dir == nullptr ? nullptr : new std::string(oat_dir));
+        std::unique_ptr<std::string> class_loader_context_ptr(new std::string("&"));
+        std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
+        int32_t target_sdk_version = 0;  // default
+        std::unique_ptr<std::string> profile_name_ptr(new std::string("primary.prof"));
+        std::unique_ptr<std::string> dm_path_ptr = nullptr;
+        if (dm_path != nullptr) {
+            dm_path_ptr.reset(new std::string(dm_path));
+        }
+
+        bool prof_result;
+        binder::Status prof_binder_result = service_->prepareAppProfile(
+                package_name_, kTestUserId, kTestAppId, *profile_name_ptr, /*code path*/ "base.apk",
+                /*dex_metadata*/ nullptr, &prof_result);
+
+        ASSERT_TRUE(prof_binder_result.isOk());
+        ASSERT_TRUE(prof_result);
+
+        binder::Status result = service_->dexopt(apk_path_,
+                                                 uid,
+                                                 package_name_ptr,
+                                                 kRuntimeIsa,
+                                                 dexopt_needed,
+                                                 out_path,
+                                                 dex_flags,
+                                                 compiler_filter,
+                                                 volume_uuid_,
+                                                 class_loader_context_ptr,
+                                                 se_info_ptr,
+                                                 downgrade,
+                                                 target_sdk_version,
+                                                 profile_name_ptr,
+                                                 dm_path_ptr);
+        ASSERT_EQ(should_binder_call_succeed, result.isOk());
+
+        if (!should_binder_call_succeed) {
+            return;
+        }
+        // Check the access to the compiler output.
+        //  - speed-profile artifacts are not world-wide readable.
+        //  - files are owned by the system uid.
+        std::string odex = GetPrimaryDexArtifact(oat_dir, apk_path_, "odex");
+        std::string vdex = GetPrimaryDexArtifact(oat_dir, apk_path_, "vdex");
+        std::string art = GetPrimaryDexArtifact(oat_dir, apk_path_, "art");
+
+        bool is_public = (dex_flags & DEXOPT_PUBLIC) != 0;
+        mode_t mode = S_IFREG | (is_public ? 0644 : 0640);
+        CheckFileAccess(odex, kSystemUid, uid, mode);
+        CheckFileAccess(vdex, kSystemUid, uid, mode);
+
+        if (compiler_filter == "speed-profile") {
+            CheckFileAccess(art, kSystemUid, uid, mode);
+        }
+    }
+
+    std::string GetPrimaryDexArtifact(const char* oat_dir,
+                                      const std::string& dex_path,
+                                      const std::string& type) {
+        if (oat_dir == nullptr) {
+            std::string path = dex_path;
+            for (auto it = path.begin() + 1; it < path.end(); ++it) {
+                if (*it == '/') {
+                    *it = '@';
+                }
+            }
+            return android_data_dir + DALVIK_CACHE + '/' + kRuntimeIsa + "/" + path
+                    + "@classes.dex";
+        } else {
+            std::string::size_type name_end = dex_path.rfind('.');
+            std::string::size_type name_start = dex_path.rfind('/');
+            return std::string(oat_dir) + "/" + kRuntimeIsa + "/" +
+                    dex_path.substr(name_start + 1, name_end - name_start) + type;
+        }
+    }
 };
 
 
@@ -366,6 +480,87 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
         /*binder_ok*/ false,  /*compile_ok*/ false, kSystemUid);
 }
 
+TEST_F(DexoptTest, DexoptPrimaryPublic) {
+    LOG(INFO) << "DexoptPrimaryPublic";
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
+    LOG(INFO) << "DexoptPrimaryFailedInvalidFilter";
+    CompilePrimaryDexFail("awesome-filter",
+                          DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
+                          app_oat_dir_.c_str(),
+                          kTestAppGid,
+                          DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
+    LOG(INFO) << "DexoptPrimaryProfileNonPublic";
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryProfilePublic) {
+    LOG(INFO) << "DexoptPrimaryProfilePublic";
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
+    LOG(INFO) << "DexoptPrimaryBackgroundOk";
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+}
+
+class PrimaryDexReCompilationTest : public DexoptTest {
+  public:
+    virtual void SetUp() {
+        DexoptTest::SetUp();
+        CompilePrimaryDexOk("verify",
+                            DEXOPT_BOOTCOMPLETE | DEXOPT_PUBLIC,
+                            app_oat_dir_.c_str(),
+                            kTestAppGid,
+                            DEX2OAT_FROM_SCRATCH);
+        std::string odex = GetSecondaryDexArtifact(apk_path_, "odex");
+        std::string vdex = GetSecondaryDexArtifact(apk_path_, "vdex");
+
+        first_compilation_odex_fd_.reset(open(odex.c_str(), O_RDONLY));
+        first_compilation_vdex_fd_.reset(open(vdex.c_str(), O_RDONLY));
+    }
+
+    virtual void TearDown() {
+        first_compilation_odex_fd_.reset(-1);
+        first_compilation_vdex_fd_.reset(-1);
+        DexoptTest::TearDown();
+    }
+
+  protected:
+    unique_fd first_compilation_odex_fd_;
+    unique_fd first_compilation_vdex_fd_;
+};
+
+TEST_F(PrimaryDexReCompilationTest, DexoptPrimaryUpdateInPlaceVdex) {
+    LOG(INFO) << "DexoptPrimaryUpdateInPlaceVdex";
+
+    CompilePrimaryDexOk("verify",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FOR_BOOT_IMAGE);
+}
 
 class ReconcileTest : public DexoptTest {
     virtual void SetUp() {
@@ -431,17 +626,22 @@ class ProfileTest : public DexoptTest {
     std::string ref_profile_;
     std::string snap_profile_;
 
+    static constexpr const char* kPrimaryProfile = "primary.prof";
+
     virtual void SetUp() {
         DexoptTest::SetUp();
         cur_profile_ = create_current_profile_path(
-                kTestUserId, package_name_, /*is_secondary_dex*/ false);
-        ref_profile_ = create_reference_profile_path(package_name_, /*is_secondary_dex*/ false);
-        snap_profile_ = create_snapshot_profile_path(package_name_, "base.jar");
+                kTestUserId, package_name_, kPrimaryProfile, /*is_secondary_dex*/ false);
+        ref_profile_ = create_reference_profile_path(package_name_, kPrimaryProfile,
+                /*is_secondary_dex*/ false);
+        snap_profile_ = create_snapshot_profile_path(package_name_, kPrimaryProfile);
     }
 
-    void SetupProfile(const std::string& path, uid_t uid, gid_t gid, mode_t mode, int32_t seed) {
-        run_cmd("profman --generate-test-profile-seed=" + std::to_string(seed) +
-                " --generate-test-profile-num-dex=2 --generate-test-profile=" + path);
+    void SetupProfile(const std::string& path, uid_t uid, gid_t gid, mode_t mode,
+            int32_t num_dex) {
+        run_cmd("profman --generate-test-profile-seed=" + std::to_string(num_dex) +
+                " --generate-test-profile-num-dex=" + std::to_string(num_dex) +
+                " --generate-test-profile=" + path);
         ::chmod(path.c_str(), mode);
         ::chown(path.c_str(), uid, gid);
     }
@@ -449,7 +649,7 @@ class ProfileTest : public DexoptTest {
     void SetupProfiles(bool setup_ref) {
         SetupProfile(cur_profile_, kTestAppUid, kTestAppGid, 0600, 1);
         if (setup_ref) {
-            SetupProfile(ref_profile_, kTestAppUid, kTestAppGid, 0060, 2);
+            SetupProfile(ref_profile_, kTestAppUid, kTestAppGid, 0600, 2);
         }
     }
 
@@ -457,7 +657,7 @@ class ProfileTest : public DexoptTest {
             bool expected_result) {
         bool result;
         binder::Status binder_result = service_->createProfileSnapshot(
-                appid, package_name, "base.jar", &result);
+                appid, package_name, kPrimaryProfile, apk_path_, &result);
         ASSERT_TRUE(binder_result.isOk());
         ASSERT_EQ(expected_result, result);
 
@@ -475,7 +675,8 @@ class ProfileTest : public DexoptTest {
         run_cmd("touch " + expected_profile_content);
         run_cmd("profman --profile-file=" + cur_profile_ +
                 " --profile-file=" + ref_profile_ +
-                " --reference-profile-file=" + expected_profile_content);
+                " --reference-profile-file=" + expected_profile_content +
+                " --apk=" + apk_path_);
 
         ASSERT_TRUE(AreFilesEqual(expected_profile_content, snap_profile_));
 
@@ -493,7 +694,62 @@ class ProfileTest : public DexoptTest {
         ASSERT_TRUE(WIFEXITED(wait_child(pid)));
     }
 
-  private:
+    void mergePackageProfiles(const std::string& package_name,
+                              const std::string& code_path,
+                              bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->mergeProfiles(
+                kTestAppUid, package_name, code_path, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        // Check that the snapshot was created witht he expected acess flags.
+        CheckFileAccess(ref_profile_, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+
+        // The snapshot should be equivalent to the merge of profiles.
+        std::string ref_profile_content = ref_profile_ + ".expected";
+        run_cmd("rm -f " + ref_profile_content);
+        run_cmd("touch " + ref_profile_content);
+        run_cmd("profman --profile-file=" + cur_profile_ +
+                " --profile-file=" + ref_profile_ +
+                " --reference-profile-file=" + ref_profile_content);
+
+        ASSERT_TRUE(AreFilesEqual(ref_profile_content, ref_profile_));
+    }
+
+    // TODO(calin): add dex metadata tests once the ART change is merged.
+    void preparePackageProfile(const std::string& package_name, const std::string& profile_name,
+            bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->prepareAppProfile(
+                package_name, kTestUserId, kTestAppId, profile_name, /*code path*/ "base.apk",
+                /*dex_metadata*/ nullptr, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        std::string code_path_cur_prof = create_current_profile_path(
+                kTestUserId, package_name, profile_name, /*is_secondary_dex*/ false);
+        std::string code_path_ref_profile = create_reference_profile_path(package_name,
+                profile_name, /*is_secondary_dex*/ false);
+
+        // Check that we created the current profile.
+        CheckFileAccess(code_path_cur_prof, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
+
+        // Without dex metadata we don't generate a reference profile.
+        ASSERT_EQ(-1, access(code_path_ref_profile.c_str(), R_OK));
+    }
+
+  protected:
     void TransitionToSystemServer() {
         ASSERT_TRUE(DropCapabilities(kSystemUid, kSystemGid));
         int32_t res = selinux_android_setcontext(
@@ -559,11 +815,34 @@ TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     SetupProfiles(/*setup_ref*/ true);
     createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 
-    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, "base.jar");
+    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, kPrimaryProfile);
     ASSERT_TRUE(binder_result.isOk());
     struct stat st;
     ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
     ASSERT_EQ(ENOENT, errno);
+}
+
+TEST_F(ProfileTest, ProfileMergeOk) {
+    LOG(INFO) << "ProfileMergeOk";
+
+    SetupProfiles(/*setup_ref*/ true);
+    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
+}
+
+// The reference profile is created on the fly. We need to be able to
+// merge without one.
+TEST_F(ProfileTest, ProfileMergeOkNoReference) {
+    LOG(INFO) << "ProfileMergeOkNoReference";
+
+    SetupProfiles(/*setup_ref*/ false);
+    mergePackageProfiles(package_name_, "primary.prof", /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfileMergeFailWrongPackage) {
+    LOG(INFO) << "ProfileMergeFailWrongPackage";
+
+    SetupProfiles(/*setup_ref*/ true);
+    mergePackageProfiles("not.there", "primary.prof", /*expected_result*/ false);
 }
 
 TEST_F(ProfileTest, ProfileDirOk) {
@@ -572,11 +851,10 @@ TEST_F(ProfileTest, ProfileDirOk) {
     std::string cur_profile_dir = create_primary_current_profile_package_dir_path(
             kTestUserId, package_name_);
     std::string cur_profile_file = create_current_profile_path(kTestUserId, package_name_,
-            /*is_secondary_dex*/false);
+            kPrimaryProfile, /*is_secondary_dex*/false);
     std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
 
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
-    CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
     CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
 }
 
@@ -588,7 +866,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     std::string cur_profile_dir = create_primary_current_profile_package_dir_path(
             kTestUserId, package_name_);
     std::string cur_profile_file = create_current_profile_path(kTestUserId, package_name_,
-            /*is_secondary_dex*/false);
+            kPrimaryProfile, /*is_secondary_dex*/false);
     std::string ref_profile_dir = create_primary_reference_profile_package_dir_path(package_name_);
 
     // Simulate a pre-P setup by changing the owner to kTestAppGid and permissions to 0700.
@@ -608,8 +886,131 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
 
     // Check the file access.
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
-    CheckFileAccess(cur_profile_file, kTestAppUid, kTestAppUid, 0600 | S_IFREG);
     CheckFileAccess(ref_profile_dir, kSystemUid, kTestAppGid, 0770 | S_IFDIR);
+}
+
+TEST_F(ProfileTest, ProfilePrepareOk) {
+    LOG(INFO) << "ProfilePrepareOk";
+    preparePackageProfile(package_name_, "split.prof", /*expected_result*/ true);
+}
+
+TEST_F(ProfileTest, ProfilePrepareFailInvalidPackage) {
+    LOG(INFO) << "ProfilePrepareFailInvalidPackage";
+    preparePackageProfile("not.there.package", "split.prof", /*expected_result*/ false);
+}
+
+TEST_F(ProfileTest, ProfilePrepareFailProfileChangedUid) {
+    LOG(INFO) << "ProfilePrepareFailProfileChangedUid";
+    SetupProfiles(/*setup_ref*/ false);
+    // Change the uid on the profile to trigger a failure.
+    ::chown(cur_profile_.c_str(), kTestAppUid + 1, kTestAppGid + 1);
+    preparePackageProfile(package_name_, "primary.prof", /*expected_result*/ false);
+}
+
+
+class BootProfileTest : public ProfileTest {
+  public:
+    virtual void setup() {
+        ProfileTest::SetUp();
+        intial_android_profiles_dir = android_profiles_dir;
+    }
+
+    virtual void TearDown() {
+        android_profiles_dir = intial_android_profiles_dir;
+        ProfileTest::TearDown();
+    }
+
+    void UpdateAndroidProfilesDir(const std::string& profile_dir) {
+        android_profiles_dir = profile_dir;
+        // We need to create the reference profile directory in the new profile dir.
+        run_cmd("mkdir -p " + profile_dir + "/ref");
+    }
+
+    void createBootImageProfileSnapshot(const std::string& classpath, bool expected_result) {
+        bool result;
+        binder::Status binder_result = service_->createProfileSnapshot(
+                -1, "android", "android.prof", classpath, &result);
+        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_EQ(expected_result, result);
+
+        if (!expected_result) {
+            // Do not check the files if we expect to fail.
+            return;
+        }
+
+        // Check that the snapshot was created with he expected access flags.
+        const std::string boot_profile = create_snapshot_profile_path("android", "android.prof");
+        CheckFileAccess(boot_profile, kSystemUid, kSystemGid, 0600 | S_IFREG);
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            /* child */
+            TransitionToSystemServer();
+
+            // System server should be able to open the snapshot.
+            unique_fd fd(open(boot_profile.c_str(), O_RDONLY));
+            ASSERT_TRUE(fd > -1) << "Failed to open profile as kSystemUid: " << strerror(errno);
+            _exit(0);
+        }
+        /* parent */
+        ASSERT_TRUE(WIFEXITED(wait_child(pid)));
+    }
+  protected:
+    std::string intial_android_profiles_dir;
+};
+
+TEST_F(BootProfileTest, BootProfileSnapshotOk) {
+    LOG(INFO) << "BootProfileSnapshotOk";
+    char* boot_classpath = getenv("BOOTCLASSPATH");
+    ASSERT_TRUE(boot_classpath != nullptr);
+    createBootImageProfileSnapshot(boot_classpath, /*expected_result*/ true);
+}
+
+TEST_F(BootProfileTest, BootProfileSnapshotFailEmptyClasspath) {
+    LOG(INFO) << "BootProfileSnapshotFailEmptyClasspath";
+
+    createBootImageProfileSnapshot(/*boot_classpath*/ "", /*expected_result*/ false);
+}
+
+TEST_F(BootProfileTest, BootProfileSnapshotOkNoProfiles) {
+    LOG(INFO) << "BootProfileSnapshotOkNoProfiles";
+    char* boot_classpath = getenv("BOOTCLASSPATH");
+    ASSERT_TRUE(boot_classpath != nullptr);
+
+    // The app_apk_dir has no profiles. So we shouldn't be able to merge anything.
+    // Still, this is not a failure case.
+    UpdateAndroidProfilesDir(app_apk_dir_);
+    createBootImageProfileSnapshot(boot_classpath, /*expected_result*/ true);
+}
+
+// Verify that profile collection.
+TEST_F(BootProfileTest, CollectProfiles) {
+    LOG(INFO) << "CollectProfiles";
+
+    // Create some profile directories mimicking the real profile structure.
+    run_cmd("mkdir -p " + app_private_dir_de_ + "/profiles/ref");
+    run_cmd("mkdir -p " + app_private_dir_de_ + "/profiles/cur/0/");
+    run_cmd("mkdir -p " + app_private_dir_de_ + "/profiles/cur/1/");
+    // Create an empty profile.
+    run_cmd("touch " + app_private_dir_de_ + "/profiles/cur/1/primary.prof");
+    // Create a random file.
+    run_cmd("touch " + app_private_dir_de_ + "/profiles/cur/0/non.profile.file");
+
+    // Create some non-empty profiles.
+    std::string current_prof = app_private_dir_de_ + "/profiles/cur/0/primary.prof";
+    run_cmd("echo 1 > " + current_prof);
+    std::string ref_prof = app_private_dir_de_ + "/profiles/ref/primary.prof";
+    run_cmd("echo 1 > " + ref_prof);
+
+    UpdateAndroidProfilesDir(app_private_dir_de_ + "/profiles");
+
+    std::vector<std::string> profiles;
+    collect_profiles(&profiles);
+
+    // Only two profiles should be in the output.
+    ASSERT_EQ(2u, profiles.size());
+    ASSERT_TRUE(std::find(profiles.begin(), profiles.end(), current_prof) != profiles.end());
+    ASSERT_TRUE(std::find(profiles.begin(), profiles.end(), ref_prof) != profiles.end());
 }
 
 }  // namespace installd

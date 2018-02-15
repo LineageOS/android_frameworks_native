@@ -85,22 +85,25 @@ public:
             const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
             const std::unique_ptr<std::string>& classLoaderContext,
             const std::unique_ptr<std::string>& seInfo, bool downgrade,
-            int32_t targetSdkVersion);
+            int32_t targetSdkVersion, const std::unique_ptr<std::string>& profileName,
+            const std::unique_ptr<std::string>& dexMetadataPath);
 
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
-    binder::Status mergeProfiles(int32_t uid, const std::string& packageName, bool* _aidl_return);
+    binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
+            const std::string& profileName, bool* _aidl_return);
     binder::Status dumpProfiles(int32_t uid, const std::string& packageName,
-            const std::string& codePaths, bool* _aidl_return);
+            const std::string& profileName, const std::string& codePath, bool* _aidl_return);
     binder::Status copySystemProfile(const std::string& systemProfile,
-            int32_t uid, const std::string& packageName, bool* _aidl_return);
-    binder::Status clearAppProfiles(const std::string& packageName);
+            int32_t uid, const std::string& packageName, const std::string& profileName,
+            bool* _aidl_return);
+    binder::Status clearAppProfiles(const std::string& packageName, const std::string& profileName);
     binder::Status destroyAppProfiles(const std::string& packageName);
 
     binder::Status createProfileSnapshot(int32_t appId, const std::string& packageName,
-            const std::string& codePath, bool* _aidl_return);
+            const std::string& profileName, const std::string& classpath, bool* _aidl_return);
     binder::Status destroyProfileSnapshot(const std::string& packageName,
-            const std::string& codePath);
+            const std::string& profileName);
 
     binder::Status idmap(const std::string& targetApkPath, const std::string& overlayApkPath,
             int32_t uid);
@@ -123,9 +126,17 @@ public:
     binder::Status reconcileSecondaryDexFile(const std::string& dexPath,
         const std::string& packageName, int32_t uid, const std::vector<std::string>& isa,
         const std::unique_ptr<std::string>& volumeUuid, int32_t storage_flag, bool* _aidl_return);
+    binder::Status hashSecondaryDexFile(const std::string& dexPath,
+        const std::string& packageName, int32_t uid, const std::unique_ptr<std::string>& volumeUuid,
+        int32_t storageFlag, std::vector<uint8_t>* _aidl_return);
 
     binder::Status invalidateMounts();
     binder::Status isQuotaSupported(const std::unique_ptr<std::string>& volumeUuid,
+            bool* _aidl_return);
+
+    binder::Status prepareAppProfile(const std::string& packageName,
+            int32_t userId, int32_t appId, const std::string& profileName,
+            const std::string& codePath, const std::unique_ptr<std::string>& dexMetadata,
             bool* _aidl_return);
 
 private:

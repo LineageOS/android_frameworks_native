@@ -26,7 +26,9 @@
 #include <sys/statvfs.h>
 
 #include <android-base/logging.h>
+#include <android-base/strings.h>
 #include <android-base/stringprintf.h>
+#include <android-base/unique_fd.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <log/log.h>
@@ -40,7 +42,9 @@
 
 #define DEBUG_XATTRS 0
 
+using android::base::EndsWith;
 using android::base::StringPrintf;
+using android::base::unique_fd;
 
 namespace android {
 namespace installd {
@@ -235,7 +239,6 @@ std::string create_data_dalvik_cache_path() {
 // Keep profile paths in sync with ActivityThread and LoadedApk.
 const std::string PROFILE_EXT = ".prof";
 const std::string CURRENT_PROFILE_EXT = ".cur";
-const std::string PRIMARY_PROFILE_NAME = "primary" + PROFILE_EXT;
 const std::string SNAPSHOT_PROFILE_EXT = ".snapshot";
 
 // Gets the parent directory and the file name for the given secondary dex path.
@@ -256,8 +259,8 @@ static bool get_secondary_dex_location(const std::string& dex_path,
    return true;
 }
 
-std::string create_current_profile_path(userid_t user, const std::string& location,
-        bool is_secondary_dex) {
+std::string create_current_profile_path(userid_t user, const std::string& package_name,
+        const std::string& location, bool is_secondary_dex) {
     if (is_secondary_dex) {
         // Secondary dex current profiles are stored next to the dex files under the oat folder.
         std::string dex_dir;
@@ -269,12 +272,14 @@ std::string create_current_profile_path(userid_t user, const std::string& locati
                 PROFILE_EXT.c_str());
     } else {
         // Profiles for primary apks are under /data/misc/profiles/cur.
-        std::string profile_dir = create_primary_current_profile_package_dir_path(user, location);
-        return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME.c_str());
+        std::string profile_dir = create_primary_current_profile_package_dir_path(
+                user, package_name);
+        return StringPrintf("%s/%s", profile_dir.c_str(), location.c_str());
     }
 }
 
-std::string create_reference_profile_path(const std::string& location, bool is_secondary_dex) {
+std::string create_reference_profile_path(const std::string& package_name,
+        const std::string& location, bool is_secondary_dex) {
     if (is_secondary_dex) {
         // Secondary dex reference profiles are stored next to the dex files under the oat folder.
         std::string dex_dir;
@@ -285,16 +290,15 @@ std::string create_reference_profile_path(const std::string& location, bool is_s
                 dex_dir.c_str(), dex_name.c_str(), PROFILE_EXT.c_str());
     } else {
         // Reference profiles for primary apks are stored in /data/misc/profile/ref.
-        std::string profile_dir = create_primary_reference_profile_package_dir_path(location);
-        return StringPrintf("%s/%s", profile_dir.c_str(), PRIMARY_PROFILE_NAME.c_str());
+        std::string profile_dir = create_primary_reference_profile_package_dir_path(package_name);
+        return StringPrintf("%s/%s", profile_dir.c_str(), location.c_str());
     }
 }
 
 std::string create_snapshot_profile_path(const std::string& package,
-        const std::string& code_path ATTRIBUTE_UNUSED) {
-    // TODD(calin): code_path is ignored for now. It will be used when each split gets its own
-    // profile file.
-    std::string ref_profile = create_reference_profile_path(package, /*is_secondary_dex*/ false);
+        const std::string& profile_name) {
+    std::string ref_profile = create_reference_profile_path(package, profile_name,
+            /*is_secondary_dex*/ false);
     return ref_profile + SNAPSHOT_PROFILE_EXT;
 }
 
@@ -982,6 +986,76 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
     }
     fts_close(fts);
     return 0;
+}
+
+// Collect all non empty profiles from the given directory and puts then into profile_paths.
+// The profiles are identified based on PROFILE_EXT extension.
+// If a subdirectory or profile file cannot be opened the method logs a warning and moves on.
+// It returns true if there were no errors at all, and false otherwise.
+static bool collect_profiles(DIR* d,
+                             const std::string& current_path,
+                             std::vector<std::string>* profiles_paths) {
+    int32_t dir_fd = dirfd(d);
+    if (dir_fd < 0) {
+        return false;
+    }
+
+    bool result = true;
+    struct dirent* dir_entry;
+    while ((dir_entry = readdir(d))) {
+        std::string name = dir_entry->d_name;
+        std::string local_path = current_path + "/" + name;
+
+        if (dir_entry->d_type == DT_REG) {
+            // Check if this is a non empty profile file.
+            if (EndsWith(name, PROFILE_EXT)) {
+                struct stat st;
+                if (stat(local_path.c_str(), &st) != 0) {
+                    PLOG(WARNING) << "Cannot stat local path " << local_path;
+                    result = false;
+                    continue;
+                } else if (st.st_size > 0) {
+                    profiles_paths->push_back(local_path);
+                }
+            }
+        } else if (dir_entry->d_type == DT_DIR) {
+            // always skip "." and ".."
+            if (name == "." || name == "..") {
+                continue;
+            }
+
+            unique_fd subdir_fd(openat(dir_fd, name.c_str(),
+                    O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC));
+            if (subdir_fd < 0) {
+                PLOG(WARNING) << "Could not open dir path " << local_path;
+                result = false;
+                continue;
+            }
+
+            DIR* subdir = fdopendir(subdir_fd);
+            if (subdir == NULL) {
+                PLOG(WARNING) << "Could not open dir path " << local_path;
+                result = false;
+                continue;
+            }
+            bool new_result = collect_profiles(subdir, local_path, profiles_paths);
+            result = result && new_result;
+            if (closedir(subdir) != 0) {
+                PLOG(WARNING) << "Could not close dir path " << local_path;
+            }
+        }
+    }
+
+    return result;
+}
+
+bool collect_profiles(std::vector<std::string>* profiles_paths) {
+    DIR* d = opendir(android_profiles_dir.c_str());
+    if (d == NULL) {
+        return false;
+    } else {
+        return collect_profiles(d, android_profiles_dir, profiles_paths);
+    }
 }
 
 }  // namespace installd

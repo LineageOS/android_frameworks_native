@@ -337,34 +337,50 @@ TEST_F(UtilsTest, CreateDataRefProfilePackagePath) {
 }
 
 TEST_F(UtilsTest, CreatePrimaryCurrentProfile) {
-    std::string expected =
+    std::string expected_base =
         create_primary_current_profile_package_dir_path(0, "com.example") + "/primary.prof";
-    EXPECT_EQ(expected,
-            create_current_profile_path(/*user*/0, "com.example", /*is_secondary*/false));
+    EXPECT_EQ(expected_base,
+            create_current_profile_path(/*user*/0, "com.example", "primary.prof",
+                    /*is_secondary*/false));
+
+    std::string expected_split =
+        create_primary_current_profile_package_dir_path(0, "com.example") + "/split.prof";
+    EXPECT_EQ(expected_split,
+            create_current_profile_path(/*user*/0, "com.example", "split.prof",
+                    /*is_secondary*/false));
 }
 
 TEST_F(UtilsTest, CreatePrimaryReferenceProfile) {
-    std::string expected =
+    std::string expected_base =
         create_primary_reference_profile_package_dir_path("com.example") + "/primary.prof";
-    EXPECT_EQ(expected,
-            create_reference_profile_path("com.example", /*is_secondary*/false));
+    EXPECT_EQ(expected_base,
+            create_reference_profile_path("com.example", "primary.prof", /*is_secondary*/false));
+
+    std::string expected_split =
+        create_primary_reference_profile_package_dir_path("com.example") + "/split.prof";
+    EXPECT_EQ(expected_split,
+            create_reference_profile_path("com.example", "split.prof", /*is_secondary*/false));
 }
 
 TEST_F(UtilsTest, CreateProfileSnapshot) {
-    std::string expected =
+    std::string expected_base =
         create_primary_reference_profile_package_dir_path("com.example") + "/primary.prof.snapshot";
-    EXPECT_EQ(expected, create_snapshot_profile_path("com.example", "base.apk"));
+    EXPECT_EQ(expected_base, create_snapshot_profile_path("com.example", "primary.prof"));
+
+    std::string expected_split =
+        create_primary_reference_profile_package_dir_path("com.example") + "/split.prof.snapshot";
+    EXPECT_EQ(expected_split, create_snapshot_profile_path("com.example", "split.prof"));
 }
 
 TEST_F(UtilsTest, CreateSecondaryCurrentProfile) {
     EXPECT_EQ("/data/user/0/com.example/oat/secondary.dex.cur.prof",
-            create_current_profile_path(/*user*/0,
+            create_current_profile_path(/*user*/0, "com.example",
                     "/data/user/0/com.example/secondary.dex", /*is_secondary*/true));
 }
 
 TEST_F(UtilsTest, CreateSecondaryReferenceProfile) {
     EXPECT_EQ("/data/user/0/com.example/oat/secondary.dex.prof",
-            create_reference_profile_path(
+            create_reference_profile_path("com.example",
                     "/data/user/0/com.example/secondary.dex", /*is_secondary*/true));
 }
 
