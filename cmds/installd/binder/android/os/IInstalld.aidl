@@ -87,6 +87,9 @@ interface IInstalld {
         int uid, in @utf8InCpp String[] isas, @nullable @utf8InCpp String volume_uuid,
         int storage_flag);
 
+    byte[] hashSecondaryDexFile(@utf8InCpp String dexPath, @utf8InCpp String pkgName,
+        int uid, @nullable @utf8InCpp String volumeUuid, int storageFlag);
+
     void invalidateMounts();
     boolean isQuotaSupported(@nullable @utf8InCpp String uuid);
 }
