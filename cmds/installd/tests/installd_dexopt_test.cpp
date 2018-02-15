@@ -263,6 +263,7 @@ protected:
         bool downgrade = false;
         int32_t target_sdk_version = 0;  // default
         std::unique_ptr<std::string> profile_name_ptr = nullptr;
+        std::unique_ptr<std::string> dm_path_ptr = nullptr;
 
         binder::Status result = service_->dexopt(path,
                                                  uid,
@@ -277,7 +278,8 @@ protected:
                                                  se_info_ptr,
                                                  downgrade,
                                                  target_sdk_version,
-                                                 profile_name_ptr);
+                                                 profile_name_ptr,
+                                                 dm_path_ptr);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
         int expected_access = should_dex_be_compiled ? 0 : -1;
         std::string odex = GetSecondaryDexArtifact(path, "odex");
@@ -331,9 +333,10 @@ protected:
                              const char* oat_dir,
                              int32_t uid,
                              int32_t dexopt_needed,
+                             const char* dm_path = nullptr,
                              bool downgrade = false) {
         return CompilePrimaryDex(
-                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, downgrade, true);
+                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, dm_path, downgrade, true);
     }
 
     void CompilePrimaryDexFail(std::string compiler_filter,
@@ -341,9 +344,10 @@ protected:
                                const char* oat_dir,
                                int32_t uid,
                                int32_t dexopt_needed,
+                               const char* dm_path = nullptr,
                                bool downgrade = false) {
         return CompilePrimaryDex(
-                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, downgrade, false);
+                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, dm_path, downgrade, false);
     }
 
     void CompilePrimaryDex(std::string compiler_filter,
@@ -351,6 +355,7 @@ protected:
                            const char* oat_dir,
                            int32_t uid,
                            int32_t dexopt_needed,
+                           const char* dm_path,
                            bool downgrade,
                            bool should_binder_call_succeed) {
         std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
@@ -360,6 +365,10 @@ protected:
         std::unique_ptr<std::string> se_info_ptr(new std::string(se_info_));
         int32_t target_sdk_version = 0;  // default
         std::unique_ptr<std::string> profile_name_ptr(new std::string("primary.prof"));
+        std::unique_ptr<std::string> dm_path_ptr = nullptr;
+        if (dm_path != nullptr) {
+            dm_path_ptr.reset(new std::string(dm_path));
+        }
 
         bool prof_result;
         binder::Status prof_binder_result = service_->prepareAppProfile(
@@ -382,7 +391,8 @@ protected:
                                                  se_info_ptr,
                                                  downgrade,
                                                  target_sdk_version,
-                                                 profile_name_ptr);
+                                                 profile_name_ptr,
+                                                 dm_path_ptr);
         ASSERT_EQ(should_binder_call_succeed, result.isOk());
 
         if (!should_binder_call_succeed) {

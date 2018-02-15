@@ -85,7 +85,8 @@ public:
             const std::string& compilerFilter, const std::unique_ptr<std::string>& uuid,
             const std::unique_ptr<std::string>& classLoaderContext,
             const std::unique_ptr<std::string>& seInfo, bool downgrade,
-            int32_t targetSdkVersion, const std::unique_ptr<std::string>& profileName);
+            int32_t targetSdkVersion, const std::unique_ptr<std::string>& profileName,
+            const std::unique_ptr<std::string>& dexMetadataPath);
 
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
