@@ -98,6 +98,10 @@ namespace {
 
 constexpr const char* kDump = "android.permission.DUMP";
 
+// TODO(calin): We can stop hardcoding this here once the PM passes the profile
+// name for all profile related operations.
+constexpr const char* kPrimaryProfileName = "primary.prof";
+
 static binder::Status ok() {
     return binder::Status::ok();
 }
@@ -366,8 +370,9 @@ static bool prepare_app_profile_dir(const std::string& packageName, int32_t appI
         PLOG(ERROR) << "Failed to prepare " << profile_dir;
         return false;
     }
+
     const std::string profile_file = create_current_profile_path(userId, packageName,
-            /*is_secondary_dex*/false);
+            kPrimaryProfileName, /*is_secondary_dex*/false);
     // read-write only for the app user.
     if (fs_prepare_file_strict(profile_file.c_str(), 0600, uid, uid) != 0) {
         PLOG(ERROR) << "Failed to prepare " << profile_file;
@@ -528,10 +533,10 @@ binder::Status InstalldNativeService::clearAppProfiles(const std::string& packag
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     binder::Status res = ok();
-    if (!clear_primary_reference_profile(packageName)) {
+    if (!clear_primary_reference_profile(packageName, kPrimaryProfileName)) {
         res = error("Failed to clear reference profile for " + packageName);
     }
-    if (!clear_primary_current_profiles(packageName)) {
+    if (!clear_primary_current_profiles(packageName, kPrimaryProfileName)) {
         res = error("Failed to clear current profiles for " + packageName);
     }
     return res;
@@ -582,7 +587,7 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
             }
         }
         if (!only_cache) {
-            if (!clear_primary_current_profile(packageName, userId)) {
+            if (!clear_primary_current_profile(packageName, kPrimaryProfileName, userId)) {
                 res = error("Failed to clear current profile for " + packageName);
             }
         }
@@ -1851,7 +1856,8 @@ binder::Status InstalldNativeService::copySystemProfile(const std::string& syste
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
-    *_aidl_return = copy_system_profile(systemProfile, packageUid, packageName);
+    *_aidl_return = copy_system_profile(systemProfile, packageUid, packageName,
+            kPrimaryProfileName);
     return ok();
 }
 
@@ -1862,29 +1868,29 @@ binder::Status InstalldNativeService::mergeProfiles(int32_t uid, const std::stri
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    *_aidl_return = analyze_primary_profiles(uid, packageName);
+    *_aidl_return = analyze_primary_profiles(uid, packageName, kPrimaryProfileName);
     return ok();
 }
 
 binder::Status InstalldNativeService::createProfileSnapshot(int32_t appId,
-        const std::string& packageName, const std::string& codePath, bool* _aidl_return) {
+        const std::string& packageName, const std::string& profileName, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    *_aidl_return = create_profile_snapshot(appId, packageName, codePath);
+    *_aidl_return = create_profile_snapshot(appId, packageName, profileName);
     return ok();
 }
 
 binder::Status InstalldNativeService::destroyProfileSnapshot(const std::string& packageName,
-        const std::string& codePath) {
+        const std::string& profileName) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    std::string snapshot = create_snapshot_profile_path(packageName, codePath);
+    std::string snapshot = create_snapshot_profile_path(packageName, profileName);
     if ((unlink(snapshot.c_str()) != 0) && (errno != ENOENT)) {
-        return error("Failed to destroy profile snapshot for " + packageName + ":" + codePath);
+        return error("Failed to destroy profile snapshot for " + packageName + ":" + profileName);
     }
     return ok();
 }
@@ -1910,9 +1916,10 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
     const char* volume_uuid = uuid ? uuid->c_str() : nullptr;
     const char* class_loader_context = classLoaderContext ? classLoaderContext->c_str() : nullptr;
     const char* se_info = seInfo ? seInfo->c_str() : nullptr;
+
     int res = android::installd::dexopt(apk_path, uid, pkgname, instruction_set, dexoptNeeded,
             oat_dir, dexFlags, compiler_filter, volume_uuid, class_loader_context, se_info,
-            downgrade, targetSdkVersion);
+            downgrade, targetSdkVersion, kPrimaryProfileName);
     return res ? error(res, "Failed to dexopt") : ok();
 }
 

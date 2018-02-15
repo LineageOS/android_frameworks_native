@@ -33,24 +33,25 @@ static constexpr int DEX2OAT_FOR_BOOT_IMAGE      = 2;
 static constexpr int DEX2OAT_FOR_FILTER          = 3;
 static constexpr int DEX2OAT_FOR_RELOCATION      = 4;
 
-// Clear the reference profile for the primary apk of the given package.
-bool clear_primary_reference_profile(const std::string& pkgname);
-// Clear the current profile for the primary apk of the given package and user.
-bool clear_primary_current_profile(const std::string& pkgname, userid_t user);
-// Clear all current profile for the primary apk of the given package.
-bool clear_primary_current_profiles(const std::string& pkgname);
-
-bool move_ab(const char* apk_path, const char* instruction_set, const char* output_path);
+// Clear the reference profile identified by the given profile name.
+bool clear_primary_reference_profile(const std::string& pkgname, const std::string& profile_name);
+// Clear the current profile identified by the given profile name (for single user).
+bool clear_primary_current_profile(const std::string& pkgname, const std::string& profile_name,
+         userid_t user);
+// Clear all current profiles identified by the given profile name (all users).
+bool clear_primary_current_profiles(const std::string& pkgname, const std::string& profile_name);
 
 // Decide if profile guided compilation is needed or not based on existing profiles.
-// The analysis is done for the primary apks (base + splits) of the given package.
+// The analysis is done for a single profile name (which corresponds to a single code path).
 // Returns true if there is enough information in the current profiles that makes it
 // worth to recompile the package.
 // If the return value is true all the current profiles would have been merged into
 // the reference profiles accessible with open_reference_profile().
-bool analyze_primary_profiles(uid_t uid, const std::string& pkgname);
+bool analyze_primary_profiles(uid_t uid,
+                              const std::string& pkgname,
+                              const std::string& profile_name);
 
-// Create a snapshot of the profile information for the given package and code path.
+// Create a snapshot of the profile information for the given package profile.
 // The profile snapshot is the aggregation of all existing profiles (all current user
 // profiles & the reference profile) and is meant to capture the all the profile information
 // without performing a merge into the reference profile which might impact future dex2oat
@@ -60,13 +61,14 @@ bool analyze_primary_profiles(uid_t uid, const std::string& pkgname);
 // The snapshot location is reference_profile_location.snapshot. If a snapshot is already
 // there, it will be truncated and overwritten.
 bool create_profile_snapshot(int32_t app_id, const std::string& package,
-        const std::string& code_path);
+        const std::string& profile_name);
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_paths);
 
 bool copy_system_profile(const std::string& system_profile,
                          uid_t packageUid,
-                         const std::string& data_profile_location);
+                         const std::string& pkgname,
+                         const std::string& profile_name);
 
 bool delete_odex(const char* apk_path, const char* instruction_set, const char* output_path);
 
@@ -82,7 +84,7 @@ bool hash_secondary_dex_file(const std::string& dex_path,
 int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
-        bool downgrade, int target_sdk_version);
+        bool downgrade, int target_sdk_version, const char* profile_name);
 
 bool calculate_oat_file_path_default(char path[PKG_PATH_MAX], const char *oat_dir,
         const char *apk_path, const char *instruction_set);
@@ -92,6 +94,8 @@ bool calculate_odex_file_path_default(char path[PKG_PATH_MAX], const char *apk_p
 
 bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
         const char *instruction_set);
+
+bool move_ab(const char* apk_path, const char* instruction_set, const char* output_path);
 
 }  // namespace installd
 }  // namespace android

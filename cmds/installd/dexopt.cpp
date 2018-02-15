@@ -137,37 +137,43 @@ static bool clear_profile(const std::string& profile) {
 }
 
 // Clear the reference profile for the given location.
-// The location is the package name for primary apks or the dex path for secondary dex files.
-static bool clear_reference_profile(const std::string& location, bool is_secondary_dex) {
-    return clear_profile(create_reference_profile_path(location, is_secondary_dex));
+// The location is the profile name for primary apks or the dex path for secondary dex files.
+static bool clear_reference_profile(const std::string& package_name, const std::string& location,
+        bool is_secondary_dex) {
+    return clear_profile(create_reference_profile_path(package_name, location, is_secondary_dex));
 }
 
 // Clear the reference profile for the given location.
-// The location is the package name for primary apks or the dex path for secondary dex files.
-static bool clear_current_profile(const std::string& pkgname, userid_t user,
-        bool is_secondary_dex) {
-    return clear_profile(create_current_profile_path(user, pkgname, is_secondary_dex));
+// The location is the profile name for primary apks or the dex path for secondary dex files.
+static bool clear_current_profile(const std::string& package_name, const std::string& location,
+        userid_t user, bool is_secondary_dex) {
+    return clear_profile(create_current_profile_path(user, package_name, location,
+            is_secondary_dex));
 }
 
 // Clear the reference profile for the primary apk of the given package.
-bool clear_primary_reference_profile(const std::string& pkgname) {
-    return clear_reference_profile(pkgname, /*is_secondary_dex*/false);
+// The location is the profile name for primary apks or the dex path for secondary dex files.
+bool clear_primary_reference_profile(const std::string& package_name,
+        const std::string& location) {
+    return clear_reference_profile(package_name, location, /*is_secondary_dex*/false);
 }
 
 // Clear all current profile for the primary apk of the given package.
-bool clear_primary_current_profiles(const std::string& pkgname) {
+// The location is the profile name for primary apks or the dex path for secondary dex files.
+bool clear_primary_current_profiles(const std::string& package_name, const std::string& location) {
     bool success = true;
     // For secondary dex files, we don't really need the user but we use it for sanity checks.
     std::vector<userid_t> users = get_known_users(/*volume_uuid*/ nullptr);
     for (auto user : users) {
-        success &= clear_current_profile(pkgname, user, /*is_secondary_dex*/false);
+        success &= clear_current_profile(package_name, location, user, /*is_secondary_dex*/false);
     }
     return success;
 }
 
 // Clear the current profile for the primary apk of the given package and user.
-bool clear_primary_current_profile(const std::string& pkgname, userid_t user) {
-    return clear_current_profile(pkgname, user, /*is_secondary_dex*/false);
+bool clear_primary_current_profile(const std::string& package_name, const std::string& location,
+        userid_t user) {
+    return clear_current_profile(package_name, location, user, /*is_secondary_dex*/false);
 }
 
 static int split_count(const char *str)
@@ -638,29 +644,31 @@ static unique_fd open_profile(uid_t uid, const std::string& profile, int32_t fla
     return fd;
 }
 
-static unique_fd open_current_profile(uid_t uid, userid_t user, const std::string& location,
-        bool is_secondary_dex) {
-    std::string profile = create_current_profile_path(user, location, is_secondary_dex);
+static unique_fd open_current_profile(uid_t uid, userid_t user, const std::string& package_name,
+        const std::string& location, bool is_secondary_dex) {
+    std::string profile = create_current_profile_path(user, package_name, location,
+            is_secondary_dex);
     return open_profile(uid, profile, O_RDONLY);
 }
 
-static unique_fd open_reference_profile(uid_t uid, const std::string& location, bool read_write,
-        bool is_secondary_dex) {
-    std::string profile = create_reference_profile_path(location, is_secondary_dex);
+static unique_fd open_reference_profile(uid_t uid, const std::string& package_name,
+        const std::string& location, bool read_write, bool is_secondary_dex) {
+    std::string profile = create_reference_profile_path(package_name, location, is_secondary_dex);
     return open_profile(uid, profile, read_write ? (O_CREAT | O_RDWR) : O_RDONLY);
 }
 
 static unique_fd open_spnashot_profile(uid_t uid, const std::string& package_name,
-        const std::string& code_path) {
-    std::string profile = create_snapshot_profile_path(package_name, code_path);
+        const std::string& location) {
+    std::string profile = create_snapshot_profile_path(package_name, location);
     return open_profile(uid, profile, O_CREAT | O_RDWR | O_TRUNC);
 }
 
-static void open_profile_files(uid_t uid, const std::string& location, bool is_secondary_dex,
+static void open_profile_files(uid_t uid, const std::string& package_name,
+            const std::string& location, bool is_secondary_dex,
             /*out*/ std::vector<unique_fd>* profiles_fd, /*out*/ unique_fd* reference_profile_fd) {
     // Open the reference profile in read-write mode as profman might need to save the merge.
-    *reference_profile_fd = open_reference_profile(uid, location, /*read_write*/ true,
-            is_secondary_dex);
+    *reference_profile_fd = open_reference_profile(uid, package_name, location,
+            /*read_write*/ true, is_secondary_dex);
 
     // For secondary dex files, we don't really need the user but we use it for sanity checks.
     // Note: the user owning the dex file should be the current user.
@@ -671,7 +679,8 @@ static void open_profile_files(uid_t uid, const std::string& location, bool is_s
         users = get_known_users(/*volume_uuid*/ nullptr);
     }
     for (auto user : users) {
-        unique_fd profile_fd = open_current_profile(uid, user, location, is_secondary_dex);
+        unique_fd profile_fd = open_current_profile(uid, user, package_name, location,
+                is_secondary_dex);
         // Add to the lists only if both fds are valid.
         if (profile_fd.get() >= 0) {
             profiles_fd->push_back(std::move(profile_fd));
@@ -742,10 +751,12 @@ static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
 // worth to recompile the given location.
 // If the return value is true all the current profiles would have been merged into
 // the reference profiles accessible with open_reference_profile().
-static bool analyze_profiles(uid_t uid, const std::string& location, bool is_secondary_dex) {
+static bool analyze_profiles(uid_t uid, const std::string& package_name,
+        const std::string& location, bool is_secondary_dex) {
     std::vector<unique_fd> profiles_fd;
     unique_fd reference_profile_fd;
-    open_profile_files(uid, location, is_secondary_dex, &profiles_fd, &reference_profile_fd);
+    open_profile_files(uid, package_name, location, is_secondary_dex,
+        &profiles_fd, &reference_profile_fd);
     if (profiles_fd.empty() || (reference_profile_fd.get() < 0)) {
         // Skip profile guided compilation because no profiles were found.
         // Or if the reference profile info couldn't be opened.
@@ -807,13 +818,14 @@ static bool analyze_profiles(uid_t uid, const std::string& location, bool is_sec
     if (should_clear_current_profiles) {
         if (is_secondary_dex) {
             // For secondary dex files, the owning user is the current user.
-            clear_current_profile(location, multiuser_get_user_id(uid), is_secondary_dex);
+            clear_current_profile(package_name, location, multiuser_get_user_id(uid),
+                    is_secondary_dex);
         } else  {
-            clear_primary_current_profiles(location);
+            clear_primary_current_profiles(package_name, location);
         }
     }
     if (should_clear_reference_profile) {
-        clear_reference_profile(location, is_secondary_dex);
+        clear_reference_profile(package_name, location, is_secondary_dex);
     }
     return need_to_compile;
 }
@@ -824,8 +836,9 @@ static bool analyze_profiles(uid_t uid, const std::string& location, bool is_sec
 // worth to recompile the package.
 // If the return value is true all the current profiles would have been merged into
 // the reference profiles accessible with open_reference_profile().
-bool analyze_primary_profiles(uid_t uid, const std::string& pkgname) {
-    return analyze_profiles(uid, pkgname, /*is_secondary_dex*/false);
+bool analyze_primary_profiles(uid_t uid, const std::string& package_name,
+        const std::string& profile_name) {
+    return analyze_profiles(uid, package_name, profile_name, /*is_secondary_dex*/false);
 }
 
 static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
@@ -868,7 +881,8 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_pat
     unique_fd reference_profile_fd;
     std::string out_file_name = StringPrintf("/data/misc/profman/%s.txt", pkgname.c_str());
 
-    open_profile_files(uid, pkgname, /*is_secondary_dex*/false,
+    // TODO(calin): get the profile name as a parameter.
+    open_profile_files(uid, pkgname, "primary.prof", /*is_secondary_dex*/false,
             &profile_fds, &reference_profile_fd);
 
     const bool has_reference_profile = (reference_profile_fd.get() != -1);
@@ -918,10 +932,11 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const char* code_pat
 }
 
 bool copy_system_profile(const std::string& system_profile,
-        uid_t packageUid, const std::string& data_profile_location) {
+        uid_t packageUid, const std::string& package_name, const std::string& profile_name) {
     unique_fd in_fd(open(system_profile.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC));
     unique_fd out_fd(open_reference_profile(packageUid,
-                     data_profile_location,
+                     package_name,
+                     profile_name,
                      /*read_write*/ true,
                      /*secondary*/ false));
     if (in_fd.get() < 0) {
@@ -929,7 +944,7 @@ bool copy_system_profile(const std::string& system_profile,
         return false;
     }
     if (out_fd.get() < 0) {
-        PLOG(WARNING) << "Could not open profile " << data_profile_location;
+        PLOG(WARNING) << "Could not open profile " << package_name;
         return false;
     }
 
@@ -942,7 +957,7 @@ bool copy_system_profile(const std::string& system_profile,
 
         if (flock(out_fd.get(), LOCK_EX | LOCK_NB) != 0) {
             if (errno != EWOULDBLOCK) {
-                PLOG(WARNING) << "Error locking profile " << data_profile_location;
+                PLOG(WARNING) << "Error locking profile " << package_name;
             }
             // This implies that the app owning this profile is running
             // (and has acquired the lock).
@@ -950,13 +965,13 @@ bool copy_system_profile(const std::string& system_profile,
             // The app never acquires the lock for the reference profiles of primary apks.
             // Only dex2oat from installd will do that. Since installd is single threaded
             // we should not see this case. Nevertheless be prepared for it.
-            PLOG(WARNING) << "Failed to flock " << data_profile_location;
+            PLOG(WARNING) << "Failed to flock " << package_name;
             return false;
         }
 
         bool truncated = ftruncate(out_fd.get(), 0) == 0;
         if (!truncated) {
-            PLOG(WARNING) << "Could not truncate " << data_profile_location;
+            PLOG(WARNING) << "Could not truncate " << package_name;
         }
 
         // Copy over data.
@@ -970,7 +985,7 @@ bool copy_system_profile(const std::string& system_profile,
             write(out_fd.get(), buffer, bytes);
         }
         if (flock(out_fd.get(), LOCK_UN) != 0) {
-            PLOG(WARNING) << "Error unlocking profile " << data_profile_location;
+            PLOG(WARNING) << "Error unlocking profile " << package_name;
         }
         // Use _exit since we don't want to run the global destructors in the child.
         // b/62597429
@@ -1269,8 +1284,8 @@ unique_fd maybe_open_dexopt_swap_file(const char* out_oat_path) {
 // Opens the reference profiles if needed.
 // Note that the reference profile might not exist so it's OK if the fd will be -1.
 Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
-        const std::string& dex_path, bool profile_guided, bool is_public, int uid,
-        bool is_secondary_dex) {
+        const std::string& dex_path, const std::string& profile_name, bool profile_guided,
+        bool is_public, int uid, bool is_secondary_dex) {
     // Public apps should not be compiled with profile information ever. Same goes for the special
     // package '*' used for the system server.
     if (!profile_guided || is_public || (pkgname[0] == '*')) {
@@ -1278,10 +1293,11 @@ Dex2oatFileWrapper maybe_open_reference_profile(const std::string& pkgname,
     }
 
     // Open reference profile in read only mode as dex2oat does not get write permissions.
-    const std::string location = is_secondary_dex ? dex_path : pkgname;
-    unique_fd ufd = open_reference_profile(uid, location, /*read_write*/false, is_secondary_dex);
-    const auto& cleanup = [location, is_secondary_dex]() {
-        clear_reference_profile(location.c_str(), is_secondary_dex);
+    const std::string location = is_secondary_dex ? dex_path : profile_name;
+    unique_fd ufd = open_reference_profile(uid, pkgname, location, /*read_write*/false,
+            is_secondary_dex);
+    const auto& cleanup = [pkgname, location, is_secondary_dex]() {
+        clear_reference_profile(pkgname, location, is_secondary_dex);
     };
     return Dex2oatFileWrapper(ufd.release(), cleanup);
 }
@@ -1737,7 +1753,8 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
         }
 
         // Analyze profiles.
-        bool profile_was_updated = analyze_profiles(uid, dex_path, /*is_secondary_dex*/true);
+        bool profile_was_updated = analyze_profiles(uid, pkgname, dex_path,
+                /*is_secondary_dex*/true);
 
         // Run dexoptanalyzer to get dexopt_needed code. This is not expected to return.
         exec_dexoptanalyzer(dex_path,
@@ -1784,7 +1801,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
-        bool downgrade, int target_sdk_version) {
+        bool downgrade, int target_sdk_version, const char* profile_name) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
     if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
@@ -1873,7 +1890,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
 
     // Open the reference profile if needed.
     Dex2oatFileWrapper reference_profile_fd = maybe_open_reference_profile(
-            pkgname, dex_path, profile_guided, is_public, uid, is_secondary_dex);
+            pkgname, dex_path, profile_name, profile_guided, is_public, uid, is_secondary_dex);
 
     ALOGV("DexInv: --- BEGIN '%s' ---\n", dex_path);
 
@@ -2032,9 +2049,9 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
 
             // Delete profiles.
             std::string current_profile = create_current_profile_path(
-                multiuser_get_user_id(uid), dex_path, /*is_secondary*/true);
+                multiuser_get_user_id(uid), pkgname, dex_path, /*is_secondary*/true);
             std::string reference_profile = create_reference_profile_path(
-                dex_path, /*is_secondary*/true);
+                pkgname, dex_path, /*is_secondary*/true);
             result = unlink_if_exists(current_profile) && result;
             result = unlink_if_exists(reference_profile) && result;
 
@@ -2426,18 +2443,18 @@ bool create_cache_path_default(char path[PKG_PATH_MAX], const char *src,
 }
 
 bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
-        const std::string& code_path) {
+        const std::string& profile_name) {
     int app_shared_gid = multiuser_get_shared_gid(/*user_id*/ 0, app_id);
 
-    unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, code_path);
+    unique_fd snapshot_fd = open_spnashot_profile(AID_SYSTEM, package_name, profile_name);
     if (snapshot_fd < 0) {
         return false;
     }
 
     std::vector<unique_fd> profiles_fd;
     unique_fd reference_profile_fd;
-    open_profile_files(app_shared_gid, package_name, /*is_secondary_dex*/ false, &profiles_fd,
-            &reference_profile_fd);
+    open_profile_files(app_shared_gid, package_name, profile_name, /*is_secondary_dex*/ false,
+            &profiles_fd, &reference_profile_fd);
     if (profiles_fd.empty() || (reference_profile_fd.get() < 0)) {
         return false;
     }
@@ -2455,7 +2472,7 @@ bool create_profile_snapshot(int32_t app_id, const std::string& package_name,
     /* parent */
     int return_code = wait_child(pid);
     if (!WIFEXITED(return_code)) {
-        LOG(WARNING) << "profman failed for " << package_name << ":" << code_path;
+        LOG(WARNING) << "profman failed for " << package_name << ":" << profile_name;
         return false;
     }
 
