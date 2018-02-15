@@ -2480,5 +2480,17 @@ binder::Status InstalldNativeService::isQuotaSupported(
     return ok();
 }
 
+binder::Status InstalldNativeService::prepareAppProfile(const std::string& packageName,
+        int32_t userId, int32_t appId, const std::string& profileName, const std::string& codePath,
+        const std::unique_ptr<std::string>& dexMetadata, bool* _aidl_return) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    *_aidl_return = prepare_app_profile(packageName, userId, appId, profileName, codePath,
+        dexMetadata);
+    return ok();
+}
+
 }  // namespace installd
 }  // namespace android
