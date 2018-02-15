@@ -228,6 +228,7 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
         case 3: num_args_expected = 12; break;
         case 4: num_args_expected = 13; break;
         case 5: num_args_expected = 14; break;
+        case 6: num_args_expected = 15; break;
         default:
             LOG(ERROR) << "Don't know how to read arguments for version " << version;
             return false;
@@ -329,6 +330,9 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
             case 13:
                 profile_name = ParseNull(param);
                 break;
+
+            case 14:
+                 dex_metadata_path = ParseNull(param);
 
             default:
                 CHECK(false) << "Should not get here. Did you call ReadArguments "
