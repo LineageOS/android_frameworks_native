@@ -43,6 +43,7 @@
 #include "globals.h"
 #include "installd_constants.h"
 #include "installd_deps.h"  // Need to fill in requirements of commands.
+#include "otapreopt_parameters.h"
 #include "otapreopt_utils.h"
 #include "system_properties.h"
 #include "utils.h"
@@ -158,31 +159,14 @@ class OTAPreoptService {
     }
 
     std::string GetOTADataDirectory() const {
-        return StringPrintf("%s/%s", GetOtaDirectoryPrefix().c_str(), target_slot_.c_str());
+        return StringPrintf("%s/%s", GetOtaDirectoryPrefix().c_str(), GetTargetSlot().c_str());
     }
 
     const std::string& GetTargetSlot() const {
-        return target_slot_;
+        return parameters_.target_slot;
     }
 
 private:
-
-    struct Parameters {
-        const char *apk_path;
-        uid_t uid;
-        const char *pkgName;
-        const char *instruction_set;
-        int dexopt_needed;
-        const char* oat_dir;
-        int dexopt_flags;
-        const char* compiler_filter;
-        const char* volume_uuid;
-        const char* shared_libraries;
-        const char* se_info;
-        bool downgrade;
-        int target_sdk_version;
-        const char* profile_name;
-    };
 
     bool ReadSystemProperties() {
         static constexpr const char* kPropertyFiles[] = {
@@ -307,546 +291,7 @@ private:
     }
 
     bool ReadArguments(int argc, char** argv) {
-        // Expected command line:
-        //   target-slot [version] dexopt {DEXOPT_PARAMETERS}
-
-        const char* target_slot_arg = argv[1];
-        if (target_slot_arg == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-        // Sanitize value. Only allow (a-zA-Z0-9_)+.
-        target_slot_ = target_slot_arg;
-        if (!ValidateTargetSlotSuffix(target_slot_)) {
-            LOG(ERROR) << "Target slot suffix not legal: " << target_slot_;
-            return false;
-        }
-
-        // Check for version or "dexopt" next.
-        if (argv[2] == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-
-        if (std::string("dexopt").compare(argv[2]) == 0) {
-            // This is version 1 (N) or pre-versioning version 2.
-            constexpr int kV2ArgCount =   1   // "otapreopt"
-                                        + 1   // slot
-                                        + 1   // "dexopt"
-                                        + 1   // apk_path
-                                        + 1   // uid
-                                        + 1   // pkg
-                                        + 1   // isa
-                                        + 1   // dexopt_needed
-                                        + 1   // oat_dir
-                                        + 1   // dexopt_flags
-                                        + 1   // filter
-                                        + 1   // volume
-                                        + 1   // libs
-                                        + 1;  // seinfo
-            if (argc == kV2ArgCount) {
-                return ReadArgumentsV2(argc, argv, false);
-            } else {
-                return ReadArgumentsV1(argc, argv);
-            }
-        }
-
-        uint32_t version;
-        if (!ParseUInt(argv[2], &version)) {
-            LOG(ERROR) << "Could not parse version: " << argv[2];
-            return false;
-        }
-
-        switch (version) {
-            case 2:
-                return ReadArgumentsV2(argc, argv, true);
-            case 3:
-                return ReadArgumentsV3(argc, argv);
-            case 4:
-                return ReadArgumentsV4(argc, argv);
-            case 5:
-                return ReadArgumentsV5(argc, argv);
-
-            default:
-                LOG(ERROR) << "Unsupported version " << version;
-                return false;
-        }
-    }
-
-    bool ReadArgumentsV2(int argc ATTRIBUTE_UNUSED, char** argv, bool versioned) {
-        size_t dexopt_index = versioned ? 3 : 2;
-
-        // Check for "dexopt".
-        if (argv[dexopt_index] == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-        if (std::string("dexopt").compare(argv[dexopt_index]) != 0) {
-            LOG(ERROR) << "Expected \"dexopt\"";
-            return false;
-        }
-
-        size_t param_index = 0;
-        for (;; ++param_index) {
-            const char* param = argv[dexopt_index + 1 + param_index];
-            if (param == nullptr) {
-                break;
-            }
-
-            switch (param_index) {
-                case 0:
-                    package_parameters_.apk_path = param;
-                    break;
-
-                case 1:
-                    package_parameters_.uid = atoi(param);
-                    break;
-
-                case 2:
-                    package_parameters_.pkgName = param;
-                    break;
-
-                case 3:
-                    package_parameters_.instruction_set = param;
-                    break;
-
-                case 4:
-                    package_parameters_.dexopt_needed = atoi(param);
-                    break;
-
-                case 5:
-                    package_parameters_.oat_dir = param;
-                    break;
-
-                case 6:
-                    package_parameters_.dexopt_flags = atoi(param);
-                    break;
-
-                case 7:
-                    package_parameters_.compiler_filter = param;
-                    break;
-
-                case 8:
-                    package_parameters_.volume_uuid = ParseNull(param);
-                    break;
-
-                case 9:
-                    package_parameters_.shared_libraries = ParseNull(param);
-                    break;
-
-                case 10:
-                    package_parameters_.se_info = ParseNull(param);
-                    break;
-
-                default:
-                    LOG(ERROR) << "Too many arguments, got " << param;
-                    return false;
-            }
-        }
-
-        // Set downgrade to false. It is only relevant when downgrading compiler
-        // filter, which is not the case during ota.
-        package_parameters_.downgrade = false;
-
-        // Set target_sdk_version to 0, ie the platform SDK version. This is
-        // conservative and may force some classes to verify at runtime.
-        package_parameters_.target_sdk_version = 0;
-
-        // Set the profile name to the primary apk profile.
-        package_parameters_.profile_name = "primary.prof";
-
-        if (param_index != 11) {
-            LOG(ERROR) << "Not enough parameters";
-            return false;
-        }
-
-        return true;
-    }
-
-    bool ReadArgumentsV3(int argc ATTRIBUTE_UNUSED, char** argv) {
-        size_t dexopt_index = 3;
-
-        // Check for "dexopt".
-        if (argv[dexopt_index] == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-        if (std::string("dexopt").compare(argv[dexopt_index]) != 0) {
-            LOG(ERROR) << "Expected \"dexopt\"";
-            return false;
-        }
-
-        size_t param_index = 0;
-        for (;; ++param_index) {
-            const char* param = argv[dexopt_index + 1 + param_index];
-            if (param == nullptr) {
-                break;
-            }
-
-            switch (param_index) {
-                case 0:
-                    package_parameters_.apk_path = param;
-                    break;
-
-                case 1:
-                    package_parameters_.uid = atoi(param);
-                    break;
-
-                case 2:
-                    package_parameters_.pkgName = param;
-                    break;
-
-                case 3:
-                    package_parameters_.instruction_set = param;
-                    break;
-
-                case 4:
-                    package_parameters_.dexopt_needed = atoi(param);
-                    break;
-
-                case 5:
-                    package_parameters_.oat_dir = param;
-                    break;
-
-                case 6:
-                    package_parameters_.dexopt_flags = atoi(param);
-                    break;
-
-                case 7:
-                    package_parameters_.compiler_filter = param;
-                    break;
-
-                case 8:
-                    package_parameters_.volume_uuid = ParseNull(param);
-                    break;
-
-                case 9:
-                    package_parameters_.shared_libraries = ParseNull(param);
-                    break;
-
-                case 10:
-                    package_parameters_.se_info = ParseNull(param);
-                    break;
-
-                case 11:
-                    package_parameters_.downgrade = ParseBool(param);
-                    break;
-
-                default:
-                    LOG(ERROR) << "Too many arguments, got " << param;
-                    return false;
-            }
-        }
-
-        // Set target_sdk_version to 0, ie the platform SDK version. This is
-        // conservative and may force some classes to verify at runtime.
-        package_parameters_.target_sdk_version = 0;
-
-        // Set the profile name to the primary apk profile.
-        package_parameters_.profile_name = "primary.prof";
-
-        if (param_index != 12) {
-            LOG(ERROR) << "Not enough parameters";
-            return false;
-        }
-
-        return true;
-    }
-
-    bool ReadArgumentsV4(int argc ATTRIBUTE_UNUSED, char** argv) {
-        size_t dexopt_index = 3;
-
-        // Check for "dexopt".
-        if (argv[dexopt_index] == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-        if (std::string("dexopt").compare(argv[dexopt_index]) != 0) {
-            LOG(ERROR) << "Expected \"dexopt\"";
-            return false;
-        }
-
-        size_t param_index = 0;
-        for (;; ++param_index) {
-            const char* param = argv[dexopt_index + 1 + param_index];
-            if (param == nullptr) {
-                break;
-            }
-
-            switch (param_index) {
-                case 0:
-                    package_parameters_.apk_path = param;
-                    break;
-
-                case 1:
-                    package_parameters_.uid = atoi(param);
-                    break;
-
-                case 2:
-                    package_parameters_.pkgName = param;
-                    break;
-
-                case 3:
-                    package_parameters_.instruction_set = param;
-                    break;
-
-                case 4:
-                    package_parameters_.dexopt_needed = atoi(param);
-                    break;
-
-                case 5:
-                    package_parameters_.oat_dir = param;
-                    break;
-
-                case 6:
-                    package_parameters_.dexopt_flags = atoi(param);
-                    break;
-
-                case 7:
-                    package_parameters_.compiler_filter = param;
-                    break;
-
-                case 8:
-                    package_parameters_.volume_uuid = ParseNull(param);
-                    break;
-
-                case 9:
-                    package_parameters_.shared_libraries = ParseNull(param);
-                    break;
-
-                case 10:
-                    package_parameters_.se_info = ParseNull(param);
-                    break;
-
-                case 11:
-                    package_parameters_.downgrade = ParseBool(param);
-                    break;
-
-                case 12:
-                    package_parameters_.target_sdk_version = atoi(param);
-                    break;
-
-                default:
-                    LOG(ERROR) << "Too many arguments, got " << param;
-                    return false;
-            }
-        }
-
-        // Set the profile name to the primary apk profile.
-        package_parameters_.profile_name = "primary.prof";
-
-        if (param_index != 13) {
-            LOG(ERROR) << "Not enough parameters";
-            return false;
-        }
-
-        return true;
-    }
-
-    // TODO: this pattern does not scale and result in a lot of code duplication.
-    // Either find a better pattern or refactor the code to eliminate the duplication.
-    bool ReadArgumentsV5(int argc ATTRIBUTE_UNUSED, char** argv) {
-        size_t dexopt_index = 3;
-
-        // Check for "dexopt".
-        if (argv[dexopt_index] == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-        if (std::string("dexopt").compare(argv[dexopt_index]) != 0) {
-            LOG(ERROR) << "Expected \"dexopt\"";
-            return false;
-        }
-
-        size_t param_index = 0;
-        for (;; ++param_index) {
-            const char* param = argv[dexopt_index + 1 + param_index];
-            if (param == nullptr) {
-                break;
-            }
-
-            switch (param_index) {
-                case 0:
-                    package_parameters_.apk_path = param;
-                    break;
-
-                case 1:
-                    package_parameters_.uid = atoi(param);
-                    break;
-
-                case 2:
-                    package_parameters_.pkgName = param;
-                    break;
-
-                case 3:
-                    package_parameters_.instruction_set = param;
-                    break;
-
-                case 4:
-                    package_parameters_.dexopt_needed = atoi(param);
-                    break;
-
-                case 5:
-                    package_parameters_.oat_dir = param;
-                    break;
-
-                case 6:
-                    package_parameters_.dexopt_flags = atoi(param);
-                    break;
-
-                case 7:
-                    package_parameters_.compiler_filter = param;
-                    break;
-
-                case 8:
-                    package_parameters_.volume_uuid = ParseNull(param);
-                    break;
-
-                case 9:
-                    package_parameters_.shared_libraries = ParseNull(param);
-                    break;
-
-                case 10:
-                    package_parameters_.se_info = ParseNull(param);
-                    break;
-
-                case 11:
-                    package_parameters_.downgrade = ParseBool(param);
-                    break;
-
-                case 12:
-                    package_parameters_.target_sdk_version = atoi(param);
-                    break;
-
-                case 13:
-                    package_parameters_.profile_name = ParseNull(param);
-                    break;
-
-                default:
-                    LOG(ERROR) << "Too many arguments, got " << param;
-                    return false;
-            }
-        }
-
-        if (param_index != 14) {
-            LOG(ERROR) << "Not enough parameters";
-            return false;
-        }
-
-        return true;
-    }
-
-    static int ReplaceMask(int input, int old_mask, int new_mask) {
-        return (input & old_mask) != 0 ? new_mask : 0;
-    }
-
-    bool ReadArgumentsV1(int argc ATTRIBUTE_UNUSED, char** argv) {
-        // Check for "dexopt".
-        if (argv[2] == nullptr) {
-            LOG(ERROR) << "Missing parameters";
-            return false;
-        }
-        if (std::string("dexopt").compare(argv[2]) != 0) {
-            LOG(ERROR) << "Expected \"dexopt\"";
-            return false;
-        }
-
-        size_t param_index = 0;
-        for (;; ++param_index) {
-            const char* param = argv[3 + param_index];
-            if (param == nullptr) {
-                break;
-            }
-
-            switch (param_index) {
-                case 0:
-                    package_parameters_.apk_path = param;
-                    break;
-
-                case 1:
-                    package_parameters_.uid = atoi(param);
-                    break;
-
-                case 2:
-                    package_parameters_.pkgName = param;
-                    break;
-
-                case 3:
-                    package_parameters_.instruction_set = param;
-                    break;
-
-                case 4: {
-                    // Version 1 had:
-                    //   DEXOPT_DEX2OAT_NEEDED       = 1
-                    //   DEXOPT_PATCHOAT_NEEDED      = 2
-                    //   DEXOPT_SELF_PATCHOAT_NEEDED = 3
-                    // We will simply use DEX2OAT_FROM_SCRATCH.
-                    package_parameters_.dexopt_needed = DEX2OAT_FROM_SCRATCH;
-                    break;
-                }
-
-                case 5:
-                    package_parameters_.oat_dir = param;
-                    break;
-
-                case 6: {
-                    // Version 1 had:
-                    constexpr int OLD_DEXOPT_PUBLIC         = 1 << 1;
-                    // Note: DEXOPT_SAFEMODE has been removed.
-                    // constexpr int OLD_DEXOPT_SAFEMODE       = 1 << 2;
-                    constexpr int OLD_DEXOPT_DEBUGGABLE     = 1 << 3;
-                    constexpr int OLD_DEXOPT_BOOTCOMPLETE   = 1 << 4;
-                    constexpr int OLD_DEXOPT_PROFILE_GUIDED = 1 << 5;
-                    constexpr int OLD_DEXOPT_OTA            = 1 << 6;
-                    int input = atoi(param);
-                    package_parameters_.dexopt_flags =
-                            ReplaceMask(input, OLD_DEXOPT_PUBLIC, DEXOPT_PUBLIC) |
-                            ReplaceMask(input, OLD_DEXOPT_DEBUGGABLE, DEXOPT_DEBUGGABLE) |
-                            ReplaceMask(input, OLD_DEXOPT_BOOTCOMPLETE, DEXOPT_BOOTCOMPLETE) |
-                            ReplaceMask(input, OLD_DEXOPT_PROFILE_GUIDED, DEXOPT_PROFILE_GUIDED) |
-                            ReplaceMask(input, OLD_DEXOPT_OTA, 0);
-                    break;
-                }
-
-                case 7:
-                    package_parameters_.compiler_filter = param;
-                    break;
-
-                case 8:
-                    package_parameters_.volume_uuid = ParseNull(param);
-                    break;
-
-                case 9:
-                    package_parameters_.shared_libraries = ParseNull(param);
-                    break;
-
-                default:
-                    LOG(ERROR) << "Too many arguments, got " << param;
-                    return false;
-            }
-        }
-
-        if (param_index != 10) {
-            LOG(ERROR) << "Not enough parameters";
-            return false;
-        }
-
-        // Set se_info to null. It is only relevant for secondary dex files, which we won't
-        // receive from a v1 A side.
-        package_parameters_.se_info = nullptr;
-
-        // Set downgrade to false. It is only relevant when downgrading compiler
-        // filter, which is not the case during ota.
-        package_parameters_.downgrade = false;
-
-        // Set target_sdk_version to 0, ie the platform SDK version. This is
-        // conservative and may force some classes to verify at runtime.
-        package_parameters_.target_sdk_version = 0;
-
-        // Set the profile name to the primary apk profile.
-        package_parameters_.profile_name = "primary.prof";
-
-        return true;
+        return parameters_.ReadArguments(argc, const_cast<const char**>(argv));
     }
 
     void PrepareEnvironment() {
@@ -862,11 +307,11 @@ private:
     // Ensure that we have the right boot image. The first time any app is
     // compiled, we'll try to generate it.
     bool PrepareBootImage(bool force) const {
-        if (package_parameters_.instruction_set == nullptr) {
+        if (parameters_.instruction_set == nullptr) {
             LOG(ERROR) << "Instruction set missing.";
             return false;
         }
-        const char* isa = package_parameters_.instruction_set;
+        const char* isa = parameters_.instruction_set;
 
         // Check whether the file exists where expected.
         std::string dalvik_cache = GetOTADataDirectory() + "/" + DALVIK_CACHE;
@@ -1090,9 +535,9 @@ private:
         //       jar content must be exactly the same).
 
         //       (This is ugly as it's the only thing where we need to understand the contents
-        //        of package_parameters_, but it beats postponing the decision or using the call-
+        //        of parameters_, but it beats postponing the decision or using the call-
         //        backs to do weird things.)
-        const char* apk_path = package_parameters_.apk_path;
+        const char* apk_path = parameters_.apk_path;
         CHECK(apk_path != nullptr);
         if (StartsWith(apk_path, android_root_)) {
             const char* last_slash = strrchr(apk_path, '/');
@@ -1119,23 +564,23 @@ private:
         return false;
     }
 
-    // Run dexopt with the parameters of package_parameters_.
+    // Run dexopt with the parameters of parameters_.
     // TODO(calin): embed the profile name in the parameters.
     int Dexopt() {
-        return dexopt(package_parameters_.apk_path,
-                      package_parameters_.uid,
-                      package_parameters_.pkgName,
-                      package_parameters_.instruction_set,
-                      package_parameters_.dexopt_needed,
-                      package_parameters_.oat_dir,
-                      package_parameters_.dexopt_flags,
-                      package_parameters_.compiler_filter,
-                      package_parameters_.volume_uuid,
-                      package_parameters_.shared_libraries,
-                      package_parameters_.se_info,
-                      package_parameters_.downgrade,
-                      package_parameters_.target_sdk_version,
-                      package_parameters_.profile_name);
+        return dexopt(parameters_.apk_path,
+                      parameters_.uid,
+                      parameters_.pkgName,
+                      parameters_.instruction_set,
+                      parameters_.dexopt_needed,
+                      parameters_.oat_dir,
+                      parameters_.dexopt_flags,
+                      parameters_.compiler_filter,
+                      parameters_.volume_uuid,
+                      parameters_.shared_libraries,
+                      parameters_.se_info,
+                      parameters_.downgrade,
+                      parameters_.target_sdk_version,
+                      parameters_.profile_name);
     }
 
     int RunPreopt() {
@@ -1166,12 +611,12 @@ private:
 
         // If this was a profile-guided run, we may have profile version issues. Try to downgrade,
         // if possible.
-        if ((package_parameters_.dexopt_flags & DEXOPT_PROFILE_GUIDED) == 0) {
+        if ((parameters_.dexopt_flags & DEXOPT_PROFILE_GUIDED) == 0) {
             return dexopt_result;
         }
 
         LOG(WARNING) << "Downgrading compiler filter in an attempt to progress compilation";
-        package_parameters_.dexopt_flags &= ~DEXOPT_PROFILE_GUIDED;
+        parameters_.dexopt_flags &= ~DEXOPT_PROFILE_GUIDED;
         return Dexopt();
     }
 
@@ -1296,13 +741,12 @@ private:
     SystemProperties system_properties_;
 
     // Some select properties that are always needed.
-    std::string target_slot_;
     std::string android_root_;
     std::string android_data_;
     std::string boot_classpath_;
     std::string asec_mountpoint_;
 
-    Parameters package_parameters_;
+    OTAPreoptParameters parameters_;
 
     // Store environment values we need to set.
     std::vector<std::string> environ_;
