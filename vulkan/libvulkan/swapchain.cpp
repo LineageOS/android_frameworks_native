@@ -751,11 +751,32 @@ VkResult GetPhysicalDeviceSurfaceFormats2KHR(
 
 VKAPI_ATTR
 VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
-                                                 VkSurfaceKHR /*surface*/,
+                                                 VkSurfaceKHR surface,
                                                  uint32_t* count,
                                                  VkPresentModeKHR* modes) {
+    int err;
+    int query_value;
+    ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+
+    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &query_value);
+    if (err != 0 || query_value < 0) {
+        ALOGE("NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) value=%d",
+              strerror(-err), err, query_value);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
+
+    err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &query_value);
+    if (err != 0 || query_value < 0) {
+        ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d) value=%d",
+              strerror(-err), err, query_value);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    uint32_t max_buffer_count = static_cast<uint32_t>(query_value);
+
     android::Vector<VkPresentModeKHR> present_modes;
-    present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
+    if (min_undequeued_buffers + 1 < max_buffer_count)
+        present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
     present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
 
     VkPhysicalDevicePresentationPropertiesANDROID present_properties;
