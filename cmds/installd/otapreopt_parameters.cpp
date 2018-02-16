@@ -112,6 +112,29 @@ static int ReplaceMask(int input, int old_mask, int new_mask) {
     return (input & old_mask) != 0 ? new_mask : 0;
 }
 
+void OTAPreoptParameters::SetDefaultsForPostV1Arguments() {
+    // Set se_info to null. It is only relevant for secondary dex files, which we won't
+    // receive from a v1 A side.
+    se_info = nullptr;
+
+    // Set downgrade to false. It is only relevant when downgrading compiler
+    // filter, which is not the case during ota.
+    downgrade = false;
+
+    // Set target_sdk_version to 0, ie the platform SDK version. This is
+    // conservative and may force some classes to verify at runtime.
+    target_sdk_version = 0;
+
+    // Set the profile name to the primary apk profile.
+    profile_name = "primary.prof";
+
+    // By default we don't have a dex metadata file.
+    dex_metadata_path = nullptr;
+
+    // The compilation reason is ab-ota (match the system property pm.dexopt.ab-ota)
+    compilation_reason = "ab-ota";
+}
+
 bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
     // Check for "dexopt".
     if (argv[2] == nullptr) {
@@ -203,23 +226,7 @@ bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
         return false;
     }
 
-    // Set se_info to null. It is only relevant for secondary dex files, which we won't
-    // receive from a v1 A side.
-    se_info = nullptr;
-
-    // Set downgrade to false. It is only relevant when downgrading compiler
-    // filter, which is not the case during ota.
-    downgrade = false;
-
-    // Set target_sdk_version to 0, ie the platform SDK version. This is
-    // conservative and may force some classes to verify at runtime.
-    target_sdk_version = 0;
-
-    // Set the profile name to the primary apk profile.
-    profile_name = "primary.prof";
-
-    // By default we don't have a dex metadata file.
-    dex_metadata_path = nullptr;
+    SetDefaultsForPostV1Arguments();
 
     return true;
 }
@@ -232,6 +239,7 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
         case 4: num_args_expected = 13; break;
         case 5: num_args_expected = 14; break;
         case 6: num_args_expected = 15; break;
+        case 7: num_args_expected = 16; break;
         default:
             LOG(ERROR) << "Don't know how to read arguments for version " << version;
             return false;
@@ -263,20 +271,7 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
     // The number of arguments is OK.
     // Configure the default values for the parameters that were added after V1.
     // The default values will be overwritten in case they are passed as arguments.
-
-    // Set downgrade to false. It is only relevant when downgrading compiler
-    // filter, which is not the case during ota.
-    downgrade = false;
-
-    // Set target_sdk_version to 0, ie the platform SDK version. This is
-    // conservative and may force some classes to verify at runtime.
-    target_sdk_version = 0;
-
-    // Set the profile name to the primary apk profile.
-    profile_name = "primary.prof";
-
-    // By default we don't have a dex metadata file.
-    dex_metadata_path = nullptr;
+    SetDefaultsForPostV1Arguments();
 
     for (size_t param_index = 0; param_index < num_args_actual; ++param_index) {
         const char* param = argv[dexopt_index + 1 + param_index];
@@ -339,6 +334,10 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
 
             case 14:
                 dex_metadata_path = ParseNull(param);
+                break;
+
+            case 15:
+                compilation_reason = ParseNull(param);
                 break;
 
             default:
