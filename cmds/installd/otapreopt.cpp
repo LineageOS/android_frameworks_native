@@ -581,7 +581,8 @@ private:
                       parameters_.downgrade,
                       parameters_.target_sdk_version,
                       parameters_.profile_name,
-                      parameters_.dex_metadata_path);
+                      parameters_.dex_metadata_path,
+                      parameters_.compilation_reason);
     }
 
     int RunPreopt() {

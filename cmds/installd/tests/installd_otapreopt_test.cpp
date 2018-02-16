@@ -90,6 +90,11 @@ protected:
         } else {
             ASSERT_EQ(params.dex_metadata_path, nullptr);
         }
+        if (version > 6) {
+            ASSERT_STREQ(params.compilation_reason, ParseNull(args[i++]));
+        } else {
+            ASSERT_STREQ(params.compilation_reason, "ab-ota");
+        }
     }
 
     const char* getVersionCStr(uint32_t version) {
@@ -100,6 +105,7 @@ protected:
             case 4: return "4";
             case 5: return "5";
             case 6: return "6";
+            case 7: return "7";
         }
         return nullptr;
     }
@@ -137,6 +143,9 @@ protected:
         }
         if (version > 5) {
             args.push_back("dex_metadata.dm");  // dex_metadata_path
+        }
+        if (version > 6) {
+            args.push_back("ab-ota-test");  // compilation_reason
         }
         args.push_back(nullptr);  // we have to end with null.
         return args;
@@ -176,6 +185,10 @@ TEST_F(OTAPreoptTest, ReadArgumentsV5) {
 
 TEST_F(OTAPreoptTest, ReadArgumentsV6) {
     VerifyReadArguments(6, true);
+}
+
+TEST_F(OTAPreoptTest, ReadArgumentsV7) {
+    VerifyReadArguments(7, true);
 }
 
 TEST_F(OTAPreoptTest, ReadArgumentsFailToManyArgs) {
