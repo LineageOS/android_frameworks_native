@@ -145,7 +145,7 @@ BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
   return BufferInfo(buffer_id(), consumer_channels_.size(), buffer_.width(),
                     buffer_.height(), buffer_.layer_count(), buffer_.format(),
                     buffer_.usage(), pending_consumers_, buffer_state_->load(),
-                    signaled_mask, metadata_header_->queue_index, name_);
+                    signaled_mask, metadata_header_->queue_index);
 }
 
 void ProducerChannel::HandleImpulse(Message& message) {
@@ -181,16 +181,6 @@ bool ProducerChannel::HandleMessage(Message& message) {
     case BufferHubRPC::ProducerGain::Opcode:
       DispatchRemoteMethod<BufferHubRPC::ProducerGain>(
           *this, &ProducerChannel::OnProducerGain, message);
-      return true;
-
-    case BufferHubRPC::ProducerMakePersistent::Opcode:
-      DispatchRemoteMethod<BufferHubRPC::ProducerMakePersistent>(
-          *this, &ProducerChannel::OnProducerMakePersistent, message);
-      return true;
-
-    case BufferHubRPC::ProducerRemovePersistence::Opcode:
-      DispatchRemoteMethod<BufferHubRPC::ProducerRemovePersistence>(
-          *this, &ProducerChannel::OnRemovePersistence, message);
       return true;
 
     default:
@@ -459,50 +449,6 @@ void ProducerChannel::OnConsumerOrphaned(ConsumerChannel* channel) {
       buffer_state_->load(), fence_state_->load());
 }
 
-Status<void> ProducerChannel::OnProducerMakePersistent(Message& message,
-                                                       const std::string& name,
-                                                       int user_id,
-                                                       int group_id) {
-  ATRACE_NAME("ProducerChannel::OnProducerMakePersistent");
-  ALOGD_IF(TRACE,
-           "ProducerChannel::OnProducerMakePersistent: buffer_id=%d name=%s "
-           "user_id=%d group_id=%d",
-           buffer_id(), name.c_str(), user_id, group_id);
-
-  if (name.empty() || (user_id < 0 && user_id != kNoCheckId) ||
-      (group_id < 0 && group_id != kNoCheckId)) {
-    return ErrorStatus(EINVAL);
-  }
-
-  // Try to add this buffer with the requested name.
-  if (service()->AddNamedBuffer(name, std::static_pointer_cast<ProducerChannel>(
-                                          shared_from_this()))) {
-    // If successful, set the requested permissions.
-
-    // A value of zero indicates that the ids from the sending process should be
-    // used.
-    if (user_id == kUseCallerId)
-      user_id = message.GetEffectiveUserId();
-    if (group_id == kUseCallerId)
-      group_id = message.GetEffectiveGroupId();
-
-    owner_user_id_ = user_id;
-    owner_group_id_ = group_id;
-    name_ = name;
-    return {};
-  } else {
-    // Otherwise a buffer with that name already exists.
-    return ErrorStatus(EALREADY);
-  }
-}
-
-Status<void> ProducerChannel::OnRemovePersistence(Message&) {
-  if (service()->RemoveNamedBuffer(*this))
-    return {};
-  else
-    return ErrorStatus(ENOENT);
-}
-
 void ProducerChannel::AddConsumer(ConsumerChannel* channel) {
   consumer_channels_.push_back(channel);
 }
@@ -544,16 +490,6 @@ void ProducerChannel::RemoveConsumer(ConsumerChannel* channel) {
       eventfd_write(dummy_fence_fd_.Get(), 1);
     }
   }
-}
-
-// Returns true if either the user or group ids match the owning ids or both
-// owning ids are not set, in which case access control does not apply.
-bool ProducerChannel::CheckAccess(int euid, int egid) {
-  const bool no_check =
-      owner_user_id_ == kNoCheckId && owner_group_id_ == kNoCheckId;
-  const bool euid_check = euid == owner_user_id_ || euid == kRootId;
-  const bool egid_check = egid == owner_group_id_ || egid == kRootId;
-  return no_check || euid_check || egid_check;
 }
 
 // Returns true if the given parameters match the underlying buffer parameters.

@@ -366,12 +366,8 @@ struct BufferHubRPC {
   // Op codes.
   enum {
     kOpCreateBuffer = 0,
-    kOpCreatePersistentBuffer,
-    kOpGetPersistentBuffer,
     kOpGetBuffer,
     kOpNewConsumer,
-    kOpProducerMakePersistent,
-    kOpProducerRemovePersistence,
     kOpProducerPost,
     kOpProducerGain,
     kOpConsumerAcquire,
@@ -394,19 +390,9 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(CreateBuffer, kOpCreateBuffer,
                     void(uint32_t width, uint32_t height, uint32_t format,
                          uint64_t usage, size_t user_metadata_size));
-  PDX_REMOTE_METHOD(CreatePersistentBuffer, kOpCreatePersistentBuffer,
-                    void(const std::string& name, int user_id, int group_id,
-                         uint32_t width, uint32_t height, uint32_t format,
-                         uint64_t usage, size_t user_metadata_size));
-  PDX_REMOTE_METHOD(GetPersistentBuffer, kOpGetPersistentBuffer,
-                    void(const std::string& name));
   PDX_REMOTE_METHOD(GetBuffer, kOpGetBuffer,
                     BufferDescription<LocalHandle>(Void));
   PDX_REMOTE_METHOD(NewConsumer, kOpNewConsumer, LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(ProducerMakePersistent, kOpProducerMakePersistent,
-                    void(const std::string& name, int user_id, int group_id));
-  PDX_REMOTE_METHOD(ProducerRemovePersistence, kOpProducerRemovePersistence,
-                    void(Void));
   PDX_REMOTE_METHOD(ProducerPost, kOpProducerPost,
                     void(LocalFence acquire_fence));
   PDX_REMOTE_METHOD(ProducerGain, kOpProducerGain, LocalFence(Void));
