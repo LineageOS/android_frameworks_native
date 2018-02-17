@@ -63,7 +63,30 @@ public:
         OP_ACCESS_NOTIFICATIONS = 25,
         OP_CAMERA = 26,
         OP_RECORD_AUDIO = 27,
-        OP_PLAY_AUDIO = 28
+        OP_PLAY_AUDIO = 28,
+        OP_READ_CLIPBOARD = 29,
+        OP_WRITE_CLIPBOARD = 30,
+        OP_TAKE_MEDIA_BUTTONS = 31,
+        OP_TAKE_AUDIO_FOCUS = 32,
+        OP_AUDIO_MASTER_VOLUME = 33,
+        OP_AUDIO_VOICE_VOLUME = 34,
+        OP_AUDIO_RING_VOLUME = 35,
+        OP_AUDIO_MEDIA_VOLUME = 36,
+        OP_AUDIO_ALARM_VOLUME = 37,
+        OP_AUDIO_NOTIFICATION_VOLUME = 38,
+        OP_AUDIO_BLUETOOTH_VOLUME = 39,
+        OP_WAKE_LOCK = 40,
+        OP_MONITOR_LOCATION = 41,
+        OP_MONITOR_HIGH_POWER_LOCATION = 42,
+        OP_WIFI_CHANGE = 43,
+        OP_BLUETOOTH_CHANGE = 44,
+        OP_DATA_CONNECT_CHANGE = 45,
+        OP_ALARM_WAKEUP = 46,
+        OP_SEND_MMS = 47,
+        OP_READ_MMS = 48,
+        OP_WRITE_MMS = 49,
+        OP_BOOT_COMPLETED = 50,
+        OP_NFC_CHANGE = 51
     };
 
     AppOpsManager();
