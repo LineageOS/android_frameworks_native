@@ -85,6 +85,8 @@ public:
         return mFlinger->onHotplugReceived(sequenceId, display, connection);
     }
 
+    auto setDisplayStateLocked(const DisplayState& s) { return mFlinger->setDisplayStateLocked(s); }
+
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
@@ -247,6 +249,16 @@ public:
             return mFlinger.mutableCurrentState().displays.editValueFor(mDisplayToken);
         }
 
+        const auto& getDrawingDisplayState() {
+            return mFlinger.mutableDrawingState().displays.valueFor(mDisplayToken);
+        }
+
+        const auto& getCurrentDisplayState() {
+            return mFlinger.mutableCurrentState().displays.valueFor(mDisplayToken);
+        }
+
+        auto& mutableDisplayDevice() { return mFlinger.mutableDisplays().valueFor(mDisplayToken); }
+
         auto& setNativeWindow(const sp<ANativeWindow>& nativeWindow) {
             mNativeWindow = nativeWindow;
             return *this;
@@ -278,7 +290,7 @@ public:
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
-            if (mType < DisplayDevice::DISPLAY_VIRTUAL) {
+            if (mType >= DisplayDevice::DISPLAY_PRIMARY && mType < DisplayDevice::DISPLAY_VIRTUAL) {
                 mFlinger.mutableBuiltinDisplays()[mType] = mDisplayToken;
             }
 
