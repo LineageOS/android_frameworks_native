@@ -617,9 +617,11 @@ Error Display::presentOrValidate(uint32_t* outNumTypes, uint32_t* outNumRequests
 // For use by Device
 
 void Display::setConnected(bool connected) {
-    if (!mIsConnected && connected && mType == DisplayType::Physical) {
+    if (!mIsConnected && connected) {
         mComposer.setClientTargetSlotCount(mId);
-        loadConfigs();
+        if (mType == DisplayType::Physical) {
+            loadConfigs();
+        }
     }
     mIsConnected = connected;
 }

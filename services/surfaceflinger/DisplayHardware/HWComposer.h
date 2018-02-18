@@ -58,6 +58,7 @@ class GraphicBuffer;
 class NativeHandle;
 class Region;
 class String8;
+class TestableSurfaceFlinger;
 
 namespace Hwc2 {
 class Composer;
@@ -170,6 +171,9 @@ public:
 
     std::optional<hwc2_display_t> getHwcDisplayId(int32_t displayId) const;
 private:
+    // For unit tests
+    friend TestableSurfaceFlinger;
+
     static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
 
     bool isValidDisplay(int32_t displayId) const;

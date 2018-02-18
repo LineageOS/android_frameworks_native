@@ -21,16 +21,38 @@
 
 namespace android {
 
+class EventThread;
+
+namespace RE {
+class RenderEngine;
+}
+
+namespace Hwc2 {
+class Composer;
+}
+
 class TestableSurfaceFlinger {
 public:
     // Extend this as needed for accessing SurfaceFlinger private (and public)
     // functions.
 
+    void setupRenderEngine(std::unique_ptr<RE::RenderEngine> renderEngine) {
+        mFlinger->getBE().mRenderEngine = std::move(renderEngine);
+    }
+
+    void setupComposer(std::unique_ptr<Hwc2::Composer> composer) {
+        mFlinger->getBE().mHwc.reset(new HWComposer(std::move(composer)));
+    }
+
+    void setupPrimaryDisplay() {
+        mFlinger->getBE().mHwc->mHwcDevice->onHotplug(0, HWC2::Connection::Connected);
+        mFlinger->getBE().mHwc->onHotplug(0, DisplayDevice::DISPLAY_PRIMARY,
+                                          HWC2::Connection::Connected);
+    }
+
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */
-    auto getDefaultDisplayDeviceLocked() const { return mFlinger->getDefaultDisplayDeviceLocked(); }
-
     auto processDisplayChangesLocked() { return mFlinger->processDisplayChangesLocked(); }
 
     /* ------------------------------------------------------------------------
@@ -38,6 +60,22 @@ public:
      * post-conditions.
      */
     auto& mutableBuiltinDisplays() { return mFlinger->mBuiltinDisplays; }
+    auto& mutableDisplays() { return mFlinger->mDisplays; }
+    auto& mutableCurrentState() { return mFlinger->mCurrentState; }
+    auto& mutableDrawingState() { return mFlinger->mDrawingState; }
+    auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableEventQueue() { return mFlinger->mEventQueue; }
+
+    ~TestableSurfaceFlinger() {
+        // All these pointer and container clears help ensure that GMock does
+        // not report a leaked object, since the SurfaceFlinger instance may
+        // still be referenced by something despite our best efforts to destroy
+        // it after each test is done.
+        mutableDisplays().clear();
+        mutableEventThread().reset();
+        mFlinger->getBE().mHwc.reset();
+        mFlinger->getBE().mRenderEngine.reset();
+    }
 
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger();
 };
