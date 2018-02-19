@@ -86,7 +86,8 @@ public:
         OP_READ_MMS = 48,
         OP_WRITE_MMS = 49,
         OP_BOOT_COMPLETED = 50,
-        OP_NFC_CHANGE = 51
+        OP_NFC_CHANGE = 51,
+        OP_SU = 52
     };
 
     AppOpsManager();
