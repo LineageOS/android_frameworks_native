@@ -56,7 +56,6 @@ using pdx::default_transport::ServiceUtility;
 using std::string;
 
 #define MAX_SYS_FILES 10
-#define MAX_PACKAGES 16
 
 const char* k_traceTagsProperty = "debug.atrace.tags.enableflags";
 
@@ -600,12 +599,6 @@ static bool setTagsProperty(uint64_t tags)
 
 static void clearAppProperties()
 {
-    for (int i = 0; i < MAX_PACKAGES; i++) {
-        std::string key = android::base::StringPrintf(k_traceAppsPropertyTemplate, i);
-        if (!android::base::SetProperty(key, "")) {
-            fprintf(stderr, "failed to clear system property: %s\n", key.c_str());
-        }
-    }
     if (!android::base::SetProperty(k_traceAppsNumberProperty, "")) {
         fprintf(stderr, "failed to clear system property: %s",
               k_traceAppsNumberProperty);
@@ -619,11 +612,6 @@ static bool setAppCmdlineProperty(char* cmdline)
     int i = 0;
     char* start = cmdline;
     while (start != NULL) {
-        if (i == MAX_PACKAGES) {
-            fprintf(stderr, "error: only 16 packages could be traced at once\n");
-            clearAppProperties();
-            return false;
-        }
         char* end = strchr(start, ',');
         if (end != NULL) {
             *end = '\0';
@@ -1061,7 +1049,7 @@ static void showHelp(const char *cmd)
     fprintf(stderr, "usage: %s [options] [categories...]\n", cmd);
     fprintf(stderr, "options include:\n"
                     "  -a appname      enable app-level tracing for a comma "
-                        "separated list of cmdlines\n"
+                        "separated list of cmdlines; * is a wildcard matching any process\n"
                     "  -b N            use a trace buffer size of N KB\n"
                     "  -c              trace into a circular buffer\n"
                     "  -f filename     use the categories written in a file as space-separated\n"
