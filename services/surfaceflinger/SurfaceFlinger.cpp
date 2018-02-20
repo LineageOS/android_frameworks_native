@@ -2266,9 +2266,8 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 const wp<IBinder>& display(curr.keyAt(i));
 
                 if (dispSurface != nullptr) {
-                    bool useWideColorMode = hasWideColorDisplay;
-                    if (!mForceNativeColorMode) {
-                        bool hasWideColorModes = false;
+                    bool hasWideColorSupport = false;
+                    if (hasWideColorDisplay) {
                         std::vector<android_color_mode_t> modes =
                                 getHwComposer().getColorModes(state.type);
                         for (android_color_mode_t colorMode : modes) {
@@ -2276,13 +2275,12 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                                 case HAL_COLOR_MODE_DISPLAY_P3:
                                 case HAL_COLOR_MODE_ADOBE_RGB:
                                 case HAL_COLOR_MODE_DCI_P3:
-                                    hasWideColorModes = true;
+                                    hasWideColorSupport = true;
                                     break;
                                 default:
                                     break;
                             }
                         }
-                        useWideColorMode = hasWideColorModes && hasWideColorDisplay;
                     }
 
                     bool hasHdrSupport = false;
@@ -2296,11 +2294,11 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 
                     sp<DisplayDevice> hw =
                             new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
-                                              dispSurface, producer, useWideColorMode,
+                                              dispSurface, producer, hasWideColorSupport,
                                               hasHdrSupport);
 
                     android_color_mode defaultColorMode = HAL_COLOR_MODE_NATIVE;
-                    if (useWideColorMode) {
+                    if (hasWideColorSupport) {
                         defaultColorMode = HAL_COLOR_MODE_SRGB;
                     }
                     setActiveColorModeInternal(hw, defaultColorMode);
