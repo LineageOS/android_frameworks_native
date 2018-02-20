@@ -2739,7 +2739,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
         ALOGV("hasClientComposition");
 
         android_dataspace outputDataspace = HAL_DATASPACE_UNKNOWN;
-        if (!mForceNativeColorMode && displayDevice->getWideColorSupport() &&
+        if (displayDevice->getWideColorSupport() &&
                 displayDevice->getActiveColorMode() == HAL_COLOR_MODE_DISPLAY_P3) {
             outputDataspace = HAL_DATASPACE_DISPLAY_P3;
         }
@@ -4600,7 +4600,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     }
 
     android_dataspace outputDataspace = HAL_DATASPACE_UNKNOWN;
-    if (!mForceNativeColorMode && renderArea.getWideColorSupport() &&
+    if (renderArea.getWideColorSupport() &&
             renderArea.getActiveColorMode() == HAL_COLOR_MODE_DISPLAY_P3) {
         outputDataspace = HAL_DATASPACE_DISPLAY_P3;
     }
