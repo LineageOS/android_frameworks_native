@@ -96,6 +96,20 @@
 
 EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
+static int convertRotation(android::Transform::orientation_flags rotation)
+{
+    switch (rotation) {
+        case android::Transform::ROT_90:
+            return 1;
+        case android::Transform::ROT_180:
+            return 2;
+        case android::Transform::ROT_270:
+            return 3;
+        default:
+            return 0;
+    }
+}
+
 namespace android {
 
 // This is the phase offset in nanoseconds of the software vsync event
@@ -198,6 +212,10 @@ SurfaceFlinger::SurfaceFlinger()
     property_get("debug.sf.disable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = !atoi(value);
     ALOGI_IF(!mUseHwcVirtualDisplays, "Disabling HWC virtual displays");
+
+    // we store the value as orientation:
+    // 90 -> 1, 180 -> 2, 270 -> 3
+    mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
 }
 
 void SurfaceFlinger::onFirstRef()
@@ -631,10 +649,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
             info.orientation = 0;
         }
 
-        char value[PROPERTY_VALUE_MAX];
-        property_get("ro.sf.hwrotation", value, "0");
-        int additionalRot = atoi(value) / 90;
-        if ((type == DisplayDevice::DISPLAY_PRIMARY) && (additionalRot & DisplayState::eOrientationSwapMask)) {
+        if ((type == DisplayDevice::DISPLAY_PRIMARY) &&
+                (mHardwareRotation & DisplayState::eOrientationSwapMask)) {
             info.h = hwConfig->getWidth();
             info.w = hwConfig->getHeight();
             info.xdpi = ydpi;
@@ -3721,8 +3737,20 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     uint32_t hw_w = hw->getWidth();
     uint32_t hw_h = hw->getHeight();
 
-    if (rotation & Transform::ROT_90) {
-        std::swap(hw_w, hw_h);
+    switch ((convertRotation(rotation) + mHardwareRotation) % 4) {
+        case 1:
+            std::swap(hw_w, hw_h);
+            rotation = Transform::ROT_90;
+            break;
+        case 2:
+            rotation = Transform::ROT_180;
+            break;
+        case 3:
+            std::swap(hw_w, hw_h);
+            rotation = Transform::ROT_270;
+            break;
+        default:
+            break;
     }
 
     if ((reqWidth > hw_w) || (reqHeight > hw_h)) {
