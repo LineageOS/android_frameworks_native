@@ -47,12 +47,21 @@ Client::Client(const sp<SurfaceFlinger>& flinger, const sp<Layer>& parentLayer)
 
 Client::~Client()
 {
+    // We need to post a message to remove our remaining layers rather than
+    // do so directly by acquiring the SurfaceFlinger lock. If we were to
+    // attempt to directly call the lock it becomes effectively impossible
+    // to use sp<Client> while holding the SF lock as descoping it could
+    // then trigger a dead-lock.
+
     const size_t count = mLayers.size();
     for (size_t i=0 ; i<count ; i++) {
         sp<Layer> l = mLayers.valueAt(i).promote();
-        if (l != nullptr) {
-            mFlinger->removeLayer(l);
+        if (l == nullptr) {
+            continue;
         }
+        mFlinger->postMessageAsync(new LambdaMessage([flinger = mFlinger, l]() {
+            flinger->removeLayer(l);
+        }));
     }
 }
 
