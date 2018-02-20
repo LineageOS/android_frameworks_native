@@ -244,6 +244,10 @@ SurfaceFlinger::SurfaceFlinger()
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
+    // we store the value as orientation:
+    // 90 -> 1, 180 -> 2, 270 -> 3
+    mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
@@ -795,10 +799,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
             info.orientation = 0;
         }
 
-        char value[PROPERTY_VALUE_MAX];
-        property_get("ro.sf.hwrotation", value, "0");
-        int additionalRot = atoi(value) / 90;
-        if ((type == DisplayDevice::DISPLAY_PRIMARY) && (additionalRot & DisplayState::eOrientationSwapMask)) {
+        if ((type == DisplayDevice::DISPLAY_PRIMARY) &&
+                (mHardwareRotation & DisplayState::eOrientationSwapMask)) {
             info.h = hwConfig->getWidth();
             info.w = hwConfig->getHeight();
             info.xdpi = ydpi;
@@ -4170,8 +4172,10 @@ static status_t updateDimensionsLocked(const sp<const DisplayDevice>& displayDev
     uint32_t displayWidth = displayDevice->getWidth();
     uint32_t displayHeight = displayDevice->getHeight();
 
-    if (rotation & Transform::ROT_90) {
-        std::swap(displayWidth, displayHeight);
+    if ((rotation & Transform::ROT_90) ||
+        (mHardwareRotation == 1) ||
+        (mHardwareRotation == 3)) {
+        std::swap(hw_w, hw_h);
     }
 
     if ((*requestedWidth > displayWidth) || (*requestedHeight > displayHeight)) {

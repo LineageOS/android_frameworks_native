@@ -3901,7 +3901,9 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     uint32_t hw_w = hw->getWidth();
     uint32_t hw_h = hw->getHeight();
 
-    if (rotation & Transform::ROT_90) {
+    if ((rotation & Transform::ROT_90) ||
+        (mHardwareRotation == 1) ||
+        (mHardwareRotation == 3)) {
         std::swap(hw_w, hw_h);
     }
 
