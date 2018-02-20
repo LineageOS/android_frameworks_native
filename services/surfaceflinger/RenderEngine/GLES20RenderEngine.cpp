@@ -210,42 +210,16 @@ void GLES20RenderEngine::setupLayerBlending(bool premultipliedAlpha, bool opaque
     }
 }
 
-void GLES20RenderEngine::setColorMode(android_color_mode mode) {
-    ALOGV("setColorMode: %s (0x%x)", decodeColorMode(mode).c_str(), mode);
-
-    if (mColorMode == mode) return;
-
-    if (!mPlatformHasWideColor || !mDisplayHasWideColor || mode == HAL_COLOR_MODE_SRGB ||
-        mode == HAL_COLOR_MODE_NATIVE) {
-        // We are returning back to our default color_mode
-        mUseWideColor = false;
-        mWideColorFrameCount = 0;
-    } else {
-        mUseWideColor = true;
-    }
-
-    mColorMode = mode;
-}
-
-void GLES20RenderEngine::setSourceDataSpace(android_dataspace source) {
-    if (source == HAL_DATASPACE_UNKNOWN) {
-        // Treat UNKNOWN as SRGB
-        source = HAL_DATASPACE_V0_SRGB;
-    }
-    mDataSpace = source;
-}
-
 void GLES20RenderEngine::setSourceY410BT2020(bool enable) {
     mState.setY410BT2020(enable);
 }
 
-void GLES20RenderEngine::setWideColor(bool hasWideColor) {
-    ALOGV("setWideColor: %s", hasWideColor ? "true" : "false");
-    mDisplayHasWideColor = hasWideColor;
+void GLES20RenderEngine::setSourceDataSpace(android_dataspace source) {
+    mDataSpace = source;
 }
 
-bool GLES20RenderEngine::usesWideColor() {
-    return mUseWideColor;
+void GLES20RenderEngine::setOutputDataSpace(android_dataspace dataspace) {
+    mOutputDataSpace = dataspace;
 }
 
 void GLES20RenderEngine::setupLayerTexturing(const Texture& texture) {
@@ -326,16 +300,12 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     glVertexAttribPointer(Program::position, mesh.getVertexSize(), GL_FLOAT, GL_FALSE,
                           mesh.getByteStride(), mesh.getPositions());
 
-    if (usesWideColor()) {
+    // DISPLAY_P3 is the only supported wide color output
+    if (mPlatformHasWideColor && mOutputDataSpace == HAL_DATASPACE_DISPLAY_P3) {
         Description wideColorState = mState;
         switch (int(mDataSpace)) {
             case HAL_DATASPACE_DISPLAY_P3:
                 // input matches output
-                break;
-            case HAL_DATASPACE_V0_SCRGB_LINEAR:
-                wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
-                wideColorState.setInputTransferFunction(Description::TransferFunction::LINEAR);
-                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
                 break;
             case HAL_DATASPACE_BT2020_PQ:
             case HAL_DATASPACE_BT2020_ITU_PQ:
@@ -345,8 +315,13 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
                 wideColorState.enableToneMapping(true);
                 break;
             default:
+                // treat all other dataspaces as sRGB
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
-                wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
+                if ((mDataSpace & HAL_DATASPACE_TRANSFER_MASK) == HAL_DATASPACE_TRANSFER_LINEAR) {
+                    wideColorState.setInputTransferFunction(Description::TransferFunction::LINEAR);
+                } else {
+                    wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
+                }
                 wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
                 ALOGV("drawMesh: gamut transform applied");
                 break;
@@ -356,8 +331,9 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
 
         if (outputDebugPPMs) {
+            static uint64_t wideColorFrameCount = 0;
             std::ostringstream out;
-            out << "/data/texture_out" << mWideColorFrameCount++;
+            out << "/data/texture_out" << wideColorFrameCount++;
             writePPM(out.str().c_str(), mVpWidth, mVpHeight);
         }
     } else {
@@ -373,11 +349,9 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
-    if (usesWideColor()) {
-        result.append("Wide-color: On\n");
-    } else {
-        result.append("Wide-color: Off\n");
-    }
+    result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
+                        dataspaceDetails(mDataSpace).c_str(),
+                        dataspaceDetails(mOutputDataSpace).c_str());
 }
 
 // ---------------------------------------------------------------------------

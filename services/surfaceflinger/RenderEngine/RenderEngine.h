@@ -108,11 +108,6 @@ public:
                                           bool yswap, Transform::orientation_flags rotation) = 0;
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                                     const half4& color) = 0;
-    virtual void setColorMode(android_color_mode mode) = 0;
-    virtual void setSourceDataSpace(android_dataspace source) = 0;
-    virtual void setSourceY410BT2020(bool enable) = 0;
-    virtual void setWideColor(bool hasWideColor) = 0;
-    virtual bool usesWideColor() = 0;
     virtual void setupLayerTexturing(const Texture& texture) = 0;
     virtual void setupLayerBlackedOut() = 0;
     virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
@@ -121,6 +116,11 @@ public:
 
     virtual void disableTexturing() = 0;
     virtual void disableBlending() = 0;
+
+    // wide color support
+    virtual void setSourceY410BT2020(bool enable) = 0;
+    virtual void setSourceDataSpace(android_dataspace source) = 0;
+    virtual void setOutputDataSpace(android_dataspace dataspace) = 0;
 
     // drawing
     virtual void drawMesh(const Mesh& mesh) = 0;
