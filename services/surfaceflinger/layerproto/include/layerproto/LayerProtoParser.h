@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
 #include <layerproto/LayerProtoHeader.h>
 
@@ -57,6 +58,16 @@ public:
         std::string to_string() const;
     };
 
+    class FloatRect {
+    public:
+        float left;
+        float top;
+        float right;
+        float bottom;
+
+        std::string to_string() const;
+    };
+
     class Region {
     public:
         uint64_t id;
@@ -96,12 +107,21 @@ public:
         LayerProtoParser::ActiveBuffer activeBuffer;
         int32_t queuedFrames;
         bool refreshPending;
+        LayerProtoParser::Rect hwcFrame;
+        LayerProtoParser::FloatRect hwcCrop;
+        int32_t hwcTransform;
         int32_t windowType;
         int32_t appId;
 
         std::string to_string() const;
     };
 
+    class LayerGlobal {
+    public:
+        int2 resolution;
+    };
+
+    static const LayerGlobal generateLayerGlobalInfo(const LayersProto& layersProto);
     static std::vector<std::unique_ptr<Layer>> generateLayerTree(const LayersProto& layersProto);
     static std::string layersToString(std::vector<std::unique_ptr<LayerProtoParser::Layer>> layers);
 
@@ -110,6 +130,7 @@ private:
     static LayerProtoParser::Layer* generateLayer(const LayerProto& layerProto);
     static LayerProtoParser::Region generateRegion(const RegionProto& regionProto);
     static LayerProtoParser::Rect generateRect(const RectProto& rectProto);
+    static LayerProtoParser::FloatRect generateFloatRect(const FloatRectProto& rectProto);
     static LayerProtoParser::Transform generateTransform(const TransformProto& transformProto);
     static LayerProtoParser::ActiveBuffer generateActiveBuffer(
             const ActiveBufferProto& activeBufferProto);

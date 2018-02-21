@@ -7,6 +7,7 @@ package android.surfaceflinger;
 // Contains a list of all layers.
 message LayersProto {
   repeated LayerProto layers = 1;
+  optional SizeProto resolution = 2;
 }
 
 // Information about each layer.
@@ -64,8 +65,14 @@ message LayerProto {
   // The number of frames available.
   optional int32 queued_frames = 28;
   optional bool refresh_pending = 29;
-  optional int32 window_type = 30;
-  optional int32 app_id = 31;
+  // The layer's composer backend destination frame
+  optional RectProto hwc_frame = 30;
+  // The layer's composer backend source crop
+  optional FloatRectProto hwc_crop = 31;
+  // The layer's composer backend transform
+  optional int32 hwc_transform = 32;
+  optional int32 window_type = 33;
+  optional int32 app_id = 34;
 }
 
 message PositionProto {
@@ -95,6 +102,13 @@ message RectProto {
   optional int32 top    = 2;
   optional int32 right  = 3;
   optional int32 bottom = 4;
+}
+
+message FloatRectProto {
+  optional float left = 1;
+  optional float top = 2;
+  optional float right = 3;
+  optional float bottom = 4;
 }
 
 message ActiveBufferProto {
