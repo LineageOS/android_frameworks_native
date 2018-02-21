@@ -14,6 +14,9 @@
 
 LOCAL_PATH:= $(call my-dir)
 
+# TODO(b/73133405): Currently, building cc_test against NDK using Android.bp
+# doesn't work well. Migrate to use Android.bp once b/73133405 gets fixed.
+
 include $(CLEAR_VARS)
 LOCAL_MODULE:= dvr_buffer_queue-test
 
@@ -25,8 +28,7 @@ LOCAL_C_INCLUDES := \
 
 LOCAL_SANITIZE := thread
 
-LOCAL_SRC_FILES := \
-    dvr_buffer_queue-test.cpp \
+LOCAL_SRC_FILES := dvr_buffer_queue-test.cpp
 
 LOCAL_SHARED_LIBRARIES := \
     libandroid \
@@ -41,6 +43,31 @@ LOCAL_CFLAGS := \
 LOCAL_SDK_VERSION := 26
 LOCAL_NDK_STL_VARIANT := c++_static
 
-# TODO(b/73133405): Currently, builing cc_test against NDK using Android.bp
-# doesn't work well. Migrate to use Android.bp once b/73133405 gets fixed.
+include $(BUILD_NATIVE_TEST)
+
+
+include $(CLEAR_VARS)
+LOCAL_MODULE:= dvr_display-test
+
+LOCAL_C_INCLUDES := \
+    frameworks/native/libs/vr/libdvr/include \
+    frameworks/native/libs/nativewindow/include
+
+LOCAL_SANITIZE := thread
+
+LOCAL_SRC_FILES := dvr_display-test.cpp
+
+LOCAL_SHARED_LIBRARIES := \
+    libandroid \
+    liblog
+
+LOCAL_CFLAGS := \
+    -DTRACE=0 \
+    -O2 \
+    -g
+
+# DTS Should only link to NDK libraries.
+LOCAL_SDK_VERSION := 26
+LOCAL_NDK_STL_VARIANT := c++_static
+
 include $(BUILD_NATIVE_TEST)
