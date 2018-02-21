@@ -290,6 +290,8 @@ public:
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
+    void writeToProto(LayerProto* layerInfo, int32_t hwcId);
+
 protected:
     /*
      * onDraw - draws the surface.
