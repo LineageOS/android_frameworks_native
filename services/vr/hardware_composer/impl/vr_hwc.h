@@ -19,7 +19,7 @@
 #include <android-base/unique_fd.h>
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/composer/2.1/IComposer.h>
-#include <ComposerBase.h>
+#include <composer-hal/2.1/ComposerHal.h>
 #include <ui/Fence.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
@@ -46,7 +46,7 @@ namespace dvr {
 class VrComposerClient;
 
 using android::hardware::graphics::common::V1_0::PixelFormat;
-using android::hardware::graphics::composer::V2_1::implementation::ComposerBase;
+using android::hardware::graphics::composer::V2_1::hal::ComposerHal;
 
 class ComposerView {
  public:
@@ -191,7 +191,7 @@ class HwcDisplay {
   void operator=(const HwcDisplay&) = delete;
 };
 
-class VrHwc : public IComposer, public ComposerBase, public ComposerView {
+class VrHwc : public IComposer, public ComposerHal, public ComposerView {
  public:
   VrHwc();
   ~VrHwc() override;
@@ -204,11 +204,12 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
       Display display, Layer layer,
       const IVrComposerClient::BufferMetadata& metadata);
 
-  // ComposerBase
+  // ComposerHal
   bool hasCapability(hwc2_capability_t capability) override;
 
-  void removeClient() override;
-  void enableCallback(bool enable) override;
+  std::string dumpDebugInfo() override { return {}; }
+  void registerEventCallback(EventCallback* callback) override;
+  void unregisterEventCallback() override {}
 
   uint32_t getMaxVirtualDisplayCount() override;
   Error createVirtualDisplay(uint32_t width, uint32_t height,
@@ -304,6 +305,7 @@ class VrHwc : public IComposer, public ComposerBase, public ComposerView {
   std::unordered_map<Display, std::unique_ptr<HwcDisplay>> displays_;
   Display display_count_ = 2;
 
+  EventCallback* event_callback_ = nullptr;
   Observer* observer_ = nullptr;
 
   VrHwc(const VrHwc&) = delete;

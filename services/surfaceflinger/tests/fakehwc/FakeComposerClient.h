@@ -18,7 +18,7 @@
 
 #define HWC2_USE_CPP11
 #define HWC2_INCLUDE_STRINGIFICATION
-#include "ComposerClient.h"
+#include <composer-hal/2.1/ComposerClient.h>
 #undef HWC2_USE_CPP11
 #undef HWC2_INCLUDE_STRINGIFICATION
 #include "RenderState.h"
@@ -31,7 +31,7 @@
 #include <chrono>
 
 using namespace android::hardware::graphics::composer::V2_1;
-using namespace android::hardware::graphics::composer::V2_1::implementation;
+using namespace android::hardware::graphics::composer::V2_1::hal;
 using namespace android::hardware;
 using namespace std::chrono_literals;
 
@@ -54,15 +54,17 @@ namespace sftest {
 constexpr Display PRIMARY_DISPLAY = static_cast<Display>(HWC_DISPLAY_PRIMARY);
 constexpr Display EXTERNAL_DISPLAY = static_cast<Display>(HWC_DISPLAY_EXTERNAL);
 
-class FakeComposerClient : public ComposerBase {
+class FakeComposerClient : public ComposerHal {
 public:
     FakeComposerClient();
     virtual ~FakeComposerClient();
 
     bool hasCapability(hwc2_capability_t capability) override;
 
-    void removeClient() override;
-    void enableCallback(bool enable) override;
+    std::string dumpDebugInfo() override;
+    void registerEventCallback(EventCallback* callback) override;
+    void unregisterEventCallback() override;
+
     uint32_t getMaxVirtualDisplayCount() override;
     Error createVirtualDisplay(uint32_t width, uint32_t height, PixelFormat* format,
                                Display* outDisplay) override;
@@ -147,8 +149,7 @@ public:
 private:
     LayerImpl& getLayerImpl(Layer handle);
 
-    bool mCallbacksOn;
-    ComposerClient* mClient;
+    EventCallback* mEventCallback;
     Config mCurrentConfig;
     bool mVsyncEnabled;
     std::vector<std::unique_ptr<LayerImpl>> mLayers;
