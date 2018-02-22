@@ -2460,4 +2460,49 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     ASSERT_EQ(NAME_NOT_FOUND, sf->captureLayers(redLayerHandle, &outBuffer, Rect::EMPTY_RECT, 1.0));
 }
 
+
+class DereferenceSurfaceControlTest : public LayerTransactionTest {
+protected:
+    void SetUp() override {
+        LayerTransactionTest::SetUp();
+        bgLayer = createLayer("BG layer", 20, 20);
+        fillLayerColor(bgLayer, Color::RED);
+        fgLayer = createLayer("FG layer", 20, 20);
+        fillLayerColor(fgLayer, Color::BLUE);
+        Transaction().setLayer(fgLayer, mLayerZBase + 1).apply();
+        {
+            SCOPED_TRACE("before anything");
+            auto shot = screenshot();
+            shot->expectColor(Rect(0, 0, 20, 20), Color::BLUE);
+        }
+    }
+    void TearDown() override {
+        LayerTransactionTest::TearDown();
+        bgLayer = 0;
+        fgLayer = 0;
+    }
+
+    sp<SurfaceControl> bgLayer;
+    sp<SurfaceControl> fgLayer;
+};
+
+TEST_F(DereferenceSurfaceControlTest, LayerNotInTransaction) {
+    fgLayer = nullptr;
+    {
+        SCOPED_TRACE("after setting null");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 20, 20), Color::RED);
+    }
+}
+
+TEST_F(DereferenceSurfaceControlTest, LayerInTransaction) {
+    auto transaction = Transaction().show(fgLayer);
+    fgLayer = nullptr;
+    {
+        SCOPED_TRACE("after setting null");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 20, 20), Color::BLUE);
+    }
+}
+
 } // namespace android
