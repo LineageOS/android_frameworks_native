@@ -1289,6 +1289,11 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t displa
 
     mPendingHotplugEvents.emplace_back(HotplugEvent{display, connection});
 
+    if (std::this_thread::get_id() == mMainThreadId) {
+        // Process all pending hot plug events immediately if we are on the main thread.
+        processDisplayHotplugEventsLocked();
+    }
+
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
