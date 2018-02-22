@@ -168,8 +168,7 @@ void DisplayTest::SetUp() {
     // interface instead of the current Composer interface might also
     // change the situation.
     mMockComposer = new MockComposerClient;
-    sp<ComposerClient> client = new ComposerClient(*mMockComposer);
-    mMockComposer->setClient(client.get());
+    sp<ComposerClient> client = new ComposerClient(mMockComposer);
     mFakeService = new FakeComposerService(client);
     (void)mFakeService->registerAsService("mock");
 
@@ -446,8 +445,7 @@ void TransactionTest::SetUpTestCase() {
     // TODO: See TODO comment at DisplayTest::SetUp for background on
     // the lifetime of the FakeComposerClient.
     sFakeComposer = new FakeComposerClient;
-    sp<ComposerClient> client = new ComposerClient(*sFakeComposer);
-    sFakeComposer->setClient(client.get());
+    sp<ComposerClient> client = new ComposerClient(sFakeComposer);
     sp<IComposer> fakeService = new FakeComposerService(client);
     (void)fakeService->registerAsService("mock");
 

@@ -46,7 +46,9 @@ Return<void> FakeComposerService::dumpDebugInfo(dumpDebugInfo_cb hidl_cb) {
 
 Return<void> FakeComposerService::createClient(createClient_cb hidl_cb) {
     ALOGI("FakeComposerService::createClient %p", mClient.get());
-    mClient->initialize();
+    if (!mClient->init()) {
+        LOG_ALWAYS_FATAL("failed to initialize ComposerClient");
+    }
     hidl_cb(Error::NONE, mClient);
     return Void();
 }
