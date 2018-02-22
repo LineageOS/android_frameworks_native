@@ -155,6 +155,9 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/power/clock_set_rate/enable" },
         { OPT,      "events/power/clock_disable/enable" },
         { OPT,      "events/power/clock_enable/enable" },
+        { OPT,      "events/clk/clk_set_rate/enable" },
+        { OPT,      "events/clk/clk_disable/enable" },
+        { OPT,      "events/clk/clk_enable/enable" },
         { OPT,      "events/power/cpu_frequency_limits/enable" },
     } },
     { "membus",     "Memory Bus Utilization", 0, {
