@@ -14,6 +14,7 @@ LOCAL_MODULE_TAGS := optional
 LOCAL_SRC_FILES := $(call all-subdir-java-files)
 
 LOCAL_PACKAGE_NAME := GLDual
+LOCAL_SDK_VERSION := current
 
 LOCAL_JNI_SHARED_LIBRARIES := libgldualjni
 
