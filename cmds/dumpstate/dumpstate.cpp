@@ -180,7 +180,7 @@ static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
             continue;
         }
 
-        if (limit_by_mtime && st.st_mtime >= thirty_minutes_ago) {
+        if (limit_by_mtime && st.st_mtime < thirty_minutes_ago) {
             MYLOGI("Excluding stale dump file: %s\n", abs_path.c_str());
             continue;
         }
