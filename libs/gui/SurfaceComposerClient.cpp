@@ -181,7 +181,7 @@ void SurfaceComposerClient::Transaction::setAnimationTransaction() {
     mAnimation = true;
 }
 
-layer_state_t* SurfaceComposerClient::Transaction::getLayerStateLocked(const sp<SurfaceControl>& sc) {
+layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<SurfaceControl>& sc) {
     ComposerState s;
     s.client = sc->getClient()->mClient;
     s.state.surface = sc->getHandle();
@@ -198,7 +198,7 @@ layer_state_t* SurfaceComposerClient::Transaction::getLayerStateLocked(const sp<
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setPosition(
         const sp<SurfaceControl>& sc, float x, float y) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -221,7 +221,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::hide(
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSize(
         const sp<SurfaceControl>& sc, uint32_t w, uint32_t h) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -238,7 +238,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSize(
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer(
         const sp<SurfaceControl>& sc, int32_t z) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -250,7 +250,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelativeLayer(const sp<SurfaceControl>& sc, const sp<IBinder>& relativeTo,
         int32_t z) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
     }
@@ -263,7 +263,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setRelat
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFlags(
         const sp<SurfaceControl>& sc, uint32_t flags,
         uint32_t mask) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -282,7 +282,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFlags
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTransparentRegionHint(
         const sp<SurfaceControl>& sc,
         const Region& transparentRegion) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -294,7 +294,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTrans
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAlpha(
         const sp<SurfaceControl>& sc, float alpha) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -306,7 +306,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAlpha
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayerStack(
         const sp<SurfaceControl>& sc, uint32_t layerStack) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -319,7 +319,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatrix(
         const sp<SurfaceControl>& sc, float dsdx, float dtdx,
         float dtdy, float dsdy) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -336,7 +336,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatri
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
         const sp<SurfaceControl>& sc, const Rect& crop) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -347,7 +347,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinalCrop(const sp<SurfaceControl>& sc, const Rect& crop) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -360,7 +360,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinal
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTransactionUntil(
         const sp<SurfaceControl>& sc,
         const sp<IBinder>& handle, uint64_t frameNumber) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -374,7 +374,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTra
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTransactionUntil(
         const sp<SurfaceControl>& sc,
         const sp<Surface>& barrierSurface, uint64_t frameNumber) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -388,7 +388,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTra
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparentChildren(
         const sp<SurfaceControl>& sc,
         const sp<IBinder>& newParentHandle) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -401,7 +401,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent(
         const sp<SurfaceControl>& sc,
         const sp<IBinder>& newParentHandle) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -414,7 +414,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::reparent
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor(
         const sp<SurfaceControl>& sc,
         const half3& color) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -426,7 +426,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::detachChildren(
         const sp<SurfaceControl>& sc) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
     }
@@ -436,7 +436,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::detachCh
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setOverrideScalingMode(
         const sp<SurfaceControl>& sc, int32_t overrideScalingMode) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -463,7 +463,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setOverr
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeometryAppliesWithResize(
         const sp<SurfaceControl>& sc) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -474,7 +474,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeome
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroySurface(
         const sp<SurfaceControl>& sc) {
-    layer_state_t* s = getLayerStateLocked(sc);
+    layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
@@ -485,7 +485,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroyS
 
 // ---------------------------------------------------------------------------
 
-DisplayState& SurfaceComposerClient::Transaction::getDisplayStateLocked(const sp<IBinder>& token) {
+DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {
     DisplayState s;
     s.token = token;
     ssize_t index = mDisplayStates.indexOf(s);
@@ -510,7 +510,7 @@ status_t SurfaceComposerClient::Transaction::setDisplaySurface(const sp<IBinder>
             return err;
         }
     }
-    DisplayState& s(getDisplayStateLocked(token));
+    DisplayState& s(getDisplayState(token));
     s.surface = bufferProducer;
     s.what |= DisplayState::eSurfaceChanged;
     return NO_ERROR;
@@ -518,7 +518,7 @@ status_t SurfaceComposerClient::Transaction::setDisplaySurface(const sp<IBinder>
 
 void SurfaceComposerClient::Transaction::setDisplayLayerStack(const sp<IBinder>& token,
         uint32_t layerStack) {
-    DisplayState& s(getDisplayStateLocked(token));
+    DisplayState& s(getDisplayState(token));
     s.layerStack = layerStack;
     s.what |= DisplayState::eLayerStackChanged;
 }
@@ -527,7 +527,7 @@ void SurfaceComposerClient::Transaction::setDisplayProjection(const sp<IBinder>&
         uint32_t orientation,
         const Rect& layerStackRect,
         const Rect& displayRect) {
-    DisplayState& s(getDisplayStateLocked(token));
+    DisplayState& s(getDisplayState(token));
     s.orientation = orientation;
     s.viewport = layerStackRect;
     s.frame = displayRect;
@@ -536,7 +536,7 @@ void SurfaceComposerClient::Transaction::setDisplayProjection(const sp<IBinder>&
 }
 
 void SurfaceComposerClient::Transaction::setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height) {
-    DisplayState& s(getDisplayStateLocked(token));
+    DisplayState& s(getDisplayState(token));
     s.width = width;
     s.height = height;
     s.what |= DisplayState::eDisplaySizeChanged;
