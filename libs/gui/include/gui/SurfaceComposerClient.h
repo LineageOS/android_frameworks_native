@@ -136,8 +136,8 @@ public:
 
         int mStatus = NO_ERROR;
 
-        layer_state_t* getLayerStateLocked(const sp<SurfaceControl>& sc);
-        DisplayState& getDisplayStateLocked(const sp<IBinder>& token);
+        layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
+        DisplayState& getDisplayState(const sp<IBinder>& token);
 
     public:
         Transaction() = default;
