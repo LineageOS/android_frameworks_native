@@ -1,6 +1,5 @@
 #include <android/log.h>
 #include <android/native_window.h>
-#include <dlfcn.h>
 #include <dvr/dvr_api.h>
 #include <dvr/dvr_buffer_queue.h>
 
@@ -9,13 +8,13 @@
 #include <array>
 #include <unordered_map>
 
+#include "dvr_api_test.h"
+
 #define LOG_TAG "dvr_buffer_queue-test"
 
 #ifndef ALOGD
 #define ALOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 #endif
-
-#define ASSERT_NOT_NULL(x) ASSERT_TRUE((x) != nullptr)
 
 #ifndef ALOGD_IF
 #define ALOGD_IF(cond, ...) \
@@ -31,7 +30,7 @@ static constexpr uint32_t kBufferFormat = AHARDWAREBUFFER_FORMAT_BLOB;
 static constexpr uint64_t kBufferUsage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN;
 static constexpr size_t kQueueCapacity = 3;
 
-class DvrBufferQueueTest : public ::testing::Test {
+class DvrBufferQueueTest : public DvrApiTest {
  public:
   static void BufferAvailableCallback(void* context) {
     DvrBufferQueueTest* thiz = static_cast<DvrBufferQueueTest*>(context);
@@ -44,33 +43,12 @@ class DvrBufferQueueTest : public ::testing::Test {
   }
 
  protected:
-  void SetUp() override {
-    int flags = RTLD_NOW | RTLD_LOCAL;
-
-    // Here we need to ensure that libdvr is loaded with RTLD_NODELETE flag set
-    // (so that calls to `dlclose` don't actually unload the library). This is a
-    // workaround for an Android NDK bug. See more detail:
-    // https://github.com/android-ndk/ndk/issues/360
-    flags |= RTLD_NODELETE;
-    platform_handle_ = dlopen("libdvr.so", flags);
-    ASSERT_NOT_NULL(platform_handle_) << "Dvr shared library missing.";
-
-    auto dvr_get_api = reinterpret_cast<decltype(&dvrGetApi)>(
-        dlsym(platform_handle_, "dvrGetApi"));
-    ASSERT_NOT_NULL(dvr_get_api) << "Platform library missing dvrGetApi.";
-
-    ASSERT_EQ(dvr_get_api(&api_, sizeof(api_), /*version=*/1), 0)
-        << "Unable to find compatible Dvr API.";
-  }
-
   void TearDown() override {
     if (write_queue_ != nullptr) {
       api_.WriteBufferQueueDestroy(write_queue_);
       write_queue_ = nullptr;
     }
-    if (platform_handle_ != nullptr) {
-      dlclose(platform_handle_);
-    }
+    DvrApiTest::TearDown();
   }
 
   void HandleBufferAvailable() {
@@ -87,8 +65,6 @@ class DvrBufferQueueTest : public ::testing::Test {
   DvrWriteBufferQueue* write_queue_{nullptr};
   int buffer_available_count_{0};
   int buffer_removed_count_{0};
-  void* platform_handle_{nullptr};
-  DvrApi_v1 api_{};
 };
 
 TEST_F(DvrBufferQueueTest, WriteQueueCreateDestroy) {
