@@ -51,11 +51,6 @@ cc_library {
         "-Wall",
         "-Werror",
     ],
-    arch: {
-        arm: {
-            instruction_set: "arm",
-        },
-    },
     export_include_dirs: localIncludeFiles,
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
