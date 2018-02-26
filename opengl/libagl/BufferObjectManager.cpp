@@ -18,7 +18,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-#include <utils/Atomic.h>
+#include <cutils/atomic.h>
 #include <utils/RefBase.h>
 #include <utils/KeyedVector.h>
 #include <utils/Errors.h>

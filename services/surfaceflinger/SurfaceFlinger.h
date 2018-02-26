@@ -28,8 +28,8 @@
  */
 
 #include <cutils/compiler.h>
+#include <cutils/atomic.h>
 
-#include <utils/Atomic.h>
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
