@@ -51,6 +51,9 @@ public:
         KEYBOARD_TYPE_PREDICTIVE = 2,
         KEYBOARD_TYPE_ALPHA = 3,
         KEYBOARD_TYPE_FULL = 4,
+        /**
+         * Deprecated. Set 'keyboard.specialFunction' to '1' in the device's IDC file instead.
+         */
         KEYBOARD_TYPE_SPECIAL_FUNCTION = 5,
         KEYBOARD_TYPE_OVERLAY = 6,
     };
