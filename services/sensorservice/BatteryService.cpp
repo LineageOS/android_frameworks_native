@@ -18,7 +18,7 @@
 #include <math.h>
 #include <sys/types.h>
 
-#include <utils/Atomic.h>
+#include <cutils/atomic.h>
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
 
