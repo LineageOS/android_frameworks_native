@@ -1585,6 +1585,7 @@ int main(int argc, char *argv[]) {
             is_remote_mode = 1;
             do_fb = 0;
         } else if (ds.extra_options_ == "bugreportwear") {
+            do_start_service = true;
             ds.update_progress_ = true;
         } else if (ds.extra_options_ == "bugreporttelephony") {
             telephony_only = true;
