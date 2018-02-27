@@ -715,7 +715,9 @@ private:
     bool mTransactionPending;
     bool mAnimTransactionPending;
     SortedVector< sp<Layer> > mLayersPendingRemoval;
-    SortedVector< wp<IBinder> > mGraphicBufferProducerList;
+
+    // Can't be unordered_set because wp<> isn't hashable
+    std::set<wp<IBinder>> mGraphicBufferProducerList;
 
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved;
