@@ -36,11 +36,6 @@ cc_library {
         "-Wall",
         "-Werror",
     ],
-    arch: {
-        arm: {
-            instruction_set: "arm",
-        },
-    },
     export_include_dirs: includeFiles,
     shared_libs: sharedLibraries,
     name: "libperformance",

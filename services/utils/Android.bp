@@ -27,12 +27,6 @@ cc_library_static {
         "PriorityDumper.cpp",
     ],
 
-    arch: {
-        arm: {
-            instruction_set: "arm",
-        },
-    },
-
     clang: true,
     export_include_dirs: ["include"],
 }

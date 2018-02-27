@@ -133,11 +133,6 @@ cc_library_shared {
     srcs: [
         ":libsurfaceflinger_sources",
     ],
-    arch: {
-        arm: {
-            instruction_set: "arm",
-        },
-    },
     logtags: ["EventLog/EventLogTags.logtags"],
     include_dirs: [
         "external/vulkan-validation-layers/libs/vkjson",
