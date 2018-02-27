@@ -282,7 +282,7 @@ protected:
                                                  profile_name_ptr,
                                                  dm_path_ptr,
                                                  compilation_reason_ptr);
-        ASSERT_EQ(should_binder_call_succeed, result.isOk());
+        ASSERT_EQ(should_binder_call_succeed, result.isOk()) << result.toString8().c_str();
         int expected_access = should_dex_be_compiled ? 0 : -1;
         std::string odex = GetSecondaryDexArtifact(path, "odex");
         std::string vdex = GetSecondaryDexArtifact(path, "vdex");
@@ -310,7 +310,7 @@ protected:
             storage_flag,
             &out_secondary_dex_exists);
 
-        ASSERT_EQ(should_binder_call_succeed, result.isOk());
+        ASSERT_EQ(should_binder_call_succeed, result.isOk()) << result.toString8().c_str();
         ASSERT_EQ(should_dex_exist, out_secondary_dex_exists);
 
         int expected_access = should_dex_be_deleted ? -1 : 0;
@@ -378,7 +378,7 @@ protected:
                 package_name_, kTestUserId, kTestAppId, *profile_name_ptr, /*code path*/ "base.apk",
                 /*dex_metadata*/ nullptr, &prof_result);
 
-        ASSERT_TRUE(prof_binder_result.isOk());
+        ASSERT_TRUE(prof_binder_result.isOk()) << prof_binder_result.toString8().c_str();
         ASSERT_TRUE(prof_result);
 
         binder::Status result = service_->dexopt(apk_path_,
@@ -397,7 +397,7 @@ protected:
                                                  profile_name_ptr,
                                                  dm_path_ptr,
                                                  compilation_reason_ptr);
-        ASSERT_EQ(should_binder_call_succeed, result.isOk());
+        ASSERT_EQ(should_binder_call_succeed, result.isOk()) << result.toString8().c_str();
 
         if (!should_binder_call_succeed) {
             return;
@@ -662,7 +662,7 @@ class ProfileTest : public DexoptTest {
         bool result;
         binder::Status binder_result = service_->createProfileSnapshot(
                 appid, package_name, kPrimaryProfile, apk_path_, &result);
-        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -704,7 +704,7 @@ class ProfileTest : public DexoptTest {
         bool result;
         binder::Status binder_result = service_->mergeProfiles(
                 kTestAppUid, package_name, code_path, &result);
-        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -733,7 +733,7 @@ class ProfileTest : public DexoptTest {
         binder::Status binder_result = service_->prepareAppProfile(
                 package_name, kTestUserId, kTestAppId, profile_name, /*code path*/ "base.apk",
                 /*dex_metadata*/ nullptr, &result);
-        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -820,7 +820,7 @@ TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 
     binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, kPrimaryProfile);
-    ASSERT_TRUE(binder_result.isOk());
+    ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
     struct stat st;
     ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
     ASSERT_EQ(ENOENT, errno);
