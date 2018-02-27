@@ -73,8 +73,8 @@ cc_defaults {
 cc_library_headers {
     name: "libsurfaceflinger_headers",
     export_include_dirs: ["."],
-    static_libs = ["libserviceutils"],
-    export_static_lib_headers = ["libserviceutils"],
+    static_libs: ["libserviceutils"],
+    export_static_lib_headers: ["libserviceutils"],
 }
 
 filegroup {
@@ -144,7 +144,7 @@ cc_library_shared {
         "frameworks/native/vulkan/include",
     ],
     cppflags: [
-        "-fwhole-program-vtables",  // requires ThinLTO
+        "-fwhole-program-vtables", // requires ThinLTO
     ],
     lto: {
         thin: true,
