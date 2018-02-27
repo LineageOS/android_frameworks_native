@@ -9,12 +9,6 @@ cc_library_shared {
         "layerstrace.proto",
     ],
 
-    arch: {
-        arm: {
-            instruction_set: "arm",
-        },
-    },
-
     shared_libs: [
         "libui",
         "libprotobuf-cpp-lite",

@@ -18,7 +18,7 @@
 
 #include <android-base/logging.h>
 #include <sensors/convert.h>
-#include <utils/Atomic.h>
+#include <cutils/atomic.h>
 #include <utils/Errors.h>
 #include <utils/Singleton.h>
 

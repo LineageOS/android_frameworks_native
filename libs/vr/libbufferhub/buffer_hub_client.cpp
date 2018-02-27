@@ -431,50 +431,6 @@ BufferProducer::BufferProducer(uint32_t width, uint32_t height, uint32_t format,
   }
 }
 
-BufferProducer::BufferProducer(const std::string& name, int user_id,
-                               int group_id, uint32_t width, uint32_t height,
-                               uint32_t format, uint32_t usage,
-                               size_t user_metadata_size)
-    : BufferProducer(name, user_id, group_id, width, height, format, usage,
-                     usage, user_metadata_size) {}
-
-BufferProducer::BufferProducer(const std::string& name, int user_id,
-                               int group_id, uint32_t width, uint32_t height,
-                               uint32_t format, uint64_t producer_usage,
-                               uint64_t consumer_usage,
-                               size_t user_metadata_size)
-    : BASE(BufferHubRPC::kClientPath) {
-  ATRACE_NAME("BufferProducer::BufferProducer");
-  ALOGD_IF(TRACE,
-           "BufferProducer::BufferProducer: fd=%d name=%s user_id=%d "
-           "group_id=%d width=%u height=%u format=%u producer_usage=%" PRIx64
-           " consumer_usage=%" PRIx64 " user_metadata_size=%zu",
-           event_fd(), name.c_str(), user_id, group_id, width, height, format,
-           producer_usage, consumer_usage, user_metadata_size);
-
-  // (b/37881101) Deprecate producer/consumer usage
-  auto status = InvokeRemoteMethod<BufferHubRPC::CreatePersistentBuffer>(
-      name, user_id, group_id, width, height, format,
-      (producer_usage | consumer_usage), user_metadata_size);
-  if (!status) {
-    ALOGE(
-        "BufferProducer::BufferProducer: Failed to create/get persistent "
-        "buffer \"%s\": %s",
-        name.c_str(), status.GetErrorMessage().c_str());
-    Close(-status.error());
-    return;
-  }
-
-  const int ret = ImportBuffer();
-  if (ret < 0) {
-    ALOGE(
-        "BufferProducer::BufferProducer: Failed to import producer buffer "
-        "\"%s\": %s",
-        name.c_str(), strerror(-ret));
-    Close(ret);
-  }
-}
-
 BufferProducer::BufferProducer(uint32_t usage, size_t size)
     : BufferProducer(usage, usage, size) {}
 
@@ -507,73 +463,6 @@ BufferProducer::BufferProducer(uint64_t producer_usage, uint64_t consumer_usage,
     ALOGE(
         "BufferProducer::BufferProducer: Failed to import producer buffer: %s",
         strerror(-ret));
-    Close(ret);
-  }
-}
-
-BufferProducer::BufferProducer(const std::string& name, int user_id,
-                               int group_id, uint32_t usage, size_t size)
-    : BufferProducer(name, user_id, group_id, usage, usage, size) {}
-
-BufferProducer::BufferProducer(const std::string& name, int user_id,
-                               int group_id, uint64_t producer_usage,
-                               uint64_t consumer_usage, size_t size)
-    : BASE(BufferHubRPC::kClientPath) {
-  ATRACE_NAME("BufferProducer::BufferProducer");
-  ALOGD_IF(TRACE,
-           "BufferProducer::BufferProducer: name=%s user_id=%d group=%d "
-           "producer_usage=%" PRIx64 " consumer_usage=%" PRIx64 " size=%zu",
-           name.c_str(), user_id, group_id, producer_usage, consumer_usage,
-           size);
-  const int width = static_cast<int>(size);
-  const int height = 1;
-  const int format = HAL_PIXEL_FORMAT_BLOB;
-  const size_t user_metadata_size = 0;
-
-  // (b/37881101) Deprecate producer/consumer usage
-  auto status = InvokeRemoteMethod<BufferHubRPC::CreatePersistentBuffer>(
-      name, user_id, group_id, width, height, format,
-      (producer_usage | consumer_usage), user_metadata_size);
-  if (!status) {
-    ALOGE(
-        "BufferProducer::BufferProducer: Failed to create persistent "
-        "buffer \"%s\": %s",
-        name.c_str(), status.GetErrorMessage().c_str());
-    Close(-status.error());
-    return;
-  }
-
-  const int ret = ImportBuffer();
-  if (ret < 0) {
-    ALOGE(
-        "BufferProducer::BufferProducer: Failed to import producer buffer "
-        "\"%s\": %s",
-        name.c_str(), strerror(-ret));
-    Close(ret);
-  }
-}
-
-BufferProducer::BufferProducer(const std::string& name)
-    : BASE(BufferHubRPC::kClientPath) {
-  ATRACE_NAME("BufferProducer::BufferProducer");
-  ALOGD_IF(TRACE, "BufferProducer::BufferProducer: name=%s", name.c_str());
-
-  auto status = InvokeRemoteMethod<BufferHubRPC::GetPersistentBuffer>(name);
-  if (!status) {
-    ALOGE(
-        "BufferProducer::BufferProducer: Failed to get producer buffer by name "
-        "\"%s\": %s",
-        name.c_str(), status.GetErrorMessage().c_str());
-    Close(-status.error());
-    return;
-  }
-
-  const int ret = ImportBuffer();
-  if (ret < 0) {
-    ALOGE(
-        "BufferProducer::BufferProducer: Failed to import producer buffer "
-        "\"%s\": %s",
-        name.c_str(), strerror(-ret));
     Close(ret);
   }
 }
@@ -734,20 +623,6 @@ std::unique_ptr<BufferProducer> BufferProducer::Import(
     Status<LocalChannelHandle> status) {
   return Import(status ? status.take()
                        : LocalChannelHandle{nullptr, -status.error()});
-}
-
-int BufferProducer::MakePersistent(const std::string& name, int user_id,
-                                   int group_id) {
-  ATRACE_NAME("BufferProducer::MakePersistent");
-  return ReturnStatusOrError(
-      InvokeRemoteMethod<BufferHubRPC::ProducerMakePersistent>(name, user_id,
-                                                               group_id));
-}
-
-int BufferProducer::RemovePersistence() {
-  ATRACE_NAME("BufferProducer::RemovePersistence");
-  return ReturnStatusOrError(
-      InvokeRemoteMethod<BufferHubRPC::ProducerRemovePersistence>());
 }
 
 }  // namespace dvr

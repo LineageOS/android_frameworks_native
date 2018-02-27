@@ -170,6 +170,35 @@ binder::Status checkArgumentPackageName(const std::string& packageName) {
     }
 }
 
+binder::Status checkArgumentPath(const std::string& path) {
+    if (path.empty()) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Missing path");
+    }
+    if (path[0] != '/') {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("Path %s is relative", path.c_str()));
+    }
+    if ((path + '/').find("/../") != std::string::npos) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("Path %s is shady", path.c_str()));
+    }
+    for (const char& c : path) {
+        if (c == '\0' || c == '\n') {
+            return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                    StringPrintf("Path %s is malformed", path.c_str()));
+        }
+    }
+    return ok();
+}
+
+binder::Status checkArgumentPath(const std::unique_ptr<std::string>& path) {
+    if (path) {
+        return checkArgumentPath(*path);
+    } else {
+        return ok();
+    }
+}
+
 #define ENFORCE_UID(uid) {                                  \
     binder::Status status = checkUid((uid));                \
     if (!status.isOk()) {                                   \
@@ -187,6 +216,13 @@ binder::Status checkArgumentPackageName(const std::string& packageName) {
 #define CHECK_ARGUMENT_PACKAGE_NAME(packageName) {          \
     binder::Status status =                                 \
             checkArgumentPackageName((packageName));        \
+    if (!status.isOk()) {                                   \
+        return status;                                      \
+    }                                                       \
+}
+
+#define CHECK_ARGUMENT_PATH(path) {                         \
+    binder::Status status = checkArgumentPath((path));      \
     if (!status.isOk()) {                                   \
         return status;                                      \
     }                                                       \
@@ -1139,6 +1175,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
 binder::Status InstalldNativeService::rmdex(const std::string& codePath,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(codePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     char dex_path[PKG_PATH_MAX];
@@ -1397,6 +1434,9 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     CHECK_ARGUMENT_UUID(uuid);
     for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    }
+    for (const auto& codePath : codePaths) {
+        CHECK_ARGUMENT_PATH(codePath);
     }
     // NOTE: Locking is relaxed on this method, since it's limited to
     // read-only measurements without mutation.
@@ -1843,6 +1883,7 @@ binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::strin
         const std::string& profileName, const std::string& codePath, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(codePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     *_aidl_return = dump_profiles(uid, packageName, profileName, codePath);
@@ -1910,9 +1951,12 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
         const std::unique_ptr<std::string>& compilationReason) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    CHECK_ARGUMENT_PATH(apkPath);
     if (packageName && *packageName != "*") {
         CHECK_ARGUMENT_PACKAGE_NAME(*packageName);
     }
+    CHECK_ARGUMENT_PATH(outputPath);
+    CHECK_ARGUMENT_PATH(dexMetadataPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
@@ -1958,6 +2002,7 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(nativeLibPath32);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
@@ -2125,6 +2170,8 @@ static int flatten_path(const char *prefix, const char *suffix,
 binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
         const std::string& overlayApkPath, int32_t uid) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(targetApkPath);
+    CHECK_ARGUMENT_PATH(overlayApkPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* target_apk = targetApkPath.c_str();
@@ -2210,6 +2257,10 @@ fail:
 }
 
 binder::Status InstalldNativeService::removeIdmap(const std::string& overlayApkPath) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(overlayApkPath);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     const char* overlay_apk = overlayApkPath.c_str();
     char idmap_path[PATH_MAX];
 
@@ -2260,6 +2311,7 @@ binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<st
 binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(oatDir);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* oat_dir = oatDir.c_str();
@@ -2284,6 +2336,7 @@ binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
 
 binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(packageDir);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     if (validate_apk_path(packageDir.c_str())) {
@@ -2298,6 +2351,8 @@ binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir
 binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
         const std::string& fromBase, const std::string& toBase) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(fromBase);
+    CHECK_ARGUMENT_PATH(toBase);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* relative_path = relativePath.c_str();
@@ -2326,6 +2381,8 @@ binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
 binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
         const std::string& instructionSet, const std::string& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(apkPath);
+    CHECK_ARGUMENT_PATH(outputPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
@@ -2339,6 +2396,8 @@ binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
 binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
         const std::string& instructionSet, const std::unique_ptr<std::string>& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(apkPath);
+    CHECK_ARGUMENT_PATH(outputPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
@@ -2373,6 +2432,9 @@ struct fsverity_root_hash {
 binder::Status InstalldNativeService::installApkVerity(const std::string& filePath,
         const ::android::base::unique_fd& verityInputAshmem) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(filePath);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
         return ok();
     }
@@ -2440,6 +2502,9 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
 binder::Status InstalldNativeService::assertFsverityRootHashMatches(const std::string& filePath,
         const std::vector<uint8_t>& expectedHash) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(filePath);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
         return ok();
     }
@@ -2474,8 +2539,9 @@ binder::Status InstalldNativeService::reconcileSecondaryDexFile(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-
+    CHECK_ARGUMENT_PATH(dexPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
+
     bool result = android::installd::reconcile_secondary_dex_file(
             dexPath, packageName, uid, isas, volumeUuid, storage_flag, _aidl_return);
     return result ? ok() : error();
@@ -2488,6 +2554,7 @@ binder::Status InstalldNativeService::hashSecondaryDexFile(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(dexPath);
 
     // mLock is not taken here since we will never modify the file system.
     // If a file is modified just as we are reading it this may result in an
@@ -2584,6 +2651,7 @@ binder::Status InstalldNativeService::prepareAppProfile(const std::string& packa
         const std::unique_ptr<std::string>& dexMetadata, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(codePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     *_aidl_return = prepare_app_profile(packageName, userId, appId, profileName, codePath,

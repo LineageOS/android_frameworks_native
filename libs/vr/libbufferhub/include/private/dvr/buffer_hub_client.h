@@ -221,19 +221,6 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   // succeeded, or a negative errno code if local error check fails.
   int GainAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
 
-  // Attaches the producer to |name| so that it becomes a persistent buffer that
-  // may be retrieved by name at a later time. This may be used in cases where a
-  // shared memory buffer should persist across the life of the producer process
-  // (i.e. the buffer may be held by clients across a service restart). The
-  // buffer may be associated with a user and/or group id to restrict access to
-  // the buffer. If user_id or group_id is -1 then checks for the respective id
-  // are disabled. If user_id or group_id is 0 then the respective id of the
-  // calling process is used instead.
-  int MakePersistent(const std::string& name, int user_id, int group_id);
-
-  // Removes the persistence of the producer.
-  int RemovePersistence();
-
  private:
   friend BASE;
 
@@ -248,39 +235,9 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
                  uint64_t producer_usage, uint64_t consumer_usage,
                  size_t metadata_size);
 
-  // Constructs a persistent buffer with the given geometry and parameters and
-  // binds it to |name| in one shot. If a persistent buffer with the same name
-  // and settings already exists and matches the given geometry and parameters,
-  // that buffer is connected to this client instead of creating a new buffer.
-  // If the name matches but the geometry or settings do not match then
-  // construction fails and BufferProducer::Create() returns nullptr.
-  //
-  // Access to the persistent buffer may be restricted by |user_id| and/or
-  // |group_id|; these settings are established only when the buffer is first
-  // created and cannot be changed. A user or group id of -1 disables checks for
-  // that respective id. A user or group id of 0 is substituted with the
-  // effective user or group id of the calling process.
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint32_t width, uint32_t height, uint32_t format,
-                 uint32_t usage, size_t metadata_size = 0);
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint32_t width, uint32_t height, uint32_t format,
-                 uint64_t producer_usage, uint64_t consumer_usage,
-                 size_t user_metadata_size);
-
   // Constructs a blob (flat) buffer with the given usage flags.
   BufferProducer(uint32_t usage, size_t size);
   BufferProducer(uint64_t producer_usage, uint64_t consumer_usage, size_t size);
-
-  // Constructs a persistent blob (flat) buffer and binds it to |name|.
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint32_t usage, size_t size);
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint64_t producer_usage, uint64_t consumer_usage, size_t size);
-
-  // Constructs a channel to persistent buffer by name only. The buffer must
-  // have been previously created or made persistent.
-  explicit BufferProducer(const std::string& name);
 
   // Imports the given file handle to a producer channel, taking ownership.
   explicit BufferProducer(LocalChannelHandle channel);
