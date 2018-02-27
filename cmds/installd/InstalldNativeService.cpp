@@ -112,6 +112,7 @@ static binder::Status ok() {
 }
 
 static binder::Status exception(uint32_t code, const std::string& msg) {
+    LOG(ERROR) << msg << " (" << code << ")";
     return binder::Status::fromExceptionCode(code, String8(msg.c_str()));
 }
 

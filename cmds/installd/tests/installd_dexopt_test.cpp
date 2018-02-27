@@ -375,7 +375,7 @@ protected:
 
         bool prof_result;
         binder::Status prof_binder_result = service_->prepareAppProfile(
-                package_name_, kTestUserId, kTestAppId, *profile_name_ptr, /*code path*/ "base.apk",
+                package_name_, kTestUserId, kTestAppId, *profile_name_ptr, apk_path_,
                 /*dex_metadata*/ nullptr, &prof_result);
 
         ASSERT_TRUE(prof_binder_result.isOk());
@@ -731,7 +731,7 @@ class ProfileTest : public DexoptTest {
             bool expected_result) {
         bool result;
         binder::Status binder_result = service_->prepareAppProfile(
-                package_name, kTestUserId, kTestAppId, profile_name, /*code path*/ "base.apk",
+                package_name, kTestUserId, kTestAppId, profile_name, apk_path_,
                 /*dex_metadata*/ nullptr, &result);
         ASSERT_TRUE(binder_result.isOk());
         ASSERT_EQ(expected_result, result);
