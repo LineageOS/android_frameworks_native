@@ -55,11 +55,6 @@ cc_library {
         "-Wno-unused-parameter",
         "-Wno-unused-variable",
     ],
-    arch: {
-        arm: {
-            instruction_set: "arm",
-        },
-    },
     srcs: sourceFiles,
     export_include_dirs: includeFiles,
     export_static_lib_headers: staticLibraries,
