@@ -17,13 +17,13 @@
 cc_test {
     name: "prioritydumper_test",
     test_suites: ["device-tests"],
-    srcs: [ "PriorityDumper_test.cpp"],
+    srcs: ["PriorityDumper_test.cpp"],
     shared_libs: [
         "libutils",
     ],
-    static_libs = [
+    static_libs: [
         "libgmock",
-        "libserviceutils"
+        "libserviceutils",
     ],
     clang: true,
 }

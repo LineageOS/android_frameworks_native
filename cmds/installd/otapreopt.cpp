@@ -82,7 +82,8 @@ static_assert(DEXOPT_STORAGE_DE     == 1 << 8, "DEXOPT_STORAGE_DE unexpected.");
 static_assert(DEXOPT_ENABLE_HIDDEN_API_CHECKS == 1 << 10,
         "DEXOPT_ENABLE_HIDDEN_API_CHECKS unexpected");
 
-static_assert(DEXOPT_MASK           == 0x5fe, "DEXOPT_MASK unexpected.");
+static_assert(DEXOPT_MASK           == (0x5fe | DEXOPT_IDLE_BACKGROUND_JOB),
+              "DEXOPT_MASK unexpected.");
 
 
 

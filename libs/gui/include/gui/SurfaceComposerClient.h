@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <unordered_map>
 
 #include <binder/IBinder.h>
 
@@ -127,8 +128,14 @@ public:
 
     static status_t injectVSync(nsecs_t when);
 
+    struct SCHash {
+        std::size_t operator()(const sp<SurfaceControl>& sc) const {
+            return std::hash<SurfaceControl *>{}(sc.get());
+        }
+    };
+
     class Transaction {
-        SortedVector<ComposerState> mComposerStates;
+        std::unordered_map<sp<SurfaceControl>, ComposerState, SCHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
         uint32_t                    mForceSynchronous = 0;
         uint32_t                    mTransactionNestCount = 0;

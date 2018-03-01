@@ -105,12 +105,11 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other) :
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Transaction&& other) {
-    for (auto const& state : other.mComposerStates) {
-        ssize_t index = mComposerStates.indexOf(state);
-        if (index < 0) {
-            mComposerStates.add(state);
+    for (auto const& kv : other.mComposerStates) {
+        if (mComposerStates.count(kv.first) == 0) {
+            mComposerStates[kv.first] = kv.second;
         } else {
-            mComposerStates.editItemAt(static_cast<size_t>(index)).state.merge(state.state);
+            mComposerStates[kv.first].state.merge(kv.second.state);
         }
     }
     other.mComposerStates.clear();
@@ -141,7 +140,10 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
 
     mForceSynchronous |= synchronous;
 
-    composerStates = mComposerStates;
+    for (auto const& kv : mComposerStates){
+        composerStates.add(kv.second);
+    }
+
     mComposerStates.clear();
 
     displayStates = mDisplayStates;
@@ -182,18 +184,15 @@ void SurfaceComposerClient::Transaction::setAnimationTransaction() {
 }
 
 layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<SurfaceControl>& sc) {
-    ComposerState s;
-    s.client = sc->getClient()->mClient;
-    s.state.surface = sc->getHandle();
-
-    ssize_t index = mComposerStates.indexOf(s);
-    if (index < 0) {
+    if (mComposerStates.count(sc) == 0) {
         // we don't have it, add an initialized layer_state to our list
-        index = mComposerStates.add(s);
+        ComposerState s;
+        s.client = sc->getClient()->mClient;
+        s.state.surface = sc->getHandle();
+        mComposerStates[sc] = s;
     }
 
-    ComposerState* const out = mComposerStates.editArray();
-    return &(out[index].state);
+    return &(mComposerStates[sc].state);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setPosition(
