@@ -57,17 +57,15 @@ public:
     MOCK_METHOD6(setViewportAndProjection,
                  void(size_t, size_t, Rect, size_t, bool, Transform::orientation_flags));
     MOCK_METHOD4(setupLayerBlending, void(bool, bool, bool, const half4&));
-    MOCK_METHOD1(setColorMode, void(android_color_mode));
-    MOCK_METHOD1(setSourceDataSpace, void(android_dataspace));
-    MOCK_METHOD1(setSourceY410BT2020, void(bool));
-    MOCK_METHOD1(setWideColor, void(bool));
-    MOCK_METHOD0(usesWideColor, bool());
     MOCK_METHOD1(setupLayerTexturing, void(const Texture&));
     MOCK_METHOD0(setupLayerBlackedOut, void());
     MOCK_METHOD4(setupFillWithColor, void(float, float, float, float));
     MOCK_METHOD1(setupColorTransform, mat4(const mat4&));
     MOCK_METHOD0(disableTexturing, void());
     MOCK_METHOD0(disableBlending, void());
+    MOCK_METHOD1(setSourceY410BT2020, void(bool));
+    MOCK_METHOD1(setSourceDataSpace, void(android_dataspace));
+    MOCK_METHOD1(setOutputDataSpace, void(android_dataspace));
     MOCK_METHOD2(bindNativeBufferAsFrameBuffer,
                  void(ANativeWindowBuffer*, RE::BindNativeBufferAsFramebuffer*));
     MOCK_METHOD1(unbindNativeBufferAsFrameBuffer, void(RE::BindNativeBufferAsFramebuffer*));

@@ -72,27 +72,20 @@ protected:
                                     const half4& color) override;
 
     // Color management related functions and state
-    void setColorMode(android_color_mode mode);
-    void setSourceDataSpace(android_dataspace source);
-    void setSourceY410BT2020(bool enable);
-    void setWideColor(bool hasWideColor);
-    bool usesWideColor();
-
-    // Current color mode of display using the render engine
-    android_color_mode mColorMode = HAL_COLOR_MODE_NATIVE;
+    void setSourceY410BT2020(bool enable) override;
+    void setSourceDataSpace(android_dataspace source) override;
+    void setOutputDataSpace(android_dataspace dataspace) override;
 
     // Current dataspace of layer being rendered
-    android_dataspace mDataSpace = HAL_DATASPACE_V0_SRGB;
+    android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
 
-    // Indicate if wide-color mode is needed or not
-    bool mDisplayHasWideColor = false;
-    bool mUseWideColor = false;
-    uint64_t mWideColorFrameCount = 0;
+    // Current output dataspace of the render engine
+    android_dataspace mOutputDataSpace = HAL_DATASPACE_UNKNOWN;
 
     // Currently only supporting sRGB, BT2020 and DisplayP3 color spaces
+    const bool mPlatformHasWideColor = false;
     mat4 mSrgbToDisplayP3;
     mat4 mBt2020ToDisplayP3;
-    bool mPlatformHasWideColor = false;
 
     virtual void setupLayerTexturing(const Texture& texture);
     virtual void setupLayerBlackedOut();
