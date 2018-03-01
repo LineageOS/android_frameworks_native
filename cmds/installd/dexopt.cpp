@@ -1649,9 +1649,14 @@ static bool prepare_secondary_dex_oat_dir(const std::string& dex_path, int uid,
 
 enum DexoptAnalyzerSkipCodes {
   // The dexoptanalyzer was not invoked because of validation or IO errors.
-  SECONDARY_DEX_DEXOPTANALYZER_SKIPPED = 200,
+  // Specific errors are encoded in the name.
+  kSecondaryDexDexoptAnalyzerSkippedValidatePath = 200,
+  kSecondaryDexDexoptAnalyzerSkippedOpenZip = 201,
+  kSecondaryDexDexoptAnalyzerSkippedPrepareDir = 202,
+  kSecondaryDexDexoptAnalyzerSkippedOpenOutput = 203,
+  kSecondaryDexDexoptAnalyzerSkippedFailExec = 204,
   // The dexoptanalyzer was not invoked because the dex file does not exist anymore.
-  SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE = 201,
+  kSecondaryDexDexoptAnalyzerSkippedNoFile = 205,
 };
 
 // Verifies the result of analyzing secondary dex files from process_secondary_dex_dexopt.
@@ -1686,12 +1691,25 @@ static bool process_secondary_dexoptanalyzer_result(const std::string& dex_path,
 
     // Use a second switch for enum switch-case analysis.
     switch (static_cast<DexoptAnalyzerSkipCodes>(result)) {
-        case SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE:
+        case kSecondaryDexDexoptAnalyzerSkippedNoFile:
             // If the file does not exist there's no need for dexopt.
             *dexopt_needed_out = NO_DEXOPT_NEEDED;
             return true;
-        case SECONDARY_DEX_DEXOPTANALYZER_SKIPPED:
-            *error_msg = "Dexoptanalyzer was skipped";
+
+        case kSecondaryDexDexoptAnalyzerSkippedValidatePath:
+            *error_msg = "Dexoptanalyzer path validation failed";
+            return false;
+        case kSecondaryDexDexoptAnalyzerSkippedOpenZip:
+            *error_msg = "Dexoptanalyzer open zip failed";
+            return false;
+        case kSecondaryDexDexoptAnalyzerSkippedPrepareDir:
+            *error_msg = "Dexoptanalyzer dir preparation failed";
+            return false;
+        case kSecondaryDexDexoptAnalyzerSkippedOpenOutput:
+            *error_msg = "Dexoptanalyzer open output failed";
+            return false;
+        case kSecondaryDexDexoptAnalyzerSkippedFailExec:
+            *error_msg = "Dexoptanalyzer failed to execute";
             return false;
     }
 
@@ -1814,7 +1832,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
         // Validate the path structure.
         if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid, uid, storage_flag)) {
             LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
-            _exit(SECONDARY_DEX_DEXOPTANALYZER_SKIPPED);
+            _exit(kSecondaryDexDexoptAnalyzerSkippedValidatePath);
         }
 
         // Open the dex file.
@@ -1822,15 +1840,15 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
         zip_fd.reset(open(dex_path.c_str(), O_RDONLY));
         if (zip_fd.get() < 0) {
             if (errno == ENOENT) {
-                _exit(SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE);
+                _exit(kSecondaryDexDexoptAnalyzerSkippedNoFile);
             } else {
-                _exit(SECONDARY_DEX_DEXOPTANALYZER_SKIPPED);
+                _exit(kSecondaryDexDexoptAnalyzerSkippedOpenZip);
             }
         }
 
         // Prepare the oat directories.
         if (!prepare_secondary_dex_oat_dir(dex_path, uid, instruction_set)) {
-            _exit(SECONDARY_DEX_DEXOPTANALYZER_SKIPPED);
+            _exit(kSecondaryDexDexoptAnalyzerSkippedPrepareDir);
         }
 
         // Open the vdex/oat files if any.
@@ -1842,7 +1860,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
                                           true /* is_secondary_dex */,
                                           &oat_file_fd,
                                           &vdex_file_fd)) {
-            _exit(SECONDARY_DEX_DEXOPTANALYZER_SKIPPED);
+            _exit(kSecondaryDexDexoptAnalyzerSkippedOpenOutput);
         }
 
         // Analyze profiles.
@@ -1859,7 +1877,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
                             downgrade,
                             class_loader_context);
         PLOG(ERROR) << "Failed to exec dexoptanalyzer";
-        _exit(SECONDARY_DEX_DEXOPTANALYZER_SKIPPED);
+        _exit(kSecondaryDexDexoptAnalyzerSkippedFailExec);
     }
 
     /* parent */
@@ -1887,7 +1905,7 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
     // Note that dexoptanalyzer is executed even if force compilation is enabled (because it
     // makes the code simpler; force compilation is only needed during tests).
     if (success &&
-        (result != SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE) &&
+        (result != kSecondaryDexDexoptAnalyzerSkippedNoFile) &&
         ((dexopt_flags & DEXOPT_FORCE) != 0)) {
         *dexopt_needed_out = DEX2OAT_FROM_SCRATCH;
     }

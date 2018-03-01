@@ -499,7 +499,8 @@ TEST_F(DexoptTest, DexoptSecondaryStorageValidationError) {
     binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_DE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status);
-    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Dexoptanalyzer was skipped'");
+    EXPECT_STREQ(status.toString8().c_str(),
+                 "Status(-8): '-1: Dexoptanalyzer path validation failed'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
@@ -507,7 +508,8 @@ TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
     binder::Status status;
     CompileSecondaryDex("/data/data/random.app/secondary.jar", DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status);
-    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Dexoptanalyzer was skipped'");
+    EXPECT_STREQ(status.toString8().c_str(),
+                 "Status(-8): '-1: Dexoptanalyzer path validation failed'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
@@ -515,7 +517,7 @@ TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
     binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
         /*binder_ok*/ false,  /*compile_ok*/ false, &status, kSystemUid);
-    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Dexoptanalyzer was skipped'");
+    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Dexoptanalyzer open zip failed'");
 }
 
 TEST_F(DexoptTest, DexoptPrimaryPublic) {
