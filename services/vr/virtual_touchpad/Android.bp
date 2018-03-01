@@ -14,7 +14,7 @@ shared_libs = [
 ]
 
 header_libraries = [
-    "libdvr_headers"
+    "libdvr_headers",
 ]
 
 cc_library {
@@ -48,19 +48,19 @@ cc_test {
     srcs: test_src_files,
     static_libs: test_static_libs,
     header_libs: header_libraries,
-    cflags = [
+    cflags: [
         "-Wall",
         "-Werror",
     ],
-    cppflags = [
+    cppflags: [
         "-std=c++11",
     ],
-    host_ldlibs = [
+    host_ldlibs: [
         "-llog",
     ],
     name: "VirtualTouchpad_test",
     stl: "libc++_static",
-    tags: [ "optional" ],
+    tags: ["optional"],
 }
 
 // Service.

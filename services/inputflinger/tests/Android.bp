@@ -12,7 +12,7 @@ cc_test {
         "-Werror",
         "-Wno-unused-parameter",
     ],
-    shared_libs = [
+    shared_libs: [
         "libcutils",
         "liblog",
         "libutils",
