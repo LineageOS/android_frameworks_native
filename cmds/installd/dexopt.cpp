@@ -28,6 +28,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <iomanip>
+
 #include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
@@ -1870,22 +1872,30 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
     return success;
 }
 
+static std::string format_dexopt_error(int retcode, const char* dex_path) {
+  return StringPrintf("Dex2oat invocation for %s failed with 0x%04x", dex_path, retcode);
+}
+
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
         bool downgrade, int target_sdk_version, const char* profile_name,
-        const char* dex_metadata_path, const char* compilation_reason) {
+        const char* dex_metadata_path, const char* compilation_reason, std::string* error_msg) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
+    CHECK(error_msg != nullptr);
     CHECK_EQ(dexopt_flags & ~DEXOPT_MASK, 0)
         << "dexopt flags contains unknown fields: " << dexopt_flags;
 
     if (!validate_dex_path_size(dex_path)) {
+        *error_msg = StringPrintf("Failed to validate %s", dex_path);
         return -1;
     }
 
     if (class_loader_context != nullptr && strlen(class_loader_context) > PKG_PATH_MAX) {
-        LOG(ERROR) << "Class loader context exceeds the allowed size: " << class_loader_context;
+        *error_msg = StringPrintf("Class loader context exceeds the allowed size: %s",
+                                  class_loader_context);
+        LOG(ERROR) << *error_msg;
         return -1;
     }
 
@@ -1908,6 +1918,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                 return 0;  // Nothing to do, report success.
             }
         } else {
+            *error_msg = "Failed processing secondary.";
             return -1;  // We had an error, logged in the process method.
         }
     } else {
@@ -1920,7 +1931,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     // Open the input file.
     unique_fd input_fd(open(dex_path, O_RDONLY, 0));
     if (input_fd.get() < 0) {
-        ALOGE("installd cannot open '%s' for input during dexopt\n", dex_path);
+        *error_msg = StringPrintf("installd cannot open '%s' for input during dexopt", dex_path);
+        LOG(ERROR) << *error_msg;
         return -1;
     }
 
@@ -1929,6 +1941,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     Dex2oatFileWrapper out_oat_fd = open_oat_out_file(dex_path, oat_dir, is_public, uid,
             instruction_set, is_secondary_dex, out_oat_path);
     if (out_oat_fd.get() < 0) {
+        *error_msg = "Could not open out oat file.";
         return -1;
     }
 
@@ -1937,6 +1950,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     Dex2oatFileWrapper out_vdex_fd;
     if (!open_vdex_files_for_dex2oat(dex_path, out_oat_path, dexopt_needed, instruction_set,
             is_public, uid, is_secondary_dex, profile_guided, &in_vdex_fd, &out_vdex_fd)) {
+        *error_msg = "Could not open vdex files.";
         return -1;
     }
 
@@ -1948,7 +1962,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     if (is_secondary_dex) {
         if (selinux_android_restorecon_pkgdir(oat_dir, se_info, uid,
                 SELINUX_ANDROID_RESTORECON_RECURSE)) {
-            LOG(ERROR) << "Failed to restorecon " << oat_dir;
+            *error_msg = std::string("Failed to restorecon ").append(oat_dir);
+            LOG(ERROR) << *error_msg;
             return -1;
         }
     }
@@ -1972,7 +1987,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         }
     }
 
-    ALOGV("DexInv: --- BEGIN '%s' ---\n", dex_path);
+    LOG(VERBOSE) << "DexInv: --- BEGIN '" << dex_path << "' ---";
 
     pid_t pid = fork();
     if (pid == 0) {
@@ -1981,7 +1996,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
 
         SetDex2OatScheduling(boot_complete);
         if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {
-            ALOGE("flock(%s) failed: %s\n", out_oat_path, strerror(errno));
+            PLOG(ERROR) << "flock(" << out_oat_path << ") failed";
             _exit(67);
         }
 
@@ -2008,9 +2023,11 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     } else {
         int res = wait_child(pid);
         if (res == 0) {
-            ALOGV("DexInv: --- END '%s' (success) ---\n", dex_path);
+            LOG(VERBOSE) << "DexInv: --- END '" << dex_path << "' (success) ---";
         } else {
-            ALOGE("DexInv: --- END '%s' --- status=0x%04x, process failed\n", dex_path, res);
+            LOG(VERBOSE) << "DexInv: --- END '" << dex_path << "' --- status=0x"
+                         << std::hex << std::setw(4) << res << ", process failed";
+            *error_msg = format_dexopt_error(res, dex_path);
             return res;
         }
     }
