@@ -1877,9 +1877,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         const char* dex_metadata_path, const char* compilation_reason) {
     CHECK(pkgname != nullptr);
     CHECK(pkgname[0] != 0);
-    if ((dexopt_flags & ~DEXOPT_MASK) != 0) {
-        LOG_FATAL("dexopt flags contains unknown fields\n");
-    }
+    CHECK_EQ(dexopt_flags & ~DEXOPT_MASK, 0)
+        << "dexopt flags contains unknown fields: " << dexopt_flags;
 
     if (!validate_dex_path_size(dex_path)) {
         return -1;
