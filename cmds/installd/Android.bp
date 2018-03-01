@@ -5,6 +5,10 @@ cc_defaults {
         "-Wall",
         "-Werror",
         "-Wextra",
+
+        "-Wunreachable-code",
+        "-Wunreachable-code-break",
+        "-Wunreachable-code-return",
     ],
     srcs: [
         "CacheItem.cpp",
@@ -14,6 +18,9 @@ cc_defaults {
         "globals.cpp",
         "utils.cpp",
         ":installd_aidl",
+    ],
+    header_libs: [
+        "dex2oat_headers",
     ],
     shared_libs: [
         "libbase",

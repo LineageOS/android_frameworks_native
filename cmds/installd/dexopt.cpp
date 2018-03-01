@@ -39,6 +39,7 @@
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
+#include <dex2oat_return_codes.h>
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
@@ -46,6 +47,7 @@
 #include <system/thread_defs.h>
 
 #include "dexopt.h"
+#include "dexopt_return_codes.h"
 #include "globals.h"
 #include "installd_deps.h"
 #include "otapreopt_utils.h"
@@ -69,6 +71,7 @@ static constexpr const char* kMinidebugInfoSystemProperty = "dalvik.vm.dex2oat-m
 static constexpr bool kMinidebugInfoSystemPropertyDefault = false;
 static constexpr const char* kMinidebugDex2oatFlag = "--generate-mini-debug-info";
 static constexpr const char* kDisableCompactDexFlag = "--compact-dex-level=none";
+
 
 // Deleter using free() for use with std::unique_ptr<>. See also UniqueCPtr<> below.
 struct FreeDelete {
@@ -221,6 +224,7 @@ static const char* get_location_from_path(const char* path) {
     }
 }
 
+[[ noreturn ]]
 static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
         const char* input_file_name, const char* output_file_name, int swap_fd,
         const char* instruction_set, const char* compiler_filter,
@@ -230,9 +234,9 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
-        ALOGE("Instruction set %s longer than max length of %d",
-              instruction_set, MAX_INSTRUCTION_SET_LEN);
-        return;
+        LOG(ERROR) << "Instruction set '" << instruction_set << "' longer than max length of "
+                   << MAX_INSTRUCTION_SET_LEN;
+        exit(DexoptReturnCodes::kInstructionSetLength);
     }
 
     // Get the relative path to the input file.
@@ -550,7 +554,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     argv[i] = NULL;
 
     execv(dex2oat_bin, (char * const *)argv);
-    ALOGE("execv(%s) failed: %s\n", dex2oat_bin, strerror(errno));
+    PLOG(ERROR) << "execv(" << dex2oat_bin << ") failed";
+    exit(DexoptReturnCodes::kDex2oatExec);
 }
 
 /*
@@ -602,12 +607,12 @@ static bool ShouldUseSwapFileForDexopt() {
 static void SetDex2OatScheduling(bool set_to_bg) {
     if (set_to_bg) {
         if (set_sched_policy(0, SP_BACKGROUND) < 0) {
-            ALOGE("set_sched_policy failed: %s\n", strerror(errno));
-            exit(70);
+            PLOG(ERROR) << "set_sched_policy failed";
+            exit(DexoptReturnCodes::kSetSchedPolicy);
         }
         if (setpriority(PRIO_PROCESS, 0, ANDROID_PRIORITY_BACKGROUND) < 0) {
-            ALOGE("setpriority failed: %s\n", strerror(errno));
-            exit(71);
+            PLOG(ERROR) << "setpriority failed";
+            exit(DexoptReturnCodes::kSetPriority);
         }
     }
 }
@@ -707,12 +712,12 @@ static void open_profile_files(uid_t uid, const std::string& package_name,
 
 static void drop_capabilities(uid_t uid) {
     if (setgid(uid) != 0) {
-        ALOGE("setgid(%d) failed in installd during dexopt\n", uid);
-        exit(64);
+        PLOG(ERROR) << "setgid(" << uid << ") failed in installd during dexopt";
+        exit(DexoptReturnCodes::kSetGid);
     }
     if (setuid(uid) != 0) {
-        ALOGE("setuid(%d) failed in installd during dexopt\n", uid);
-        exit(65);
+        PLOG(ERROR) << "setuid(" << uid << ") failed in installd during dexopt";
+        exit(DexoptReturnCodes::kSetUid);
     }
     // drop capabilities
     struct __user_cap_header_struct capheader;
@@ -721,8 +726,8 @@ static void drop_capabilities(uid_t uid) {
     memset(&capdata, 0, sizeof(capdata));
     capheader.version = _LINUX_CAPABILITY_VERSION_3;
     if (capset(&capheader, &capdata[0]) < 0) {
-        ALOGE("capset failed: %s\n", strerror(errno));
-        exit(66);
+        PLOG(ERROR) << "capset failed";
+        exit(DexoptReturnCodes::kCapSet);
     }
 }
 
@@ -732,6 +737,7 @@ static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 2;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 3;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 4;
 
+[[ noreturn ]]
 static void run_profman(const std::vector<unique_fd>& profile_fds,
                         const unique_fd& reference_profile_fd,
                         const std::vector<unique_fd>* apk_fds,
@@ -775,18 +781,18 @@ static void run_profman(const std::vector<unique_fd>& profile_fds,
     argv[i] = NULL;
 
     execv(profman_bin, (char * const *)argv);
-    ALOGE("execv(%s) failed: %s\n", profman_bin, strerror(errno));
-    exit(68);   /* only get here on exec failure */
+    PLOG(ERROR) << "execv(" << profman_bin << ") failed";
+    exit(DexoptReturnCodes::kProfmanExec);   /* only get here on exec failure */
 }
 
-
+[[ noreturn ]]
 static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
                               const unique_fd& reference_profile_fd,
                               const std::vector<unique_fd>* apk_fds = nullptr) {
     run_profman(profiles_fd, reference_profile_fd, apk_fds, /*copy_and_update*/false);
 }
 
-
+[[ noreturn ]]
 static void run_profman_copy_and_update(unique_fd&& profile_fd,
                                         unique_fd&& reference_profile_fd,
                                         unique_fd&& apk_fd) {
@@ -821,7 +827,6 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
         run_profman_merge(profiles_fd, reference_profile_fd);
-        exit(68);   /* only get here on exec failure */
     }
     /* parent */
     int return_code = wait_child(pid);
@@ -894,6 +899,7 @@ bool analyze_primary_profiles(uid_t uid, const std::string& package_name,
     return analyze_profiles(uid, package_name, profile_name, /*is_secondary_dex*/false);
 }
 
+[[ noreturn ]]
 static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
                              const unique_fd& reference_profile_fd,
                              const std::vector<std::string>& dex_locations,
@@ -925,8 +931,8 @@ static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
     argv[i] = NULL;
 
     execv(PROFMAN_BIN, (char * const *)argv);
-    ALOGE("execv(%s) failed: %s\n", PROFMAN_BIN, strerror(errno));
-    exit(68);   /* only get here on exec failure */
+    PLOG(ERROR) << "execv(" << PROFMAN_BIN << ") failed";
+    exit(DexoptReturnCodes::kProfmanExec);   /* only get here on exec failure */
 }
 
 bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& profile_name,
@@ -971,7 +977,6 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& p
         drop_capabilities(uid);
         run_profman_dump(profile_fds, reference_profile_fd, dex_locations,
                          apk_fds, output_fd);
-        exit(68);   /* only get here on exec failure */
     }
     /* parent */
     int return_code = wait_child(pid);
@@ -1872,8 +1877,15 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
     return success;
 }
 
-static std::string format_dexopt_error(int retcode, const char* dex_path) {
-  return StringPrintf("Dex2oat invocation for %s failed with 0x%04x", dex_path, retcode);
+static std::string format_dexopt_error(int status, const char* dex_path) {
+  if (WIFEXITED(status)) {
+    int int_code = WEXITSTATUS(status);
+    const char* code_name = get_return_code_name(static_cast<DexoptReturnCodes>(int_code));
+    if (code_name != nullptr) {
+      return StringPrintf("Dex2oat invocation for %s failed: %s", dex_path, code_name);
+    }
+  }
+  return StringPrintf("Dex2oat invocation for %s failed with 0x%04x", dex_path, status);
 }
 
 int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* instruction_set,
@@ -1997,7 +2009,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         SetDex2OatScheduling(boot_complete);
         if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {
             PLOG(ERROR) << "flock(" << out_oat_path << ") failed";
-            _exit(67);
+            _exit(DexoptReturnCodes::kFlock);
         }
 
         run_dex2oat(input_fd.get(),
@@ -2019,7 +2031,6 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     enable_hidden_api_checks,
                     dex_metadata_fd.get(),
                     compilation_reason);
-        _exit(68);   /* only get here on exec failure */
     } else {
         int res = wait_child(pid);
         if (res == 0) {
@@ -2238,7 +2249,7 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
 
         if (!validate_secondary_dex_path(pkgname, dex_path, volume_uuid_cstr, uid, storage_flag)) {
             LOG(ERROR) << "Could not validate secondary dex path " << dex_path;
-            _exit(1);
+            _exit(DexoptReturnCodes::kHashValidatePath);
         }
 
         unique_fd fd(TEMP_FAILURE_RETRY(open(dex_path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW)));
@@ -2248,7 +2259,7 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
                 _exit(0);
             }
             PLOG(ERROR) << "Failed to open secondary dex " << dex_path;
-            _exit(1);
+            _exit(DexoptReturnCodes::kHashOpenPath);
         }
 
         SHA256_CTX ctx;
@@ -2261,7 +2272,7 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
                 break;
             } else if (bytes_read == -1) {
                 PLOG(ERROR) << "Failed to read secondary dex " << dex_path;
-                _exit(1);
+                _exit(DexoptReturnCodes::kHashReadDex);
             }
 
             SHA256_Update(&ctx, buffer.data(), bytes_read);
@@ -2270,7 +2281,7 @@ bool hash_secondary_dex_file(const std::string& dex_path, const std::string& pkg
         std::array<uint8_t, SHA256_DIGEST_LENGTH> hash;
         SHA256_Final(hash.data(), &ctx);
         if (!WriteFully(pipe_write, hash.data(), hash.size())) {
-            _exit(1);
+            _exit(DexoptReturnCodes::kHashWrite);
         }
 
         _exit(0);
@@ -2588,7 +2599,6 @@ static bool create_app_profile_snapshot(int32_t app_id,
         /* child -- drop privileges before continuing */
         drop_capabilities(app_shared_gid);
         run_profman_merge(profiles_fd, snapshot_fd, &apk_fds);
-        exit(42);   /* only get here on exec failure */
     }
 
     /* parent */
@@ -2666,7 +2676,6 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
             drop_capabilities(AID_SYSTEM);
 
             run_profman_merge(profiles_fd, snapshot_fd, &apk_fds);
-            exit(42);   /* only get here on exec failure */
         }
 
         /* parent */
@@ -2730,7 +2739,6 @@ bool prepare_app_profile(const std::string& package_name,
         run_profman_copy_and_update(std::move(dex_metadata_fd),
                                     std::move(ref_profile_fd),
                                     std::move(apk_fd));
-        exit(42);   /* only get here on exec failure */
     }
 
     /* parent */
