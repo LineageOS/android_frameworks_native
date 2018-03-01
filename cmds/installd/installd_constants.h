@@ -64,6 +64,7 @@ constexpr int DEXOPT_MASK =
     | DEXOPT_FORCE
     | DEXOPT_STORAGE_CE
     | DEXOPT_STORAGE_DE
+    | DEXOPT_IDLE_BACKGROUND_JOB
     | DEXOPT_ENABLE_HIDDEN_API_CHECKS;
 
 // NOTE: keep in sync with StorageManager
