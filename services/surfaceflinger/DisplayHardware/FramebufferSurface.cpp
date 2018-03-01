@@ -177,9 +177,9 @@ void FramebufferSurface::onFrameCommitted() {
 
 void FramebufferSurface::dumpAsString(String8& result) const {
     Mutex::Autolock lock(mMutex);
-    result.appendFormat("FramebufferSurface: dataspace: %s(%d)\n",
+    result.appendFormat("  FramebufferSurface: dataspace: %s(%d)\n",
                         dataspaceDetails(mDataSpace).c_str(), mDataSpace);
-    ConsumerBase::dumpLocked(result, "");
+    ConsumerBase::dumpLocked(result, "   ");
 }
 
 void FramebufferSurface::dumpLocked(String8& result, const char* prefix) const
