@@ -1647,10 +1647,12 @@ static bool prepare_secondary_dex_oat_dir(const std::string& dex_path, int uid,
 // secondary dex files. This return codes are returned by the child process created for
 // analyzing secondary dex files in process_secondary_dex_dexopt.
 
-// The dexoptanalyzer was not invoked because of validation or IO errors.
-static int constexpr SECONDARY_DEX_DEXOPTANALYZER_SKIPPED = 200;
-// The dexoptanalyzer was not invoked because the dex file does not exist anymore.
-static int constexpr SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE = 201;
+enum DexoptAnalyzerSkipCodes {
+  // The dexoptanalyzer was not invoked because of validation or IO errors.
+  SECONDARY_DEX_DEXOPTANALYZER_SKIPPED = 200,
+  // The dexoptanalyzer was not invoked because the dex file does not exist anymore.
+  SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE = 201,
+};
 
 // Verifies the result of analyzing secondary dex files from process_secondary_dex_dexopt.
 // If the result is valid returns true and sets dexopt_needed_out to a valid value.
@@ -1658,7 +1660,7 @@ static int constexpr SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE = 201;
 // The result is expected to be either one of SECONDARY_DEX_* codes or a valid exit code
 // of dexoptanalyzer.
 static bool process_secondary_dexoptanalyzer_result(const std::string& dex_path, int result,
-            int* dexopt_needed_out) {
+            int* dexopt_needed_out, std::string* error_msg) {
     // The result values are defined in dexoptanalyzer.
     switch (result) {
         case 0:  // dexoptanalyzer: no_dexopt_needed
@@ -1674,21 +1676,29 @@ static bool process_secondary_dexoptanalyzer_result(const std::string& dex_path,
         case 2:  // dexoptanalyzer: dex2oat_for_bootimage_oat
         case 3:  // dexoptanalyzer: dex2oat_for_filter_oat
         case 4:  // dexoptanalyzer: dex2oat_for_relocation_oat
-            LOG(ERROR) << "Dexoptnalyzer return the status of an oat file."
-                    << " Expected odex file status for secondary dex " << dex_path
-                    << " : dexoptanalyzer result=" << result;
+            *error_msg = StringPrintf("Dexoptanalyzer return the status of an oat file."
+                                      " Expected odex file status for secondary dex %s"
+                                      " : dexoptanalyzer result=%d",
+                                      dex_path.c_str(),
+                                      result);
             return false;
+    }
+
+    // Use a second switch for enum switch-case analysis.
+    switch (static_cast<DexoptAnalyzerSkipCodes>(result)) {
         case SECONDARY_DEX_DEXOPTANALYZER_SKIPPED_NO_FILE:
             // If the file does not exist there's no need for dexopt.
             *dexopt_needed_out = NO_DEXOPT_NEEDED;
             return true;
         case SECONDARY_DEX_DEXOPTANALYZER_SKIPPED:
-            return false;
-        default:
-            LOG(ERROR) << "Unexpected result from analyzing secondary dex " << dex_path
-                    << " result=" << result;
+            *error_msg = "Dexoptanalyzer was skipped";
             return false;
     }
+
+    *error_msg = StringPrintf("Unexpected result from analyzing secondary dex %s result=%d",
+                              dex_path.c_str(),
+                              result);
+    return false;
 }
 
 enum SecondaryDexAccess {
@@ -1726,10 +1736,10 @@ static bool is_file_public(const std::string& filename) {
 // Create the oat file structure for the secondary dex 'dex_path' and assign
 // the individual path component to the 'out_' parameters.
 static bool create_secondary_dex_oat_layout(const std::string& dex_path, const std::string& isa,
-        char* out_oat_dir, char* out_oat_isa_dir, char* out_oat_path) {
+        char* out_oat_dir, char* out_oat_isa_dir, char* out_oat_path, std::string* error_msg) {
     size_t dirIndex = dex_path.rfind('/');
     if (dirIndex == std::string::npos) {
-        LOG(ERROR) << "Unexpected dir structure for dex file " << dex_path;
+        *error_msg = std::string("Unexpected dir structure for dex file ").append(dex_path);
         return false;
     }
     // TODO(calin): we have similar computations in at lest 3 other places
@@ -1741,7 +1751,7 @@ static bool create_secondary_dex_oat_layout(const std::string& dex_path, const s
 
     if (!create_oat_out_path(dex_path.c_str(), isa.c_str(), out_oat_dir,
             /*is_secondary_dex*/true, out_oat_path)) {
-        LOG(ERROR) << "Could not create oat path for secondary dex " << dex_path;
+        *error_msg = std::string("Could not create oat path for secondary dex ").append(dex_path);
         return false;
     }
     return true;
@@ -1749,17 +1759,19 @@ static bool create_secondary_dex_oat_layout(const std::string& dex_path, const s
 
 // Validate that the dexopt_flags contain a valid storage flag and convert that to an installd
 // recognized storage flags (FLAG_STORAGE_CE or FLAG_STORAGE_DE).
-static bool validate_dexopt_storage_flags(int dexopt_flags, int* out_storage_flag) {
+static bool validate_dexopt_storage_flags(int dexopt_flags,
+                                          int* out_storage_flag,
+                                          std::string* error_msg) {
     if ((dexopt_flags & DEXOPT_STORAGE_CE) != 0) {
         *out_storage_flag = FLAG_STORAGE_CE;
         if ((dexopt_flags & DEXOPT_STORAGE_DE) != 0) {
-            LOG(ERROR) << "Ambiguous secondary dex storage flag. Both, CE and DE, flags are set";
+            *error_msg = "Ambiguous secondary dex storage flag. Both, CE and DE, flags are set";
             return false;
         }
     } else if ((dexopt_flags & DEXOPT_STORAGE_DE) != 0) {
         *out_storage_flag = FLAG_STORAGE_DE;
     } else {
-        LOG(ERROR) << "Secondary dex storage flag must be set";
+        *error_msg = "Secondary dex storage flag must be set";
         return false;
     }
     return true;
@@ -1775,10 +1787,12 @@ static bool validate_dexopt_storage_flags(int dexopt_flags, int* out_storage_fla
 static bool process_secondary_dex_dexopt(const std::string& dex_path, const char* pkgname,
         int dexopt_flags, const char* volume_uuid, int uid, const char* instruction_set,
         const char* compiler_filter, bool* is_public_out, int* dexopt_needed_out,
-        std::string* oat_dir_out, bool downgrade, const char* class_loader_context) {
+        std::string* oat_dir_out, bool downgrade, const char* class_loader_context,
+        /* out */ std::string* error_msg) {
     LOG(DEBUG) << "Processing secondary dex path " << dex_path;
     int storage_flag;
-    if (!validate_dexopt_storage_flags(dexopt_flags, &storage_flag)) {
+    if (!validate_dexopt_storage_flags(dexopt_flags, &storage_flag, error_msg)) {
+        LOG(ERROR) << *error_msg;
         return false;
     }
     // Compute the oat dir as it's not easy to extract it from the child computation.
@@ -1786,8 +1800,8 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
     char oat_dir[PKG_PATH_MAX];
     char oat_isa_dir[PKG_PATH_MAX];
     if (!create_secondary_dex_oat_layout(
-            dex_path, instruction_set, oat_dir, oat_isa_dir, oat_path)) {
-        LOG(ERROR) << "Could not create secondary odex layout: " << dex_path;
+            dex_path, instruction_set, oat_dir, oat_isa_dir, oat_path, error_msg)) {
+        LOG(ERROR) << "Could not create secondary odex layout: " << *error_msg;
         return false;
     }
     oat_dir_out->assign(oat_dir);
@@ -1851,12 +1865,21 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
     /* parent */
     int result = wait_child(pid);
     if (!WIFEXITED(result)) {
-        LOG(ERROR) << "dexoptanalyzer failed for path " << dex_path << ": " << result;
+        *error_msg = StringPrintf("dexoptanalyzer failed for path %s: 0x%04x",
+                                  dex_path.c_str(),
+                                  result);
+        LOG(ERROR) << *error_msg;
         return false;
     }
     result = WEXITSTATUS(result);
     // Check that we successfully executed dexoptanalyzer.
-    bool success = process_secondary_dexoptanalyzer_result(dex_path, result, dexopt_needed_out);
+    bool success = process_secondary_dexoptanalyzer_result(dex_path,
+                                                           result,
+                                                           dexopt_needed_out,
+                                                           error_msg);
+    if (!success) {
+        LOG(ERROR) << *error_msg;
+    }
 
     LOG(DEBUG) << "Processed secondary dex file " << dex_path << " result=" << result;
 
@@ -1924,13 +1947,15 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     if (is_secondary_dex) {
         if (process_secondary_dex_dexopt(dex_path, pkgname, dexopt_flags, volume_uuid, uid,
                 instruction_set, compiler_filter, &is_public, &dexopt_needed, &oat_dir_str,
-                downgrade, class_loader_context)) {
+                downgrade, class_loader_context, error_msg)) {
             oat_dir = oat_dir_str.c_str();
             if (dexopt_needed == NO_DEXOPT_NEEDED) {
                 return 0;  // Nothing to do, report success.
             }
         } else {
-            *error_msg = "Failed processing secondary.";
+            if (error_msg->empty()) {  // TODO: Make this a CHECK.
+                *error_msg = "Failed processing secondary.";
+            }
             return -1;  // We had an error, logged in the process method.
         }
     } else {
@@ -2146,9 +2171,10 @@ bool reconcile_secondary_dex_file(const std::string& dex_path,
         char oat_isa_dir[PKG_PATH_MAX];
         bool result = true;
         for (size_t i = 0; i < isas.size(); i++) {
+            std::string error_msg;
             if (!create_secondary_dex_oat_layout(
-                    dex_path,isas[i], oat_dir, oat_isa_dir, oat_path)) {
-                LOG(ERROR) << "Could not create secondary odex layout: " << dex_path;
+                    dex_path,isas[i], oat_dir, oat_isa_dir, oat_path, &error_msg)) {
+                LOG(ERROR) << error_msg;
                 _exit(kReconcileSecondaryDexValidationError);
             }
 
