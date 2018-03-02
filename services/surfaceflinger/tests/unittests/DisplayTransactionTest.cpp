@@ -2234,5 +2234,81 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfHeightChange
     EXPECT_EQ(desiredHeight, display.getCurrentDisplayState().height);
 }
 
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::onInitializeDisplays
+ */
+
+TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A primary display is set up
+    Case::Display::injectHwcDisplay(this);
+    auto primaryDisplay = Case::Display::makeFakeExistingDisplayInjector(this);
+    primaryDisplay.inject();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We expect the surface interceptor to possibly be used, but we treat it as
+    // disabled since it is called as a side effect rather than directly by this
+    // function.
+    EXPECT_CALL(*mSurfaceInterceptor, isEnabled()).WillOnce(Return(false));
+
+    // We expect a call to get the active display config.
+    Case::Display::setupHwcGetActiveConfigCallExpectations(this);
+
+    // We expect invalidate() to be invoked once to trigger display transaction
+    // processing.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.onInitializeDisplays();
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The primary display should have a current state
+    ASSERT_TRUE(hasCurrentDisplayState(primaryDisplay.token()));
+    const auto& primaryDisplayState = getCurrentDisplayState(primaryDisplay.token());
+    // The layer stack state should be set to zero
+    EXPECT_EQ(0u, primaryDisplayState.layerStack);
+    // The orientation state should be set to zero
+    EXPECT_EQ(0, primaryDisplayState.orientation);
+
+    // The frame state should be set to INVALID
+    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.frame);
+
+    // The viewport state should be set to INVALID
+    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.viewport);
+
+    // The width and height should both be zero
+    EXPECT_EQ(0u, primaryDisplayState.width);
+    EXPECT_EQ(0u, primaryDisplayState.height);
+
+    // The display should be set to HWC_POWER_MODE_NORMAL
+    ASSERT_TRUE(hasDisplayDevice(primaryDisplay.token()));
+    auto displayDevice = primaryDisplay.mutableDisplayDevice();
+    EXPECT_EQ(HWC_POWER_MODE_NORMAL, displayDevice->getPowerMode());
+
+    // The display refresh period should be set in the frame tracker.
+    FrameStats stats;
+    mFlinger.getAnimFrameTracker().getStats(&stats);
+    EXPECT_EQ(DEFAULT_REFRESH_RATE, stats.refreshPeriodNano);
+
+    // The display transaction needed flag should be set.
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // The compositor timing should be set to default values
+    const auto& compositorTiming = mFlinger.getCompositorTiming();
+    EXPECT_EQ(-DEFAULT_REFRESH_RATE, compositorTiming.deadline);
+    EXPECT_EQ(DEFAULT_REFRESH_RATE, compositorTiming.interval);
+    EXPECT_EQ(DEFAULT_REFRESH_RATE, compositorTiming.presentLatency);
+}
+
 } // namespace
 } // namespace android

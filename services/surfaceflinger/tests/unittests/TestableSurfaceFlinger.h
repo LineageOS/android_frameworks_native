@@ -87,6 +87,15 @@ public:
 
     auto setDisplayStateLocked(const DisplayState& s) { return mFlinger->setDisplayStateLocked(s); }
 
+    auto onInitializeDisplays() { return mFlinger->onInitializeDisplays(); }
+
+    /* ------------------------------------------------------------------------
+     * Read-only access to private data to assert post-conditions.
+     */
+
+    const auto& getAnimFrameTracker() const { return mFlinger->mAnimFrameTracker; }
+    const auto& getCompositorTiming() const { return mFlinger->getBE().mCompositorTiming; }
+
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
