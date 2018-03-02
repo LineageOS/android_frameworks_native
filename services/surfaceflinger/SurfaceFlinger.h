@@ -123,6 +123,12 @@ enum {
     eTransactionMask          = 0x0f,
 };
 
+enum class DisplayColorSetting : int32_t {
+    MANAGED = 0,
+    UNMANAGED = 1,
+    ENHANCED = 2,
+};
+
 // A thin interface to abstract creating instances of Surface (gui/Surface.h) to
 // use as a NativeWindow.
 class NativeWindowSurface {
@@ -467,7 +473,9 @@ private:
                               bool stateLockHeld);
 
     // Called on the main thread in response to setActiveColorMode()
-    void setActiveColorModeInternal(const sp<DisplayDevice>& hw, ui::ColorMode colorMode);
+    void setActiveColorModeInternal(const sp<DisplayDevice>& hw,
+                                    ui::ColorMode colorMode,
+                                    ui::Dataspace dataSpace);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -641,9 +649,10 @@ private:
 
     // Given a dataSpace, returns the appropriate color_mode to use
     // to display that dataSpace.
-    ui::ColorMode pickColorMode(ui::Dataspace dataSpace) const;
-    ui::Dataspace bestTargetDataSpace(ui::Dataspace a, ui::Dataspace b,
-            bool hasHdr) const;
+    ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& displayDevice) const;
+    void pickColorMode(const sp<DisplayDevice>& displayDevice,
+                       ui::ColorMode* outMode,
+                       ui::Dataspace* outDataSpace) const;
 
     mat4 computeSaturationMatrix() const;
 
@@ -846,7 +855,6 @@ private:
 
     size_t mNumLayers;
 
-
     // Verify that transaction is being called by an approved process:
     // either AID_GRAPHICS or AID_SYSTEM.
     status_t CheckTransactCodeCredentials(uint32_t code);
@@ -856,8 +864,12 @@ private:
     static bool useVrFlinger;
     std::thread::id mMainThreadId;
 
-    float mSaturation = 1.0f;
-    bool mForceNativeColorMode = false;
+    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
+    // Applied on sRGB layers when the render intent is non-colorimetric.
+    mat4 mLegacySrgbSaturationMatrix;
+    // Applied globally.
+    float mGlobalSaturationFactor = 1.0f;
+    bool mBuiltinDisplaySupportsEnhance = false;
 
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
