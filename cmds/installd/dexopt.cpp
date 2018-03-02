@@ -308,10 +308,11 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
     const char* dex2oat_bin = "/system/bin/dex2oat";
-    static const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
+    constexpr const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
     if (is_debug_runtime() || (background_job_compile && is_debuggable_build())) {
-        DCHECK(access(kDex2oatDebugPath, X_OK) == 0);
-        dex2oat_bin = kDex2oatDebugPath;
+        if (access(kDex2oatDebugPath, X_OK) == 0) {
+            dex2oat_bin = kDex2oatDebugPath;
+        }
     }
 
     bool generate_minidebug_info = kEnableMinidebugInfo &&
