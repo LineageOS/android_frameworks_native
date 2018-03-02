@@ -106,7 +106,7 @@ int dexopt(const char *apk_path, uid_t uid, const char *pkgName, const char *ins
         int dexopt_needed, const char* oat_dir, int dexopt_flags, const char* compiler_filter,
         const char* volume_uuid, const char* class_loader_context, const char* se_info,
         bool downgrade, int target_sdk_version, const char* profile_name,
-        const char* dexMetadataPath, const char* compilation_reason);
+        const char* dexMetadataPath, const char* compilation_reason, std::string* error_msg);
 
 bool calculate_oat_file_path_default(char path[PKG_PATH_MAX], const char *oat_dir,
         const char *apk_path, const char *instruction_set);

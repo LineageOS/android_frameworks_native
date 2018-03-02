@@ -568,6 +568,7 @@ private:
     // Run dexopt with the parameters of parameters_.
     // TODO(calin): embed the profile name in the parameters.
     int Dexopt() {
+        std::string dummy;
         return dexopt(parameters_.apk_path,
                       parameters_.uid,
                       parameters_.pkgName,
@@ -583,7 +584,8 @@ private:
                       parameters_.target_sdk_version,
                       parameters_.profile_name,
                       parameters_.dex_metadata_path,
-                      parameters_.compilation_reason);
+                      parameters_.compilation_reason,
+                      &dummy);
     }
 
     int RunPreopt() {
