@@ -249,7 +249,7 @@ protected:
 
     void CompileSecondaryDex(const std::string& path, int32_t dex_storage_flag,
             bool should_binder_call_succeed, bool should_dex_be_compiled = true,
-            int32_t uid = -1) {
+            /*out */ binder::Status* binder_result = nullptr, int32_t uid = -1) {
         if (uid == -1) {
             uid = kTestAppUid;
         }
@@ -290,6 +290,9 @@ protected:
         ASSERT_EQ(expected_access, access(odex.c_str(), R_OK));
         ASSERT_EQ(expected_access, access(vdex.c_str(), R_OK));
         ASSERT_EQ(-1, access(art.c_str(), R_OK));  // empty profiles do not generate an image.
+        if (binder_result != nullptr) {
+            *binder_result = result;
+        }
     }
 
     void reconcile_secondary_dex(const std::string& path, int32_t storage_flag,
@@ -335,10 +338,18 @@ protected:
                              const char* oat_dir,
                              int32_t uid,
                              int32_t dexopt_needed,
+                             binder::Status* binder_result = nullptr,
                              const char* dm_path = nullptr,
                              bool downgrade = false) {
-        return CompilePrimaryDex(
-                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, dm_path, downgrade, true);
+        CompilePrimaryDex(compiler_filter,
+                          dex_flags,
+                          oat_dir,
+                          uid,
+                          dexopt_needed,
+                          dm_path,
+                          downgrade,
+                          true,
+                          binder_result);
     }
 
     void CompilePrimaryDexFail(std::string compiler_filter,
@@ -346,10 +357,18 @@ protected:
                                const char* oat_dir,
                                int32_t uid,
                                int32_t dexopt_needed,
+                               binder::Status* binder_result = nullptr,
                                const char* dm_path = nullptr,
                                bool downgrade = false) {
-        return CompilePrimaryDex(
-                compiler_filter, dex_flags, oat_dir, uid, dexopt_needed, dm_path, downgrade, false);
+        CompilePrimaryDex(compiler_filter,
+                          dex_flags,
+                          oat_dir,
+                          uid,
+                          dexopt_needed,
+                          dm_path,
+                          downgrade,
+                          false,
+                          binder_result);
     }
 
     void CompilePrimaryDex(std::string compiler_filter,
@@ -359,7 +378,8 @@ protected:
                            int32_t dexopt_needed,
                            const char* dm_path,
                            bool downgrade,
-                           bool should_binder_call_succeed) {
+                           bool should_binder_call_succeed,
+                           /*out */ binder::Status* binder_result) {
         std::unique_ptr<std::string> package_name_ptr(new std::string(package_name_));
         std::unique_ptr<std::string> out_path(
                 oat_dir == nullptr ? nullptr : new std::string(oat_dir));
@@ -400,6 +420,9 @@ protected:
         ASSERT_EQ(should_binder_call_succeed, result.isOk()) << result.toString8().c_str();
 
         if (!should_binder_call_succeed) {
+            if (binder_result != nullptr) {
+                *binder_result = result;
+            }
             return;
         }
         // Check the access to the compiler output.
@@ -416,6 +439,9 @@ protected:
 
         if (compiler_filter == "speed-profile") {
             CheckFileAccess(art, kSystemUid, uid, mode);
+        }
+        if (binder_result != nullptr) {
+            *binder_result = result;
         }
     }
 
@@ -462,26 +488,34 @@ TEST_F(DexoptTest, DexoptSecondaryDe) {
 TEST_F(DexoptTest, DexoptSecondaryDoesNotExist) {
     LOG(INFO) << "DexoptSecondaryDoesNotExist";
     // If the file validates but does not exist we do not treat it as an error.
+    binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_ + "not.there", DEXOPT_STORAGE_CE,
-        /*binder_ok*/ true,  /*compile_ok*/ false);
+        /*binder_ok*/ true,  /*compile_ok*/ false, &status);
+    EXPECT_STREQ(status.toString8().c_str(), "No error");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryStorageValidationError) {
     LOG(INFO) << "DexoptSecondaryStorageValidationError";
+    binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_DE,
-        /*binder_ok*/ false,  /*compile_ok*/ false);
+        /*binder_ok*/ false,  /*compile_ok*/ false, &status);
+    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Failed processing secondary.'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAppOwnershipValidationError) {
     LOG(INFO) << "DexoptSecondaryAppOwnershipValidationError";
+    binder::Status status;
     CompileSecondaryDex("/data/data/random.app/secondary.jar", DEXOPT_STORAGE_CE,
-        /*binder_ok*/ false,  /*compile_ok*/ false);
+        /*binder_ok*/ false,  /*compile_ok*/ false, &status);
+    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Failed processing secondary.'");
 }
 
 TEST_F(DexoptTest, DexoptSecondaryAcessViaDifferentUidError) {
     LOG(INFO) << "DexoptSecondaryAcessViaDifferentUidError";
+    binder::Status status;
     CompileSecondaryDex(secondary_dex_ce_, DEXOPT_STORAGE_CE,
-        /*binder_ok*/ false,  /*compile_ok*/ false, kSystemUid);
+        /*binder_ok*/ false,  /*compile_ok*/ false, &status, kSystemUid);
+    EXPECT_STREQ(status.toString8().c_str(), "Status(-8): '-1: Failed processing secondary.'");
 }
 
 TEST_F(DexoptTest, DexoptPrimaryPublic) {
@@ -495,11 +529,16 @@ TEST_F(DexoptTest, DexoptPrimaryPublic) {
 
 TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
     LOG(INFO) << "DexoptPrimaryFailedInvalidFilter";
+    binder::Status status;
     CompilePrimaryDexFail("awesome-filter",
                           DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PUBLIC,
                           app_oat_dir_.c_str(),
                           kTestAppGid,
-                          DEX2OAT_FROM_SCRATCH);
+                          DEX2OAT_FROM_SCRATCH,
+                          &status);
+    EXPECT_STREQ(status.toString8().c_str(),
+                 "Status(-8): \'256: Dex2oat invocation for "
+                 "/data/app/com.installd.test.dexopt/base.jar failed with 0x0100\'");
 }
 
 TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
