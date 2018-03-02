@@ -142,8 +142,10 @@ public:
     EGLBoolean getColorSpaceAttribute(EGLint attribute, EGLint* value) const;
     EGLBoolean getSmpte2086Attribute(EGLint attribute, EGLint* value) const;
     EGLBoolean getCta8613Attribute(EGLint attribute, EGLint* value) const;
-    const android_smpte2086_metadata getSmpte2086Metadata();
-    const android_cta861_3_metadata getCta8613Metadata();
+    EGLBoolean getSmpte2086Metadata(android_smpte2086_metadata& smpte2086) const;
+    EGLBoolean getCta8613Metadata(android_cta861_3_metadata& cta861_3) const;
+    void resetSmpte2086Metadata() { egl_smpte2086_dirty = false; }
+    void resetCta8613Metadata() { egl_cta861_3_dirty = false; }
 
     // Try to keep the order of these fields and size unchanged. It's not public API, but
     // it's not hard to imagine native games accessing them.
@@ -176,6 +178,10 @@ private:
         EGLint maxContentLightLevel;
         EGLint maxFrameAverageLightLevel;
     };
+
+    bool egl_smpte2086_dirty;
+    bool egl_cta861_3_dirty;
+
     egl_smpte2086_metadata egl_smpte2086_metadata;
     egl_cta861_3_metadata egl_cta861_3_metadata;
 };

@@ -700,34 +700,26 @@ void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig confi
     }
 }
 
-EGLBoolean setSurfaceMetadata(egl_surface_t* s, NativeWindowType window,
-                              const EGLint *attrib_list) {
-    // set any HDR metadata
-    bool smpte2086 = false;
-    bool cta8613 = false;
-    if (attrib_list == nullptr) return EGL_TRUE;
-
-    for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
-        smpte2086 |= s->setSmpte2086Attribute(attr[0], attr[1]);
-        cta8613 |= s->setCta8613Attribute(attr[0], attr[1]);
-    }
-    if (smpte2086) {
-        android_smpte2086_metadata metadata = s->getSmpte2086Metadata();
-        int err = native_window_set_buffers_smpte2086_metadata(window, &metadata);
+EGLBoolean sendSurfaceMetadata(egl_surface_t* s) {
+    android_smpte2086_metadata smpteMetadata;
+    if (s->getSmpte2086Metadata(smpteMetadata)) {
+        int err =
+                native_window_set_buffers_smpte2086_metadata(s->getNativeWindow(), &smpteMetadata);
+        s->resetSmpte2086Metadata();
         if (err != 0) {
             ALOGE("error setting native window smpte2086 metadata: %s (%d)",
                   strerror(-err), err);
-            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return EGL_FALSE;
         }
     }
-    if (cta8613) {
-        android_cta861_3_metadata metadata = s->getCta8613Metadata();
-        int err = native_window_set_buffers_cta861_3_metadata(window, &metadata);
+    android_cta861_3_metadata cta8613Metadata;
+    if (s->getCta8613Metadata(cta8613Metadata)) {
+        int err =
+                native_window_set_buffers_cta861_3_metadata(s->getNativeWindow(), &cta8613Metadata);
+        s->resetCta8613Metadata();
         if (err != 0) {
             ALOGE("error setting native window CTS 861.3 metadata: %s (%d)",
                   strerror(-err), err);
-            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return EGL_FALSE;
         }
     }
@@ -1424,7 +1416,7 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
     if (!_s.get())
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
 
-    egl_surface_t const * const s = get_surface(draw);
+    egl_surface_t* const s = get_surface(draw);
 
     if (CC_UNLIKELY(dp->traceGpuCompletion)) {
         EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
@@ -1441,6 +1433,11 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
             s->cnx->hooks[c->version]->gl.glReadPixels(0,0,1,1,
                     GL_RGBA,GL_UNSIGNED_BYTE,&pixel);
         }
+    }
+
+    if (!sendSurfaceMetadata(s)) {
+        native_window_api_disconnect(s->getNativeWindow(), NATIVE_WINDOW_API_EGL);
+        return setError(EGL_BAD_NATIVE_WINDOW, (EGLBoolean)EGL_FALSE);
     }
 
     if (n_rects == 0) {

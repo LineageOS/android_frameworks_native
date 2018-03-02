@@ -61,8 +61,8 @@ static bool hasHdrDisplay =
 class EGLTest : public ::testing::Test {
 public:
     void get8BitConfig(EGLConfig& config);
-    void addOptionalWindowMetadata(std::vector<EGLint>& attrs);
-    void checkOptionalWindowMetadata(EGLSurface eglSurface);
+    void setSurfaceSmpteMetadata(EGLSurface surface);
+    void checkSurfaceSmpteMetadata(EGLSurface eglSurface);
 
 protected:
     EGLDisplay mEglDisplay;
@@ -421,39 +421,39 @@ void EGLTest::get8BitConfig(EGLConfig& config) {
     EXPECT_EQ(components[3], 8);
 }
 
-void EGLTest::addOptionalWindowMetadata(std::vector<EGLint>& attrs) {
+void EGLTest::setSurfaceSmpteMetadata(EGLSurface surface) {
     if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_SMPTE2086_metadata")) {
-        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT);
-        attrs.push_back(METADATA_SCALE(0.640));
-        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT);
-        attrs.push_back(METADATA_SCALE(0.330));
-        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT);
-        attrs.push_back(METADATA_SCALE(0.290));
-        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT);
-        attrs.push_back(METADATA_SCALE(0.600));
-        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT);
-        attrs.push_back(METADATA_SCALE(0.150));
-        attrs.push_back(EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT);
-        attrs.push_back(METADATA_SCALE(0.060));
-        attrs.push_back(EGL_SMPTE2086_WHITE_POINT_X_EXT);
-        attrs.push_back(METADATA_SCALE(0.3127));
-        attrs.push_back(EGL_SMPTE2086_WHITE_POINT_Y_EXT);
-        attrs.push_back(METADATA_SCALE(0.3290));
-        attrs.push_back(EGL_SMPTE2086_MAX_LUMINANCE_EXT);
-        attrs.push_back(METADATA_SCALE(300));
-        attrs.push_back(EGL_SMPTE2086_MIN_LUMINANCE_EXT);
-        attrs.push_back(METADATA_SCALE(0.7));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT,
+                         METADATA_SCALE(0.640));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT,
+                         METADATA_SCALE(0.330));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT,
+                         METADATA_SCALE(0.290));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT,
+                         METADATA_SCALE(0.600));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT,
+                         METADATA_SCALE(0.150));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT,
+                         METADATA_SCALE(0.060));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_WHITE_POINT_X_EXT,
+                         METADATA_SCALE(0.3127));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_WHITE_POINT_Y_EXT,
+                         METADATA_SCALE(0.3290));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_MAX_LUMINANCE_EXT,
+                         METADATA_SCALE(300));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_SMPTE2086_MIN_LUMINANCE_EXT,
+                         METADATA_SCALE(0.7));
     }
 
     if (hasEglExtension(mEglDisplay, "EGL_EXT_surface_CTA861_3_metadata")) {
-        attrs.push_back(EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT);
-        attrs.push_back(METADATA_SCALE(300));
-        attrs.push_back(EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT);
-        attrs.push_back(METADATA_SCALE(75));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT,
+                         METADATA_SCALE(300));
+        eglSurfaceAttrib(mEglDisplay, surface, EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT,
+                         METADATA_SCALE(75));
     }
 }
 
-void EGLTest::checkOptionalWindowMetadata(EGLSurface eglSurface) {
+void EGLTest::checkSurfaceSmpteMetadata(EGLSurface eglSurface) {
     EGLBoolean success;
     EGLint value;
 
@@ -534,8 +534,6 @@ TEST_F(EGLTest, EGLBT2020Linear) {
     winAttrs.push_back(EGL_GL_COLORSPACE_KHR);
     winAttrs.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
 
-    ASSERT_NO_FATAL_FAILURE(addOptionalWindowMetadata(winAttrs));
-
     winAttrs.push_back(EGL_NONE);
 
     EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs.data());
@@ -547,7 +545,9 @@ TEST_F(EGLTest, EGLBT2020Linear) {
     ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_GL_COLORSPACE_BT2020_PQ_EXT, value);
 
-    ASSERT_NO_FATAL_FAILURE(checkOptionalWindowMetadata(eglSurface));
+    ASSERT_NO_FATAL_FAILURE(setSurfaceSmpteMetadata(eglSurface));
+
+    ASSERT_NO_FATAL_FAILURE(checkSurfaceSmpteMetadata(eglSurface));
 
     EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
 }
@@ -584,9 +584,6 @@ TEST_F(EGLTest, EGLBT2020PQ) {
     std::vector<EGLint> winAttrs;
     winAttrs.push_back(EGL_GL_COLORSPACE_KHR);
     winAttrs.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
-
-    ASSERT_NO_FATAL_FAILURE(addOptionalWindowMetadata(winAttrs));
-
     winAttrs.push_back(EGL_NONE);
 
     EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs.data());
@@ -598,7 +595,9 @@ TEST_F(EGLTest, EGLBT2020PQ) {
     ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
     ASSERT_EQ(EGL_GL_COLORSPACE_BT2020_PQ_EXT, value);
 
-    ASSERT_NO_FATAL_FAILURE(checkOptionalWindowMetadata(eglSurface));
+    ASSERT_NO_FATAL_FAILURE(setSurfaceSmpteMetadata(eglSurface));
+
+    ASSERT_NO_FATAL_FAILURE(checkSurfaceSmpteMetadata(eglSurface));
 
     EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
 }
