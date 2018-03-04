@@ -48,6 +48,10 @@ struct DescramblerPlugin {
         kScrambling_Reserved    = 1,
         kScrambling_EvenKey     = 2,
         kScrambling_OddKey      = 3,
+        kScrambling_Mask_Key    = 0x3,
+
+        // Hint that the descrambling request is for a PES header only
+        kScrambling_Flag_PesHeader = (1 << 31),
     };
 
     struct SubSample {

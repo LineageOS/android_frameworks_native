@@ -74,7 +74,7 @@ std::string decodeStandard(android_dataspace dataspace) {
                 case HAL_DATASPACE_SRGB:
                     return std::string("(deprecated) sRGB");
 
-                case HAL_DATASPACE_V0_BT709:
+                case HAL_DATASPACE_BT709:
                     return std::string("(deprecated) BT709");
 
                 case HAL_DATASPACE_ARBITRARY:
@@ -84,7 +84,7 @@ std::string decodeStandard(android_dataspace dataspace) {
                 // Fallthrough
                 default:
                     return android::base::StringPrintf("Unknown deprecated dataspace code %d",
-                                                       dataspaceSelect);
+                                                       dataspace);
             }
     }
 
@@ -98,7 +98,7 @@ std::string decodeTransfer(android_dataspace dataspace) {
             case HAL_DATASPACE_JFIF:
             case HAL_DATASPACE_BT601_625:
             case HAL_DATASPACE_BT601_525:
-            case HAL_DATASPACE_V0_BT709:
+            case HAL_DATASPACE_BT709:
                 return std::string("SMPTE_170M");
 
             case HAL_DATASPACE_SRGB_LINEAR:
@@ -159,8 +159,8 @@ std::string decodeRange(android_dataspace dataspace) {
 
             case HAL_DATASPACE_BT601_625:
             case HAL_DATASPACE_BT601_525:
-            case HAL_DATASPACE_V0_BT709:
-                return std::string("Limited range)");
+            case HAL_DATASPACE_BT709:
+                return std::string("Limited range");
 
             case HAL_DATASPACE_ARBITRARY:
             case HAL_DATASPACE_UNKNOWN:
