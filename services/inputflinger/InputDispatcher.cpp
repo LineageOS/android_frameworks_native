@@ -52,6 +52,7 @@
 #include <time.h>
 #include <unistd.h>
 
+#include <android-base/chrono_utils.h>
 #include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <utils/Trace.h>
@@ -69,28 +70,32 @@ namespace android {
 
 // Default input dispatching timeout if there is no focused application or paused window
 // from which to determine an appropriate dispatching timeout.
-const nsecs_t DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5000 * 1000000LL; // 5 sec
+constexpr nsecs_t DEFAULT_INPUT_DISPATCHING_TIMEOUT = 5000 * 1000000LL; // 5 sec
 
 // Amount of time to allow for all pending events to be processed when an app switch
 // key is on the way.  This is used to preempt input dispatch and drop input events
 // when an application takes too long to respond and the user has pressed an app switch key.
-const nsecs_t APP_SWITCH_TIMEOUT = 500 * 1000000LL; // 0.5sec
+constexpr nsecs_t APP_SWITCH_TIMEOUT = 500 * 1000000LL; // 0.5sec
 
 // Amount of time to allow for an event to be dispatched (measured since its eventTime)
 // before considering it stale and dropping it.
-const nsecs_t STALE_EVENT_TIMEOUT = 10000 * 1000000LL; // 10sec
+constexpr nsecs_t STALE_EVENT_TIMEOUT = 10000 * 1000000LL; // 10sec
 
 // Amount of time to allow touch events to be streamed out to a connection before requiring
 // that the first event be finished.  This value extends the ANR timeout by the specified
 // amount.  For example, if streaming is allowed to get ahead by one second relative to the
 // queue of waiting unfinished events, then ANRs will similarly be delayed by one second.
-const nsecs_t STREAM_AHEAD_EVENT_TIMEOUT = 500 * 1000000LL; // 0.5sec
+constexpr nsecs_t STREAM_AHEAD_EVENT_TIMEOUT = 500 * 1000000LL; // 0.5sec
 
 // Log a warning when an event takes longer than this to process, even if an ANR does not occur.
-const nsecs_t SLOW_EVENT_PROCESSING_WARNING_TIMEOUT = 2000 * 1000000LL; // 2sec
+constexpr nsecs_t SLOW_EVENT_PROCESSING_WARNING_TIMEOUT = 2000 * 1000000LL; // 2sec
+
+// Log a warning when an interception call takes longer than this to process.
+constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 
 // Number of recent events to keep for debugging purposes.
-const size_t RECENT_QUEUE_MAX_SIZE = 10;
+constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
+
 
 static inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -2448,7 +2453,12 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
             flags, keyCode, args->scanCode, metaState, 0,
             args->downTime, args->eventTime);
 
+    android::base::Timer t;
     mPolicy->interceptKeyBeforeQueueing(&event, /*byref*/ policyFlags);
+    if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
+        ALOGW("Excessive delay in interceptKeyBeforeQueueing; took %s ms",
+                std::to_string(t.duration().count()).c_str());
+    }
 
     bool needWake;
     { // acquire lock
@@ -2517,7 +2527,13 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 
     uint32_t policyFlags = args->policyFlags;
     policyFlags |= POLICY_FLAG_TRUSTED;
+
+    android::base::Timer t;
     mPolicy->interceptMotionBeforeQueueing(args->eventTime, /*byref*/ policyFlags);
+    if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
+        ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
+                std::to_string(t.duration().count()).c_str());
+    }
 
     bool needWake;
     { // acquire lock
@@ -2629,7 +2645,12 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t displ
         }
 
         if (!(policyFlags & POLICY_FLAG_FILTERED)) {
+            android::base::Timer t;
             mPolicy->interceptKeyBeforeQueueing(keyEvent, /*byref*/ policyFlags);
+            if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
+                ALOGW("Excessive delay in interceptKeyBeforeQueueing; took %s ms",
+                        std::to_string(t.duration().count()).c_str());
+            }
         }
 
         mLock.lock();
@@ -2654,7 +2675,12 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event, int32_t displ
 
         if (!(policyFlags & POLICY_FLAG_FILTERED)) {
             nsecs_t eventTime = motionEvent->getEventTime();
+            android::base::Timer t;
             mPolicy->interceptMotionBeforeQueueing(eventTime, /*byref*/ policyFlags);
+            if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
+                ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
+                        std::to_string(t.duration().count()).c_str());
+            }
         }
 
         mLock.lock();
@@ -3540,8 +3566,13 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
 
     mLock.unlock();
 
+    android::base::Timer t;
     nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(commandEntry->inputWindowHandle,
             &event, entry->policyFlags);
+    if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
+        ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
+                std::to_string(t.duration().count()).c_str());
+    }
 
     mLock.lock();
 
