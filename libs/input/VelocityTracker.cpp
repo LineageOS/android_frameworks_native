@@ -1090,7 +1090,7 @@ static float kineticEnergyToVelocity(float work) {
 static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t count) {
     // The input should be in reversed time order (most recent sample at index i=0)
     // t[i] is in nanoseconds, but due to FP arithmetic, convert to seconds inside this function
-    static constexpr float NANOS_PER_SECOND = 1E-9;
+    static constexpr float SECONDS_PER_NANO = 1E-9;
 
     if (count < 2) {
         return 0; // if 0 or 1 points, velocity is zero
@@ -1103,7 +1103,7 @@ static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t c
             ALOGE("Events have identical time stamps t=%" PRId64 ", setting velocity = 0", t[0]);
             return 0;
         }
-        return (x[1] - x[0]) / (NANOS_PER_SECOND * (t[1] - t[0]));
+        return (x[1] - x[0]) / (SECONDS_PER_NANO * (t[1] - t[0]));
     }
     // Guaranteed to have at least 3 points here
     float work = 0;
@@ -1113,7 +1113,7 @@ static float calculateImpulseVelocity(const nsecs_t* t, const float* x, size_t c
             continue;
         }
         float vprev = kineticEnergyToVelocity(work); // v[i-1]
-        float vcurr = (x[i] - x[i-1]) / (NANOS_PER_SECOND * (t[i] - t[i-1])); // v[i]
+        float vcurr = (x[i] - x[i-1]) / (SECONDS_PER_NANO * (t[i] - t[i-1])); // v[i]
         work += (vcurr - vprev) * fabsf(vcurr);
         if (i == count - 1) {
             work *= 0.5; // initial condition, case 2) above
