@@ -402,6 +402,12 @@ VkResult CreateInfoWrapper::SanitizeExtensions() {
     for (uint32_t i = 0; i < ext_count; i++)
         FilterExtension(ext_names[i]);
 
+    // Enable device extensions that contain physical-device commands, so that
+    // vkGetInstanceProcAddr will return those physical-device commands.
+    if (is_instance_) {
+        hook_extensions_.set(ProcHook::KHR_swapchain);
+    }
+
     ext_names = extension_filter_.names;
     ext_count = extension_filter_.name_count;
 
