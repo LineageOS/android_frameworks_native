@@ -59,8 +59,8 @@ Status DebugCommand::main(const Arg &arg) {
 
     auto pair = splitFirst(mInterfaceName, '/');
 
-    FQName fqName(pair.first);
-    if (!fqName.isValid() || fqName.isIdentifier() || !fqName.isFullyQualified()) {
+    FQName fqName;
+    if (!FQName::parse(pair.first, &fqName) || fqName.isIdentifier() || !fqName.isFullyQualified()) {
         mLshal.err() << "Invalid fully-qualified name '" << pair.first << "'\n\n";
         return USAGE;
     }
