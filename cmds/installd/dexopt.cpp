@@ -230,7 +230,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         const char* instruction_set, const char* compiler_filter,
         bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
         const char* class_loader_context, int target_sdk_version, bool enable_hidden_api_checks,
-        int dex_metadata_fd, const char* compilation_reason) {
+        bool generate_compact_dex, int dex_metadata_fd, const char* compilation_reason) {
     static const unsigned int MAX_INSTRUCTION_SET_LEN = 7;
 
     if (strlen(instruction_set) >= MAX_INSTRUCTION_SET_LEN) {
@@ -438,9 +438,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
 
     // Disable cdex if update input vdex is true since this combination of options is not
     // supported.
-    // Disable cdex for non-background compiles since we don't want to regress app install until
-    // there are enough benefits to justify the tradeoff.
-    const bool disable_cdex = !background_job_compile || (input_vdex_fd == output_vdex_fd);
+    const bool disable_cdex = !generate_compact_dex || (input_vdex_fd == output_vdex_fd);
 
     const char* argv[9  // program name, mandatory arguments and the final NULL
                      + (have_dex2oat_isa_variant ? 1 : 0)
@@ -1960,6 +1958,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     bool is_secondary_dex = (dexopt_flags & DEXOPT_SECONDARY_DEX) != 0;
     bool background_job_compile = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
     bool enable_hidden_api_checks = (dexopt_flags & DEXOPT_ENABLE_HIDDEN_API_CHECKS) != 0;
+    bool generate_compact_dex = (dexopt_flags & DEXOPT_GENERATE_COMPACT_DEX) != 0;
 
     // Check if we're dealing with a secondary dex file and if we need to compile it.
     std::string oat_dir_str;
@@ -2073,6 +2072,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
                     class_loader_context,
                     target_sdk_version,
                     enable_hidden_api_checks,
+                    generate_compact_dex,
                     dex_metadata_fd.get(),
                     compilation_reason);
     } else {
