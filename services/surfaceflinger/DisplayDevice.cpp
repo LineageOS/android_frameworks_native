@@ -98,6 +98,7 @@ DisplayDevice::DisplayDevice(
       mPowerMode(initialPowerMode),
       mActiveConfig(0),
       mActiveColorMode(ColorMode::NATIVE),
+      mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
       mDisplayHasWideColor(supportWideColor),
       mDisplayHasHdr(supportHdr)
 {
@@ -266,6 +267,16 @@ void DisplayDevice::setActiveColorMode(ColorMode mode) {
 
 ColorMode DisplayDevice::getActiveColorMode() const {
     return mActiveColorMode;
+}
+
+void DisplayDevice::setColorTransform(const mat4& transform) {
+    const bool isIdentity = (transform == mat4());
+    mColorTransform =
+            isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
+}
+
+android_color_transform_t DisplayDevice::getColorTransform() const {
+    return mColorTransform;
 }
 
 void DisplayDevice::setCompositionDataSpace(android_dataspace dataspace) {

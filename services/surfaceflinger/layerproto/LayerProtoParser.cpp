@@ -44,7 +44,12 @@ bool sortLayerUniquePtrs(const std::unique_ptr<LayerProtoParser::Layer>& lhs,
 
 const LayerProtoParser::LayerGlobal LayerProtoParser::generateLayerGlobalInfo(
         const LayersProto& layersProto) {
-    return {{layersProto.resolution().w(), layersProto.resolution().h()}};
+    LayerGlobal layerGlobal;
+    layerGlobal.resolution = {layersProto.resolution().w(), layersProto.resolution().h()};
+    layerGlobal.colorMode = layersProto.color_mode();
+    layerGlobal.colorTransform = layersProto.color_transform();
+    layerGlobal.globalTransform = layersProto.global_transform();
+    return layerGlobal;
 }
 
 std::vector<std::unique_ptr<LayerProtoParser::Layer>> LayerProtoParser::generateLayerTree(
@@ -116,6 +121,8 @@ LayerProtoParser::Layer* LayerProtoParser::generateLayer(const LayerProto& layer
     layer->hwcTransform = layerProto.hwc_transform();
     layer->windowType = layerProto.window_type();
     layer->appId = layerProto.app_id();
+    layer->hwcCompositionType = layerProto.hwc_composition_type();
+    layer->isProtected = layerProto.is_protected();
 
     return layer;
 }
