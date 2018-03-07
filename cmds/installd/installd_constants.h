@@ -53,6 +53,7 @@ constexpr int DEXOPT_STORAGE_DE     = 1 << 8;
 // controls whether extra debugging flags can be used (taking more compile time.)
 constexpr int DEXOPT_IDLE_BACKGROUND_JOB = 1 << 9;
 constexpr int DEXOPT_ENABLE_HIDDEN_API_CHECKS = 1 << 10;
+constexpr int DEXOPT_GENERATE_COMPACT_DEX = 1 << 11;
 
 /* all known values for dexopt flags */
 constexpr int DEXOPT_MASK =
@@ -65,7 +66,8 @@ constexpr int DEXOPT_MASK =
     | DEXOPT_STORAGE_CE
     | DEXOPT_STORAGE_DE
     | DEXOPT_IDLE_BACKGROUND_JOB
-    | DEXOPT_ENABLE_HIDDEN_API_CHECKS;
+    | DEXOPT_ENABLE_HIDDEN_API_CHECKS
+    | DEXOPT_GENERATE_COMPACT_DEX;
 
 // NOTE: keep in sync with StorageManager
 constexpr int FLAG_STORAGE_DE = 1 << 0;
