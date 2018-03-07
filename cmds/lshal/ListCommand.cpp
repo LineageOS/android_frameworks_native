@@ -252,16 +252,16 @@ void ListCommand::postprocess() {
     // use a double for loop here because lshal doesn't care about efficiency.
     for (TableEntry &packageEntry : mImplementationsTable) {
         std::string packageName = packageEntry.interfaceName;
-        FQName fqPackageName{packageName.substr(0, packageName.find("::"))};
-        if (!fqPackageName.isValid()) {
+        FQName fqPackageName;
+        if (!FQName::parse(packageName.substr(0, packageName.find("::")), &fqPackageName)) {
             continue;
         }
         for (TableEntry &interfaceEntry : mPassthroughRefTable) {
             if (interfaceEntry.arch != ARCH_UNKNOWN) {
                 continue;
             }
-            FQName interfaceName{splitFirst(interfaceEntry.interfaceName, '/').first};
-            if (!interfaceName.isValid()) {
+            FQName interfaceName;
+            if (!FQName::parse(splitFirst(interfaceEntry.interfaceName, '/').first, &interfaceName)) {
                 continue;
             }
             if (interfaceName.getPackageAndVersion() == fqPackageName) {
@@ -308,10 +308,10 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
                 // Quick hack to work around *'s
                 replaceAll(&fqInstanceName, '*', 'D');
             }
-            auto splittedFqInstanceName = splitFirst(fqInstanceName, '/');
-            FQName fqName(splittedFqInstanceName.first);
-            if (!fqName.isValid()) {
-                err() << "Warning: '" << splittedFqInstanceName.first
+            auto splitFqInstanceName = splitFirst(fqInstanceName, '/');
+            FQName fqName;
+            if (!FQName::parse(splitFqInstanceName.first, &fqName)) {
+                err() << "Warning: '" << splitFqInstanceName.first
                      << "' is not a valid FQName." << std::endl;
                 continue;
             }
@@ -335,7 +335,7 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
             std::string interfaceName =
                     &table == &mImplementationsTable ? "" : fqName.name();
             std::string instanceName =
-                    &table == &mImplementationsTable ? "" : splittedFqInstanceName.second;
+                    &table == &mImplementationsTable ? "" : splitFqInstanceName.second;
 
             vintf::Version version{fqName.getPackageMajorVersion(),
                                    fqName.getPackageMinorVersion()};
