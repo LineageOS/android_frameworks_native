@@ -287,14 +287,15 @@ public:
     bool setOverrideScalingMode(int32_t overrideScalingMode);
     void setInfo(uint32_t type, uint32_t appId);
     bool reparentChildren(const sp<IBinder>& layer);
+    bool reparentChildrenForDrawing(const sp<Layer>& layer);
     bool reparent(const sp<IBinder>& newParentHandle);
     bool detachChildren();
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
     // one empty rect.
-    virtual void useSurfaceDamage() = 0;
-    virtual void useEmptyDamage() = 0;
+    virtual void useSurfaceDamage() {}
+    virtual void useEmptyDamage() {}
 
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
@@ -320,7 +321,7 @@ public:
      * pixel format includes an alpha channel) and the "opaque" flag set
      * on the layer.  It does not examine the current plane alpha value.
      */
-    virtual bool isOpaque(const Layer::State& s) const = 0;
+    virtual bool isOpaque(const Layer::State&) const { return false; }
 
     /*
      * isSecure - true if this surface is secure, that is if it prevents
@@ -344,7 +345,8 @@ public:
     /*
      * isFixedSize - true if content has a fixed size
      */
-    virtual bool isFixedSize() const = 0;
+    virtual bool isFixedSize() const { return true; }
+
 
     bool isPendingRemoval() const { return mPendingRemoval; }
 
@@ -359,7 +361,7 @@ protected:
                         bool useIdentityTransform) const = 0;
 
 public:
-    virtual void setDefaultBufferSize(uint32_t w, uint32_t h) = 0;
+    virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
     void forceClientComposition(int32_t hwcId);
@@ -379,27 +381,30 @@ public:
      */
     virtual void onLayerDisplayed(const sp<Fence>& releaseFence);
 
-    virtual void abandon() = 0;
+    virtual void abandon() {}
 
-    virtual bool shouldPresentNow(const DispSync& dispSync) const = 0;
-    virtual void setTransformHint(uint32_t orientation) const = 0;
+    virtual bool shouldPresentNow(const DispSync& /*dispSync*/) const { return false; }
+    virtual void setTransformHint(uint32_t /*orientation*/) const { }
 
     /*
      * called before composition.
      * returns true if the layer has pending updates.
      */
-    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
+    virtual bool onPreComposition(nsecs_t /*refreshStartTime*/) { return true; }
 
     /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    virtual bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
-                                   const std::shared_ptr<FenceTime>& presentFence,
-                                   const CompositorTiming& compositorTiming) = 0;
+    virtual bool onPostComposition(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+                                   const std::shared_ptr<FenceTime>& /*presentFence*/,
+                                   const CompositorTiming& /*compositorTiming*/) {
+        return false;
+    }
 
     // If a buffer was replaced this frame, release the former buffer
-    virtual void releasePendingBuffer(nsecs_t dequeueReadyTime) = 0;
+    virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
+
 
     /*
      * draw - performs some global clipping optimizations
@@ -445,8 +450,11 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    virtual Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
-    virtual bool isBufferLatched() const = 0;
+    virtual Region latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/) {
+        return {};
+    }
+
+    virtual bool isBufferLatched() const { return false; }
 
     bool isPotentialCursor() const { return mPotentialCursor; }
     /*
@@ -519,13 +527,15 @@ public:
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;
 
-    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) = 0;
+    virtual std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool /*forceFlush*/) {
+        return {};
+    }
 
     void onDisconnect();
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
                                   FrameEventHistoryDelta* outDelta);
 
-    virtual bool getTransformToDisplayInverse() const = 0;
+    virtual bool getTransformToDisplayInverse() const { return false; }
 
     Transform getTransform() const;
 
@@ -649,7 +659,7 @@ protected:
     // Returns mCurrentScaling mode (originating from the
     // Client) or mOverrideScalingMode mode (originating from
     // the Surface Controller) if set.
-    virtual uint32_t getEffectiveScalingMode() const = 0;
+    virtual uint32_t getEffectiveScalingMode() const { return 0; }
 
 public:
     /*
@@ -670,8 +680,8 @@ public:
 
     sp<IBinder> getHandle();
     const String8& getName() const;
-    virtual void notifyAvailableFrames() = 0;
-    virtual PixelFormat getPixelFormat() const = 0;
+    virtual void notifyAvailableFrames() {}
+    virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     bool getPremultipledAlpha() const;
 
 protected:
