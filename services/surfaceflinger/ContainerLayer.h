@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2007 The Android Open Source Project
+ * Copyright (C) 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,15 +23,15 @@
 
 namespace android {
 
-class ColorLayer : public Layer {
+class AbstractLayer : public Layer {
 public:
-    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
-               uint32_t h, uint32_t flags);
-    virtual ~ColorLayer() = default;
+    AbstractLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
+                  uint32_t w, uint32_t h, uint32_t flags);
+    virtual ~AbstractLayer() = default;
 
-    virtual const char* getTypeId() const { return "ColorLayer"; }
-    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform) const;
+    const char* getTypeId() const override { return "AbstractLayer"; }
+    void onDraw(const RenderArea& renderArea, const Region& clip,
+                bool useIdentityTransform) const override;
     bool isVisible() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;

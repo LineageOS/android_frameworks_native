@@ -84,6 +84,7 @@ filegroup {
         "BufferLayerConsumer.cpp",
         "Client.cpp",
         "ColorLayer.cpp",
+        "ContainerLayer.cpp",
         "DisplayDevice.cpp",
         "DisplayHardware/ComposerHal.cpp",
         "DisplayHardware/FramebufferSurface.cpp",

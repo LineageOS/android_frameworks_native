@@ -17,7 +17,6 @@
 #ifndef ANDROID_LAYER_H
 #define ANDROID_LAYER_H
 
-#include <stdint.h>
 #include <sys/types.h>
 
 #include <utils/RefBase.h>
@@ -35,6 +34,7 @@
 #include <gui/BufferQueue.h>
 
 #include <list>
+#include <cstdint>
 
 #include "Client.h"
 #include "FrameTracker.h"
