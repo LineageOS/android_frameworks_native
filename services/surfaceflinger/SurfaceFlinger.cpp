@@ -1960,6 +1960,7 @@ void SurfaceFlinger::setUpHWComposer() {
             continue;
         }
         if (colorMatrix != mPreviousColorMatrix) {
+            displayDevice->setColorTransform(colorMatrix);
             status_t result = getBE().mHwc->setColorTransform(hwcId, colorMatrix);
             ALOGE_IF(result != NO_ERROR, "Failed to set color transform on "
                     "display %zd: %d", displayId, result);
@@ -4029,15 +4030,19 @@ LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const 
 
 LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(int32_t hwcId) const {
     LayersProto layersProto;
-
     const sp<DisplayDevice>& displayDevice(mDisplays[hwcId]);
+
     SizeProto* resolution = layersProto.mutable_resolution();
     resolution->set_w(displayDevice->getWidth());
     resolution->set_h(displayDevice->getHeight());
 
+    layersProto.set_color_mode(decodeColorMode(displayDevice->getActiveColorMode()));
+    layersProto.set_color_transform(decodeColorTransform(displayDevice->getColorTransform()));
+    layersProto.set_global_transform(
+            static_cast<int32_t>(displayDevice->getOrientationTransform()));
+
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (!layer->visibleRegion.isEmpty() &&
-            layer->getBE().mHwcLayers.count(hwcId)) {
+        if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(hwcId)) {
             LayerProto* layerProto = layersProto.add_layers();
             layer->writeToProto(layerProto, hwcId);
         }

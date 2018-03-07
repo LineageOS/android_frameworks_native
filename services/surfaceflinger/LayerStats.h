@@ -39,17 +39,24 @@ private:
     // Traverse layer tree to get all visible layers' stats
     void traverseLayerTreeStatsLocked(
             std::vector<std::unique_ptr<LayerProtoParser::Layer>> layerTree,
-            const LayerProtoParser::LayerGlobal* layerGlobal);
+            const LayerProtoParser::LayerGlobal* layerGlobal,
+            std::vector<std::string>& layerShapeVec);
     // Convert layer's top-left position into 8x8 percentage of the display
     static const char* destinationLocation(int32_t location, int32_t range, bool isHorizontal);
     // Convert layer's size into 8x8 percentage of the display
     static const char* destinationSize(int32_t size, int32_t range, bool isWidth);
     // Return the name of the transform
     static const char* layerTransform(int32_t transform);
+    // Return the name of the composition type
+    static const char* layerCompositionType(int32_t compositionType);
+    // Return the name of the pixel format
+    static const char* layerPixelFormat(int32_t pixelFormat);
     // Calculate scale ratios of layer's width/height with rotation information
     static std::string scaleRatioWH(const LayerProtoParser::Layer* layer);
     // Calculate scale ratio from source to destination and convert to string
     static const char* scaleRatio(int32_t destinationScale, int32_t sourceScale);
+    // Bucket the alpha into designed buckets
+    static const char* alpha(float a);
     // Return whether the original buffer is rotated in final composition
     static bool isRotated(int32_t transform);
     // Return whether the original buffer is V-flipped in final composition
@@ -60,10 +67,10 @@ private:
     bool mEnabled = false;
     // Protect mLayersStatsMap
     std::mutex mMutex;
-    // Hashmap for tracking the layer stats
-    // KEY is a concatenation of a particular set of layer properties
-    // VALUE is the number of times this particular get scanned out
-    std::unordered_map<std::string, uint32_t> mLayerStatsMap;
+    // Hashmap for tracking the frame(layer shape) stats
+    // KEY is a concatenation of all layers' properties within a frame
+    // VALUE is the number of times this particular set has been scanned out
+    std::unordered_map<std::string, uint32_t> mLayerShapeStatsMap;
 };
 
-} // namespace android
+}  // namespace android
