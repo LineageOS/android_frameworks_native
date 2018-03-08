@@ -37,12 +37,13 @@ LOCAL_SRC_FILES:= \
   gl_code.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libutils \
 	liblog \
 	libEGL \
 	libGLESv1_CM
 
 LOCAL_MODULE := libgljni
+
+LOCAL_SDK_VERSION := current
 
 LOCAL_ARM_MODE := arm
 
