@@ -1440,7 +1440,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mMatrix[1][0] = ds.active.transform[1][0];
     info.mMatrix[1][1] = ds.active.transform[1][1];
     {
-        sp<const GraphicBuffer> buffer = getBE().compositionInfo.mBuffer;
+        sp<const GraphicBuffer> buffer = mActiveBuffer;
         if (buffer != 0) {
             info.mActiveBufferWidth = buffer->getWidth();
             info.mActiveBufferHeight = buffer->getHeight();
