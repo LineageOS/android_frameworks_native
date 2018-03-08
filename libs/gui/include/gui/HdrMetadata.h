@@ -38,6 +38,8 @@ struct HdrMetadata : public LightFlattenable<HdrMetadata> {
     size_t getFlattenedSize() const;
     status_t flatten(void* buffer, size_t size) const;
     status_t unflatten(void const* buffer, size_t size);
+
+    bool operator==(const HdrMetadata& rhs) const;
 };
 
 } // namespace android
