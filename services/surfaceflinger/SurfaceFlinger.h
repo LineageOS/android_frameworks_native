@@ -44,6 +44,7 @@
 #include <gui/LayerState.h>
 
 #include <gui/OccupancyTracker.h>
+#include <gui/BufferQueue.h>
 
 #include <hardware/hwcomposer_defs.h>
 
@@ -60,6 +61,7 @@
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
 #include "StartPropertySetThread.h"
+#include "LayerBE.h"
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
