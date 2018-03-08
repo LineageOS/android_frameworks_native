@@ -20,6 +20,7 @@
 #include <android-base/logging.h>
 #include <gtest/gtest.h>
 
+#include "installd_constants.h"
 #include "otapreopt_parameters.h"
 
 namespace android {
@@ -61,7 +62,7 @@ protected:
         ASSERT_STREQ(params.instruction_set, args[i++]);
         ASSERT_EQ(params.dexopt_needed, atoi(args[i++]));
         ASSERT_STREQ(params.oat_dir, args[i++]);
-        ASSERT_EQ(params.dexopt_flags, atoi(args[i++]));
+        const int dexopt_flags = atoi(args[i++]);
         ASSERT_STREQ(params.compiler_filter, args[i++]);
         ASSERT_STREQ(params.volume_uuid, ParseNull(args[i++]));
         ASSERT_STREQ(params.shared_libraries, ParseNull(args[i++]));
@@ -78,7 +79,7 @@ protected:
         if (version > 3) {
             ASSERT_EQ(params.target_sdk_version, atoi(args[i++]));
         } else {
-             ASSERT_EQ(params.target_sdk_version, 0);
+            ASSERT_EQ(params.target_sdk_version, 0);
         }
         if (version > 4) {
             ASSERT_STREQ(params.profile_name, ParseNull(args[i++]));
@@ -95,6 +96,11 @@ protected:
         } else {
             ASSERT_STREQ(params.compilation_reason, "ab-ota");
         }
+        if (version > 7) {
+            ASSERT_EQ(params.dexopt_flags, dexopt_flags);
+        } else {
+            ASSERT_EQ(params.dexopt_flags, dexopt_flags | DEXOPT_GENERATE_COMPACT_DEX);
+        }
     }
 
     const char* getVersionCStr(uint32_t version) {
@@ -106,6 +112,7 @@ protected:
             case 5: return "5";
             case 6: return "6";
             case 7: return "7";
+            case 8: return "8";
         }
         return nullptr;
     }
