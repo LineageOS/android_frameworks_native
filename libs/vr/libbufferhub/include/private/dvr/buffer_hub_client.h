@@ -111,10 +111,6 @@ class BufferHubBuffer : public pdx::Client {
   uint32_t usage() const { return buffer_.usage(); }
   uint32_t layer_count() const { return buffer_.layer_count(); }
 
-  // TODO(b/37881101) Clean up producer/consumer usage.
-  uint64_t producer_usage() const { return buffer_.usage(); }
-  uint64_t consumer_usage() const { return buffer_.usage(); }
-
   uint64_t GetQueueIndex() const { return metadata_header_->queue_index; }
   void SetQueueIndex(uint64_t index) { metadata_header_->queue_index = index; }
 
@@ -230,14 +226,10 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
 
   // Constructs a buffer with the given geometry and parameters.
   BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                 uint32_t usage, size_t metadata_size = 0);
-  BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                 uint64_t producer_usage, uint64_t consumer_usage,
-                 size_t metadata_size);
+                 uint64_t usage, size_t metadata_size = 0);
 
   // Constructs a blob (flat) buffer with the given usage flags.
-  BufferProducer(uint32_t usage, size_t size);
-  BufferProducer(uint64_t producer_usage, uint64_t consumer_usage, size_t size);
+  BufferProducer(uint64_t usage, size_t size);
 
   // Imports the given file handle to a producer channel, taking ownership.
   explicit BufferProducer(LocalChannelHandle channel);
