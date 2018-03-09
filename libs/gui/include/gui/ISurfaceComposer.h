@@ -173,9 +173,12 @@ public:
                                    int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
                                    Rotation rotation = eRotateNone) = 0;
 
+    /**
+     * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
+     */
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
                                    sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
-                                   float frameScale = 1.0) = 0;
+                                   float frameScale = 1.0, bool childrenOnly = false) = 0;
 
     /* Clears the frame statistics for animations.
      *

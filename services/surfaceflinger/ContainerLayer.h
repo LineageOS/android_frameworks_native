@@ -23,13 +23,13 @@
 
 namespace android {
 
-class AbstractLayer : public Layer {
+class ContainerLayer : public Layer {
 public:
-    AbstractLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
-                  uint32_t w, uint32_t h, uint32_t flags);
-    virtual ~AbstractLayer() = default;
+    ContainerLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
+                   uint32_t w, uint32_t h, uint32_t flags);
+    virtual ~ContainerLayer() = default;
 
-    const char* getTypeId() const override { return "AbstractLayer"; }
+    const char* getTypeId() const override { return "ContainerLayer"; }
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) const override;
     bool isVisible() const override;

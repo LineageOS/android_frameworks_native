@@ -61,20 +61,21 @@
 #include <private/android_filesystem_config.h>
 #include <private/gui/SyncFeatures.h>
 
+#include "BufferLayer.h"
 #include "Client.h"
-#include "clz.h"
+#include "ColorLayer.h"
 #include "Colorizer.h"
+#include "ContainerLayer.h"
 #include "DdmConnection.h"
-#include "DisplayDevice.h"
 #include "DispSync.h"
+#include "DisplayDevice.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
 #include "Layer.h"
-#include "BufferLayer.h"
 #include "LayerVector.h"
-#include "ColorLayer.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
+#include "clz.h"
 
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/FramebufferSurface.h"
@@ -4418,19 +4419,18 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                                        sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
-                                       float frameScale) {
+                                       float frameScale, bool childrenOnly) {
     ATRACE_CALL();
 
     class LayerRenderArea : public RenderArea {
     public:
-        LayerRenderArea(const sp<Layer>& layer, const Rect crop, int32_t reqWidth,
-                        int32_t reqHeight)
-              : RenderArea(reqHeight, reqWidth), mLayer(layer), mCrop(crop) {}
-        const Transform& getTransform() const override {
-            // Make the top level transform the inverse the transform and it's parent so it sets
-            // the whole capture back to 0,0
-            return *new Transform(mLayer->getTransform().inverse());
-        }
+        LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
+                        int32_t reqWidth, int32_t reqHeight, bool childrenOnly)
+              : RenderArea(reqHeight, reqWidth),
+                mLayer(layer),
+                mCrop(crop),
+                mFlinger(flinger),
+                mChildrenOnly(childrenOnly) {}
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
             return Rect(layerState.active.w, layerState.active.h);
@@ -4439,6 +4439,34 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         int getWidth() const override { return mLayer->getDrawingState().active.w; }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return false; }
+        const Transform& getTransform() const { return mTransform; }
+
+        class ReparentForDrawing {
+        public:
+            const sp<Layer>& oldParent;
+            const sp<Layer>& newParent;
+
+            ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent)
+                  : oldParent(oldParent), newParent(newParent) {
+                oldParent->reparentChildrenForDrawing(newParent);
+            }
+            ~ReparentForDrawing() { newParent->reparentChildrenForDrawing(oldParent); }
+        };
+
+        void render(std::function<void()> drawLayers) override {
+            if (!mChildrenOnly) {
+                mTransform = mLayer->getTransform().inverse();
+                drawLayers();
+            } else {
+                Rect bounds = getBounds();
+                screenshotParentLayer =
+                        new ContainerLayer(mFlinger, nullptr, String8("Screenshot Parent"),
+                                           bounds.getWidth(), bounds.getHeight(), 0);
+
+                ReparentForDrawing reparent(mLayer, screenshotParentLayer);
+                drawLayers();
+            }
+        }
 
         Rect getSourceCrop() const override {
             if (mCrop.isEmpty()) {
@@ -4453,6 +4481,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     private:
         const sp<Layer> mLayer;
         const Rect mCrop;
+
+        // In the "childrenOnly" case we reparent the children to a screenshot
+        // layer which has no properties set and which does not draw.
+        sp<ContainerLayer> screenshotParentLayer;
+        Transform mTransform;
+
+        SurfaceFlinger* mFlinger;
+        const bool mChildrenOnly;
     };
 
     auto layerHandle = reinterpret_cast<Layer::Handle*>(layerHandleBinder.get());
@@ -4461,6 +4497,13 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     if (parent == nullptr || parent->isPendingRemoval()) {
         ALOGE("captureLayers called with a removed parent");
         return NAME_NOT_FOUND;
+    }
+
+    const int uid = IPCThreadState::self()->getCallingUid();
+    const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
+    if (!forSystem && parent->getCurrentState().flags & layer_state_t::eLayerSecure) {
+        ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
+        return PERMISSION_DENIED;
     }
 
     Rect crop(sourceCrop);
@@ -4477,11 +4520,13 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     int32_t reqWidth = crop.width() * frameScale;
     int32_t reqHeight = crop.height() * frameScale;
 
-    LayerRenderArea renderArea(parent, crop, reqWidth, reqHeight);
+    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, childrenOnly);
 
-    auto traverseLayers = [parent](const LayerVector::Visitor& visitor) {
+    auto traverseLayers = [parent, childrenOnly](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->isVisible()) {
+                return;
+            } else if (childrenOnly && layer == parent.get()) {
                 return;
             }
             visitor(layer);
@@ -4529,8 +4574,10 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         int fd = -1;
         {
             Mutex::Autolock _l(mStateLock);
-            result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
-                                             useIdentityTransform, forSystem, &fd);
+            renderArea.render([&]() {
+                result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
+                                                 useIdentityTransform, forSystem, &fd);
+            });
         }
 
         {

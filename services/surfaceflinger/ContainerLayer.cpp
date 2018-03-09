@@ -16,24 +16,24 @@
 
 // #define LOG_NDEBUG 0
 #undef LOG_TAG
-#define LOG_TAG "AbstractLayer"
+#define LOG_TAG "ContainerLayer"
 
-#include "AbstractLayer.h"
+#include "ContainerLayer.h"
 
 namespace android {
 
-AbstractLayer::AbstractLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
-                             uint32_t w, uint32_t h, uint32_t flags)
+ContainerLayer::ContainerLayer(SurfaceFlinger* flinger, const sp<Client>& client,
+                               const String8& name, uint32_t w, uint32_t h, uint32_t flags)
       : Layer(flinger, client, name, w, h, flags) {
     mDrawingState = mCurrentState;
 }
 
-void AbstractLayer::onDraw(const RenderArea&, const Region& /* clip */, bool) const {}
+void ContainerLayer::onDraw(const RenderArea&, const Region& /* clip */, bool) const {}
 
-bool AbstractLayer::isVisible() const {
+bool ContainerLayer::isVisible() const {
     return !isHiddenByPolicy();
 }
 
-void AbstractLayer::setPerFrameData(const sp<const DisplayDevice>&) {}
+void ContainerLayer::setPerFrameData(const sp<const DisplayDevice>&) {}
 
 } // namespace android

@@ -287,7 +287,7 @@ public:
     bool setOverrideScalingMode(int32_t overrideScalingMode);
     void setInfo(uint32_t type, uint32_t appId);
     bool reparentChildren(const sp<IBinder>& layer);
-    bool reparentChildrenForDrawing(const sp<Layer>& layer);
+    void reparentChildrenForDrawing(const sp<Layer>& layer);
     bool reparent(const sp<IBinder>& newParentHandle);
     bool detachChildren();
 
