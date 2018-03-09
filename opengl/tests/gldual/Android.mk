@@ -37,13 +37,13 @@ LOCAL_SRC_FILES:= \
   gl_code.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libutils \
 	liblog \
 	libEGL \
 	libGLESv2
 
 LOCAL_MODULE := libgldualjni
 
+LOCAL_SDK_VERSION := current
 
 
 include $(BUILD_SHARED_LIBRARY)
