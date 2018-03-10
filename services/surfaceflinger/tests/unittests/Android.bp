@@ -20,6 +20,7 @@ cc_test {
     srcs: [
         ":libsurfaceflinger_sources",
         "DisplayTransactionTest.cpp",
+        "EventControlThreadTest.cpp",
         "EventThreadTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplaySurface.cpp",
