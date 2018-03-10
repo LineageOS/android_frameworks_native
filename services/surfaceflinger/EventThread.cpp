@@ -26,14 +26,12 @@
 #include <cutils/sched_policy.h>
 
 #include <gui/DisplayEventReceiver.h>
-#include <gui/IDisplayEventConnection.h>
 
 #include <utils/Errors.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
 #include "EventThread.h"
-#include "SurfaceFlinger.h"
 
 using namespace std::chrono_literals;
 
@@ -47,9 +45,11 @@ EventThread::~EventThread() = default;
 
 namespace impl {
 
-EventThread::EventThread(VSyncSource* src, SurfaceFlinger& flinger, bool interceptVSyncs,
-                         const char* threadName)
-      : mVSyncSource(src), mFlinger(flinger), mInterceptVSyncs(interceptVSyncs) {
+EventThread::EventThread(VSyncSource* src, ResyncWithRateLimitCallback resyncWithRateLimitCallback,
+                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
+      : mVSyncSource(src),
+        mResyncWithRateLimitCallback(resyncWithRateLimitCallback),
+        mInterceptVSyncsCallback(interceptVSyncsCallback) {
     for (auto& event : mVSyncEvent) {
         event.header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
         event.header.id = 0;
@@ -118,7 +118,9 @@ void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>
 void EventThread::requestNextVsync(const sp<EventThread::Connection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    mFlinger.resyncWithRateLimit();
+    if (mResyncWithRateLimitCallback) {
+        mResyncWithRateLimitCallback();
+    }
 
     if (connection->count < 0) {
         connection->count = 0;
@@ -216,8 +218,8 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
             timestamp = mVSyncEvent[i].header.timestamp;
             if (timestamp) {
                 // we have a vsync event to dispatch
-                if (mInterceptVSyncs) {
-                    mFlinger.mInterceptor->saveVSyncEvent(timestamp);
+                if (mInterceptVSyncsCallback) {
+                    mInterceptVSyncsCallback(timestamp);
                 }
                 *event = mVSyncEvent[i];
                 mVSyncEvent[i].header.timestamp = 0;
