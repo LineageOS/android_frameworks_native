@@ -116,8 +116,6 @@ struct HwcLayer {
     info.id = new_id;
   }
 
-  void dumpDebugInfo(std::string* result) const;
-
   Composition composition_type;
   ComposerView::ComposerLayer info;
   IVrComposerClient::BufferMetadata buffer_metadata;
@@ -164,8 +162,6 @@ class HwcDisplay {
   const float* color_transform() const { return color_transform_; }
   int32_t color_transform_hint() const { return color_transform_hint_; }
   void SetColorTransform(const float* matrix, int32_t hint);
-
-  void dumpDebugInfo(std::string* result) const;
 
  private:
   // The client target buffer and the associated fence.
