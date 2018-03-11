@@ -133,6 +133,9 @@ void OTAPreoptParameters::SetDefaultsForPostV1Arguments() {
 
     // The compilation reason is ab-ota (match the system property pm.dexopt.ab-ota)
     compilation_reason = "ab-ota";
+
+    // Flag is enabled by default for A/B otas.
+    dexopt_flags = DEXOPT_GENERATE_COMPACT_DEX;
 }
 
 bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
@@ -145,6 +148,8 @@ bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
         LOG(ERROR) << "Expected \"dexopt\" but found: " << argv[2];
         return false;
     }
+
+    SetDefaultsForPostV1Arguments();
 
     size_t param_index = 0;
     for (;; ++param_index) {
@@ -193,8 +198,9 @@ bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
                 constexpr int OLD_DEXOPT_BOOTCOMPLETE   = 1 << 4;
                 constexpr int OLD_DEXOPT_PROFILE_GUIDED = 1 << 5;
                 constexpr int OLD_DEXOPT_OTA            = 1 << 6;
+                static_assert(DEXOPT_GENERATE_COMPACT_DEX > OLD_DEXOPT_OTA, "must not overlap");
                 int input = atoi(param);
-                dexopt_flags =
+                dexopt_flags |=
                         ReplaceMask(input, OLD_DEXOPT_PUBLIC, DEXOPT_PUBLIC) |
                         ReplaceMask(input, OLD_DEXOPT_DEBUGGABLE, DEXOPT_DEBUGGABLE) |
                         ReplaceMask(input, OLD_DEXOPT_BOOTCOMPLETE, DEXOPT_BOOTCOMPLETE) |
@@ -226,8 +232,6 @@ bool OTAPreoptParameters::ReadArgumentsV1(const char** argv) {
         return false;
     }
 
-    SetDefaultsForPostV1Arguments();
-
     return true;
 }
 
@@ -239,7 +243,9 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
         case 4: num_args_expected = 13; break;
         case 5: num_args_expected = 14; break;
         case 6: num_args_expected = 15; break;
-        case 7: num_args_expected = 16; break;
+        case 7:
+        // Version 8 adds a new dexopt flag: DEXOPT_GENERATE_COMPACT_DEX
+        case 8: num_args_expected = 16; break;
         default:
             LOG(ERROR) << "Don't know how to read arguments for version " << version;
             return false;
@@ -302,6 +308,10 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
 
             case 6:
                 dexopt_flags = atoi(param);
+                // Add CompactDex generation flag for versions less than 8 since it wasn't passed
+                // from the package manager. Only conditionally set the flag here so that it can
+                // be fully controlled by the package manager.
+                dexopt_flags |= (version < 8) ? DEXOPT_GENERATE_COMPACT_DEX : 0u;
                 break;
 
             case 7:

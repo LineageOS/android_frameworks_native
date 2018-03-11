@@ -3,8 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#define ASSERT_NOT_NULL(x) ASSERT_TRUE((x) != nullptr)
-
 /** DvrTestBase loads the libdvr.so at runtime and get the Dvr API version 1. */
 class DvrApiTest : public ::testing::Test {
  protected:
@@ -17,11 +15,11 @@ class DvrApiTest : public ::testing::Test {
     // https://github.com/android-ndk/ndk/issues/360
     flags |= RTLD_NODELETE;
     platform_handle_ = dlopen("libdvr.so", flags);
-    ASSERT_NOT_NULL(platform_handle_) << "Dvr shared library missing.";
+    ASSERT_NE(nullptr, platform_handle_) << "Dvr shared library missing.";
 
     auto dvr_get_api = reinterpret_cast<decltype(&dvrGetApi)>(
         dlsym(platform_handle_, "dvrGetApi"));
-    ASSERT_NOT_NULL(dvr_get_api) << "Platform library missing dvrGetApi.";
+    ASSERT_NE(nullptr, dvr_get_api) << "Platform library missing dvrGetApi.";
 
     ASSERT_EQ(dvr_get_api(&api_, sizeof(api_), /*version=*/1), 0)
         << "Unable to find compatible Dvr API.";

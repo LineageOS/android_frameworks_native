@@ -39,10 +39,11 @@ LOCAL_SRC_FILES:= \
   gl_code.cpp
 
 LOCAL_SHARED_LIBRARIES := \
-	libutils \
 	liblog \
 	libEGL \
 	libGLESv2
+
+LOCAL_SDK_VERSION := current
 
 LOCAL_MODULE := libglperf
 
