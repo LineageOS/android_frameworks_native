@@ -24,8 +24,10 @@
 #include <vector>
 
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
-#include <android/hardware/graphics/composer/2.1/IComposer.h>
-#include <composer-command-buffer/2.1/ComposerCommandBuffer.h>
+#include <android/hardware/graphics/composer/2.2/IComposer.h>
+#include <android/hardware/graphics/composer/2.2/IComposerClient.h>
+#include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
+#include <gui/HdrMetadata.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
@@ -42,16 +44,16 @@ using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_0::PixelFormat;
 using android::hardware::graphics::common::V1_0::Transform;
 
+using android::hardware::graphics::composer::V2_1::Config;
+using android::hardware::graphics::composer::V2_1::Display;
+using android::hardware::graphics::composer::V2_1::Error;
 using android::hardware::graphics::composer::V2_1::IComposer;
 using android::hardware::graphics::composer::V2_1::IComposerCallback;
-using android::hardware::graphics::composer::V2_1::IComposerClient;
-using android::hardware::graphics::composer::V2_1::Error;
-using android::hardware::graphics::composer::V2_1::Display;
 using android::hardware::graphics::composer::V2_1::Layer;
-using android::hardware::graphics::composer::V2_1::Config;
+using android::hardware::graphics::composer::V2_2::IComposerClient;
 
-using android::hardware::graphics::composer::V2_1::CommandWriterBase;
-using android::hardware::graphics::composer::V2_1::CommandReaderBase;
+using android::hardware::graphics::composer::V2_2::CommandReaderBase;
+using android::hardware::graphics::composer::V2_2::CommandWriterBase;
 
 using android::hardware::kSynchronizedReadWrite;
 using android::hardware::MessageQueue;
@@ -111,6 +113,9 @@ public:
                                      float* outMaxLuminance, float* outMaxAverageLuminance,
                                      float* outMinLuminance) = 0;
 
+    virtual Error getPerFrameMetadataKeys(
+            Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) = 0;
+
     virtual Error getReleaseFences(Display display, std::vector<Layer>* outLayers,
                                    std::vector<int>* outReleaseFences) = 0;
 
@@ -155,6 +160,8 @@ public:
     virtual Error setLayerCompositionType(Display display, Layer layer,
                                           IComposerClient::Composition type) = 0;
     virtual Error setLayerDataspace(Display display, Layer layer, Dataspace dataspace) = 0;
+    virtual Error setLayerHdrMetadata(Display display, Layer layer,
+                                      const HdrMetadata& metadata) = 0;
     virtual Error setLayerDisplayFrame(Display display, Layer layer,
                                        const IComposerClient::Rect& frame) = 0;
     virtual Error setLayerPlaneAlpha(Display display, Layer layer, float alpha) = 0;
@@ -298,6 +305,9 @@ public:
     Error getHdrCapabilities(Display display, std::vector<Hdr>* outTypes, float* outMaxLuminance,
                              float* outMaxAverageLuminance, float* outMinLuminance) override;
 
+    Error getPerFrameMetadataKeys(
+            Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) override;
+
     Error getReleaseFences(Display display, std::vector<Layer>* outLayers,
                            std::vector<int>* outReleaseFences) override;
 
@@ -339,6 +349,7 @@ public:
     Error setLayerCompositionType(Display display, Layer layer,
                                   IComposerClient::Composition type) override;
     Error setLayerDataspace(Display display, Layer layer, Dataspace dataspace) override;
+    Error setLayerHdrMetadata(Display display, Layer layer, const HdrMetadata& metadata) override;
     Error setLayerDisplayFrame(Display display, Layer layer,
                                const IComposerClient::Rect& frame) override;
     Error setLayerPlaneAlpha(Display display, Layer layer, float alpha) override;
@@ -375,7 +386,8 @@ private:
     Error execute();
 
     sp<IComposer> mComposer;
-    sp<IComposerClient> mClient;
+    sp<hardware::graphics::composer::V2_1::IComposerClient> mClient;
+    sp<IComposerClient> mClient_2_2;
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =

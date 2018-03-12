@@ -39,8 +39,8 @@ using android::hardware::graphics::composer::V2_1::Display;
 using android::hardware::graphics::composer::V2_1::Error;
 using android::hardware::graphics::composer::V2_1::IComposer;
 using android::hardware::graphics::composer::V2_1::IComposerCallback;
-using android::hardware::graphics::composer::V2_1::IComposerClient;
 using android::hardware::graphics::composer::V2_1::Layer;
+using android::hardware::graphics::composer::V2_2::IComposerClient;
 
 class Composer : public Hwc2::Composer {
 public:
@@ -73,6 +73,8 @@ public:
     MOCK_METHOD2(getDisplayType, Error(Display, IComposerClient::DisplayType*));
     MOCK_METHOD2(getDozeSupport, Error(Display, bool*));
     MOCK_METHOD5(getHdrCapabilities, Error(Display, std::vector<Hdr>*, float*, float*, float*));
+    MOCK_METHOD2(getPerFrameMetadataKeys,
+                 Error(Display, std::vector<IComposerClient::PerFrameMetadataKey>*));
     MOCK_METHOD3(getReleaseFences, Error(Display, std::vector<Layer>*, std::vector<int>*));
     MOCK_METHOD2(presentDisplay, Error(Display, int*));
     MOCK_METHOD2(setActiveConfig, Error(Display, Config));
@@ -95,6 +97,7 @@ public:
     MOCK_METHOD3(setLayerColor, Error(Display, Layer, const IComposerClient::Color&));
     MOCK_METHOD3(setLayerCompositionType, Error(Display, Layer, IComposerClient::Composition));
     MOCK_METHOD3(setLayerDataspace, Error(Display, Layer, Dataspace));
+    MOCK_METHOD3(setLayerHdrMetadata, Error(Display, Layer, const HdrMetadata&));
     MOCK_METHOD3(setLayerDisplayFrame, Error(Display, Layer, const IComposerClient::Rect&));
     MOCK_METHOD3(setLayerPlaneAlpha, Error(Display, Layer, float));
     MOCK_METHOD3(setLayerSidebandStream, Error(Display, Layer, const native_handle_t*));
