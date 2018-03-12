@@ -93,6 +93,7 @@ struct TracingCategory {
 static const TracingCategory k_categories[] = {
     { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, {
         { OPT,      "events/mdss/enable" },
+        { OPT,      "events/sde/enable" },
     } },
     { "input",      "Input",            ATRACE_TAG_INPUT, { } },
     { "view",       "View System",      ATRACE_TAG_VIEW, { } },
@@ -115,6 +116,7 @@ static const TracingCategory k_categories[] = {
     { "database",   "Database",         ATRACE_TAG_DATABASE, { } },
     { "network",    "Network",          ATRACE_TAG_NETWORK, { } },
     { "adb",        "ADB",              ATRACE_TAG_ADB, { } },
+    { "vibrator",   "Vibrator",         ATRACE_TAG_VIBRATOR, {}},
     { k_coreServiceCategory, "Core services", 0, { } },
     { k_pdxServiceCategory, "PDX services", 0, { } },
     { "sched",      "CPU Scheduling",   0, {
@@ -128,6 +130,14 @@ static const TracingCategory k_categories[] = {
     { "irq",        "IRQ Events",   0, {
         { REQ,      "events/irq/enable" },
         { OPT,      "events/ipi/enable" },
+    } },
+    { "irqoff",     "IRQ-disabled code section tracing", 0, {
+        { REQ,      "events/preemptirq/irq_enable/enable" },
+        { REQ,      "events/preemptirq/irq_disable/enable" },
+    } },
+    { "preemptoff", "Preempt-disabled code section tracing", 0, {
+        { REQ,      "events/preemptirq/preempt_enable/enable" },
+        { REQ,      "events/preemptirq/preempt_disable/enable" },
     } },
     { "i2c",        "I2C Events",   0, {
         { REQ,      "events/i2c/enable" },
@@ -143,6 +153,11 @@ static const TracingCategory k_categories[] = {
     { "freq",       "CPU Frequency",    0, {
         { REQ,      "events/power/cpu_frequency/enable" },
         { OPT,      "events/power/clock_set_rate/enable" },
+        { OPT,      "events/power/clock_disable/enable" },
+        { OPT,      "events/power/clock_enable/enable" },
+        { OPT,      "events/clk/clk_set_rate/enable" },
+        { OPT,      "events/clk/clk_disable/enable" },
+        { OPT,      "events/clk/clk_enable/enable" },
         { OPT,      "events/power/cpu_frequency_limits/enable" },
     } },
     { "membus",     "Memory Bus Utilization", 0, {
@@ -1206,8 +1221,10 @@ int main(int argc, char **argv)
     }
 
     bool ok = true;
-    ok &= setUpTrace();
-    ok &= startTrace();
+    if (traceStart) {
+        ok &= setUpTrace();
+        ok &= startTrace();
+    }
 
     if (ok && traceStart) {
         if (!traceStream) {
