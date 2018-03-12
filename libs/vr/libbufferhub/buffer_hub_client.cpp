@@ -608,5 +608,23 @@ std::unique_ptr<BufferProducer> BufferProducer::Import(
                        : LocalChannelHandle{nullptr, -status.error()});
 }
 
+Status<LocalChannelHandle> BufferProducer::Detach() {
+  uint64_t buffer_state = buffer_state_->load();
+  if (!BufferHubDefs::IsBufferGained(buffer_state)) {
+    // Can only detach a BufferProducer when it's in gained state.
+    ALOGW("BufferProducer::Detach: The buffer (id=%d, state=0x%" PRIx64
+          ") is not in gained state.",
+          id(), buffer_state);
+    return {};
+  }
+
+  Status<LocalChannelHandle> status =
+      InvokeRemoteMethod<BufferHubRPC::ProducerBufferDetach>();
+  ALOGE_IF(!status,
+           "BufferProducer::Detach: Failed to detach buffer (id=%d): %s.", id(),
+           status.GetErrorMessage().c_str());
+  return status;
+}
+
 }  // namespace dvr
 }  // namespace android
