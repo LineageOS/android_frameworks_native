@@ -44,6 +44,7 @@
 #include <gui/LayerState.h>
 
 #include <gui/OccupancyTracker.h>
+#include <gui/BufferQueue.h>
 
 #include <hardware/hwcomposer_defs.h>
 
@@ -55,11 +56,13 @@
 #include "DisplayDevice.h"
 #include "DispSync.h"
 #include "FrameTracker.h"
+#include "LayerStats.h"
 #include "LayerVector.h"
 #include "MessageQueue.h"
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
 #include "StartPropertySetThread.h"
+#include "LayerBE.h"
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
@@ -629,6 +632,7 @@ private:
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
+    void logLayerStats();
     void doDisplayComposition(const sp<const DisplayDevice>& displayDevice, const Region& dirtyRegion);
 
     // compose surfaces for display hw. this fails if using GL and the surface
@@ -691,6 +695,7 @@ private:
     void dumpBufferingStats(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
+    LayersProto dumpVisibleLayersProtoInfo(int32_t hwcId) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -775,6 +780,7 @@ private:
     bool mPropagateBackpressure = true;
     SurfaceInterceptor mInterceptor;
     SurfaceTracing mTracing;
+    LayerStats mLayerStats;
     bool mUseHwcVirtualDisplays = false;
 
     // Restrict layers to use two buffers in their bufferqueues.

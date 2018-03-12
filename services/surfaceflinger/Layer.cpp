@@ -639,6 +639,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         hwcInfo.forceClientComposition = true;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
+        hwcInfo.transform = transform;
         auto error = hwcLayer->setTransform(transform);
         ALOGE_IF(error != HWC2::Error::None,
                  "[%s] Failed to set transform %s: "
@@ -1440,7 +1441,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mMatrix[1][0] = ds.active.transform[1][0];
     info.mMatrix[1][1] = ds.active.transform[1][1];
     {
-        sp<const GraphicBuffer> buffer = getBE().compositionInfo.mBuffer;
+        sp<const GraphicBuffer> buffer = mActiveBuffer;
         if (buffer != 0) {
             info.mActiveBufferWidth = buffer->getWidth();
             info.mActiveBufferHeight = buffer->getHeight();
@@ -1913,6 +1914,21 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
     layerInfo->set_refresh_pending(isBufferLatched());
+}
+
+void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
+    writeToProto(layerInfo, LayerVector::StateSet::Drawing);
+
+    const auto& hwcInfo = getBE().mHwcLayers.at(hwcId);
+
+    const Rect& frame = hwcInfo.displayFrame;
+    LayerProtoHelper::writeToProto(frame, layerInfo->mutable_hwc_frame());
+
+    const FloatRect& crop = hwcInfo.sourceCrop;
+    LayerProtoHelper::writeToProto(crop, layerInfo->mutable_hwc_crop());
+
+    const int32_t transform = static_cast<int32_t>(hwcInfo.transform);
+    layerInfo->set_hwc_transform(transform);
 }
 
 // ---------------------------------------------------------------------------

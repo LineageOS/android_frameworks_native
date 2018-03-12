@@ -1449,6 +1449,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     setUpHWComposer();
     doDebugFlashRegions();
     doTracing("handleRefresh");
+    logLayerStats();
     doComposition();
     postComposition(refreshStartTime);
 
@@ -1515,6 +1516,25 @@ void SurfaceFlinger::doTracing(const char* where) {
     ATRACE_NAME(where);
     if (CC_UNLIKELY(mTracing.isEnabled())) {
         mTracing.traceLayers(where, dumpProtoInfo(LayerVector::StateSet::Drawing));
+    }
+}
+
+void SurfaceFlinger::logLayerStats() {
+    ATRACE_CALL();
+    if (CC_UNLIKELY(mLayerStats.isEnabled())) {
+        int32_t hwcId = -1;
+        for (size_t dpy = 0; dpy < mDisplays.size(); ++dpy) {
+            const sp<const DisplayDevice>& displayDevice(mDisplays[dpy]);
+            if (displayDevice->isPrimary()) {
+                hwcId = displayDevice->getHwcDisplayId();
+                break;
+            }
+        }
+        if (hwcId < 0) {
+            ALOGE("LayerStats: Hmmm, no primary display?");
+            return;
+        }
+        mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(hwcId));
     }
 }
 
@@ -3695,6 +3715,34 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
                 dumpWideColorInfo(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) &&
+                (args[index] == String16("--enable-layer-stats"))) {
+                index++;
+                mLayerStats.enable();
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) &&
+                (args[index] == String16("--disable-layer-stats"))) {
+                index++;
+                mLayerStats.disable();
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) &&
+                (args[index] == String16("--clear-layer-stats"))) {
+                index++;
+                mLayerStats.clear();
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) &&
+                (args[index] == String16("--dump-layer-stats"))) {
+                index++;
+                mLayerStats.dump(result);
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
@@ -3897,6 +3945,25 @@ LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const 
     state.traverseInZOrder([&](Layer* layer) {
         LayerProto* layerProto = layersProto.add_layers();
         layer->writeToProto(layerProto, stateSet);
+    });
+
+    return layersProto;
+}
+
+LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(int32_t hwcId) const {
+    LayersProto layersProto;
+
+    const sp<DisplayDevice>& displayDevice(mDisplays[hwcId]);
+    SizeProto* resolution = layersProto.mutable_resolution();
+    resolution->set_w(displayDevice->getWidth());
+    resolution->set_h(displayDevice->getHeight());
+
+    mDrawingState.traverseInZOrder([&](Layer* layer) {
+        if (!layer->visibleRegion.isEmpty() &&
+            layer->getBE().mHwcLayers.count(hwcId)) {
+            LayerProto* layerProto = layersProto.add_layers();
+            layer->writeToProto(layerProto, hwcId);
+        }
     });
 
     return layersProto;
