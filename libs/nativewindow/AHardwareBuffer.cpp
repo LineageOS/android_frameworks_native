@@ -343,14 +343,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCBCR_420_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420,
             "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_YCBCR_422_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422,
-            "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_YCBCR_444_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444,
-            "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_FLEX_RGB_888 == AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8,
-            "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_FLEX_RGBA_8888 == AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8,
-            "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCBCR_422_SP == AHARDWAREBUFFER_FORMAT_YCbCr_422_SP,
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCRCB_420_SP == AHARDWAREBUFFER_FORMAT_YCrCb_420_SP,
@@ -383,10 +375,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_RAW_OPAQUE:
         case AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED:
         case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444:
-        case AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8:
-        case AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
         case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
