@@ -72,9 +72,6 @@ cc_library_shared {
     ],
 
     product_variables: {
-        brillo: {
-            cflags: ["-DHAVE_NO_SURFACE_FLINGER"],
-        },
         eng: {
             cppflags: [
                 "-UDEBUG_ONLY_CODE",
