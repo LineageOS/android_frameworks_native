@@ -51,8 +51,11 @@ extern void setGLHooksThreadSpecific(gl_hooks_t const *value);
 
 // ----------------------------------------------------------------------------
 
-static bool findExtension(const char* exts, const char* name, size_t nameLen) {
+bool findExtension(const char* exts, const char* name, size_t nameLen) {
     if (exts) {
+        if (!nameLen) {
+            nameLen = strlen(name);
+        }
         for (const char* match = strstr(exts, name); match; match = strstr(match + nameLen, name)) {
             if (match[nameLen] == '\0' || match[nameLen] == ' ') {
                 return true;
@@ -225,11 +228,6 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             mExtensionString.append(
                     "EGL_EXT_gl_colorspace_bt2020_linear EGL_EXT_gl_colorspace_bt2020_pq ");
         }
-
-        // Always advertise HDR metadata extensions since it's okay for an application
-        // to specify such information even though it may not be used by the system.
-        mExtensionString.append(
-                "EGL_EXT_surface_SMPTE2086_metadata EGL_EXT_surface_CTA861_3_metadata ");
 
         char const* start = gExtensionString;
         do {

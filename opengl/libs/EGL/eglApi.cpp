@@ -87,6 +87,8 @@ char const * const gBuiltinExtensionString =
         "EGL_ANDROID_get_native_client_buffer "
         "EGL_ANDROID_front_buffer_auto_refresh "
         "EGL_ANDROID_get_frame_timestamps "
+        "EGL_EXT_surface_SMPTE2086_metadata "
+        "EGL_EXT_surface_CTA861_3_metadata "
         ;
 
 char const * const gExtensionString  =
@@ -239,8 +241,6 @@ static const extention_map_t sExtensionMap[] = {
         (!strcmp((procname), "eglSetBlobCacheFuncsANDROID") ||    \
          !strcmp((procname), "eglHibernateProcessIMG")      ||    \
          !strcmp((procname), "eglAwakenProcessIMG"))
-
-
 
 // accesses protected by sExtensionMapMutex
 static std::unordered_map<std::string, __eglMustCastToProperFunctionPointerType> sGLExtentionMap;
@@ -476,26 +476,61 @@ static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
     return dataSpace;
 }
 
-// Return true if we stripped any EGL_GL_COLORSPACE_KHR or HDR metadata attributes.
-// Protect devices from attributes they don't recognize that are  managed by Android
+// stripAttributes is used by eglCreateWindowSurface, eglCreatePbufferSurface
+// and eglCreatePixmapSurface to clean up color space related Window parameters
+// that a driver does not advertise support for.
+// Return true if stripped_attrib_list has stripped contents.
+
 static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
                                   EGLint format,
                                   std::vector<EGLint>& stripped_attrib_list) {
     std::vector<EGLint> allowedColorSpaces;
+    bool haveColorSpaceSupport = dp->haveExtension("EGL_KHR_gl_colorspace");
     switch (format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
-        case HAL_PIXEL_FORMAT_RGB_565:
-            // driver okay with linear & sRGB for 8888, but can't handle
-            // Display-P3 or other spaces.
-            allowedColorSpaces.push_back(EGL_GL_COLORSPACE_SRGB_KHR);
-            allowedColorSpaces.push_back(EGL_GL_COLORSPACE_LINEAR_KHR);
+            if (haveColorSpaceSupport) {
+                // Spec says:
+                //     [fn1] Only OpenGL and OpenGL ES contexts which support sRGB
+                //     rendering must respect requests for EGL_GL_COLORSPACE_SRGB_KHR, and
+                //     only to sRGB formats supported by the context (normally just SRGB8)
+                //     Older versions not supporting sRGB rendering will ignore this
+                //     surface attribute.
+                //
+                // We support sRGB and pixel format is SRGB8, so allow
+                // the EGL_GL_COLORSPACE_SRGB_KHR and
+                // EGL_GL_COLORSPACE_LINEAR_KHR
+                // colorspaces to be specified.
+
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_SRGB_KHR);
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_LINEAR_KHR);
+            }
+            if (findExtension(dp->disp.queryString.extensions,
+                                  "EGL_EXT_gl_colorspace_display_p3_linear")) {
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT);
+            }
+            if (findExtension(dp->disp.queryString.extensions,
+                                  "EGL_EXT_gl_colorspace_display_p3")) {
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_DISPLAY_P3_EXT);
+            }
+            if (findExtension(dp->disp.queryString.extensions,
+                                  "EGL_EXT_gl_colorspace_bt2020_linear")) {
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_LINEAR_EXT);
+            }
+            if (findExtension(dp->disp.queryString.extensions,
+                                  "EGL_EXT_gl_colorspace_bt2020_pq")) {
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
+            }
+            if (findExtension(dp->disp.queryString.extensions,
+                                  "EGL_EXT_gl_colorspace_scrgb_linear")) {
+                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT);
+            }
             break;
 
         case HAL_PIXEL_FORMAT_RGBA_FP16:
         case HAL_PIXEL_FORMAT_RGBA_1010102:
-        default:
-            // driver does not want to see colorspace attributes for 1010102 or fp16.
+        case HAL_PIXEL_FORMAT_RGB_565:
             // Future: if driver supports XXXX extension, we can pass down that colorspace
+        default:
             break;
     }
 
@@ -513,38 +548,21 @@ static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
                             found = true;
                         }
                     }
-                    if (found || !dp->haveExtension("EGL_KHR_gl_colorspace")) {
+                    if (found) {
+                        // Found supported attribute
+                        stripped_attrib_list.push_back(attr[0]);
+                        stripped_attrib_list.push_back(attr[1]);
+                    } else if (!haveColorSpaceSupport) {
+                        // Device does not support colorspace extension
+                        // pass on the attribute and let downstream
+                        // components validate like normal
                         stripped_attrib_list.push_back(attr[0]);
                         stripped_attrib_list.push_back(attr[1]);
                     } else {
+                        // Found supported attribute that driver does not
+                        // support, strip it.
                         stripped = true;
                     }
-                }
-                break;
-            case EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT:
-            case EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT:
-            case EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT:
-            case EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT:
-            case EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT:
-            case EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT:
-            case EGL_SMPTE2086_WHITE_POINT_X_EXT:
-            case EGL_SMPTE2086_WHITE_POINT_Y_EXT:
-            case EGL_SMPTE2086_MAX_LUMINANCE_EXT:
-            case EGL_SMPTE2086_MIN_LUMINANCE_EXT:
-                if (dp->haveExtension("EGL_EXT_surface_SMPTE2086_metadata")) {
-                    stripped = true;
-                } else {
-                    stripped_attrib_list.push_back(attr[0]);
-                    stripped_attrib_list.push_back(attr[1]);
-                }
-                break;
-            case EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT:
-            case EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT:
-                if (dp->haveExtension("EGL_EXT_surface_CTA861_3_metadata")) {
-                    stripped = true;
-                } else {
-                    stripped_attrib_list.push_back(attr[0]);
-                    stripped_attrib_list.push_back(attr[1]);
                 }
                 break;
             default:
@@ -700,34 +718,26 @@ void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig confi
     }
 }
 
-EGLBoolean setSurfaceMetadata(egl_surface_t* s, NativeWindowType window,
-                              const EGLint *attrib_list) {
-    // set any HDR metadata
-    bool smpte2086 = false;
-    bool cta8613 = false;
-    if (attrib_list == nullptr) return EGL_TRUE;
-
-    for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
-        smpte2086 |= s->setSmpte2086Attribute(attr[0], attr[1]);
-        cta8613 |= s->setCta8613Attribute(attr[0], attr[1]);
-    }
-    if (smpte2086) {
-        android_smpte2086_metadata metadata = s->getSmpte2086Metadata();
-        int err = native_window_set_buffers_smpte2086_metadata(window, &metadata);
+EGLBoolean sendSurfaceMetadata(egl_surface_t* s) {
+    android_smpte2086_metadata smpteMetadata;
+    if (s->getSmpte2086Metadata(smpteMetadata)) {
+        int err =
+                native_window_set_buffers_smpte2086_metadata(s->getNativeWindow(), &smpteMetadata);
+        s->resetSmpte2086Metadata();
         if (err != 0) {
             ALOGE("error setting native window smpte2086 metadata: %s (%d)",
                   strerror(-err), err);
-            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return EGL_FALSE;
         }
     }
-    if (cta8613) {
-        android_cta861_3_metadata metadata = s->getCta8613Metadata();
-        int err = native_window_set_buffers_cta861_3_metadata(window, &metadata);
+    android_cta861_3_metadata cta8613Metadata;
+    if (s->getCta8613Metadata(cta8613Metadata)) {
+        int err =
+                native_window_set_buffers_cta861_3_metadata(s->getNativeWindow(), &cta8613Metadata);
+        s->resetCta8613Metadata();
         if (err != 0) {
             ALOGE("error setting native window CTS 861.3 metadata: %s (%d)",
                   strerror(-err), err);
-            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return EGL_FALSE;
         }
     }
@@ -812,11 +822,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         if (surface != EGL_NO_SURFACE) {
             egl_surface_t* s =
                     new egl_surface_t(dp.get(), config, window, surface, colorSpace, cnx);
-
-            if (setSurfaceMetadata(s, window, origAttribList)) {
-                return s;
-            }
-            eglDestroySurface(dpy, s);
+            return s;
         }
 
         // EGLSurface creation failed
@@ -1424,7 +1430,7 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
     if (!_s.get())
         return setError(EGL_BAD_SURFACE, (EGLBoolean)EGL_FALSE);
 
-    egl_surface_t const * const s = get_surface(draw);
+    egl_surface_t* const s = get_surface(draw);
 
     if (CC_UNLIKELY(dp->traceGpuCompletion)) {
         EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
@@ -1441,6 +1447,11 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
             s->cnx->hooks[c->version]->gl.glReadPixels(0,0,1,1,
                     GL_RGBA,GL_UNSIGNED_BYTE,&pixel);
         }
+    }
+
+    if (!sendSurfaceMetadata(s)) {
+        native_window_api_disconnect(s->getNativeWindow(), NATIVE_WINDOW_API_EGL);
+        return setError(EGL_BAD_NATIVE_WINDOW, (EGLBoolean)EGL_FALSE);
     }
 
     if (n_rects == 0) {
