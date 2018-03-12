@@ -339,7 +339,7 @@ public:
 
     static const char* getLabel(int32_t keyCode);
     static int32_t getKeyCodeFromLabel(const char* label);
-    
+
     void initialize(
             int32_t deviceId,
             int32_t source,
@@ -372,6 +372,10 @@ public:
     virtual ~MotionEvent() { }
 
     virtual int32_t getType() const { return AINPUT_EVENT_TYPE_MOTION; }
+
+    inline int32_t getDisplayId() const { return mDisplayId; }
+
+    inline void setDisplayId(int32_t displayId) { mDisplayId = displayId; }
 
     inline int32_t getAction() const { return mAction; }
 
@@ -556,6 +560,7 @@ public:
     void initialize(
             int32_t deviceId,
             int32_t source,
+            int32_t displayId,
             int32_t action,
             int32_t actionButton,
             int32_t flags,
@@ -609,6 +614,7 @@ public:
     static int32_t getAxisFromLabel(const char* label);
 
 protected:
+    int32_t mDisplayId;
     int32_t mAction;
     int32_t mActionButton;
     int32_t mFlags;

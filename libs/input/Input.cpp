@@ -215,6 +215,7 @@ void PointerProperties::copyFrom(const PointerProperties& other) {
 void MotionEvent::initialize(
         int32_t deviceId,
         int32_t source,
+        int32_t displayId,
         int32_t action,
         int32_t actionButton,
         int32_t flags,
@@ -231,6 +232,7 @@ void MotionEvent::initialize(
         const PointerProperties* pointerProperties,
         const PointerCoords* pointerCoords) {
     InputEvent::initialize(deviceId, source);
+    mDisplayId = displayId;
     mAction = action;
     mActionButton = actionButton;
     mFlags = flags;
@@ -251,6 +253,7 @@ void MotionEvent::initialize(
 
 void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     InputEvent::initialize(other->mDeviceId, other->mSource);
+    mDisplayId = other->mDisplayId;
     mAction = other->mAction;
     mActionButton = other->mActionButton;
     mFlags = other->mFlags;
@@ -431,6 +434,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
 
     mDeviceId = parcel->readInt32();
     mSource = parcel->readInt32();
+    mDisplayId = parcel->readInt32();
     mAction = parcel->readInt32();
     mActionButton = parcel->readInt32();
     mFlags = parcel->readInt32();
@@ -480,6 +484,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
 
     parcel->writeInt32(mDeviceId);
     parcel->writeInt32(mSource);
+    parcel->writeInt32(mDisplayId);
     parcel->writeInt32(mAction);
     parcel->writeInt32(mActionButton);
     parcel->writeInt32(mFlags);

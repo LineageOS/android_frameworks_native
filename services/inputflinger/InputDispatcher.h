@@ -299,7 +299,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual int32_t injectInputEvent(const InputEvent* event, int32_t displayId,
+    virtual int32_t injectInputEvent(const InputEvent* event,
             int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
             uint32_t policyFlags) = 0;
 
@@ -383,7 +383,7 @@ public:
     virtual void notifySwitch(const NotifySwitchArgs* args);
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args);
 
-    virtual int32_t injectInputEvent(const InputEvent* event, int32_t displayId,
+    virtual int32_t injectInputEvent(const InputEvent* event,
             int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
             uint32_t policyFlags);
 
@@ -508,6 +508,7 @@ private:
         nsecs_t eventTime;
         int32_t deviceId;
         uint32_t source;
+        int32_t displayId;
         int32_t action;
         int32_t actionButton;
         int32_t flags;
@@ -517,17 +518,15 @@ private:
         float xPrecision;
         float yPrecision;
         nsecs_t downTime;
-        int32_t displayId;
         uint32_t pointerCount;
         PointerProperties pointerProperties[MAX_POINTERS];
         PointerCoords pointerCoords[MAX_POINTERS];
 
         MotionEntry(nsecs_t eventTime,
-                int32_t deviceId, uint32_t source, uint32_t policyFlags,
+                int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
                 int32_t action, int32_t actionButton, int32_t flags,
                 int32_t metaState, int32_t buttonState, int32_t edgeFlags,
-                float xPrecision, float yPrecision, nsecs_t downTime,
-                int32_t displayId, uint32_t pointerCount,
+                float xPrecision, float yPrecision, nsecs_t downTime, uint32_t pointerCount,
                 const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
                 float xOffset, float yOffset);
         virtual void appendDescription(std::string& msg) const;
@@ -765,11 +764,11 @@ private:
         struct MotionMemento {
             int32_t deviceId;
             uint32_t source;
+            int32_t displayId;
             int32_t flags;
             float xPrecision;
             float yPrecision;
             nsecs_t downTime;
-            int32_t displayId;
             uint32_t pointerCount;
             PointerProperties pointerProperties[MAX_POINTERS];
             PointerCoords pointerCoords[MAX_POINTERS];
