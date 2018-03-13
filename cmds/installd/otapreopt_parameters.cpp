@@ -246,6 +246,8 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
         case 7:
         // Version 8 adds a new dexopt flag: DEXOPT_GENERATE_COMPACT_DEX
         case 8: num_args_expected = 16; break;
+        // Version 9 adds a new dexopt flag: DEXOPT_GENERATE_APP_IMAGE
+        case 9: num_args_expected = 16; break;
         default:
             LOG(ERROR) << "Don't know how to read arguments for version " << version;
             return false;
