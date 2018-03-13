@@ -394,11 +394,11 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
                 interfaces[interfaceName].instances.insert(instanceName);
             }
             if (!manifest.add(vintf::ManifestHal{
-                    .format = vintf::HalFormat::HIDL,
-                    .name = fqName.package(),
-                    .versions = {version},
-                    .transportArch = {transport, arch},
-                    .interfaces = interfaces})) {
+                    vintf::HalFormat::HIDL,
+                    std::string{fqName.package()},
+                    {version},
+                    {transport, arch},
+                    std::move(interfaces)})) {
                 err() << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
             }
         }
