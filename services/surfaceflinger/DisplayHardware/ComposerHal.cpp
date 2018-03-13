@@ -706,6 +706,9 @@ Error Composer::setLayerDataspace(Display display, Layer layer,
 }
 
 Error Composer::setLayerHdrMetadata(Display display, Layer layer, const HdrMetadata& metadata) {
+    if (!mClient_2_2) {
+        return Error::UNSUPPORTED;
+    }
 
     mWriter.selectDisplay(display);
     mWriter.selectLayer(layer);
