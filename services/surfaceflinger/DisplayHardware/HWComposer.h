@@ -37,6 +37,8 @@
 #include <set>
 #include <vector>
 
+#include "DisplayIdentification.h"
+
 extern "C" int clock_nanosleep(clockid_t clock_id, int flags,
                            const struct timespec *request,
                            struct timespec *remain);
@@ -73,6 +75,9 @@ public:
 
     void registerCallback(HWC2::ComposerCallback* callback,
                           int32_t sequenceId);
+
+    bool getDisplayIdentificationData(hwc2_display_t displayId, uint8_t* outPort,
+                                      DisplayIdentificationData* outData) const;
 
     bool hasCapability(HWC2::Capability capability) const;
 
@@ -149,7 +154,8 @@ public:
     // DisplayDevice::DisplayType of the display is returned as an output param.
     bool onVsync(hwc2_display_t displayId, int64_t timestamp,
                  int32_t* outDisplay);
-    void onHotplug(hwc2_display_t displayId, int32_t displayType, HWC2::Connection connection);
+    std::optional<DisplayId> onHotplug(hwc2_display_t displayId, int32_t displayType,
+                                       HWC2::Connection connection);
 
     void setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled);
 
