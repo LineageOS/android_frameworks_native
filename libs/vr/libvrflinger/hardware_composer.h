@@ -391,8 +391,6 @@ class HardwareComposer {
   HWC::Error Validate(hwc2_display_t display);
   HWC::Error Present(hwc2_display_t display);
 
-  void SetBacklightBrightness(int brightness);
-
   void PostLayers();
   void PostThread();
 
@@ -498,9 +496,6 @@ class HardwareComposer {
   // When boot is finished this will be set to true and the post thread will be
   // notified via post_thread_wait_.
   bool boot_finished_ = false;
-
-  // Backlight LED brightness sysfs node.
-  pdx::LocalHandle backlight_brightness_fd_;
 
   // VSync sleep timerfd.
   pdx::LocalHandle vsync_sleep_timer_fd_;

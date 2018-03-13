@@ -45,9 +45,6 @@ namespace dvr {
 
 namespace {
 
-const char kBacklightBrightnessSysFile[] =
-    "/sys/class/leds/lcd-backlight/brightness";
-
 const char kDvrPerformanceProperty[] = "sys.dvr.performance";
 const char kDvrStandaloneProperty[] = "ro.boot.vr";
 
@@ -256,13 +253,6 @@ void HardwareComposer::OnPostThreadResumed() {
   }
 
   EnableVsync(true);
-
-  // TODO(skiazyk): We need to do something about accessing this directly,
-  // supposedly there is a backlight service on the way.
-  // TODO(steventhomas): When we change the backlight setting, will surface
-  // flinger (or something else) set it back to its original value once we give
-  // control of the display back to surface flinger?
-  SetBacklightBrightness(255);
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "performance");
@@ -698,16 +688,6 @@ void HardwareComposer::PostThread() {
   bool thread_policy_setup =
       SetThreadPolicy("graphics:high", "/system/performance");
 
-#if ENABLE_BACKLIGHT_BRIGHTNESS
-  // TODO(hendrikw): This isn't required at the moment. It's possible that there
-  //                 is another method to access this when needed.
-  // Open the backlight brightness control sysfs node.
-  backlight_brightness_fd_ = LocalHandle(kBacklightBrightnessSysFile, O_RDWR);
-  ALOGW_IF(!backlight_brightness_fd_,
-           "HardwareComposer: Failed to open backlight brightness control: %s",
-           strerror(errno));
-#endif  // ENABLE_BACKLIGHT_BRIGHTNESS
-
   // Create a timerfd based on CLOCK_MONOTINIC.
   vsync_sleep_timer_fd_.Reset(timerfd_create(CLOCK_MONOTONIC, 0));
   LOG_ALWAYS_FATAL_IF(
@@ -981,14 +961,6 @@ bool HardwareComposer::UpdateLayerConfig() {
 
 void HardwareComposer::SetVSyncCallback(VSyncCallback callback) {
   vsync_callback_ = callback;
-}
-
-void HardwareComposer::SetBacklightBrightness(int brightness) {
-  if (backlight_brightness_fd_) {
-    std::array<char, 32> text;
-    const int length = snprintf(text.data(), text.size(), "%d", brightness);
-    write(backlight_brightness_fd_.Get(), text.data(), length);
-  }
 }
 
 Return<void> HardwareComposer::ComposerCallback::onHotplug(
