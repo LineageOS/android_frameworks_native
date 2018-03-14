@@ -26,6 +26,7 @@
 #include <vector>
 
 #include <android-base/macros.h>
+#include <android-base/unique_fd.h>
 #include <android/os/IDumpstateListener.h>
 #include <utils/StrongPointer.h>
 #include <ziparchive/zip_writer.h>
@@ -157,6 +158,20 @@ static std::string VERSION_SPLIT_ANR = "2.0-dev-1";
  * "Alias" for the current version.
  */
 static std::string VERSION_DEFAULT = "default";
+
+/*
+ * Structure that contains the information of an open dump file.
+ */
+struct DumpData {
+    // Path of the file.
+    std::string name;
+
+    // Open file descriptor for the file.
+    android::base::unique_fd fd;
+
+    // Modification time of the file.
+    time_t mtime;
+};
 
 /*
  * Main class driving a bugreport generation.
@@ -339,6 +354,12 @@ class Dumpstate {
     // Notification title and description
     std::string notification_title;
     std::string notification_description;
+
+    // List of open tombstone dump files.
+    std::vector<DumpData> tombstone_data_;
+
+    // List of open ANR dump files.
+    std::vector<DumpData> anr_data_;
 
   private:
     // Used by GetInstance() only.

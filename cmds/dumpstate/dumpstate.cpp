@@ -91,19 +91,6 @@ static const std::string TOMBSTONE_FILE_PREFIX = "tombstone_";
 static const std::string ANR_DIR = "/data/anr/";
 static const std::string ANR_FILE_PREFIX = "anr_";
 
-struct DumpData {
-    std::string name;
-    int fd;
-    time_t mtime;
-};
-
-static bool operator<(const DumpData& d1, const DumpData& d2) {
-    return d1.mtime > d2.mtime;
-}
-
-static std::unique_ptr<std::vector<DumpData>> tombstone_data;
-static std::unique_ptr<std::vector<DumpData>> anr_data;
-
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
 static int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
@@ -146,20 +133,20 @@ static const CommandOptions AS_ROOT_20 = CommandOptions::WithTimeout(20).AsRoot(
  * is set, the vector only contains files that were written in the last 30 minutes.
  * If |limit_by_count| is set, the vector only contains the ten latest files.
  */
-static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
-                                         const std::string& file_prefix,
-                                         bool limit_by_mtime,
-                                         bool limit_by_count = true) {
+static std::vector<DumpData> GetDumpFds(const std::string& dir_path,
+                                        const std::string& file_prefix,
+                                        bool limit_by_mtime,
+                                        bool limit_by_count = true) {
     const time_t thirty_minutes_ago = ds.now_ - 60 * 30;
 
-    std::unique_ptr<std::vector<DumpData>> dump_data(new std::vector<DumpData>());
     std::unique_ptr<DIR, decltype(&closedir)> dump_dir(opendir(dir_path.c_str()), closedir);
 
     if (dump_dir == nullptr) {
         MYLOGW("Unable to open directory %s: %s\n", dir_path.c_str(), strerror(errno));
-        return dump_data.release();
+        return std::vector<DumpData>();
     }
 
+    std::vector<DumpData> dump_data;
     struct dirent* entry = nullptr;
     while ((entry = readdir(dump_dir.get()))) {
         if (entry->d_type != DT_REG) {
@@ -190,18 +177,19 @@ static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
             continue;
         }
 
-        DumpData data = {.name = abs_path, .fd = fd.release(), .mtime = st.st_mtime};
-
-        dump_data->push_back(data);
+        dump_data.emplace_back(DumpData{abs_path, std::move(fd), st.st_mtime});
     }
 
-    std::sort(dump_data->begin(), dump_data->end());
+    // Sort in descending modification time so that we only keep the newest
+    // reports if |limit_by_count| is true.
+    std::sort(dump_data.begin(), dump_data.end(),
+              [](const DumpData& d1, const DumpData& d2) { return d1.mtime > d2.mtime; });
 
-    if (limit_by_count && dump_data->size() > 10) {
-        dump_data->erase(dump_data->begin() + 10, dump_data->end());
+    if (limit_by_count && dump_data.size() > 10) {
+        dump_data.erase(dump_data.begin() + 10, dump_data.end());
     }
 
-    return dump_data.release();
+    return dump_data;
 }
 
 static bool AddDumps(const std::vector<DumpData>::const_iterator start,
@@ -234,12 +222,6 @@ static bool AddDumps(const std::vector<DumpData>::const_iterator start,
     }
 
     return dumped;
-}
-
-static void CloseDumpFds(const std::vector<DumpData>* dumps) {
-    for (auto it = dumps->begin(); it != dumps->end(); ++it) {
-        close(it->fd);
-    }
 }
 
 // for_each_pid() callback to get mount info about a process.
@@ -952,15 +934,15 @@ static void AddAnrTraceDir(const bool add_to_zip, const std::string& anr_traces_
     }
 
     // Add a specific message for the first ANR Dump.
-    if (anr_data->size() > 0) {
-        AddDumps(anr_data->begin(), anr_data->begin() + 1,
+    if (ds.anr_data_.size() > 0) {
+        AddDumps(ds.anr_data_.begin(), ds.anr_data_.begin() + 1,
                  "VM TRACES AT LAST ANR", add_to_zip);
 
         // The "last" ANR will always be included as separate entry in the zip file. In addition,
         // it will be present in the body of the main entry if |add_to_zip| == false.
         //
         // Historical ANRs are always included as separate entries in the bugreport zip file.
-        AddDumps(anr_data->begin() + ((add_to_zip) ? 1 : 0), anr_data->end(),
+        AddDumps(ds.anr_data_.begin() + ((add_to_zip) ? 1 : 0), ds.anr_data_.end(),
                  "HISTORICAL ANR", true /* add_to_zip */);
     } else {
         printf("*** NO ANRs to dump in %s\n\n", ANR_DIR.c_str());
@@ -1133,7 +1115,7 @@ static void dumpstate() {
 
     // NOTE: tombstones are always added as separate entries in the zip archive
     // and are not interspersed with the main report.
-    const bool tombstones_dumped = AddDumps(tombstone_data->begin(), tombstone_data->end(),
+    const bool tombstones_dumped = AddDumps(ds.tombstone_data_.begin(), ds.tombstone_data_.end(),
                                             "TOMBSTONE", true /* add_to_zip */);
     if (!tombstones_dumped) {
         printf("*** NO TOMBSTONES to dump in %s\n\n", TOMBSTONE_DIR.c_str());
@@ -1841,8 +1823,8 @@ int main(int argc, char *argv[]) {
         dump_traces_path = dump_traces();
 
         /* Run some operations that require root. */
-        tombstone_data.reset(GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping()));
-        anr_data.reset(GetDumpFds(ANR_DIR, ANR_FILE_PREFIX, !ds.IsZipping()));
+        ds.tombstone_data_ = GetDumpFds(TOMBSTONE_DIR, TOMBSTONE_FILE_PREFIX, !ds.IsZipping());
+        ds.anr_data_ = GetDumpFds(ANR_DIR, ANR_FILE_PREFIX, !ds.IsZipping());
 
         ds.AddDir(RECOVERY_DIR, true);
         ds.AddDir(RECOVERY_DATA_DIR, true);
@@ -2012,8 +1994,8 @@ int main(int argc, char *argv[]) {
         close(ds.control_socket_fd_);
     }
 
-    CloseDumpFds(tombstone_data.get());
-    CloseDumpFds(anr_data.get());
+    ds.tombstone_data_.clear();
+    ds.anr_data_.clear();
 
     return 0;
 }
