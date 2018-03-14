@@ -618,6 +618,13 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
+    const HdrMetadata& metadata = mConsumer->getCurrentHdrMetadata();
+    error = hwcLayer->setHdrMetadata(metadata);
+    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
+        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
     getBE().mHwcLayers[hwcId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot,

@@ -82,6 +82,7 @@ struct NotifyMotionArgs : public NotifyArgs {
     nsecs_t eventTime;
     int32_t deviceId;
     uint32_t source;
+    int32_t displayId;
     uint32_t policyFlags;
     int32_t action;
     int32_t actionButton;
@@ -89,7 +90,6 @@ struct NotifyMotionArgs : public NotifyArgs {
     int32_t metaState;
     int32_t buttonState;
     int32_t edgeFlags;
-    int32_t displayId;
     /**
      * A timestamp in the input device's time base, not the platform's.
      * The units are microseconds since the last reset.
@@ -106,10 +106,11 @@ struct NotifyMotionArgs : public NotifyArgs {
 
     inline NotifyMotionArgs() { }
 
-    NotifyMotionArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source, uint32_t policyFlags,
+    NotifyMotionArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
+            uint32_t policyFlags,
             int32_t action, int32_t actionButton, int32_t flags,
             int32_t metaState, int32_t buttonState,
-            int32_t edgeFlags, int32_t displayId, uint32_t deviceTimestamp, uint32_t pointerCount,
+            int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
             const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
             float xPrecision, float yPrecision, nsecs_t downTime);
 

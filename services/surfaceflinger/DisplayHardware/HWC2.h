@@ -23,8 +23,9 @@
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
 
-#include <ui/HdrCapabilities.h>
+#include <gui/HdrMetadata.h>
 #include <math/mat4.h>
+#include <ui/HdrCapabilities.h>
 
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
@@ -306,6 +307,7 @@ public:
     [[clang::warn_unused_result]] Error setCompositionType(Composition type);
     [[clang::warn_unused_result]] Error setDataspace(
             android_dataspace_t dataspace);
+    [[clang::warn_unused_result]] Error setHdrMetadata(const android::HdrMetadata& metadata);
     [[clang::warn_unused_result]] Error setDisplayFrame(
             const android::Rect& frame);
     [[clang::warn_unused_result]] Error setPlaneAlpha(float alpha);
@@ -329,6 +331,7 @@ private:
     hwc2_display_t mDisplayId;
     hwc2_layer_t mId;
     android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
+    android::HdrMetadata mHdrMetadata;
     std::function<void(Layer*)> mLayerDestroyedListener;
 };
 

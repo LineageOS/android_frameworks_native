@@ -303,13 +303,15 @@ status_t InputPublisher::publishMotionEvent(
         const PointerCoords* pointerCoords) {
 #if DEBUG_TRANSPORT_ACTIONS
     ALOGD("channel '%s' publisher ~ publishMotionEvent: seq=%u, deviceId=%d, source=0x%x, "
+            "displayId=%" PRId32 ", "
             "action=0x%x, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
             "metaState=0x%x, buttonState=0x%x, xOffset=%f, yOffset=%f, "
             "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
             "pointerCount=%" PRIu32,
             mChannel->getName().c_str(), seq,
-            deviceId, source, action, actionButton, flags, edgeFlags, metaState, buttonState,
-            xOffset, yOffset, xPrecision, yPrecision, downTime, eventTime, pointerCount);
+            deviceId, source, displayId, action, actionButton, flags, edgeFlags, metaState,
+            buttonState, xOffset, yOffset, xPrecision, yPrecision, downTime, eventTime,
+            pointerCount);
 #endif
 
     if (!seq) {
@@ -398,8 +400,7 @@ bool InputConsumer::isTouchResamplingEnabled() {
 }
 
 status_t InputConsumer::consume(InputEventFactoryInterface* factory,
-        bool consumeBatches, nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent,
-        int32_t* displayId) {
+        bool consumeBatches, nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent) {
 #if DEBUG_TRANSPORT_ACTIONS
     ALOGD("channel '%s' consumer ~ consume: consumeBatches=%s, frameTime=%" PRId64,
             mChannel->getName().c_str(), consumeBatches ? "true" : "false", frameTime);
@@ -407,7 +408,6 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
 
     *outSeq = 0;
     *outEvent = NULL;
-    *displayId = -1;  // Invalid display.
 
     // Fetch the next input message.
     // Loop until an event can be returned or no additional events are received.
@@ -422,7 +422,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
             if (result) {
                 // Consume the next batched event unless batches are being held for later.
                 if (consumeBatches || result != WOULD_BLOCK) {
-                    result = consumeBatch(factory, frameTime, outSeq, outEvent, displayId);
+                    result = consumeBatch(factory, frameTime, outSeq, outEvent);
                     if (*outEvent) {
 #if DEBUG_TRANSPORT_ACTIONS
                         ALOGD("channel '%s' consumer ~ consumed batch event, seq=%u",
@@ -466,7 +466,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
                     // the previous batch right now and defer the new message until later.
                     mMsgDeferred = true;
                     status_t result = consumeSamples(factory,
-                            batch, batch.samples.size(), outSeq, outEvent, displayId);
+                            batch, batch.samples.size(), outSeq, outEvent);
                     mBatches.removeAt(batchIndex);
                     if (result) {
                         return result;
@@ -500,7 +500,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
             initializeMotionEvent(motionEvent, &mMsg);
             *outSeq = mMsg.body.motion.seq;
             *outEvent = motionEvent;
-            *displayId = mMsg.body.motion.displayId;
+
 #if DEBUG_TRANSPORT_ACTIONS
             ALOGD("channel '%s' consumer ~ consumed motion event, seq=%u",
                     mChannel->getName().c_str(), *outSeq);
@@ -518,14 +518,13 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
 }
 
 status_t InputConsumer::consumeBatch(InputEventFactoryInterface* factory,
-        nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent, int32_t* displayId) {
+        nsecs_t frameTime, uint32_t* outSeq, InputEvent** outEvent) {
     status_t result;
     for (size_t i = mBatches.size(); i > 0; ) {
         i--;
         Batch& batch = mBatches.editItemAt(i);
         if (frameTime < 0) {
-            result = consumeSamples(factory, batch, batch.samples.size(),
-                    outSeq, outEvent, displayId);
+            result = consumeSamples(factory, batch, batch.samples.size(), outSeq, outEvent);
             mBatches.removeAt(i);
             return result;
         }
@@ -539,7 +538,7 @@ status_t InputConsumer::consumeBatch(InputEventFactoryInterface* factory,
             continue;
         }
 
-        result = consumeSamples(factory, batch, split + 1, outSeq, outEvent, displayId);
+        result = consumeSamples(factory, batch, split + 1, outSeq, outEvent);
         const InputMessage* next;
         if (batch.samples.isEmpty()) {
             mBatches.removeAt(i);
@@ -557,7 +556,7 @@ status_t InputConsumer::consumeBatch(InputEventFactoryInterface* factory,
 }
 
 status_t InputConsumer::consumeSamples(InputEventFactoryInterface* factory,
-        Batch& batch, size_t count, uint32_t* outSeq, InputEvent** outEvent, int32_t* displayId) {
+        Batch& batch, size_t count, uint32_t* outSeq, InputEvent** outEvent) {
     MotionEvent* motionEvent = factory->createMotionEvent();
     if (! motionEvent) return NO_MEMORY;
 
@@ -572,7 +571,6 @@ status_t InputConsumer::consumeSamples(InputEventFactoryInterface* factory,
             mSeqChains.push(seqChain);
             addSample(motionEvent, &msg);
         } else {
-            *displayId = msg.body.motion.displayId;
             initializeMotionEvent(motionEvent, &msg);
         }
         chain = msg.body.motion.seq;
@@ -950,6 +948,7 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
     event->initialize(
             msg->body.motion.deviceId,
             msg->body.motion.source,
+            msg->body.motion.displayId,
             msg->body.motion.action,
             msg->body.motion.actionButton,
             msg->body.motion.flags,
