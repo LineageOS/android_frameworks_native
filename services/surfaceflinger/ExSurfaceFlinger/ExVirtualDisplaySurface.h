@@ -46,7 +46,7 @@ private:
     virtual status_t beginFrame(bool mustRecompose);
     virtual void setOutputUsage(uint64_t flag);
     bool mSecure;
-    int mSinkUsage;
+    uint64_t mSinkUsage;
 };
 
 }; // namespace android
