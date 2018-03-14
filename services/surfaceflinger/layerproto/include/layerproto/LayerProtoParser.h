@@ -96,6 +96,8 @@ public:
         LayerProtoParser::ActiveBuffer activeBuffer;
         int32_t queuedFrames;
         bool refreshPending;
+        int32_t windowType;
+        int32_t appId;
 
         std::string to_string() const;
     };

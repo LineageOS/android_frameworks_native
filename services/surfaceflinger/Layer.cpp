@@ -587,8 +587,10 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     sp<Layer> parent = mDrawingParent.promote();
     if (parent.get()) {
         auto& parentState = parent->getDrawingState();
-        type = parentState.type;
-        appId = parentState.appId;
+        if (parentState.type >= 0 || parentState.appId >= 0) {
+            type = parentState.type;
+            appId = parentState.appId;
+        }
     }
 
     error = hwcLayer->setInfo(type, appId);
@@ -1313,7 +1315,7 @@ bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     return true;
 }
 
-void Layer::setInfo(uint32_t type, uint32_t appId) {
+void Layer::setInfo(int32_t type, int32_t appId) {
     mCurrentState.appId = appId;
     mCurrentState.type = type;
     mCurrentState.modified = true;
@@ -1919,6 +1921,8 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
     layerInfo->set_refresh_pending(isBufferLatched());
+    layerInfo->set_window_type(state.type);
+    layerInfo->set_app_id(state.appId);
 }
 
 // ---------------------------------------------------------------------------
