@@ -280,7 +280,8 @@ void ListCommand::postprocess() {
             "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
             "the library and successfully fetched the passthrough implementation.");
     mImplementationsTable.setDescription(
-            "All available passthrough implementations (all -impl.so files)");
+            "All available passthrough implementations (all -impl.so files).\n"
+            "These may return subclasses through their respective HIDL_FETCH_I* functions.");
 }
 
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
