@@ -118,6 +118,8 @@ LayerProtoParser::Layer* LayerProtoParser::generateLayer(const LayerProto& layer
     layer->hwcFrame = generateRect(layerProto.hwc_frame());
     layer->hwcCrop = generateFloatRect(layerProto.hwc_crop());
     layer->hwcTransform = layerProto.hwc_transform();
+    layer->windowType = layerProto.window_type();
+    layer->appId = layerProto.app_id();
 
     return layer;
 }
@@ -309,7 +311,8 @@ std::string LayerProtoParser::Layer::to_string() const {
     StringAppendF(&result, "      zOrderRelativeOf=%s\n",
                   zOrderRelativeOf == nullptr ? "none" : zOrderRelativeOf->name.c_str());
     StringAppendF(&result, "      activeBuffer=%s,", activeBuffer.to_string().c_str());
-    StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d", queuedFrames, refreshPending);
+    StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d,", queuedFrames, refreshPending);
+    StringAppendF(&result, " windowType=%d, appId=%d", windowType, appId);
 
     return result;
 }

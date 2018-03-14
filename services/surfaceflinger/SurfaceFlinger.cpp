@@ -3353,7 +3353,7 @@ status_t SurfaceFlinger::createLayer(
         const String8& name,
         const sp<Client>& client,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        uint32_t windowType, uint32_t ownerUid, sp<IBinder>* handle,
+        int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
         sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent)
 {
     if (int32_t(w|h) < 0) {

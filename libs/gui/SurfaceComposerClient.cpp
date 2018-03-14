@@ -609,8 +609,8 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         PixelFormat format,
         uint32_t flags,
         SurfaceControl* parent,
-        uint32_t windowType,
-        uint32_t ownerUid)
+        int32_t windowType,
+        int32_t ownerUid)
 {
     sp<SurfaceControl> s;
     createSurfaceChecked(name, w, h, format, &s, flags, parent, windowType, ownerUid);
@@ -625,8 +625,8 @@ status_t SurfaceComposerClient::createSurfaceChecked(
         sp<SurfaceControl>* outSurface,
         uint32_t flags,
         SurfaceControl* parent,
-        uint32_t windowType,
-        uint32_t ownerUid)
+        int32_t windowType,
+        int32_t ownerUid)
 {
     sp<SurfaceControl> sur;
     status_t err = NO_ERROR;

@@ -109,6 +109,8 @@ public:
         LayerProtoParser::Rect hwcFrame;
         LayerProtoParser::FloatRect hwcCrop;
         int32_t hwcTransform;
+        int32_t windowType;
+        int32_t appId;
 
         std::string to_string() const;
     };
