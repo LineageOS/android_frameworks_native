@@ -118,11 +118,9 @@ void DisplayUtils::initVDSInstance(HWComposer & hwc, int32_t hwcDisplayId,
     #endif
 }
 
-bool DisplayUtils::canAllocateHwcDisplayIdForVDS(int usage) {
-    // on android builds with QTI_BSP disabled,
-    // we should allocate hwc display id for virtual display.
-    int flag_mask_pvt_wfd = 0xffffffff;
-    int flag_mask_hw_video = 0xffffffff;
+bool DisplayUtils::canAllocateHwcDisplayIdForVDS(uint64_t usage) {
+    uint64_t flag_mask_pvt_wfd = ~0;
+    uint64_t flag_mask_hw_video = ~0;
     char value[PROPERTY_VALUE_MAX] = {};
     property_get("vendor.display.vds_allow_hwc", value, "0");
     int allowHwcForVDS = atoi(value);
