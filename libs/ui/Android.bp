@@ -83,6 +83,7 @@ cc_library_shared {
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
+        "libpdx_default_transport",
         "libsync",
         "libutils",
         "libutilscallstack",
@@ -99,9 +100,8 @@ cc_library_shared {
         "libbase_headers",
         "libnativebase_headers",
         "libhardware_headers",
+        "libui_headers",
     ],
-
-    export_include_dirs: ["include"],
 
     export_static_lib_headers: [
         "libarect",
@@ -112,6 +112,7 @@ cc_library_shared {
         "libbase_headers",
         "libnativebase_headers",
         "libhardware_headers",
+        "libui_headers",
     ],
 }
 
