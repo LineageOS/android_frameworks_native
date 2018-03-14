@@ -37,8 +37,9 @@ public:
 
 private:
     // Traverse layer tree to get all visible layers' stats
-    void traverseLayerTreeStatsLocked(const std::vector<const LayerProtoParser::Layer*>& layerTree,
-                                      const LayerProtoParser::LayerGlobal* layerGlobal);
+    void traverseLayerTreeStatsLocked(
+        std::vector<std::unique_ptr<LayerProtoParser::Layer>> layerTree,
+        const LayerProtoParser::LayerGlobal* layerGlobal);
     // Convert layer's top-left position into 8x8 percentage of the display
     static const char* destinationLocation(int32_t location, int32_t range, bool isHorizontal);
     // Convert layer's size into 8x8 percentage of the display

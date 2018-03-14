@@ -56,11 +56,11 @@ bool LayerStats::isEnabled() {
 }
 
 void LayerStats::traverseLayerTreeStatsLocked(
-        const std::vector<const LayerProtoParser::Layer*>& layerTree,
+        std::vector<std::unique_ptr<LayerProtoParser::Layer>> layerTree,
         const LayerProtoParser::LayerGlobal* layerGlobal) {
-    for (auto layer : layerTree) {
+    for (std::unique_ptr<LayerProtoParser::Layer>& layer : layerTree) {
         if (!layer) continue;
-        traverseLayerTreeStatsLocked(layer->children, layerGlobal);
+        traverseLayerTreeStatsLocked(std::move(layer->children), layerGlobal);
         std::string key =
                 base::StringPrintf("%s,%s,%s,%s,%s,%s,%s,%s,%s",
                                    destinationLocation(layer->hwcFrame.left,
@@ -71,7 +71,7 @@ void LayerStats::traverseLayerTreeStatsLocked(
                                                    layerGlobal->resolution[0], true),
                                    destinationSize(layer->hwcFrame.bottom - layer->hwcFrame.top,
                                                    layerGlobal->resolution[1], false),
-                                   layer->type.c_str(), scaleRatioWH(layer).c_str(),
+                                   layer->type.c_str(), scaleRatioWH(layer.get()).c_str(),
                                    layerTransform(layer->hwcTransform), layer->pixelFormat.c_str(),
                                    layer->dataspace.c_str());
         mLayerStatsMap[key]++;
@@ -83,8 +83,7 @@ void LayerStats::logLayerStats(const LayersProto& layersProto) {
     auto layerGlobal = LayerProtoParser::generateLayerGlobalInfo(layersProto);
     auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
     std::lock_guard<std::mutex> lock(mMutex);
-    traverseLayerTreeStatsLocked(layerTree, &layerGlobal);
-    LayerProtoParser::destroyLayerTree(layerTree);
+    traverseLayerTreeStatsLocked(std::move(layerTree), &layerGlobal);
 }
 
 void LayerStats::dump(String8& result) {

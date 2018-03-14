@@ -33,6 +33,7 @@ cc_test {
         "libEGL",
         "libGLESv2",
         "libgui",
+        "liblayers_proto",
         "liblog",
         "libprotobuf-cpp-full",
         "libui",
