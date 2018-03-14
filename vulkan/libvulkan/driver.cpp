@@ -796,7 +796,8 @@ bool QueryPresentationProperties(
     const InstanceData& data = GetData(physicalDevice);
 
     // GPDP2 must be present and enabled on the instance.
-    if (!data.driver.GetPhysicalDeviceProperties2KHR)
+    if (!data.driver.GetPhysicalDeviceProperties2KHR &&
+        !data.driver.GetPhysicalDeviceProperties2)
         return false;
 
     // Request the android-specific presentation properties via GPDP2
@@ -814,8 +815,12 @@ bool QueryPresentationProperties(
     presentation_properties->pNext = nullptr;
     presentation_properties->sharedImage = VK_FALSE;
 
-    data.driver.GetPhysicalDeviceProperties2KHR(physicalDevice,
-                                                &properties);
+    if (data.driver.GetPhysicalDeviceProperties2KHR) {
+        data.driver.GetPhysicalDeviceProperties2KHR(physicalDevice,
+                                                    &properties);
+    } else {
+        data.driver.GetPhysicalDeviceProperties2(physicalDevice, &properties);
+    }
 
     return true;
 }
