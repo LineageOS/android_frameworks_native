@@ -155,6 +155,11 @@ static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
     std::unique_ptr<std::vector<DumpData>> dump_data(new std::vector<DumpData>());
     std::unique_ptr<DIR, decltype(&closedir)> dump_dir(opendir(dir_path.c_str()), closedir);
 
+    if (dump_dir == nullptr) {
+        MYLOGW("Unable to open directory %s: %s\n", dir_path.c_str(), strerror(errno));
+        return dump_data.release();
+    }
+
     struct dirent* entry = nullptr;
     while ((entry = readdir(dump_dir.get()))) {
         if (entry->d_type != DT_REG) {
@@ -170,13 +175,13 @@ static std::vector<DumpData>* GetDumpFds(const std::string& dir_path,
         android::base::unique_fd fd(
             TEMP_FAILURE_RETRY(open(abs_path.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK)));
         if (fd == -1) {
-            MYLOGW("Unable to open dump file: %s %s\n", abs_path.c_str(), strerror(errno));
+            MYLOGW("Unable to open dump file %s: %s\n", abs_path.c_str(), strerror(errno));
             break;
         }
 
         struct stat st = {};
         if (fstat(fd, &st) == -1) {
-            MYLOGW("Unable to stat dump file: %s %s\n", abs_path.c_str(), strerror(errno));
+            MYLOGW("Unable to stat dump file %s: %s\n", abs_path.c_str(), strerror(errno));
             continue;
         }
 
