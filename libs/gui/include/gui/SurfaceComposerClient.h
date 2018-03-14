@@ -114,6 +114,18 @@ public:
             uint32_t ownerUid = 0 // UID of the task
     );
 
+    status_t createSurfaceChecked(
+            const String8& name,// name of the surface
+            uint32_t w,         // width in pixel
+            uint32_t h,         // height in pixel
+            PixelFormat format, // pixel-format desired
+            sp<SurfaceControl>* outSurface,
+            uint32_t flags = 0, // usage flags
+            SurfaceControl* parent = nullptr, // parent
+            uint32_t windowType = 0, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
+            uint32_t ownerUid = 0 // UID of the task
+    );
+
     //! Create a virtual display
     static sp<IBinder> createDisplay(const String8& displayName, bool secure);
 
