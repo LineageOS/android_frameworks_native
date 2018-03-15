@@ -132,12 +132,13 @@ public:
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
                                    sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
-                                   float frameScale) {
+                                   float frameScale, bool childrenOnly) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(layerHandleBinder);
         data.write(sourceCrop);
         data.writeFloat(frameScale);
+        data.writeBool(childrenOnly);
         status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
 
         if (err != NO_ERROR) {
@@ -629,8 +630,10 @@ status_t BnSurfaceComposer::onTransact(
             Rect sourceCrop(Rect::EMPTY_RECT);
             data.read(sourceCrop);
             float frameScale = data.readFloat();
+            bool childrenOnly = data.readBool();
 
-            status_t res = captureLayers(layerHandleBinder, &outBuffer, sourceCrop, frameScale);
+            status_t res = captureLayers(layerHandleBinder, &outBuffer, sourceCrop, frameScale,
+                                         childrenOnly);
             reply->writeInt32(res);
             if (res == NO_ERROR) {
                 reply->write(*outBuffer);

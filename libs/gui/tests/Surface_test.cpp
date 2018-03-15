@@ -593,8 +593,8 @@ public:
             bool /*useIdentityTransform*/,
             Rotation /*rotation*/) override { return NO_ERROR; }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
-                                   sp<GraphicBuffer>* /*outBuffer*/,
-                                   const Rect& /*sourceCrop*/, float /*frameScale*/) override {
+                                   sp<GraphicBuffer>* /*outBuffer*/, const Rect& /*sourceCrop*/,
+                                   float /*frameScale*/, bool /*childrenOnly*/) override {
         return NO_ERROR;
     }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }

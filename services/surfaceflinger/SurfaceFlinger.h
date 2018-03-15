@@ -390,7 +390,7 @@ private:
                                    int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
                                    ISurfaceComposer::Rotation rotation);
     virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
-                                   const Rect& sourceCrop, float frameScale);
+                                   const Rect& sourceCrop, float frameScale, bool childrenOnly);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
     virtual status_t getDisplayConfigs(const sp<IBinder>& display,
