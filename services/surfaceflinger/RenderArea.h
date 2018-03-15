@@ -2,6 +2,8 @@
 
 #include "Transform.h"
 
+#include <functional>
+
 namespace android {
 
 class RenderArea {
@@ -21,6 +23,8 @@ public:
     virtual bool isSecure() const = 0;
     virtual bool needsFiltering() const = 0;
     virtual Rect getSourceCrop() const = 0;
+
+    virtual void render(std::function<void()> drawLayers) { drawLayers(); }
 
     int getReqHeight() const { return mReqHeight; };
     int getReqWidth() const { return mReqWidth; };

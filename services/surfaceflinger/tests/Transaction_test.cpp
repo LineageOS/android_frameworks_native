@@ -192,6 +192,16 @@ public:
         *sc = std::make_unique<ScreenCapture>(outBuffer);
     }
 
+    static void captureChildLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
+                                   Rect crop = Rect::EMPTY_RECT, float frameScale = 1.0) {
+        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+        SurfaceComposerClient::Transaction().apply(true);
+
+        sp<GraphicBuffer> outBuffer;
+        ASSERT_EQ(NO_ERROR, sf->captureLayers(parentHandle, &outBuffer, crop, frameScale, true));
+        *sc = std::make_unique<ScreenCapture>(outBuffer);
+    }
+
     void expectColor(const Rect& rect, const Color& color, uint8_t tolerance = 0) {
         ASSERT_EQ(HAL_PIXEL_FORMAT_RGBA_8888, mOutBuffer->getPixelFormat());
         expectBufferColor(mOutBuffer, mPixels, rect, color, tolerance);
@@ -2304,6 +2314,74 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
     ScreenCapture::captureLayers(&mCapture, fgHandle);
     mCapture->expectFGColor(10, 10);
     mCapture->expectChildColor(0, 0);
+}
+
+TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+
+    SurfaceComposerClient::Transaction().show(child).apply(true);
+
+    // Captures mFGSurfaceControl's child
+    ScreenCapture::captureChildLayers(&mCapture, fgHandle);
+    mCapture->checkPixel(10, 10, 0, 0, 0);
+    mCapture->expectChildColor(0, 0);
+}
+
+
+// In the following tests we verify successful skipping of a parent layer,
+// so we use the same verification logic and only change how we mutate
+// the parent layer to verify that various properties are ignored.
+class ScreenCaptureChildOnlyTest : public LayerUpdateTest {
+public:
+    void SetUp() override {
+        LayerUpdateTest::SetUp();
+
+        mChild =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                    0, mFGSurfaceControl.get());
+        fillSurfaceRGBA8(mChild, 200, 200, 200);
+
+        SurfaceComposerClient::Transaction().show(mChild).apply(true);
+    }
+
+    void verify() {
+        auto fgHandle = mFGSurfaceControl->getHandle();
+        ScreenCapture::captureChildLayers(&mCapture, fgHandle);
+        mCapture->checkPixel(10, 10, 0, 0, 0);
+        mCapture->expectChildColor(0, 0);
+    }
+
+    std::unique_ptr<ScreenCapture> mCapture;
+    sp<SurfaceControl> mChild;
+};
+
+TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentVisibility) {
+
+    SurfaceComposerClient::Transaction().hide(mFGSurfaceControl).apply(true);
+
+    // Even though the parent is hidden we should still capture the child.
+    verify();
+}
+
+TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentCrop) {
+
+    SurfaceComposerClient::Transaction().setCrop(mFGSurfaceControl, Rect(0, 0, 1, 1)).apply(true);
+
+    // Even though the parent is cropped out we should still capture the child.
+    verify();
+}
+
+TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresTransform) {
+
+    SurfaceComposerClient::Transaction().setMatrix(mFGSurfaceControl, 2, 0, 0, 2);
+
+    // We should not inherit the parent scaling.
+    verify();
 }
 
 TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
