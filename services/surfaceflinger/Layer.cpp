@@ -221,15 +221,14 @@ sp<IBinder> Layer::getHandle() {
 bool Layer::createHwcLayer(HWComposer* hwc, int32_t hwcId) {
     LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(hwcId) != 0,
                         "Already have a layer for hwcId %d", hwcId);
-    HWC2::Layer* layer = hwc->createLayer(hwcId);
+
+    std::shared_ptr<LayerContainer> layer(new LayerContainer(hwc, hwcId));
     if (!layer) {
         return false;
     }
     LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers[hwcId];
     hwcInfo.hwc = hwc;
     hwcInfo.layer = layer;
-    layer->setLayerDestroyedListener(
-            [this, hwcId](HWC2::Layer* /*layer*/) { getBE().mHwcLayers.erase(hwcId); });
     return true;
 }
 
@@ -240,11 +239,12 @@ bool Layer::destroyHwcLayer(int32_t hwcId) {
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
     LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr, "Attempt to destroy null layer");
     LOG_ALWAYS_FATAL_IF(hwcInfo.hwc == nullptr, "Missing HWComposer");
-    hwcInfo.hwc->destroyLayer(hwcId, hwcInfo.layer);
-    // The layer destroyed listener should have cleared the entry from
-    // mHwcLayers. Verify that.
-    LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(hwcId) != 0,
-                        "Stale layer entry in getBE().mHwcLayers");
+    hwcInfo.layer = nullptr;
+
+    if (getBE().mHwcLayers.count(hwcId) == 1) {
+        getBE().mHwcLayers.erase(hwcId);
+    }
+
     return true;
 }
 
@@ -503,7 +503,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         blendMode =
                 mPremultipliedAlpha ? HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
     }
-    auto error = hwcLayer->setBlendMode(blendMode);
+    auto error = (*hwcLayer)->setBlendMode(blendMode);
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set blend mode %s:"
              " %s (%d)",
@@ -551,7 +551,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     }
     const Transform& tr(displayDevice->getTransform());
     Rect transformedFrame = tr.transform(frame);
-    error = hwcLayer->setDisplayFrame(transformedFrame);
+    error = (*hwcLayer)->setDisplayFrame(transformedFrame);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)", mName.string(),
               transformedFrame.left, transformedFrame.top, transformedFrame.right,
@@ -561,7 +561,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     }
 
     FloatRect sourceCrop = computeCrop(displayDevice);
-    error = hwcLayer->setSourceCrop(sourceCrop);
+    error = (*hwcLayer)->setSourceCrop(sourceCrop);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
               "%s (%d)",
@@ -572,13 +572,13 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     }
 
     float alpha = static_cast<float>(getAlpha());
-    error = hwcLayer->setPlaneAlpha(alpha);
+    error = (*hwcLayer)->setPlaneAlpha(alpha);
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set plane alpha %.3f: "
              "%s (%d)",
              mName.string(), alpha, to_string(error).c_str(), static_cast<int32_t>(error));
 
-    error = hwcLayer->setZOrder(z);
+    error = (*hwcLayer)->setZOrder(z);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)", mName.string(), z,
              to_string(error).c_str(), static_cast<int32_t>(error));
 
@@ -591,7 +591,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         appId = parentState.appId;
     }
 
-    error = hwcLayer->setInfo(type, appId);
+    error = (*hwcLayer)->setInfo(type, appId);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
              static_cast<int32_t>(error));
 
@@ -640,7 +640,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
         hwcInfo.transform = transform;
-        auto error = hwcLayer->setTransform(transform);
+        auto error = (*hwcLayer)->setTransform(transform);
         ALOGE_IF(error != HWC2::Error::None,
                  "[%s] Failed to set transform %s: "
                  "%s (%d)",
@@ -693,7 +693,7 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     auto& displayTransform(displayDevice->getTransform());
     auto position = displayTransform.transform(frame);
 
-    auto error = getBE().mHwcLayers[hwcId].layer->setCursorPosition(position.left,
+    auto error = (*getBE().mHwcLayers[hwcId].layer)->setCursorPosition(position.left,
                                                                               position.top);
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set cursor position "
@@ -737,13 +737,13 @@ void Layer::setCompositionType(int32_t hwcId, HWC2::Composition type, bool callI
     }
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
     auto& hwcLayer = hwcInfo.layer;
-    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", hwcLayer->getId(), to_string(type).c_str(),
+    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", (*hwcLayer)->getId(), to_string(type).c_str(),
           static_cast<int>(callIntoHwc));
     if (hwcInfo.compositionType != type) {
         ALOGV("    actually setting");
         hwcInfo.compositionType = type;
         if (callIntoHwc) {
-            auto error = hwcLayer->setCompositionType(type);
+            auto error = (*hwcLayer)->setCompositionType(type);
             ALOGE_IF(error != HWC2::Error::None,
                      "[%s] Failed to set "
                      "composition type %s: %s (%d)",
