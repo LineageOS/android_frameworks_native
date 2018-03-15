@@ -297,8 +297,10 @@ public:
                             uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
                             bool useIdentityTransform, uint32_t rotation,
                             sp<GraphicBuffer>* outBuffer);
-    static status_t captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop, float fameScale,
+    static status_t captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop, float frameScale,
                                   sp<GraphicBuffer>* outBuffer);
+    static status_t captureChildLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,
+                                       float frameScale, sp<GraphicBuffer>* outBuffer);
 };
 
 // ---------------------------------------------------------------------------
