@@ -774,21 +774,9 @@ static bool setCategoriesEnableFromFile(const char* categories_file)
     return ok;
 }
 
-// Set all the kernel tracing settings to the desired state for this trace
-// capture.
-static bool setUpTrace()
+static bool setUpUserspaceTracing()
 {
     bool ok = true;
-
-    // Set up the tracing options.
-    ok &= setCategoriesEnableFromFile(g_categoriesFile);
-    ok &= setTraceOverwriteEnable(g_traceOverwrite);
-    ok &= setTraceBufferSizeKB(g_traceBufferSizeKB);
-    // TODO: Re-enable after stabilization
-    //ok &= setCmdlineSize();
-    ok &= setClock();
-    ok &= setPrintTgidEnableIfPresent(true);
-    ok &= setKernelTraceFuncs(g_kernelTraceFuncs);
 
     // Set up the tags property.
     uint64_t tags = 0;
@@ -827,6 +815,37 @@ static bool setUpTrace()
         ok &= ServiceUtility::PokeServices();
     }
 
+    return ok;
+}
+
+static void cleanUpUserspaceTracing()
+{
+    setTagsProperty(0);
+    clearAppProperties();
+    pokeBinderServices();
+
+    if (g_tracePdx) {
+        ServiceUtility::PokeServices();
+    }
+}
+
+
+// Set all the kernel tracing settings to the desired state for this trace
+// capture.
+static bool setUpKernelTracing()
+{
+    bool ok = true;
+
+    // Set up the tracing options.
+    ok &= setCategoriesEnableFromFile(g_categoriesFile);
+    ok &= setTraceOverwriteEnable(g_traceOverwrite);
+    ok &= setTraceBufferSizeKB(g_traceBufferSizeKB);
+    // TODO: Re-enable after stabilization
+    //ok &= setCmdlineSize();
+    ok &= setClock();
+    ok &= setPrintTgidEnableIfPresent(true);
+    ok &= setKernelTraceFuncs(g_kernelTraceFuncs);
+
     // Disable all the sysfs enables.  This is done as a separate loop from
     // the enables to allow the same enable to exist in multiple categories.
     ok &= disableKernelTraceEvents();
@@ -854,19 +873,10 @@ static bool setUpTrace()
 }
 
 // Reset all the kernel tracing settings to their default state.
-static void cleanUpTrace()
+static void cleanUpKernelTracing()
 {
     // Disable all tracing that we're able to.
     disableKernelTraceEvents();
-
-    // Reset the system properties.
-    setTagsProperty(0);
-    clearAppProperties();
-    pokeBinderServices();
-
-    if (g_tracePdx) {
-        ServiceUtility::PokeServices();
-    }
 
     // Set the options back to their defaults.
     setTraceOverwriteEnable(true);
@@ -874,7 +884,6 @@ static void cleanUpTrace()
     setPrintTgidEnableIfPresent(false);
     setKernelTraceFuncs(NULL);
 }
-
 
 // Enable tracing in the kernel.
 static bool startTrace()
@@ -1107,6 +1116,7 @@ int main(int argc, char **argv)
     bool traceStop = true;
     bool traceDump = true;
     bool traceStream = false;
+    bool onlyUserspace = false;
 
     if (argc == 2 && 0 == strcmp(argv[1], "--help")) {
         showHelp(argv[0]);
@@ -1122,12 +1132,13 @@ int main(int argc, char **argv)
         int ret;
         int option_index = 0;
         static struct option long_options[] = {
-            {"async_start",     no_argument, 0,  0 },
-            {"async_stop",      no_argument, 0,  0 },
-            {"async_dump",      no_argument, 0,  0 },
-            {"list_categories", no_argument, 0,  0 },
-            {"stream",          no_argument, 0,  0 },
-            {           0,                0, 0,  0 }
+            {"async_start",       no_argument, 0,  0 },
+            {"async_stop",        no_argument, 0,  0 },
+            {"async_dump",        no_argument, 0,  0 },
+            {"only_userspace",    no_argument, 0,  0 },
+            {"list_categories",   no_argument, 0,  0 },
+            {"stream",            no_argument, 0,  0 },
+            {           0,                  0, 0,  0 }
         };
 
         ret = getopt_long(argc, argv, "a:b:cf:k:ns:t:zo:",
@@ -1197,6 +1208,8 @@ int main(int argc, char **argv)
                     async = true;
                     traceStart = false;
                     traceStop = false;
+                } else if (!strcmp(long_options[option_index].name, "only_userspace")) {
+                    onlyUserspace = true;
                 } else if (!strcmp(long_options[option_index].name, "stream")) {
                     traceStream = true;
                     traceDump = false;
@@ -1214,6 +1227,14 @@ int main(int argc, char **argv)
         }
     }
 
+    if (onlyUserspace) {
+        if (!async || !(traceStart || traceStop)) {
+            fprintf(stderr, "--only_userspace can only be used with "
+                    "--async_start or --async_stop\n");
+            exit(1);
+        }
+    }
+
     registerSigHandler();
 
     if (g_initialSleepSecs > 0) {
@@ -1221,13 +1242,19 @@ int main(int argc, char **argv)
     }
 
     bool ok = true;
+
     if (traceStart) {
-        ok &= setUpTrace();
+        ok &= setUpUserspaceTracing();
+    }
+
+    if (ok && traceStart && !onlyUserspace) {
+        ok &= setUpKernelTracing();
         ok &= startTrace();
     }
 
     if (ok && traceStart) {
-        if (!traceStream) {
+
+        if (!traceStream && !onlyUserspace) {
             printf("capturing trace...");
             fflush(stdout);
         }
@@ -1237,7 +1264,8 @@ int main(int argc, char **argv)
         // contain entries from only one CPU can cause "begin" entries without a
         // matching "end" entry to show up if a task gets migrated from one CPU to
         // another.
-        ok = clearTrace();
+        if (!onlyUserspace)
+            ok = clearTrace();
 
         writeClockSyncMarker();
         if (ok && !async && !traceStream) {
@@ -1258,10 +1286,10 @@ int main(int argc, char **argv)
     }
 
     // Stop the trace and restore the default settings.
-    if (traceStop)
+    if (traceStop && !onlyUserspace)
         stopTrace();
 
-    if (ok && traceDump) {
+    if (ok && traceDump && !onlyUserspace) {
         if (!g_traceAborted) {
             printf(" done\n");
             fflush(stdout);
@@ -1288,8 +1316,11 @@ int main(int argc, char **argv)
     }
 
     // Reset the trace buffer size to 1.
-    if (traceStop)
-        cleanUpTrace();
+    if (traceStop) {
+        cleanUpUserspaceTracing();
+        if (!onlyUserspace)
+            cleanUpKernelTracing();
+    }
 
     return g_traceAborted ? 1 : 0;
 }
