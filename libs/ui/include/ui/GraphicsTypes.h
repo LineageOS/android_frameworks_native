@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 The Android Open Source Project
+ * Copyright 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,19 +16,11 @@
 
 #pragma once
 
-#include <ui/GraphicsTypes.h>
-#include <ui/PixelFormat.h>
-
-#include <string>
+#include <android/hardware/graphics/common/1.1/types.h>
+#include <system/graphics.h>
 
 namespace android {
-class Rect;
-}
 
-std::string decodeStandard(android_dataspace dataspace);
-std::string decodeTransfer(android_dataspace dataspace);
-std::string decodeRange(android_dataspace dataspace);
-std::string dataspaceDetails(android_dataspace dataspace);
-std::string decodeColorMode(android::ColorMode colormode);
-std::string decodePixelFormat(android::PixelFormat format);
-std::string to_string(const android::Rect& rect);
+using android::hardware::graphics::common::V1_0::ColorMode;
+
+}  // namespace android

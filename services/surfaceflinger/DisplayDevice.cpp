@@ -99,7 +99,7 @@ DisplayDevice::DisplayDevice(
     mNativeWindow = surface = new Surface(producer, false);
     ANativeWindow* const window = mNativeWindow.get();
 
-    mActiveColorMode = HAL_COLOR_MODE_NATIVE;
+    mActiveColorMode = ColorMode::NATIVE;
     mDisplayHasWideColor = supportWideColor;
     mDisplayHasHdr = supportHdr;
 
@@ -292,11 +292,11 @@ int DisplayDevice::getActiveConfig()  const {
 }
 
 // ----------------------------------------------------------------------------
-void DisplayDevice::setActiveColorMode(android_color_mode_t mode) {
+void DisplayDevice::setActiveColorMode(ColorMode mode) {
     mActiveColorMode = mode;
 }
 
-android_color_mode_t DisplayDevice::getActiveColorMode() const {
+ColorMode DisplayDevice::getActiveColorMode() const {
     return mActiveColorMode;
 }
 
