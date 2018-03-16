@@ -65,10 +65,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
     hardware_composer_.SetVSyncCallback(callback);
   }
 
-  HWCDisplayMetrics GetDisplayMetrics() {
-    return hardware_composer_.display_metrics();
-  }
-
   void GrantDisplayOwnership() { hardware_composer_.Enable(); }
   void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
   void OnBootFinished() { hardware_composer_.OnBootFinished(); }
