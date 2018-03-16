@@ -98,13 +98,25 @@ bool DropRootUser() {
     capheader.version = _LINUX_CAPABILITY_VERSION_3;
     capheader.pid = 0;
 
-    capdata[CAP_TO_INDEX(CAP_SYSLOG)].permitted = CAP_TO_MASK(CAP_SYSLOG);
-    capdata[CAP_TO_INDEX(CAP_SYSLOG)].effective = CAP_TO_MASK(CAP_SYSLOG);
-    capdata[0].inheritable = 0;
-    capdata[1].inheritable = 0;
+    if (capget(&capheader, &capdata[0]) != 0) {
+        MYLOGE("capget failed: %s\n", strerror(errno));
+        return false;
+    }
 
-    if (capset(&capheader, &capdata[0]) < 0) {
-        MYLOGE("capset failed: %s\n", strerror(errno));
+    const uint32_t cap_syslog_mask = CAP_TO_MASK(CAP_SYSLOG);
+    const uint32_t cap_syslog_index = CAP_TO_INDEX(CAP_SYSLOG);
+    bool has_cap_syslog = (capdata[cap_syslog_index].effective & cap_syslog_mask) != 0;
+
+    memset(&capdata, 0, sizeof(capdata));
+    if (has_cap_syslog) {
+        // Only attempt to keep CAP_SYSLOG if it was present to begin with.
+        capdata[cap_syslog_index].permitted |= cap_syslog_mask;
+        capdata[cap_syslog_index].effective |= cap_syslog_mask;
+    }
+
+    if (capset(&capheader, &capdata[0]) != 0) {
+        MYLOGE("capset({%#x, %#x}) failed: %s\n", capdata[0].effective,
+               capdata[1].effective, strerror(errno));
         return false;
     }
 
