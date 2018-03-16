@@ -30,6 +30,7 @@
 #include <ui/FrameStats.h>
 #include <ui/PixelFormat.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/GraphicsTypes.h>
 
 #include <vector>
 
@@ -160,10 +161,10 @@ public:
     virtual status_t setActiveConfig(const sp<IBinder>& display, int id) = 0;
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<android_color_mode_t>* outColorModes) = 0;
-    virtual android_color_mode_t getActiveColorMode(const sp<IBinder>& display) = 0;
+            Vector<ColorMode>* outColorModes) = 0;
+    virtual ColorMode getActiveColorMode(const sp<IBinder>& display) = 0;
     virtual status_t setActiveColorMode(const sp<IBinder>& display,
-            android_color_mode_t colorMode) = 0;
+            ColorMode colorMode) = 0;
 
     /* Capture the specified screen. requires READ_FRAME_BUFFER permission
      * This function will fail if there is a secure window on screen.
