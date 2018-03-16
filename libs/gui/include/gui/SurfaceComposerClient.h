@@ -29,6 +29,7 @@
 #include <utils/threads.h>
 
 #include <ui/FrameStats.h>
+#include <ui/GraphicsTypes.h>
 #include <ui/PixelFormat.h>
 
 #include <gui/CpuConsumer.h>
@@ -88,13 +89,13 @@ public:
 
     // Gets the list of supported color modes for the given display
     static status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<android_color_mode_t>* outColorModes);
+            Vector<ColorMode>* outColorModes);
 
     // Gets the active color mode for the given display
-    static android_color_mode_t getActiveColorMode(const sp<IBinder>& display);
+    static ColorMode getActiveColorMode(const sp<IBinder>& display);
 
     // Sets the active color mode for the given display
-    static status_t setActiveColorMode(const sp<IBinder>& display, android_color_mode_t colorMode);
+    static status_t setActiveColorMode(const sp<IBinder>& display, ColorMode colorMode);
 
     /* Triggers screen on/off or low power mode and waits for it to complete */
     static void setDisplayPowerMode(const sp<IBinder>& display, int mode);
@@ -297,8 +298,10 @@ public:
                             uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
                             bool useIdentityTransform, uint32_t rotation,
                             sp<GraphicBuffer>* outBuffer);
-    static status_t captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop, float fameScale,
+    static status_t captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop, float frameScale,
                                   sp<GraphicBuffer>* outBuffer);
+    static status_t captureChildLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,
+                                       float frameScale, sp<GraphicBuffer>* outBuffer);
 };
 
 // ---------------------------------------------------------------------------

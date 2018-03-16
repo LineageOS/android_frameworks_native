@@ -22,6 +22,7 @@
 #include <android-base/unique_fd.h>
 #include <hardware/hardware.h>
 #include <sync/sync.h>
+#include <ui/GraphicsTypes.h>
 
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
@@ -33,6 +34,8 @@
 #include "Hwc2TestLayers.h"
 #include "Hwc2TestClientTarget.h"
 #include "Hwc2TestVirtualDisplay.h"
+
+using android::ColorMode;
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);
@@ -865,7 +868,7 @@ public:
     }
 
     void getColorModes(hwc2_display_t display,
-            std::vector<android_color_mode_t>* outColorModes,
+            std::vector<ColorMode>* outColorModes,
             hwc2_error_t* outErr = nullptr)
     {
         auto pfn = reinterpret_cast<HWC2_PFN_GET_COLOR_MODES>(
@@ -892,7 +895,7 @@ public:
         }
     }
 
-    void setColorMode(hwc2_display_t display, android_color_mode_t colorMode,
+    void setColorMode(hwc2_display_t display, ColorMode colorMode,
             hwc2_error_t* outErr = nullptr)
     {
         auto pfn = reinterpret_cast<HWC2_PFN_SET_COLOR_MODE>(
@@ -905,7 +908,7 @@ public:
             *outErr = err;
         } else {
             ASSERT_EQ(err, HWC2_ERROR_NONE) << "failed to set color mode "
-                    << colorMode;
+                    << static_cast<int>(colorMode);
         }
     }
 
@@ -4252,33 +4255,33 @@ TEST_F(Hwc2Test, GET_RELEASE_FENCES_bad_display)
     EXPECT_EQ(err, HWC2_ERROR_BAD_DISPLAY) << "returned wrong error code";
 }
 
-static const std::array<android_color_mode, 9> androidColorModes = {{
-    HAL_COLOR_MODE_NATIVE,
-    HAL_COLOR_MODE_STANDARD_BT601_625,
-    HAL_COLOR_MODE_STANDARD_BT601_625_UNADJUSTED,
-    HAL_COLOR_MODE_STANDARD_BT601_525,
-    HAL_COLOR_MODE_STANDARD_BT601_525_UNADJUSTED,
-    HAL_COLOR_MODE_STANDARD_BT709,
-    HAL_COLOR_MODE_DCI_P3,
-    HAL_COLOR_MODE_SRGB,
-    HAL_COLOR_MODE_ADOBE_RGB,
+static const std::array<ColorMode, 9> androidColorModes = {{
+    ColorMode::NATIVE,
+    ColorMode::STANDARD_BT601_625,
+    ColorMode::STANDARD_BT601_625_UNADJUSTED,
+    ColorMode::STANDARD_BT601_525,
+    ColorMode::STANDARD_BT601_525_UNADJUSTED,
+    ColorMode::STANDARD_BT709,
+    ColorMode::DCI_P3,
+    ColorMode::SRGB,
+    ColorMode::ADOBE_RGB,
 }};
 
 /* TESTCASE: Tests that the HWC2 can get the color modes for a display. The
- * display must support HAL_COLOR_MODE_NATIVE */
+ * display must support ColorMode::NATIVE */
 TEST_F(Hwc2Test, GET_COLOR_MODES)
 {
     ASSERT_NO_FATAL_FAILURE(setActiveDisplayConfig(
             [] (Hwc2Test* test, hwc2_display_t display) {
 
-                std::vector<android_color_mode_t> colorModes;
+                std::vector<ColorMode> colorModes;
 
                 ASSERT_NO_FATAL_FAILURE(test->getColorModes(display,
                         &colorModes));
 
                 EXPECT_NE(std::count(colorModes.begin(), colorModes.end(),
-                        HAL_COLOR_MODE_NATIVE), 0) << "all displays"
-                        " must support HAL_COLOR_MODE_NATIVE";
+                        ColorMode::NATIVE), 0) << "all displays"
+                        " must support ColorMode::NATIVE";
             }
     ));
 }
@@ -4287,7 +4290,7 @@ TEST_F(Hwc2Test, GET_COLOR_MODES)
 TEST_F(Hwc2Test, GET_COLOR_MODES_bad_display)
 {
     hwc2_display_t display;
-    std::vector<android_color_mode_t> colorModes;
+    std::vector<ColorMode> colorModes;
     hwc2_error_t err = HWC2_ERROR_NONE;
 
     ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
@@ -4302,7 +4305,7 @@ TEST_F(Hwc2Test, SET_COLOR_MODES)
     ASSERT_NO_FATAL_FAILURE(setActiveDisplayConfig(
             [] (Hwc2Test* test, hwc2_display_t display) {
 
-                const android_color_mode_t colorMode = HAL_COLOR_MODE_NATIVE;
+                const ColorMode colorMode = ColorMode::NATIVE;
 
                 EXPECT_NO_FATAL_FAILURE(test->setColorMode(display, colorMode));
             }
@@ -4313,7 +4316,7 @@ TEST_F(Hwc2Test, SET_COLOR_MODES)
 TEST_F(Hwc2Test, SET_COLOR_MODES_bad_display)
 {
     hwc2_display_t display;
-    const android_color_mode_t colorMode = HAL_COLOR_MODE_NATIVE;
+    const ColorMode colorMode = ColorMode::NATIVE;
     hwc2_error_t err = HWC2_ERROR_NONE;
 
     ASSERT_NO_FATAL_FAILURE(getBadDisplay(&display));
@@ -4328,8 +4331,7 @@ TEST_F(Hwc2Test, SET_COLOR_MODES_bad_parameter)
     ASSERT_NO_FATAL_FAILURE(setActiveDisplayConfig(
             [] (Hwc2Test* test, hwc2_display_t display) {
 
-                const android_color_mode_t colorMode =
-                        static_cast<android_color_mode_t>(-1);
+                const ColorMode colorMode = static_cast<ColorMode>(-1);
                 hwc2_error_t err = HWC2_ERROR_NONE;
 
                 ASSERT_NO_FATAL_FAILURE(test->setColorMode(display, colorMode,

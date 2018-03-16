@@ -575,14 +575,14 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     auto hwcId = displayDevice->getHwcDisplayId();
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
     auto& hwcLayer = hwcInfo.layer;
-    auto error = hwcLayer->setVisibleRegion(visible);
+    auto error = (*hwcLayer)->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
 
-    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
+    error = (*hwcLayer)->setSurfaceDamage(surfaceDamageRegion);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
@@ -593,7 +593,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
         setCompositionType(hwcId, HWC2::Composition::Sideband);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
+        error = (*hwcLayer)->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
                   getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
@@ -612,14 +612,14 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     }
 
     ALOGV("setPerFrameData: dataspace = %d", mDrawingState.dataSpace);
-    error = hwcLayer->setDataspace(mDrawingState.dataSpace);
+    error = (*hwcLayer)->setDataspace(mDrawingState.dataSpace);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     const HdrMetadata& metadata = mConsumer->getCurrentHdrMetadata();
-    error = hwcLayer->setHdrMetadata(metadata);
+    error = (*hwcLayer)->setHdrMetadata(metadata);
     if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
         ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
@@ -631,7 +631,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
                                                        &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
-    error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
+    error = (*hwcLayer)->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
               getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),

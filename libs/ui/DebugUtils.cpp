@@ -22,6 +22,7 @@
 #include <string>
 
 using android::base::StringPrintf;
+using android::ColorMode;
 
 std::string decodeStandard(android_dataspace dataspace) {
     const uint32_t dataspaceSelect = (dataspace & HAL_DATASPACE_STANDARD_MASK);
@@ -197,37 +198,37 @@ std::string dataspaceDetails(android_dataspace dataspace) {
                                        decodeRange(dataspace).c_str());
 }
 
-std::string decodeColorMode(android_color_mode colorMode) {
+std::string decodeColorMode(ColorMode colorMode) {
     switch (colorMode) {
-        case HAL_COLOR_MODE_NATIVE:
-            return std::string("HAL_COLOR_MODE_NATIVE");
+        case ColorMode::NATIVE:
+            return std::string("ColorMode::NATIVE");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_625:
-            return std::string("HAL_COLOR_MODE_BT601_625");
+        case ColorMode::STANDARD_BT601_625:
+            return std::string("ColorMode::BT601_625");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_625_UNADJUSTED:
-            return std::string("HAL_COLOR_MODE_BT601_625_UNADJUSTED");
+        case ColorMode::STANDARD_BT601_625_UNADJUSTED:
+            return std::string("ColorMode::BT601_625_UNADJUSTED");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_525:
-            return std::string("HAL_COLOR_MODE_BT601_525");
+        case ColorMode::STANDARD_BT601_525:
+            return std::string("ColorMode::BT601_525");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_525_UNADJUSTED:
-            return std::string("HAL_COLOR_MODE_BT601_525_UNADJUSTED");
+        case ColorMode::STANDARD_BT601_525_UNADJUSTED:
+            return std::string("ColorMode::BT601_525_UNADJUSTED");
 
-        case HAL_COLOR_MODE_STANDARD_BT709:
-            return std::string("HAL_COLOR_MODE_BT709");
+        case ColorMode::STANDARD_BT709:
+            return std::string("ColorMode::BT709");
 
-        case HAL_COLOR_MODE_DCI_P3:
-            return std::string("HAL_COLOR_MODE_DCI_P3");
+        case ColorMode::DCI_P3:
+            return std::string("ColorMode::DCI_P3");
 
-        case HAL_COLOR_MODE_SRGB:
-            return std::string("HAL_COLOR_MODE_SRGB");
+        case ColorMode::SRGB:
+            return std::string("ColorMode::SRGB");
 
-        case HAL_COLOR_MODE_ADOBE_RGB:
-            return std::string("HAL_COLOR_MODE_ADOBE_RGB");
+        case ColorMode::ADOBE_RGB:
+            return std::string("ColorMode::ADOBE_RGB");
 
-        case HAL_COLOR_MODE_DISPLAY_P3:
-            return std::string("HAL_COLOR_MODE_DISPLAY_P3");
+        case ColorMode::DISPLAY_P3:
+            return std::string("ColorMode::DISPLAY_P3");
     }
 
     return android::base::StringPrintf("Unknown color mode %d", colorMode);

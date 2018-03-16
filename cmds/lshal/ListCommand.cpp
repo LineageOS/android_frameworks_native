@@ -280,7 +280,8 @@ void ListCommand::postprocess() {
             "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
             "the library and successfully fetched the passthrough implementation.");
     mImplementationsTable.setDescription(
-            "All available passthrough implementations (all -impl.so files)");
+            "All available passthrough implementations (all -impl.so files).\n"
+            "These may return subclasses through their respective HIDL_FETCH_I* functions.");
 }
 
 static inline bool findAndBumpVersion(vintf::ManifestHal* hal, const vintf::Version& version) {
@@ -394,11 +395,11 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
                 interfaces[interfaceName].instances.insert(instanceName);
             }
             if (!manifest.add(vintf::ManifestHal{
-                    .format = vintf::HalFormat::HIDL,
-                    .name = fqName.package(),
-                    .versions = {version},
-                    .transportArch = {transport, arch},
-                    .interfaces = interfaces})) {
+                    vintf::HalFormat::HIDL,
+                    std::string{fqName.package()},
+                    {version},
+                    {transport, arch},
+                    std::move(interfaces)})) {
                 err() << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
             }
         }

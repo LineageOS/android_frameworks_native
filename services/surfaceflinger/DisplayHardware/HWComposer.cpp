@@ -311,8 +311,8 @@ std::shared_ptr<const HWC2::Display::Config>
     return config;
 }
 
-std::vector<android_color_mode_t> HWComposer::getColorModes(int32_t displayId) const {
-    std::vector<android_color_mode_t> modes;
+std::vector<ColorMode> HWComposer::getColorModes(int32_t displayId) const {
+    std::vector<ColorMode> modes;
 
     if (!isValidDisplay(displayId)) {
         ALOGE("getColorModes: Attempted to access invalid display %d",
@@ -324,13 +324,13 @@ std::vector<android_color_mode_t> HWComposer::getColorModes(int32_t displayId) c
     if (error != HWC2::Error::None) {
         ALOGE("getColorModes failed for display %d: %s (%d)", displayId,
                 to_string(error).c_str(), static_cast<int32_t>(error));
-        return std::vector<android_color_mode_t>();
+        return std::vector<ColorMode>();
     }
 
     return modes;
 }
 
-status_t HWComposer::setActiveColorMode(int32_t displayId, android_color_mode_t mode) {
+status_t HWComposer::setActiveColorMode(int32_t displayId, ColorMode mode) {
     if (!isValidDisplay(displayId)) {
         ALOGE("setActiveColorMode: Display %d is not valid", displayId);
         return BAD_INDEX;
