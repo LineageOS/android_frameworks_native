@@ -350,7 +350,7 @@ public:
     }
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<android_color_mode_t>* outColorModes) {
+            Vector<ColorMode>* outColorModes) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -373,34 +373,34 @@ public:
             outColorModes->clear();
             outColorModes->resize(numModes);
             for (size_t i = 0; i < numModes; ++i) {
-                outColorModes->replaceAt(static_cast<android_color_mode_t>(reply.readInt32()), i);
+                outColorModes->replaceAt(static_cast<ColorMode>(reply.readInt32()), i);
             }
         }
         return result;
     }
 
-    virtual android_color_mode_t getActiveColorMode(const sp<IBinder>& display) {
+    virtual ColorMode getActiveColorMode(const sp<IBinder>& display) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
             ALOGE("getActiveColorMode failed to writeInterfaceToken: %d", result);
-            return static_cast<android_color_mode_t>(result);
+            return static_cast<ColorMode>(result);
         }
         result = data.writeStrongBinder(display);
         if (result != NO_ERROR) {
             ALOGE("getActiveColorMode failed to writeStrongBinder: %d", result);
-            return static_cast<android_color_mode_t>(result);
+            return static_cast<ColorMode>(result);
         }
         result = remote()->transact(BnSurfaceComposer::GET_ACTIVE_COLOR_MODE, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("getActiveColorMode failed to transact: %d", result);
-            return static_cast<android_color_mode_t>(result);
+            return static_cast<ColorMode>(result);
         }
-        return static_cast<android_color_mode_t>(reply.readInt32());
+        return static_cast<ColorMode>(reply.readInt32());
     }
 
     virtual status_t setActiveColorMode(const sp<IBinder>& display,
-            android_color_mode_t colorMode) {
+            ColorMode colorMode) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -412,7 +412,7 @@ public:
             ALOGE("setActiveColorMode failed to writeStrongBinder: %d", result);
             return result;
         }
-        result = data.writeInt32(colorMode);
+        result = data.writeInt32(static_cast<int32_t>(colorMode));
         if (result != NO_ERROR) {
             ALOGE("setActiveColorMode failed to writeInt32: %d", result);
             return result;
@@ -739,7 +739,7 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_DISPLAY_COLOR_MODES: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            Vector<android_color_mode_t> colorModes;
+            Vector<ColorMode> colorModes;
             sp<IBinder> display = nullptr;
             status_t result = data.readStrongBinder(&display);
             if (result != NO_ERROR) {
@@ -751,7 +751,7 @@ status_t BnSurfaceComposer::onTransact(
             if (result == NO_ERROR) {
                 reply->writeUint32(static_cast<uint32_t>(colorModes.size()));
                 for (size_t i = 0; i < colorModes.size(); ++i) {
-                    reply->writeInt32(colorModes[i]);
+                    reply->writeInt32(static_cast<int32_t>(colorModes[i]));
                 }
             }
             return NO_ERROR;
@@ -764,7 +764,7 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("getActiveColorMode failed to readStrongBinder: %d", result);
                 return result;
             }
-            android_color_mode_t colorMode = getActiveColorMode(display);
+            ColorMode colorMode = getActiveColorMode(display);
             result = reply->writeInt32(static_cast<int32_t>(colorMode));
             return result;
         }
@@ -783,7 +783,7 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             result = setActiveColorMode(display,
-                    static_cast<android_color_mode_t>(colorModeInt));
+                    static_cast<ColorMode>(colorModeInt));
             result = reply->writeInt32(result);
             return result;
         }

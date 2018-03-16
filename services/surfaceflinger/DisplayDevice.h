@@ -31,6 +31,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
+#include <ui/GraphicsTypes.h>
 #include "RenderArea.h"
 #include "RenderEngine/Surface.h"
 
@@ -155,8 +156,8 @@ public:
     void setPowerMode(int mode);
     bool isDisplayOn() const;
 
-    android_color_mode_t getActiveColorMode() const;
-    void setActiveColorMode(android_color_mode_t mode);
+    ColorMode getActiveColorMode() const;
+    void setActiveColorMode(ColorMode mode);
     void setCompositionDataSpace(android_dataspace dataspace);
 
     /* ------------------------------------------------------------------------
@@ -230,7 +231,7 @@ private:
     // Current active config
     int mActiveConfig;
     // current active color mode
-    android_color_mode_t mActiveColorMode;
+    ColorMode mActiveColorMode;
 
     // Need to know if display is wide-color capable or not.
     // Initialized by SurfaceFlinger when the DisplayDevice is created.
@@ -279,7 +280,7 @@ public:
     bool needsFiltering() const override { return mDevice->needsFiltering(); }
     Rect getSourceCrop() const override { return mSourceCrop; }
     bool getWideColorSupport() const override { return mDevice->getWideColorSupport(); }
-    android_color_mode_t getActiveColorMode() const override {
+    ColorMode getActiveColorMode() const override {
         return mDevice->getActiveColorMode();
     }
 

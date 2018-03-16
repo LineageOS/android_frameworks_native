@@ -23,6 +23,7 @@
 #include <sys/types.h>
 
 #include <ui/Fence.h>
+#include <ui/GraphicsTypes.h>
 
 #include <utils/BitSet.h>
 #include <utils/Condition.h>
@@ -158,9 +159,9 @@ public:
     std::shared_ptr<const HWC2::Display::Config>
             getActiveConfig(int32_t displayId) const;
 
-    std::vector<android_color_mode_t> getColorModes(int32_t displayId) const;
+    std::vector<ColorMode> getColorModes(int32_t displayId) const;
 
-    status_t setActiveColorMode(int32_t displayId, android_color_mode_t mode);
+    status_t setActiveColorMode(int32_t displayId, ColorMode mode);
 
     bool isUsingVrComposer() const;
 
