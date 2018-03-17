@@ -72,6 +72,7 @@ cc_library_static {
     srcs: sourceFiles,
     export_include_dirs: includeFiles,
 
+    clang: true,
     cflags: [
         "-DLOG_TAG=\"vr_flinger\"",
         "-DTRACE=0",
@@ -82,6 +83,9 @@ cc_library_static {
         "-Werror",
         "-Wno-error=sign-compare", // to fix later
         "-Wno-unused-variable",
+    ],
+    cppflags: [
+        "-std=c++1z"
     ],
     shared_libs: sharedLibraries,
     whole_static_libs: staticLibraries,

@@ -13,6 +13,7 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <tuple>
 #include <vector>
@@ -35,16 +36,19 @@
 namespace android {
 namespace dvr {
 
-// Basic display metrics for physical displays. Dimensions and densities are
-// relative to the physical display orientation, which may be different from the
-// logical display orientation exposed to applications.
-struct HWCDisplayMetrics {
+// Basic display metrics for physical displays.
+struct DisplayParams {
+  hwc2_display_t id;
+  bool is_primary;
+
   int width;
   int height;
+
   struct {
     int x;
     int y;
   } dpi;
+
   int vsync_period_ns;
 };
 
@@ -58,26 +62,29 @@ class Layer {
   // automatically handles ACQUIRE/RELEASE phases for the surface's buffer train
   // every frame.
   //
+  // |composer| The composer instance.
+  // |display_params| Info about the display to use.
   // |blending| receives HWC_BLENDING_* values.
-  // |transform| receives HWC_TRANSFORM_* values.
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
   // |index| is the index of this surface in the DirectDisplaySurface array.
-  Layer(const std::shared_ptr<DirectDisplaySurface>& surface,
-        HWC::BlendMode blending, HWC::Transform transform,
-        HWC::Composition composition_type, size_t z_roder);
+  Layer(Hwc2::Composer* composer, const DisplayParams& display_params,
+        const std::shared_ptr<DirectDisplaySurface>& surface,
+        HWC::BlendMode blending, HWC::Composition composition_type,
+        size_t z_order);
 
   // Sets up the layer to use a direct buffer as its content source. No special
   // handling of the buffer is performed; responsibility for updating or
   // changing the buffer each frame is on the caller.
   //
+  // |composer| The composer instance.
+  // |display_params| Info about the display to use.
   // |blending| receives HWC_BLENDING_* values.
-  // |transform| receives HWC_TRANSFORM_* values.
   // |composition_type| receives either HWC_FRAMEBUFFER for most layers or
   // HWC_FRAMEBUFFER_TARGET (unless you know what you are doing).
-  Layer(const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
-        HWC::Transform transform, HWC::Composition composition_type,
-        size_t z_order);
+  Layer(Hwc2::Composer* composer, const DisplayParams& display_params,
+        const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
+        HWC::Composition composition_type, size_t z_order);
 
   Layer(Layer&&);
   Layer& operator=(Layer&&);
@@ -144,17 +151,8 @@ class Layer {
   }
   bool operator<(int surface_id) const { return GetSurfaceId() < surface_id; }
 
-  // Sets the composer instance used by all Layer instances.
-  static void SetComposer(Hwc2::Composer* composer) { composer_ = composer; }
-
-  // Sets the display metrics used by all Layer instances.
-  static void SetDisplayMetrics(HWCDisplayMetrics display_metrics) {
-    display_metrics_ = display_metrics;
-  }
-
-  // Sets the display id used by all Layer instances.
-  static void SetDisplayId(hwc2_display_t display_id) {
-    display_id_ = display_id;
+  void IgnoreBadDisplayErrorsOnDestroy(bool ignore) {
+    ignore_bad_display_errors_on_destroy_ = ignore;
   }
 
  private:
@@ -174,21 +172,11 @@ class Layer {
   // associated and always returns false.
   bool CheckAndUpdateCachedBuffer(std::size_t slot, int buffer_id);
 
-  // Composer instance shared by all instances of Layer. This must be set
-  // whenever a new instance of the Composer is created. This may be set to
-  // nullptr as long as there are no instances of Layer that might need to use
-  // it.
-  static Hwc2::Composer* composer_;
+  // Composer instance.
+  Hwc2::Composer* composer_ = nullptr;
 
-  // Display metrics shared by all instances of Layer. This must be set at least
-  // once during VrFlinger initialization and is expected to remain constant
-  // thereafter.
-  static HWCDisplayMetrics display_metrics_;
-
-  // Id of the primary display. Shared by all instances of Layer. This must be
-  // set whenever the primary display id changes. This can be left unset as long
-  // as there are no instances of Layer that might need to use it.
-  static hwc2_display_t display_id_;
+  // Parameters of the display to use for this layer.
+  DisplayParams display_params_;
 
   // The hardware composer layer and metrics to use during the prepare cycle.
   hwc2_layer_t hardware_composer_layer_ = 0;
@@ -197,7 +185,6 @@ class Layer {
   // Prepare phase.
   size_t z_order_ = 0;
   HWC::BlendMode blending_ = HWC::BlendMode::None;
-  HWC::Transform transform_ = HWC::Transform::None;
   HWC::Composition composition_type_ = HWC::Composition::Invalid;
   HWC::Composition target_composition_type_ = HWC::Composition::Device;
 
@@ -293,6 +280,12 @@ class Layer {
   // importing a buffer HWC already knows about.
   std::map<std::size_t, int> cached_buffer_map_;
 
+  // When calling destroyLayer() on an external display that's been removed we
+  // typically get HWC2_ERROR_BAD_DISPLAY errors. If
+  // ignore_bad_display_errors_on_destroy_ is true, don't log the bad display
+  // errors, since they're expected.
+  bool ignore_bad_display_errors_on_destroy_ = false;
+
   Layer(const Layer&) = delete;
   void operator=(const Layer&) = delete;
 };
@@ -330,22 +323,12 @@ class HardwareComposer {
   // Called on a binder thread.
   void OnBootFinished();
 
-  // Get the HMD display metrics for the current display.
-  display::Metrics GetHmdDisplayMetrics() const;
-
   std::string Dump();
 
   void SetVSyncCallback(VSyncCallback callback);
 
-  // Metrics of the logical display, which is always landscape.
-  int DisplayWidth() const { return display_metrics_.width; }
-  int DisplayHeight() const { return display_metrics_.height; }
-  HWCDisplayMetrics display_metrics() const { return display_metrics_; }
-
-  // Metrics of the native display, which depends on the specific hardware
-  // implementation of the display.
-  HWCDisplayMetrics native_display_metrics() const {
-    return native_display_metrics_;
+  const DisplayParams& GetPrimaryDisplayParams() const {
+    return primary_display_;
   }
 
   // Sets the display surfaces to compose the hardware layer stack.
@@ -356,16 +339,16 @@ class HardwareComposer {
   void OnDeletedGlobalBuffer(DvrGlobalBufferKey key);
 
  private:
-  HWC::Error GetDisplayAttribute(Hwc2::Composer* composer,
-                                 hwc2_display_t display, hwc2_config_t config,
-                                 hwc2_attribute_t attributes,
-                                 int32_t* out_value) const;
-  HWC::Error GetDisplayMetrics(Hwc2::Composer* composer, hwc2_display_t display,
-                               hwc2_config_t config,
-                               HWCDisplayMetrics* out_metrics) const;
+  DisplayParams GetDisplayParams(Hwc2::Composer* composer,
+      hwc2_display_t display, bool is_primary);
 
-  HWC::Error EnableVsync(bool enabled);
-  HWC::Error SetPowerMode(bool active);
+  // Turn display vsync on/off. Returns true on success, false on failure.
+  bool EnableVsync(const DisplayParams& display, bool enabled);
+  // Turn display power on/off. Returns true on success, false on failure.
+  bool SetPowerMode(const DisplayParams& display, bool active);
+  // Convenience function to turn a display on/off. Turns both power and vsync
+  // on/off. Returns true on success, false on failure.
+  bool EnableDisplay(const DisplayParams& display, bool enabled);
 
   class ComposerCallback : public Hwc2::IComposerCallback {
    public:
@@ -376,22 +359,38 @@ class HardwareComposer {
     hardware::Return<void> onVsync(Hwc2::Display display,
                                    int64_t timestamp) override;
 
-    bool HasDisplayId() { return has_display_id_; }
-    hwc2_display_t GetDisplayId() { return display_id_; }
-    pdx::Status<int64_t> GetVsyncTime();
+    bool GotFirstHotplug() { return got_first_hotplug_; }
+
+    struct Displays {
+      hwc2_display_t primary_display = 0;
+      std::optional<hwc2_display_t> external_display;
+      bool external_display_was_hotplugged = false;
+    };
+
+    Displays GetDisplays();
+    pdx::Status<int64_t> GetVsyncTime(hwc2_display_t display);
 
    private:
-    std::mutex vsync_mutex_;
-    bool has_display_id_ = false;
-    hwc2_display_t display_id_;
-    pdx::LocalHandle driver_vsync_event_fd_;
-    int64_t callback_vsync_timestamp_{0};
+    struct DisplayInfo {
+      hwc2_display_t id = 0;
+      pdx::LocalHandle driver_vsync_event_fd;
+      int64_t callback_vsync_timestamp{0};
+    };
+
+    DisplayInfo* GetDisplayInfo(hwc2_display_t display);
+
+    std::mutex mutex_;
+
+    bool got_first_hotplug_ = false;
+    DisplayInfo primary_display_;
+    std::optional<DisplayInfo> external_display_;
+    bool external_display_was_hotplugged_ = false;
   };
 
   HWC::Error Validate(hwc2_display_t display);
   HWC::Error Present(hwc2_display_t display);
 
-  void PostLayers();
+  void PostLayers(hwc2_display_t display);
   void PostThread();
 
   // The post thread has two controlling states:
@@ -419,16 +418,24 @@ class HardwareComposer {
   int PostThreadPollInterruptible(const pdx::LocalHandle& event_fd,
                                   int requested_events, int timeout_ms);
 
-  // WaitForVSync and SleepUntil are blocking calls made on the post thread that
-  // can be interrupted by a control thread. If interrupted, these calls return
-  // kPostThreadInterrupted.
+  // WaitForPredictedVSync and SleepUntil are blocking calls made on the post
+  // thread that can be interrupted by a control thread. If interrupted, these
+  // calls return kPostThreadInterrupted.
   int ReadWaitPPState();
-  pdx::Status<int64_t> WaitForVSync();
+  pdx::Status<int64_t> WaitForPredictedVSync();
   int SleepUntil(int64_t wakeup_timestamp);
+
+  // Initialize any newly connected displays, and set target_display_ to the
+  // display we should render to. Returns true if target_display_
+  // changed. Called only from the post thread.
+  bool UpdateTargetDisplay();
 
   // Reconfigures the layer stack if the display surfaces changed since the last
   // frame. Called only from the post thread.
-  bool UpdateLayerConfig();
+  void UpdateLayerConfig();
+
+  // Called on the post thread to create the Composer instance.
+  void CreateComposer();
 
   // Called on the post thread when the post thread is resumed.
   void OnPostThreadResumed();
@@ -459,18 +466,19 @@ class HardwareComposer {
   sp<ComposerCallback> composer_callback_;
   RequestDisplayCallback request_display_callback_;
 
-  // Display metrics of the physical display.
-  HWCDisplayMetrics native_display_metrics_;
-  // Display metrics of the logical display, adjusted so that orientation is
-  // landscape.
-  HWCDisplayMetrics display_metrics_;
-  // Transform required to get from native to logical display orientation.
-  HWC::Transform display_transform_ = HWC::Transform::None;
+  DisplayParams primary_display_;
+  std::optional<DisplayParams> external_display_;
+  DisplayParams* target_display_ = &primary_display_;
 
-  // Pending surface list. Set by the display service when DirectSurfaces are
-  // added, removed, or change visibility. Written by the message dispatch
-  // thread and read by the post thread.
-  std::vector<std::shared_ptr<DirectDisplaySurface>> pending_surfaces_;
+  // The list of surfaces we should draw. Set by the display service when
+  // DirectSurfaces are added, removed, or change visibility. Written by the
+  // message dispatch thread and read by the post thread.
+  std::vector<std::shared_ptr<DirectDisplaySurface>> surfaces_;
+  // Set to true by the dispatch thread whenever surfaces_ changes. Set to false
+  // by the post thread when the new list of surfaces is processed.
+  bool surfaces_changed_ = false;
+
+  std::vector<std::shared_ptr<DirectDisplaySurface>> current_surfaces_;
 
   // Layer set for handling buffer flow into hardware composer layers. This
   // vector must be sorted by surface_id in ascending order.

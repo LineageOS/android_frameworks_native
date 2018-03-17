@@ -2034,7 +2034,7 @@ void SurfaceFlinger::postFramebuffer()
                         displayDevice->getClientTargetAcquireFence());
             }
 
-            layer->onLayerDisplayed(releaseFence);
+            layer->getBE().onLayerDisplayed(releaseFence);
         }
 
         // We've got a list of layers needing fences, that are disjoint with
@@ -2043,7 +2043,7 @@ void SurfaceFlinger::postFramebuffer()
         if (!displayDevice->getLayersNeedingFences().isEmpty()) {
             sp<Fence> presentFence = getBE().mHwc->getPresentFence(hwcId);
             for (auto& layer : displayDevice->getLayersNeedingFences()) {
-                layer->onLayerDisplayed(presentFence);
+                layer->getBE().onLayerDisplayed(presentFence);
             }
         }
 
