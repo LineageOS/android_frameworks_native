@@ -20,6 +20,7 @@
 
 #include <errno.h>
 #include <grp.h>
+#include <poll.h>
 #include <pwd.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -35,6 +36,7 @@
 #include <vector>
 
 #include <android-base/file.h>
+#include <android-base/macros.h>
 #include <log/log.h>
 
 uint64_t Nanotime() {
@@ -154,22 +156,16 @@ int DumpFileFromFdToFd(const std::string& title, const std::string& path_string,
         return 0;
     }
     bool newline = false;
-    fd_set read_set;
-    timeval tm;
     while (true) {
-        FD_ZERO(&read_set);
-        FD_SET(fd, &read_set);
-        /* Timeout if no data is read for 30 seconds. */
-        tm.tv_sec = 30;
-        tm.tv_usec = 0;
-        uint64_t elapsed = Nanotime();
-        int ret = TEMP_FAILURE_RETRY(select(fd + 1, &read_set, nullptr, nullptr, &tm));
+        uint64_t start_time = Nanotime();
+        pollfd fds[] = { { .fd = fd, .events = POLLIN } };
+        int ret = TEMP_FAILURE_RETRY(poll(fds, arraysize(fds), 30 * 1000));
         if (ret == -1) {
-            dprintf(out_fd, "*** %s: select failed: %s\n", path, strerror(errno));
+            dprintf(out_fd, "*** %s: poll failed: %s\n", path, strerror(errno));
             newline = true;
             break;
         } else if (ret == 0) {
-            elapsed = Nanotime() - elapsed;
+            uint64_t elapsed = Nanotime() - start_time;
             dprintf(out_fd, "*** %s: Timed out after %.3fs\n", path, (float)elapsed / NANOS_PER_SEC);
             newline = true;
             break;
