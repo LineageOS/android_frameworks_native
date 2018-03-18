@@ -92,7 +92,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mLastFrameNumberReceived(0),
         mAutoRefresh(false),
         mFreezeGeometryUpdates(false),
-        mBE{this} {
+        mBE{this, name.string()} {
 
     mCurrentCrop.makeInvalid();
 
