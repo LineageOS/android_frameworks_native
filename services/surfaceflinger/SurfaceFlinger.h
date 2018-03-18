@@ -387,16 +387,16 @@ private:
                                    int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
                                    ISurfaceComposer::Rotation rotation);
     virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
-                                   const Rect& sourceCrop, float frameScale);
+                                   const Rect& sourceCrop, float frameScale, bool childrenOnly);
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats);
     virtual status_t getDisplayConfigs(const sp<IBinder>& display,
             Vector<DisplayInfo>* configs);
     virtual int getActiveConfig(const sp<IBinder>& display);
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<android_color_mode_t>* configs);
-    virtual android_color_mode_t getActiveColorMode(const sp<IBinder>& display);
-    virtual status_t setActiveColorMode(const sp<IBinder>& display, android_color_mode_t colorMode);
+            Vector<ColorMode>* configs);
+    virtual ColorMode getActiveColorMode(const sp<IBinder>& display);
+    virtual status_t setActiveColorMode(const sp<IBinder>& display, ColorMode colorMode);
     virtual void setPowerMode(const sp<IBinder>& display, int mode);
     virtual status_t setActiveConfig(const sp<IBinder>& display, int id);
     virtual status_t clearAnimationFrameStats();
@@ -446,7 +446,7 @@ private:
                               bool stateLockHeld);
 
     // Called on the main thread in response to setActiveColorMode()
-    void setActiveColorModeInternal(const sp<DisplayDevice>& hw, android_color_mode_t colorMode);
+    void setActiveColorModeInternal(const sp<DisplayDevice>& hw, ColorMode colorMode);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -619,7 +619,7 @@ private:
 
     // Given a dataSpace, returns the appropriate color_mode to use
     // to display that dataSpace.
-    android_color_mode pickColorMode(android_dataspace dataSpace) const;
+    ColorMode pickColorMode(android_dataspace dataSpace) const;
     android_dataspace bestTargetDataSpace(android_dataspace a, android_dataspace b,
             bool hasHdr) const;
 

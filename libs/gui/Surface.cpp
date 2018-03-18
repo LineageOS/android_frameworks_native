@@ -326,7 +326,7 @@ status_t Surface::getWideColorSupport(bool* supported) {
 
     sp<IBinder> display(
         composerService()->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
-    Vector<android_color_mode_t> colorModes;
+    Vector<ColorMode> colorModes;
     status_t err =
         composerService()->getDisplayColorModes(display, &colorModes);
 
@@ -338,11 +338,11 @@ status_t Surface::getWideColorSupport(bool* supported) {
                 &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
 
     *supported = false;
-    for (android_color_mode_t colorMode : colorModes) {
+    for (ColorMode colorMode : colorModes) {
         switch (colorMode) {
-            case HAL_COLOR_MODE_DISPLAY_P3:
-            case HAL_COLOR_MODE_ADOBE_RGB:
-            case HAL_COLOR_MODE_DCI_P3:
+            case ColorMode::DISPLAY_P3:
+            case ColorMode::ADOBE_RGB:
+            case ColorMode::DCI_P3:
                 if (wideColorBoardConfig) {
                     *supported = true;
                 }

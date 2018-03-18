@@ -698,16 +698,16 @@ status_t SurfaceComposerClient::setActiveConfig(const sp<IBinder>& display, int 
 }
 
 status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,
-        Vector<android_color_mode_t>* outColorModes) {
+        Vector<ColorMode>* outColorModes) {
     return ComposerService::getComposerService()->getDisplayColorModes(display, outColorModes);
 }
 
-android_color_mode_t SurfaceComposerClient::getActiveColorMode(const sp<IBinder>& display) {
+ColorMode SurfaceComposerClient::getActiveColorMode(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->getActiveColorMode(display);
 }
 
 status_t SurfaceComposerClient::setActiveColorMode(const sp<IBinder>& display,
-        android_color_mode_t colorMode) {
+        ColorMode colorMode) {
     return ComposerService::getComposerService()->setActiveColorMode(display, colorMode);
 }
 
@@ -751,7 +751,17 @@ status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle, Rect so
                                          float frameScale, sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == NULL) return NO_INIT;
-    status_t ret = s->captureLayers(layerHandle, outBuffer, sourceCrop, frameScale);
+    status_t ret = s->captureLayers(layerHandle, outBuffer, sourceCrop, frameScale,
+                                    false /* childrenOnly */);
+    return ret;
+}
+
+status_t ScreenshotClient::captureChildLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,
+                                              float frameScale, sp<GraphicBuffer>* outBuffer) {
+    sp<ISurfaceComposer> s(ComposerService::getComposerService());
+    if (s == NULL) return NO_INIT;
+    status_t ret = s->captureLayers(layerHandle, outBuffer, sourceCrop, frameScale,
+                                    true /* childrenOnly */);
     return ret;
 }
 // ----------------------------------------------------------------------------

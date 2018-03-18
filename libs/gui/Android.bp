@@ -122,6 +122,7 @@ cc_library_shared {
     ],
 
     shared_libs: [
+        "android.hardware.graphics.common@1.1",
         "libsync",
         "libbinder",
         "libbufferhubqueue",  // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
@@ -154,6 +155,7 @@ cc_library_shared {
         "libui",
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.common@1.1",
     ],
 
     export_header_lib_headers: [

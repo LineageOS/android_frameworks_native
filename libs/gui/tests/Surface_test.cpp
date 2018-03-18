@@ -577,15 +577,15 @@ public:
         return NO_ERROR;
     }
     status_t getDisplayColorModes(const sp<IBinder>& /*display*/,
-            Vector<android_color_mode_t>* /*outColorModes*/) override {
+            Vector<ColorMode>* /*outColorModes*/) override {
         return NO_ERROR;
     }
-    android_color_mode_t getActiveColorMode(const sp<IBinder>& /*display*/)
+    ColorMode getActiveColorMode(const sp<IBinder>& /*display*/)
             override {
-        return HAL_COLOR_MODE_NATIVE;
+        return ColorMode::NATIVE;
     }
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
-            android_color_mode_t /*colorMode*/) override { return NO_ERROR; }
+        ColorMode /*colorMode*/) override { return NO_ERROR; }
     status_t captureScreen(const sp<IBinder>& /*display*/,
             sp<GraphicBuffer>* /*outBuffer*/,
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
@@ -593,8 +593,8 @@ public:
             bool /*useIdentityTransform*/,
             Rotation /*rotation*/) override { return NO_ERROR; }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
-                                   sp<GraphicBuffer>* /*outBuffer*/,
-                                   const Rect& /*sourceCrop*/, float /*frameScale*/) override {
+                                   sp<GraphicBuffer>* /*outBuffer*/, const Rect& /*sourceCrop*/,
+                                   float /*frameScale*/, bool /*childrenOnly*/) override {
         return NO_ERROR;
     }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }

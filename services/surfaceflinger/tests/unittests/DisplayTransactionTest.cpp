@@ -165,9 +165,7 @@ TEST_F(DisplayTransactionTest, processDisplayChangesLockedProcessesPrimaryDispla
 
     EXPECT_CALL(*mComposer, getActiveConfig(DisplayDevice::DISPLAY_PRIMARY, _))
             .WillOnce(DoAll(SetArgPointee<1>(0), Return(Error::NONE)));
-    EXPECT_CALL(*mComposer, getColorModes(DisplayDevice::DISPLAY_PRIMARY, _))
-            .WillOnce(DoAll(SetArgPointee<1>(std::vector<ColorMode>({ColorMode::NATIVE})),
-                            Return(Error::NONE)));
+    EXPECT_CALL(*mComposer, getColorModes(DisplayDevice::DISPLAY_PRIMARY, _)).Times(0);
     EXPECT_CALL(*mComposer, getHdrCapabilities(DisplayDevice::DISPLAY_PRIMARY, _, _, _, _))
             .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hdr>()), Return(Error::NONE)));
 
