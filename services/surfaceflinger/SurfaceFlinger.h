@@ -720,6 +720,7 @@ private:
 
     // Can't be unordered_set because wp<> isn't hashable
     std::set<wp<IBinder>> mGraphicBufferProducerList;
+    size_t mMaxGraphicBufferProducerListSize = MAX_LAYERS;
 
     // protected by mStateLock (but we could use another lock)
     bool mLayersRemoved;
