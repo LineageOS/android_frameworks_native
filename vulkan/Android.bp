@@ -45,6 +45,12 @@ cc_library_headers {
     sdk_version: "24",
 }
 
+llndk_library {
+    name: "libvulkan",
+    symbol_file: "libvulkan/libvulkan.map.txt",
+    export_include_dirs: ["include"],
+}
+
 subdirs = [
     "nulldrv",
     "libvulkan",
