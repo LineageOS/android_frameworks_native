@@ -4487,6 +4487,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
     if (CC_UNLIKELY(display == 0)) return BAD_VALUE;
 
     const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
+    if (CC_UNLIKELY(device == 0)) return BAD_VALUE;
+
     DisplayRenderArea renderArea(device, sourceCrop, reqHeight, reqWidth, rotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
