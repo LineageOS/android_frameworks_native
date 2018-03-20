@@ -145,32 +145,32 @@ void Device::destroyDisplay(hwc2_display_t displayId)
 
 void Device::onHotplug(hwc2_display_t displayId, Connection connection) {
     if (connection == Connection::Connected) {
-        auto display = getDisplayById(displayId);
-        if (display) {
-            if (display->isConnected()) {
-                ALOGW("Attempt to hotplug connect display %" PRIu64
-                        " , which is already connected.", displayId);
-            } else {
-                display->setConnected(true);
-            }
-        } else {
-            DisplayType displayType;
-            auto intError = mComposer->getDisplayType(displayId,
-                    reinterpret_cast<Hwc2::IComposerClient::DisplayType *>(
-                            &displayType));
-            auto error = static_cast<Error>(intError);
-            if (error != Error::None) {
-                ALOGE("getDisplayType(%" PRIu64 ") failed: %s (%d). "
-                        "Aborting hotplug attempt.",
-                        displayId, to_string(error).c_str(), intError);
-                return;
-            }
-
-            auto newDisplay = std::make_unique<Display>(
-                    *mComposer.get(), mCapabilities, displayId, displayType);
-            newDisplay->setConnected(true);
-            mDisplays.emplace(displayId, std::move(newDisplay));
+        // If we get a hotplug connected event for a display we already have,
+        // destroy the display and recreate it. This will force us to requery
+        // the display params and recreate all layers on that display.
+        auto oldDisplay = getDisplayById(displayId);
+        if (oldDisplay != nullptr && oldDisplay->isConnected()) {
+            ALOGI("Hotplug connecting an already connected display."
+                    " Clearing old display state.");
         }
+        mDisplays.erase(displayId);
+
+        DisplayType displayType;
+        auto intError = mComposer->getDisplayType(displayId,
+                reinterpret_cast<Hwc2::IComposerClient::DisplayType *>(
+                        &displayType));
+        auto error = static_cast<Error>(intError);
+        if (error != Error::None) {
+            ALOGE("getDisplayType(%" PRIu64 ") failed: %s (%d). "
+                    "Aborting hotplug attempt.",
+                    displayId, to_string(error).c_str(), intError);
+            return;
+        }
+
+        auto newDisplay = std::make_unique<Display>(
+                *mComposer.get(), mCapabilities, displayId, displayType);
+        newDisplay->setConnected(true);
+        mDisplays.emplace(displayId, std::move(newDisplay));
     } else if (connection == Connection::Disconnected) {
         // The display will later be destroyed by a call to
         // destroyDisplay(). For now we just mark it disconnected.
