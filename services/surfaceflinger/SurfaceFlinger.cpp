@@ -260,6 +260,11 @@ SurfaceFlinger::SurfaceFlinger()
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
+    // TODO (b/74616334): Reduce the default value once we isolate the leak
+    const size_t defaultListSize = 4 * MAX_LAYERS;
+    auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
+    mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
+
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
     // comes online to attempt to read the property. The property is
@@ -2896,8 +2901,11 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         }
 
         mGraphicBufferProducerList.insert(IInterface::asBinder(gbc).get());
-        LOG_ALWAYS_FATAL_IF(mGraphicBufferProducerList.size() > MAX_LAYERS,
-                            "Suspected IGBP leak");
+        // TODO (b/74616334): Change this back to a fatal assert once the leak is fixed
+        ALOGE_IF(mGraphicBufferProducerList.size() > mMaxGraphicBufferProducerListSize,
+                 "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
+                 mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
+                 mNumLayers);
         mLayersAdded = true;
         mNumLayers++;
     }
@@ -3966,6 +3974,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
      */
     colorizer.bold(result);
     result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
+    result.appendFormat("GraphicBufferProducers: %zu, max %zu\n",
+                        mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);
 
     LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
@@ -4410,6 +4420,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
     if (CC_UNLIKELY(display == 0)) return BAD_VALUE;
 
     const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
+    if (CC_UNLIKELY(device == 0)) return BAD_VALUE;
+
     DisplayRenderArea renderArea(device, sourceCrop, reqHeight, reqWidth, rotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
