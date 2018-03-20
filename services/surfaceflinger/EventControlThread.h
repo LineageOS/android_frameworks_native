@@ -16,8 +16,8 @@
 
 #pragma once
 
-#include <cstddef>
 #include <condition_variable>
+#include <cstddef>
 #include <functional>
 #include <mutex>
 #include <thread>
@@ -30,12 +30,22 @@ class SurfaceFlinger;
 
 class EventControlThread {
 public:
+    virtual ~EventControlThread();
+
+    virtual void setVsyncEnabled(bool enabled) = 0;
+};
+
+namespace impl {
+
+class EventControlThread final : public android::EventControlThread {
+public:
     using SetVSyncEnabledFunction = std::function<void(bool)>;
 
     explicit EventControlThread(SetVSyncEnabledFunction function);
     ~EventControlThread();
 
-    void setVsyncEnabled(bool enabled);
+    // EventControlThread implementation
+    void setVsyncEnabled(bool enabled) override;
 
 private:
     void threadMain();
@@ -51,4 +61,5 @@ private:
     std::thread mThread{&EventControlThread::threadMain, this};
 };
 
+} // namespace impl
 } // namespace android

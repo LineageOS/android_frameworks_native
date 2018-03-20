@@ -31,6 +31,10 @@ namespace android {
 
 // ----------------------------------------------------------------------------
 
+SurfaceInterceptor::~SurfaceInterceptor() = default;
+
+namespace impl {
+
 SurfaceInterceptor::SurfaceInterceptor(SurfaceFlinger* flinger)
     :   mFlinger(flinger)
 {
@@ -593,5 +597,5 @@ void SurfaceInterceptor::savePowerModeUpdate(int32_t displayId, int32_t mode) {
     addPowerModeUpdateLocked(createTraceIncrementLocked(), displayId, mode);
 }
 
-
+} // namespace impl
 } // namespace android

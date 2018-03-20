@@ -44,12 +44,6 @@ public:
         mFlinger->getBE().mHwc.reset(new HWComposer(std::move(composer)));
     }
 
-    void setupPrimaryDisplay() {
-        mFlinger->getBE().mHwc->mHwcDevice->onHotplug(0, HWC2::Connection::Connected);
-        mFlinger->getBE().mHwc->onHotplug(0, DisplayDevice::DISPLAY_PRIMARY,
-                                          HWC2::Connection::Connected);
-    }
-
     using CreateBufferQueueFunction = SurfaceFlinger::CreateBufferQueueFunction;
 
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
@@ -72,6 +66,9 @@ public:
     auto& mutableEventThread() { return mFlinger->mEventThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
 
+    auto& mutableHwcDisplayData() { return mFlinger->getBE().mHwc->mDisplayData; }
+    auto& mutableHwcDisplaySlots() { return mFlinger->getBE().mHwc->mHwcDisplaySlots; }
+
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
         // not report a leaked object, since the SurfaceFlinger instance may
@@ -83,7 +80,25 @@ public:
         mFlinger->getBE().mRenderEngine.reset();
     }
 
-    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger();
+    /* ------------------------------------------------------------------------
+     * Wrapper classes for Read-write access to private data to set up
+     * preconditions and assert post-conditions.
+     */
+    struct HWC2Display : public HWC2::Display {
+        HWC2Display(Hwc2::Composer& composer,
+                    const std::unordered_set<HWC2::Capability>& capabilities, hwc2_display_t id,
+                    HWC2::DisplayType type)
+              : HWC2::Display(composer, capabilities, id, type) {}
+        ~HWC2Display() {
+            // Prevents a call to disable vsyncs.
+            mType = HWC2::DisplayType::Invalid;
+        }
+
+        auto& mutableIsConnected() { return this->mIsConnected; }
+        auto& mutableConfigs() { return this->mConfigs; }
+    };
+
+    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(SurfaceFlinger::SkipInitialization);
 };
 
 } // namespace android

@@ -129,6 +129,7 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
 
     auto display = std::make_unique<Display>(
             *mComposer.get(), mCapabilities, displayId, DisplayType::Virtual);
+    display->setConnected(true);
     *outDisplay = display.get();
     *format = static_cast<android_pixel_format_t>(intFormat);
     mDisplays.emplace(displayId, std::move(display));
@@ -167,6 +168,7 @@ void Device::onHotplug(hwc2_display_t displayId, Connection connection) {
 
             auto newDisplay = std::make_unique<Display>(
                     *mComposer.get(), mCapabilities, displayId, displayType);
+            newDisplay->setConnected(true);
             mDisplays.emplace(displayId, std::move(newDisplay));
         }
     } else if (connection == Connection::Disconnected) {
@@ -209,16 +211,14 @@ Error Device::flushCommands()
 // Display methods
 
 Display::Display(android::Hwc2::Composer& composer,
-                 const std::unordered_set<Capability>& capabilities,
-                 hwc2_display_t id, DisplayType type)
-  : mComposer(composer),
-    mCapabilities(capabilities),
-    mId(id),
-    mIsConnected(false),
-    mType(type)
-{
+                 const std::unordered_set<Capability>& capabilities, hwc2_display_t id,
+                 DisplayType type)
+      : mComposer(composer),
+        mCapabilities(capabilities),
+        mId(id),
+        mIsConnected(false),
+        mType(type) {
     ALOGV("Created display %" PRIu64, id);
-    setConnected(true);
 }
 
 Display::~Display() {

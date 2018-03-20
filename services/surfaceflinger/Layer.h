@@ -67,6 +67,10 @@ class SurfaceFlinger;
 class LayerDebugInfo;
 class LayerBE;
 
+namespace impl {
+class SurfaceInterceptor;
+}
+
 // ---------------------------------------------------------------------------
 
 class Layer : public virtual RefBase {
@@ -542,7 +546,7 @@ protected:
 
     virtual void onFirstRef();
 
-    friend class SurfaceInterceptor;
+    friend class impl::SurfaceInterceptor;
 
     void commitTransaction(const State& stateToCommit);
 
