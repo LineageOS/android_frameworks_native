@@ -163,7 +163,7 @@ SurfaceFlingerBE::SurfaceFlingerBE()
         mComposerSequenceId(0) {
 }
 
-SurfaceFlinger::SurfaceFlinger()
+SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
       : BnSurfaceComposer(),
         mTransactionFlags(0),
         mTransactionPending(false),
@@ -186,7 +186,6 @@ SurfaceFlinger::SurfaceFlinger()
         mLastTransactionTime(0),
         mBootFinished(false),
         mForceFullDamage(false),
-        mInterceptor(this),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
@@ -195,7 +194,9 @@ SurfaceFlinger::SurfaceFlinger()
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
-        mCreateBufferQueue(&BufferQueue::createBufferQueue) {
+        mCreateBufferQueue(&BufferQueue::createBufferQueue) {}
+
+SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
 
     vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
@@ -282,7 +283,7 @@ SurfaceFlinger::SurfaceFlinger()
 
 void SurfaceFlinger::onFirstRef()
 {
-    mEventQueue.init(this);
+    mEventQueue->init(this);
 }
 
 SurfaceFlinger::~SurfaceFlinger()
@@ -348,7 +349,7 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
     DisplayDeviceState info(DisplayDevice::DISPLAY_VIRTUAL, secure);
     info.displayName = displayName;
     mCurrentState.displays.add(token, info);
-    mInterceptor.saveDisplayCreation(info);
+    mInterceptor->saveDisplayCreation(info);
     return token;
 }
 
@@ -366,7 +367,7 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& display) {
         ALOGE("destroyDisplay called for non-virtual display");
         return;
     }
-    mInterceptor.saveDisplayDeletion(info.displayId);
+    mInterceptor->saveDisplayDeletion(info.displayId);
     mCurrentState.displays.removeItemsAt(idx);
     setTransactionFlags(eDisplayTransactionNeeded);
 }
@@ -588,9 +589,10 @@ void SurfaceFlinger::init() {
     mSfEventThreadSource =
             std::make_unique<DispSyncSource>(&mPrimaryDispSync,
                                              SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
+
     mSFEventThread = std::make_unique<impl::EventThread>(mSfEventThreadSource.get(), *this, true,
                                                          "sfEventThread");
-    mEventQueue.setEventThread(mSFEventThread.get());
+    mEventQueue->setEventThread(mSFEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
     getBE().mRenderEngine =
@@ -637,9 +639,8 @@ void SurfaceFlinger::init() {
         }
     }
 
-    mEventControlThread = std::make_unique<EventControlThread>([this](bool enabled) {
-        setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled);
-    });
+    mEventControlThread = std::make_unique<impl::EventControlThread>(
+            [this](bool enabled) { setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled); });
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -1079,10 +1080,10 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
                         std::make_unique<impl::EventThread>(mVSyncInjector.get(), *this, false,
                                                             "injEventThread");
             }
-            mEventQueue.setEventThread(mInjectorEventThread.get());
+            mEventQueue->setEventThread(mInjectorEventThread.get());
         } else {
             ALOGV("VSync Injections disabled");
-            mEventQueue.setEventThread(mSFEventThread.get());
+            mEventQueue->setEventThread(mSFEventThread.get());
         }
 
         mInjectVSyncs = enable;
@@ -1147,30 +1148,30 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
 // ----------------------------------------------------------------------------
 
 void SurfaceFlinger::waitForEvent() {
-    mEventQueue.waitMessage();
+    mEventQueue->waitMessage();
 }
 
 void SurfaceFlinger::signalTransaction() {
-    mEventQueue.invalidate();
+    mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::signalLayerUpdate() {
-    mEventQueue.invalidate();
+    mEventQueue->invalidate();
 }
 
 void SurfaceFlinger::signalRefresh() {
     mRefreshPending = true;
-    mEventQueue.refresh();
+    mEventQueue->refresh();
 }
 
 status_t SurfaceFlinger::postMessageAsync(const sp<MessageBase>& msg,
         nsecs_t reltime, uint32_t /* flags */) {
-    return mEventQueue.postMessage(msg, reltime);
+    return mEventQueue->postMessage(msg, reltime);
 }
 
 status_t SurfaceFlinger::postMessageSync(const sp<MessageBase>& msg,
         nsecs_t reltime, uint32_t /* flags */) {
-    status_t res = mEventQueue.postMessage(msg, reltime);
+    status_t res = mEventQueue->postMessage(msg, reltime);
     if (res == NO_ERROR) {
         msg->wait();
     }
@@ -2149,14 +2150,14 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             info.displayName = displayType == DisplayDevice::DISPLAY_PRIMARY ?
                     "Built-in Screen" : "External Screen";
             mCurrentState.displays.add(mBuiltinDisplays[displayType], info);
-            mInterceptor.saveDisplayCreation(info);
+            mInterceptor->saveDisplayCreation(info);
         } else {
             ALOGV("Removing built in display %d", displayType);
 
             ssize_t idx = mCurrentState.displays.indexOfKey(mBuiltinDisplays[displayType]);
             if (idx >= 0) {
                 const DisplayDeviceState& info(mCurrentState.displays.valueAt(idx));
-                mInterceptor.saveDisplayDeletion(info.displayId);
+                mInterceptor->saveDisplayDeletion(info.displayId);
                 mCurrentState.displays.removeItemsAt(idx);
             }
             mBuiltinDisplays[displayType].clear();
@@ -3083,8 +3084,8 @@ void SurfaceFlinger::setTransactionState(
     }
 
     if (transactionFlags) {
-        if (mInterceptor.isEnabled()) {
-            mInterceptor.saveTransaction(states, mCurrentState.displays, displays, flags);
+        if (mInterceptor->isEnabled()) {
+            mInterceptor->saveTransaction(states, mCurrentState.displays, displays, flags);
         }
 
         // this triggers the transaction
@@ -3387,7 +3388,7 @@ status_t SurfaceFlinger::createLayer(
     if (result != NO_ERROR) {
         return result;
     }
-    mInterceptor.saveSurfaceCreation(layer);
+    mInterceptor->saveSurfaceCreation(layer);
 
     setTransactionFlags(eTransactionNeeded);
     return result;
@@ -3459,7 +3460,7 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     status_t err = NO_ERROR;
     sp<Layer> l(client->getLayerUser(handle));
     if (l != nullptr) {
-        mInterceptor.saveSurfaceDeletion(l);
+        mInterceptor->saveSurfaceDeletion(l);
         err = removeLayer(l);
         ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
                 "error removing layer=%p (%s)", l.get(), strerror(-err));
@@ -3541,14 +3542,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         return;
     }
 
-    if (mInterceptor.isEnabled()) {
+    if (mInterceptor->isEnabled()) {
         ConditionalLock lock(mStateLock, !stateLockHeld);
         ssize_t idx = mCurrentState.displays.indexOfKey(hw->getDisplayToken());
         if (idx < 0) {
             ALOGW("Surface Interceptor SavePowerMode: invalid display token");
             return;
         }
-        mInterceptor.savePowerModeUpdate(mCurrentState.displays.valueAt(idx).displayId, mode);
+        mInterceptor->savePowerModeUpdate(mCurrentState.displays.valueAt(idx).displayId, mode);
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
@@ -4399,11 +4400,11 @@ status_t SurfaceFlinger::onTransact(
                 n = data.readInt32();
                 if (n) {
                     ALOGV("Interceptor enabled");
-                    mInterceptor.enable(mDrawingState.layersSortedByZ, mDrawingState.displays);
+                    mInterceptor->enable(mDrawingState.layersSortedByZ, mDrawingState.displays);
                 }
                 else{
                     ALOGV("Interceptor disabled");
-                    mInterceptor.disable();
+                    mInterceptor->disable();
                 }
                 return NO_ERROR;
             }

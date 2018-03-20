@@ -268,6 +268,9 @@ public:
         return "SurfaceFlinger";
     }
 
+    struct SkipInitializationTag {};
+    static constexpr SkipInitializationTag SkipInitialization;
+    explicit SurfaceFlinger(SkipInitializationTag) ANDROID_API;
     SurfaceFlinger() ANDROID_API;
 
     // must be called before clients can connect
@@ -779,7 +782,8 @@ private:
     bool mBootFinished;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
-    SurfaceInterceptor mInterceptor;
+    std::unique_ptr<SurfaceInterceptor> mInterceptor =
+            std::make_unique<impl::SurfaceInterceptor>(this);
     SurfaceTracing mTracing;
     LayerStats mLayerStats;
     bool mUseHwcVirtualDisplays = false;
@@ -788,7 +792,7 @@ private:
     bool mLayerTripleBufferingDisabled = false;
 
     // these are thread safe
-    mutable MessageQueue mEventQueue;
+    mutable std::unique_ptr<MessageQueue> mEventQueue{std::make_unique<impl::MessageQueue>()};
     FrameTracker mAnimFrameTracker;
     DispSync mPrimaryDispSync;
 

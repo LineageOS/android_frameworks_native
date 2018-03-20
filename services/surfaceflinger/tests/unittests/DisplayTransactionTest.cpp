@@ -44,6 +44,8 @@ using android::Hwc2::Error;
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
 
+using HWC2Display = TestableSurfaceFlinger::HWC2Display;
+
 constexpr int32_t DEFAULT_REFRESH_RATE = 1666666666;
 constexpr int32_t DEFAULT_DPI = 320;
 
@@ -57,6 +59,8 @@ protected:
 
     void expectFramebufferQueuePairCreation(int width, int height);
 
+    std::unordered_set<HWC2::Capability> mCapabilities;
+
     TestableSurfaceFlinger mFlinger;
     mock::EventThread* mEventThread = new mock::EventThread();
 
@@ -69,6 +73,7 @@ protected:
     // These mocks are created only when expected to be created via a factory.
     sp<mock::GraphicBufferConsumer> mConsumer;
     sp<mock::GraphicBufferProducer> mProducer;
+    std::unique_ptr<HWC2Display> mDisplay;
 };
 
 DisplayTransactionTest::DisplayTransactionTest() {
@@ -102,36 +107,22 @@ void DisplayTransactionTest::setupComposer(int virtualDisplayCount) {
 }
 
 void DisplayTransactionTest::setupPrimaryDisplay(int width, int height) {
-    EXPECT_CALL(*mComposer, getDisplayType(DisplayDevice::DISPLAY_PRIMARY, _))
-            .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
-                            Return(Error::NONE)));
-    EXPECT_CALL(*mComposer, setClientTargetSlotCount(_)).WillOnce(Return(Error::NONE));
-    EXPECT_CALL(*mComposer, getDisplayConfigs(_, _))
-            .WillOnce(DoAll(SetArgPointee<1>(std::vector<unsigned>{0}), Return(Error::NONE)));
-    EXPECT_CALL(*mComposer,
-                getDisplayAttribute(DisplayDevice::DISPLAY_PRIMARY, 0,
-                                    IComposerClient::Attribute::WIDTH, _))
-            .WillOnce(DoAll(SetArgPointee<3>(width), Return(Error::NONE)));
-    EXPECT_CALL(*mComposer,
-                getDisplayAttribute(DisplayDevice::DISPLAY_PRIMARY, 0,
-                                    IComposerClient::Attribute::HEIGHT, _))
-            .WillOnce(DoAll(SetArgPointee<3>(height), Return(Error::NONE)));
-    EXPECT_CALL(*mComposer,
-                getDisplayAttribute(DisplayDevice::DISPLAY_PRIMARY, 0,
-                                    IComposerClient::Attribute::VSYNC_PERIOD, _))
-            .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_REFRESH_RATE), Return(Error::NONE)));
-    EXPECT_CALL(*mComposer,
-                getDisplayAttribute(DisplayDevice::DISPLAY_PRIMARY, 0,
-                                    IComposerClient::Attribute::DPI_X, _))
-            .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
-    EXPECT_CALL(*mComposer,
-                getDisplayAttribute(DisplayDevice::DISPLAY_PRIMARY, 0,
-                                    IComposerClient::Attribute::DPI_Y, _))
-            .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
+    mDisplay = std::make_unique<HWC2Display>(*mComposer, mCapabilities, 0,
+                                             HWC2::DisplayType::Physical);
 
-    mFlinger.setupPrimaryDisplay();
+    mDisplay->mutableIsConnected() = true;
+    mDisplay->mutableConfigs().emplace(0,
+                                       HWC2::Display::Config::Builder(*mDisplay, 0)
+                                               .setWidth(width)
+                                               .setHeight(height)
+                                               .setVsyncPeriod(DEFAULT_REFRESH_RATE)
+                                               .setDpiX(DEFAULT_DPI)
+                                               .setDpiY(DEFAULT_DPI)
+                                               .build());
 
-    Mock::VerifyAndClear(mComposer);
+    mFlinger.mutableHwcDisplayData()[DisplayDevice::DISPLAY_PRIMARY].reset();
+    mFlinger.mutableHwcDisplayData()[DisplayDevice::DISPLAY_PRIMARY].hwcDisplay = mDisplay.get();
+    mFlinger.mutableHwcDisplaySlots().emplace(0, DisplayDevice::DISPLAY_PRIMARY);
 }
 
 void DisplayTransactionTest::expectFramebufferQueuePairCreation(int width, int height) {
@@ -195,9 +186,6 @@ TEST_F(DisplayTransactionTest, processDisplayChangesLockedProcessesPrimaryDispla
     ASSERT_GE(0, i);
     const auto& draw = mFlinger.mutableDrawingState().displays[i];
     EXPECT_EQ(DisplayDevice::DISPLAY_PRIMARY, draw.type);
-
-    EXPECT_CALL(*mComposer, setVsyncEnabled(0, IComposerClient::Vsync::DISABLE))
-            .WillOnce(Return(Error::NONE));
 
     EXPECT_CALL(*mConsumer, consumerDisconnect()).Times(1);
 }
