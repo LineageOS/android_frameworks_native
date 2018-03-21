@@ -427,14 +427,15 @@ typedef struct OMX_VIDEO_CONFIG_ANDROID_TEMPORALLAYERINGTYPE {
  * use cases, corresponding to index OMX_IndexParamVideoAndroidImageGrid.
  *
  * OMX_VIDEO_CodingImageHEIC encoders must handle this param type. When this param is set
- * on the component with bEnabled set to true, nGrid* indicates the desired grid config
- * by the client. The component can use this as a heuristic, but is free to choose any
- * suitable grid configs, and the client shall always get the actual from the component
- * after the param is set. Encoder will receive each input image in full, and shall encode
- * it into tiles in row-major, top-row first, left-to-right order, and send each encoded
- * tile in a separate output buffer. All output buffers for the same input buffer shall
- * carry the same timestamp as the input buffer. If the input buffer is marked EOS,
- * the EOS should only appear on the last output buffer for that input buffer.
+ * on the component with bEnabled set to true, nTileWidth, nTileHeight, nGridRows,
+ * nGridCols indicates the desired grid config by the client. The component can use this
+ * as a heuristic, and is free to choose any suitable grid configs. The client shall
+ * always get the actual from the component after the param is set. Encoder will receive
+ * each input image in full, and shall encode it into tiles in row-major, top-row first,
+ * left-to-right order, and send each encoded tile in a separate output buffer. All output
+ * buffers for the same input buffer shall carry the same timestamp as the input buffer.
+ * If the input buffer is marked EOS, the EOS should only appear on the last output buffer
+ * for that input buffer.
  *
  * OMX_VIDEO_CodingHEVC encoders might also receive this param when it's used for image
  * encoding, although in this case the param only serves as a hint. The encoder will
@@ -446,10 +447,10 @@ typedef struct OMX_VIDEO_CONFIG_ANDROID_TEMPORALLAYERINGTYPE {
  *  nSize                      : Size of the structure in bytes
  *  nVersion                   : OMX specification version information
  *  nPortIndex                 : Port that this structure applies to (output port for encoders)
- *  bEnabled                   : Whether grid is enabled. If true, nGrid* specifies the grid
- *                               config; otherwise nGrid* shall be ignored.
- *  nGridWidth                 : Width of each tile.
- *  nGridHeight                : Height of each tile.
+ *  bEnabled                   : Whether grid is enabled. If true, the other parameters
+ *                               specifies the grid config; otherwise they shall be ignored.
+ *  nTileWidth                 : Width of each tile.
+ *  nTileHeight                : Height of each tile.
  *  nGridRows                  : Number of rows in the grid.
  *  nGridCols                  : Number of cols in the grid.
  */
@@ -458,8 +459,8 @@ typedef struct OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE {
     OMX_VERSIONTYPE nVersion;
     OMX_U32 nPortIndex;
     OMX_BOOL bEnabled;
-    OMX_U32 nGridWidth;
-    OMX_U32 nGridHeight;
+    OMX_U32 nTileWidth;
+    OMX_U32 nTileHeight;
     OMX_U32 nGridRows;
     OMX_U32 nGridCols;
 } OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE;
