@@ -1054,38 +1054,6 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
             egl_tls_t::setContext(EGL_NO_CONTEXT);
         }
     } else {
-
-        if (cur_c != NULL) {
-            // Force return to current context for drivers that cannot handle errors
-            EGLBoolean restore_result = EGL_FALSE;
-            // get a reference to the old current objects
-            ContextRef _c2(dp.get(), cur_c);
-            SurfaceRef _d2(dp.get(), cur_c->draw);
-            SurfaceRef _r2(dp.get(), cur_c->read);
-
-            c = cur_c;
-            impl_ctx = c->context;
-            impl_draw = EGL_NO_SURFACE;
-            if (cur_c->draw != EGL_NO_SURFACE) {
-                d = get_surface(cur_c->draw);
-                impl_draw = d->surface;
-            }
-            impl_read = EGL_NO_SURFACE;
-            if (cur_c->read != EGL_NO_SURFACE) {
-                r = get_surface(cur_c->read);
-                impl_read = r->surface;
-            }
-            restore_result = dp->makeCurrent(c, cur_c,
-                    cur_c->draw, cur_c->read, cur_c->context,
-                    impl_draw, impl_read, impl_ctx);
-            if (restore_result == EGL_TRUE) {
-                _c2.acquire();
-                _r2.acquire();
-                _d2.acquire();
-            } else {
-                ALOGE("Could not restore original EGL context");
-            }
-        }
         // this will ALOGE the error
         egl_connection_t* const cnx = &gEGLImpl;
         result = setError(cnx->egl.eglGetError(), (EGLBoolean)EGL_FALSE);
