@@ -100,6 +100,41 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
       stream << std::setw(8) << info.index;
       stream << std::endl;
     }
+
+    if (channel->channel_type() == BufferHubChannel::kDetachedBufferType) {
+      BufferHubChannel::BufferInfo info = channel->GetBufferInfo();
+
+      stream << std::right;
+      stream << std::setw(6) << info.id;
+      stream << " ";
+      stream << std::setw(9) << "N/A";
+      stream << " ";
+      if (info.format == HAL_PIXEL_FORMAT_BLOB) {
+        std::string size = std::to_string(info.width) + " B";
+        stream << std::setw(14) << size;
+      } else {
+        std::string dimensions = std::to_string(info.width) + "x" +
+                                 std::to_string(info.height) + "x" +
+                                 std::to_string(info.layer_count);
+        stream << std::setw(14) << dimensions;
+      }
+      stream << " ";
+      stream << std::setw(6) << info.format;
+      stream << " ";
+      stream << "0x" << std::hex << std::setfill('0');
+      stream << std::setw(8) << info.usage;
+      stream << std::dec << std::setfill(' ');
+      stream << " ";
+      stream << std::setw(9) << "N/A";
+      stream << " ";
+      stream << std::hex << std::setfill(' ');
+      stream << std::setw(18) << "Detached";
+      stream << " ";
+      stream << std::setw(18) << "N/A";
+      stream << " ";
+      stream << std::setw(10) << "N/A";
+      stream << std::endl;
+    }
   }
 
   stream << std::endl;
@@ -213,6 +248,15 @@ pdx::Status<void> BufferHubService::HandleMessage(Message& message) {
     case BufferHubRPC::CreateProducerQueue::Opcode:
       DispatchRemoteMethod<BufferHubRPC::CreateProducerQueue>(
           *this, &BufferHubService::OnCreateProducerQueue, message);
+      return {};
+
+    case BufferHubRPC::ProducerBufferDetach::Opcode:
+      // In addition to the message handler in the ProducerChannel's
+      // HandleMessage method, we also need to invalid the producer channel (and
+      // all associated consumer channels). Note that this has to be done after
+      // HandleMessage returns to make sure the IPC request has went back to the
+      // client first.
+      SetChannel(channel->channel_id(), nullptr);
       return {};
 
     default:

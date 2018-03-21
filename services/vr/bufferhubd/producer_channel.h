@@ -99,6 +99,7 @@ class ProducerChannel : public BufferHubChannel {
   pdx::Status<BufferDescription<BorrowedHandle>> OnGetBuffer(Message& message);
   pdx::Status<void> OnProducerPost(Message& message, LocalFence acquire_fence);
   pdx::Status<LocalFence> OnProducerGain(Message& message);
+  pdx::Status<RemoteChannelHandle> OnProducerDetach(Message& message);
 
   ProducerChannel(const ProducerChannel&) = delete;
   void operator=(const ProducerChannel&) = delete;
