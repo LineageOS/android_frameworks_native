@@ -612,7 +612,25 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         uint32_t windowType,
         uint32_t ownerUid)
 {
+    sp<SurfaceControl> s;
+    createSurfaceChecked(name, w, h, format, &s, flags, parent, windowType, ownerUid);
+    return s;
+}
+
+status_t SurfaceComposerClient::createSurfaceChecked(
+        const String8& name,
+        uint32_t w,
+        uint32_t h,
+        PixelFormat format,
+        sp<SurfaceControl>* outSurface,
+        uint32_t flags,
+        SurfaceControl* parent,
+        uint32_t windowType,
+        uint32_t ownerUid)
+{
     sp<SurfaceControl> sur;
+    status_t err = NO_ERROR;
+
     if (mStatus == NO_ERROR) {
         sp<IBinder> handle;
         sp<IBinder> parentHandle;
@@ -621,14 +639,14 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
         if (parent != nullptr) {
             parentHandle = parent->getHandle();
         }
-        status_t err = mClient->createSurface(name, w, h, format, flags, parentHandle,
+        err = mClient->createSurface(name, w, h, format, flags, parentHandle,
                 windowType, ownerUid, &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
-            sur = new SurfaceControl(this, handle, gbp, true /* owned */);
+            *outSurface = new SurfaceControl(this, handle, gbp, true /* owned */);
         }
     }
-    return sur;
+    return err;
 }
 
 status_t SurfaceComposerClient::destroySurface(const sp<IBinder>& sid) {
