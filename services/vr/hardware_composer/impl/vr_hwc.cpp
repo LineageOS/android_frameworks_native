@@ -868,7 +868,7 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
 
   Error status = Error::NONE;
   sp<VrComposerClient> client;
-  if (client_ == nullptr) {
+  if (!client_.promote().get()) {
     client = new VrComposerClient(*this);
   } else {
     ALOGE("Already have a client");
