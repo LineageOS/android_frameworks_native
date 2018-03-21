@@ -217,6 +217,14 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   // succeeded, or a negative errno code if local error check fails.
   int GainAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
 
+  // Detaches a ProducerBuffer from an existing producer/consumer set. Can only
+  // be called when a producer buffer has exclusive access to the buffer (i.e.
+  // in the gain'ed state). On the successful return of the IPC call, a new
+  // LocalChannelHandle representing a detached buffer will be returned and all
+  // existing producer and consumer channels will be closed. Further IPCs
+  // towards those channels will return error.
+  Status<LocalChannelHandle> Detach();
+
  private:
   friend BASE;
 

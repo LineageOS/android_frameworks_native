@@ -23,6 +23,7 @@ class BufferHubChannel : public pdx::Channel {
   enum ChannelType {
     kProducerType,
     kConsumerType,
+    kDetachedBufferType,
     kProducerQueueType,
     kConsumerQueueType,
   };

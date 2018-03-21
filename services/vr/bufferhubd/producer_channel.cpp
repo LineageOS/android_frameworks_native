@@ -13,6 +13,7 @@
 
 #include <private/dvr/bufferhub_rpc.h>
 #include "consumer_channel.h"
+#include "detached_buffer_channel.h"
 
 using android::pdx::BorrowedHandle;
 using android::pdx::ErrorStatus;
@@ -131,8 +132,11 @@ ProducerChannel::~ProducerChannel() {
            "ProducerChannel::~ProducerChannel: channel_id=%d buffer_id=%d "
            "state=%" PRIx64 ".",
            channel_id(), buffer_id(), buffer_state_->load());
-  for (auto consumer : consumer_channels_)
+  for (auto consumer : consumer_channels_) {
     consumer->OnProducerClosed();
+    service()->SetChannel(consumer->channel_id(), nullptr);
+  }
+  Hangup();
 }
 
 BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
@@ -181,6 +185,11 @@ bool ProducerChannel::HandleMessage(Message& message) {
     case BufferHubRPC::ProducerGain::Opcode:
       DispatchRemoteMethod<BufferHubRPC::ProducerGain>(
           *this, &ProducerChannel::OnProducerGain, message);
+      return true;
+
+    case BufferHubRPC::ProducerBufferDetach::Opcode:
+      DispatchRemoteMethod<BufferHubRPC::ProducerBufferDetach>(
+          *this, &ProducerChannel::OnProducerDetach, message);
       return true;
 
     default:
@@ -335,6 +344,55 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   producer_owns_ = true;
   post_fence_.close();
   return {std::move(returned_fence_)};
+}
+
+Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
+    Message& message) {
+  ATRACE_NAME("ProducerChannel::OnProducerDetach");
+  ALOGD_IF(TRACE, "ProducerChannel::OnProducerDetach: buffer_id=%d",
+           buffer_id());
+
+  uint64_t buffer_state = buffer_state_->load();
+  if (!BufferHubDefs::IsBufferGained(buffer_state)) {
+    // Can only detach a BufferProducer when it's in gained state.
+    ALOGW(
+        "ProducerChannel::OnProducerDetach: The buffer (id=%d, state=0x%" PRIx64
+        ") is not in gained state.",
+        buffer_id(), buffer_state);
+    return {};
+  }
+
+  int channel_id;
+  auto status = message.PushChannel(0, nullptr, &channel_id);
+  if (!status) {
+    ALOGE(
+        "ProducerChannel::OnProducerDetach: Failed to push detached buffer "
+        "channel: %s",
+        status.GetErrorMessage().c_str());
+    return ErrorStatus(ENOMEM);
+  }
+
+  // Make sure we unlock the buffer.
+  if (int ret = metadata_buffer_.Unlock()) {
+    ALOGE("ProducerChannel::OnProducerDetach: Failed to unlock metadata.");
+    return ErrorStatus(-ret);
+  };
+
+  auto channel = std::make_shared<DetachedBufferChannel>(
+      service(), buffer_id(), channel_id, std::move(buffer_),
+      std::move(metadata_buffer_), user_metadata_size_);
+
+  const auto channel_status = service()->SetChannel(channel_id, channel);
+  if (!channel_status) {
+    // Technically, this should never fail, as we just pushed the channel. Note
+    // that LOG_FATAL will be stripped out in non-debug build.
+    LOG_FATAL(
+        "ProducerChannel::OnProducerDetach: Failed to set new detached buffer "
+        "channel: %s.",
+        channel_status.GetErrorMessage().c_str());
+  }
+
+  return status;
 }
 
 Status<LocalFence> ProducerChannel::OnConsumerAcquire(Message& /*message*/) {
