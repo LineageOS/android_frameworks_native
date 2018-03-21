@@ -373,6 +373,10 @@ struct BufferHubRPC {
     kOpConsumerAcquire,
     kOpConsumerRelease,
     kOpConsumerSetIgnore,
+    kOpProducerBufferDetach,
+    kOpConsumerBufferDetach,
+    kOpCreateDetachedBuffer,
+    kOpDetachedBufferPromote,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
     kOpGetQueueInfo,
@@ -400,6 +404,28 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
                     void(LocalFence release_fence));
   PDX_REMOTE_METHOD(ConsumerSetIgnore, kOpConsumerSetIgnore, void(bool ignore));
+  PDX_REMOTE_METHOD(ProducerBufferDetach, kOpProducerBufferDetach,
+                    LocalChannelHandle(Void));
+
+  // Detaches a ConsumerBuffer from an existing producer/consumer set. Can only
+  // be called when the consumer is the only consumer and it has exclusive
+  // access to the buffer (i.e. in the acquired'ed state). On the successful
+  // return of the IPC call, a new DetachedBufferChannel handle will be returned
+  // and all existing producer and consumer channels will be closed. Further
+  // IPCs towards those channels will return error.
+  PDX_REMOTE_METHOD(ConsumerBufferDetach, kOpConsumerBufferDetach,
+                    LocalChannelHandle(Void));
+
+  // Creates a standalone DetachedBuffer not associated with any
+  // producer/consumer set.
+  PDX_REMOTE_METHOD(CreateDetachedBuffer, kOpCreateDetachedBuffer,
+                    LocalChannelHandle(Void));
+
+  // Promotes a DetachedBuffer to become a ProducerBuffer. Once promoted the
+  // DetachedBuffer channel will be closed automatically on successful IPC
+  // return. Further IPCs towards this channel will return error.
+  PDX_REMOTE_METHOD(DetachedBufferPromote, kOpDetachedBufferPromote,
+                    LocalChannelHandle(Void));
 
   // Buffer Queue Methods.
   PDX_REMOTE_METHOD(CreateProducerQueue, kOpCreateProducerQueue,

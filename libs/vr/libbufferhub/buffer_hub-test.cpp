@@ -25,7 +25,9 @@ using android::dvr::BufferHubDefs::IsBufferPosted;
 using android::dvr::BufferHubDefs::IsBufferAcquired;
 using android::dvr::BufferHubDefs::IsBufferReleased;
 using android::dvr::BufferProducer;
+using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
+using android::pdx::Status;
 
 const int kWidth = 640;
 const int kHeight = 480;
@@ -716,4 +718,60 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
 
   // Producer should be able to gain no matter what.
   EXPECT_EQ(0, p->GainAsync(&meta, &fence));
+}
+
+TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
+  std::unique_ptr<BufferProducer> p = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  std::unique_ptr<BufferConsumer> c =
+      BufferConsumer::Import(p->CreateConsumer());
+  ASSERT_TRUE(p.get() != nullptr);
+  ASSERT_TRUE(c.get() != nullptr);
+
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+
+  // Detach in posted state should fail.
+  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
+  EXPECT_GT(RETRY_EINTR(c->Poll(kPollTimeoutMs)), 0);
+  auto s1 = p->Detach();
+  EXPECT_FALSE(s1);
+
+  // Detach in acquired state should fail.
+  EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
+  s1 = p->Detach();
+  EXPECT_FALSE(s1);
+
+  // Detach in released state should fail.
+  EXPECT_EQ(0, c->ReleaseAsync(&metadata, invalid_fence));
+  EXPECT_GT(RETRY_EINTR(p->Poll(kPollTimeoutMs)), 0);
+  s1 = p->Detach();
+  EXPECT_FALSE(s1);
+
+  // Detach in gained state should succeed.
+  EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
+  s1 = p->Detach();
+  EXPECT_TRUE(s1);
+
+  LocalChannelHandle detached_buffer = s1.take();
+  EXPECT_TRUE(detached_buffer.valid());
+
+  // Both producer and consumer should have hangup.
+  EXPECT_GT(RETRY_EINTR(p->Poll(kPollTimeoutMs)), 0);
+  auto s2 = p->GetEventMask(POLLHUP);
+  EXPECT_TRUE(s2);
+  EXPECT_EQ(s2.get(), POLLHUP);
+
+  EXPECT_GT(RETRY_EINTR(c->Poll(kPollTimeoutMs)), 0);
+  s2 = p->GetEventMask(POLLHUP);
+  EXPECT_TRUE(s2);
+  EXPECT_EQ(s2.get(), POLLHUP);
+
+  auto s3 = p->CreateConsumer();
+  EXPECT_FALSE(s3);
+  EXPECT_EQ(s3.error(), EOPNOTSUPP);
+
+  s3 = c->CreateConsumer();
+  EXPECT_FALSE(s3);
+  EXPECT_EQ(s3.error(), EOPNOTSUPP);
 }

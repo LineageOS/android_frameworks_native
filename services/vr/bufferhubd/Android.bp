@@ -17,6 +17,7 @@ sourceFiles = [
     "bufferhubd.cpp",
     "consumer_channel.cpp",
     "producer_channel.cpp",
+    "detached_buffer_channel.cpp",
     "consumer_queue_channel.cpp",
     "producer_queue_channel.cpp",
 ]
