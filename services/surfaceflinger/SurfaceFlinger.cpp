@@ -4062,7 +4062,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
     LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
     auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
-    result.append(LayerProtoParser::layersToString(layerTree).c_str());
+    result.append(LayerProtoParser::layersToString(std::move(layerTree)).c_str());
 
     /*
      * Dump Display state
