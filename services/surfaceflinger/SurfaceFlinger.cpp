@@ -2120,16 +2120,16 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         getBE().mHwc->onHotplug(event.display, displayType, event.connection);
 
         if (event.connection == HWC2::Connection::Connected) {
-            ALOGV("Creating built in display %d", displayType);
-            ALOGW_IF(mBuiltinDisplays[displayType],
-                    "Overwriting display token for display type %d", displayType);
-            mBuiltinDisplays[displayType] = new BBinder();
-            // All non-virtual displays are currently considered secure.
-            DisplayDeviceState info(displayType, true);
-            info.displayName = displayType == DisplayDevice::DISPLAY_PRIMARY ?
-                    "Built-in Screen" : "External Screen";
-            mCurrentState.displays.add(mBuiltinDisplays[displayType], info);
-            mInterceptor.saveDisplayCreation(info);
+            if (!mBuiltinDisplays[displayType].get()) {
+                ALOGV("Creating built in display %d", displayType);
+                mBuiltinDisplays[displayType] = new BBinder();
+                // All non-virtual displays are currently considered secure.
+                DisplayDeviceState info(displayType, true);
+                info.displayName = displayType == DisplayDevice::DISPLAY_PRIMARY ?
+                        "Built-in Screen" : "External Screen";
+                mCurrentState.displays.add(mBuiltinDisplays[displayType], info);
+                mInterceptor.saveDisplayCreation(info);
+            }
         } else {
             ALOGV("Removing built in display %d", displayType);
 
