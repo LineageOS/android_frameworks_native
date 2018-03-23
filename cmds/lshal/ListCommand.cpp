@@ -378,8 +378,7 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
                 }
                 if (findAndBumpVersion(hal, version)) {
                     if (&table != &mImplementationsTable) {
-                        hal->interfaces[interfaceName].name = interfaceName;
-                        hal->interfaces[interfaceName].instances.insert(instanceName);
+                        hal->insertLegacyInstance(interfaceName, instanceName);
                     }
                     hal->transportArch.arch |= arch;
                     done = true;
@@ -389,17 +388,16 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
             if (done) {
                 continue; // to next TableEntry
             }
-            decltype(vintf::ManifestHal::interfaces) interfaces;
-            if (&table != &mImplementationsTable) {
-                interfaces[interfaceName].name = interfaceName;
-                interfaces[interfaceName].instances.insert(instanceName);
-            }
-            if (!manifest.add(vintf::ManifestHal{
+            vintf::ManifestHal manifestHal{
                     vintf::HalFormat::HIDL,
                     std::string{fqName.package()},
                     {version},
                     {transport, arch},
-                    std::move(interfaces)})) {
+                    {}};
+            if (&table != &mImplementationsTable) {
+                manifestHal.insertLegacyInstance(interfaceName, instanceName);
+            }
+            if (!manifest.add(std::move(manifestHal))) {
                 err() << "Warning: cannot add hal '" << fqInstanceName << "'" << std::endl;
             }
         }
@@ -408,7 +406,7 @@ void ListCommand::dumpVintf(const NullableOStream<std::ostream>& out) const {
          << "    This is a skeleton " << manifest.type() << " manifest. Notes: " << std::endl
          << INIT_VINTF_NOTES
          << "-->" << std::endl;
-    out << vintf::gHalManifestConverter(manifest, vintf::SerializeFlag::HALS_ONLY);
+    out << vintf::gHalManifestConverter(manifest, vintf::SerializeFlag::HALS_NO_FQNAME);
 }
 
 std::string ListCommand::INIT_VINTF_NOTES{
