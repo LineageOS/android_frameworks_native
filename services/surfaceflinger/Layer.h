@@ -309,6 +309,7 @@ public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
+    void configureHwcLayer(const sp<const DisplayDevice>& displayDevice);
     void forceClientComposition(int32_t hwcId);
     bool getForceClientComposition(int32_t hwcId);
     virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
@@ -358,6 +359,16 @@ public:
     void draw(const RenderArea& renderArea, const Region& clip) const;
     void draw(const RenderArea& renderArea, bool useIdentityTransform) const;
     void draw(const RenderArea& renderArea) const;
+
+    /*
+     * drawNow uses the renderEngine to draw the layer.  This is different than the
+     * draw function as with the FE/BE split, the draw function runs in the FE and
+     * sets up state for the BE to do the actual drawing.  drawNow is used to tell
+     * the layer to skip the state setup and just go ahead and draw the layer.  This
+     * is used for screen captures which happens separately from the frame
+     * compositing path.
+     */
+    virtual void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const = 0;
 
     /*
      * doTransaction - process the transaction. This is a good place to figure

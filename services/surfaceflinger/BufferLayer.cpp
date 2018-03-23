@@ -160,6 +160,8 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
                          bool useIdentityTransform) const {
     ATRACE_CALL();
 
+    CompositionInfo& compositionInfo = getBE().compositionInfo;
+
     if (CC_UNLIKELY(mActiveBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
@@ -241,6 +243,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
         mTexture.setDimensions(mActiveBuffer->getWidth(), mActiveBuffer->getHeight());
         mTexture.setFiltering(useFiltering);
         mTexture.setMatrix(textureMatrix);
+        compositionInfo.re.texture = mTexture;
 
         engine.setupLayerTexturing(mTexture);
     } else {
@@ -248,6 +251,23 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
     }
     drawWithOpenGL(renderArea, useIdentityTransform);
     engine.disableTexturing();
+}
+
+void BufferLayer::drawNow(const RenderArea& renderArea, bool useIdentityTransform) const {
+    CompositionInfo& compositionInfo = getBE().compositionInfo;
+    auto& engine(mFlinger->getRenderEngine());
+
+    draw(renderArea, useIdentityTransform);
+
+    engine.setupLayerTexturing(compositionInfo.re.texture);
+    engine.setupLayerBlending(compositionInfo.re.preMultipliedAlpha, compositionInfo.re.opaque,
+            false, compositionInfo.re.color);
+    engine.setSourceDataSpace(compositionInfo.hwc.dataspace);
+    engine.setSourceY410BT2020(compositionInfo.re.Y410BT2020);
+    engine.drawMesh(getBE().getMesh());
+    engine.disableBlending();
+    engine.disableTexturing();
+    engine.setSourceY410BT2020(false);
 }
 
 void BufferLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
@@ -573,32 +593,14 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     const auto& viewport = displayDevice->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
-    auto& hwcLayer = hwcInfo.layer;
-    auto error = (*hwcLayer)->setVisibleRegion(visible);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        visible.dump(LOG_TAG);
-    }
 
-    error = (*hwcLayer)->setSurfaceDamage(surfaceDamageRegion);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        surfaceDamageRegion.dump(LOG_TAG);
-    }
+    getBE().compositionInfo.hwc.visibleRegion = visible;
+    getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
 
     // Sideband layers
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
         setCompositionType(hwcId, HWC2::Composition::Sideband);
-        ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = (*hwcLayer)->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
-        if (error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
+        getBE().compositionInfo.compositionType = HWC2::Composition::Sideband;
         return;
     }
 
@@ -611,32 +613,13 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
         setCompositionType(hwcId, HWC2::Composition::Device);
     }
 
-    ALOGV("setPerFrameData: dataspace = %d", mDrawingState.dataSpace);
-    error = (*hwcLayer)->setDataspace(mDrawingState.dataSpace);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    const HdrMetadata& metadata = mConsumer->getCurrentHdrMetadata();
-    error = (*hwcLayer)->setHdrMetadata(metadata);
-    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-    getBE().mHwcLayers[hwcId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot,
-                                                       &hwcBuffer);
+    getBE().compositionInfo.hwc.dataspace = mDrawingState.dataSpace;
+    getBE().compositionInfo.hwc.hdrMetadata = mConsumer->getCurrentHdrMetadata();
 
     auto acquireFence = mConsumer->getCurrentFence();
-    error = (*hwcLayer)->setBuffer(hwcSlot, hwcBuffer, acquireFence);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),
-              static_cast<int32_t>(error));
-    }
+    getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
+    getBE().compositionInfo.mBuffer = mActiveBuffer;
+    getBE().compositionInfo.hwc.fence = acquireFence;
 }
 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
@@ -810,11 +793,17 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     texCoords[2] = vec2(right, 1.0f - bottom);
     texCoords[3] = vec2(right, 1.0f - top);
 
-    auto& engine(mFlinger->getRenderEngine());
+    //getBE().compositionInfo.re.preMultipliedAlpha = mPremultipliedAlpha;
+    //getBE().compositionInfo.re.opaque = isOpaque(s);
+    //getBE().compositionInfo.re.disableTexture = false;
+    //getBE().compositionInfo.re.color = getColor();
+    //getBE().compositionInfo.hwc.dataspace = mCurrentState.dataSpace;
+
+  auto& engine(mFlinger->getRenderEngine());
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
                               getColor());
     engine.setSourceDataSpace(mCurrentState.dataSpace);
-
+    
     if (mCurrentState.dataSpace == HAL_DATASPACE_BT2020_ITU_PQ &&
         mConsumer->getCurrentApi() == NATIVE_WINDOW_API_MEDIA &&
         getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102) {
