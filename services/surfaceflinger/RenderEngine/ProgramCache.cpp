@@ -305,15 +305,24 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
 
         if (needs.hasToneMapping()) {
             fs << R"__SHADER__(
-                float ToneMapChannel(const float color) {
+                float CalculateY(const vec3 color) {
+                    // BT2020 standard uses the unadjusted KR = 0.2627,
+                    // KB = 0.0593 luminance interpretation for RGB conversion.
+                    return color.r * 0.262700 + color.g * 0.677998 +
+                            color.b * 0.059302;
+                }
+                vec3 ToneMap(const vec3 color) {
                     const float maxLumi = 10000.0;
                     const float maxMasteringLumi = 1000.0;
                     const float maxContentLumi = 1000.0;
                     const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
                     const float maxOutLumi = 500.0;
 
+                    // Calculate Y value in XYZ color space.
+                    float colorY = CalculateY(color);
+
                     // convert to nits first
-                    float nits = color * maxLumi;
+                    float nits = colorY * maxLumi;
 
                     // clamp to max input luminance
                     nits = clamp(nits, 0.0, maxInLumi);
@@ -360,12 +369,8 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
                     }
 
                     // convert back to [0.0, 1.0]
-                    return nits / maxOutLumi;
-                }
-
-                vec3 ToneMap(const vec3 color) {
-                    return vec3(ToneMapChannel(color.r), ToneMapChannel(color.g),
-                                ToneMapChannel(color.b));
+                    float targetY = nits / maxOutLumi;
+                    return color * (targetY / max(1e-6, colorY));
                 }
             )__SHADER__";
         } else {

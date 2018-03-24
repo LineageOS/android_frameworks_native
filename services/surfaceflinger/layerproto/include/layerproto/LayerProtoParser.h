@@ -19,6 +19,7 @@
 
 #include <math/vec4.h>
 
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
@@ -79,8 +80,8 @@ public:
     public:
         int32_t id;
         std::string name;
-        std::vector<const Layer*> children;
-        std::vector<const Layer*> relatives;
+        std::vector<std::unique_ptr<Layer>> children;
+        std::vector<Layer*> relatives;
         std::string type;
         LayerProtoParser::Region transparentRegion;
         LayerProtoParser::Region visibleRegion;
@@ -119,9 +120,8 @@ public:
     };
 
     static const LayerGlobal generateLayerGlobalInfo(const LayersProto& layersProto);
-    static std::vector<const Layer*> generateLayerTree(const LayersProto& layersProto);
-    static void destroyLayerTree(const std::vector<const LayerProtoParser::Layer*>& layerTree);
-    static std::string layersToString(const std::vector<const LayerProtoParser::Layer*> layers);
+    static std::vector<std::unique_ptr<Layer>> generateLayerTree(const LayersProto& layersProto);
+    static std::string layersToString(std::vector<std::unique_ptr<LayerProtoParser::Layer>> layers);
 
 private:
     static std::unordered_map<int32_t, Layer*> generateMap(const LayersProto& layersProto);
@@ -135,7 +135,7 @@ private:
     static void updateChildrenAndRelative(const LayerProto& layerProto,
                                           std::unordered_map<int32_t, Layer*>& layerMap);
 
-    static std::string layerToString(const LayerProtoParser::Layer* layer);
+    static std::string layerToString(LayerProtoParser::Layer* layer);
 };
 
 } // namespace surfaceflinger
