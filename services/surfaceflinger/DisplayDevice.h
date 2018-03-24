@@ -206,6 +206,11 @@ public:
     uint32_t getPageFlipCount() const;
     void dump(String8& result) const;
 
+    // correct geometry by device hw orientation
+    void correctSizeByHwOrientation(uint32_t &w, uint32_t &h) const;
+    void correctRotationByHwOrientation(Transform::orientation_flags &rotation) const;
+    void correctCropByHwOrientation(Rect& crop) const;
+
 private:
     /*
      *  Constants, set during initialization
@@ -267,6 +272,7 @@ private:
     // current active color mode
     android_color_mode_t mActiveColorMode;
 #endif
+    int mHwOrientation;
 };
 
 }; // namespace android

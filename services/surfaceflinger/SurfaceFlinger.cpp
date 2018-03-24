@@ -656,6 +656,11 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         // All non-virtual displays are currently considered secure.
         info.secure = true;
 
+        // correct for primary display to normalize graphic plane
+        if (DisplayDevice::DISPLAY_PRIMARY == type) {
+            getDefaultDisplayDevice()->correctSizeByHwOrientation(info.w, info.h);
+        }
+
         configs->push_back(info);
     }
 
@@ -1380,6 +1385,12 @@ void SurfaceFlinger::setUpHWComposer() {
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             layer->setPerFrameData(displayDevice);
+        }
+
+        auto& displays = MtkHwc::getInstance().getHwcValidateData().displays;
+        if (hwcId >= 0 && hwcId < int64_t(displays.size())) {
+            auto& display = displays[hwcId];
+            display.flags |= displayDevice->getOrientationTransform() << 16;
         }
     }
 
@@ -3650,6 +3661,9 @@ void SurfaceFlinger::renderScreenImplLocked(
         sourceCrop.setLeftTop(Point(0, 0));
         sourceCrop.setRightBottom(Point(hw_w, hw_h));
     }
+    else {
+        hw->correctCropByHwOrientation(sourceCrop);
+    }
 
     // ensure that sourceCrop is inside screen
     if (sourceCrop.left < 0) {
@@ -3667,6 +3681,7 @@ void SurfaceFlinger::renderScreenImplLocked(
 
     // make sure to clear all GL error flags
     engine.checkErrors();
+    hw->correctRotationByHwOrientation(rotation);
 
     // set-up our viewport
     engine.setViewportAndProjection(
@@ -3709,6 +3724,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(
     // get screen geometry
     uint32_t hw_w = hw->getWidth();
     uint32_t hw_h = hw->getHeight();
+    hw->correctSizeByHwOrientation(hw_w, hw_h);
 
     if (rotation & Transform::ROT_90) {
         std::swap(hw_w, hw_h);

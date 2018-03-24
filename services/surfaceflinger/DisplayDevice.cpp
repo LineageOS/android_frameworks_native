@@ -149,11 +149,46 @@ DisplayDevice::DisplayDevice(
     mPowerMode = (mType >= DisplayDevice::DISPLAY_VIRTUAL) ?
                   HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
+    mHwOrientation = DisplayState::eOrientationDefault;
+    {
+        //get disp create time and transform to readable format
+        String8 info;
+        struct timeval t;
+        char date[128];
+
+        t.tv_sec = t.tv_usec = 0;
+        gettimeofday(&t, NULL);
+        time_t tm = t.tv_sec;
+
+        strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&tm));
+        info = String8::format("[create time] %s.%ld", date, t.tv_usec);
+
+        if (mType == DisplayDevice::DISPLAY_VIRTUAL) {
+            mFlinger->registerVirtualDisplay(mNativeWindow, info);
+        }
+    }
+    mS3DPhase = eComposing2D;
+
+    // we store the value as orientation:
+    // 90 -> 1, 180 -> 2, 270 -> 3
+    mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
+
     // Name the display.  The name will be replaced shortly if the display
     // was created with createDisplay().
     switch (mType) {
         case DISPLAY_PRIMARY:
             mDisplayName = "Built-in Screen";
+            switch (mFlinger->mHardwareRotation) {
+                case 1:
+                    mHwOrientation = DisplayState::eOrientation90;
+                    break;
+                case 2:
+                    mHwOrientation = DisplayState::eOrientation180;
+                    break;
+                case 3:
+                    mHwOrientation = DisplayState::eOrientation270;
+                    break;
+            }
             break;
         case DISPLAY_EXTERNAL:
             mDisplayName = "HDMI Screen";
@@ -176,6 +211,67 @@ DisplayDevice::DisplayDevice(
 #endif
 }
 
+void DisplayDevice::correctSizeByHwOrientation(uint32_t &w, uint32_t &h) const {
+    if (mHwOrientation & DisplayState::eOrientationSwapMask) {
+        uint32_t tmp = w;
+        w = h;
+        h = tmp;
+    }
+}
+
+void DisplayDevice::correctRotationByHwOrientation(Transform::orientation_flags &rotation) const {
+    if (mHwOrientation != DisplayState::eOrientationDefault) {
+        // convert hw orientation into flag presentation
+        // here inverse transform needed
+        uint8_t hw_rot_90  = 0x00;
+        uint8_t hw_flip_hv = 0x00;
+        switch (mHwOrientation) {
+            case DisplayState::eOrientation90:
+                hw_rot_90 = Transform::ROT_90;
+                hw_flip_hv = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation180:
+                hw_flip_hv = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation270:
+                hw_rot_90  = Transform::ROT_90;
+                break;
+        }
+
+        // transform flags operation
+        // 1) flip H V if both have ROT_90 flag
+        // 2) XOR these flags
+        uint8_t rotation_rot_90  = rotation & Transform::ROT_90;
+        uint8_t rotation_flip_hv = rotation & Transform::ROT_180;
+        if (rotation_rot_90 & hw_rot_90) {
+            rotation_flip_hv = (~rotation_flip_hv) & Transform::ROT_180;
+        }
+        rotation = static_cast<Transform::orientation_flags>
+                   ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
+    }
+}
+
+void DisplayDevice::correctCropByHwOrientation(Rect& crop) const {
+    if (mHwOrientation != DisplayState::eOrientationDefault) {
+        Transform tr;
+        uint32_t flags = 0x00;
+        switch (mHwOrientation) {
+            case DisplayState::eOrientation90:
+                flags = Transform::ROT_90;
+                break;
+            case DisplayState::eOrientation180:
+                flags = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation270:
+                flags = Transform::ROT_270;
+                break;
+        }
+        tr.set(flags, mDisplayWidth, mDisplayHeight);
+        crop = tr.transform(crop);
+    }
+}
+
+
 DisplayDevice::~DisplayDevice() {
     if (mSurface != EGL_NO_SURFACE) {
         eglDestroySurface(mDisplay, mSurface);
@@ -191,6 +287,9 @@ void DisplayDevice::disconnect(HWComposer& hwc) {
             hwc.freeDisplayId(mHwcDisplayId);
 #endif
         mHwcDisplayId = -1;
+    }
+    if (mType == DisplayDevice::DISPLAY_VIRTUAL) {
+        mFlinger->unregisterVirtualDisplay(mNativeWindow);
     }
 }
 
@@ -559,6 +658,14 @@ void DisplayDevice::setProjection(int orientation,
     TL.set(-src_x, -src_y);
     TP.set(dst_x, dst_y);
 
+    // need to take care of HW rotation for mGlobalTransform
+    // for case if the panel is not installed align with device orientation
+    if (DisplayState::eOrientationDefault != mHwOrientation) {
+        DisplayDevice::orientationToTransfrom(
+            (orientation + mHwOrientation) % (DisplayState::eOrientation270 + 1),
+            w, h, &R);
+    }
+
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
@@ -619,6 +726,9 @@ void DisplayDevice::dump(String8& result) const {
         tr[0][0], tr[1][0], tr[2][0],
         tr[0][1], tr[1][1], tr[2][1],
         tr[0][2], tr[1][2], tr[2][2]);
+
+    result.appendFormat(
+        "   hworient=%2d\n", mHwOrientation);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
