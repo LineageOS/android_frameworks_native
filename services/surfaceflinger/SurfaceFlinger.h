@@ -742,6 +742,7 @@ private:
 
     // helper methods
     void configureDeviceComposition(const CompositionInfo& compositionInfo) const;
+    void configureHwcCommonData(const CompositionInfo& compositionInfo) const;
 
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
