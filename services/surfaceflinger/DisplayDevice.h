@@ -267,6 +267,7 @@ private:
     // current active color mode
     android_color_mode_t mActiveColorMode;
 #endif
+    int mHwOrientation;
 };
 
 }; // namespace android
