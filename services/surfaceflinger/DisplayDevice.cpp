@@ -149,11 +149,46 @@ DisplayDevice::DisplayDevice(
     mPowerMode = (mType >= DisplayDevice::DISPLAY_VIRTUAL) ?
                   HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
+    mHwOrientation = DisplayState::eOrientationDefault;
+    {
+        //get disp create time and transform to readable format
+        String8 info;
+        struct timeval t;
+        char date[128];
+
+        t.tv_sec = t.tv_usec = 0;
+        gettimeofday(&t, NULL);
+        time_t tm = t.tv_sec;
+
+        strftime(date, sizeof(date), "%Y-%m-%d %H:%M:%S", localtime(&tm));
+        info = String8::format("[create time] %s.%ld", date, t.tv_usec);
+
+        if (mType == DisplayDevice::DISPLAY_VIRTUAL) {
+            mFlinger->registerVirtualDisplay(mNativeWindow, info);
+        }
+    }
+    mS3DPhase = eComposing2D;
+
+    // we store the value as orientation:
+    // 90 -> 1, 180 -> 2, 270 -> 3
+    mHardwareRotation = property_get_int32("ro.sf.hwrotation", 0) / 90;
+
     // Name the display.  The name will be replaced shortly if the display
     // was created with createDisplay().
     switch (mType) {
         case DISPLAY_PRIMARY:
             mDisplayName = "Built-in Screen";
+            switch (mFlinger->mHardwareRotation) {
+                case 1:
+                    mHwOrientation = DisplayState::eOrientation90;
+                    break;
+                case 2:
+                    mHwOrientation = DisplayState::eOrientation180;
+                    break;
+                case 3:
+                    mHwOrientation = DisplayState::eOrientation270;
+                    break;
+            }
             break;
         case DISPLAY_EXTERNAL:
             mDisplayName = "HDMI Screen";
@@ -191,6 +226,9 @@ void DisplayDevice::disconnect(HWComposer& hwc) {
             hwc.freeDisplayId(mHwcDisplayId);
 #endif
         mHwcDisplayId = -1;
+    }
+    if (mType == DisplayDevice::DISPLAY_VIRTUAL) {
+        mFlinger->unregisterVirtualDisplay(mNativeWindow);
     }
 }
 
@@ -559,6 +597,14 @@ void DisplayDevice::setProjection(int orientation,
     TL.set(-src_x, -src_y);
     TP.set(dst_x, dst_y);
 
+    // need to take care of HW rotation for mGlobalTransform
+    // for case if the panel is not installed align with device orientation
+    if (DisplayState::eOrientationDefault != mHwOrientation) {
+        DisplayDevice::orientationToTransfrom(
+            (orientation + mHwOrientation) % (DisplayState::eOrientation270 + 1),
+            w, h, &R);
+    }
+
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
@@ -619,6 +665,9 @@ void DisplayDevice::dump(String8& result) const {
         tr[0][0], tr[1][0], tr[2][0],
         tr[0][1], tr[1][1], tr[2][1],
         tr[0][2], tr[1][2], tr[2][2]);
+
+    result.appendFormat(
+        "   hworient=%2d\n", mHwOrientation);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
