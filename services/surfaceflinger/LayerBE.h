@@ -64,8 +64,10 @@ struct CompositionInfo {
     sp<GraphicBuffer> mBuffer = nullptr;
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     LayerBE* layer = nullptr;
+    bool updateBuffer = false;
     struct {
         std::shared_ptr<LayerContainer> hwcLayer;
+        bool skipGeometry = true;
         int32_t hwid = -1;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;

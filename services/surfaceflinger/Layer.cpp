@@ -483,6 +483,9 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     const auto hwcId = displayDevice->getHwcDisplayId();
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
 
+    // Need to program geometry parts
+    getBE().compositionInfo.hwc.skipGeometry = false;
+
     // enable this layer
     hwcInfo.forceClientComposition = false;
 
@@ -603,113 +606,11 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     const uint32_t orientation = transform.getOrientation();
     if (orientation & Transform::ROT_INVALID || extremeScaling) {
         // we can only handle simple transformation
-        hwcInfo.forceClientComposition = true;
+        getBE().mHwcLayers[hwcId].compositionType = HWC2::Composition::Client;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
         hwcInfo.transform = transform;
         getBE().compositionInfo.hwc.transform = transform;
-    }
-}
-
-void Layer::configureHwcLayer(const sp<const DisplayDevice>& displayDevice) {
-    ATRACE_CALL();
-
-    auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
-    auto& hwcLayer = hwcInfo.layer;
-
-    auto error = (*hwcLayer)->setBlendMode(getBE().compositionInfo.hwc.blendMode);
-    ALOGE_IF(error != HWC2::Error::None,
-             "[%s] Failed to set blend mode %s:"
-             " %s (%d)",
-             mName.string(),
-             to_string(getBE().compositionInfo.hwc.blendMode).c_str(), to_string(error).c_str(),
-             static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setDisplayFrame(getBE().compositionInfo.hwc.displayFrame);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set the display frame [%d, %d, %d, %d] %s (%d)",
-            mName.string(),
-            getBE().compositionInfo.hwc.displayFrame.left,
-            getBE().compositionInfo.hwc.displayFrame.right,
-            getBE().compositionInfo.hwc.displayFrame.top,
-            getBE().compositionInfo.hwc.displayFrame.bottom,
-            to_string(error).c_str(), static_cast<int32_t>(error));
-
-
-    error = (*hwcLayer)->setPlaneAlpha(getBE().compositionInfo.hwc.alpha);
-    ALOGE_IF(error != HWC2::Error::None,
-             "[%s] Failed to set plane alpha %.3f: "
-             "%s (%d)",
-             mName.string(), getBE().compositionInfo.hwc.alpha,
-             to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setSourceCrop(getBE().compositionInfo.hwc.sourceCrop);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: %s (%d)",
-            mName.string(),
-            getBE().compositionInfo.hwc.sourceCrop.left,
-            getBE().compositionInfo.hwc.sourceCrop.right,
-            getBE().compositionInfo.hwc.sourceCrop.top,
-            getBE().compositionInfo.hwc.sourceCrop.bottom,
-            to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setTransform(getBE().compositionInfo.hwc.transform);
-    ALOGE_IF(error != HWC2::Error::None,
-             "[%s] Failed to set transform %s: "
-             "%s (%d)",
-             mName.string(),
-             to_string(getBE().compositionInfo.hwc.transform).c_str(), to_string(error).c_str(),
-             static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setZOrder(getBE().compositionInfo.hwc.z);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set Z %u: %s (%d)",
-            mName.string(), getBE().compositionInfo.hwc.z,
-            to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setInfo(getBE().compositionInfo.hwc.type, getBE().compositionInfo.hwc.appId);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set info (%d)",
-            mName.string(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setVisibleRegion(getBE().compositionInfo.hwc.visibleRegion);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set visible region: %s (%d)",
-            mName.string(), to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setSurfaceDamage(getBE().compositionInfo.hwc.surfaceDamage);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set surface damage: %s (%d)",
-            mName.string(), to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setCompositionType(getBE().compositionInfo.compositionType);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set composition type: %s (%d)",
-            mName.string(), to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setDataspace(getBE().compositionInfo.hwc.dataspace);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set dataspace: %s (%d)",
-            mName.string(), to_string(error).c_str(), static_cast<int32_t>(error));
-
-    error = (*hwcLayer)->setHdrMetadata(getBE().compositionInfo.hwc.hdrMetadata);
-    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    error = (*hwcLayer)->setColor(getBE().compositionInfo.hwc.color);
-    ALOGE_IF(error != HWC2::Error::None,
-            "[%s] Failed to set color: %s (%d)",
-            mName.string(), to_string(error).c_str(), static_cast<int32_t>(error));
-
-    if (getBE().compositionInfo.hwc.fence) {
-        error = (*hwcLayer)->setBuffer(getBE().compositionInfo.mBufferSlot,
-                getBE().compositionInfo.mBuffer, getBE().compositionInfo.hwc.fence);
-        ALOGE_IF(error != HWC2::Error::None,
-                "[%s] Failed to set buffer: %s (%d)",
-                mName.string(), to_string(error).c_str(), static_cast<int32_t>(error));
     }
 }
 
@@ -794,26 +695,12 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
     clearWithOpenGL(renderArea, 0, 0, 0, 0);
 }
 
-void Layer::setCompositionType(int32_t hwcId, HWC2::Composition type, bool callIntoHwc) {
-    if (getBE().mHwcLayers.count(hwcId) == 0) {
-        ALOGE("setCompositionType called without a valid HWC layer");
-        return;
-    }
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
-    auto& hwcLayer = hwcInfo.layer;
-    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", (*hwcLayer)->getId(), to_string(type).c_str(),
-          static_cast<int>(callIntoHwc));
-    if (hwcInfo.compositionType != type) {
-        ALOGV("    actually setting");
-        hwcInfo.compositionType = type;
-        if (callIntoHwc) {
-            auto error = (*hwcLayer)->setCompositionType(type);
-            ALOGE_IF(error != HWC2::Error::None,
-                     "[%s] Failed to set "
-                     "composition type %s: %s (%d)",
-                     mName.string(), to_string(type).c_str(), to_string(error).c_str(),
-                     static_cast<int32_t>(error));
-        }
+void Layer::setCompositionType(int32_t /*hwcId*/, HWC2::Composition type, bool /*callIntoHwc*/) {
+    if (getBE().compositionInfo.compositionType != type) {
+        ALOGV("setCompositionType: Changing compositionType from %s to %s",
+                to_string(getBE().compositionInfo.compositionType).c_str(),
+                to_string(type).c_str());
+        getBE().compositionInfo.compositionType = type;
     }
 }
 
@@ -823,11 +710,7 @@ HWC2::Composition Layer::getCompositionType(int32_t hwcId) const {
         // have a HWC counterpart, then it will always be Client
         return HWC2::Composition::Client;
     }
-    if (getBE().mHwcLayers.count(hwcId) == 0) {
-        ALOGE("getCompositionType called with an invalid HWC layer");
-        return HWC2::Composition::Invalid;
-    }
-    return getBE().mHwcLayers.at(hwcId).compositionType;
+    return getBE().compositionInfo.compositionType;
 }
 
 void Layer::setClearClientTarget(int32_t hwcId, bool clear) {
