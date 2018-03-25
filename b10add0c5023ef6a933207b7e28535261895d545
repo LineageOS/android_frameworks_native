@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "3acca8ad_40bbdf2c",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 4206,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-03-25T17:39:24Z",
+      "side": 1,
+      "message": "This check here makes it unlikely that the if checks being removed will ever succeed, since *requestedWidth \u003d\u003d 0 will probably cause the function to return BAD_VALUE anyway.",
+      "range": {
+        "startLine": 4206,
+        "startChar": 8,
+        "endLine": 4206,
+        "endChar": 78
+      },
+      "revId": "b10add0c5023ef6a933207b7e28535261895d545",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
