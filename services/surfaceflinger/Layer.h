@@ -309,7 +309,6 @@ public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
-    void configureHwcLayer(const sp<const DisplayDevice>& displayDevice);
     void forceClientComposition(int32_t hwcId);
     bool getForceClientComposition(int32_t hwcId);
     virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;

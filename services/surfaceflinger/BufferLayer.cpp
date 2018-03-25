@@ -620,6 +620,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
     getBE().compositionInfo.mBuffer = mActiveBuffer;
     getBE().compositionInfo.hwc.fence = acquireFence;
+    getBE().compositionInfo.updateBuffer = true;
 }
 
 bool BufferLayer::isOpaque(const Layer::State& s) const {
@@ -793,27 +794,17 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     texCoords[2] = vec2(right, 1.0f - bottom);
     texCoords[3] = vec2(right, 1.0f - top);
 
-    //getBE().compositionInfo.re.preMultipliedAlpha = mPremultipliedAlpha;
-    //getBE().compositionInfo.re.opaque = isOpaque(s);
-    //getBE().compositionInfo.re.disableTexture = false;
-    //getBE().compositionInfo.re.color = getColor();
-    //getBE().compositionInfo.hwc.dataspace = mCurrentState.dataSpace;
+    getBE().compositionInfo.re.preMultipliedAlpha = mPremultipliedAlpha;
+    getBE().compositionInfo.re.opaque = isOpaque(s);
+    getBE().compositionInfo.re.disableTexture = false;
+    getBE().compositionInfo.re.color = getColor();
+    getBE().compositionInfo.hwc.dataspace = mCurrentState.dataSpace;
 
-  auto& engine(mFlinger->getRenderEngine());
-    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
-                              getColor());
-    engine.setSourceDataSpace(mCurrentState.dataSpace);
-    
     if (mCurrentState.dataSpace == HAL_DATASPACE_BT2020_ITU_PQ &&
         mConsumer->getCurrentApi() == NATIVE_WINDOW_API_MEDIA &&
         getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102) {
-        engine.setSourceY410BT2020(true);
+        getBE().compositionInfo.re.Y410BT2020 = true;
     }
-
-    engine.drawMesh(getBE().mMesh);
-    engine.disableBlending();
-
-    engine.setSourceY410BT2020(false);
 }
 
 uint32_t BufferLayer::getProducerStickyTransform() const {
