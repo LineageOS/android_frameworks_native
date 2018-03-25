@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include <android-base/stringprintf.h>
 #include <layerproto/LayerProtoParser.h>
 #include <ui/DebugUtils.h>
@@ -24,7 +23,7 @@ using android::base::StringPrintf;
 namespace android {
 namespace surfaceflinger {
 
-bool sortLayers(const LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs) {
+bool sortLayers(LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs) {
     uint32_t ls = lhs->layerStack;
     uint32_t rs = rhs->layerStack;
     if (ls != rs) return ls < rs;
@@ -38,20 +37,25 @@ bool sortLayers(const LayerProtoParser::Layer* lhs, const LayerProtoParser::Laye
     return lhs->id < rhs->id;
 }
 
-std::vector<const LayerProtoParser::Layer*> LayerProtoParser::generateLayerTree(
+bool sortLayerUniquePtrs(const std::unique_ptr<LayerProtoParser::Layer>& lhs,
+                   const std::unique_ptr<LayerProtoParser::Layer>& rhs) {
+    return sortLayers(lhs.get(), rhs.get());
+}
+
+std::vector<std::unique_ptr<LayerProtoParser::Layer>> LayerProtoParser::generateLayerTree(
         const LayersProto& layersProto) {
-    auto layerMap = generateMap(layersProto);
+    std::unordered_map<int32_t, LayerProtoParser::Layer*> layerMap = generateMap(layersProto);
+    std::vector<std::unique_ptr<LayerProtoParser::Layer>> layers;
 
-    std::vector<const Layer*> layers;
-    std::for_each(layerMap.begin(), layerMap.end(),
-                  [&](const std::pair<const int32_t, Layer*>& ref) {
-                      if (ref.second->parent == nullptr) {
-                          // only save top level layers
-                          layers.push_back(ref.second);
-                      }
-                  });
+    for (std::pair<int32_t, Layer*> kv : layerMap) {
+        if (kv.second->parent == nullptr) {
+            // Make unique_ptr for top level layers since they are not children. This ensures there
+            // will only be one unique_ptr made for each layer.
+            layers.push_back(std::unique_ptr<Layer>(kv.second));
+        }
+    }
 
-    std::sort(layers.begin(), layers.end(), sortLayers);
+    std::sort(layers.begin(), layers.end(), sortLayerUniquePtrs);
     return layers;
 }
 
@@ -155,63 +159,61 @@ void LayerProtoParser::updateChildrenAndRelative(const LayerProto& layerProto,
 
     for (int i = 0; i < layerProto.children_size(); i++) {
         if (layerMap.count(layerProto.children(i)) > 0) {
-            auto childLayer = layerMap[layerProto.children(i)];
-            currLayer->children.push_back(childLayer);
+            // Only make unique_ptrs for children since they are guaranteed to be unique, only one
+            // parent per child. This ensures there will only be one unique_ptr made for each layer.
+            currLayer->children.push_back(std::unique_ptr<Layer>(layerMap[layerProto.children(i)]));
         }
     }
 
     for (int i = 0; i < layerProto.relatives_size(); i++) {
         if (layerMap.count(layerProto.relatives(i)) > 0) {
-            auto relativeLayer = layerMap[layerProto.relatives(i)];
-            currLayer->relatives.push_back(relativeLayer);
+            currLayer->relatives.push_back(layerMap[layerProto.relatives(i)]);
         }
     }
 
     if (layerProto.has_parent()) {
         if (layerMap.count(layerProto.parent()) > 0) {
-            auto parentLayer = layerMap[layerProto.parent()];
-            currLayer->parent = parentLayer;
+            currLayer->parent = layerMap[layerProto.parent()];
         }
     }
 
     if (layerProto.has_z_order_relative_of()) {
         if (layerMap.count(layerProto.z_order_relative_of()) > 0) {
-            auto relativeLayer = layerMap[layerProto.z_order_relative_of()];
-            currLayer->zOrderRelativeOf = relativeLayer;
+            currLayer->zOrderRelativeOf = layerMap[layerProto.z_order_relative_of()];
         }
     }
 }
 
 std::string LayerProtoParser::layersToString(
-        const std::vector<const LayerProtoParser::Layer*> layers) {
+        std::vector<std::unique_ptr<LayerProtoParser::Layer>> layers) {
     std::string result;
-    for (const LayerProtoParser::Layer* layer : layers) {
+    for (std::unique_ptr<LayerProtoParser::Layer>& layer : layers) {
         if (layer->zOrderRelativeOf != nullptr) {
             continue;
         }
-        result.append(layerToString(layer).c_str());
+        result.append(layerToString(layer.get()).c_str());
     }
 
     return result;
 }
 
-std::string LayerProtoParser::layerToString(const LayerProtoParser::Layer* layer) {
+std::string LayerProtoParser::layerToString(LayerProtoParser::Layer* layer) {
     std::string result;
 
-    std::vector<const Layer*> traverse(layer->relatives);
-    for (const LayerProtoParser::Layer* child : layer->children) {
+    std::vector<Layer*> traverse(layer->relatives);
+    for (std::unique_ptr<LayerProtoParser::Layer>& child : layer->children) {
         if (child->zOrderRelativeOf != nullptr) {
             continue;
         }
 
-        traverse.push_back(child);
+        traverse.push_back(child.get());
     }
 
     std::sort(traverse.begin(), traverse.end(), sortLayers);
 
     size_t i = 0;
     for (; i < traverse.size(); i++) {
-        const auto& relative = traverse[i];
+        auto& relative = traverse[i];
         if (relative->z >= 0) {
             break;
         }
@@ -220,7 +222,7 @@ std::string LayerProtoParser::layerToString(const LayerProtoParser::Layer* layer
     result.append(layer->to_string().c_str());
     result.append("\n");
     for (; i < traverse.size(); i++) {
-        const auto& relative = traverse[i];
+        auto& relative = traverse[i];
         result.append(layerToString(relative).c_str());
     }
 
