@@ -3850,6 +3850,15 @@ void SurfaceFlinger::renderScreenImplLocked(
         sourceCrop.setRightBottom(Point(hw_w, hw_h));
     }
 
+    if (DisplayDevice::DISPLAY_PRIMARY == hw->getDisplayType()) {
+        // Flip crop if display is rotated by 180 or 270
+        if ((convertRotation(rotation) + mHardwareRotation) & 2) {
+            sourceCrop.top = hw_h - sourceCrop.top;
+            sourceCrop.bottom = hw_h - sourceCrop.bottom;
+            yswap = false;
+        }
+    }
+
     // ensure that sourceCrop is inside screen
     if (sourceCrop.left < 0) {
         ALOGE("Invalid crop rect: l = %d (< 0)", sourceCrop.left);
