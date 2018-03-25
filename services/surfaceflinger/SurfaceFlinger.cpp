@@ -4209,12 +4209,8 @@ static status_t updateDimensionsLocked(const sp<const DisplayDevice>& displayDev
         return BAD_VALUE;
     }
 
-    if (*requestedWidth == 0) {
-        *requestedWidth = displayWidth;
-    }
-    if (*requestedHeight == 0) {
-        *requestedHeight = displayHeight;
-    }
+    *requestedWidth = displayWidth;
+    *requestedHeight = displayHeight;
 
     return NO_ERROR;
 }
