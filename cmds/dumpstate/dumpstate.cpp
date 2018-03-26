@@ -1159,6 +1159,10 @@ static void RunDumpsysTextNormalPriority(const std::string& title,
 static void RunDumpsysProto(const std::string& title, int priority,
                             std::chrono::milliseconds timeout,
                             std::chrono::milliseconds service_timeout) {
+    if (!ds.IsZipping()) {
+        MYLOGD("Not dumping %s because it's not a zipped bugreport\n", title.c_str());
+        return;
+    }
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
     Vector<String16> args;
