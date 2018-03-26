@@ -143,7 +143,7 @@ status_t Client::onTransact(
 status_t Client::createSurface(
         const String8& name,
         uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        const sp<IBinder>& parentHandle, uint32_t windowType, uint32_t ownerUid,
+        const sp<IBinder>& parentHandle, int32_t windowType, int32_t ownerUid,
         sp<IBinder>* handle,
         sp<IGraphicBufferProducer>* gbp)
 {
@@ -180,13 +180,13 @@ status_t Client::createSurface(
         PixelFormat format;
         uint32_t flags;
         sp<Layer>* parent;
-        uint32_t windowType;
-        uint32_t ownerUid;
+        int32_t windowType;
+        int32_t ownerUid;
     public:
         MessageCreateLayer(SurfaceFlinger* flinger,
                 const String8& name, Client* client,
                 uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-                sp<IBinder>* handle, uint32_t windowType, uint32_t ownerUid,
+                sp<IBinder>* handle, int32_t windowType, int32_t ownerUid,
                 sp<IGraphicBufferProducer>* gbp,
                 sp<Layer>* parent)
             : flinger(flinger), client(client),

@@ -47,8 +47,8 @@ public:
     ~BpSurfaceComposerClient() override;
 
     status_t createSurface(const String8& name, uint32_t width, uint32_t height, PixelFormat format,
-                           uint32_t flags, const sp<IBinder>& parent, uint32_t windowType,
-                           uint32_t ownerUid, sp<IBinder>* handle,
+                           uint32_t flags, const sp<IBinder>& parent, int32_t windowType,
+                           int32_t ownerUid, sp<IBinder>* handle,
                            sp<IGraphicBufferProducer>* gbp) override {
         return callRemote<decltype(&ISurfaceComposerClient::createSurface)>(Tag::CREATE_SURFACE,
                                                                             name, width, height,
