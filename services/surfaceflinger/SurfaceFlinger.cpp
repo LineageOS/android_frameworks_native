@@ -154,6 +154,32 @@ bool useTrebleTestingOverride() {
     return std::string(value) == "true";
 }
 
+NativeWindowSurface::~NativeWindowSurface() = default;
+
+namespace impl {
+
+class NativeWindowSurface final : public android::NativeWindowSurface {
+public:
+    static std::unique_ptr<android::NativeWindowSurface> create(
+            const sp<IGraphicBufferProducer>& producer) {
+        return std::make_unique<NativeWindowSurface>(producer);
+    }
+
+    explicit NativeWindowSurface(const sp<IGraphicBufferProducer>& producer)
+          : surface(new Surface(producer, false)) {}
+
+    ~NativeWindowSurface() override = default;
+
+private:
+    sp<ANativeWindow> getNativeWindow() const override { return surface; }
+
+    void preallocateBuffers() override { surface->allocateBuffers(); }
+
+    sp<Surface> surface;
+};
+
+} // namespace impl
+
 SurfaceFlingerBE::SurfaceFlingerBE()
       : mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
@@ -194,7 +220,8 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
-        mCreateBufferQueue(&BufferQueue::createBufferQueue) {}
+        mCreateBufferQueue(&BufferQueue::createBufferQueue),
+        mCreateNativeWindowSurface(&impl::NativeWindowSurface::create) {}
 
 SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
@@ -2275,7 +2302,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
 }
 
 DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t display,
-        HWC2::Connection connection) const {
+                                                                HWC2::Connection connection) const {
     // Figure out whether the event is for the primary display or an
     // external display by matching the Hwc display id against one for a
     // connected display. If we did not find a match, we then check what
@@ -2342,6 +2369,84 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     }
 
     mPendingHotplugEvents.clear();
+}
+
+sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
+        const wp<IBinder>& display, int hwcId, const DisplayDeviceState& state,
+        const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
+    bool hasWideColorSupport = false;
+    if (hasWideColorDisplay) {
+        std::vector<ColorMode> modes = getHwComposer().getColorModes(state.type);
+        for (ColorMode colorMode : modes) {
+            switch (colorMode) {
+                case ColorMode::DISPLAY_P3:
+                case ColorMode::ADOBE_RGB:
+                case ColorMode::DCI_P3:
+                    hasWideColorSupport = true;
+                    break;
+                default:
+                    break;
+            }
+        }
+    }
+
+    bool hasHdrSupport = false;
+    std::unique_ptr<HdrCapabilities> hdrCapabilities =
+            getHwComposer().getHdrCapabilities(state.type);
+    if (hdrCapabilities) {
+        const std::vector<int32_t> types = hdrCapabilities->getSupportedHdrTypes();
+        auto iter = std::find(types.cbegin(), types.cend(), HAL_HDR_HDR10);
+        hasHdrSupport = iter != types.cend();
+    }
+
+    auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
+    auto nativeWindow = nativeWindowSurface->getNativeWindow();
+
+    /*
+     * Create our display's surface
+     */
+    std::unique_ptr<RE::Surface> renderSurface = getRenderEngine().createSurface();
+    renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
+    renderSurface->setAsync(state.type >= DisplayDevice::DISPLAY_VIRTUAL);
+    renderSurface->setNativeWindow(nativeWindow.get());
+    const int displayWidth = renderSurface->queryWidth();
+    const int displayHeight = renderSurface->queryHeight();
+
+    // Make sure that composition can never be stalled by a virtual display
+    // consumer that isn't processing buffers fast enough. We have to do this
+    // in two places:
+    // * Here, in case the display is composed entirely by HWC.
+    // * In makeCurrent(), using eglSwapInterval. Some EGL drivers set the
+    //   window's swap interval in eglMakeCurrent, so they'll override the
+    //   interval we set here.
+    if (state.type >= DisplayDevice::DISPLAY_VIRTUAL) {
+        nativeWindow->setSwapInterval(nativeWindow.get(), 0);
+    }
+
+    // virtual displays are always considered enabled
+    auto initialPowerMode = (state.type >= DisplayDevice::DISPLAY_VIRTUAL) ? HWC_POWER_MODE_NORMAL
+                                                                           : HWC_POWER_MODE_OFF;
+
+    sp<DisplayDevice> hw =
+            new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
+                              dispSurface, std::move(renderSurface), displayWidth, displayHeight,
+                              hasWideColorSupport, hasHdrSupport, initialPowerMode);
+
+    if (maxFrameBufferAcquiredBuffers >= 3) {
+        nativeWindowSurface->preallocateBuffers();
+    }
+
+    ColorMode defaultColorMode = ColorMode::NATIVE;
+    if (hasWideColorSupport) {
+        defaultColorMode = ColorMode::SRGB;
+    }
+    setActiveColorModeInternal(hw, defaultColorMode);
+    hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
+    hw->setLayerStack(state.layerStack);
+    hw->setProjection(state.orientation, state.viewport, state.frame);
+    hw->setDisplayName(state.displayName);
+
+    return hw;
 }
 
 void SurfaceFlinger::processDisplayChangesLocked() {
@@ -2466,50 +2571,10 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 }
 
                 const wp<IBinder>& display(curr.keyAt(i));
-
                 if (dispSurface != nullptr) {
-                    bool hasWideColorSupport = false;
-                    if (hasWideColorDisplay) {
-                        std::vector<ColorMode> modes =
-                                getHwComposer().getColorModes(state.type);
-                        for (ColorMode colorMode : modes) {
-                            switch (colorMode) {
-                                case ColorMode::DISPLAY_P3:
-                                case ColorMode::ADOBE_RGB:
-                                case ColorMode::DCI_P3:
-                                    hasWideColorSupport = true;
-                                    break;
-                                default:
-                                    break;
-                            }
-                        }
-                    }
-
-                    bool hasHdrSupport = false;
-                    std::unique_ptr<HdrCapabilities> hdrCapabilities =
-                        getHwComposer().getHdrCapabilities(state.type);
-                    if (hdrCapabilities) {
-                        const std::vector<int32_t> types = hdrCapabilities->getSupportedHdrTypes();
-                        auto iter = std::find(types.cbegin(), types.cend(), HAL_HDR_HDR10);
-                        hasHdrSupport = iter != types.cend();
-                    }
-
-                    sp<DisplayDevice> hw =
-                            new DisplayDevice(this, state.type, hwcId, state.isSecure, display,
-                                              dispSurface, producer, hasWideColorSupport,
-                                              hasHdrSupport);
-
-                    ColorMode defaultColorMode = ColorMode::NATIVE;
-                    if (hasWideColorSupport) {
-                        defaultColorMode = ColorMode::SRGB;
-                    }
-                    setActiveColorModeInternal(hw, defaultColorMode);
-                    hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
-                    hw->setLayerStack(state.layerStack);
-                    hw->setProjection(state.orientation, state.viewport, state.frame);
-                    hw->setDisplayName(state.displayName);
-
-                    mDisplays.add(display, hw);
+                    mDisplays.add(display,
+                                  setupNewDisplayDeviceInternal(display, hwcId, state, dispSurface,
+                                                                producer));
                     if (!state.isVirtualDisplay()) {
                         mEventThread->onHotplugReceived(state.type, true);
                     }

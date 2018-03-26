@@ -121,6 +121,19 @@ enum {
     eTransactionMask          = 0x07
 };
 
+// A thin interface to abstract creating instances of Surface (gui/Surface.h) to
+// use as a NativeWindow.
+class NativeWindowSurface {
+public:
+    virtual ~NativeWindowSurface();
+
+    // Gets the NativeWindow to use for the surface.
+    virtual sp<ANativeWindow> getNativeWindow() const = 0;
+
+    // Indicates that the surface should allocate its buffers now.
+    virtual void preallocateBuffers() = 0;
+};
+
 class SurfaceFlingerBE
 {
 public:
@@ -664,6 +677,10 @@ private:
      */
     DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
             HWC2::Connection connection) const;
+    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& display, int hwcId,
+                                                    const DisplayDeviceState& state,
+                                                    const sp<DisplaySurface>& dispSurface,
+                                                    const sp<IGraphicBufferProducer>& producer);
     void processDisplayChangesLocked();
     void processDisplayHotplugEventsLocked();
 
@@ -862,6 +879,10 @@ private:
                                sp<IGraphicBufferConsumer>* /* outConsumer */,
                                bool /* consumerIsSurfaceFlinger */)>;
     CreateBufferQueueFunction mCreateBufferQueue;
+
+    using CreateNativeWindowSurfaceFunction =
+            std::function<std::unique_ptr<NativeWindowSurface>(const sp<IGraphicBufferProducer>&)>;
+    CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
 
     SurfaceFlingerBE mBE;
 };
