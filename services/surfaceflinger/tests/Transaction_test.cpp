@@ -2384,6 +2384,17 @@ TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresTransform) {
     verify();
 }
 
+TEST_F(ScreenCaptureChildOnlyTest, RegressionTest76099859) {
+    SurfaceComposerClient::Transaction().hide(mFGSurfaceControl).apply(true);
+
+    // Even though the parent is hidden we should still capture the child.
+    verify();
+
+    // Verify everything was properly hidden when rendering the full-screen.
+    screenshot()->expectBGColor(0,0);
+}
+
+
 TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
