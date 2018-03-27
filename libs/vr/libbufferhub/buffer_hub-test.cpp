@@ -769,9 +769,14 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
 
   auto s3 = p->CreateConsumer();
   EXPECT_FALSE(s3);
+  // Note that here the expected error code is EOPNOTSUPP as the socket towards
+  // ProducerChannel has been teared down.
   EXPECT_EQ(s3.error(), EOPNOTSUPP);
 
   s3 = c->CreateConsumer();
   EXPECT_FALSE(s3);
-  EXPECT_EQ(s3.error(), EOPNOTSUPP);
+  // Note that here the expected error code is EPIPE returned from
+  // ConsumerChannel::HandleMessage as the socket is still open but the producer
+  // is gone.
+  EXPECT_EQ(s3.error(), EPIPE);
 }
