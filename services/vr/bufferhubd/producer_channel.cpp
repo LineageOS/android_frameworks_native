@@ -134,7 +134,6 @@ ProducerChannel::~ProducerChannel() {
            channel_id(), buffer_id(), buffer_state_->load());
   for (auto consumer : consumer_channels_) {
     consumer->OnProducerClosed();
-    service()->SetChannel(consumer->channel_id(), nullptr);
   }
   Hangup();
 }
