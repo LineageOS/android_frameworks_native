@@ -4593,9 +4593,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
 
             ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent)
                   : oldParent(oldParent), newParent(newParent) {
-                oldParent->reparentChildrenForDrawing(newParent);
+                oldParent->setChildrenDrawingParent(newParent);
             }
-            ~ReparentForDrawing() { newParent->reparentChildrenForDrawing(oldParent); }
+            ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
         };
 
         void render(std::function<void()> drawLayers) override {

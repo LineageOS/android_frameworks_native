@@ -1593,7 +1593,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     return true;
 }
 
-void Layer::reparentChildrenForDrawing(const sp<Layer>& newParent) {
+void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;
     }
