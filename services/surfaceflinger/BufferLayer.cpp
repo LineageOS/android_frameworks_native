@@ -690,9 +690,9 @@ void BufferLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         Mutex::Autolock lock(mQueueItemLock);
-        mFlinger->mInterceptor.saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
-                                                item.mGraphicBuffer->getHeight(),
-                                                item.mFrameNumber);
+        mFlinger->mInterceptor->saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
+                                                 item.mGraphicBuffer->getHeight(),
+                                                 item.mFrameNumber);
         // Reset the frame number tracker when we receive the first buffer after
         // a frame number reset
         if (item.mFrameNumber == 1) {

@@ -26,6 +26,10 @@
 
 namespace android {
 
+EventControlThread::~EventControlThread() = default;
+
+namespace impl {
+
 EventControlThread::EventControlThread(EventControlThread::SetVSyncEnabledFunction function)
       : mSetVSyncEnabled(function) {
     pthread_setname_np(mThread.native_handle(), "EventControlThread");
@@ -67,4 +71,5 @@ void EventControlThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
     }
 }
 
+} // namespace impl
 } // namespace android
