@@ -87,11 +87,9 @@ struct CompositionInfo {
         bool clearArea = false;
         bool preMultipliedAlpha = false;
         bool opaque = false;
-        bool disableTexture = false;
         half4 color;
         Texture texture;
         bool useIdentityTransform = false;
-        bool Y410BT2020 = false;
     } re;
 
     void dump(const char* tag) const;
