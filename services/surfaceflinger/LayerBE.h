@@ -19,7 +19,6 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <gui/HdrMetadata.h>
 #include <ui/Region.h>
 
 #include "SurfaceFlinger.h"
@@ -66,7 +65,6 @@ struct CompositionInfo {
     LayerBE* layer = nullptr;
     struct {
         std::shared_ptr<LayerContainer> hwcLayer;
-        bool skipGeometry = true;
         int32_t hwid = -1;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
@@ -82,7 +80,6 @@ struct CompositionInfo {
         sp<NativeHandle> sidebandStream;
         android_dataspace dataspace;
         hwc_color_t color;
-        HdrMetadata hdrMetadata;
     } hwc;
     struct {
         Mesh* mesh;

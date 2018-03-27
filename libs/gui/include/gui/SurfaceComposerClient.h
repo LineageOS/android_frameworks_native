@@ -111,8 +111,8 @@ public:
             PixelFormat format, // pixel-format desired
             uint32_t flags = 0, // usage flags
             SurfaceControl* parent = nullptr, // parent
-            uint32_t windowType = 0, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
-            uint32_t ownerUid = 0 // UID of the task
+            int32_t windowType = -1, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
+            int32_t ownerUid = -1 // UID of the task
     );
 
     status_t createSurfaceChecked(
@@ -123,8 +123,8 @@ public:
             sp<SurfaceControl>* outSurface,
             uint32_t flags = 0, // usage flags
             SurfaceControl* parent = nullptr, // parent
-            uint32_t windowType = 0, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
-            uint32_t ownerUid = 0 // UID of the task
+            int32_t windowType = -1, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
+            int32_t ownerUid = -1 // UID of the task
     );
 
     //! Create a virtual display

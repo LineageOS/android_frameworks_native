@@ -483,15 +483,14 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     const auto hwcId = displayDevice->getHwcDisplayId();
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
 
-    // Need to program geometry parts
-    getBE().compositionInfo.hwc.skipGeometry = false;
-
     // enable this layer
     hwcInfo.forceClientComposition = false;
 
     if (isSecure() && !displayDevice->isSecure()) {
         hwcInfo.forceClientComposition = true;
     }
+
+    auto& hwcLayer = hwcInfo.layer;
 
     // this gives us only the "orientation" component of the transform
     const State& s(getDrawingState());
@@ -500,7 +499,12 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         blendMode =
                 mPremultipliedAlpha ? HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
     }
-    getBE().compositionInfo.hwc.blendMode = blendMode;
+    auto error = (*hwcLayer)->setBlendMode(blendMode);
+    ALOGE_IF(error != HWC2::Error::None,
+             "[%s] Failed to set blend mode %s:"
+             " %s (%d)",
+             mName.string(), to_string(blendMode).c_str(), to_string(error).c_str(),
+             static_cast<int32_t>(error));
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
@@ -543,27 +547,51 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     }
     const Transform& tr(displayDevice->getTransform());
     Rect transformedFrame = tr.transform(frame);
-    getBE().compositionInfo.hwc.displayFrame = transformedFrame;
+    error = (*hwcLayer)->setDisplayFrame(transformedFrame);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)", mName.string(),
+              transformedFrame.left, transformedFrame.top, transformedFrame.right,
+              transformedFrame.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
+    } else {
+        hwcInfo.displayFrame = transformedFrame;
+    }
 
     FloatRect sourceCrop = computeCrop(displayDevice);
-    getBE().compositionInfo.hwc.sourceCrop = sourceCrop;
+    error = (*hwcLayer)->setSourceCrop(sourceCrop);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
+              "%s (%d)",
+              mName.string(), sourceCrop.left, sourceCrop.top, sourceCrop.right, sourceCrop.bottom,
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    } else {
+        hwcInfo.sourceCrop = sourceCrop;
+    }
 
     float alpha = static_cast<float>(getAlpha());
-    getBE().compositionInfo.hwc.alpha = alpha;
+    error = (*hwcLayer)->setPlaneAlpha(alpha);
+    ALOGE_IF(error != HWC2::Error::None,
+             "[%s] Failed to set plane alpha %.3f: "
+             "%s (%d)",
+             mName.string(), alpha, to_string(error).c_str(), static_cast<int32_t>(error));
 
-    getBE().compositionInfo.hwc.z = z;
+    error = (*hwcLayer)->setZOrder(z);
+    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)", mName.string(), z,
+             to_string(error).c_str(), static_cast<int32_t>(error));
 
     int type = s.type;
     int appId = s.appId;
     sp<Layer> parent = mDrawingParent.promote();
     if (parent.get()) {
         auto& parentState = parent->getDrawingState();
-        type = parentState.type;
-        appId = parentState.appId;
+        if (parentState.type >= 0 || parentState.appId >= 0) {
+            type = parentState.type;
+            appId = parentState.appId;
+        }
     }
 
-    getBE().compositionInfo.hwc.type = type;
-    getBE().compositionInfo.hwc.appId = appId;
+    error = (*hwcLayer)->setInfo(type, appId);
+    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
+             static_cast<int32_t>(error));
 
     /*
      * Transformations are applied in this order:
@@ -606,11 +634,16 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     const uint32_t orientation = transform.getOrientation();
     if (orientation & Transform::ROT_INVALID || extremeScaling) {
         // we can only handle simple transformation
-        getBE().mHwcLayers[hwcId].compositionType = HWC2::Composition::Client;
+        hwcInfo.forceClientComposition = true;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
         hwcInfo.transform = transform;
-        getBE().compositionInfo.hwc.transform = transform;
+        auto error = (*hwcLayer)->setTransform(transform);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[%s] Failed to set transform %s: "
+                 "%s (%d)",
+                 mName.string(), to_string(transform).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
     }
 }
 
@@ -695,12 +728,26 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
     clearWithOpenGL(renderArea, 0, 0, 0, 0);
 }
 
-void Layer::setCompositionType(int32_t /*hwcId*/, HWC2::Composition type, bool /*callIntoHwc*/) {
-    if (getBE().compositionInfo.compositionType != type) {
-        ALOGV("setCompositionType: Changing compositionType from %s to %s",
-                to_string(getBE().compositionInfo.compositionType).c_str(),
-                to_string(type).c_str());
-        getBE().compositionInfo.compositionType = type;
+void Layer::setCompositionType(int32_t hwcId, HWC2::Composition type, bool callIntoHwc) {
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
+        ALOGE("setCompositionType called without a valid HWC layer");
+        return;
+    }
+    auto& hwcInfo = getBE().mHwcLayers[hwcId];
+    auto& hwcLayer = hwcInfo.layer;
+    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", (*hwcLayer)->getId(), to_string(type).c_str(),
+          static_cast<int>(callIntoHwc));
+    if (hwcInfo.compositionType != type) {
+        ALOGV("    actually setting");
+        hwcInfo.compositionType = type;
+        if (callIntoHwc) {
+            auto error = (*hwcLayer)->setCompositionType(type);
+            ALOGE_IF(error != HWC2::Error::None,
+                     "[%s] Failed to set "
+                     "composition type %s: %s (%d)",
+                     mName.string(), to_string(type).c_str(), to_string(error).c_str(),
+                     static_cast<int32_t>(error));
+        }
     }
 }
 
@@ -710,7 +757,11 @@ HWC2::Composition Layer::getCompositionType(int32_t hwcId) const {
         // have a HWC counterpart, then it will always be Client
         return HWC2::Composition::Client;
     }
-    return getBE().compositionInfo.compositionType;
+    if (getBE().mHwcLayers.count(hwcId) == 0) {
+        ALOGE("getCompositionType called with an invalid HWC layer");
+        return HWC2::Composition::Invalid;
+    }
+    return getBE().mHwcLayers.at(hwcId).compositionType;
 }
 
 void Layer::setClearClientTarget(int32_t hwcId, bool clear) {
@@ -1261,7 +1312,7 @@ bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     return true;
 }
 
-void Layer::setInfo(uint32_t type, uint32_t appId) {
+void Layer::setInfo(int32_t type, int32_t appId) {
     mCurrentState.appId = appId;
     mCurrentState.type = type;
     mCurrentState.modified = true;
@@ -1439,11 +1490,12 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
     result.appendFormat(" %s\n", name.string());
 
     const Layer::State& layerState(getDrawingState());
+    const LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers.at(hwcId);
     result.appendFormat("  %10d | ", layerState.z);
     result.appendFormat("%10s | ", to_string(getCompositionType(hwcId)).c_str());
-    const Rect& frame = getBE().compositionInfo.hwc.displayFrame;
+    const Rect& frame = hwcInfo.displayFrame;
     result.appendFormat("%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
-    const FloatRect& crop = getBE().compositionInfo.hwc.sourceCrop;
+    const FloatRect& crop = hwcInfo.sourceCrop;
     result.appendFormat("%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right, crop.bottom);
 
     result.append("- - - - - - - - - - - - - - - - - - - - ");
@@ -1866,6 +1918,8 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
     layerInfo->set_refresh_pending(isBufferLatched());
+    layerInfo->set_window_type(state.type);
+    layerInfo->set_app_id(state.appId);
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {

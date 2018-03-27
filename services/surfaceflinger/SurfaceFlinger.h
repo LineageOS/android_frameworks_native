@@ -121,6 +121,19 @@ enum {
     eTransactionMask          = 0x07
 };
 
+// A thin interface to abstract creating instances of Surface (gui/Surface.h) to
+// use as a NativeWindow.
+class NativeWindowSurface {
+public:
+    virtual ~NativeWindowSurface();
+
+    // Gets the NativeWindow to use for the surface.
+    virtual sp<ANativeWindow> getNativeWindow() const = 0;
+
+    // Indicates that the surface should allocate its buffers now.
+    virtual void preallocateBuffers() = 0;
+};
+
 class SurfaceFlingerBE
 {
 public:
@@ -201,8 +214,6 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
-
-    std::vector<CompositionInfo> mCompositionInfo;
 };
 
 
@@ -493,7 +504,7 @@ private:
      */
     status_t createLayer(const String8& name, const sp<Client>& client,
             uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-            uint32_t windowType, uint32_t ownerUid, sp<IBinder>* handle,
+            int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
             sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
 
     status_t createBufferLayer(const sp<Client>& client, const String8& name,
@@ -615,8 +626,8 @@ private:
     void computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
             Region& dirtyRegion, Region& opaqueRegion);
 
-    void preComposition();
-    void postComposition();
+    void preComposition(nsecs_t refreshStartTime);
+    void postComposition(nsecs_t refreshStartTime);
     void updateCompositorTiming(
             nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
             std::shared_ptr<FenceTime>& presentFenceTime);
@@ -633,19 +644,7 @@ private:
 
     mat4 computeSaturationMatrix() const;
 
-    void calculateWorkingSet();
-    /*
-     * beginFrame - This function handles any pre-frame processing that needs to be
-     * prior to any CompositionInfo handling and is not dependent on data in
-     * CompositionInfo
-     */
-    void beginFrame();
-    /* prepareFrame - This function will call into the DisplayDevice to prepare a
-     * frame after CompositionInfo has been programmed.   This provides a mechanism
-     * to prepare the hardware composer
-     */
-    void prepareFrame();
-    void setUpHWComposer(const CompositionInfo& compositionInfo);
+    void setUpHWComposer();
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
@@ -664,6 +663,10 @@ private:
      */
     DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
             HWC2::Connection connection) const;
+    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& display, int hwcId,
+                                                    const DisplayDeviceState& state,
+                                                    const sp<DisplaySurface>& dispSurface,
+                                                    const sp<IGraphicBufferProducer>& producer);
     void processDisplayChangesLocked();
     void processDisplayHotplugEventsLocked();
 
@@ -751,11 +754,6 @@ private:
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
 
-    // helper methods
-    void configureHwcCommonData(const CompositionInfo& compositionInfo) const;
-    void configureDeviceComposition(const CompositionInfo& compositionInfo) const;
-    void configureSidebandComposition(const CompositionInfo& compositionInfo) const;
-
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
@@ -823,7 +821,6 @@ private:
     Mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
-    nsecs_t mRefreshStartTime;
 
     std::atomic<bool> mRefreshPending{false};
 
@@ -862,6 +859,10 @@ private:
                                sp<IGraphicBufferConsumer>* /* outConsumer */,
                                bool /* consumerIsSurfaceFlinger */)>;
     CreateBufferQueueFunction mCreateBufferQueue;
+
+    using CreateNativeWindowSurfaceFunction =
+            std::function<std::unique_ptr<NativeWindowSurface>(const sp<IGraphicBufferProducer>&)>;
+    CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
 
     SurfaceFlingerBE mBE;
 };

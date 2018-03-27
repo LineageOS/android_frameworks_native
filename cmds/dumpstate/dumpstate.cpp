@@ -1159,6 +1159,10 @@ static void RunDumpsysTextNormalPriority(const std::string& title,
 static void RunDumpsysProto(const std::string& title, int priority,
                             std::chrono::milliseconds timeout,
                             std::chrono::milliseconds service_timeout) {
+    if (!ds.IsZipping()) {
+        MYLOGD("Not dumping %s because it's not a zipped bugreport\n", title.c_str());
+        return;
+    }
     sp<android::IServiceManager> sm = defaultServiceManager();
     Dumpsys dumpsys(sm.get());
     Vector<String16> args;
@@ -1630,20 +1634,8 @@ static void ExitOnInvalidArgs() {
     ShowUsageAndExit();
 }
 
-static void sig_handler(int) {
-    _exit(EXIT_FAILURE);
-}
-
 static void register_sig_handler() {
-    struct sigaction sa;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sa.sa_handler = sig_handler;
-    sigaction(SIGPIPE, &sa, NULL); // broken pipe
-    sigaction(SIGSEGV, &sa, NULL); // segment fault
-    sigaction(SIGINT, &sa, NULL); // ctrl-c
-    sigaction(SIGTERM, &sa, NULL); // killed
-    sigaction(SIGQUIT, &sa, NULL); // quit
+    signal(SIGPIPE, SIG_IGN);
 }
 
 bool Dumpstate::FinishZipFile() {
