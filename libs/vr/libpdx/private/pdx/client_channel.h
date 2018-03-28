@@ -33,6 +33,7 @@ class ClientChannel {
   virtual std::vector<EventSource> GetEventSources() const = 0;
 
   virtual LocalChannelHandle& GetChannelHandle() = 0;
+  virtual const LocalChannelHandle& GetChannelHandle() const = 0;
   virtual void* AllocateTransactionState() = 0;
   virtual void FreeTransactionState(void* state) = 0;
 
