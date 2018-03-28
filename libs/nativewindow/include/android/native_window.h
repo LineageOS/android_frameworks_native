@@ -85,23 +85,23 @@ typedef struct ANativeWindow ANativeWindow;
  * A pointer can be obtained using {@link ANativeWindow_lock()}.
  */
 typedef struct ANativeWindow_Buffer {
-    // The number of pixels that are show horizontally.
+    /// The number of pixels that are shown horizontally.
     int32_t width;
 
-    // The number of pixels that are shown vertically.
+    /// The number of pixels that are shown vertically.
     int32_t height;
 
-    // The number of *pixels* that a line in the buffer takes in
-    // memory. This may be >= width.
+    /// The number of *pixels* that a line in the buffer takes in
+    /// memory. This may be >= width.
     int32_t stride;
 
-    // The format of the buffer. One of AHARDWAREBUFFER_FORMAT_*
+    /// The format of the buffer. One of AHARDWAREBUFFER_FORMAT_*
     int32_t format;
 
-    // The actual bits.
+    /// The actual bits.
     void* bits;
 
-    // Do not touch.
+    /// Do not touch.
     uint32_t reserved[6];
 } ANativeWindow_Buffer;
 

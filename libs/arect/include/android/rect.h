@@ -33,23 +33,26 @@ extern "C" {
 #endif
 
 /**
- * {@link ARect} is a struct that represents a rectangular window area.
+ * Rectangular window area.
  *
- * It is used with {@link
- * ANativeActivityCallbacks::onContentRectChanged} event callback and
- * ANativeWindow_lock() function.
+ * This is the NDK equivalent of the android.graphics.Rect class in Java. It is
+ * used with {@link ANativeActivityCallbacks::onContentRectChanged} event
+ * callback and the ANativeWindow_lock() function.
+ *
+ * In a valid ARect, left <= right and top <= bottom. ARect with left=0, top=10,
+ * right=1, bottom=11 contains only one pixel at x=0, y=10.
  */
 typedef struct ARect {
 #ifdef __cplusplus
     typedef int32_t value_type;
 #endif
-    /** left position */
+    /// Minimum X coordinate of the rectangle.
     int32_t left;
-    /** top position */
+    /// Minimum Y coordinate of the rectangle.
     int32_t top;
-    /** left position */
+    /// Maximum X coordinate of the rectangle.
     int32_t right;
-    /** bottom position */
+    /// Maximum Y coordinate of the rectangle.
     int32_t bottom;
 } ARect;
 
