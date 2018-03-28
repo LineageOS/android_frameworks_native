@@ -428,6 +428,8 @@ public:
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
 
 
+    virtual bool isScreenshot() const { return false; }
+
     /*
      * draw - performs some global clipping optimizations
      * and calls onDraw().
