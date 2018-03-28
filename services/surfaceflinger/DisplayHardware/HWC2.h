@@ -48,6 +48,8 @@ namespace android {
     namespace Hwc2 {
         class Composer;
     }
+
+    class TestableSurfaceFlinger;
 }
 
 namespace HWC2 {
@@ -126,8 +128,7 @@ private:
 class Display
 {
 public:
-    Display(android::Hwc2::Composer& composer,
-            const std::unordered_set<Capability>& capabilities,
+    Display(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
             hwc2_display_t id, DisplayType type);
     ~Display();
 
@@ -262,6 +263,8 @@ private:
     // This may fail (and return a null pointer) if no layer with this ID exists
     // on this display
     Layer* getLayerById(hwc2_layer_t id) const;
+
+    friend android::TestableSurfaceFlinger;
 
     // Member variables
 

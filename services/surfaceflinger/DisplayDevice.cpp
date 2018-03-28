@@ -57,9 +57,6 @@ using namespace android;
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 
-static bool useTripleFramebuffer = getInt64< ISurfaceFlingerConfigs,
-        &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2) >= 3;
-
 /*
  * Initialize the display to the specified values.
  *
@@ -74,72 +71,43 @@ DisplayDevice::DisplayDevice(
         int32_t hwcId,
         bool isSecure,
         const wp<IBinder>& displayToken,
+        const sp<ANativeWindow>& nativeWindow,
         const sp<DisplaySurface>& displaySurface,
-        const sp<IGraphicBufferProducer>& producer,
+        std::unique_ptr<RE::Surface> renderSurface,
+        int displayWidth,
+        int displayHeight,
         bool supportWideColor,
-        bool supportHdr)
+        bool supportHdr,
+        int initialPowerMode)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
       mType(type),
       mHwcDisplayId(hwcId),
       mDisplayToken(displayToken),
+      mNativeWindow(nativeWindow),
       mDisplaySurface(displaySurface),
-      mSurface{flinger->getRenderEngine().createSurface()},
-      mDisplayWidth(),
-      mDisplayHeight(),
-      mPageFlipCount(),
+      mSurface{std::move(renderSurface)},
+      mDisplayWidth(displayWidth),
+      mDisplayHeight(displayHeight),
+      mPageFlipCount(0),
       mIsSecure(isSecure),
       mLayerStack(NO_LAYER_STACK),
       mOrientation(),
-      mPowerMode(HWC_POWER_MODE_OFF),
-      mActiveConfig(0)
+      mViewport(Rect::INVALID_RECT),
+      mFrame(Rect::INVALID_RECT),
+      mPowerMode(initialPowerMode),
+      mActiveConfig(0),
+      mActiveColorMode(ColorMode::NATIVE),
+      mDisplayHasWideColor(supportWideColor),
+      mDisplayHasHdr(supportHdr)
 {
     // clang-format on
-    Surface* surface;
-    mNativeWindow = surface = new Surface(producer, false);
-    ANativeWindow* const window = mNativeWindow.get();
-
-    mActiveColorMode = ColorMode::NATIVE;
-    mDisplayHasWideColor = supportWideColor;
-    mDisplayHasHdr = supportHdr;
-
-    /*
-     * Create our display's surface
-     */
-    mSurface->setCritical(mType == DisplayDevice::DISPLAY_PRIMARY);
-    mSurface->setAsync(mType >= DisplayDevice::DISPLAY_VIRTUAL);
-    mSurface->setNativeWindow(window);
-    mDisplayWidth = mSurface->queryWidth();
-    mDisplayHeight = mSurface->queryHeight();
-
-    // Make sure that composition can never be stalled by a virtual display
-    // consumer that isn't processing buffers fast enough. We have to do this
-    // in two places:
-    // * Here, in case the display is composed entirely by HWC.
-    // * In makeCurrent(), using eglSwapInterval. Some EGL drivers set the
-    //   window's swap interval in eglMakeCurrent, so they'll override the
-    //   interval we set here.
-    if (mType >= DisplayDevice::DISPLAY_VIRTUAL)
-        window->setSwapInterval(window, 0);
-
-    mPageFlipCount = 0;
-    mViewport.makeInvalid();
-    mFrame.makeInvalid();
-
-    // virtual displays are always considered enabled
-    mPowerMode = (mType >= DisplayDevice::DISPLAY_VIRTUAL) ?
-                  HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
-
-    if (useTripleFramebuffer) {
-        surface->allocateBuffers();
-    }
 }
 
-DisplayDevice::~DisplayDevice() {
-}
+DisplayDevice::~DisplayDevice() = default;
 
 void DisplayDevice::disconnect(HWComposer& hwc) {
     if (mHwcDisplayId >= 0) {

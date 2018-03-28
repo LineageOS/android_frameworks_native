@@ -24,6 +24,7 @@
 #include <utils/Timers.h>
 #include <utils/threads.h>
 
+#include <gui/DisplayEventReceiver.h>
 #include <gui/IDisplayEventConnection.h>
 
 #include "EventThread.h"
@@ -44,6 +45,12 @@ void MessageBase::handleMessage(const Message&) {
 };
 
 // ---------------------------------------------------------------------------
+
+MessageQueue::~MessageQueue() = default;
+
+// ---------------------------------------------------------------------------
+
+namespace impl {
 
 void MessageQueue::Handler::dispatchRefresh() {
     if ((android_atomic_or(eventMaskRefresh, &mEventMask) & eventMaskRefresh) == 0) {
@@ -72,17 +79,13 @@ void MessageQueue::Handler::handleMessage(const Message& message) {
 
 // ---------------------------------------------------------------------------
 
-MessageQueue::MessageQueue() {}
-
-MessageQueue::~MessageQueue() {}
-
 void MessageQueue::init(const sp<SurfaceFlinger>& flinger) {
     mFlinger = flinger;
     mLooper = new Looper(true);
     mHandler = new Handler(*this);
 }
 
-void MessageQueue::setEventThread(EventThread* eventThread) {
+void MessageQueue::setEventThread(android::EventThread* eventThread) {
     if (mEventThread == eventThread) {
         return;
     }
@@ -159,4 +162,5 @@ int MessageQueue::eventReceiver(int /*fd*/, int /*events*/) {
 
 // ---------------------------------------------------------------------------
 
-}; // namespace android
+} // namespace impl
+} // namespace android

@@ -44,33 +44,44 @@ public:
         mFlinger->getBE().mHwc.reset(new HWComposer(std::move(composer)));
     }
 
-    void setupPrimaryDisplay() {
-        mFlinger->getBE().mHwc->mHwcDevice->onHotplug(0, HWC2::Connection::Connected);
-        mFlinger->getBE().mHwc->onHotplug(0, DisplayDevice::DISPLAY_PRIMARY,
-                                          HWC2::Connection::Connected);
-    }
-
     using CreateBufferQueueFunction = SurfaceFlinger::CreateBufferQueueFunction;
-
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
         mFlinger->mCreateBufferQueue = f;
     }
 
+    using CreateNativeWindowSurfaceFunction = SurfaceFlinger::CreateNativeWindowSurfaceFunction;
+    void setCreateNativeWindowSurface(CreateNativeWindowSurfaceFunction f) {
+        mFlinger->mCreateNativeWindowSurface = f;
+    }
+
+    using HotplugEvent = SurfaceFlinger::HotplugEvent;
+
     /* ------------------------------------------------------------------------
      * Forwarding for functions being tested
      */
-    auto processDisplayChangesLocked() { return mFlinger->processDisplayChangesLocked(); }
+
+    auto handleTransactionLocked(uint32_t transactionFlags) {
+        return mFlinger->handleTransactionLocked(transactionFlags);
+    }
 
     /* ------------------------------------------------------------------------
      * Read-write access to private data to set up preconditions and assert
      * post-conditions.
      */
+
     auto& mutableBuiltinDisplays() { return mFlinger->mBuiltinDisplays; }
-    auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
+    auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
-    auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableEventControlThread() { return mFlinger->mEventControlThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
+    auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableInterceptor() { return mFlinger->mInterceptor; }
+    auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
+    auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
+
+    auto& mutableHwcDisplayData() { return mFlinger->getBE().mHwc->mDisplayData; }
+    auto& mutableHwcDisplaySlots() { return mFlinger->getBE().mHwc->mHwcDisplaySlots; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
@@ -78,12 +89,33 @@ public:
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
         mutableDisplays().clear();
+        mutableEventControlThread().reset();
+        mutableEventQueue().reset();
         mutableEventThread().reset();
+        mutableInterceptor().reset();
         mFlinger->getBE().mHwc.reset();
         mFlinger->getBE().mRenderEngine.reset();
     }
 
-    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger();
+    /* ------------------------------------------------------------------------
+     * Wrapper classes for Read-write access to private data to set up
+     * preconditions and assert post-conditions.
+     */
+    struct HWC2Display : public HWC2::Display {
+        HWC2Display(Hwc2::Composer& composer,
+                    const std::unordered_set<HWC2::Capability>& capabilities, hwc2_display_t id,
+                    HWC2::DisplayType type)
+              : HWC2::Display(composer, capabilities, id, type) {}
+        ~HWC2Display() {
+            // Prevents a call to disable vsyncs.
+            mType = HWC2::DisplayType::Invalid;
+        }
+
+        auto& mutableIsConnected() { return this->mIsConnected; }
+        auto& mutableConfigs() { return this->mConfigs; }
+    };
+
+    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(SurfaceFlinger::SkipInitialization);
 };
 
 } // namespace android
