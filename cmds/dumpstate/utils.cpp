@@ -856,26 +856,6 @@ std::set<int> get_interesting_hal_pids() {
     return pids; // whether it was okay or not
 }
 
-const char* DumpTraces(const std::string& traces_path);
-const char* DumpTracesTombstoned(const std::string& traces_dir);
-
-/* dump Dalvik and native stack traces, return the trace file location (NULL if none) */
-const char *dump_traces() {
-    DurationReporter duration_reporter("DUMP TRACES");
-
-    const std::string traces_dir = android::base::GetProperty("dalvik.vm.stack-trace-dir", "");
-    if (!traces_dir.empty()) {
-        return DumpTracesTombstoned(traces_dir);
-    }
-
-    const std::string traces_file = android::base::GetProperty("dalvik.vm.stack-trace-file", "");
-    if (!traces_file.empty()) {
-        return DumpTraces(traces_file);
-    }
-
-    return nullptr;
-}
-
 static bool IsZygote(int pid) {
     static const std::string kZygotePrefix = "zygote";
 
@@ -888,8 +868,11 @@ static bool IsZygote(int pid) {
     return (cmdline.find(kZygotePrefix) == 0);
 }
 
-const char* DumpTracesTombstoned(const std::string& traces_dir) {
-    const std::string temp_file_pattern = traces_dir + "/dumptrace_XXXXXX";
+// Dump Dalvik and native stack traces, return the trace file location (nullptr if none).
+const char* dump_traces() {
+    DurationReporter duration_reporter("DUMP TRACES");
+
+    const std::string temp_file_pattern = "/data/anr/dumptrace_XXXXXX";
 
     const size_t buf_size = temp_file_pattern.length() + 1;
     std::unique_ptr<char[]> file_name_buf(new char[buf_size]);
@@ -989,156 +972,6 @@ const char* DumpTracesTombstoned(const std::string& traces_dir) {
     }
 
     return file_name_buf.release();
-}
-
-const char* DumpTraces(const std::string& traces_path) {
-    const char* result = NULL;
-    /* move the old traces.txt (if any) out of the way temporarily */
-    std::string anrtraces_path = traces_path + ".anr";
-    if (rename(traces_path.c_str(), anrtraces_path.c_str()) && errno != ENOENT) {
-        MYLOGE("rename(%s, %s): %s\n", traces_path.c_str(), anrtraces_path.c_str(), strerror(errno));
-        return nullptr;  // Can't rename old traces.txt -- no permission? -- leave it alone instead
-    }
-
-    /* create a new, empty traces.txt file to receive stack dumps */
-    int fd = TEMP_FAILURE_RETRY(
-        open(traces_path.c_str(), O_CREAT | O_WRONLY | O_APPEND | O_TRUNC | O_NOFOLLOW | O_CLOEXEC,
-             0666)); /* -rw-rw-rw- */
-    if (fd < 0) {
-        MYLOGE("%s: %s\n", traces_path.c_str(), strerror(errno));
-        return nullptr;
-    }
-    int chmod_ret = fchmod(fd, 0666);
-    if (chmod_ret < 0) {
-        MYLOGE("fchmod on %s failed: %s\n", traces_path.c_str(), strerror(errno));
-        close(fd);
-        return nullptr;
-    }
-
-    /* Variables below must be initialized before 'goto' statements */
-    int dalvik_found = 0;
-    int ifd, wfd = -1;
-    std::set<int> hal_pids = get_interesting_hal_pids();
-
-    /* walk /proc and kill -QUIT all Dalvik processes */
-    DIR *proc = opendir("/proc");
-    if (proc == NULL) {
-        MYLOGE("/proc: %s\n", strerror(errno));
-        goto error_close_fd;
-    }
-
-    /* use inotify to find when processes are done dumping */
-    ifd = inotify_init();
-    if (ifd < 0) {
-        MYLOGE("inotify_init: %s\n", strerror(errno));
-        goto error_close_fd;
-    }
-
-    wfd = inotify_add_watch(ifd, traces_path.c_str(), IN_CLOSE_WRITE);
-    if (wfd < 0) {
-        MYLOGE("inotify_add_watch(%s): %s\n", traces_path.c_str(), strerror(errno));
-        goto error_close_ifd;
-    }
-
-    struct dirent *d;
-    while ((d = readdir(proc))) {
-        int pid = atoi(d->d_name);
-        if (pid <= 0) continue;
-
-        char path[PATH_MAX];
-        char data[PATH_MAX];
-        snprintf(path, sizeof(path), "/proc/%d/exe", pid);
-        ssize_t len = readlink(path, data, sizeof(data) - 1);
-        if (len <= 0) {
-            continue;
-        }
-        data[len] = '\0';
-
-        if (!strncmp(data, "/system/bin/app_process", strlen("/system/bin/app_process"))) {
-            /* skip zygote -- it won't dump its stack anyway */
-            snprintf(path, sizeof(path), "/proc/%d/cmdline", pid);
-            int cfd = TEMP_FAILURE_RETRY(open(path, O_RDONLY | O_CLOEXEC));
-            len = read(cfd, data, sizeof(data) - 1);
-            close(cfd);
-            if (len <= 0) {
-                continue;
-            }
-            data[len] = '\0';
-            if (!strncmp(data, "zygote", strlen("zygote"))) {
-                continue;
-            }
-
-            ++dalvik_found;
-            uint64_t start = Nanotime();
-            if (kill(pid, SIGQUIT)) {
-                MYLOGE("kill(%d, SIGQUIT): %s\n", pid, strerror(errno));
-                continue;
-            }
-
-            /* wait for the writable-close notification from inotify */
-            struct pollfd pfd = { ifd, POLLIN, 0 };
-            int ret = poll(&pfd, 1, TRACE_DUMP_TIMEOUT_MS);
-            if (ret < 0) {
-                MYLOGE("poll: %s\n", strerror(errno));
-            } else if (ret == 0) {
-                MYLOGE("warning: timed out dumping pid %d\n", pid);
-            } else {
-                struct inotify_event ie;
-                read(ifd, &ie, sizeof(ie));
-            }
-
-            if (lseek(fd, 0, SEEK_END) < 0) {
-                MYLOGE("lseek: %s\n", strerror(errno));
-            } else {
-                dprintf(fd, "[dump dalvik stack %d: %.3fs elapsed]\n", pid,
-                        (float)(Nanotime() - start) / NANOS_PER_SEC);
-            }
-        } else if (should_dump_native_traces(data) ||
-                   hal_pids.find(pid) != hal_pids.end()) {
-            /* dump native process if appropriate */
-            if (lseek(fd, 0, SEEK_END) < 0) {
-                MYLOGE("lseek: %s\n", strerror(errno));
-            } else {
-                static uint16_t timeout_failures = 0;
-                uint64_t start = Nanotime();
-
-                /* If 3 backtrace dumps fail in a row, consider debuggerd dead. */
-                if (timeout_failures == 3) {
-                    dprintf(fd, "too many stack dump failures, skipping...\n");
-                } else if (dump_backtrace_to_file_timeout(
-                        pid, kDebuggerdNativeBacktrace, 20, fd) == -1) {
-                    dprintf(fd, "dumping failed, likely due to a timeout\n");
-                    timeout_failures++;
-                } else {
-                    timeout_failures = 0;
-                }
-                dprintf(fd, "[dump native stack %d: %.3fs elapsed]\n", pid,
-                        (float)(Nanotime() - start) / NANOS_PER_SEC);
-            }
-        }
-    }
-
-    if (dalvik_found == 0) {
-        MYLOGE("Warning: no Dalvik processes found to dump stacks\n");
-    }
-
-    static std::string dumptraces_path = android::base::StringPrintf(
-        "%s/bugreport-%s", dirname(traces_path.c_str()), basename(traces_path.c_str()));
-    if (rename(traces_path.c_str(), dumptraces_path.c_str())) {
-        MYLOGE("rename(%s, %s): %s\n", traces_path.c_str(), dumptraces_path.c_str(),
-               strerror(errno));
-        goto error_close_ifd;
-    }
-    result = dumptraces_path.c_str();
-
-    /* replace the saved [ANR] traces.txt file */
-    rename(anrtraces_path.c_str(), traces_path.c_str());
-
-error_close_ifd:
-    close(ifd);
-error_close_fd:
-    close(fd);
-    return result;
 }
 
 void dump_route_tables() {
