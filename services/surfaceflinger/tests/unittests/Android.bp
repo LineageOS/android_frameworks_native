@@ -16,6 +16,11 @@ cc_test {
     name: "libsurfaceflinger_unittest",
     tags: ["test"],
     defaults: ["libsurfaceflinger_defaults"],
+    include_dirs: [
+        "hardware/qcom/display/include",
+        "hardware/qcom/display/gralloc",
+        "hardware/qcom/display/libqdutils",
+    ],
     test_suites: ["device-tests"],
     srcs: [
         ":libsurfaceflinger_sources",
