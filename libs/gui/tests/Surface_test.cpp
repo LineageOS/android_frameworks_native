@@ -58,7 +58,6 @@ static constexpr uint64_t NO_FRAME_INDEX = std::numeric_limits<uint64_t>::max();
 
 class SurfaceTest : public ::testing::Test {
 protected:
-
     SurfaceTest() {
         ProcessState::self()->startThreadPool();
     }
@@ -92,6 +91,16 @@ protected:
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mSurfaceControl;
 };
+
+TEST_F(SurfaceTest, CreateSurfaceReturnsErrorBadClient) {
+    mComposerClient->dispose();
+    ASSERT_EQ(NO_INIT, mComposerClient->initCheck());
+
+    sp<SurfaceControl> sc;
+    status_t err = mComposerClient->createSurfaceChecked(
+            String8("Test Surface"), 32, 32, PIXEL_FORMAT_RGBA_8888, &sc, 0);
+    ASSERT_EQ(NO_INIT, err);
+}
 
 TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenVisible) {
     sp<ANativeWindow> anw(mSurface);
