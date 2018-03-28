@@ -44,6 +44,8 @@
 
 namespace android {
 
+using ui::ColorMode;
+
 Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp)
       : mGraphicBufferProducer(bufferProducer),
         mCrop(Rect::EMPTY_RECT),

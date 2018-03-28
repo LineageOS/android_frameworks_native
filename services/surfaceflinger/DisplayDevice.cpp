@@ -49,13 +49,12 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
-// ----------------------------------------------------------------------------
-using namespace android;
-// ----------------------------------------------------------------------------
+namespace android {
 
 // retrieve triple buffer setting from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using android::ui::ColorMode;
 
 /*
  * Initialize the display to the specified values.
@@ -485,3 +484,5 @@ DisplayDeviceState::DisplayDeviceState(DisplayDevice::DisplayType type, bool isS
     viewport.makeInvalid();
     frame.makeInvalid();
 }
+
+}  // namespace android
