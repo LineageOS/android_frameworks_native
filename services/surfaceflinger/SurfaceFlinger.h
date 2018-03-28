@@ -285,6 +285,7 @@ public:
     // This also allows devices with wide-color displays that don't
     // want to support color management to disable color management.
     static bool hasWideColorDisplay;
+    friend class ExSurfaceFlinger;
 
     static int primaryDisplayOrientation;
 
@@ -325,6 +326,8 @@ public:
     // Obtains a name from the texture pool, or, if the pool is empty, posts a
     // synchronous message to the main thread to obtain one on the fly
     uint32_t getNewTexture();
+
+    virtual bool IsHWCDisabled() { return false; }
 
     // utility function to delete a texture on the main thread
     void deleteTextureAsync(uint32_t texture);
@@ -467,6 +470,12 @@ private:
     void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
                            HWC2::Connection connection) override;
     void onRefreshReceived(int32_t sequenceId, hwc2_display_t display) override;
+
+    /* ------------------------------------------------------------------------
+     * Extensions
+     */
+    virtual void handleDPTransactionIfNeeded(
+                     const Vector<DisplayState>& /*displays*/) { }
 
     /* ------------------------------------------------------------------------
      * Message handling
