@@ -73,14 +73,14 @@ protected:
 
     // Color management related functions and state
     void setSourceY410BT2020(bool enable) override;
-    void setSourceDataSpace(android_dataspace source) override;
-    void setOutputDataSpace(android_dataspace dataspace) override;
+    void setSourceDataSpace(ui::Dataspace source) override;
+    void setOutputDataSpace(ui::Dataspace dataspace) override;
 
     // Current dataspace of layer being rendered
-    android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
+    ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;
 
     // Current output dataspace of the render engine
-    android_dataspace mOutputDataSpace = HAL_DATASPACE_UNKNOWN;
+    ui::Dataspace mOutputDataSpace = ui::Dataspace::UNKNOWN;
 
     // Currently only supporting sRGB, BT2020 and DisplayP3 color spaces
     const bool mPlatformHasWideColor = false;

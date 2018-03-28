@@ -36,6 +36,7 @@
 #include "Hwc2TestVirtualDisplay.h"
 
 using android::ui::ColorMode;
+using android::ui::Dataspace;
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);
@@ -442,14 +443,14 @@ public:
     }
 
     void setLayerDataspace(hwc2_display_t display, hwc2_layer_t layer,
-            android_dataspace_t dataspace, hwc2_error_t* outErr = nullptr)
+            Dataspace dataspace, hwc2_error_t* outErr = nullptr)
     {
         auto pfn = reinterpret_cast<HWC2_PFN_SET_LAYER_DATASPACE>(
                 getFunction(HWC2_FUNCTION_SET_LAYER_DATASPACE));
         ASSERT_TRUE(pfn) << "failed to get function";
 
         auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display,
-                layer, dataspace));
+                layer, static_cast<int>(dataspace)));
         if (outErr) {
             *outErr = err;
         } else {
@@ -790,14 +791,14 @@ public:
 
     void getClientTargetSupport(hwc2_display_t display, int32_t width,
             int32_t height, android_pixel_format_t format,
-            android_dataspace_t dataspace, hwc2_error_t* outErr = nullptr)
+            Dataspace dataspace, hwc2_error_t* outErr = nullptr)
     {
         auto pfn = reinterpret_cast<HWC2_PFN_GET_CLIENT_TARGET_SUPPORT>(
                 getFunction(HWC2_FUNCTION_GET_CLIENT_TARGET_SUPPORT));
         ASSERT_TRUE(pfn) << "failed to get function";
 
         auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, width,
-                height, format, dataspace));
+                height, format, static_cast<int>(dataspace)));
         if (outErr) {
             *outErr = err;
         } else {
@@ -807,7 +808,7 @@ public:
     }
 
     void setClientTarget(hwc2_display_t display, buffer_handle_t handle,
-            int32_t acquireFence, android_dataspace_t dataspace,
+            int32_t acquireFence, Dataspace dataspace,
             hwc_region_t damage, hwc2_error_t* outErr = nullptr)
     {
         auto pfn = reinterpret_cast<HWC2_PFN_SET_CLIENT_TARGET>(
@@ -815,7 +816,7 @@ public:
         ASSERT_TRUE(pfn) << "failed to get function";
 
         auto err = static_cast<hwc2_error_t>(pfn(mHwc2Device, display, handle,
-                acquireFence, dataspace, damage));
+                acquireFence, static_cast<int>(dataspace), damage));
         if (outErr) {
             *outErr = err;
         } else {
@@ -1691,7 +1692,7 @@ protected:
             const std::set<hwc2_layer_t>& clearLayers, bool flipClientTarget,
             const Area& displayArea)
     {
-        android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
+        Dataspace dataspace = Dataspace::UNKNOWN;
         hwc_region_t damage = { };
         buffer_handle_t handle;
         int32_t acquireFence;
@@ -3716,7 +3717,7 @@ TEST_F(Hwc2Test, GET_CLIENT_TARGET_SUPPORT_unsupported)
  * layer. */
 TEST_F(Hwc2Test, SET_CLIENT_TARGET_basic)
 {
-    const android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
+    const Dataspace dataspace = Dataspace::UNKNOWN;
     const hwc_region_t damage = { };
     const size_t layerCnt = 1;
 
@@ -3795,7 +3796,7 @@ TEST_F(Hwc2Test, SET_CLIENT_TARGET_bad_display)
     std::set<hwc2_layer_t> clientLayers;
     std::set<hwc2_layer_t> flipClientTargetLayers;
     bool flipClientTarget = true;
-    const android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
+    const Dataspace dataspace = Dataspace::UNKNOWN;
     const hwc_region_t damage = { };
     buffer_handle_t handle;
     int32_t acquireFence;

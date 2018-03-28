@@ -42,6 +42,7 @@ cc_test {
     ],
     shared_libs: [
         "android.hardware.graphics.common@1.0",
+        "android.hardware.graphics.common@1.1",
         "libcutils",
         "libEGL",
         "libGLESv2",

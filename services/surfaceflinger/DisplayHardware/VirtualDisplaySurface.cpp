@@ -222,7 +222,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
 
         // TODO: Correctly propagate the dataspace from GL composition
         result = mHwc.setClientTarget(mDisplayId, hwcSlot, mFbFence,
-                hwcBuffer, HAL_DATASPACE_UNKNOWN);
+                hwcBuffer, ui::Dataspace::UNKNOWN);
     }
 
     return result;

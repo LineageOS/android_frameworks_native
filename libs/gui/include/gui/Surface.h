@@ -22,6 +22,7 @@
 #include <gui/IGraphicBufferProducer.h>
 
 #include <ui/ANativeObjectBase.h>
+#include <ui/GraphicTypes.h>
 #include <ui/Region.h>
 
 #include <utils/Condition.h>
@@ -245,7 +246,7 @@ protected:
     virtual int setBuffersTransform(uint32_t transform);
     virtual int setBuffersStickyTransform(uint32_t transform);
     virtual int setBuffersTimestamp(int64_t timestamp);
-    virtual int setBuffersDataSpace(android_dataspace dataSpace);
+    virtual int setBuffersDataSpace(ui::Dataspace dataSpace);
     virtual int setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metadata);
     virtual int setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata);
     virtual int setCrop(Rect const* rect);
@@ -286,7 +287,7 @@ public:
     // detachNextBuffer, or attachBuffer call.
     status_t getAndFlushRemovedBuffers(std::vector<sp<GraphicBuffer>>* out);
 
-    android_dataspace_t getBuffersDataSpace();
+    ui::Dataspace getBuffersDataSpace();
 
     static status_t attachAndQueueBuffer(Surface* surface, sp<GraphicBuffer> buffer);
 
@@ -340,9 +341,9 @@ protected:
     int64_t mTimestamp;
 
     // mDataSpace is the buffer dataSpace that will be used for the next buffer
-    // queue operation. It defaults to HAL_DATASPACE_UNKNOWN, which
+    // queue operation. It defaults to Dataspace::UNKNOWN, which
     // means that the buffer contains some type of color data.
-    android_dataspace mDataSpace;
+    ui::Dataspace mDataSpace;
 
     // mHdrMetadata is the HDR metadata that will be used for the next buffer
     // queue operation.  There is no HDR metadata by default.
