@@ -22,7 +22,7 @@
 #include <string>
 
 using android::base::StringPrintf;
-using android::ColorMode;
+using android::ui::ColorMode;
 
 std::string decodeStandard(android_dataspace dataspace) {
     const uint32_t dataspaceSelect = (dataspace & HAL_DATASPACE_STANDARD_MASK);

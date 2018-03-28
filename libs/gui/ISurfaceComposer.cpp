@@ -43,6 +43,8 @@
 
 namespace android {
 
+using ui::ColorMode;
+
 class BpSurfaceComposer : public BpInterface<ISurfaceComposer>
 {
 public:
