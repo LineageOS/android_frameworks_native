@@ -3656,6 +3656,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         ALOGE("Attempting to set unknown power mode: %d\n", mode);
         getHwComposer().setPowerMode(type, mode);
     }
+    ALOGD("Finished set power mode=%d, type=%d", mode, hw->getDisplayType());
 }
 
 void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
