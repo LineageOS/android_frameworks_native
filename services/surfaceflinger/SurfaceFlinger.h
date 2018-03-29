@@ -33,6 +33,7 @@
 #include <utils/RefBase.h>
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
+#include <utils/Trace.h>
 
 #include <ui/FenceTime.h>
 #include <ui/PixelFormat.h>
@@ -54,6 +55,7 @@
 #include "Barrier.h"
 #include "DisplayDevice.h"
 #include "DispSync.h"
+#include "EventThread.h"
 #include "FrameTracker.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
@@ -61,6 +63,7 @@
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
 #include "StartPropertySetThread.h"
+#include "VSyncModulator.h"
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
@@ -492,6 +495,7 @@ private:
     uint32_t peekTransactionFlags();
     // Can only be called from the main thread or with mStateLock held
     uint32_t setTransactionFlags(uint32_t flags);
+    uint32_t setTransactionFlags(uint32_t flags, VSyncModulator::TransactionStart transactionStart);
     void commitTransaction();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
@@ -764,6 +768,8 @@ private:
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
     sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
+
+    VSyncModulator mVsyncModulator;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
