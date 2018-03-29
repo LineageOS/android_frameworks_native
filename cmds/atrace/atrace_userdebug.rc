@@ -19,25 +19,3 @@ on post-fs
     chmod 0666 /sys/kernel/debug/tracing/events/irq/enable
     chmod 0666 /sys/kernel/tracing/events/ipi/enable
     chmod 0666 /sys/kernel/debug/tracing/events/ipi/enable
-
-    # disk
-    chmod 0666 /sys/kernel/tracing/events/f2fs/f2fs_sync_file_enter/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/f2fs/f2fs_sync_file_enter/enable
-    chmod 0666 /sys/kernel/tracing/events/f2fs/f2fs_sync_file_exit/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/f2fs/f2fs_sync_file_exit/enable
-    chmod 0666 /sys/kernel/tracing/events/f2fs/f2fs_write_begin/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/f2fs/f2fs_write_begin/enable
-    chmod 0666 /sys/kernel/tracing/events/f2fs/f2fs_write_end/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/f2fs/f2fs_write_end/enable
-    chmod 0666 /sys/kernel/tracing/events/ext4/ext4_da_write_begin/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/ext4/ext4_da_write_begin/enable
-    chmod 0666 /sys/kernel/tracing/events/ext4/ext4_da_write_end/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/ext4/ext4_da_write_end/enable
-    chmod 0666 /sys/kernel/tracing/events/ext4/ext4_sync_file_enter/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/ext4/ext4_sync_file_enter/enable
-    chmod 0666 /sys/kernel/tracing/events/ext4/ext4_sync_file_exit/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/ext4/ext4_sync_file_exit/enable
-    chmod 0666 /sys/kernel/tracing/events/block/block_rq_issue/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/block/block_rq_issue/enable
-    chmod 0666 /sys/kernel/tracing/events/block/block_rq_complete/enable
-    chmod 0666 /sys/kernel/debug/tracing/events/block/block_rq_complete/enable
