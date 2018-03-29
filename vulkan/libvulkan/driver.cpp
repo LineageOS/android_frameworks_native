@@ -495,13 +495,36 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
                 // both we and HAL can take part in
                 hook_extensions_.set(ext_bit);
                 break;
-            case ProcHook::EXTENSION_UNKNOWN:
             case ProcHook::KHR_get_physical_device_properties2:
-                // HAL's extensions
+            case ProcHook::EXTENSION_UNKNOWN:
+                // Extensions we don't need to do anything about at this level
                 break;
-            default:
-                ALOGW("Ignored invalid instance extension %s", name);
+
+            case ProcHook::KHR_incremental_present:
+            case ProcHook::KHR_shared_presentable_image:
+            case ProcHook::KHR_swapchain:
+            case ProcHook::EXT_hdr_metadata:
+            case ProcHook::ANDROID_external_memory_android_hardware_buffer:
+            case ProcHook::ANDROID_native_buffer:
+            case ProcHook::GOOGLE_display_timing:
+            case ProcHook::EXTENSION_CORE:
+            case ProcHook::EXTENSION_COUNT:
+                // Device and meta extensions. If we ever get here it's a bug in
+                // our code. But enumerating them lets us avoid having a default
+                // case, and default hides other bugs.
+                ALOGE(
+                    "CreateInfoWrapper::FilterExtension: invalid instance "
+                    "extension '%s'. FIX ME",
+                    name);
                 return;
+
+            // Don't use a default case. Without it, -Wswitch will tell us
+            // at compile time if someone adds a new ProcHook extension but
+            // doesn't handle it above. That's a real bug that has
+            // not-immediately-obvious effects.
+            //
+            // default:
+            //     break;
         }
     } else {
         switch (ext_bit) {
@@ -519,12 +542,36 @@ void CreateInfoWrapper::FilterExtension(const char* name) {
             case ProcHook::EXT_hdr_metadata:
                 hook_extensions_.set(ext_bit);
                 break;
+            case ProcHook::ANDROID_external_memory_android_hardware_buffer:
             case ProcHook::EXTENSION_UNKNOWN:
-                // HAL's extensions
+                // Extensions we don't need to do anything about at this level
                 break;
-            default:
-                ALOGW("Ignored invalid device extension %s", name);
+
+            case ProcHook::KHR_android_surface:
+            case ProcHook::KHR_get_physical_device_properties2:
+            case ProcHook::KHR_get_surface_capabilities2:
+            case ProcHook::KHR_surface:
+            case ProcHook::EXT_debug_report:
+            case ProcHook::EXT_swapchain_colorspace:
+            case ProcHook::ANDROID_native_buffer:
+            case ProcHook::EXTENSION_CORE:
+            case ProcHook::EXTENSION_COUNT:
+                // Instance and meta extensions. If we ever get here it's a bug
+                // in our code. But enumerating them lets us avoid having a
+                // default case, and default hides other bugs.
+                ALOGE(
+                    "CreateInfoWrapper::FilterExtension: invalid device "
+                    "extension '%s'. FIX ME",
+                    name);
                 return;
+
+            // Don't use a default case. Without it, -Wswitch will tell us
+            // at compile time if someone adds a new ProcHook extension but
+            // doesn't handle it above. That's a real bug that has
+            // not-immediately-obvious effects.
+            //
+            // default:
+            //     break;
         }
     }
 
