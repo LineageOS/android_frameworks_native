@@ -62,6 +62,10 @@
 #define INDENT4 "        "
 #define INDENT5 "          "
 
+#define KEYCODE_TAB  61
+#define KEYCODE_CAPS_LOCK  115
+#define KEYCODE_FUNCTION  119
+
 namespace android {
 
 // --- Constants ---
@@ -2341,6 +2345,12 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         getContext()->fadePointer();
     }
 
+
+    if (down && !isMetaKey(keyCode)) {
+        getContext()->fadePointer();
+    }
+
+
     NotifyKeyArgs args(when, getDeviceId(), mSource, policyFlags,
             down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
             AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
@@ -2378,7 +2388,24 @@ void KeyboardInputMapper::updateMetaState(int32_t keyCode) {
     updateMetaStateIfNeeded(keyCode, false);
 }
 
+bool isFndown1 = false;
 bool KeyboardInputMapper::updateMetaStateIfNeeded(int32_t keyCode, bool down) {
+    if (keyCode==KEYCODE_FUNCTION) {
+        isFndown1 = true;
+    }
+
+    if (keyCode == KEYCODE_TAB && isFndown1==true) {
+       keyCode = KEYCODE_CAPS_LOCK;
+       if(down==false){
+           isFndown1 = false;
+       }
+    }
+
+    if (keyCode !=KEYCODE_FUNCTION && down==false) {
+      isFndown1 = false;
+    }
+
+
     int32_t oldMetaState = mMetaState;
     int32_t newMetaState = android::updateMetaState(keyCode, down, oldMetaState);
     bool metaStateChanged = oldMetaState != newMetaState;

@@ -64,6 +64,10 @@
 #define INDENT3 "      "
 #define INDENT4 "        "
 
+#define KEYCODE_TAB  61
+#define KEYCODE_CAPS_LOCK  115
+#define KEYCODE_FUNCTION  119
+
 namespace android {
 
 // Default input dispatching timeout if there is no focused application or paused window
@@ -2465,6 +2469,7 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
     }
 }
 
+bool isFndown = false;
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("notifyKey - eventTime=%lld, deviceId=%d, source=0x%x, policyFlags=0x%x, action=0x%x, "
@@ -2518,6 +2523,23 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
             metaState &= ~AMETA_META_ON;
         }
     }
+
+    if (keyCode == KEYCODE_FUNCTION) {
+            isFndown = true;
+    }
+
+    if (keyCode == KEYCODE_TAB && isFndown==true) {
+        keyCode = KEYCODE_CAPS_LOCK;
+
+        if(args->action==AKEY_EVENT_ACTION_UP) {
+            isFndown = false;
+        }
+    }
+
+    if (keyCode != KEYCODE_FUNCTION && args->action == AKEY_EVENT_ACTION_UP) {
+        isFndown = false;
+    }
+
 
     KeyEvent event;
     event.initialize(args->deviceId, args->source, args->action,
