@@ -112,6 +112,8 @@ public:
         int32_t hwcTransform;
         int32_t windowType;
         int32_t appId;
+        int32_t hwcCompositionType;
+        bool isProtected;
 
         std::string to_string() const;
     };
@@ -119,6 +121,9 @@ public:
     class LayerGlobal {
     public:
         int2 resolution;
+        std::string colorMode;
+        std::string colorTransform;
+        int32_t globalTransform;
     };
 
     static const LayerGlobal generateLayerGlobalInfo(const LayersProto& layersProto);

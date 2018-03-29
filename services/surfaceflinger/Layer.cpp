@@ -42,6 +42,7 @@
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
+#include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
@@ -1929,6 +1930,16 @@ void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
 
     const int32_t transform = static_cast<int32_t>(hwcInfo.transform);
     layerInfo->set_hwc_transform(transform);
+
+    const int32_t compositionType = static_cast<int32_t>(hwcInfo.compositionType);
+    layerInfo->set_hwc_composition_type(compositionType);
+
+    if (std::strcmp(getTypeId(), "BufferLayer") == 0 &&
+        static_cast<BufferLayer*>(this)->isProtected()) {
+        layerInfo->set_is_protected(true);
+    } else {
+        layerInfo->set_is_protected(false);
+    }
 }
 
 // ---------------------------------------------------------------------------
