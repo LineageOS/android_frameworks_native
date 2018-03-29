@@ -293,6 +293,7 @@ void GLES20RenderEngine::setupFillWithColor(float r, float g, float b, float a) 
 }
 
 void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
+    ATRACE_CALL();
     if (mesh.getTexCoordsSize()) {
         glEnableVertexAttribArray(Program::texCoords);
         glVertexAttribPointer(Program::texCoords, mesh.getTexCoordsSize(), GL_FLOAT, GL_FALSE,

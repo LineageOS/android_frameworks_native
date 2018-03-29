@@ -154,6 +154,7 @@ public:
         uint32_t                    mForceSynchronous = 0;
         uint32_t                    mTransactionNestCount = 0;
         bool                        mAnimation = false;
+        bool                        mEarlyWakeup = false;
 
         int mStatus = NO_ERROR;
 
@@ -273,6 +274,7 @@ public:
                 const Rect& displayRect);
         void setDisplaySize(const sp<IBinder>& token, uint32_t width, uint32_t height);
         void setAnimationTransaction();
+        void setEarlyWakeup();
     };
 
     status_t    destroySurface(const sp<IBinder>& id);
