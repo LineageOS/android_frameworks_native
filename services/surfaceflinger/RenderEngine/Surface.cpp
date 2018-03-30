@@ -66,7 +66,7 @@ void Surface::swapBuffers() const {
 
 EGLint Surface::queryConfig(EGLint attrib) const {
     EGLint value;
-    if (!eglGetConfigAttrib(mEGLConfig, mEGLConfig, attrib, &value)) {
+    if (!eglGetConfigAttrib(mEGLDisplay, mEGLConfig, attrib, &value)) {
         value = 0;
     }
 
