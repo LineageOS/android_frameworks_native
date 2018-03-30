@@ -43,6 +43,8 @@
 #include <private/gui/ComposerService.h>
 
 namespace android {
+
+using ui::ColorMode;
 // ---------------------------------------------------------------------------
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ComposerService);

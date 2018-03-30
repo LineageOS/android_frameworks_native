@@ -104,6 +104,7 @@ namespace android {
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using ui::ColorMode;
 
 namespace {
 class ConditionalLock {
