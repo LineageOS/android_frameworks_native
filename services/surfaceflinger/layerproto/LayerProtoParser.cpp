@@ -273,7 +273,7 @@ std::string LayerProtoParser::Layer::to_string() const {
                   finalCrop.to_string().c_str());
     StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
     StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
-    StringAppendF(&result, "pixelformat=%s, ", pixelFormat.c_str());
+    StringAppendF(&result, "defaultPixelFormat=%s, ", pixelFormat.c_str());
     StringAppendF(&result, "color=(%.3f,%.3f,%.3f,%.3f), flags=0x%08x, ",
                   static_cast<double>(color.r), static_cast<double>(color.g),
                   static_cast<double>(color.b), static_cast<double>(color.a), flags);
