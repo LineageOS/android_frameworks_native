@@ -1486,7 +1486,11 @@ void Layer::miniDump(String8& result, int32_t hwcId) const {
 
     const Layer::State& layerState(getDrawingState());
     const LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers.at(hwcId);
-    result.appendFormat("  %10d | ", layerState.z);
+    if (layerState.zOrderRelativeOf != nullptr || mDrawingParent != nullptr) {
+        result.appendFormat("  rel %6d | ", layerState.z);
+    } else {
+        result.appendFormat("  %10d | ", layerState.z);
+    }
     result.appendFormat("%10s | ", to_string(getCompositionType(hwcId)).c_str());
     const Rect& frame = hwcInfo.displayFrame;
     result.appendFormat("%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
