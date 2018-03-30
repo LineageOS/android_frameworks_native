@@ -22,7 +22,7 @@
 #include <android-base/unique_fd.h>
 #include <hardware/hardware.h>
 #include <sync/sync.h>
-#include <ui/GraphicsTypes.h>
+#include <ui/GraphicTypes.h>
 
 #define HWC2_INCLUDE_STRINGIFICATION
 #define HWC2_USE_CPP11
@@ -35,7 +35,7 @@
 #include "Hwc2TestClientTarget.h"
 #include "Hwc2TestVirtualDisplay.h"
 
-using android::ColorMode;
+using android::ui::ColorMode;
 
 void hwc2TestHotplugCallback(hwc2_callback_data_t callbackData,
         hwc2_display_t display, int32_t connected);

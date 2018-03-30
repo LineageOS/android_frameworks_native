@@ -104,6 +104,7 @@ namespace android {
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using ui::ColorMode;
 
 namespace {
 class ConditionalLock {
@@ -1959,6 +1960,7 @@ void SurfaceFlinger::setUpHWComposer() {
             continue;
         }
         if (colorMatrix != mPreviousColorMatrix) {
+            displayDevice->setColorTransform(colorMatrix);
             status_t result = getBE().mHwc->setColorTransform(hwcId, colorMatrix);
             ALOGE_IF(result != NO_ERROR, "Failed to set color transform on "
                     "display %zd: %d", displayId, result);
@@ -3676,6 +3678,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         ALOGE("Attempting to set unknown power mode: %d\n", mode);
         getHwComposer().setPowerMode(type, mode);
     }
+    ALOGD("Finished set power mode=%d, type=%d", mode, hw->getDisplayType());
 }
 
 void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
@@ -4027,15 +4030,19 @@ LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const 
 
 LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(int32_t hwcId) const {
     LayersProto layersProto;
-
     const sp<DisplayDevice>& displayDevice(mDisplays[hwcId]);
+
     SizeProto* resolution = layersProto.mutable_resolution();
     resolution->set_w(displayDevice->getWidth());
     resolution->set_h(displayDevice->getHeight());
 
+    layersProto.set_color_mode(decodeColorMode(displayDevice->getActiveColorMode()));
+    layersProto.set_color_transform(decodeColorTransform(displayDevice->getColorTransform()));
+    layersProto.set_global_transform(
+            static_cast<int32_t>(displayDevice->getOrientationTransform()));
+
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (!layer->visibleRegion.isEmpty() &&
-            layer->getBE().mHwcLayers.count(hwcId)) {
+        if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(hwcId)) {
             LayerProto* layerProto = layersProto.add_layers();
             layer->writeToProto(layerProto, hwcId);
         }
@@ -4593,9 +4600,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
 
             ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent)
                   : oldParent(oldParent), newParent(newParent) {
-                oldParent->reparentChildrenForDrawing(newParent);
+                oldParent->setChildrenDrawingParent(newParent);
             }
-            ~ReparentForDrawing() { newParent->reparentChildrenForDrawing(oldParent); }
+            ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
         };
 
         void render(std::function<void()> drawLayers) override {
@@ -4813,7 +4820,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     traverseLayers([&](Layer* layer) {
         if (filtering) layer->setFiltering(true);
-        layer->drawNow(renderArea, useIdentityTransform);
+        layer->draw(renderArea, useIdentityTransform);
         if (filtering) layer->setFiltering(false);
     });
 }

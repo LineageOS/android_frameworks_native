@@ -230,7 +230,7 @@ public:
     bool setOverrideScalingMode(int32_t overrideScalingMode);
     void setInfo(int32_t type, int32_t appId);
     bool reparentChildren(const sp<IBinder>& layer);
-    void reparentChildrenForDrawing(const sp<Layer>& layer);
+    void setChildrenDrawingParent(const sp<Layer>& layer);
     bool reparent(const sp<IBinder>& newParentHandle);
     bool detachChildren();
 
@@ -358,16 +358,6 @@ public:
     void draw(const RenderArea& renderArea, const Region& clip) const;
     void draw(const RenderArea& renderArea, bool useIdentityTransform) const;
     void draw(const RenderArea& renderArea) const;
-
-    /*
-     * drawNow uses the renderEngine to draw the layer.  This is different than the
-     * draw function as with the FE/BE split, the draw function runs in the FE and
-     * sets up state for the BE to do the actual drawing.  drawNow is used to tell
-     * the layer to skip the state setup and just go ahead and draw the layer.  This
-     * is used for screen captures which happens separately from the frame
-     * compositing path.
-     */
-    virtual void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const = 0;
 
     /*
      * doTransaction - process the transaction. This is a good place to figure

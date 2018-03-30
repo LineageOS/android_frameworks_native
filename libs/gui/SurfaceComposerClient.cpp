@@ -43,6 +43,8 @@
 #include <private/gui/ComposerService.h>
 
 namespace android {
+
+using ui::ColorMode;
 // ---------------------------------------------------------------------------
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ComposerService);
@@ -629,7 +631,7 @@ status_t SurfaceComposerClient::createSurfaceChecked(
         int32_t ownerUid)
 {
     sp<SurfaceControl> sur;
-    status_t err = NO_ERROR;
+    status_t err = mStatus;
 
     if (mStatus == NO_ERROR) {
         sp<IBinder> handle;

@@ -105,6 +105,36 @@ static inline const char* toString(bool value) {
     return value ? "true" : "false";
 }
 
+static std::string motionActionToString(int32_t action) {
+    // Convert MotionEvent action to string
+    switch(action & AMOTION_EVENT_ACTION_MASK) {
+        case AMOTION_EVENT_ACTION_DOWN:
+            return "DOWN";
+        case AMOTION_EVENT_ACTION_MOVE:
+            return "MOVE";
+        case AMOTION_EVENT_ACTION_UP:
+            return "UP";
+        case AMOTION_EVENT_ACTION_POINTER_DOWN:
+            return "POINTER_DOWN";
+        case AMOTION_EVENT_ACTION_POINTER_UP:
+            return "POINTER_UP";
+    }
+    return StringPrintf("%" PRId32, action);
+}
+
+static std::string keyActionToString(int32_t action) {
+    // Convert KeyEvent action to string
+    switch(action) {
+        case AKEY_EVENT_ACTION_DOWN:
+            return "DOWN";
+        case AKEY_EVENT_ACTION_UP:
+            return "UP";
+        case AKEY_EVENT_ACTION_MULTIPLE:
+            return "MULTIPLE";
+    }
+    return StringPrintf("%" PRId32, action);
+}
+
 static inline int32_t getMotionEventActionPointerIndex(int32_t action) {
     return (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK)
             >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
@@ -3979,11 +4009,11 @@ InputDispatcher::KeyEntry::~KeyEntry() {
 }
 
 void InputDispatcher::KeyEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, action=%d, "
+    msg += StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, action=%s, "
             "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
             "repeatCount=%d), policyFlags=0x%08x",
-            deviceId, source, action, flags, keyCode, scanCode, metaState,
-            repeatCount, policyFlags);
+            deviceId, source, keyActionToString(action).c_str(), flags, keyCode,
+            scanCode, metaState, repeatCount, policyFlags);
 }
 
 void InputDispatcher::KeyEntry::recycle() {
@@ -4026,11 +4056,11 @@ InputDispatcher::MotionEntry::~MotionEntry() {
 
 void InputDispatcher::MotionEntry::appendDescription(std::string& msg) const {
     msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
-            ", action=%d, actionButton=0x%08x, "
-            "flags=0x%08x, metaState=0x%08x, buttonState=0x%08x, "
+            ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, buttonState=0x%08x, "
             "edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, pointers=[",
-            deviceId, source, displayId, action, actionButton, flags, metaState, buttonState,
-            edgeFlags, xPrecision, yPrecision);
+            deviceId, source, displayId, motionActionToString(action).c_str(), actionButton, flags,
+            metaState, buttonState, edgeFlags, xPrecision, yPrecision);
+
     for (uint32_t i = 0; i < pointerCount; i++) {
         if (i) {
             msg += ", ";

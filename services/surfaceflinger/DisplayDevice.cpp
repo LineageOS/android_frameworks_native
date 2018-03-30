@@ -49,13 +49,12 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
-// ----------------------------------------------------------------------------
-using namespace android;
-// ----------------------------------------------------------------------------
+namespace android {
 
 // retrieve triple buffer setting from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using android::ui::ColorMode;
 
 /*
  * Initialize the display to the specified values.
@@ -98,6 +97,7 @@ DisplayDevice::DisplayDevice(
       mPowerMode(initialPowerMode),
       mActiveConfig(0),
       mActiveColorMode(ColorMode::NATIVE),
+      mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
       mDisplayHasWideColor(supportWideColor),
       mDisplayHasHdr(supportHdr)
 {
@@ -266,6 +266,16 @@ void DisplayDevice::setActiveColorMode(ColorMode mode) {
 
 ColorMode DisplayDevice::getActiveColorMode() const {
     return mActiveColorMode;
+}
+
+void DisplayDevice::setColorTransform(const mat4& transform) {
+    const bool isIdentity = (transform == mat4());
+    mColorTransform =
+            isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
+}
+
+android_color_transform_t DisplayDevice::getColorTransform() const {
+    return mColorTransform;
 }
 
 void DisplayDevice::setCompositionDataSpace(android_dataspace dataspace) {
@@ -474,3 +484,5 @@ DisplayDeviceState::DisplayDeviceState(DisplayDevice::DisplayType type, bool isS
     viewport.makeInvalid();
     frame.makeInvalid();
 }
+
+}  // namespace android

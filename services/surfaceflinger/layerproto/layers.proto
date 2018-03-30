@@ -8,6 +8,9 @@ package android.surfaceflinger;
 message LayersProto {
   repeated LayerProto layers = 1;
   optional SizeProto resolution = 2;
+  optional string color_mode = 3;
+  optional string color_transform = 4;
+  optional int32 global_transform = 5;
 }
 
 // Information about each layer.
@@ -73,6 +76,10 @@ message LayerProto {
   optional int32 hwc_transform = 32;
   optional int32 window_type = 33;
   optional int32 app_id = 34;
+  // The layer's composition type
+  optional int32 hwc_composition_type = 35;
+  // If it's a buffer layer, indicate if the content is protected
+  optional bool is_protected = 36;
 }
 
 message PositionProto {

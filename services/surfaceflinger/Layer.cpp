@@ -42,6 +42,7 @@
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
+#include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
@@ -624,15 +625,9 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         transform = Transform(invTransform) * tr * bufferOrientation;
     }
 
-    // STOPSHIP (b/72106793): If we have less than 25% scaling, HWC usually needs to use the rotator
-    // to handle it. However, there is one guaranteed frame of jank when we switch to using the
-    // rotator. In the meantime, we force GL composition instead until we have a better fix for the
-    // HWC issue.
-    bool extremeScaling = abs(t[0][0]) <= 0.25 || abs(t[1][1]) <= 0.25;
-
     // this gives us only the "orientation" component of the transform
     const uint32_t orientation = transform.getOrientation();
-    if (orientation & Transform::ROT_INVALID || extremeScaling) {
+    if (orientation & Transform::ROT_INVALID) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
     } else {
@@ -1593,7 +1588,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     return true;
 }
 
-void Layer::reparentChildrenForDrawing(const sp<Layer>& newParent) {
+void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;
     }
@@ -1935,6 +1930,16 @@ void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
 
     const int32_t transform = static_cast<int32_t>(hwcInfo.transform);
     layerInfo->set_hwc_transform(transform);
+
+    const int32_t compositionType = static_cast<int32_t>(hwcInfo.compositionType);
+    layerInfo->set_hwc_composition_type(compositionType);
+
+    if (std::strcmp(getTypeId(), "BufferLayer") == 0 &&
+        static_cast<BufferLayer*>(this)->isProtected()) {
+        layerInfo->set_is_protected(true);
+    } else {
+        layerInfo->set_is_protected(false);
+    }
 }
 
 // ---------------------------------------------------------------------------
