@@ -86,6 +86,7 @@ static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSOR
 SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
       mWakeLockAcquired(false) {
+    mUidPolicy = new UidPolicy(this);
 }
 
 bool SensorService::initializeHmacKey() {
@@ -283,7 +284,6 @@ void SensorService::onFirstRef() {
             enableSchedFifoMode();
 
             // Start watching UID changes to apply policy.
-            mUidPolicy = new UidPolicy(this);
             mUidPolicy->registerSelf();
         }
     }
