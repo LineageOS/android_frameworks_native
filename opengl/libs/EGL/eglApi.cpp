@@ -94,6 +94,7 @@ char const * const gBuiltinExtensionString =
 char const * const gExtensionString  =
         "EGL_KHR_image "                        // mandatory
         "EGL_KHR_image_base "                   // mandatory
+        "EGL_KHR_image_gl_colorspace "
         "EGL_KHR_image_pixmap "
         "EGL_KHR_lock_surface "
         "EGL_KHR_gl_colorspace "
