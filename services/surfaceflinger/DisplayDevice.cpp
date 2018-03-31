@@ -464,7 +464,11 @@ void DisplayDevice::dump(String8& result) const {
                         tr[0][1], tr[1][1], tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
     auto const surface = static_cast<Surface*>(window);
     android_dataspace dataspace = surface->getBuffersDataSpace();
-    result.appendFormat("   dataspace: %s (%d)\n", dataspaceDetails(dataspace).c_str(), dataspace);
+    result.appendFormat("   wideColor=%d, hdr=%d, colorMode=%s, dataspace: %s (%d)\n",
+                        mDisplayHasWideColor, mDisplayHasHdr,
+                        decodeColorMode(mActiveColorMode).c_str(),
+                        dataspaceDetails(dataspace).c_str(), dataspace);
+
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
