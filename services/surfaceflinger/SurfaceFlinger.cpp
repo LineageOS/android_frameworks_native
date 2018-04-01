@@ -104,6 +104,7 @@ namespace android {
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using ui::ColorMode;
 
 namespace {
 class ConditionalLock {
@@ -4048,6 +4049,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
     auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
     result.append(LayerProtoParser::layersToString(std::move(layerTree)).c_str());
+    result.append("\n");
 
     /*
      * Dump Display state
@@ -4060,6 +4062,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
         const sp<const DisplayDevice>& hw(mDisplays[dpy]);
         hw->dump(result);
     }
+    result.append("\n");
 
     /*
      * Dump SurfaceFlinger global state

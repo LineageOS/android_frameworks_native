@@ -362,20 +362,10 @@ Error Display::getChangedCompositionTypes(
     return Error::None;
 }
 
-Error Display::getColorModes(std::vector<android::ColorMode>* outModes) const
+Error Display::getColorModes(std::vector<android::ui::ColorMode>* outModes) const
 {
-    std::vector<android::ColorMode> modes;
-    auto intError = mComposer.getColorModes(mId, &modes);
-    uint32_t numModes = modes.size();
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-
-    outModes->resize(numModes);
-    for (size_t i = 0; i < numModes; i++) {
-        (*outModes)[i] = modes[i];
-    }
+    auto intError = mComposer.getColorModes(mId, outModes);
+    return static_cast<Error>(intError);
     return Error::None;
 }
 
@@ -537,7 +527,7 @@ Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
     return static_cast<Error>(intError);
 }
 
-Error Display::setColorMode(android::ColorMode mode)
+Error Display::setColorMode(android::ui::ColorMode mode)
 {
     auto intError = mComposer.setColorMode(mId, mode);
     return static_cast<Error>(intError);

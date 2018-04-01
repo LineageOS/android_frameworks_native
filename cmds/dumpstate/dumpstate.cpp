@@ -32,14 +32,20 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <chrono>
+#include <functional>
+#include <future>
 #include <memory>
 #include <regex>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <android-base/file.h>
 #include <android-base/properties.h>
+#include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
@@ -53,6 +59,7 @@
 #include <private/android_filesystem_config.h>
 #include <private/android_logger.h>
 #include <serviceutils/PriorityDumper.h>
+#include <utils/StrongPointer.h>
 #include "DumpstateInternal.h"
 #include "DumpstateSectionReporter.h"
 #include "DumpstateService.h"
@@ -1533,77 +1540,101 @@ void Dumpstate::DumpstateBoard() {
     printf("== Board\n");
     printf("========================================================\n");
 
-    ::android::sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
-    if (dumpstate_device == nullptr) {
-        MYLOGE("No IDumpstateDevice implementation\n");
-        return;
-    }
-
     if (!IsZipping()) {
         MYLOGD("Not dumping board info because it's not a zipped bugreport\n");
         return;
     }
 
-    std::string path[NUM_OF_DUMPS];
-    android::base::unique_fd fd[NUM_OF_DUMPS];
-    int numFds = 0;
-
+    std::vector<std::string> paths;
+    std::vector<android::base::ScopeGuard<std::function<void()>>> remover;
     for (int i = 0; i < NUM_OF_DUMPS; i++) {
-        path[i] = kDumpstateBoardPath + kDumpstateBoardFiles[i];
-        MYLOGI("Calling IDumpstateDevice implementation using path %s\n", path[i].c_str());
+        paths.emplace_back(kDumpstateBoardPath + kDumpstateBoardFiles[i]);
+        remover.emplace_back(android::base::make_scope_guard(std::bind(
+            [](std::string path) {
+                if (remove(path.c_str()) != 0 && errno != ENOENT) {
+                    MYLOGE("Could not remove(%s): %s\n", path.c_str(), strerror(errno));
+                }
+            },
+            paths[i])));
+    }
 
-        fd[i] = android::base::unique_fd(
-            TEMP_FAILURE_RETRY(open(path[i].c_str(),
-            O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
-            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
-        if (fd[i] < 0) {
-            MYLOGE("Could not open file %s: %s\n", path[i].c_str(), strerror(errno));
-            return;
-        } else {
-            numFds++;
+    // Given that bugreport is required to diagnose failures, it's better to
+    // drop the result of IDumpstateDevice than to block the rest of bugreport
+    // for an arbitrary amount of time.
+    std::packaged_task<std::unique_ptr<ssize_t[]>()>
+        dumpstate_task([paths]() -> std::unique_ptr<ssize_t[]> {
+            ::android::sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
+            if (dumpstate_device == nullptr) {
+                MYLOGE("No IDumpstateDevice implementation\n");
+                return nullptr;
+            }
+
+            using ScopedNativeHandle =
+                std::unique_ptr<native_handle_t, std::function<void(native_handle_t*)>>;
+            ScopedNativeHandle handle(native_handle_create(static_cast<int>(paths.size()), 0),
+                                      [](native_handle_t* handle) {
+                                          native_handle_close(handle);
+                                          native_handle_delete(handle);
+                                      });
+            if (handle == nullptr) {
+                MYLOGE("Could not create native_handle\n");
+                return nullptr;
+            }
+
+            for (size_t i = 0; i < paths.size(); i++) {
+                MYLOGI("Calling IDumpstateDevice implementation using path %s\n", paths[i].c_str());
+
+                android::base::unique_fd fd(TEMP_FAILURE_RETRY(
+                    open(paths[i].c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                         S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+                if (fd < 0) {
+                    MYLOGE("Could not open file %s: %s\n", paths[i].c_str(), strerror(errno));
+                    return nullptr;
+                }
+                handle.get()->data[i] = fd.release();
+            }
+
+            android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle.get());
+            if (!status.isOk()) {
+                MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
+                return nullptr;
+            }
+            auto file_sizes = std::make_unique<ssize_t[]>(paths.size());
+            for (size_t i = 0; i < paths.size(); i++) {
+                struct stat s;
+                if (fstat(handle.get()->data[i], &s) == -1) {
+                    MYLOGE("Failed to fstat %s: %s\n", kDumpstateBoardFiles[i].c_str(),
+                           strerror(errno));
+                    file_sizes[i] = -1;
+                    continue;
+                }
+                file_sizes[i] = s.st_size;
+            }
+            return file_sizes;
+        });
+    auto result = dumpstate_task.get_future();
+    std::thread(std::move(dumpstate_task)).detach();
+    if (result.wait_for(10s) != std::future_status::ready) {
+        MYLOGE("dumpstateBoard timed out after 10s\n");
+        return;
+    }
+    std::unique_ptr<ssize_t[]> file_sizes = result.get();
+    if (file_sizes == nullptr) {
+        return;
+    }
+
+    for (size_t i = 0; i < paths.size(); i++) {
+        if (file_sizes[i] == -1) {
+            continue;
         }
-    }
-
-    native_handle_t *handle = native_handle_create(numFds, 0);
-    if (handle == nullptr) {
-        MYLOGE("Could not create native_handle\n");
-        return;
-    }
-
-    for (int i = 0; i < numFds; i++) {
-        handle->data[i] = fd[i].release();
-    }
-
-    // TODO: need a timeout mechanism so dumpstate does not hang on device implementation call.
-    android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle);
-    if (!status.isOk()) {
-        MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
-        native_handle_close(handle);
-        native_handle_delete(handle);
-        return;
-    }
-
-    for (int i = 0; i < numFds; i++) {
-        struct stat s;
-        if (fstat(handle->data[i], &s) == -1) {
-            MYLOGE("Failed to fstat %s: %d\n", kDumpstateBoardFiles[i].c_str(), errno);
-        } else if (s.st_size > 0) {
-            AddZipEntry(kDumpstateBoardFiles[i], path[i]);
-        } else {
+        if (file_sizes[i] == 0) {
             MYLOGE("Ignoring empty %s\n", kDumpstateBoardFiles[i].c_str());
+            continue;
         }
+        AddZipEntry(kDumpstateBoardFiles[i], paths[i]);
     }
 
     printf("*** See dumpstate-board.txt entry ***\n");
-
-    native_handle_close(handle);
-    native_handle_delete(handle);
-
-    for (int i = 0; i < numFds; i++) {
-        if (remove(path[i].c_str()) != 0) {
-            MYLOGE("Could not remove(%s): %s\n", path[i].c_str(), strerror(errno));
-        }
-    }
 }
 
 static void ShowUsageAndExit(int exitCode = 1) {
