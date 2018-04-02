@@ -42,6 +42,7 @@
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
+#include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
@@ -635,6 +636,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         hwcInfo.forceClientComposition = true;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
+        hwcInfo.transform = transform;
         auto error = hwcLayer->setTransform(transform);
         ALOGE_IF(error != HWC2::Error::None,
                  "[%s] Failed to set transform %s: "
@@ -1921,6 +1923,31 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     layerInfo->set_refresh_pending(isBufferLatched());
     layerInfo->set_window_type(state.type);
     layerInfo->set_app_id(state.appId);
+}
+
+void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
+    writeToProto(layerInfo, LayerVector::StateSet::Drawing);
+
+    const auto& hwcInfo = getBE().mHwcLayers.at(hwcId);
+
+    const Rect& frame = hwcInfo.displayFrame;
+    LayerProtoHelper::writeToProto(frame, layerInfo->mutable_hwc_frame());
+
+    const FloatRect& crop = hwcInfo.sourceCrop;
+    LayerProtoHelper::writeToProto(crop, layerInfo->mutable_hwc_crop());
+
+    const int32_t transform = static_cast<int32_t>(hwcInfo.transform);
+    layerInfo->set_hwc_transform(transform);
+
+    const int32_t compositionType = static_cast<int32_t>(hwcInfo.compositionType);
+    layerInfo->set_hwc_composition_type(compositionType);
+
+    if (std::strcmp(getTypeId(), "BufferLayer") == 0 &&
+        static_cast<BufferLayer*>(this)->isProtected()) {
+        layerInfo->set_is_protected(true);
+    } else {
+        layerInfo->set_is_protected(false);
+    }
 }
 
 // ---------------------------------------------------------------------------

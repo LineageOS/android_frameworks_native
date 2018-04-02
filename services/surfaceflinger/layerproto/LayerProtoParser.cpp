@@ -42,6 +42,16 @@ bool sortLayerUniquePtrs(const std::unique_ptr<LayerProtoParser::Layer>& lhs,
     return sortLayers(lhs.get(), rhs.get());
 }
 
+const LayerProtoParser::LayerGlobal LayerProtoParser::generateLayerGlobalInfo(
+        const LayersProto& layersProto) {
+    LayerGlobal layerGlobal;
+    layerGlobal.resolution = {layersProto.resolution().w(), layersProto.resolution().h()};
+    layerGlobal.colorMode = layersProto.color_mode();
+    layerGlobal.colorTransform = layersProto.color_transform();
+    layerGlobal.globalTransform = layersProto.global_transform();
+    return layerGlobal;
+}
+
 std::vector<std::unique_ptr<LayerProtoParser::Layer>> LayerProtoParser::generateLayerTree(
         const LayersProto& layersProto) {
     std::unordered_map<int32_t, LayerProtoParser::Layer*> layerMap = generateMap(layersProto);
@@ -106,8 +116,13 @@ LayerProtoParser::Layer* LayerProtoParser::generateLayer(const LayerProto& layer
     layer->activeBuffer = generateActiveBuffer(layerProto.active_buffer());
     layer->queuedFrames = layerProto.queued_frames();
     layer->refreshPending = layerProto.refresh_pending();
+    layer->hwcFrame = generateRect(layerProto.hwc_frame());
+    layer->hwcCrop = generateFloatRect(layerProto.hwc_crop());
+    layer->hwcTransform = layerProto.hwc_transform();
     layer->windowType = layerProto.window_type();
     layer->appId = layerProto.app_id();
+    layer->hwcCompositionType = layerProto.hwc_composition_type();
+    layer->isProtected = layerProto.is_protected();
 
     return layer;
 }
@@ -125,6 +140,16 @@ LayerProtoParser::Region LayerProtoParser::generateRegion(const RegionProto& reg
 
 LayerProtoParser::Rect LayerProtoParser::generateRect(const RectProto& rectProto) {
     LayerProtoParser::Rect rect;
+    rect.left = rectProto.left();
+    rect.top = rectProto.top();
+    rect.right = rectProto.right();
+    rect.bottom = rectProto.bottom();
+
+    return rect;
+}
+
+LayerProtoParser::FloatRect LayerProtoParser::generateFloatRect(const FloatRectProto& rectProto) {
+    LayerProtoParser::FloatRect rect;
     rect.left = rectProto.left();
     rect.top = rectProto.top();
     rect.right = rectProto.right();
@@ -244,6 +269,10 @@ std::string LayerProtoParser::Transform::to_string() const {
 
 std::string LayerProtoParser::Rect::to_string() const {
     return StringPrintf("[%3d, %3d, %3d, %3d]", left, top, right, bottom);
+}
+
+std::string LayerProtoParser::FloatRect::to_string() const {
+    return StringPrintf("[%.2f, %.2f, %.2f, %.2f]", left, top, right, bottom);
 }
 
 std::string LayerProtoParser::Region::to_string(const char* what) const {

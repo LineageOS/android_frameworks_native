@@ -29,6 +29,7 @@ namespace surfaceflinger {
 class LayerProtoHelper {
 public:
     static void writeToProto(const Rect& rect, RectProto* rectProto);
+    static void writeToProto(const FloatRect& rect, FloatRectProto* rectProto);
     static void writeToProto(const Region& region, RegionProto* regionProto);
     static void writeToProto(const half4 color, ColorProto* colorProto);
     static void writeToProto(const Transform& transform, TransformProto* transformProto);
