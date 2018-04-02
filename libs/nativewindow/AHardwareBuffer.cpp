@@ -60,6 +60,13 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
         return BAD_VALUE;
     }
 
+    if ((desc->usage & (AHARDWAREBUFFER_USAGE_CPU_READ_MASK | AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) &&
+        (desc->usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT)) {
+        ALOGE("AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT requires AHARDWAREBUFFER_USAGE_CPU_READ_NEVER "
+              "and AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER");
+        return BAD_VALUE;
+    }
+
     uint64_t usage =  AHardwareBuffer_convertToGrallocUsageBits(desc->usage);
     sp<GraphicBuffer> gbuffer(new GraphicBuffer(
             desc->width, desc->height, format, desc->layers, usage,
