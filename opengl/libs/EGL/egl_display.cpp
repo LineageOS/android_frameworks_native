@@ -21,6 +21,7 @@
 
 #include "../egl_impl.h"
 
+#include <EGL/eglext_angle.h>
 #include <private/EGL/display.h>
 
 #include "egl_cache.h"
@@ -121,6 +122,38 @@ EGLDisplay egl_display_t::getFromNativeDisplay(EGLNativeDisplayType disp) {
     return sDisplay[uintptr_t(disp)].getDisplay(disp);
 }
 
+EGLDisplay getDisplayAngle(EGLNativeDisplayType display, egl_connection_t* const cnx) {
+    EGLDisplay dpy = EGL_NO_DISPLAY;
+
+    // Locally define this until EGL 1.5 is supported
+    typedef EGLDisplay (*PFNEGLGETPLATFORMDISPLAYPROC)(EGLenum platform, void* native_display,
+                                                       const EGLAttrib* attrib_list);
+
+    PFNEGLGETPLATFORMDISPLAYPROC eglGetPlatformDisplay =
+            reinterpret_cast<PFNEGLGETPLATFORMDISPLAYPROC>(
+                    cnx->egl.eglGetProcAddress("eglGetPlatformDisplay"));
+
+    if (eglGetPlatformDisplay) {
+        intptr_t vendorEGL = (intptr_t)cnx->vendorEGL;
+
+        EGLAttrib attrs[] = {
+                EGL_PLATFORM_ANGLE_TYPE_ANGLE, EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE,
+                EGL_PLATFORM_ANGLE_EGL_HANDLE_ANGLE, vendorEGL,
+                EGL_NONE // list terminator
+        };
+
+        // Initially, request the default display type
+        dpy = eglGetPlatformDisplay(EGL_PLATFORM_ANGLE_ANGLE,
+                                    reinterpret_cast<void*>(EGL_DEFAULT_DISPLAY), attrs);
+
+    } else {
+        ALOGE("eglGetDisplay(%p) failed: Unable to look up eglGetPlatformDisplay from ANGLE",
+              display);
+    }
+
+    return dpy;
+}
+
 EGLDisplay egl_display_t::getDisplay(EGLNativeDisplayType display) {
 
     std::lock_guard<std::mutex> _l(lock);
@@ -131,7 +164,14 @@ EGLDisplay egl_display_t::getDisplay(EGLNativeDisplayType display) {
 
     egl_connection_t* const cnx = &gEGLImpl;
     if (cnx->dso && disp.dpy == EGL_NO_DISPLAY) {
-        EGLDisplay dpy = cnx->egl.eglGetDisplay(display);
+        EGLDisplay dpy = EGL_NO_DISPLAY;
+
+        if (cnx->useAngle) {
+            dpy = getDisplayAngle(display, cnx);
+        } else {
+            dpy = cnx->egl.eglGetDisplay(display);
+        }
+
         disp.dpy = dpy;
         if (dpy == EGL_NO_DISPLAY) {
             loader.close(cnx->dso);

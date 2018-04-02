@@ -56,6 +56,16 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
+void GraphicsEnv::setAnglePath(const std::string path) {
+    if (!mAnglePath.empty()) {
+        ALOGV("ignoring attempt to change ANGLE path from '%s' to '%s'", mAnglePath.c_str(),
+              path.c_str());
+        return;
+    }
+    ALOGV("setting ANGLE path to '%s'", path.c_str());
+    mAnglePath = path;
+}
+
 void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths) {
     if (mLayerPaths.empty()) {
         mLayerPaths = layerPaths;
@@ -102,8 +112,31 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
     return mDriverNamespace;
 }
 
+android_namespace_t* GraphicsEnv::getAngleNamespace() {
+    static std::once_flag once;
+    std::call_once(once, [this]() {
+        if (mAnglePath.empty()) return;
+
+        mAngleNamespace = android_create_namespace("ANGLE",
+                                                   nullptr,            // ld_library_path
+                                                   mAnglePath.c_str(), // default_library_path
+                                                   ANDROID_NAMESPACE_TYPE_SHARED |
+                                                           ANDROID_NAMESPACE_TYPE_ISOLATED,
+                                                   nullptr, // permitted_when_isolated_path
+                                                   nullptr);
+        if (!mAngleNamespace) ALOGD("Could not create ANGLE namespace from default");
+    });
+
+    return mAngleNamespace;
+}
+
 } // namespace android
 
-extern "C" android_namespace_t* android_getDriverNamespace() {
+extern "C" {
+android_namespace_t* android_getDriverNamespace() {
     return android::GraphicsEnv::getInstance().getDriverNamespace();
+}
+android_namespace_t* android_getAngleNamespace() {
+    return android::GraphicsEnv::getInstance().getAngleNamespace();
+}
 }
