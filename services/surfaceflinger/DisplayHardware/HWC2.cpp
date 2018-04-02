@@ -366,7 +366,6 @@ Error Display::getColorModes(std::vector<android::ui::ColorMode>* outModes) cons
 {
     auto intError = mComposer.getColorModes(mId, outModes);
     return static_cast<Error>(intError);
-    return Error::None;
 }
 
 std::vector<std::shared_ptr<const Display::Config>> Display::getConfigs() const
