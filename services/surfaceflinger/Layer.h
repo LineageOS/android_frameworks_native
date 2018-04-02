@@ -113,7 +113,8 @@ public:
                 layer(nullptr),
                 forceClientComposition(false),
                 compositionType(HWC2::Composition::Invalid),
-                clearClientTarget(false) {}
+                clearClientTarget(false),
+                transform(HWC2::Transform::None) {}
 
         HWComposer* hwc;
         HWC2::Layer* layer;
@@ -123,6 +124,7 @@ public:
         Rect displayFrame;
         FloatRect sourceCrop;
         HWComposerBufferCache bufferCache;
+        HWC2::Transform transform;
     };
 
     // A layer can be attached to multiple displays when operating in mirror mode
@@ -356,6 +358,8 @@ public:
 
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
+
+    void writeToProto(LayerProto* layerInfo, int32_t hwcId);
 
 protected:
     /*

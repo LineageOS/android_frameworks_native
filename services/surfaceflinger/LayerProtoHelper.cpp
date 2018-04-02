@@ -37,6 +37,13 @@ void LayerProtoHelper::writeToProto(const Rect& rect, RectProto* rectProto) {
     rectProto->set_right(rect.right);
 }
 
+void LayerProtoHelper::writeToProto(const FloatRect& rect, FloatRectProto* rectProto) {
+    rectProto->set_left(rect.left);
+    rectProto->set_top(rect.top);
+    rectProto->set_bottom(rect.bottom);
+    rectProto->set_right(rect.right);
+}
+
 void LayerProtoHelper::writeToProto(const half4 color, ColorProto* colorProto) {
     colorProto->set_r(color.r);
     colorProto->set_g(color.g);
