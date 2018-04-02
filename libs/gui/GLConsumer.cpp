@@ -984,7 +984,8 @@ status_t GLConsumer::doGLFenceWaitLocked() const {
     }
 
     if (mCurrentFence->isValid()) {
-        if (SyncFeatures::getInstance().useWaitSync()) {
+        if (SyncFeatures::getInstance().useWaitSync() &&
+            SyncFeatures::getInstance().useNativeFenceSync()) {
             // Create an EGLSyncKHR from the current fence.
             int fenceFd = mCurrentFence->dup();
             if (fenceFd == -1) {
