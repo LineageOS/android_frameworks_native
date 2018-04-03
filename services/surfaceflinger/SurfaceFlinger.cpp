@@ -2447,7 +2447,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         processDisplayHotplugEventsLocked();
     }
 
-    if (transactionFlags & (eTraversalNeeded|eDisplayTransactionNeeded)) {
+    if (transactionFlags & (eDisplayLayerStackChanged|eDisplayTransactionNeeded)) {
         // The transform hint might have changed for some layers
         // (either because a display has changed, or because a layer
         // as changed).
@@ -2494,18 +2494,18 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 }
             }
 
-            if (transactionFlags & eDisplayTransactionNeeded) {
-                if (disp == nullptr) {
-                    // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
-                    // redraw after transform hint changes. See bug 8508397.
+            if (disp == nullptr) {
+                // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
+                // redraw after transform hint changes. See bug 8508397.
 
-                    // could be null when this layer is using a layerStack
-                    // that is not visible on any display. Also can occur at
-                    // screen off/on times.
-                    disp = getDefaultDisplayDeviceLocked();
-                }
-                layer->updateTransformHint(disp);
+                // could be null when this layer is using a layerStack
+                // that is not visible on any display. Also can occur at
+                // screen off/on times.
+                disp = getDefaultDisplayDeviceLocked();
             }
+
+            // disp can be null if there is no display available at all to get
+            // the transform hint from.
             if (disp != nullptr) {
                 layer->updateTransformHint(disp);
             }
@@ -3340,7 +3340,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             mCurrentState.layersSortedByZ.add(layer);
             // we need traversal (state changed)
             // AND transaction (list changed)
-            flags |= eTransactionNeeded|eTraversalNeeded;
+            flags |= eTransactionNeeded|eTraversalNeeded|eDisplayLayerStackChanged;
         }
     }
     if (what & layer_state_t::eDeferTransaction) {
