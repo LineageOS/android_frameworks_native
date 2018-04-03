@@ -1264,8 +1264,8 @@ class Dex2oatFileWrapper {
 };
 
 // (re)Creates the app image if needed.
-Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path, bool profile_guided,
-        bool is_public, int uid, bool is_secondary_dex) {
+Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path,
+        bool generate_app_image, bool is_public, int uid, bool is_secondary_dex) {
 
     // We don't create an image for secondary dex files.
     if (is_secondary_dex) {
@@ -1278,11 +1278,11 @@ Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path, bool profile_g
         return Dex2oatFileWrapper();
     }
 
-    // Use app images only if it is enabled (by a set image format) and we are compiling
-    // profile-guided (so the app image doesn't conservatively contain all classes).
-    if (!profile_guided) {
-        // In case there is a stale image, remove it now. Ignore any error.
-        unlink(image_path.c_str());
+    // In case there is a stale image, remove it now. Ignore any error.
+    unlink(image_path.c_str());
+
+    // Not enabled, exit.
+    if (!generate_app_image) {
         return Dex2oatFileWrapper();
     }
     char app_image_format[kPropertyValueMax];
@@ -1959,6 +1959,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     bool background_job_compile = (dexopt_flags & DEXOPT_IDLE_BACKGROUND_JOB) != 0;
     bool enable_hidden_api_checks = (dexopt_flags & DEXOPT_ENABLE_HIDDEN_API_CHECKS) != 0;
     bool generate_compact_dex = (dexopt_flags & DEXOPT_GENERATE_COMPACT_DEX) != 0;
+    bool generate_app_image = (dexopt_flags & DEXOPT_GENERATE_APP_IMAGE) != 0;
 
     // Check if we're dealing with a secondary dex file and if we need to compile it.
     std::string oat_dir_str;
@@ -2027,8 +2028,8 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     unique_fd swap_fd = maybe_open_dexopt_swap_file(out_oat_path);
 
     // Create the app image file if needed.
-    Dex2oatFileWrapper image_fd =
-            maybe_open_app_image(out_oat_path, profile_guided, is_public, uid, is_secondary_dex);
+    Dex2oatFileWrapper image_fd = maybe_open_app_image(
+            out_oat_path, generate_app_image, is_public, uid, is_secondary_dex);
 
     // Open the reference profile if needed.
     Dex2oatFileWrapper reference_profile_fd = maybe_open_reference_profile(
