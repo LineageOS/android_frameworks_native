@@ -146,7 +146,7 @@ hwc_rect_t Hwc2TestLayer::getCursorPosition() const
     return mDisplayFrame.get();
 }
 
-android_dataspace_t Hwc2TestLayer::getDataspace() const
+android::ui::Dataspace Hwc2TestLayer::getDataspace() const
 {
     return mDataspace.get();
 }

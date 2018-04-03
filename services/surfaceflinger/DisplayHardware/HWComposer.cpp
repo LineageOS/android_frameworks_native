@@ -179,7 +179,7 @@ bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,
 }
 
 status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
-        android_pixel_format_t* format, int32_t *outId) {
+        ui::PixelFormat* format, int32_t *outId) {
     if (mRemainingHwcVirtualDisplays == 0) {
         ALOGE("allocateVirtualDisplay: No remaining virtual displays");
         return NO_MEMORY;
@@ -387,7 +387,7 @@ void HWComposer::setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled) {
 
 status_t HWComposer::setClientTarget(int32_t displayId, uint32_t slot,
         const sp<Fence>& acquireFence, const sp<GraphicBuffer>& target,
-        android_dataspace_t dataspace) {
+        ui::Dataspace dataspace) {
     if (!isValidDisplay(displayId)) {
         return BAD_INDEX;
     }

@@ -55,6 +55,7 @@
 #include "DisplayDevice.h"
 #include "DispSync.h"
 #include "FrameTracker.h"
+#include "LayerStats.h"
 #include "LayerVector.h"
 #include "MessageQueue.h"
 #include "SurfaceInterceptor.h"
@@ -635,8 +636,8 @@ private:
 
     // Given a dataSpace, returns the appropriate color_mode to use
     // to display that dataSpace.
-    ui::ColorMode pickColorMode(android_dataspace dataSpace) const;
-    android_dataspace bestTargetDataSpace(android_dataspace a, android_dataspace b,
+    ui::ColorMode pickColorMode(ui::Dataspace dataSpace) const;
+    ui::Dataspace bestTargetDataSpace(ui::Dataspace a, ui::Dataspace b,
             bool hasHdr) const;
 
     mat4 computeSaturationMatrix() const;
@@ -645,6 +646,7 @@ private:
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
+    void logLayerStats();
     void doDisplayComposition(const sp<const DisplayDevice>& displayDevice, const Region& dirtyRegion);
 
     // compose surfaces for display hw. this fails if using GL and the surface
@@ -711,6 +713,7 @@ private:
     void dumpBufferingStats(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
+    LayersProto dumpVisibleLayersProtoInfo(int32_t hwcId) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -797,6 +800,7 @@ private:
     std::unique_ptr<SurfaceInterceptor> mInterceptor =
             std::make_unique<impl::SurfaceInterceptor>(this);
     SurfaceTracing mTracing;
+    LayerStats mLayerStats;
     bool mUseHwcVirtualDisplays = false;
 
     // Restrict layers to use two buffers in their bufferqueues.

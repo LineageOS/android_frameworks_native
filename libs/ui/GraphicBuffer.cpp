@@ -22,6 +22,7 @@
 
 #include <grallocusage/GrallocUsageConversion.h>
 
+#include <ui/DetachedBufferHandle.h>
 #include <ui/Gralloc2.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
@@ -484,6 +485,24 @@ status_t GraphicBuffer::unflatten(
     count -= numFds;
 
     return NO_ERROR;
+}
+
+bool GraphicBuffer::isDetachedBuffer() const {
+    return mDetachedBufferHandle && mDetachedBufferHandle->isValid();
+}
+
+status_t GraphicBuffer::setDetachedBufferHandle(std::unique_ptr<DetachedBufferHandle> channel) {
+    if (isDetachedBuffer()) {
+        ALOGW("setDetachedBuffer: there is already a BufferHub channel associated with this "
+              "GraphicBuffer. Replacing the old one.");
+    }
+
+    mDetachedBufferHandle = std::move(channel);
+    return NO_ERROR;
+}
+
+std::unique_ptr<DetachedBufferHandle> GraphicBuffer::takeDetachedBufferHandle() {
+    return std::move(mDetachedBufferHandle);
 }
 
 // ---------------------------------------------------------------------------

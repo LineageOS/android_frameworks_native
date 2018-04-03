@@ -21,6 +21,8 @@
 
 #include <stdlib.h>
 
+#include <math/mat4.h>
+
 #include <ui/Region.h>
 
 #include <binder/IBinder.h>
@@ -163,7 +165,9 @@ public:
 
     ui::ColorMode getActiveColorMode() const;
     void setActiveColorMode(ui::ColorMode mode);
-    void setCompositionDataSpace(android_dataspace dataspace);
+    android_color_transform_t getColorTransform() const;
+    void setColorTransform(const mat4& transform);
+    void setCompositionDataSpace(ui::Dataspace dataspace);
 
     /* ------------------------------------------------------------------------
      * Display active config management.
@@ -237,6 +241,8 @@ private:
     int mActiveConfig;
     // current active color mode
     ui::ColorMode mActiveColorMode;
+    // Current color transform
+    android_color_transform_t mColorTransform;
 
     // Need to know if display is wide-color capable or not.
     // Initialized by SurfaceFlinger when the DisplayDevice is created.

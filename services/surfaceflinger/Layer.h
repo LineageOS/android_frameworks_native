@@ -113,7 +113,8 @@ public:
                 layer(nullptr),
                 forceClientComposition(false),
                 compositionType(HWC2::Composition::Invalid),
-                clearClientTarget(false) {}
+                clearClientTarget(false),
+                transform(HWC2::Transform::None) {}
 
         HWComposer* hwc;
         HWC2::Layer* layer;
@@ -123,6 +124,7 @@ public:
         Rect displayFrame;
         FloatRect sourceCrop;
         HWComposerBufferCache bufferCache;
+        HWC2::Transform transform;
     };
 
     // A layer can be attached to multiple displays when operating in mirror mode
@@ -205,7 +207,7 @@ public:
         // dependent.
         Region activeTransparentRegion;
         Region requestedTransparentRegion;
-        android_dataspace dataSpace;
+        ui::Dataspace dataSpace;
 
         int32_t appId;
         int32_t type;
@@ -283,8 +285,8 @@ public:
     bool setTransparentRegionHint(const Region& transparent);
     bool setFlags(uint8_t flags, uint8_t mask);
     bool setLayerStack(uint32_t layerStack);
-    bool setDataSpace(android_dataspace dataSpace);
-    android_dataspace getDataSpace() const;
+    bool setDataSpace(ui::Dataspace dataSpace);
+    ui::Dataspace getDataSpace() const;
     uint32_t getLayerStack() const;
     void deferTransactionUntil(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
     void deferTransactionUntil(const sp<Layer>& barrierLayer, uint64_t frameNumber);
@@ -356,6 +358,8 @@ public:
 
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
+
+    void writeToProto(LayerProto* layerInfo, int32_t hwcId);
 
 protected:
     /*

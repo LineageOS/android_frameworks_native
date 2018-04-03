@@ -42,6 +42,7 @@
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 
+#include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
@@ -121,7 +122,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     mCurrentState.layerStack = 0;
     mCurrentState.sequence = 0;
     mCurrentState.requested = mCurrentState.active;
-    mCurrentState.dataSpace = HAL_DATASPACE_UNKNOWN;
+    mCurrentState.dataSpace = ui::Dataspace::UNKNOWN;
     mCurrentState.appId = 0;
     mCurrentState.type = 0;
 
@@ -635,6 +636,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         hwcInfo.forceClientComposition = true;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
+        hwcInfo.transform = transform;
         auto error = hwcLayer->setTransform(transform);
         ALOGE_IF(error != HWC2::Error::None,
                  "[%s] Failed to set transform %s: "
@@ -1325,7 +1327,7 @@ bool Layer::setLayerStack(uint32_t layerStack) {
     return true;
 }
 
-bool Layer::setDataSpace(android_dataspace dataSpace) {
+bool Layer::setDataSpace(ui::Dataspace dataSpace) {
     if (mCurrentState.dataSpace == dataSpace) return false;
     mCurrentState.sequence++;
     mCurrentState.dataSpace = dataSpace;
@@ -1334,7 +1336,7 @@ bool Layer::setDataSpace(android_dataspace dataSpace) {
     return true;
 }
 
-android_dataspace Layer::getDataSpace() const {
+ui::Dataspace Layer::getDataSpace() const {
     return mCurrentState.dataSpace;
 }
 
@@ -1430,7 +1432,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();
-    info.mDataSpace = getDataSpace();
+    info.mDataSpace = static_cast<android_dataspace>(getDataSpace());
     info.mMatrix[0][0] = ds.active.transform[0][0];
     info.mMatrix[0][1] = ds.active.transform[0][1];
     info.mMatrix[1][0] = ds.active.transform[1][0];
@@ -1893,7 +1895,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_is_opaque(isOpaque(state));
     layerInfo->set_invalidate(contentDirty);
-    layerInfo->set_dataspace(dataspaceDetails(getDataSpace()));
+    layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
     layerInfo->set_pixel_format(decodePixelFormat(getPixelFormat()));
     LayerProtoHelper::writeToProto(getColor(), layerInfo->mutable_color());
     LayerProtoHelper::writeToProto(state.color, layerInfo->mutable_requested_color());
@@ -1921,6 +1923,31 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     layerInfo->set_refresh_pending(isBufferLatched());
     layerInfo->set_window_type(state.type);
     layerInfo->set_app_id(state.appId);
+}
+
+void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
+    writeToProto(layerInfo, LayerVector::StateSet::Drawing);
+
+    const auto& hwcInfo = getBE().mHwcLayers.at(hwcId);
+
+    const Rect& frame = hwcInfo.displayFrame;
+    LayerProtoHelper::writeToProto(frame, layerInfo->mutable_hwc_frame());
+
+    const FloatRect& crop = hwcInfo.sourceCrop;
+    LayerProtoHelper::writeToProto(crop, layerInfo->mutable_hwc_crop());
+
+    const int32_t transform = static_cast<int32_t>(hwcInfo.transform);
+    layerInfo->set_hwc_transform(transform);
+
+    const int32_t compositionType = static_cast<int32_t>(hwcInfo.compositionType);
+    layerInfo->set_hwc_composition_type(compositionType);
+
+    if (std::strcmp(getTypeId(), "BufferLayer") == 0 &&
+        static_cast<BufferLayer*>(this)->isProtected()) {
+        layerInfo->set_is_protected(true);
+    } else {
+        layerInfo->set_is_protected(false);
+    }
 }
 
 // ---------------------------------------------------------------------------

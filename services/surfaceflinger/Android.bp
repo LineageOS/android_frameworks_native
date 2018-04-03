@@ -105,6 +105,7 @@ filegroup {
         "Layer.cpp",
         "LayerProtoHelper.cpp",
         "LayerRejecter.cpp",
+        "LayerStats.cpp",
         "LayerVector.cpp",
         "MessageQueue.cpp",
         "MonitoredProducer.cpp",
