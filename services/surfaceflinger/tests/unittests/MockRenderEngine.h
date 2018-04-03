@@ -64,8 +64,8 @@ public:
     MOCK_METHOD0(disableTexturing, void());
     MOCK_METHOD0(disableBlending, void());
     MOCK_METHOD1(setSourceY410BT2020, void(bool));
-    MOCK_METHOD1(setSourceDataSpace, void(android_dataspace));
-    MOCK_METHOD1(setOutputDataSpace, void(android_dataspace));
+    MOCK_METHOD1(setSourceDataSpace, void(ui::Dataspace));
+    MOCK_METHOD1(setOutputDataSpace, void(ui::Dataspace));
     MOCK_METHOD2(bindNativeBufferAsFrameBuffer,
                  void(ANativeWindowBuffer*, RE::BindNativeBufferAsFramebuffer*));
     MOCK_METHOD1(unbindNativeBufferAsFrameBuffer, void(RE::BindNativeBufferAsFramebuffer*));

@@ -61,7 +61,7 @@ private:
     // BufferQueue and releases the previously latched buffer to the
     // BufferQueue.  The new buffer is returned in the 'buffer' argument.
     status_t nextBuffer(uint32_t& outSlot, sp<GraphicBuffer>& outBuffer,
-            sp<Fence>& outFence, android_dataspace_t& outDataspace);
+            sp<Fence>& outFence, ui::Dataspace& outDataspace);
 
     // mDisplayType must match one of the HWC display types
     int mDisplayType;
@@ -76,7 +76,7 @@ private:
     // compositing. Otherwise it will display the dataspace of the buffer
     // use for compositing which can change as wide-color content is
     // on/off.
-    android_dataspace mDataSpace;
+    ui::Dataspace mDataSpace;
 
     // mCurrentBuffer is the current buffer or nullptr to indicate that there is
     // no current buffer.

@@ -65,7 +65,7 @@ BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq,
         mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
         mCurrentFence(Fence::NO_FENCE),
         mCurrentTimestamp(0),
-        mCurrentDataSpace(HAL_DATASPACE_UNKNOWN),
+        mCurrentDataSpace(ui::Dataspace::UNKNOWN),
         mCurrentFrameNumber(0),
         mCurrentTransformToDisplayInverse(false),
         mCurrentSurfaceDamage(),
@@ -341,7 +341,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     mCurrentTransform = item.mTransform;
     mCurrentScalingMode = item.mScalingMode;
     mCurrentTimestamp = item.mTimestamp;
-    mCurrentDataSpace = item.mDataSpace;
+    mCurrentDataSpace = static_cast<ui::Dataspace>(item.mDataSpace);
     mCurrentHdrMetadata = item.mHdrMetadata;
     mCurrentFence = item.mFence;
     mCurrentFenceTime = item.mFenceTime;
@@ -445,7 +445,7 @@ nsecs_t BufferLayerConsumer::getTimestamp() {
     return mCurrentTimestamp;
 }
 
-android_dataspace BufferLayerConsumer::getCurrentDataSpace() {
+ui::Dataspace BufferLayerConsumer::getCurrentDataSpace() {
     BLC_LOGV("getCurrentDataSpace");
     Mutex::Autolock lock(mMutex);
     return mCurrentDataSpace;

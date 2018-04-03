@@ -54,7 +54,7 @@ public:
     hwc_color_t            getColor() const;
     hwc2_composition_t     getComposition() const;
     hwc_rect_t             getCursorPosition() const;
-    android_dataspace_t    getDataspace() const;
+    android::ui::Dataspace     getDataspace() const;
     hwc_rect_t             getDisplayFrame() const;
     float                  getPlaneAlpha() const;
     hwc_frect_t            getSourceCrop() const;

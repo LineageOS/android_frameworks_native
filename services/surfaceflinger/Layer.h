@@ -144,7 +144,7 @@ public:
         // dependent.
         Region activeTransparentRegion;
         Region requestedTransparentRegion;
-        android_dataspace dataSpace;
+        ui::Dataspace dataSpace;
 
         int32_t appId;
         int32_t type;
@@ -222,8 +222,8 @@ public:
     bool setTransparentRegionHint(const Region& transparent);
     bool setFlags(uint8_t flags, uint8_t mask);
     bool setLayerStack(uint32_t layerStack);
-    bool setDataSpace(android_dataspace dataSpace);
-    android_dataspace getDataSpace() const;
+    bool setDataSpace(ui::Dataspace dataSpace);
+    ui::Dataspace getDataSpace() const;
     uint32_t getLayerStack() const;
     void deferTransactionUntil(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
     void deferTransactionUntil(const sp<Layer>& barrierLayer, uint64_t frameNumber);
