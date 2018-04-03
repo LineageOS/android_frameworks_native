@@ -742,7 +742,7 @@ Error Composer::setLayerHdrMetadata(Display display, Layer layer, const HdrMetad
                                   metadata.cta8613.maxFrameAverageLightLevel}});
     }
 
-    mWriter.setPerFrameMetadata(composerMetadata);
+    mWriter.setLayerPerFrameMetadata(composerMetadata);
     return Error::NONE;
 }
 
