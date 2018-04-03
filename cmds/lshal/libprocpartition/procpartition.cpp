@@ -50,7 +50,7 @@ std::string getCmdline(pid_t pid) {
                                          false /* follow symlinks */)) {
         return "";
     }
-    return content;
+    return std::string{content.c_str()};
 }
 
 Partition parsePartition(const std::string& s) {
