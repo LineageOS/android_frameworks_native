@@ -167,7 +167,7 @@ public:
     void setActiveColorMode(ui::ColorMode mode);
     android_color_transform_t getColorTransform() const;
     void setColorTransform(const mat4& transform);
-    void setCompositionDataSpace(android_dataspace dataspace);
+    void setCompositionDataSpace(ui::Dataspace dataspace);
 
     /* ------------------------------------------------------------------------
      * Display active config management.

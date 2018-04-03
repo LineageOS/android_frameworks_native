@@ -105,6 +105,7 @@ namespace android {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using ui::ColorMode;
+using ui::Dataspace;
 
 namespace {
 class ConditionalLock {
@@ -1837,7 +1838,7 @@ mat4 SurfaceFlinger::computeSaturationMatrix() const {
 
 // pickColorMode translates a given dataspace into the best available color mode.
 // Currently only support sRGB and Display-P3.
-ColorMode SurfaceFlinger::pickColorMode(android_dataspace dataSpace) const {
+ColorMode SurfaceFlinger::pickColorMode(Dataspace dataSpace) const {
     if (mForceNativeColorMode) {
         return ColorMode::NATIVE;
     }
@@ -1845,47 +1846,48 @@ ColorMode SurfaceFlinger::pickColorMode(android_dataspace dataSpace) const {
     switch (dataSpace) {
         // treat Unknown as regular SRGB buffer, since that's what the rest of the
         // system expects.
-        case HAL_DATASPACE_UNKNOWN:
-        case HAL_DATASPACE_SRGB:
-        case HAL_DATASPACE_V0_SRGB:
+        case Dataspace::UNKNOWN:
+        case Dataspace::SRGB:
+        case Dataspace::V0_SRGB:
             return ColorMode::SRGB;
             break;
 
-        case HAL_DATASPACE_DISPLAY_P3:
+        case Dataspace::DISPLAY_P3:
             return ColorMode::DISPLAY_P3;
             break;
 
         default:
             // TODO (courtneygo): Do we want to assert an error here?
-            ALOGE("No color mode mapping for %s (%#x)", dataspaceDetails(dataSpace).c_str(),
+            ALOGE("No color mode mapping for %s (%#x)",
+                  dataspaceDetails(static_cast<android_dataspace>(dataSpace)).c_str(),
                   dataSpace);
             return ColorMode::SRGB;
             break;
     }
 }
 
-android_dataspace SurfaceFlinger::bestTargetDataSpace(
-        android_dataspace a, android_dataspace b, bool hasHdr) const {
+Dataspace SurfaceFlinger::bestTargetDataSpace(
+        Dataspace a, Dataspace b, bool hasHdr) const {
     // Only support sRGB and Display-P3 right now.
-    if (a == HAL_DATASPACE_DISPLAY_P3 || b == HAL_DATASPACE_DISPLAY_P3) {
-        return HAL_DATASPACE_DISPLAY_P3;
+    if (a == Dataspace::DISPLAY_P3 || b == Dataspace::DISPLAY_P3) {
+        return Dataspace::DISPLAY_P3;
     }
-    if (a == HAL_DATASPACE_V0_SCRGB_LINEAR || b == HAL_DATASPACE_V0_SCRGB_LINEAR) {
-        return HAL_DATASPACE_DISPLAY_P3;
+    if (a == Dataspace::V0_SCRGB_LINEAR || b == Dataspace::V0_SCRGB_LINEAR) {
+        return Dataspace::DISPLAY_P3;
     }
-    if (a == HAL_DATASPACE_V0_SCRGB || b == HAL_DATASPACE_V0_SCRGB) {
-        return HAL_DATASPACE_DISPLAY_P3;
+    if (a == Dataspace::V0_SCRGB || b == Dataspace::V0_SCRGB) {
+        return Dataspace::DISPLAY_P3;
     }
     if (!hasHdr) {
-        if (a == HAL_DATASPACE_BT2020_PQ || b == HAL_DATASPACE_BT2020_PQ) {
-            return HAL_DATASPACE_DISPLAY_P3;
+        if (a == Dataspace::BT2020_PQ || b == Dataspace::BT2020_PQ) {
+            return Dataspace::DISPLAY_P3;
         }
-        if (a == HAL_DATASPACE_BT2020_ITU_PQ || b == HAL_DATASPACE_BT2020_ITU_PQ) {
-            return HAL_DATASPACE_DISPLAY_P3;
+        if (a == Dataspace::BT2020_ITU_PQ || b == Dataspace::BT2020_ITU_PQ) {
+            return Dataspace::DISPLAY_P3;
         }
     }
 
-    return HAL_DATASPACE_V0_SRGB;
+    return Dataspace::V0_SRGB;
 }
 
 void SurfaceFlinger::setUpHWComposer() {
@@ -1966,8 +1968,8 @@ void SurfaceFlinger::setUpHWComposer() {
                     "display %zd: %d", displayId, result);
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            if ((layer->getDataSpace() == HAL_DATASPACE_BT2020_PQ ||
-                 layer->getDataSpace() == HAL_DATASPACE_BT2020_ITU_PQ) &&
+            if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
+                 layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
                     !displayDevice->getHdrSupport()) {
                 layer->forceClientComposition(hwcId);
             }
@@ -1983,14 +1985,14 @@ void SurfaceFlinger::setUpHWComposer() {
 
         if (hasWideColorDisplay) {
             ColorMode newColorMode;
-            android_dataspace newDataSpace = HAL_DATASPACE_V0_SRGB;
+            Dataspace newDataSpace = Dataspace::V0_SRGB;
 
             for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
                 newDataSpace = bestTargetDataSpace(layer->getDataSpace(), newDataSpace,
                         displayDevice->getHdrSupport());
                 ALOGV("layer: %s, dataspace: %s (%#x), newDataSpace: %s (%#x)",
-                      layer->getName().string(), dataspaceDetails(layer->getDataSpace()).c_str(),
-                      layer->getDataSpace(), dataspaceDetails(newDataSpace).c_str(), newDataSpace);
+                      layer->getName().string(), dataspaceDetails(static_cast<android_dataspace>(layer->getDataSpace())).c_str(),
+                      layer->getDataSpace(), dataspaceDetails(static_cast<android_dataspace>(newDataSpace)).c_str(), newDataSpace);
             }
             newColorMode = pickColorMode(newDataSpace);
 
@@ -2268,7 +2270,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         defaultColorMode = ColorMode::SRGB;
     }
     setActiveColorModeInternal(hw, defaultColorMode);
-    hw->setCompositionDataSpace(HAL_DATASPACE_UNKNOWN);
+    hw->setCompositionDataSpace(Dataspace::UNKNOWN);
     hw->setLayerStack(state.layerStack);
     hw->setProjection(state.orientation, state.viewport, state.frame);
     hw->setDisplayName(state.displayName);
@@ -2371,7 +2373,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                             int intFormat = 0;
                             status = state.surface->query(NATIVE_WINDOW_FORMAT, &intFormat);
                             ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
-                            auto format = static_cast<android_pixel_format_t>(intFormat);
+                            auto format = static_cast<ui::PixelFormat>(intFormat);
 
                             getBE().mHwc->allocateVirtualDisplay(width, height, &format, &hwcId);
                         }
@@ -2832,10 +2834,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        android_dataspace outputDataspace = HAL_DATASPACE_UNKNOWN;
+        Dataspace outputDataspace = Dataspace::UNKNOWN;
         if (displayDevice->getWideColorSupport() &&
               displayDevice->getActiveColorMode() == ColorMode::DISPLAY_P3) {
-            outputDataspace = HAL_DATASPACE_DISPLAY_P3;
+            outputDataspace = Dataspace::DISPLAY_P3;
         }
         getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
 
@@ -4802,10 +4804,10 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, raHeight);
     }
 
-    android_dataspace outputDataspace = HAL_DATASPACE_UNKNOWN;
+    Dataspace outputDataspace = Dataspace::UNKNOWN;
     if (renderArea.getWideColorSupport() &&
           renderArea.getActiveColorMode() == ColorMode::DISPLAY_P3) {
-        outputDataspace = HAL_DATASPACE_DISPLAY_P3;
+        outputDataspace = Dataspace::DISPLAY_P3;
     }
     getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
 

@@ -119,8 +119,8 @@ public:
 
     // wide color support
     virtual void setSourceY410BT2020(bool enable) = 0;
-    virtual void setSourceDataSpace(android_dataspace source) = 0;
-    virtual void setOutputDataSpace(android_dataspace dataspace) = 0;
+    virtual void setSourceDataSpace(ui::Dataspace source) = 0;
+    virtual void setOutputDataSpace(ui::Dataspace dataspace) = 0;
 
     // drawing
     virtual void drawMesh(const Mesh& mesh) = 0;

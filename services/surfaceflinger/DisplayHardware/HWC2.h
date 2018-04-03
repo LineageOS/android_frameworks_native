@@ -96,7 +96,7 @@ public:
 
     uint32_t getMaxVirtualDisplayCount() const;
     Error createVirtualDisplay(uint32_t width, uint32_t height,
-            android_pixel_format_t* format, Display** outDisplay);
+            android::ui::PixelFormat* format, Display** outDisplay);
     void destroyDisplay(hwc2_display_t displayId);
 
     void onHotplug(hwc2_display_t displayId, Connection connection);
@@ -234,7 +234,7 @@ public:
     [[clang::warn_unused_result]] Error setClientTarget(
             uint32_t slot, const android::sp<android::GraphicBuffer>& target,
             const android::sp<android::Fence>& acquireFence,
-            android_dataspace_t dataspace);
+            android::ui::Dataspace dataspace);
     [[clang::warn_unused_result]] Error setColorMode(
             android::ui::ColorMode mode);
     [[clang::warn_unused_result]] Error setColorTransform(
@@ -311,7 +311,7 @@ public:
     [[clang::warn_unused_result]] Error setColor(hwc_color_t color);
     [[clang::warn_unused_result]] Error setCompositionType(Composition type);
     [[clang::warn_unused_result]] Error setDataspace(
-            android_dataspace_t dataspace);
+            android::ui::Dataspace dataspace);
     [[clang::warn_unused_result]] Error setHdrMetadata(const android::HdrMetadata& metadata);
     [[clang::warn_unused_result]] Error setDisplayFrame(
             const android::Rect& frame);
@@ -335,7 +335,7 @@ private:
 
     hwc2_display_t mDisplayId;
     hwc2_layer_t mId;
-    android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
+    android::ui::Dataspace mDataSpace = android::ui::Dataspace::UNKNOWN;
     android::HdrMetadata mHdrMetadata;
     std::function<void(Layer*)> mLayerDestroyedListener;
 };

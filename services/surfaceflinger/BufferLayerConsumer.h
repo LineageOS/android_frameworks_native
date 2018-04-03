@@ -23,6 +23,7 @@
 
 #include <ui/FenceTime.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/GraphicTypes.h>
 #include <ui/Region.h>
 
 #include <utils/String8.h>
@@ -122,7 +123,7 @@ public:
 
     // getDataSpace retrieves the DataSpace associated with the texture image
     // set by the most recent call to updateTexImage.
-    android_dataspace getCurrentDataSpace();
+    ui::Dataspace getCurrentDataSpace();
 
     // getCurrentHdrMetadata retrieves the HDR metadata associated with the
     // texture image set by the most recent call to updateTexImage.
@@ -324,7 +325,7 @@ private:
 
     // mCurrentDataSpace is the dataspace for the current texture. It
     // gets set each time updateTexImage is called.
-    android_dataspace mCurrentDataSpace;
+    ui::Dataspace mCurrentDataSpace;
 
     // mCurrentHdrMetadata is the HDR metadata for the current texture. It
     // gets set each time updateTexImage is called.

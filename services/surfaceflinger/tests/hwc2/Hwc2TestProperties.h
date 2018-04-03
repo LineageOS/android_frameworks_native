@@ -20,6 +20,7 @@
 #include <array>
 #include <vector>
 
+#include <ui/GraphicTypes.h>
 #include <ui/Region.h>
 
 #define HWC2_INCLUDE_STRINGIFICATION
@@ -229,16 +230,16 @@ protected:
 };
 
 
-class Hwc2TestDataspace : public Hwc2TestProperty<android_dataspace_t> {
+class Hwc2TestDataspace : public Hwc2TestProperty<android::ui::Dataspace> {
 public:
     Hwc2TestDataspace(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 
 protected:
-    static const std::vector<android_dataspace_t> defaultDataspaces;
-    static const std::vector<android_dataspace_t> basicDataspaces;
-    static const std::vector<android_dataspace_t> completeDataspaces;
+    static const std::vector<android::ui::Dataspace> defaultDataspaces;
+    static const std::vector<android::ui::Dataspace> basicDataspaces;
+    static const std::vector<android::ui::Dataspace> completeDataspaces;
 
     static const std::array<bool, 6> mCompositionSupport;
 };
