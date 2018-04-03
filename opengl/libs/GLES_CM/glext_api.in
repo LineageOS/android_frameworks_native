@@ -313,6 +313,15 @@ void API_ENTRY(glGetInteger64vAPPLE)(GLenum pname, GLint64 *params) {
 void API_ENTRY(glGetSyncivAPPLE)(GLsync sync, GLenum pname, GLsizei bufSize, GLsizei *length, GLint *values) {
     CALL_GL_API(glGetSyncivAPPLE, sync, pname, bufSize, length, values);
 }
+void API_ENTRY(glInsertEventMarkerEXT)(GLsizei length, const GLchar *marker) {
+    CALL_GL_API(glInsertEventMarkerEXT, length, marker);
+}
+void API_ENTRY(glPushGroupMarkerEXT)(GLsizei length, const GLchar *marker) {
+    CALL_GL_API(glPushGroupMarkerEXT, length, marker);
+}
+void API_ENTRY(glPopGroupMarkerEXT)(void) {
+    CALL_GL_API(glPopGroupMarkerEXT);
+}
 void API_ENTRY(glDiscardFramebufferEXT)(GLenum target, GLsizei numAttachments, const GLenum *attachments) {
     CALL_GL_API(glDiscardFramebufferEXT, target, numAttachments, attachments);
 }
