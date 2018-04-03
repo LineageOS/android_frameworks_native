@@ -1421,6 +1421,8 @@ static void DumpstateTelephonyOnly() {
                SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"carrier_config"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
