@@ -1539,8 +1539,8 @@ void Dumpstate::DumpstateBoard() {
         });
     auto result = dumpstate_task.get_future();
     std::thread(std::move(dumpstate_task)).detach();
-    if (result.wait_for(10s) != std::future_status::ready) {
-        MYLOGE("dumpstateBoard timed out after 10s\n");
+    if (result.wait_for(30s) != std::future_status::ready) {
+        MYLOGE("dumpstateBoard timed out after 30s\n");
         return;
     }
     std::unique_ptr<ssize_t[]> file_sizes = result.get();
