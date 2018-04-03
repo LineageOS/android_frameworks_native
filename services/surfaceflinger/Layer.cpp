@@ -122,7 +122,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     mCurrentState.layerStack = 0;
     mCurrentState.sequence = 0;
     mCurrentState.requested = mCurrentState.active;
-    mCurrentState.dataSpace = HAL_DATASPACE_UNKNOWN;
+    mCurrentState.dataSpace = ui::Dataspace::UNKNOWN;
     mCurrentState.appId = 0;
     mCurrentState.type = 0;
 
@@ -1327,7 +1327,7 @@ bool Layer::setLayerStack(uint32_t layerStack) {
     return true;
 }
 
-bool Layer::setDataSpace(android_dataspace dataSpace) {
+bool Layer::setDataSpace(ui::Dataspace dataSpace) {
     if (mCurrentState.dataSpace == dataSpace) return false;
     mCurrentState.sequence++;
     mCurrentState.dataSpace = dataSpace;
@@ -1336,7 +1336,7 @@ bool Layer::setDataSpace(android_dataspace dataSpace) {
     return true;
 }
 
-android_dataspace Layer::getDataSpace() const {
+ui::Dataspace Layer::getDataSpace() const {
     return mCurrentState.dataSpace;
 }
 
@@ -1432,7 +1432,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();
-    info.mDataSpace = getDataSpace();
+    info.mDataSpace = static_cast<android_dataspace>(getDataSpace());
     info.mMatrix[0][0] = ds.active.transform[0][0];
     info.mMatrix[0][1] = ds.active.transform[0][1];
     info.mMatrix[1][0] = ds.active.transform[1][0];
@@ -1895,7 +1895,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_is_opaque(isOpaque(state));
     layerInfo->set_invalidate(contentDirty);
-    layerInfo->set_dataspace(dataspaceDetails(getDataSpace()));
+    layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
     layerInfo->set_pixel_format(decodePixelFormat(getPixelFormat()));
     LayerProtoHelper::writeToProto(getColor(), layerInfo->mutable_color());
     LayerProtoHelper::writeToProto(state.color, layerInfo->mutable_requested_color());

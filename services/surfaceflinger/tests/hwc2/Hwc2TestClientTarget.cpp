@@ -91,7 +91,7 @@ Area Hwc2TestClientTargetSupport::getBufferArea() const
     return mBufferArea.get();
 }
 
-android_dataspace_t Hwc2TestClientTargetSupport::getDataspace() const
+android::ui::Dataspace Hwc2TestClientTargetSupport::getDataspace() const
 {
     return mDataspace.get();
 }

@@ -109,6 +109,8 @@ namespace RE {
 namespace impl {
 // ---------------------------------------------------------------------------
 
+using ui::Dataspace;
+
 GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
       : mVpWidth(0), mVpHeight(0), mPlatformHasWideColor((featureFlags & WIDE_COLOR_SUPPORT) != 0) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
@@ -214,11 +216,11 @@ void GLES20RenderEngine::setSourceY410BT2020(bool enable) {
     mState.setY410BT2020(enable);
 }
 
-void GLES20RenderEngine::setSourceDataSpace(android_dataspace source) {
+void GLES20RenderEngine::setSourceDataSpace(Dataspace source) {
     mDataSpace = source;
 }
 
-void GLES20RenderEngine::setOutputDataSpace(android_dataspace dataspace) {
+void GLES20RenderEngine::setOutputDataSpace(Dataspace dataspace) {
     mOutputDataSpace = dataspace;
 }
 
@@ -301,14 +303,14 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
                           mesh.getByteStride(), mesh.getPositions());
 
     // DISPLAY_P3 is the only supported wide color output
-    if (mPlatformHasWideColor && mOutputDataSpace == HAL_DATASPACE_DISPLAY_P3) {
+    if (mPlatformHasWideColor && mOutputDataSpace == Dataspace::DISPLAY_P3) {
         Description wideColorState = mState;
-        switch (int(mDataSpace)) {
-            case HAL_DATASPACE_DISPLAY_P3:
+        switch (mDataSpace) {
+            case Dataspace::DISPLAY_P3:
                 // input matches output
                 break;
-            case HAL_DATASPACE_BT2020_PQ:
-            case HAL_DATASPACE_BT2020_ITU_PQ:
+            case Dataspace::BT2020_PQ:
+            case Dataspace::BT2020_ITU_PQ:
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
                 wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
                 wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
@@ -317,7 +319,7 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
             default:
                 // treat all other dataspaces as sRGB
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
-                if ((mDataSpace & HAL_DATASPACE_TRANSFER_MASK) == HAL_DATASPACE_TRANSFER_LINEAR) {
+                if ((mDataSpace & Dataspace::TRANSFER_MASK) & Dataspace::TRANSFER_LINEAR) {
                     wideColorState.setInputTransferFunction(Description::TransferFunction::LINEAR);
                 } else {
                     wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
@@ -350,8 +352,8 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
     result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
-                        dataspaceDetails(mDataSpace).c_str(),
-                        dataspaceDetails(mOutputDataSpace).c_str());
+                        dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
+                        dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
 }
 
 // ---------------------------------------------------------------------------

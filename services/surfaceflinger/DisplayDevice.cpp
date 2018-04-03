@@ -278,9 +278,9 @@ android_color_transform_t DisplayDevice::getColorTransform() const {
     return mColorTransform;
 }
 
-void DisplayDevice::setCompositionDataSpace(android_dataspace dataspace) {
+void DisplayDevice::setCompositionDataSpace(ui::Dataspace dataspace) {
     ANativeWindow* const window = mNativeWindow.get();
-    native_window_set_buffers_data_space(window, dataspace);
+    native_window_set_buffers_data_space(window, static_cast<android_dataspace>(dataspace));
 }
 
 // ----------------------------------------------------------------------------
@@ -463,12 +463,11 @@ void DisplayDevice::dump(String8& result) const {
                         mScissor.top, mScissor.right, mScissor.bottom, tr[0][0], tr[1][0], tr[2][0],
                         tr[0][1], tr[1][1], tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
     auto const surface = static_cast<Surface*>(window);
-    android_dataspace dataspace = surface->getBuffersDataSpace();
+    ui::Dataspace dataspace = surface->getBuffersDataSpace();
     result.appendFormat("   wideColor=%d, hdr=%d, colorMode=%s, dataspace: %s (%d)\n",
                         mDisplayHasWideColor, mDisplayHasHdr,
                         decodeColorMode(mActiveColorMode).c_str(),
-                        dataspaceDetails(dataspace).c_str(), dataspace);
-
+                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
