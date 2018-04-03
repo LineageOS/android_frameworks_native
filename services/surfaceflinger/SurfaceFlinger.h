@@ -638,8 +638,8 @@ private:
 
     // Given a dataSpace, returns the appropriate color_mode to use
     // to display that dataSpace.
-    ui::ColorMode pickColorMode(android_dataspace dataSpace) const;
-    android_dataspace bestTargetDataSpace(android_dataspace a, android_dataspace b,
+    ui::ColorMode pickColorMode(ui::Dataspace dataSpace) const;
+    ui::Dataspace bestTargetDataSpace(ui::Dataspace a, ui::Dataspace b,
             bool hasHdr) const;
 
     mat4 computeSaturationMatrix() const;

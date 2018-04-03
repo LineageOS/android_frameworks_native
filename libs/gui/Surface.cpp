@@ -45,6 +45,7 @@
 namespace android {
 
 using ui::ColorMode;
+using ui::Dataspace;
 
 Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controlledByApp)
       : mGraphicBufferProducer(bufferProducer),
@@ -80,7 +81,7 @@ Surface::Surface(const sp<IGraphicBufferProducer>& bufferProducer, bool controll
     mReqFormat = 0;
     mReqUsage = 0;
     mTimestamp = NATIVE_WINDOW_TIMESTAMP_AUTO;
-    mDataSpace = HAL_DATASPACE_UNKNOWN;
+    mDataSpace = Dataspace::UNKNOWN;
     mScalingMode = NATIVE_WINDOW_SCALING_MODE_FREEZE;
     mTransform = 0;
     mStickyTransform = 0;
@@ -666,8 +667,9 @@ int Surface::queueBuffer(android_native_buffer_t* buffer, int fenceFd) {
     sp<Fence> fence(fenceFd >= 0 ? new Fence(fenceFd) : Fence::NO_FENCE);
     IGraphicBufferProducer::QueueBufferOutput output;
     IGraphicBufferProducer::QueueBufferInput input(timestamp, isAutoTimestamp,
-            mDataSpace, crop, mScalingMode, mTransform ^ mStickyTransform,
-            fence, mStickyTransform, mEnableFrameTimestamps);
+            static_cast<android_dataspace>(mDataSpace), crop, mScalingMode,
+            mTransform ^ mStickyTransform, fence, mStickyTransform,
+            mEnableFrameTimestamps);
 
     // we should send HDR metadata as needed if this becomes a bottleneck
     input.setHdrMetadata(mHdrMetadata);
@@ -1098,8 +1100,7 @@ int Surface::dispatchSetSidebandStream(va_list args) {
 }
 
 int Surface::dispatchSetBuffersDataSpace(va_list args) {
-    android_dataspace dataspace =
-            static_cast<android_dataspace>(va_arg(args, int));
+    Dataspace dataspace = static_cast<Dataspace>(va_arg(args, int));
     return setBuffersDataSpace(dataspace);
 }
 
@@ -1531,7 +1532,7 @@ int Surface::setBuffersTimestamp(int64_t timestamp)
     return NO_ERROR;
 }
 
-int Surface::setBuffersDataSpace(android_dataspace dataSpace)
+int Surface::setBuffersDataSpace(Dataspace dataSpace)
 {
     ALOGV("Surface::setBuffersDataSpace");
     Mutex::Autolock lock(mMutex);
@@ -1563,7 +1564,7 @@ int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata
     return NO_ERROR;
 }
 
-android_dataspace_t Surface::getBuffersDataSpace() {
+Dataspace Surface::getBuffersDataSpace() {
     ALOGV("Surface::getBuffersDataSpace");
     Mutex::Autolock lock(mMutex);
     return mDataSpace;

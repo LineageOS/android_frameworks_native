@@ -32,6 +32,7 @@ namespace android {
 using hardware::Return;
 using hardware::hidl_vec;
 using hardware::hidl_handle;
+using namespace hardware::graphics::common;
 using namespace hardware::graphics::composer;
 using PerFrameMetadata = hardware::graphics::composer::V2_2::IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey =
@@ -256,17 +257,32 @@ Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
 {
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
-    mClient->createVirtualDisplay(width, height, *format, bufferSlotCount,
-            [&](const auto& tmpError, const auto& tmpDisplay,
-                const auto& tmpFormat) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    if (mClient_2_2) {
+        mClient_2_2->createVirtualDisplay_2_2(width, height, *format, bufferSlotCount,
+                [&](const auto& tmpError, const auto& tmpDisplay,
+                    const auto& tmpFormat) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
 
-                *outDisplay = tmpDisplay;
-                *format = tmpFormat;
+                    *outDisplay = tmpDisplay;
+                    *format = tmpFormat;
+                });
+    } else {
+        mClient->createVirtualDisplay(width, height,
+                static_cast<V1_0::PixelFormat>(*format), bufferSlotCount,
+                [&](const auto& tmpError, const auto& tmpDisplay,
+                    const auto& tmpFormat) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
+
+                    *outDisplay = tmpDisplay;
+                    *format = static_cast<PixelFormat>(tmpFormat);
             });
+    }
 
     return error;
 }
@@ -522,7 +538,7 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
             .height = target->getHeight(),
             .stride = target->getStride(),
             .layerCount = target->getLayerCount(),
-            .format = static_cast<PixelFormat>(target->getPixelFormat()),
+            .format = static_cast<V1_0::PixelFormat>(target->getPixelFormat()),
             .usage = target->getUsage(),
         };
         mWriter.setClientTargetMetadata(metadata);
@@ -645,7 +661,7 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
             .height = buffer->getHeight(),
             .stride = buffer->getStride(),
             .layerCount = buffer->getLayerCount(),
-            .format = static_cast<PixelFormat>(buffer->getPixelFormat()),
+            .format = static_cast<V1_0::PixelFormat>(buffer->getPixelFormat()),
             .usage = buffer->getUsage(),
         };
         mWriter.setLayerBufferMetadata(metadata);
@@ -742,7 +758,7 @@ Error Composer::setLayerHdrMetadata(Display display, Layer layer, const HdrMetad
                                   metadata.cta8613.maxFrameAverageLightLevel}});
     }
 
-    mWriter.setPerFrameMetadata(composerMetadata);
+    mWriter.setLayerPerFrameMetadata(composerMetadata);
     return Error::NONE;
 }
 

@@ -44,6 +44,8 @@
 namespace android {
 // ----------------------------------------------------------------------------
 
+using ui::Dataspace;
+
 /*
  * This implements the (main) framebuffer management. This class is used
  * mostly by SurfaceFlinger, but also by command line GL application.
@@ -92,7 +94,7 @@ status_t FramebufferSurface::advanceFrame() {
     uint32_t slot = 0;
     sp<GraphicBuffer> buf;
     sp<Fence> acquireFence(Fence::NO_FENCE);
-    android_dataspace_t dataspace = HAL_DATASPACE_UNKNOWN;
+    Dataspace dataspace = Dataspace::UNKNOWN;
     status_t result = nextBuffer(slot, buf, acquireFence, dataspace);
     mDataSpace = dataspace;
     if (result != NO_ERROR) {
@@ -104,7 +106,7 @@ status_t FramebufferSurface::advanceFrame() {
 
 status_t FramebufferSurface::nextBuffer(uint32_t& outSlot,
         sp<GraphicBuffer>& outBuffer, sp<Fence>& outFence,
-        android_dataspace_t& outDataspace) {
+        Dataspace& outDataspace) {
     Mutex::Autolock lock(mMutex);
 
     BufferItem item;
@@ -139,7 +141,7 @@ status_t FramebufferSurface::nextBuffer(uint32_t& outSlot,
     outFence = item.mFence;
     mHwcBufferCache.getHwcBuffer(mCurrentBufferSlot, mCurrentBuffer,
             &outSlot, &outBuffer);
-    outDataspace = item.mDataSpace;
+    outDataspace = static_cast<Dataspace>(item.mDataSpace);
     status_t result =
             mHwc.setClientTarget(mDisplayType, outSlot, outFence, outBuffer, outDataspace);
     if (result != NO_ERROR) {
@@ -178,7 +180,8 @@ void FramebufferSurface::onFrameCommitted() {
 void FramebufferSurface::dumpAsString(String8& result) const {
     Mutex::Autolock lock(mMutex);
     result.appendFormat("  FramebufferSurface: dataspace: %s(%d)\n",
-                        dataspaceDetails(mDataSpace).c_str(), mDataSpace);
+                        dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
+                        mDataSpace);
     ConsumerBase::dumpLocked(result, "   ");
 }
 

@@ -80,7 +80,7 @@ public:
     // Attempts to allocate a virtual display. If the virtual display is created
     // on the HWC device, outId will contain its HWC ID.
     status_t allocateVirtualDisplay(uint32_t width, uint32_t height,
-            android_pixel_format_t* format, int32_t* outId);
+            ui::PixelFormat* format, int32_t* outId);
 
     // Attempts to create a new layer on this display
     HWC2::Layer* createLayer(int32_t displayId);
@@ -92,7 +92,7 @@ public:
 
     status_t setClientTarget(int32_t displayId, uint32_t slot,
             const sp<Fence>& acquireFence,
-            const sp<GraphicBuffer>& target, android_dataspace_t dataspace);
+            const sp<GraphicBuffer>& target, ui::Dataspace dataspace);
 
     // Present layers to the display and read releaseFences.
     status_t presentAndGetReleaseFences(int32_t displayId);
