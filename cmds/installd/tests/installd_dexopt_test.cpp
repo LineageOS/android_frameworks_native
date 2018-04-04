@@ -546,7 +546,7 @@ TEST_F(DexoptTest, DexoptPrimaryFailedInvalidFilter) {
 TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
     LOG(INFO) << "DexoptPrimaryProfileNonPublic";
     CompilePrimaryDexOk("speed-profile",
-                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED,
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_GENERATE_APP_IMAGE,
                         app_oat_dir_.c_str(),
                         kTestAppGid,
                         DEX2OAT_FROM_SCRATCH);
@@ -555,7 +555,8 @@ TEST_F(DexoptTest, DexoptPrimaryProfileNonPublic) {
 TEST_F(DexoptTest, DexoptPrimaryProfilePublic) {
     LOG(INFO) << "DexoptPrimaryProfilePublic";
     CompilePrimaryDexOk("speed-profile",
-                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC,
+                        DEXOPT_BOOTCOMPLETE | DEXOPT_PROFILE_GUIDED | DEXOPT_PUBLIC |
+                                DEXOPT_GENERATE_APP_IMAGE,
                         app_oat_dir_.c_str(),
                         kTestAppGid,
                         DEX2OAT_FROM_SCRATCH);
@@ -564,7 +565,8 @@ TEST_F(DexoptTest, DexoptPrimaryProfilePublic) {
 TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
     LOG(INFO) << "DexoptPrimaryBackgroundOk";
     CompilePrimaryDexOk("speed-profile",
-                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED,
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED |
+                                DEXOPT_GENERATE_APP_IMAGE,
                         app_oat_dir_.c_str(),
                         kTestAppGid,
                         DEX2OAT_FROM_SCRATCH);
