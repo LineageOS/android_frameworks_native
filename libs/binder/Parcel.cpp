@@ -834,7 +834,7 @@ status_t Parcel::write(const FlattenableHelperInterface& val)
     if (err) return err;
 
     // payload
-    void* const buf = this->writeInplace(PAD_SIZE(len));
+    void* const buf = this->writeInplace(len);
     if (buf == NULL)
         return BAD_VALUE;
 
