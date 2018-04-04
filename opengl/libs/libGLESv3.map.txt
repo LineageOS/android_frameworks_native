@@ -36,6 +36,8 @@ LIBGLESV3 {
     glBlendFunciEXT; # introduced=21
     glBlitFramebuffer;
     glBufferData;
+    glBufferStorageEXT; # introduced=28
+    glBufferStorageExternalEXT; # introduced=28
     glBufferSubData;
     glCheckFramebufferStatus;
     glClear;
@@ -110,6 +112,7 @@ LIBGLESV3 {
     glDrawRangeElementsBaseVertex; # introduced=24
     glEGLImageTargetRenderbufferStorageOES;
     glEGLImageTargetTexture2DOES;
+    glEGLImageTargetTexStorageEXT; # introduced=28
     glEnable;
     glEnableVertexAttribArray;
     glEnablei; # introduced=24
@@ -124,9 +127,12 @@ LIBGLESV3 {
     glFramebufferRenderbuffer;
     glFramebufferTexture; # introduced=24
     glFramebufferTexture2D;
+    glFramebufferTexture2DMultisampleEXT; # introduced=28
     glFramebufferTexture3DOES;
     glFramebufferTextureEXT; # introduced=21
     glFramebufferTextureLayer;
+    glFramebufferTextureMultisampleMultiviewOVR; # introduced=28
+    glFramebufferTextureMultiviewOVR; # introduced=28
     glFrontFace;
     glGenBuffers;
     glGenFramebuffers;
@@ -306,6 +312,7 @@ LIBGLESV3 {
     glReleaseShaderCompiler;
     glRenderbufferStorage;
     glRenderbufferStorageMultisample;
+    glRenderbufferStorageMultisampleEXT; # introduced=28
     glResumeTransformFeedback;
     glSampleCoverage;
     glSampleMaski; # introduced=21
