@@ -4532,6 +4532,11 @@ status_t SurfaceFlinger::onTransact(
 
 void SurfaceFlinger::repaintEverythingLocked() {
     android_atomic_or(1, &mRepaintEverything);
+    for (size_t dpy = 0; dpy < mDisplays.size(); dpy++) {
+        const sp<DisplayDevice>& displayDevice(mDisplays[dpy]);
+        const Rect bounds(displayDevice->getBounds());
+        displayDevice->dirtyRegion.orSelf(Region(bounds));
+    }
     signalTransaction();
 }
 
