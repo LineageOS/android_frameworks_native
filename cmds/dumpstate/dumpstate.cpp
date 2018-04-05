@@ -1236,7 +1236,6 @@ static void RunDumpsysNormal() {
 }
 
 static void DumpHals() {
-    using android::sp;
     using android::hidl::manager::V1_0::IServiceManager;
     using android::hardware::defaultServiceManager;
 
@@ -1560,69 +1559,80 @@ void Dumpstate::DumpstateBoard() {
             paths[i])));
     }
 
+    sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
+    if (dumpstate_device == nullptr) {
+        MYLOGE("No IDumpstateDevice implementation\n");
+        return;
+    }
+
+    using ScopedNativeHandle =
+            std::unique_ptr<native_handle_t, std::function<void(native_handle_t*)>>;
+    ScopedNativeHandle handle(native_handle_create(static_cast<int>(paths.size()), 0),
+                              [](native_handle_t* handle) {
+                                  native_handle_close(handle);
+                                  native_handle_delete(handle);
+                              });
+    if (handle == nullptr) {
+        MYLOGE("Could not create native_handle\n");
+        return;
+    }
+
+    for (size_t i = 0; i < paths.size(); i++) {
+        MYLOGI("Calling IDumpstateDevice implementation using path %s\n", paths[i].c_str());
+
+        android::base::unique_fd fd(TEMP_FAILURE_RETRY(
+            open(paths[i].c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
+        if (fd < 0) {
+            MYLOGE("Could not open file %s: %s\n", paths[i].c_str(), strerror(errno));
+            return;
+        }
+        handle.get()->data[i] = fd.release();
+    }
+
     // Given that bugreport is required to diagnose failures, it's better to
-    // drop the result of IDumpstateDevice than to block the rest of bugreport
-    // for an arbitrary amount of time.
-    std::packaged_task<std::unique_ptr<ssize_t[]>()>
-        dumpstate_task([paths]() -> std::unique_ptr<ssize_t[]> {
-            ::android::sp<IDumpstateDevice> dumpstate_device(IDumpstateDevice::getService());
-            if (dumpstate_device == nullptr) {
-                MYLOGE("No IDumpstateDevice implementation\n");
-                return nullptr;
-            }
-
-            using ScopedNativeHandle =
-                std::unique_ptr<native_handle_t, std::function<void(native_handle_t*)>>;
-            ScopedNativeHandle handle(native_handle_create(static_cast<int>(paths.size()), 0),
-                                      [](native_handle_t* handle) {
-                                          native_handle_close(handle);
-                                          native_handle_delete(handle);
-                                      });
-            if (handle == nullptr) {
-                MYLOGE("Could not create native_handle\n");
-                return nullptr;
-            }
-
-            for (size_t i = 0; i < paths.size(); i++) {
-                MYLOGI("Calling IDumpstateDevice implementation using path %s\n", paths[i].c_str());
-
-                android::base::unique_fd fd(TEMP_FAILURE_RETRY(
-                    open(paths[i].c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
-                         S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)));
-                if (fd < 0) {
-                    MYLOGE("Could not open file %s: %s\n", paths[i].c_str(), strerror(errno));
-                    return nullptr;
-                }
-                handle.get()->data[i] = fd.release();
-            }
-
+    // set an arbitrary amount of timeout for IDumpstateDevice than to block the
+    // rest of bugreport. In the timeout case, we will kill dumpstate board HAL
+    // and grab whatever dumped
+    std::packaged_task<bool()>
+            dumpstate_task([paths, dumpstate_device, &handle]() -> bool {
             android::hardware::Return<void> status = dumpstate_device->dumpstateBoard(handle.get());
             if (!status.isOk()) {
                 MYLOGE("dumpstateBoard failed: %s\n", status.description().c_str());
-                return nullptr;
+                return false;
             }
-            auto file_sizes = std::make_unique<ssize_t[]>(paths.size());
-            for (size_t i = 0; i < paths.size(); i++) {
-                struct stat s;
-                if (fstat(handle.get()->data[i], &s) == -1) {
-                    MYLOGE("Failed to fstat %s: %s\n", kDumpstateBoardFiles[i].c_str(),
-                           strerror(errno));
-                    file_sizes[i] = -1;
-                    continue;
-                }
-                file_sizes[i] = s.st_size;
-            }
-            return file_sizes;
+            return true;
         });
+
     auto result = dumpstate_task.get_future();
     std::thread(std::move(dumpstate_task)).detach();
-    if (result.wait_for(30s) != std::future_status::ready) {
-        MYLOGE("dumpstateBoard timed out after 30s\n");
-        return;
+
+    constexpr size_t timeout_sec = 30;
+    if (result.wait_for(std::chrono::seconds(timeout_sec)) != std::future_status::ready) {
+        MYLOGE("dumpstateBoard timed out after %zus, killing dumpstate vendor HAL\n", timeout_sec);
+        if (!android::base::SetProperty("ctl.interface_restart",
+                                        android::base::StringPrintf("%s/default",
+                                                                    IDumpstateDevice::descriptor))) {
+            MYLOGE("Couldn't restart dumpstate HAL\n");
+        }
     }
-    std::unique_ptr<ssize_t[]> file_sizes = result.get();
-    if (file_sizes == nullptr) {
-        return;
+    // Wait some time for init to kill dumpstate vendor HAL
+    constexpr size_t killing_timeout_sec = 10;
+    if (result.wait_for(std::chrono::seconds(killing_timeout_sec)) != std::future_status::ready) {
+        MYLOGE("killing dumpstateBoard timed out after %zus, continue and "
+               "there might be racing in content\n", killing_timeout_sec);
+    }
+
+    auto file_sizes = std::make_unique<ssize_t[]>(paths.size());
+    for (size_t i = 0; i < paths.size(); i++) {
+        struct stat s;
+        if (fstat(handle.get()->data[i], &s) == -1) {
+            MYLOGE("Failed to fstat %s: %s\n", kDumpstateBoardFiles[i].c_str(),
+                   strerror(errno));
+            file_sizes[i] = -1;
+            continue;
+        }
+        file_sizes[i] = s.st_size;
     }
 
     for (size_t i = 0; i < paths.size(); i++) {
