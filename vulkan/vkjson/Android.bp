@@ -16,7 +16,7 @@ cc_library_static {
         ".",
     ],
     whole_static_libs: [
-        "cjson",
+        "libjsoncpp",
     ],
     header_libs: [
         "vulkan_headers",
@@ -42,7 +42,7 @@ cc_library_static {
         ".",
     ],
     whole_static_libs: [
-        "cjson_ndk",
+        "libjsoncpp_ndk",
     ],
     header_libs: [
         "vulkan_headers_ndk",
