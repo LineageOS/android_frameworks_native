@@ -106,6 +106,7 @@ using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using ui::ColorMode;
 using ui::Dataspace;
+using ui::RenderIntent;
 
 namespace {
 class ConditionalLock {
@@ -1007,7 +1008,7 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
           hw->getDisplayType());
 
     hw->setActiveColorMode(mode);
-    getHwComposer().setActiveColorMode(type, mode);
+    getHwComposer().setActiveColorMode(type, mode, RenderIntent::COLORIMETRIC);
 }
 
 
