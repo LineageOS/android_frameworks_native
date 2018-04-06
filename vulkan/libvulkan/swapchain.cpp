@@ -23,8 +23,11 @@
 #include <utils/StrongPointer.h>
 #include <utils/Vector.h>
 #include <system/window.h>
+#include <android/hardware/graphics/common/1.0/types.h>
 
 #include "driver.h"
+
+using android::hardware::graphics::common::V1_0::BufferUsage;
 
 // TODO(jessehall): Currently we don't have a good error code for when a native
 // window operation fails. Just returning INITIALIZATION_FAILED for now. Later
@@ -771,6 +774,77 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
 }
 
 VKAPI_ATTR
+VkResult GetDeviceGroupPresentCapabilitiesKHR(
+    VkDevice,
+    VkDeviceGroupPresentCapabilitiesKHR* pDeviceGroupPresentCapabilities) {
+    ALOGV_IF(pDeviceGroupPresentCapabilities->sType !=
+                 VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_CAPABILITIES_KHR,
+             "vkGetDeviceGroupPresentCapabilitiesKHR: invalid "
+             "VkDeviceGroupPresentCapabilitiesKHR structure type %d",
+             pDeviceGroupPresentCapabilities->sType);
+
+    memset(pDeviceGroupPresentCapabilities->presentMask, 0,
+           sizeof(pDeviceGroupPresentCapabilities->presentMask));
+
+    // assume device group of size 1
+    pDeviceGroupPresentCapabilities->presentMask[0] = 1 << 0;
+    pDeviceGroupPresentCapabilities->modes =
+        VK_DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR;
+
+    return VK_SUCCESS;
+}
+
+VKAPI_ATTR
+VkResult GetDeviceGroupSurfacePresentModesKHR(
+    VkDevice,
+    VkSurfaceKHR,
+    VkDeviceGroupPresentModeFlagsKHR* pModes) {
+    *pModes = VK_DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR;
+    return VK_SUCCESS;
+}
+
+VKAPI_ATTR
+VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
+                                               VkSurfaceKHR surface,
+                                               uint32_t* pRectCount,
+                                               VkRect2D* pRects) {
+    if (!pRects) {
+        *pRectCount = 1;
+    } else {
+        uint32_t count = std::min(*pRectCount, 1u);
+        bool incomplete = *pRectCount < 1;
+
+        *pRectCount = count;
+
+        if (incomplete) {
+            return VK_INCOMPLETE;
+        }
+
+        int err;
+        ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+
+        int width = 0, height = 0;
+        err = window->query(window, NATIVE_WINDOW_DEFAULT_WIDTH, &width);
+        if (err != 0) {
+            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
+                  strerror(-err), err);
+        }
+        err = window->query(window, NATIVE_WINDOW_DEFAULT_HEIGHT, &height);
+        if (err != 0) {
+            ALOGE("NATIVE_WINDOW_DEFAULT_WIDTH query failed: %s (%d)",
+                  strerror(-err), err);
+        }
+
+        // TODO: Return something better than "whole window"
+        pRects[0].offset.x = 0;
+        pRects[0].offset.y = 0;
+        pRects[0].extent = VkExtent2D{static_cast<uint32_t>(width),
+                                      static_cast<uint32_t>(height)};
+    }
+    return VK_SUCCESS;
+}
+
+VKAPI_ATTR
 VkResult CreateSwapchainKHR(VkDevice device,
                             const VkSwapchainCreateInfoKHR* create_info,
                             const VkAllocationCallbacks* allocator,
@@ -996,7 +1070,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         return VK_ERROR_SURFACE_LOST_KHR;
     }
 
-    int gralloc_usage = 0;
+    int32_t legacy_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;
         result = dispatch.GetSwapchainGrallocUsage2ANDROID(
@@ -1006,18 +1080,25 @@ VkResult CreateSwapchainKHR(VkDevice device,
             ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
-        gralloc_usage =
+        legacy_usage =
             android_convertGralloc1To0Usage(producer_usage, consumer_usage);
     } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
-            &gralloc_usage);
+            &legacy_usage);
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsageANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
         }
     }
-    err = native_window_set_usage(surface.window.get(), uint64_t(gralloc_usage));
+    uint64_t native_usage = static_cast<uint64_t>(legacy_usage);
+
+    bool createProtectedSwapchain = false;
+    if (create_info->flags & VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR) {
+        createProtectedSwapchain = true;
+        native_usage |= BufferUsage::PROTECTED;
+    }
+    err = native_window_set_usage(surface.window.get(), native_usage);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
         // errors and translate them to valid Vulkan result codes?
@@ -1065,7 +1146,7 @@ VkResult CreateSwapchainKHR(VkDevice device,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = VK_IMAGE_TILING_OPTIMAL,
         .usage = create_info->imageUsage,
-        .flags = 0,
+        .flags = createProtectedSwapchain ? VK_IMAGE_CREATE_PROTECTED_BIT : 0u,
         .sharingMode = create_info->imageSharingMode,
         .queueFamilyIndexCount = create_info->queueFamilyIndexCount,
         .pQueueFamilyIndices = create_info->pQueueFamilyIndices,
@@ -1271,6 +1352,17 @@ VkResult AcquireNextImageKHR(VkDevice device,
 
     *image_index = idx;
     return VK_SUCCESS;
+}
+
+VKAPI_ATTR
+VkResult AcquireNextImage2KHR(VkDevice device,
+                              const VkAcquireNextImageInfoKHR* pAcquireInfo,
+                              uint32_t* pImageIndex) {
+    // TODO: this should actually be the other way around and this function
+    // should handle any additional structures that get passed in
+    return AcquireNextImageKHR(device, pAcquireInfo->swapchain,
+                               pAcquireInfo->timeout, pAcquireInfo->semaphore,
+                               pAcquireInfo->fence, pImageIndex);
 }
 
 static VkResult WorstPresentResult(VkResult a, VkResult b) {

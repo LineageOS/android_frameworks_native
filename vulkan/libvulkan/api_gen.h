@@ -40,11 +40,23 @@ struct InstanceDispatchTable {
     PFN_vkCreateDevice CreateDevice;
     PFN_vkEnumerateDeviceExtensionProperties EnumerateDeviceExtensionProperties;
     PFN_vkGetPhysicalDeviceSparseImageFormatProperties GetPhysicalDeviceSparseImageFormatProperties;
+    PFN_vkEnumeratePhysicalDeviceGroups EnumeratePhysicalDeviceGroups;
+    PFN_vkGetPhysicalDeviceFeatures2 GetPhysicalDeviceFeatures2;
+    PFN_vkGetPhysicalDeviceProperties2 GetPhysicalDeviceProperties2;
+    PFN_vkGetPhysicalDeviceFormatProperties2 GetPhysicalDeviceFormatProperties2;
+    PFN_vkGetPhysicalDeviceImageFormatProperties2 GetPhysicalDeviceImageFormatProperties2;
+    PFN_vkGetPhysicalDeviceQueueFamilyProperties2 GetPhysicalDeviceQueueFamilyProperties2;
+    PFN_vkGetPhysicalDeviceMemoryProperties2 GetPhysicalDeviceMemoryProperties2;
+    PFN_vkGetPhysicalDeviceSparseImageFormatProperties2 GetPhysicalDeviceSparseImageFormatProperties2;
+    PFN_vkGetPhysicalDeviceExternalBufferProperties GetPhysicalDeviceExternalBufferProperties;
+    PFN_vkGetPhysicalDeviceExternalFenceProperties GetPhysicalDeviceExternalFenceProperties;
+    PFN_vkGetPhysicalDeviceExternalSemaphoreProperties GetPhysicalDeviceExternalSemaphoreProperties;
     PFN_vkDestroySurfaceKHR DestroySurfaceKHR;
     PFN_vkGetPhysicalDeviceSurfaceSupportKHR GetPhysicalDeviceSurfaceSupportKHR;
     PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR GetPhysicalDeviceSurfaceCapabilitiesKHR;
     PFN_vkGetPhysicalDeviceSurfaceFormatsKHR GetPhysicalDeviceSurfaceFormatsKHR;
     PFN_vkGetPhysicalDeviceSurfacePresentModesKHR GetPhysicalDeviceSurfacePresentModesKHR;
+    PFN_vkGetPhysicalDevicePresentRectanglesKHR GetPhysicalDevicePresentRectanglesKHR;
     PFN_vkCreateAndroidSurfaceKHR CreateAndroidSurfaceKHR;
     // clang-format on
 };
@@ -172,11 +184,32 @@ struct DeviceDispatchTable {
     PFN_vkCmdNextSubpass CmdNextSubpass;
     PFN_vkCmdEndRenderPass CmdEndRenderPass;
     PFN_vkCmdExecuteCommands CmdExecuteCommands;
+    PFN_vkBindBufferMemory2 BindBufferMemory2;
+    PFN_vkBindImageMemory2 BindImageMemory2;
+    PFN_vkGetDeviceGroupPeerMemoryFeatures GetDeviceGroupPeerMemoryFeatures;
+    PFN_vkCmdSetDeviceMask CmdSetDeviceMask;
+    PFN_vkCmdDispatchBase CmdDispatchBase;
+    PFN_vkGetImageMemoryRequirements2 GetImageMemoryRequirements2;
+    PFN_vkGetBufferMemoryRequirements2 GetBufferMemoryRequirements2;
+    PFN_vkGetImageSparseMemoryRequirements2 GetImageSparseMemoryRequirements2;
+    PFN_vkTrimCommandPool TrimCommandPool;
+    PFN_vkGetDeviceQueue2 GetDeviceQueue2;
+    PFN_vkCreateSamplerYcbcrConversion CreateSamplerYcbcrConversion;
+    PFN_vkDestroySamplerYcbcrConversion DestroySamplerYcbcrConversion;
+    PFN_vkCreateDescriptorUpdateTemplate CreateDescriptorUpdateTemplate;
+    PFN_vkDestroyDescriptorUpdateTemplate DestroyDescriptorUpdateTemplate;
+    PFN_vkUpdateDescriptorSetWithTemplate UpdateDescriptorSetWithTemplate;
+    PFN_vkGetDescriptorSetLayoutSupport GetDescriptorSetLayoutSupport;
     PFN_vkCreateSwapchainKHR CreateSwapchainKHR;
     PFN_vkDestroySwapchainKHR DestroySwapchainKHR;
     PFN_vkGetSwapchainImagesKHR GetSwapchainImagesKHR;
     PFN_vkAcquireNextImageKHR AcquireNextImageKHR;
     PFN_vkQueuePresentKHR QueuePresentKHR;
+    PFN_vkGetDeviceGroupPresentCapabilitiesKHR GetDeviceGroupPresentCapabilitiesKHR;
+    PFN_vkGetDeviceGroupSurfacePresentModesKHR GetDeviceGroupSurfacePresentModesKHR;
+    PFN_vkAcquireNextImage2KHR AcquireNextImage2KHR;
+    PFN_vkGetAndroidHardwareBufferPropertiesANDROID GetAndroidHardwareBufferPropertiesANDROID;
+    PFN_vkGetMemoryAndroidHardwareBufferANDROID GetMemoryAndroidHardwareBufferANDROID;
     // clang-format on
 };
 

@@ -75,6 +75,33 @@ VKAPI_ATTR VkResult checkedQueuePresentKHR(VkQueue queue, const VkPresentInfoKHR
     }
 }
 
+VKAPI_ATTR VkResult checkedGetDeviceGroupPresentCapabilitiesKHR(VkDevice device, VkDeviceGroupPresentCapabilitiesKHR* pDeviceGroupPresentCapabilities) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_swapchain]) {
+        return GetDeviceGroupPresentCapabilitiesKHR(device, pDeviceGroupPresentCapabilities);
+    } else {
+        Logger(device).Err(device, "VK_KHR_swapchain not enabled. vkGetDeviceGroupPresentCapabilitiesKHR not executed.");
+        return VK_SUCCESS;
+    }
+}
+
+VKAPI_ATTR VkResult checkedGetDeviceGroupSurfacePresentModesKHR(VkDevice device, VkSurfaceKHR surface, VkDeviceGroupPresentModeFlagsKHR* pModes) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_swapchain]) {
+        return GetDeviceGroupSurfacePresentModesKHR(device, surface, pModes);
+    } else {
+        Logger(device).Err(device, "VK_KHR_swapchain not enabled. vkGetDeviceGroupSurfacePresentModesKHR not executed.");
+        return VK_SUCCESS;
+    }
+}
+
+VKAPI_ATTR VkResult checkedAcquireNextImage2KHR(VkDevice device, const VkAcquireNextImageInfoKHR* pAcquireInfo, uint32_t* pImageIndex) {
+    if (GetData(device).hook_extensions[ProcHook::KHR_swapchain]) {
+        return AcquireNextImage2KHR(device, pAcquireInfo, pImageIndex);
+    } else {
+        Logger(device).Err(device, "VK_KHR_swapchain not enabled. vkAcquireNextImage2KHR not executed.");
+        return VK_SUCCESS;
+    }
+}
+
 VKAPI_ATTR VkResult checkedGetRefreshCycleDurationGOOGLE(VkDevice device, VkSwapchainKHR swapchain, VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
     if (GetData(device).hook_extensions[ProcHook::GOOGLE_display_timing]) {
         return GetRefreshCycleDurationGOOGLE(device, swapchain, pDisplayTimingProperties);
@@ -120,6 +147,13 @@ const ProcHook g_proc_hooks[] = {
         ProcHook::ANDROID_native_buffer,
         nullptr,
         nullptr,
+    },
+    {
+        "vkAcquireNextImage2KHR",
+        ProcHook::DEVICE,
+        ProcHook::KHR_swapchain,
+        reinterpret_cast<PFN_vkVoidFunction>(AcquireNextImage2KHR),
+        reinterpret_cast<PFN_vkVoidFunction>(checkedAcquireNextImage2KHR),
     },
     {
         "vkAcquireNextImageKHR",
@@ -227,11 +261,32 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkEnumeratePhysicalDeviceGroups",
+        ProcHook::INSTANCE,
+        ProcHook::EXTENSION_CORE,
+        reinterpret_cast<PFN_vkVoidFunction>(EnumeratePhysicalDeviceGroups),
+        nullptr,
+    },
+    {
         "vkEnumeratePhysicalDevices",
         ProcHook::INSTANCE,
         ProcHook::EXTENSION_CORE,
         reinterpret_cast<PFN_vkVoidFunction>(EnumeratePhysicalDevices),
         nullptr,
+    },
+    {
+        "vkGetDeviceGroupPresentCapabilitiesKHR",
+        ProcHook::DEVICE,
+        ProcHook::KHR_swapchain,
+        reinterpret_cast<PFN_vkVoidFunction>(GetDeviceGroupPresentCapabilitiesKHR),
+        reinterpret_cast<PFN_vkVoidFunction>(checkedGetDeviceGroupPresentCapabilitiesKHR),
+    },
+    {
+        "vkGetDeviceGroupSurfacePresentModesKHR",
+        ProcHook::DEVICE,
+        ProcHook::KHR_swapchain,
+        reinterpret_cast<PFN_vkVoidFunction>(GetDeviceGroupSurfacePresentModesKHR),
+        reinterpret_cast<PFN_vkVoidFunction>(checkedGetDeviceGroupSurfacePresentModesKHR),
     },
     {
         "vkGetDeviceProcAddr",
@@ -248,6 +303,13 @@ const ProcHook g_proc_hooks[] = {
         nullptr,
     },
     {
+        "vkGetDeviceQueue2",
+        ProcHook::DEVICE,
+        ProcHook::EXTENSION_CORE,
+        reinterpret_cast<PFN_vkVoidFunction>(GetDeviceQueue2),
+        nullptr,
+    },
+    {
         "vkGetInstanceProcAddr",
         ProcHook::INSTANCE,
         ProcHook::EXTENSION_CORE,
@@ -260,6 +322,13 @@ const ProcHook g_proc_hooks[] = {
         ProcHook::GOOGLE_display_timing,
         reinterpret_cast<PFN_vkVoidFunction>(GetPastPresentationTimingGOOGLE),
         reinterpret_cast<PFN_vkVoidFunction>(checkedGetPastPresentationTimingGOOGLE),
+    },
+    {
+        "vkGetPhysicalDevicePresentRectanglesKHR",
+        ProcHook::INSTANCE,
+        ProcHook::KHR_swapchain,
+        reinterpret_cast<PFN_vkVoidFunction>(GetPhysicalDevicePresentRectanglesKHR),
+        nullptr,
     },
     {
         "vkGetPhysicalDeviceSurfaceCapabilities2KHR",
@@ -388,6 +457,7 @@ ProcHook::Extension GetProcHookExtension(const char* name) {
     if (strcmp(name, "VK_KHR_swapchain") == 0) return ProcHook::KHR_swapchain;
     if (strcmp(name, "VK_KHR_get_surface_capabilities2") == 0) return ProcHook::KHR_get_surface_capabilities2;
     if (strcmp(name, "VK_KHR_get_physical_device_properties2") == 0) return ProcHook::KHR_get_physical_device_properties2;
+    if (strcmp(name, "VK_ANDROID_external_memory_android_hardware_buffer") == 0) return ProcHook::ANDROID_external_memory_android_hardware_buffer;
     // clang-format on
     return ProcHook::EXTENSION_UNKNOWN;
 }
@@ -423,6 +493,8 @@ bool InitDriverTable(VkInstance instance,
     INIT_PROC(true, instance, GetPhysicalDeviceProperties);
     INIT_PROC(true, instance, CreateDevice);
     INIT_PROC(true, instance, EnumerateDeviceExtensionProperties);
+    INIT_PROC(false, instance, EnumeratePhysicalDeviceGroups);
+    INIT_PROC(false, instance, GetPhysicalDeviceProperties2);
     INIT_PROC_EXT(EXT_debug_report, true, instance, CreateDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DestroyDebugReportCallbackEXT);
     INIT_PROC_EXT(EXT_debug_report, true, instance, DebugReportMessageEXT);
@@ -445,6 +517,7 @@ bool InitDriverTable(VkDevice dev,
     INIT_PROC(true, dev, CreateImage);
     INIT_PROC(true, dev, DestroyImage);
     INIT_PROC(true, dev, AllocateCommandBuffers);
+    INIT_PROC(false, dev, GetDeviceQueue2);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsageANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, false, dev, GetSwapchainGrallocUsage2ANDROID);
     INIT_PROC_EXT(ANDROID_native_buffer, true, dev, AcquireImageANDROID);

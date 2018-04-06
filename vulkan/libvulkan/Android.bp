@@ -80,6 +80,7 @@ cc_library_shared {
         "libcutils",
         "libz",
         "libnativewindow",
+        "android.hardware.graphics.common@1.0",
     ],
     static_libs: ["libgrallocusage"],
 }

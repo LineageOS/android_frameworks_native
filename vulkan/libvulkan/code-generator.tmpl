@@ -419,7 +419,7 @@ bool InitDriverTable(VkDevice dev, PFN_vkGetDeviceProcAddr get_proc,
     INIT_PROC(§
   {{end}}
 
-  {{if GetAnnotation $ "optional"}}false{{else}}true{{end}}, §
+  {{if GetAnnotation $ "optional"}}false{{else if GetAnnotation $ "vulkan1_1"}}false{{else}}true{{end}}, §
 
   {{if (Macro "IsInstanceDispatched" $)}}
     instance, §
@@ -702,6 +702,7 @@ VK_KHR_get_surface_capabilities2
 {{define "driver.KnownExtensions"}}
 {{Macro "driver.InterceptedExtensions"}}
 VK_KHR_get_physical_device_properties2
+VK_ANDROID_external_memory_android_hardware_buffer
 {{end}}
 
 
@@ -733,7 +734,9 @@ VK_KHR_get_physical_device_properties2
     {{     if eq $.Name "vkCreateInstance"}}true
     {{else if eq $.Name "vkCreateDevice"}}true
     {{else if eq $.Name "vkEnumeratePhysicalDevices"}}true
+    {{else if eq $.Name "vkEnumeratePhysicalDeviceGroups"}}true
     {{else if eq $.Name "vkGetDeviceQueue"}}true
+    {{else if eq $.Name "vkGetDeviceQueue2"}}true
     {{else if eq $.Name "vkAllocateCommandBuffers"}}true
 
     {{/* Destroy functions of dispatchable objects */}}
@@ -958,6 +961,7 @@ VK_KHR_get_physical_device_properties2
     {{/* Create functions of dispatchable objects */}}
     {{     if eq $.Name "vkCreateDevice"}}true
     {{else if eq $.Name "vkGetDeviceQueue"}}true
+    {{else if eq $.Name "vkGetDeviceQueue2"}}true
     {{else if eq $.Name "vkAllocateCommandBuffers"}}true
 
     {{/* Destroy functions of dispatchable objects */}}
@@ -969,6 +973,7 @@ VK_KHR_get_physical_device_properties2
 
     {{/* We cache physical devices in loader.cpp */}}
     {{else if eq $.Name "vkEnumeratePhysicalDevices"}}true
+    {{else if eq $.Name "vkEnumeratePhysicalDeviceGroups"}}true
 
     {{else if eq $.Name "vkGetInstanceProcAddr"}}true
     {{else if eq $.Name "vkGetDeviceProcAddr"}}true
@@ -978,6 +983,7 @@ VK_KHR_get_physical_device_properties2
     {{else if eq $.Name "vkDestroyImage"}}true
 
     {{else if eq $.Name "vkGetPhysicalDeviceProperties"}}true
+    {{else if eq $.Name "vkGetPhysicalDeviceProperties2"}}true
     {{else if eq $.Name "vkGetPhysicalDeviceProperties2KHR"}}true
     {{end}}
 
@@ -1156,7 +1162,6 @@ VK_KHR_get_physical_device_properties2
 ------------------------------------------------------------------------------
   Reports whether an extension has functions exported by the loader.
   E.g. applications can directly link to an extension function.
-  Currently only support WSI extensions this way.
 ------------------------------------------------------------------------------
 */}}
 {{define "IsExtensionExported"}}
@@ -1164,6 +1169,7 @@ VK_KHR_get_physical_device_properties2
   {{     if eq $ext "VK_KHR_surface"}}true
   {{else if eq $ext "VK_KHR_swapchain"}}true
   {{else if eq $ext "VK_KHR_android_surface"}}true
+  {{else if eq $ext "VK_ANDROID_external_memory_android_hardware_buffer"}}true
   {{end}}
 {{end}}
 
