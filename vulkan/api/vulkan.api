@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 68
+define VERSION_PATCH 72
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -222,7 +222,7 @@ define NULL_HANDLE 0
 @extension("VK_EXT_shader_subgroup_vote") define VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME "VK_EXT_shader_subgroup_vote"
 
 // 70
-@extension("VK_KHR_maintenance1") define VK_KHR_MAINTENANCE1_SPEC_VERSION 1
+@extension("VK_KHR_maintenance1") define VK_KHR_MAINTENANCE1_SPEC_VERSION 2
 @extension("VK_KHR_maintenance1") define VK_KHR_MAINTENANCE1_EXTENSION_NAME "VK_KHR_maintenance1"
 
 // 71
@@ -402,7 +402,7 @@ define NULL_HANDLE 0
 @extension("VK_EXT_debug_utils") define VK_EXT_DEBUG_UTILS_EXTENSION_NAME "VK_EXT_debug_utils"
 
 // 130
-@extension("VK_ANDROID_external_memory_android_hardware_buffer") define VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_SPEC_VERSION 2
+@extension("VK_ANDROID_external_memory_android_hardware_buffer") define VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_SPEC_VERSION 3
 @extension("VK_ANDROID_external_memory_android_hardware_buffer") define VK_ANDROID_EXTERNAL_MEMORY_ANDROID_HARDWARE_BUFFER_EXTENSION_NAME "VK_ANDROID_external_memory_android_hardware_buffer"
 
 // 131
@@ -477,6 +477,10 @@ define NULL_HANDLE 0
 @extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_SPEC_VERSION 1
 @extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_EXTENSION_NAME "VK_EXT_validation_cache"
 
+// 162
+@extension("VK_EXT_descriptor_indexing") define VK_EXT_DESCRIPTOR_INDEXING_SPEC_VERSION 2
+@extension("VK_EXT_descriptor_indexing") define VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME "VK_EXT_descriptor_indexing"
+
 // 165
 @extension("VK_EXT_shader_viewport_index_layer") define VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_SPEC_VERSION 1
 @extension("VK_EXT_shader_viewport_index_layer") define VK_EXT_SHADER_VIEWPORT_INDEX_LAYER_EXTENSION_NAME "VK_EXT_shader_viewport_index_layer"
@@ -492,6 +496,22 @@ define NULL_HANDLE 0
 // 179
 @extension("VK_EXT_external_memory_host") define VK_EXT_EXTERNAL_MEMORY_HOST_SPEC_VERSION 1
 @extension("VK_EXT_external_memory_host") define VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME "VK_EXT_external_memory_host"
+
+// 180
+@extension("VK_AMD_buffer_marker") define VK_AMD_BUFFER_MARKER_SPEC_VERSION 1
+@extension("VK_AMD_buffer_marker") define VK_AMD_BUFFER_MARKER_EXTENSION_NAME "VK_AMD_buffer_marker"
+
+// 186
+@extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_SPEC_VERSION 1
+@extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME "VK_AMD_shader_core_properties"
+
+// 191
+@extension("VK_EXT_vertex_attribute_divisor") define VK_AMD_SHADER_CORE_PROPERTIES_SPEC_VERSION 1
+@extension("VK_EXT_vertex_attribute_divisor") define VK_AMD_BUFFER_MARKER_EXTENSION_NAME "VK_EXT_vertex_attribute_divisor"
+
+// 199
+@extension("VK_NV_shader_subgroup_partitioned") define VK_NV_SHADER_SUBGROUP_PARTITIONED_SPEC_VERSION 1
+@extension("VK_NV_shader_subgroup_partitioned") define VK_NV_SHADER_SUBGROUP_PARTITIONED_EXTENSION_NAME "VK_NV_shader_subgroup_partitioned"
 
 /////////////
 //  Types  //
@@ -1574,6 +1594,13 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_VALIDATION_CACHE_CREATE_INFO_EXT                  = 1000160000,
     VK_STRUCTURE_TYPE_SHADER_MODULE_VALIDATION_CACHE_CREATE_INFO_EXT    = 1000160001,
 
+    //@extension("VK_EXT_descriptor_indexing") // 162
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO_EXT           = 1000161000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT              = 1000161001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_PROPERTIES_EXT            = 1000161002,
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_ALLOCATE_INFO_EXT    = 1000161003,
+    VK_STRUCTURE_TYPE_DESCRIPTOR_SET_VARIABLE_DESCRIPTOR_COUNT_LAYOUT_SUPPORT_EXT   = 1000161004,
+
     //@extension("VK_KHR_maintenance3") // 169
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_3_PROPERTIES_KHR      = 1000168000,
     VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_SUPPORT_KHR                 = 1000168001,
@@ -1585,6 +1612,13 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT                   = 1000178000,
     VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT                    = 1000178001,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT   = 1000178002,
+
+    //@extension("VK_AMD_shader_core_properties") // 186
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD        = 1000185000,
+
+    //@extension("VK_EXT_vertex_attribute_divisor") // 191
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_EXT   = 1000190000,
+    VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_DIVISOR_STATE_CREATE_INFO_EXT       = 1000190001,
 }
 
 enum VkSubpassContents {
@@ -1652,6 +1686,9 @@ enum VkResult {
 
     //@extension("VK_KHR_external_memory") // 73
     VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR                    = 0xC4641CBD, // -1000072003
+
+    //@extension("VK_EXT_descriptor_indexing") // 162
+    VK_ERROR_FRAGMENTATION_EXT                              = 0xc462c118, // -1000161000
 }
 
 enum VkDynamicState {
@@ -2121,6 +2158,9 @@ bitfield VkShaderStageFlagBits {
 type VkFlags VkDescriptorPoolCreateFlags
 bitfield VkDescriptorPoolCreateFlagBits {
     VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT       = 0x00000001,
+
+    //@extension("VK_EXT_descriptor_indexing") // 162
+    VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT_EXT     = 0x00000002,
 }
 
 /// Descriptor pool reset flags
@@ -2476,6 +2516,9 @@ type VkFlags VkDescriptorSetLayoutCreateFlags
 bitfield VkDescriptorSetLayoutCreateFlagBits {
     //@extension("VK_KHR_push_descriptor") // 81
     VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR     = 0x00000001,
+
+    //@extension("VK_EXT_descriptor_indexing") // 162
+    VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT_EXT  = 0x00000002,
 }
 
 /// Pipeline vertex input state creation flags
@@ -2581,6 +2624,9 @@ bitfield VkSubgroupFeatureFlagBits {
     VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT                = 0x00000020,
     VK_SUBGROUP_FEATURE_CLUSTERED_BIT                       = 0x00000040,
     VK_SUBGROUP_FEATURE_QUAD_BIT                            = 0x00000080,
+
+    //@extension("VK_NV_shader_subgroup_partitioned") // 199
+    VK_SUBGROUP_FEATURE_PARTITIONED_BIT_NV                  = 0x00000100,
 }
 
 /// Peer memory feature flags
@@ -3033,6 +3079,16 @@ type VkFlags VkValidationCacheCreateFlagsEXT
 @extension("VK_EXT_validation_cache") // 161
 //bitfield VkValidationCacheCreateFlagBitsEXT {
 //}
+
+@extension("VK_EXT_descriptor_indexing") // 162
+type VkFlags VkDescriptorBindingFlagsEXT
+@extension("VK_EXT_descriptor_indexing") // 162
+bitfield VkDescriptorBindingFlagBitsEXT {
+    VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT_EXT             = 0x00000001,
+    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT_EXT   = 0x00000002,
+    VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT_EXT               = 0x00000004,
+    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT     = 0x00000008,
+}
 
 //////////////////
 //  Structures  //
@@ -5991,7 +6047,7 @@ class VkDebugUtilsObjectNameInfoEXT {
     u64                                             objectHandle
     const char*                                     pObjectName
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 class VkDebugUtilsObjectTagInfoEXT {
     VkStructureType                                 sType
@@ -6002,7 +6058,7 @@ class VkDebugUtilsObjectTagInfoEXT {
     platform.size_t                                 tagSize
     const void*                                     pTag
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 class VkDebugUtilsLabelEXT {
     VkStructureType                                 sType
@@ -6341,6 +6397,84 @@ class VkShaderModuleValidationCacheCreateInfoEXT {
     VkValidationCacheEXT                            validationCache
 }
 
+@extension("VK_EXT_descriptor_indexing") // 162
+class VkDescriptorSetLayoutBindingFlagsCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             bindingCount
+    const VkDescriptorBindingFlagsEXT*              pBindingFlags
+}
+
+@extension("VK_EXT_descriptor_indexing") // 162
+class VkPhysicalDeviceDescriptorIndexingFeaturesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        shaderInputAttachmentArrayDynamicIndexing
+    VkBool32                                        shaderUniformTexelBufferArrayDynamicIndexing
+    VkBool32                                        shaderStorageTexelBufferArrayDynamicIndexing
+    VkBool32                                        shaderUniformBufferArrayNonUniformIndexing
+    VkBool32                                        shaderSampledImageArrayNonUniformIndexing
+    VkBool32                                        shaderStorageBufferArrayNonUniformIndexing
+    VkBool32                                        shaderStorageImageArrayNonUniformIndexing
+    VkBool32                                        shaderInputAttachmentArrayNonUniformIndexing
+    VkBool32                                        shaderUniformTexelBufferArrayNonUniformIndexing
+    VkBool32                                        shaderStorageTexelBufferArrayNonUniformIndexing
+    VkBool32                                        descriptorBindingUniformBufferUpdateAfterBind
+    VkBool32                                        descriptorBindingSampledImageUpdateAfterBind
+    VkBool32                                        descriptorBindingStorageImageUpdateAfterBind
+    VkBool32                                        descriptorBindingStorageBufferUpdateAfterBind
+    VkBool32                                        descriptorBindingUniformTexelBufferUpdateAfterBind
+    VkBool32                                        descriptorBindingStorageTexelBufferUpdateAfterBind
+    VkBool32                                        descriptorBindingUpdateUnusedWhilePending
+    VkBool32                                        descriptorBindingPartiallyBound
+    VkBool32                                        descriptorBindingVariableDescriptorCount
+    VkBool32                                        runtimeDescriptorArray
+}
+
+@extension("VK_EXT_descriptor_indexing") // 162
+class VkPhysicalDeviceDescriptorIndexingPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             maxUpdateAfterBindDescriptorsInAllPools
+    VkBool32                                        shaderUniformBufferArrayNonUniformIndexingNative
+    VkBool32                                        shaderSampledImageArrayNonUniformIndexingNative
+    VkBool32                                        shaderStorageBufferArrayNonUniformIndexingNative
+    VkBool32                                        shaderStorageImageArrayNonUniformIndexingNative
+    VkBool32                                        shaderInputAttachmentArrayNonUniformIndexingNative
+    VkBool32                                        robustBufferAccessUpdateAfterBind
+    VkBool32                                        quadDivergentImplicitLod
+    u32                                             maxPerStageDescriptorUpdateAfterBindSamplers
+    u32                                             maxPerStageDescriptorUpdateAfterBindUniformBuffers
+    u32                                             maxPerStageDescriptorUpdateAfterBindStorageBuffers
+    u32                                             maxPerStageDescriptorUpdateAfterBindSampledImages
+    u32                                             maxPerStageDescriptorUpdateAfterBindStorageImages
+    u32                                             maxPerStageDescriptorUpdateAfterBindInputAttachments
+    u32                                             maxPerStageUpdateAfterBindResources
+    u32                                             maxDescriptorSetUpdateAfterBindSamplers
+    u32                                             maxDescriptorSetUpdateAfterBindUniformBuffers
+    u32                                             maxDescriptorSetUpdateAfterBindUniformBuffersDynamic
+    u32                                             maxDescriptorSetUpdateAfterBindStorageBuffers
+    u32                                             maxDescriptorSetUpdateAfterBindStorageBuffersDynamic
+    u32                                             maxDescriptorSetUpdateAfterBindSampledImages
+    u32                                             maxDescriptorSetUpdateAfterBindStorageImages
+    u32                                             maxDescriptorSetUpdateAfterBindInputAttachments
+}
+
+@extension("VK_EXT_descriptor_indexing") // 162
+class VkDescriptorSetVariableDescriptorCountAllocateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             descriptorSetCount
+    const u32*                                      pDescriptorCounts
+}
+
+@extension("VK_EXT_descriptor_indexing") // 162
+class VkDescriptorSetVariableDescriptorCountLayoutSupportEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             maxVariableDescriptorCount
+}
+
 @extension("VK_KHR_maintenance3") // 169
 class VkPhysicalDeviceMaintenance3PropertiesKHR {
     VkStructureType                                 sType
@@ -6383,6 +6517,47 @@ class VkPhysicalDeviceExternalMemoryHostPropertiesEXT {
     VkStructureType                                 sType
     void*                                           pNext
     VkDeviceSize                                    minImportedHostPointerAlignment
+}
+
+@extension("VK_AMD_shader_core_properties") // 186
+class VkPhysicalDeviceShaderCorePropertiesAMD {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             shaderEngineCount
+    u32                                             shaderArraysPerEngineCount
+    u32                                             computeUnitsPerShaderArray
+    u32                                             simdPerComputeUnit
+    u32                                             wavefrontsPerSimd
+    u32                                             wavefrontSize
+    u32                                             sgprsPerSimd
+    u32                                             minSgprAllocation
+    u32                                             maxSgprAllocation
+    u32                                             sgprAllocationGranularity
+    u32                                             vgprsPerSimd
+    u32                                             minVgprAllocation
+    u32                                             maxVgprAllocation
+    u32                                             vgprAllocationGranularity
+}
+
+@extension("VK_EXT_vertex_attribute_divisor") // 191
+class VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             maxVertexAttribDivisor
+}
+
+@extension("VK_EXT_vertex_attribute_divisor") // 191
+class VkVertexInputBindingDivisorDescriptionEXT {
+    u32                                             binding
+    u32                                             divisor
+}
+
+@extension("VK_EXT_vertex_attribute_divisor") // 191
+class VkPipelineVertexInputDivisorStateCreateInfoEXT {
+    VkStructureType                                     sType
+    const void*                                         pNext
+    u32                                                 vertexBindingDivisorCount
+    const VkVertexInputBindingDivisorDescriptionEXT*    pVertexBindingDivisors
 }
 
 
@@ -9878,36 +10053,36 @@ cmd VkResult vkSetDebugUtilsObjectNameEXT(
         const VkDebugUtilsObjectNameInfoEXT*        pNameInfo) {
     return ?
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 cmd VkResult vkSetDebugUtilsObjectTagEXT(
         VkDevice                                    device,
         const VkDebugUtilsObjectTagInfoEXT*         pTagInfo) {
     return ?
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 cmd void vkQueueBeginDebugUtilsLabelEXT(
         VkQueue                                     queue,
         const VkDebugUtilsLabelEXT*                 pLabelInfo) {
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 cmd void vkQueueEndDebugUtilsLabelEXT(VkQueue       queue) {
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 cmd void vkQueueInsertDebugUtilsLabelEXT(
         VkQueue                                     queue,
         const VkDebugUtilsLabelEXT*                 pLabelInfo) {
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 cmd void vkCmdBeginDebugUtilsLabelEXT(
         VkCommandBuffer                             commandBuffer,
         const VkDebugUtilsLabelEXT*                 pLabelInfo) {
 }
- 
+
 @extension("VK_EXT_debug_utils") // 129
 cmd void vkCmdEndDebugUtilsLabelEXT(VkCommandBuffer commandBuffer) {
 }
@@ -10075,6 +10250,15 @@ cmd VkResult vkGetMemoryHostPointerPropertiesEXT(
         const void*                                 pHostPointer,
         VkMemoryHostPointerPropertiesEXT*           pMemoryHostPointerProperties) {
     return ?
+}
+
+@extension("VK_AMD_buffer_marker") // 180
+cmd void vkCmdWriteBufferMarkerAMD(
+        VkCommandBuffer                             commandBuffer,
+        VkPipelineStageFlagBits                     pipelineStage,
+        VkBuffer                                    dstBuffer,
+        VkDeviceSize                                dstOffset,
+        u32                                         marker) {
 }
 
 ////////////////
