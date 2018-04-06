@@ -26,12 +26,6 @@ using namespace dvr;
 
 /* static */
 sp<BufferHubProducer> BufferHubProducer::Create(const std::shared_ptr<ProducerQueue>& queue) {
-    if (queue->metadata_size() != sizeof(DvrNativeBufferMetadata)) {
-        ALOGE("BufferHubProducer::Create producer's metadata size is different "
-              "than the size of DvrNativeBufferMetadata");
-        return nullptr;
-    }
-
     sp<BufferHubProducer> producer = new BufferHubProducer;
     producer->queue_ = queue;
     return producer;
