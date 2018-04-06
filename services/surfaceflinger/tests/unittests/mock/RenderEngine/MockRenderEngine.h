@@ -18,6 +18,7 @@
 
 #include <gmock/gmock.h>
 
+#include <renderengine/Framebuffer.h>
 #include <renderengine/Image.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
@@ -101,6 +102,14 @@ public:
 
     MOCK_METHOD2(setNativeWindowBuffer,
                  bool(ANativeWindowBuffer* buffer, bool isProtected));
+};
+
+class Framebuffer : public renderengine::Framebuffer {
+public:
+    Framebuffer();
+    ~Framebuffer() override;
+
+    MOCK_METHOD1(setNativeWindowBuffer, bool(ANativeWindowBuffer*));
 };
 
 } // namespace mock

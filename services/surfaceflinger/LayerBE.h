@@ -87,6 +87,9 @@ public:
     friend class ColorLayer;
     friend class SurfaceFlinger;
 
+    // For unit tests
+    friend class TestableSurfaceFlinger;
+
     LayerBE(Layer* layer, std::string layerName);
     explicit LayerBE(const LayerBE& layer);
 

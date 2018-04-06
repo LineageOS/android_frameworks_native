@@ -18,6 +18,7 @@ cc_test {
     test_suites: ["device-tests"],
     srcs: [
         ":libsurfaceflinger_sources",
+        "CompositionTest.cpp",
         "DisplayIdentificationTest.cpp",
         "DisplayTransactionTest.cpp",
         "EventControlThreadTest.cpp",

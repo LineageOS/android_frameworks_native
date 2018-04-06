@@ -590,6 +590,9 @@ protected:
 
     friend class impl::SurfaceInterceptor;
 
+    // For unit tests
+    friend class TestableSurfaceFlinger;
+
     void commitTransaction(const State& stateToCommit);
 
     uint32_t getEffectiveUsage(uint32_t usage) const;

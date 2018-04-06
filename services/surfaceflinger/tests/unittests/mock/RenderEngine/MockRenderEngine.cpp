@@ -32,6 +32,9 @@ Surface::~Surface() = default;
 Image::Image() = default;
 Image::~Image() = default;
 
+Framebuffer::Framebuffer() = default;
+Framebuffer::~Framebuffer() = default;
+
 } // namespace mock
 } // namespace renderengine
 } // namespace android
