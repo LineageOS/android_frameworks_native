@@ -212,6 +212,11 @@ public:
             std::unordered_map<Layer*, Composition>* outTypes);
     [[clang::warn_unused_result]] Error getColorModes(
             std::vector<android::ui::ColorMode>* outModes) const;
+    [[clang::warn_unused_result]] Error getRenderIntents(
+            android::ui::ColorMode colorMode,
+            std::vector<android::ui::RenderIntent>* outRenderIntents) const;
+    [[clang::warn_unused_result]] Error getDataspaceSaturationMatrix(
+            android::ui::Dataspace dataspace, android::mat4* outMatrix);
 
     // Doesn't call into the HWC2 device, so no errors are possible
     std::vector<std::shared_ptr<const Config>> getConfigs() const;
@@ -236,7 +241,8 @@ public:
             const android::sp<android::Fence>& acquireFence,
             android::ui::Dataspace dataspace);
     [[clang::warn_unused_result]] Error setColorMode(
-            android::ui::ColorMode mode);
+            android::ui::ColorMode mode,
+            android::ui::RenderIntent renderIntent);
     [[clang::warn_unused_result]] Error setColorTransform(
             const android::mat4& matrix, android_color_transform_t hint);
     [[clang::warn_unused_result]] Error setOutputBuffer(

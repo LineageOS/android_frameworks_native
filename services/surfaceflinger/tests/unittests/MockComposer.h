@@ -27,12 +27,13 @@ class GraphicBuffer;
 namespace Hwc2 {
 namespace mock {
 
-using android::hardware::graphics::common::V1_0::ColorMode;
 using android::hardware::graphics::common::V1_0::ColorTransform;
 using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_0::Transform;
+using android::hardware::graphics::common::V1_1::ColorMode;
 using android::hardware::graphics::common::V1_1::Dataspace;
 using android::hardware::graphics::common::V1_1::PixelFormat;
+using android::hardware::graphics::common::V1_1::RenderIntent;
 
 using android::hardware::graphics::composer::V2_1::Config;
 using android::hardware::graphics::composer::V2_1::Display;
@@ -75,13 +76,14 @@ public:
     MOCK_METHOD5(getHdrCapabilities, Error(Display, std::vector<Hdr>*, float*, float*, float*));
     MOCK_METHOD2(getPerFrameMetadataKeys,
                  Error(Display, std::vector<IComposerClient::PerFrameMetadataKey>*));
+    MOCK_METHOD2(getDataspaceSaturationMatrix, Error(Dataspace, mat4*));
     MOCK_METHOD3(getReleaseFences, Error(Display, std::vector<Layer>*, std::vector<int>*));
     MOCK_METHOD2(presentDisplay, Error(Display, int*));
     MOCK_METHOD2(setActiveConfig, Error(Display, Config));
     MOCK_METHOD6(setClientTarget,
                  Error(Display, uint32_t, const sp<GraphicBuffer>&, int, Dataspace,
                        const std::vector<IComposerClient::Rect>&));
-    MOCK_METHOD2(setColorMode, Error(Display, ColorMode));
+    MOCK_METHOD3(setColorMode, Error(Display, ColorMode, RenderIntent));
     MOCK_METHOD3(setColorTransform, Error(Display, const float*, ColorTransform));
     MOCK_METHOD3(setOutputBuffer, Error(Display, const native_handle_t*, int));
     MOCK_METHOD2(setPowerMode, Error(Display, IComposerClient::PowerMode));
@@ -107,6 +109,7 @@ public:
                  Error(Display, Layer, const std::vector<IComposerClient::Rect>&));
     MOCK_METHOD3(setLayerZOrder, Error(Display, Layer, uint32_t));
     MOCK_METHOD4(setLayerInfo, Error(Display, Layer, uint32_t, uint32_t));
+    MOCK_METHOD3(getRenderIntents, Error(Display, ColorMode, std::vector<RenderIntent>*));
 };
 
 } // namespace mock
