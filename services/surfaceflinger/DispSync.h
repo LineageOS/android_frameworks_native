@@ -113,6 +113,11 @@ public:
     // DispSync object.
     status_t removeEventListener(Callback* callback);
 
+    // changePhaseOffset changes the phase offset of an already-registered event callback. The
+    // method will make sure that there is no skipping or double-firing on the listener per frame,
+    // even when changing the offsets multiple times.
+    status_t changePhaseOffset(Callback* callback, nsecs_t phase);
+
     // computeNextRefresh computes when the next refresh is expected to begin.
     // The periodOffset value can be used to move forward or backward; an
     // offset of zero is the next refresh, -1 is the previous refresh, 1 is
