@@ -221,7 +221,7 @@ TEST_F(DvrBufferQueueTest, AcquirePostGainRelease) {
 TEST_F(DvrBufferQueueTest, GetANativeWindow) {
   int ret = api_.WriteBufferQueueCreate(
       kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
-      /*capacity=*/0, sizeof(DvrNativeBufferMetadata), &write_queue_);
+      /*capacity=*/0, /*user_metadata_size=*/0, &write_queue_);
   ASSERT_EQ(0, ret);
   ASSERT_NE(nullptr, write_queue_);
 
