@@ -33,7 +33,7 @@
 #include <type_traits>
 #include <utility>
 
-#include <cJSON.h>
+#include <json/json.h>
 
 namespace {
 
@@ -807,96 +807,86 @@ using EnableForEnum =
     typename std::enable_if<std::is_enum<T>::value, void>::type;
 
 template <typename T, typename = EnableForStruct<T>, typename = void>
-cJSON* ToJsonValue(const T& value);
+Json::Value ToJsonValue(const T& value);
 
 template <typename T, typename = EnableForArithmetic<T>>
-inline cJSON* ToJsonValue(const T& value) {
-  return cJSON_CreateNumber(static_cast<double>(value));
+inline Json::Value ToJsonValue(const T& value) {
+  return Json::Value(static_cast<double>(value));
 }
 
-inline cJSON* ToJsonValue(const uint64_t& value) {
+inline Json::Value ToJsonValue(const uint64_t& value) {
   char string[19] = {0};  // "0x" + 16 digits + terminal \0
   snprintf(string, sizeof(string), "0x%016" PRIx64, value);
-  return cJSON_CreateString(string);
+  return Json::Value(string);
 }
 
 template <typename T, typename = EnableForEnum<T>, typename = void,
           typename = void>
-inline cJSON* ToJsonValue(const T& value) {
-  return cJSON_CreateNumber(static_cast<double>(value));
+inline Json::Value ToJsonValue(const T& value) {
+  return Json::Value(static_cast<double>(value));
 }
 
 template <typename T>
-inline cJSON* ArrayToJsonValue(uint32_t count, const T* values) {
-  cJSON* array = cJSON_CreateArray();
-  for (unsigned int i = 0; i < count; ++i)
-    cJSON_AddItemToArray(array, ToJsonValue(values[i]));
+inline Json::Value ArrayToJsonValue(uint32_t count, const T* values) {
+  Json::Value array(Json::arrayValue);
+  for (unsigned int i = 0; i < count; ++i) array.append(ToJsonValue(values[i]));
   return array;
 }
 
 template <typename T, unsigned int N>
-inline cJSON* ToJsonValue(const T (&value)[N]) {
+inline Json::Value ToJsonValue(const T (&value)[N]) {
   return ArrayToJsonValue(N, value);
 }
 
 template <size_t N>
-inline cJSON* ToJsonValue(const char (&value)[N]) {
+inline Json::Value ToJsonValue(const char (&value)[N]) {
   assert(strlen(value) < N);
-  return cJSON_CreateString(value);
+  return Json::Value(value);
 }
 
 template <typename T>
-inline cJSON* ToJsonValue(const std::vector<T>& value) {
+inline Json::Value ToJsonValue(const std::vector<T>& value) {
   assert(value.size() <= std::numeric_limits<uint32_t>::max());
   return ArrayToJsonValue(static_cast<uint32_t>(value.size()), value.data());
 }
 
 template <typename F, typename S>
-inline cJSON* ToJsonValue(const std::pair<F, S>& value) {
-  cJSON* array = cJSON_CreateArray();
-  cJSON_AddItemToArray(array, ToJsonValue(value.first));
-  cJSON_AddItemToArray(array, ToJsonValue(value.second));
+inline Json::Value ToJsonValue(const std::pair<F, S>& value) {
+  Json::Value array(Json::arrayValue);
+  array.append(ToJsonValue(value.first));
+  array.append(ToJsonValue(value.second));
   return array;
 }
 
 template <typename F, typename S>
-inline cJSON* ToJsonValue(const std::map<F, S>& value) {
-  cJSON* array = cJSON_CreateArray();
-  for (auto& kv : value)
-    cJSON_AddItemToArray(array, ToJsonValue(kv));
+inline Json::Value ToJsonValue(const std::map<F, S>& value) {
+  Json::Value array(Json::arrayValue);
+  for (auto& kv : value) array.append(ToJsonValue(kv));
   return array;
 }
 
 class JsonWriterVisitor {
  public:
-  JsonWriterVisitor() : object_(cJSON_CreateObject()) {}
+  JsonWriterVisitor() : object_(Json::objectValue) {}
 
-  ~JsonWriterVisitor() {
-    if (object_)
-      cJSON_Delete(object_);
-  }
+  ~JsonWriterVisitor() {}
 
   template <typename T> bool Visit(const char* key, const T* value) {
-    cJSON_AddItemToObjectCS(object_, key, ToJsonValue(*value));
+    object_[key] = ToJsonValue(*value);
     return true;
   }
 
   template <typename T, uint32_t N>
   bool VisitArray(const char* key, uint32_t count, const T (*value)[N]) {
     assert(count <= N);
-    cJSON_AddItemToObjectCS(object_, key, ArrayToJsonValue(count, *value));
+    object_[key] = ArrayToJsonValue(count, *value);
     return true;
   }
 
-  cJSON* get_object() const { return object_; }
-  cJSON* take_object() {
-    cJSON* object = object_;
-    object_ = nullptr;
-    return object;
-  }
+  Json::Value get_object() const { return object_; }
 
  private:
-  cJSON* object_;
+  Json::Value object_;
 };
 
 template <typename Visitor, typename T>
@@ -905,18 +895,19 @@ inline void VisitForWrite(Visitor* visitor, const T& t) {
 }
 
 template <typename T, typename /*= EnableForStruct<T>*/, typename /*= void*/>
-cJSON* ToJsonValue(const T& value) {
+Json::Value ToJsonValue(const T& value) {
   JsonWriterVisitor visitor;
   VisitForWrite(&visitor, value);
-  return visitor.take_object();
+  return visitor.get_object();
 }
 
 template <typename T, typename = EnableForStruct<T>>
-bool AsValue(cJSON* json_value, T* t);
+bool AsValue(Json::Value* json_value, T* t);
 
-inline bool AsValue(cJSON* json_value, int32_t* value) {
-  double d = json_value->valuedouble;
-  if (json_value->type != cJSON_Number || !IsIntegral(d) ||
+inline bool AsValue(Json::Value* json_value, int32_t* value) {
+  if (json_value->type() != Json::realValue) return false;
+  double d = json_value->asDouble();
+  if (!IsIntegral(d) ||
       d < static_cast<double>(std::numeric_limits<int32_t>::min()) ||
       d > static_cast<double>(std::numeric_limits<int32_t>::max()))
     return false;
@@ -924,23 +915,24 @@ inline bool AsValue(cJSON* json_value, int32_t* value) {
   return true;
 }
 
-inline bool AsValue(cJSON* json_value, uint64_t* value) {
-  if (json_value->type != cJSON_String)
-    return false;
-  int result = std::sscanf(json_value->valuestring, "0x%016" PRIx64, value);
+inline bool AsValue(Json::Value* json_value, uint64_t* value) {
+  if (json_value->type() != Json::stringValue) return false;
+  int result =
+      std::sscanf(json_value->asString().c_str(), "0x%016" PRIx64, value);
   return result == 1;
 }
 
-inline bool AsValue(cJSON* json_value, uint32_t* value) {
-  double d = json_value->valuedouble;
-  if (json_value->type != cJSON_Number || !IsIntegral(d) ||
-      d < 0.0 || d > static_cast<double>(std::numeric_limits<uint32_t>::max()))
+inline bool AsValue(Json::Value* json_value, uint32_t* value) {
+  if (json_value->type() != Json::realValue) return false;
+  double d = json_value->asDouble();
+  if (!IsIntegral(d) || d < 0.0 ||
+      d > static_cast<double>(std::numeric_limits<uint32_t>::max()))
     return false;
   *value = static_cast<uint32_t>(d);
   return true;
 }
 
-inline bool AsValue(cJSON* json_value, uint8_t* value) {
+inline bool AsValue(Json::Value* json_value, uint8_t* value) {
   uint32_t value32 = 0;
   AsValue(json_value, &value32);
   if (value32 > std::numeric_limits<uint8_t>::max())
@@ -949,44 +941,40 @@ inline bool AsValue(cJSON* json_value, uint8_t* value) {
   return true;
 }
 
-inline bool AsValue(cJSON* json_value, float* value) {
-  if (json_value->type != cJSON_Number)
-    return false;
-  *value = static_cast<float>(json_value->valuedouble);
+inline bool AsValue(Json::Value* json_value, float* value) {
+  if (json_value->type() != Json::realValue) return false;
+  *value = static_cast<float>(json_value->asDouble());
   return true;
 }
 
 template <typename T>
-inline bool AsArray(cJSON* json_value, uint32_t count, T* values) {
-  if (json_value->type != cJSON_Array ||
-      cJSON_GetArraySize(json_value) != count)
+inline bool AsArray(Json::Value* json_value, uint32_t count, T* values) {
+  if (json_value->type() != Json::arrayValue || json_value->size() != count)
     return false;
   for (uint32_t i = 0; i < count; ++i) {
-    if (!AsValue(cJSON_GetArrayItem(json_value, i), values + i))
-      return false;
+    if (!AsValue(&(*json_value)[i], values + i)) return false;
   }
   return true;
 }
 
 template <typename T, unsigned int N>
-inline bool AsValue(cJSON* json_value, T (*value)[N]) {
+inline bool AsValue(Json::Value* json_value, T (*value)[N]) {
   return AsArray(json_value, N, *value);
 }
 
 template <size_t N>
-inline bool AsValue(cJSON* json_value, char (*value)[N]) {
-  if (json_value->type != cJSON_String)
-    return false;
-  size_t len = strlen(json_value->valuestring);
+inline bool AsValue(Json::Value* json_value, char (*value)[N]) {
+  if (json_value->type() != Json::stringValue) return false;
+  size_t len = json_value->asString().length();
   if (len >= N)
     return false;
-  memcpy(*value, json_value->valuestring, len);
+  memcpy(*value, json_value->asString().c_str(), len);
   memset(*value + len, 0, N-len);
   return true;
 }
 
 template <typename T, typename = EnableForEnum<T>, typename = void>
-inline bool AsValue(cJSON* json_value, T* t) {
+inline bool AsValue(Json::Value* json_value, T* t) {
   uint32_t value = 0;
   if (!AsValue(json_value, &value))
       return false;
@@ -996,31 +984,28 @@ inline bool AsValue(cJSON* json_value, T* t) {
 }
 
 template <typename T>
-inline bool AsValue(cJSON* json_value, std::vector<T>* value) {
-  if (json_value->type != cJSON_Array)
-    return false;
-  int size = cJSON_GetArraySize(json_value);
+inline bool AsValue(Json::Value* json_value, std::vector<T>* value) {
+  if (json_value->type() != Json::arrayValue) return false;
+  int size = json_value->size();
   value->resize(size);
   return AsArray(json_value, size, value->data());
 }
 
 template <typename F, typename S>
-inline bool AsValue(cJSON* json_value, std::pair<F, S>* value) {
-  if (json_value->type != cJSON_Array || cJSON_GetArraySize(json_value) != 2)
+inline bool AsValue(Json::Value* json_value, std::pair<F, S>* value) {
+  if (json_value->type() != Json::arrayValue || json_value->size() != 2)
     return false;
-  return AsValue(cJSON_GetArrayItem(json_value, 0), &value->first) &&
-         AsValue(cJSON_GetArrayItem(json_value, 1), &value->second);
+  return AsValue(&(*json_value)[0], &value->first) &&
+         AsValue(&(*json_value)[1], &value->second);
 }
 
 template <typename F, typename S>
-inline bool AsValue(cJSON* json_value, std::map<F, S>* value) {
-  if (json_value->type != cJSON_Array)
-    return false;
-  int size = cJSON_GetArraySize(json_value);
+inline bool AsValue(Json::Value* json_value, std::map<F, S>* value) {
+  if (json_value->type() != Json::arrayValue) return false;
+  int size = json_value->size();
   for (int i = 0; i < size; ++i) {
     std::pair<F, S> elem;
-    if (!AsValue(cJSON_GetArrayItem(json_value, i), &elem))
-      return false;
+    if (!AsValue(&(*json_value)[i], &elem)) return false;
     if (!value->insert(elem).second)
       return false;
   }
@@ -1028,16 +1013,15 @@ inline bool AsValue(cJSON* json_value, std::map<F, S>* value) {
 }
 
 template <typename T>
-bool ReadValue(cJSON* object, const char* key, T* value,
+bool ReadValue(Json::Value* object, const char* key, T* value,
                std::string* errors) {
-  cJSON* json_value = cJSON_GetObjectItem(object, key);
+  Json::Value json_value = (*object)[key];
   if (!json_value) {
     if (errors)
       *errors = std::string(key) + " missing.";
     return false;
   }
-  if (AsValue(json_value, value))
-    return true;
+  if (AsValue(&json_value, value)) return true;
   if (errors)
     *errors = std::string("Wrong type for ") + std::string(key) + ".";
   return false;
@@ -1050,7 +1034,7 @@ inline bool VisitForRead(Visitor* visitor, T* t) {
 
 class JsonReaderVisitor {
  public:
-  JsonReaderVisitor(cJSON* object, std::string* errors)
+  JsonReaderVisitor(Json::Value* object, std::string* errors)
       : object_(object), errors_(errors) {}
 
   template <typename T> bool Visit(const char* key, T* value) const {
@@ -1061,14 +1045,13 @@ class JsonReaderVisitor {
   bool VisitArray(const char* key, uint32_t count, T (*value)[N]) {
     if (count > N)
       return false;
-    cJSON* json_value = cJSON_GetObjectItem(object_, key);
+    Json::Value json_value = (*object_)[key];
     if (!json_value) {
       if (errors_)
         *errors_ = std::string(key) + " missing.";
       return false;
     }
-    if (AsArray(json_value, count, *value))
-      return true;
+    if (AsArray(&json_value, count, *value)) return true;
     if (errors_)
       *errors_ = std::string("Wrong type for ") + std::string(key) + ".";
     return false;
@@ -1076,14 +1059,13 @@ class JsonReaderVisitor {
 
 
  private:
-  cJSON* object_;
+  Json::Value* object_;
   std::string* errors_;
 };
 
 template <typename T, typename /*= EnableForStruct<T>*/>
-bool AsValue(cJSON* json_value, T* t) {
-  if (json_value->type != cJSON_Object)
-    return false;
+bool AsValue(Json::Value* json_value, T* t) {
+  if (json_value->type() != Json::objectValue) return false;
   JsonReaderVisitor visitor(json_value, nullptr);
   return VisitForRead(&visitor, t);
 }
@@ -1092,26 +1074,21 @@ bool AsValue(cJSON* json_value, T* t) {
 template <typename T> std::string VkTypeToJson(const T& t) {
   JsonWriterVisitor visitor;
   VisitForWrite(&visitor, t);
-
-  char* output = cJSON_Print(visitor.get_object());
-  std::string result(output);
-  free(output);
-  return result;
+  return visitor.get_object().toStyledString();
 }
 
 template <typename T> bool VkTypeFromJson(const std::string& json,
                                           T* t,
                                           std::string* errors) {
   *t = T();
-  cJSON* object = cJSON_Parse(json.c_str());
+  Json::Value object(Json::objectValue);
+  Json::Reader reader;
+  reader.parse(json, object, false);
   if (!object) {
-    if (errors)
-      errors->assign(cJSON_GetErrorPtr());
+    if (errors) errors->assign(reader.getFormatedErrorMessages());
     return false;
   }
-  bool result = AsValue(object, t);
-  cJSON_Delete(object);
-  return result;
+  return AsValue(&object, t);
 }
 
 }  // anonymous namespace
