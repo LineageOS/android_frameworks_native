@@ -302,6 +302,7 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     glVertexAttribPointer(Program::position, mesh.getVertexSize(), GL_FLOAT, GL_FALSE,
                           mesh.getByteStride(), mesh.getPositions());
 
+    // TODO(b/73825729) Refactor this code block to handle BT2020 color space properly.
     // DISPLAY_P3 is the only supported wide color output
     if (mPlatformHasWideColor && mOutputDataSpace == Dataspace::DISPLAY_P3) {
         Description wideColorState = mState;
