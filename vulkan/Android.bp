@@ -55,4 +55,5 @@ subdirs = [
     "nulldrv",
     "libvulkan",
     "tools",
+    "vkjson",
 ]
