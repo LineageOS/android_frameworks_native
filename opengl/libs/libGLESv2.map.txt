@@ -79,6 +79,7 @@ LIBGLESV2 {
     glFramebufferRenderbuffer;
     glFramebufferTexture2D;
     glFramebufferTexture2DMultisampleIMG; # introduced-mips=9 introduced-x86=9
+    glFramebufferTexture2DMultisampleEXT; # introduced=28
     glFramebufferTexture3DOES;
     glFrontFace;
     glGenBuffers;
@@ -147,6 +148,7 @@ LIBGLESV2 {
     glReadPixels;
     glReleaseShaderCompiler;
     glRenderbufferStorage;
+    glRenderbufferStorageMultisampleEXT; # introduced=28
     glRenderbufferStorageMultisampleIMG; # introduced-mips=9 introduced-x86=9
     glSampleCoverage;
     glScissor;

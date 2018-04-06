@@ -15,9 +15,29 @@
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
+using android::pdx::default_transport::ClientChannel;
+using android::pdx::default_transport::ClientChannelFactory;
 
 namespace android {
 namespace dvr {
+
+BufferHubClient::BufferHubClient()
+    : Client(ClientChannelFactory::Create(BufferHubRPC::kClientPath)) {}
+
+BufferHubClient::BufferHubClient(LocalChannelHandle channel_handle)
+    : Client(ClientChannel::Create(std::move(channel_handle))) {}
+
+bool BufferHubClient::IsValid() const {
+  return IsConnected() && GetChannelHandle().valid();
+}
+
+LocalChannelHandle BufferHubClient::TakeChannelHandle() {
+  if (IsConnected()) {
+    return std::move(GetChannelHandle());
+  } else {
+    return {};
+  }
+}
 
 BufferHubBuffer::BufferHubBuffer(LocalChannelHandle channel_handle)
     : Client{pdx::default_transport::ClientChannel::Create(

@@ -118,7 +118,8 @@ enum {
     eTransactionNeeded        = 0x01,
     eTraversalNeeded          = 0x02,
     eDisplayTransactionNeeded = 0x04,
-    eTransactionMask          = 0x07
+    eDisplayLayerStackChanged = 0x08,
+    eTransactionMask          = 0x0f,
 };
 
 // A thin interface to abstract creating instances of Surface (gui/Surface.h) to

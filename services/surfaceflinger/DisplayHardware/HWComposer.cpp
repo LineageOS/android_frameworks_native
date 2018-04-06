@@ -330,17 +330,20 @@ std::vector<ui::ColorMode> HWComposer::getColorModes(int32_t displayId) const {
     return modes;
 }
 
-status_t HWComposer::setActiveColorMode(int32_t displayId, ui::ColorMode mode) {
+status_t HWComposer::setActiveColorMode(int32_t displayId, ui::ColorMode mode,
+        ui::RenderIntent renderIntent) {
     if (!isValidDisplay(displayId)) {
         ALOGE("setActiveColorMode: Display %d is not valid", displayId);
         return BAD_INDEX;
     }
 
     auto& displayData = mDisplayData[displayId];
-    auto error = displayData.hwcDisplay->setColorMode(mode);
+    auto error = displayData.hwcDisplay->setColorMode(mode, renderIntent);
     if (error != HWC2::Error::None) {
-        ALOGE("setActiveConfig: Failed to set color mode %d on display %d: "
-                "%s (%d)", mode, displayId, to_string(error).c_str(),
+        ALOGE("setActiveConfig: Failed to set color mode %d"
+                "with render intent %d on display %d: "
+                "%s (%d)", mode, renderIntent, displayId,
+                to_string(error).c_str(),
                 static_cast<int32_t>(error));
         return UNKNOWN_ERROR;
     }
@@ -839,6 +842,44 @@ std::unique_ptr<HdrCapabilities> HWComposer::getHdrCapabilities(
     }
 
     return capabilities;
+}
+
+std::vector<ui::RenderIntent> HWComposer::getRenderIntents(int32_t displayId,
+        ui::ColorMode colorMode) const {
+    if (!isValidDisplay(displayId)) {
+        ALOGE("getRenderIntents: Attempted to access invalid display %d",
+                displayId);
+        return {};
+    }
+
+    std::vector<ui::RenderIntent> renderIntents;
+    auto error = mDisplayData[displayId].hwcDisplay->getRenderIntents(colorMode, &renderIntents);
+    if (error != HWC2::Error::None) {
+        ALOGE("getColorModes failed for display %d: %s (%d)", displayId,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+        return std::vector<ui::RenderIntent>();
+    }
+
+    return renderIntents;
+}
+
+mat4 HWComposer::getDataspaceSaturationMatrix(int32_t displayId, ui::Dataspace dataspace) {
+    if (!isValidDisplay(displayId)) {
+        ALOGE("getDataSpaceSaturationMatrix: Attempted to access invalid display %d",
+                displayId);
+        return {};
+    }
+
+    mat4 matrix;
+    auto error = mDisplayData[displayId].hwcDisplay->getDataspaceSaturationMatrix(dataspace,
+            &matrix);
+    if (error != HWC2::Error::None) {
+        ALOGE("getDataSpaceSaturationMatrix failed for display %d: %s (%d)", displayId,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+        return mat4();
+    }
+
+    return matrix;
 }
 
 // Converts a PixelFormat to a human-readable string.  Max 11 chars.

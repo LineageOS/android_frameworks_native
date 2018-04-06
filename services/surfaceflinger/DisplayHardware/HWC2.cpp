@@ -50,6 +50,7 @@ namespace Hwc2 = android::Hwc2;
 using android::ui::ColorMode;
 using android::ui::Dataspace;
 using android::ui::PixelFormat;
+using android::ui::RenderIntent;
 
 namespace {
 
@@ -369,6 +370,19 @@ Error Display::getColorModes(std::vector<ColorMode>* outModes) const
     return static_cast<Error>(intError);
 }
 
+Error Display::getRenderIntents(ColorMode colorMode,
+        std::vector<RenderIntent>* outRenderIntents) const
+{
+    auto intError = mComposer.getRenderIntents(mId, colorMode, outRenderIntents);
+    return static_cast<Error>(intError);
+}
+
+Error Display::getDataspaceSaturationMatrix(Dataspace dataspace, android::mat4* outMatrix)
+{
+    auto intError = mComposer.getDataspaceSaturationMatrix(dataspace, outMatrix);
+    return static_cast<Error>(intError);
+}
+
 std::vector<std::shared_ptr<const Display::Config>> Display::getConfigs() const
 {
     std::vector<std::shared_ptr<const Config>> configs;
@@ -526,9 +540,9 @@ Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
     return static_cast<Error>(intError);
 }
 
-Error Display::setColorMode(ColorMode mode)
+Error Display::setColorMode(ColorMode mode, RenderIntent renderIntent)
 {
-    auto intError = mComposer.setColorMode(mId, mode);
+    auto intError = mComposer.setColorMode(mId, mode, renderIntent);
     return static_cast<Error>(intError);
 }
 
