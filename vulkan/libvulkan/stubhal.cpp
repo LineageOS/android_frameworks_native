@@ -97,7 +97,15 @@ VKAPI_ATTR VkResult EnumeratePhysicalDevices(VkInstance /*instance*/,
     return VK_SUCCESS;
 }
 
-VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance /*instance*/,
+VKAPI_ATTR VkResult
+EnumeratePhysicalDeviceGroups(VkInstance /*instance*/,
+                              uint32_t* count,
+                              VkPhysicalDeviceGroupProperties* /*properties*/) {
+    *count = 0;
+    return VK_SUCCESS;
+}
+
+VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance,
                                                   const char* name) {
     if (strcmp(name, "vkCreateInstance") == 0)
         return reinterpret_cast<PFN_vkVoidFunction>(CreateInstance);
@@ -108,9 +116,14 @@ VKAPI_ATTR PFN_vkVoidFunction GetInstanceProcAddr(VkInstance /*instance*/,
             EnumerateInstanceExtensionProperties);
     if (strcmp(name, "vkEnumeratePhysicalDevices") == 0)
         return reinterpret_cast<PFN_vkVoidFunction>(EnumeratePhysicalDevices);
+    if (strcmp(name, "vkEnumeratePhysicalDeviceGroups") == 0)
+        return reinterpret_cast<PFN_vkVoidFunction>(
+            EnumeratePhysicalDeviceGroups);
     if (strcmp(name, "vkGetInstanceProcAddr") == 0)
         return reinterpret_cast<PFN_vkVoidFunction>(GetInstanceProcAddr);
-
+    // Per the spec, return NULL if instance is NULL.
+    if (!instance)
+        return nullptr;
     // None of the other Vulkan functions should ever be called, as they all
     // take a VkPhysicalDevice or other object obtained from a physical device.
     return reinterpret_cast<PFN_vkVoidFunction>(NoOp);
