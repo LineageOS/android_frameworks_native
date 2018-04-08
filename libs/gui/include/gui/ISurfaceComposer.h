@@ -61,6 +61,11 @@ public:
     enum {
         eSynchronous = 0x01,
         eAnimation   = 0x02,
+
+        // Indicates that this transaction will likely result in a lot of layers being composed, and
+        // thus, SurfaceFlinger should wake-up earlier to avoid missing frame deadlines. In this
+        // case SurfaceFlinger will wake up at (sf vsync offset - debug.sf.early_phase_offset_ns)
+        eEarlyWakeup = 0x04
     };
 
     enum {

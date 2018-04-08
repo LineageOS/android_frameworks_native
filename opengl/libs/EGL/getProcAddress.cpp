@@ -54,7 +54,7 @@ namespace android {
             : [tls] "J"(TLS_SLOT_OPENGL_API*4),                 \
               [ext] "J"(__builtin_offsetof(gl_hooks_t,          \
                                       ext.extensions[0])),      \
-              [api] "J"(_api*sizeof(void*))                     \
+              [api] "I"(_api*sizeof(void*))                     \
             : "r12"                                             \
             );
 

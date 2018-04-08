@@ -147,6 +147,11 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
   pdx::Status<void> OnCreateBuffer(pdx::Message& message, uint32_t width,
                                    uint32_t height, uint32_t format,
                                    uint64_t usage, size_t meta_size_bytes);
+  pdx::Status<void> OnCreateDetachedBuffer(pdx::Message& message,
+                                           uint32_t width, uint32_t height,
+                                           uint32_t layer_count,
+                                           uint32_t format, uint64_t usage,
+                                           size_t user_metadata_size);
   pdx::Status<QueueInfo> OnCreateProducerQueue(
       pdx::Message& message, const ProducerQueueConfig& producer_config,
       const UsagePolicy& usage_policy);

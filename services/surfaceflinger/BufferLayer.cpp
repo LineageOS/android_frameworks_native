@@ -778,6 +778,7 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
 }
 
 void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
+    ATRACE_CALL();
     const State& s(getDrawingState());
 
     computeGeometry(renderArea, getBE().mMesh, useIdentityTransform);

@@ -106,6 +106,7 @@ using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using ui::ColorMode;
 using ui::Dataspace;
+using ui::RenderIntent;
 
 namespace {
 class ConditionalLock {
@@ -294,6 +295,12 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     const size_t defaultListSize = 4 * MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
+
+    property_get("debug.sf.early_phase_offset_ns", value, "0");
+    const int earlyWakeupOffsetOffsetNs = atoi(value);
+    ALOGI_IF(earlyWakeupOffsetOffsetNs != 0, "Enabling separate early offset");
+    mVsyncModulator.setPhaseOffsets(sfVsyncPhaseOffsetNs - earlyWakeupOffsetOffsetNs,
+            sfVsyncPhaseOffsetNs);
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -521,19 +528,10 @@ public:
             return;
         }
 
-        // Remove the listener with the old offset
-        status_t err = mDispSync->removeEventListener(
-                static_cast<DispSync::Callback*>(this));
+        status_t err = mDispSync->changePhaseOffset(static_cast<DispSync::Callback*>(this),
+                mPhaseOffset);
         if (err != NO_ERROR) {
-            ALOGE("error unregistering vsync callback: %s (%d)",
-                    strerror(-err), err);
-        }
-
-        // Add a listener with the new offset
-        err = mDispSync->addEventListener(mName, mPhaseOffset,
-                static_cast<DispSync::Callback*>(this));
-        if (err != NO_ERROR) {
-            ALOGE("error registering vsync callback: %s (%d)",
+            ALOGE("error changing vsync offset: %s (%d)",
                     strerror(-err), err);
         }
     }
@@ -622,6 +620,7 @@ void SurfaceFlinger::init() {
     mSFEventThread = std::make_unique<impl::EventThread>(mSfEventThreadSource.get(), *this, true,
                                                          "sfEventThread");
     mEventQueue->setEventThread(mSFEventThread.get());
+    mVsyncModulator.setEventThread(mSFEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
     getBE().mRenderEngine =
@@ -1007,7 +1006,7 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
           hw->getDisplayType());
 
     hw->setActiveColorMode(mode);
-    getHwComposer().setActiveColorMode(type, mode);
+    getHwComposer().setActiveColorMode(type, mode, RenderIntent::COLORIMETRIC);
 }
 
 
@@ -1497,6 +1496,7 @@ void SurfaceFlinger::handleMessageRefresh() {
         mHadClientComposition = mHadClientComposition ||
                 getBE().mHwc->hasClientComposition(displayDevice->getHwcDisplayId());
     }
+    mVsyncModulator.setLastFrameUsedRenderEngine(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
 }
@@ -2121,6 +2121,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // with mStateLock held to guarantee that mCurrentState won't change
     // until the transaction is committed.
 
+    mVsyncModulator.setTransactionStart(VSyncModulator::TransactionStart::NORMAL);
     transactionFlags = getTransactionFlags(eTransactionMask);
     handleTransactionLocked(transactionFlags);
 
@@ -3069,7 +3070,13 @@ uint32_t SurfaceFlinger::getTransactionFlags(uint32_t flags) {
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
+    return setTransactionFlags(flags, VSyncModulator::TransactionStart::NORMAL);
+}
+
+uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
+        VSyncModulator::TransactionStart transactionStart) {
     uint32_t old = android_atomic_or(flags, &mTransactionFlags);
+    mVsyncModulator.setTransactionStart(transactionStart);
     if ((old & flags)==0) { // wake the server up
         signalTransaction();
     }
@@ -3158,7 +3165,10 @@ void SurfaceFlinger::setTransactionState(
         }
 
         // this triggers the transaction
-        setTransactionFlags(transactionFlags);
+        const auto start = (flags & eEarlyWakeup)
+                ? VSyncModulator::TransactionStart::EARLY
+                : VSyncModulator::TransactionStart::NORMAL;
+        setTransactionFlags(transactionFlags, start);
 
         // if this is a synchronous transaction, wait for it to take effect
         // before returning.
@@ -4098,9 +4108,9 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     colorizer.bold(result);
     result.append("DispSync configuration: ");
     colorizer.reset(result);
-    result.appendFormat("app phase %" PRId64 " ns, sf phase %" PRId64 " ns, "
-            "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
-        vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
+    result.appendFormat("app phase %" PRId64 " ns, sf phase %" PRId64 " ns, early sf phase %" PRId64
+        " ns, present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
+        vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, mVsyncModulator.getEarlyPhaseOffset(),
         dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     result.append("\n");
 

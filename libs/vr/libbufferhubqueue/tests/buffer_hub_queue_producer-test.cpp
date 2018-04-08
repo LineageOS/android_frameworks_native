@@ -94,9 +94,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
     ALOGD_IF(TRACE, "Begin test: %s.%s", testInfo->test_case_name(),
              testInfo->name());
 
-    auto config = ProducerQueueConfigBuilder()
-                      .SetMetadata<DvrNativeBufferMetadata>()
-                      .Build();
+    auto config = ProducerQueueConfigBuilder().Build();
     auto queue = ProducerQueue::Create(config, UsagePolicy{});
     ASSERT_TRUE(queue != nullptr);
 

@@ -356,6 +356,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 }
 
 status_t BufferLayerConsumer::bindTextureImageLocked() {
+    ATRACE_CALL();
     mRE.checkErrors();
 
     if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureImage == nullptr) {

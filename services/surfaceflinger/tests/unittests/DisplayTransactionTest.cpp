@@ -46,8 +46,8 @@ using testing::Mock;
 using testing::Return;
 using testing::SetArgPointee;
 
-using android::hardware::graphics::common::V1_0::ColorMode;
 using android::hardware::graphics::common::V1_0::Hdr;
+using android::hardware::graphics::common::V1_1::ColorMode;
 using android::Hwc2::Error;
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;

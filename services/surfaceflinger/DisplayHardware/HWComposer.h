@@ -137,6 +137,11 @@ public:
     // Returns the HDR capabilities of the given display
     std::unique_ptr<HdrCapabilities> getHdrCapabilities(int32_t displayId);
 
+    // Returns the available RenderIntent of the given display.
+    std::vector<ui::RenderIntent> getRenderIntents(int32_t displayId, ui::ColorMode colorMode) const;
+
+    mat4 getDataspaceSaturationMatrix(int32_t displayId, ui::Dataspace dataspace);
+
     // Events handling ---------------------------------------------------------
 
     // Returns true if successful, false otherwise. The
@@ -161,7 +166,8 @@ public:
 
     std::vector<ui::ColorMode> getColorModes(int32_t displayId) const;
 
-    status_t setActiveColorMode(int32_t displayId, ui::ColorMode mode);
+    status_t setActiveColorMode(int32_t displayId, ui::ColorMode mode,
+            ui::RenderIntent renderIntent);
 
     bool isUsingVrComposer() const;
 

@@ -377,11 +377,17 @@ Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
     return ErrorStatus(-ret);
   };
 
-  auto channel = std::make_shared<DetachedBufferChannel>(
-      service(), buffer_id(), channel_id, std::move(buffer_),
-      std::move(metadata_buffer_), user_metadata_size_);
+  std::unique_ptr<DetachedBufferChannel> channel =
+      DetachedBufferChannel::Create(
+          service(), buffer_id(), channel_id, std::move(buffer_),
+          std::move(metadata_buffer_), user_metadata_size_);
+  if (!channel) {
+    ALOGE("ProducerChannel::OnProducerDetach: Invalid buffer.");
+    return ErrorStatus(EINVAL);
+  }
 
-  const auto channel_status = service()->SetChannel(channel_id, channel);
+  const auto channel_status =
+      service()->SetChannel(channel_id, std::move(channel));
   if (!channel_status) {
     // Technically, this should never fail, as we just pushed the channel. Note
     // that LOG_FATAL will be stripped out in non-debug build.

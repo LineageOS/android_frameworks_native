@@ -49,7 +49,6 @@ public:
         mProducerQueue = dvr::ProducerQueue::Create(configBuilder.SetDefaultWidth(kBufferWidth)
                                                             .SetDefaultHeight(kBufferHeight)
                                                             .SetDefaultFormat(kBufferFormat)
-                                                            .SetMetadata<DvrNativeBufferMetadata>()
                                                             .Build(),
                                                     dvr::UsagePolicy{});
         mBufferHubProducer = BufferHubProducer::Create(mProducerQueue);

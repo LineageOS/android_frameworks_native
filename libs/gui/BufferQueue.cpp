@@ -113,8 +113,7 @@ void BufferQueue::createBufferHubQueue(sp<IGraphicBufferProducer>* outProducer,
 
     dvr::ProducerQueueConfigBuilder configBuilder;
     std::shared_ptr<dvr::ProducerQueue> producerQueue =
-            dvr::ProducerQueue::Create(configBuilder.SetMetadata<DvrNativeBufferMetadata>().Build(),
-                                       dvr::UsagePolicy{});
+            dvr::ProducerQueue::Create(configBuilder.Build(), dvr::UsagePolicy{});
     LOG_ALWAYS_FATAL_IF(producerQueue == NULL, "BufferQueue: failed to create ProducerQueue.");
 
     std::shared_ptr<dvr::ConsumerQueue> consumerQueue = producerQueue->CreateConsumerQueue();
