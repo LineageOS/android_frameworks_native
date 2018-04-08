@@ -209,6 +209,28 @@ public:
         return BAD_VALUE;
     }
 
+    status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) {
+        if (kTraceDetailedInfo) ATRACE_CALL();
+        Mutex::Autolock lock(mMutex);
+
+        for (size_t i = 0; i < mEventListeners.size(); i++) {
+            if (mEventListeners[i].mCallback == callback) {
+                EventListener& listener = mEventListeners.editItemAt(i);
+                const nsecs_t oldPhase = listener.mPhase;
+                listener.mPhase = phase;
+
+                // Pretend that the last time this event was handled at the same frame but with the
+                // new offset to allow for a seamless offset change without double-firing or
+                // skipping.
+                listener.mLastEventTime -= (oldPhase - phase);
+                mCond.signal();
+                return NO_ERROR;
+            }
+        }
+
+        return BAD_VALUE;
+    }
+
     // This method is only here to handle the !SurfaceFlinger::hasSyncFramework
     // case.
     bool hasAnyEventListeners() {
@@ -485,6 +507,11 @@ void DispSync::setRefreshSkipCount(int count) {
 status_t DispSync::removeEventListener(Callback* callback) {
     Mutex::Autolock lock(mMutex);
     return mThread->removeEventListener(callback);
+}
+
+status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
+    Mutex::Autolock lock(mMutex);
+    return mThread->changePhaseOffset(callback, phase);
 }
 
 void DispSync::setPeriod(nsecs_t period) {
