@@ -18,8 +18,11 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 
+#ifndef NO_BUFFERHUB
 #include <gui/BufferHubConsumer.h>
 #include <gui/BufferHubProducer.h>
+#endif
+
 #include <gui/BufferQueue.h>
 #include <gui/BufferQueueConsumer.h>
 #include <gui/BufferQueueCore.h>
@@ -103,6 +106,7 @@ void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
     *outConsumer = consumer;
 }
 
+#ifndef NO_BUFFERHUB
 void BufferQueue::createBufferHubQueue(sp<IGraphicBufferProducer>* outProducer,
                                        sp<IGraphicBufferConsumer>* outConsumer) {
     LOG_ALWAYS_FATAL_IF(outProducer == NULL, "BufferQueue: outProducer must not be NULL");
@@ -128,5 +132,6 @@ void BufferQueue::createBufferHubQueue(sp<IGraphicBufferProducer>* outProducer,
     *outProducer = producer;
     *outConsumer = consumer;
 }
+#endif
 
 }; // namespace android
