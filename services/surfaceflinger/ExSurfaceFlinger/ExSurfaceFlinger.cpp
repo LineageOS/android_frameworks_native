@@ -26,12 +26,12 @@
  * IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "ExSurfaceFlinger.h"
 #include <fstream>
 #include <cutils/properties.h>
 #include <ui/GraphicBufferAllocator.h>
-
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 namespace android {
 
