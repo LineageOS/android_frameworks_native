@@ -2358,6 +2358,24 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
     mCapture->expectChildColor(0, 0);
 }
 
+TEST_F(ScreenCaptureTest, CaptureTransparent) {
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
+
+    fillSurfaceRGBA8(child, 200, 200, 200);
+
+    SurfaceComposerClient::Transaction().show(child).apply(true);
+
+    auto childHandle = child->getHandle();
+
+    // Captures child
+    ScreenCapture::captureLayers(&mCapture, childHandle, {0, 0, 10, 20});
+    mCapture->expectColor(Rect(0, 0, 9, 9), {200, 200, 200, 255});
+    // Area outside of child's bounds is transparent.
+    mCapture->expectColor(Rect(0, 10, 9, 19), {0, 0, 0, 0});
+}
+
 
 // In the following tests we verify successful skipping of a parent layer,
 // so we use the same verification logic and only change how we mutate

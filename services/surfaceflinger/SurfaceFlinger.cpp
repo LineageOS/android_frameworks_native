@@ -4597,7 +4597,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
                         int32_t reqWidth, int32_t reqHeight, bool childrenOnly)
-              : RenderArea(reqHeight, reqWidth),
+              : RenderArea(reqHeight, reqWidth, CaptureFill::CLEAR),
                 mLayer(layer),
                 mCrop(crop),
                 mFlinger(flinger),
@@ -4834,8 +4834,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                     renderArea.getRotationFlags());
     engine.disableTexturing();
 
+    const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
     // redraw the screen entirely...
-    engine.clearWithColor(0, 0, 0, 1);
+    engine.clearWithColor(0, 0, 0, alpha);
 
     traverseLayers([&](Layer* layer) {
         if (filtering) layer->setFiltering(true);

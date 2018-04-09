@@ -9,10 +9,15 @@
 namespace android {
 
 class RenderArea {
+
 public:
-    RenderArea(uint32_t reqHeight, uint32_t reqWidth,
+    enum class CaptureFill {CLEAR, OPAQUE};
+
+    static float getCaptureFillValue(CaptureFill captureFill);
+
+    RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
                ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
-          : mReqHeight(reqHeight), mReqWidth(reqWidth) {
+          : mReqHeight(reqHeight), mReqWidth(reqWidth), mCaptureFill(captureFill) {
         mRotationFlags = Transform::fromRotation(rotation);
     }
 
@@ -36,10 +41,13 @@ public:
 
     status_t updateDimensions();
 
+    CaptureFill getCaptureFill() const { return mCaptureFill; };
+
 private:
     uint32_t mReqHeight;
     uint32_t mReqWidth;
     Transform::orientation_flags mRotationFlags;
+    CaptureFill mCaptureFill;
 };
 
 } // namespace android
