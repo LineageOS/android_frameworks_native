@@ -18,6 +18,7 @@ cc_library_shared {
     vndk: {
         enabled: true,
     },
+    double_loadable: true,
 
     clang: true,
     cflags: [
@@ -84,7 +85,6 @@ cc_library_shared {
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
-        "libpdx_default_transport",
         "libsync",
         "libutils",
         "libutilscallstack",
@@ -106,6 +106,7 @@ cc_library_shared {
         "libnativebase_headers",
         "libhardware_headers",
         "libui_headers",
+        "libpdx_headers",
     ],
 
     export_static_lib_headers: [
