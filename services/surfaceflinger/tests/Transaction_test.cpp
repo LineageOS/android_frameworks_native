@@ -1008,6 +1008,32 @@ TEST_F(LayerTransactionTest, SetColorWithAlpha) {
                               tolerance);
 }
 
+TEST_F(LayerTransactionTest, SetColorWithParentAlpha_Bug74220420) {
+    sp<SurfaceControl> bufferLayer;
+    sp<SurfaceControl> parentLayer;
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parentWithAlpha", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(colorLayer = createLayer(
+            "childWithColor", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+
+    const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
+    const float alpha = 0.25f;
+    const ubyte3 expected((vec3(color) * alpha + vec3(1.0f, 0.0f, 0.0f) * (1.0f - alpha)) * 255.0f);
+    // this is handwavy, but the precision loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+    Transaction()
+            .reparent(colorLayer, parentLayer->getHandle())
+            .setColor(colorLayer, color)
+            .setAlpha(parentLayer, alpha)
+            .setLayer(parentLayer, mLayerZBase + 1)
+            .apply();
+    screenshot()->expectColor(Rect(0, 0, 32, 32), {expected.r, expected.g, expected.b, 255},
+                              tolerance);
+}
+
 TEST_F(LayerTransactionTest, SetColorWithBuffer) {
     sp<SurfaceControl> bufferLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test", 32, 32));
