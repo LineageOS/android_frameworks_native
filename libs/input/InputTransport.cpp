@@ -614,10 +614,7 @@ void InputConsumer::updateTouchState(InputMessage& msg) {
         if (index >= 0) {
             TouchState& touchState = mTouchStates.editItemAt(index);
             touchState.addHistory(msg);
-            bool messageRewritten = rewriteMessage(touchState, msg);
-            if (!messageRewritten) {
-                touchState.lastResample.idBits.clear();
-            }
+            rewriteMessage(touchState, msg);
         }
         break;
     }
@@ -645,7 +642,7 @@ void InputConsumer::updateTouchState(InputMessage& msg) {
     case AMOTION_EVENT_ACTION_SCROLL: {
         ssize_t index = findTouchState(deviceId, source);
         if (index >= 0) {
-            const TouchState& touchState = mTouchStates.itemAt(index);
+            TouchState& touchState = mTouchStates.editItemAt(index);
             rewriteMessage(touchState, msg);
         }
         break;
@@ -655,7 +652,7 @@ void InputConsumer::updateTouchState(InputMessage& msg) {
     case AMOTION_EVENT_ACTION_CANCEL: {
         ssize_t index = findTouchState(deviceId, source);
         if (index >= 0) {
-            const TouchState& touchState = mTouchStates.itemAt(index);
+            TouchState& touchState = mTouchStates.editItemAt(index);
             rewriteMessage(touchState, msg);
             mTouchStates.removeAt(index);
         }
@@ -664,28 +661,38 @@ void InputConsumer::updateTouchState(InputMessage& msg) {
     }
 }
 
-bool InputConsumer::rewriteMessage(const TouchState& state, InputMessage& msg) {
-    bool messageRewritten = false;
+/**
+ * Replace the coordinates in msg with the coordinates in lastResample, if necessary.
+ *
+ * If lastResample is no longer valid for a specific pointer (i.e. the lastResample time
+ * is in the past relative to msg and the past two events do not contain identical coordinates),
+ * then invalidate the lastResample data for that pointer.
+ * If the two past events have identical coordinates, then lastResample data for that pointer will
+ * remain valid, and will be used to replace these coordinates. Thus, if a certain coordinate x0 is
+ * resampled to the new value x1, then x1 will always be used to replace x0 until some new value
+ * not equal to x0 is received.
+ */
+void InputConsumer::rewriteMessage(TouchState& state, InputMessage& msg) {
     nsecs_t eventTime = msg.body.motion.eventTime;
     for (uint32_t i = 0; i < msg.body.motion.pointerCount; i++) {
         uint32_t id = msg.body.motion.pointers[i].properties.id;
         if (state.lastResample.idBits.hasBit(id)) {
-            PointerCoords& msgCoords = msg.body.motion.pointers[i].coords;
-            const PointerCoords& resampleCoords = state.lastResample.getPointerById(id);
             if (eventTime < state.lastResample.eventTime ||
                     state.recentCoordinatesAreIdentical(id)) {
-                msgCoords.setAxisValue(AMOTION_EVENT_AXIS_X, resampleCoords.getX());
-                msgCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, resampleCoords.getY());
+                PointerCoords& msgCoords = msg.body.motion.pointers[i].coords;
+                const PointerCoords& resampleCoords = state.lastResample.getPointerById(id);
 #if DEBUG_RESAMPLING
                 ALOGD("[%d] - rewrite (%0.3f, %0.3f), old (%0.3f, %0.3f)", id,
                         resampleCoords.getX(), resampleCoords.getY(),
                         msgCoords.getX(), msgCoords.getY());
 #endif
-                messageRewritten = true;
+                msgCoords.setAxisValue(AMOTION_EVENT_AXIS_X, resampleCoords.getX());
+                msgCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, resampleCoords.getY());
+            } else {
+                state.lastResample.idBits.clearBit(id);
             }
         }
     }
-    return messageRewritten;
 }
 
 void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
@@ -713,7 +720,6 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     }
 
     // Ensure that the current sample has all of the pointers that need to be reported.
-    // Also ensure that the past two "real" touch events do not contain duplicate coordinates
     const History* current = touchState.getHistory(0);
     size_t pointerCount = event->getPointerCount();
     for (size_t i = 0; i < pointerCount; i++) {
@@ -721,12 +727,6 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
         if (!current->idBits.hasBit(id)) {
 #if DEBUG_RESAMPLING
             ALOGD("Not resampled, missing id %d", id);
-#endif
-            return;
-        }
-        if (touchState.recentCoordinatesAreIdentical(id)) {
-#if DEBUG_RESAMPLING
-            ALOGD("Not resampled, past two historical events have duplicate coordinates");
 #endif
             return;
         }
@@ -783,18 +783,32 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
     }
 
     // Resample touch coordinates.
+    History oldLastResample;
+    oldLastResample.initializeFrom(touchState.lastResample);
     touchState.lastResample.eventTime = sampleTime;
     touchState.lastResample.idBits.clear();
     for (size_t i = 0; i < pointerCount; i++) {
         uint32_t id = event->getPointerId(i);
         touchState.lastResample.idToIndex[id] = i;
         touchState.lastResample.idBits.markBit(id);
+        if (oldLastResample.hasPointerId(id) && touchState.recentCoordinatesAreIdentical(id)) {
+            // We maintain the previously resampled value for this pointer (stored in
+            // oldLastResample) when the coordinates for this pointer haven't changed since then.
+            // This way we don't introduce artificial jitter when pointers haven't actually moved.
+
+            // We know here that the coordinates for the pointer haven't changed because we
+            // would've cleared the resampled bit in rewriteMessage if they had. We can't modify
+            // lastResample in place becasue the mapping from pointer ID to index may have changed.
+            touchState.lastResample.pointers[i].copyFrom(oldLastResample.getPointerById(id));
+            continue;
+        }
+
         PointerCoords& resampledCoords = touchState.lastResample.pointers[i];
         const PointerCoords& currentCoords = current->getPointerById(id);
+        resampledCoords.copyFrom(currentCoords);
         if (other->idBits.hasBit(id)
                 && shouldResampleTool(event->getToolType(i))) {
             const PointerCoords& otherCoords = other->getPointerById(id);
-            resampledCoords.copyFrom(currentCoords);
             resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_X,
                     lerp(currentCoords.getX(), otherCoords.getX(), alpha));
             resampledCoords.setAxisValue(AMOTION_EVENT_AXIS_Y,
@@ -808,7 +822,6 @@ void InputConsumer::resampleTouchState(nsecs_t sampleTime, MotionEvent* event,
                     alpha);
 #endif
         } else {
-            resampledCoords.copyFrom(currentCoords);
 #if DEBUG_RESAMPLING
             ALOGD("[%d] - out (%0.3f, %0.3f), cur (%0.3f, %0.3f)",
                     id, resampledCoords.getX(), resampledCoords.getY(),

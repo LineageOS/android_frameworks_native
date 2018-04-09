@@ -184,7 +184,7 @@ TEST_F(KeyEventTest, Properties) {
 
     ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event.getType());
     ASSERT_EQ(2, event.getDeviceId());
-    ASSERT_EQ(AINPUT_SOURCE_GAMEPAD, event.getSource());
+    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_GAMEPAD), event.getSource());
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, event.getAction());
     ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, event.getFlags());
     ASSERT_EQ(AKEYCODE_BUTTON_X, event.getKeyCode());
@@ -196,7 +196,7 @@ TEST_F(KeyEventTest, Properties) {
 
     // Set source.
     event.setSource(AINPUT_SOURCE_JOYSTICK);
-    ASSERT_EQ(AINPUT_SOURCE_JOYSTICK, event.getSource());
+    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_JOYSTICK), event.getSource());
 }
 
 
@@ -300,7 +300,7 @@ void MotionEventTest::assertEqualsEventWithHistory(const MotionEvent* event) {
     // Check properties.
     ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType());
     ASSERT_EQ(2, event->getDeviceId());
-    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, event->getSource());
+    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_TOUCHSCREEN), event->getSource());
     ASSERT_EQ(AMOTION_EVENT_ACTION_MOVE, event->getAction());
     ASSERT_EQ(AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED, event->getFlags());
     ASSERT_EQ(AMOTION_EVENT_EDGE_FLAG_TOP, event->getEdgeFlags());
@@ -432,7 +432,7 @@ TEST_F(MotionEventTest, Properties) {
 
     // Set source.
     event.setSource(AINPUT_SOURCE_JOYSTICK);
-    ASSERT_EQ(AINPUT_SOURCE_JOYSTICK, event.getSource());
+    ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_JOYSTICK), event.getSource());
 
     // Set action.
     event.setAction(AMOTION_EVENT_ACTION_CANCEL);
