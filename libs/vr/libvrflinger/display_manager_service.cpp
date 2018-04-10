@@ -45,6 +45,14 @@ std::shared_ptr<pdx::Channel> DisplayManagerService::OnChannelOpen(
   const int user_id = message.GetEffectiveUserId();
   const bool trusted = user_id == AID_ROOT || IsTrustedUid(user_id);
 
+  // Check if the display_manager_ has a defunct channel.
+  if (display_manager_ && !HasChannelId(display_manager_->channel_id())) {
+    ALOGE("DisplayManagerService::OnChannelOpen: Found defunct channel %d with "
+          "no OnChannelClose, clearing prior display manager.",
+          display_manager_->channel_id());
+    display_manager_ = nullptr;
+  }
+
   // Prevent more than one display manager from registering at a time or
   // untrusted UIDs from connecting.
   if (display_manager_ || !trusted) {
