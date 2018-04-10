@@ -57,11 +57,12 @@ bool LayerStats::isEnabled() {
 }
 
 void LayerStats::traverseLayerTreeStatsLocked(
-        std::vector<std::unique_ptr<LayerProtoParser::Layer>> layerTree,
-        const LayerProtoParser::LayerGlobal* layerGlobal, std::vector<std::string>& layerShapeVec) {
-    for (std::unique_ptr<LayerProtoParser::Layer>& layer : layerTree) {
+        const std::vector<std::unique_ptr<LayerProtoParser::Layer>>& layerTree,
+        const LayerProtoParser::LayerGlobal& layerGlobal,
+        std::vector<std::string>* const outLayerShapeVec) {
+    for (const auto& layer : layerTree) {
         if (!layer) continue;
-        traverseLayerTreeStatsLocked(std::move(layer->children), layerGlobal, layerShapeVec);
+        traverseLayerTreeStatsLocked(layer->children, layerGlobal, outLayerShapeVec);
         std::string key = "";
         base::StringAppendF(&key, ",%s", layer->type.c_str());
         base::StringAppendF(&key, ",%s", layerCompositionType(layer->hwcCompositionType));
@@ -70,21 +71,21 @@ void LayerStats::traverseLayerTreeStatsLocked(
         base::StringAppendF(&key, ",%s", layerPixelFormat(layer->activeBuffer.format));
         base::StringAppendF(&key, ",%s", layer->dataspace.c_str());
         base::StringAppendF(&key, ",%s",
-                            destinationLocation(layer->hwcFrame.left, layerGlobal->resolution[0],
+                            destinationLocation(layer->hwcFrame.left, layerGlobal.resolution[0],
                                                 true));
         base::StringAppendF(&key, ",%s",
-                            destinationLocation(layer->hwcFrame.top, layerGlobal->resolution[1],
+                            destinationLocation(layer->hwcFrame.top, layerGlobal.resolution[1],
                                                 false));
         base::StringAppendF(&key, ",%s",
                             destinationSize(layer->hwcFrame.right - layer->hwcFrame.left,
-                                            layerGlobal->resolution[0], true));
+                                            layerGlobal.resolution[0], true));
         base::StringAppendF(&key, ",%s",
                             destinationSize(layer->hwcFrame.bottom - layer->hwcFrame.top,
-                                            layerGlobal->resolution[1], false));
+                                            layerGlobal.resolution[1], false));
         base::StringAppendF(&key, ",%s", scaleRatioWH(layer.get()).c_str());
         base::StringAppendF(&key, ",%s", alpha(static_cast<float>(layer->color.a)));
 
-        layerShapeVec.push_back(key);
+        outLayerShapeVec->push_back(key);
         ALOGV("%s", key.c_str());
     }
 }
@@ -97,7 +98,7 @@ void LayerStats::logLayerStats(const LayersProto& layersProto) {
     std::vector<std::string> layerShapeVec;
 
     std::lock_guard<std::mutex> lock(mMutex);
-    traverseLayerTreeStatsLocked(std::move(layerTree), &layerGlobal, layerShapeVec);
+    traverseLayerTreeStatsLocked(layerTree, layerGlobal, &layerShapeVec);
 
     std::string layerShapeKey =
             base::StringPrintf("%d,%s,%s,%s", static_cast<int32_t>(layerShapeVec.size()),
