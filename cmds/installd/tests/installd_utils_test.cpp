@@ -33,7 +33,7 @@
 #define TEST_APP_PRIVATE_DIR "/data/app-private/"
 #define TEST_APP_EPHEMERAL_DIR "/data/app-ephemeral/"
 #define TEST_ASEC_DIR "/mnt/asec/"
-#define TEST_EXPAND_DIR "/mnt/expand/"
+#define TEST_EXPAND_DIR "/mnt/expand/00000000-0000-0000-0000-000000000000/"
 
 #define TEST_SYSTEM_DIR1 "/system/app/"
 #define TEST_SYSTEM_DIR2 "/vendor/app/"
@@ -114,6 +114,41 @@ TEST_F(UtilsTest, IsValidApkPath_Internal) {
     const char *bad_path5 = TEST_APP_DIR "example.com1/../example.com2/pkg.apk";
     EXPECT_EQ(-1, validate_apk_path(bad_path5))
             << bad_path5 << " should be rejected as a invalid path";
+}
+
+TEST_F(UtilsTest, IsValidApkPath_TopDir) {
+    EXPECT_EQ(0, validate_apk_path(TEST_DATA_DIR "app/com.example"));
+    EXPECT_EQ(0, validate_apk_path(TEST_EXPAND_DIR "app/com.example"));
+    EXPECT_EQ(-1, validate_apk_path(TEST_DATA_DIR "data/com.example"));
+    EXPECT_EQ(-1, validate_apk_path(TEST_EXPAND_DIR "data/com.example"));
+}
+
+TEST_F(UtilsTest, IsValidApkPath_TopFile) {
+    EXPECT_EQ(0, validate_apk_path(TEST_DATA_DIR "app/com.example/base.apk"));
+    EXPECT_EQ(0, validate_apk_path(TEST_EXPAND_DIR "app/com.example/base.apk"));
+    EXPECT_EQ(-1, validate_apk_path(TEST_DATA_DIR "data/com.example/base.apk"));
+    EXPECT_EQ(-1, validate_apk_path(TEST_EXPAND_DIR "data/com.example/base.apk"));
+}
+
+TEST_F(UtilsTest, IsValidApkPath_OatDir) {
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/com.example/oat"));
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_EXPAND_DIR "app/com.example/oat"));
+    EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_DATA_DIR "data/com.example/oat"));
+    EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_EXPAND_DIR "data/com.example/oat"));
+}
+
+TEST_F(UtilsTest, IsValidApkPath_OatDirDir) {
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/com.example/oat/arm64"));
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_EXPAND_DIR "app/com.example/oat/arm64"));
+    EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_DATA_DIR "data/com.example/oat/arm64"));
+    EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_EXPAND_DIR "data/com.example/oat/arm64"));
+}
+
+TEST_F(UtilsTest, IsValidApkPath_OatDirDirFile) {
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_DATA_DIR "app/com.example/oat/arm64/base.odex"));
+    EXPECT_EQ(0, validate_apk_path_subdirs(TEST_EXPAND_DIR "app/com.example/oat/arm64/base.odex"));
+    EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_DATA_DIR "data/com.example/oat/arm64/base.odex"));
+    EXPECT_EQ(-1, validate_apk_path_subdirs(TEST_EXPAND_DIR "data/com.example/oat/arm64/base.odex"));
 }
 
 TEST_F(UtilsTest, IsValidApkPath_Private) {
