@@ -838,6 +838,11 @@ Region::const_iterator Region::begin() const {
 }
 
 Region::const_iterator Region::end() const {
+    // Workaround for b/77643177
+    // mStorage should never be empty, but somehow it is and it's causing
+    // an abort in ubsan
+    if (mStorage.isEmpty()) return mStorage.array();
+
     size_t numRects = isRect() ? 1 : mStorage.size() - 1;
     return mStorage.array() + numRects;
 }
