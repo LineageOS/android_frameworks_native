@@ -68,8 +68,7 @@ void ColorLayer::drawNow(const RenderArea& renderArea, bool useIdentityTransform
 }
 
 bool ColorLayer::isVisible() const {
-    const Layer::State& s(getDrawingState());
-    return !isHiddenByPolicy() && s.color.a;
+    return !isHiddenByPolicy() && getAlpha() > 0.0f;
 }
 
 void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
