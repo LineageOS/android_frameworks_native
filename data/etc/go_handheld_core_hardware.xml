@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Copyright (C) 2009 The Android Open Source Project
+<!-- Copyright (C) 2018 The Android Open Source Project
 
      Licensed under the Apache License, Version 2.0 (the "License");
      you may not use this file except in compliance with the License.
@@ -14,13 +14,9 @@
      limitations under the License.
 -->
 
-<!-- These are the hardware components that all handheld devices except Android Go
-     must include, for Android Go devices include go_handheld_core_hardware.xml.
-     Devices with optional hardware must also include extra hardware files, per the comments below.
-
-     Handheld devices include phones, mobile Internet devices (MIDs),
-     Personal Media Players (PMPs), small tablets (7" or less), and similar
-     devices.
+<!-- These are the hardware components that all Android Go handheld devices
+     must include. Devices with optional hardware must also include extra
+     hardware files, per the comments below.
 -->
 <permissions>
     <!-- This is Android and fully CTS compatible.  Basically this is for CTS tests to use. -->
@@ -39,23 +35,16 @@
     <feature name="android.hardware.screen.landscape" />
 
     <!-- basic system services -->
-    <feature name="android.software.app_widgets" />
     <feature name="android.software.connectionservice" />
-    <feature name="android.software.voice_recognizers" notLowRam="true" />
     <feature name="android.software.backup" />
     <feature name="android.software.home_screen" />
     <feature name="android.software.input_methods" />
-    <feature name="android.software.picture_in_picture" notLowRam="true" />
-    <feature name="android.software.activities_on_secondary_displays" notLowRam="true" />
     <feature name="android.software.print" />
     <feature name="android.software.companion_device_setup" />
     <feature name="android.software.autofill" />
 
     <!-- Feature to specify if the device supports adding device admins. -->
     <feature name="android.software.device_admin" />
-
-    <!-- Feature to specify if the device support managed users. -->
-    <feature name="android.software.managed_users" notLowRam="true"/>
 
     <!-- Devices with all optimizations required to support VR Mode and
          pass all CDD requirements for this feature may include
