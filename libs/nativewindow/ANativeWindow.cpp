@@ -113,7 +113,10 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
     constexpr int32_t kAllTransformBits =
             ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL |
             ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL |
-            ANATIVEWINDOW_TRANSFORM_ROTATE_90;
+            ANATIVEWINDOW_TRANSFORM_ROTATE_90 |
+            // We don't expose INVERSE_DISPLAY as an NDK constant, but someone could have read it
+            // from a buffer already set by Camera framework, so we allow it to be forwarded.
+            NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
     if (!window || !query(window, NATIVE_WINDOW_IS_VALID))
         return -EINVAL;
     if ((transform & ~kAllTransformBits) != 0)
