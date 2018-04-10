@@ -855,21 +855,25 @@ bool validate_secondary_dex_path(const std::string& pkgname, const std::string& 
  * that path. Returns -1 when an invalid path is encountered and 0 when a valid path
  * is encountered.
  */
-static int validate_apk_path_internal(const char *path, int maxSubdirs) {
-    std::string path_ = path;
-    if (validate_path(android_app_dir, path_, maxSubdirs) == 0) {
+static int validate_apk_path_internal(const std::string& path, int maxSubdirs) {
+    if (validate_path(android_app_dir, path, maxSubdirs) == 0) {
         return 0;
-    } else if (validate_path(android_app_private_dir, path_, maxSubdirs) == 0) {
+    } else if (validate_path(android_app_private_dir, path, maxSubdirs) == 0) {
         return 0;
-    } else if (validate_path(android_app_ephemeral_dir, path_, maxSubdirs) == 0) {
+    } else if (validate_path(android_app_ephemeral_dir, path, maxSubdirs) == 0) {
         return 0;
-    } else if (validate_path(android_asec_dir, path_, maxSubdirs) == 0) {
+    } else if (validate_path(android_asec_dir, path, maxSubdirs) == 0) {
         return 0;
-    } else if (validate_path(android_mnt_expand_dir, path_, std::max(maxSubdirs, 2)) == 0) {
-        return 0;
-    } else {
-        return -1;
+    } else if (android::base::StartsWith(path, android_mnt_expand_dir)) {
+        // Rewrite the path as if it were on internal storage, and test that
+        size_t end = path.find('/', android_mnt_expand_dir.size() + 1);
+        if (end != std::string::npos) {
+            auto modified = path;
+            modified.replace(0, end + 1, android_data_dir);
+            return validate_apk_path_internal(modified, maxSubdirs);
+        }
     }
+    return -1;
 }
 
 int validate_apk_path(const char* path) {
