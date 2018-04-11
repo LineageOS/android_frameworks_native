@@ -77,6 +77,7 @@ void add_mountinfo();
 #define RAFT_DIR "/data/misc/raft"
 #define RECOVERY_DIR "/cache/recovery"
 #define RECOVERY_DATA_DIR "/data/misc/recovery"
+#define UPDATE_ENGINE_LOG_DIR "/data/misc/update_engine_log"
 #define LOGPERSIST_DATA_DIR "/data/misc/logd"
 #define PROFILE_DATA_DIR_CUR "/data/misc/profiles/cur"
 #define PROFILE_DATA_DIR_REF "/data/misc/profiles/ref"
@@ -1753,6 +1754,7 @@ int main(int argc, char *argv[]) {
 
         ds.AddDir(RECOVERY_DIR, true);
         ds.AddDir(RECOVERY_DATA_DIR, true);
+        ds.AddDir(UPDATE_ENGINE_LOG_DIR, true);
         ds.AddDir(LOGPERSIST_DATA_DIR, false);
         if (!PropertiesHelper::IsUserBuild()) {
             ds.AddDir(PROFILE_DATA_DIR_CUR, true);
