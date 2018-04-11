@@ -55,6 +55,7 @@ namespace android {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using android::ui::ColorMode;
+using android::ui::RenderIntent;
 
 /*
  * Initialize the display to the specified values.
@@ -75,8 +76,8 @@ DisplayDevice::DisplayDevice(
         std::unique_ptr<RE::Surface> renderSurface,
         int displayWidth,
         int displayHeight,
-        bool supportWideColor,
-        bool supportHdr,
+        bool hasWideColorGamut,
+        bool hasHdr10,
         int initialPowerMode)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
@@ -98,8 +99,8 @@ DisplayDevice::DisplayDevice(
       mActiveConfig(0),
       mActiveColorMode(ColorMode::NATIVE),
       mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
-      mDisplayHasWideColor(supportWideColor),
-      mDisplayHasHdr(supportHdr)
+      mHasWideColorGamut(hasWideColorGamut),
+      mHasHdr10(hasHdr10)
 {
     // clang-format on
 
@@ -268,6 +269,14 @@ ColorMode DisplayDevice::getActiveColorMode() const {
     return mActiveColorMode;
 }
 
+RenderIntent DisplayDevice::getActiveRenderIntent() const {
+    return mActiveRenderIntent;
+}
+
+void DisplayDevice::setActiveRenderIntent(RenderIntent renderIntent) {
+    mActiveRenderIntent = renderIntent;
+}
+
 void DisplayDevice::setColorTransform(const mat4& transform) {
     const bool isIdentity = (transform == mat4());
     mColorTransform =
@@ -279,8 +288,13 @@ android_color_transform_t DisplayDevice::getColorTransform() const {
 }
 
 void DisplayDevice::setCompositionDataSpace(ui::Dataspace dataspace) {
+    mCompositionDataSpace = dataspace;
     ANativeWindow* const window = mNativeWindow.get();
     native_window_set_buffers_data_space(window, static_cast<android_dataspace>(dataspace));
+}
+
+ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
+    return mCompositionDataSpace;
 }
 
 // ----------------------------------------------------------------------------
@@ -464,8 +478,8 @@ void DisplayDevice::dump(String8& result) const {
                         tr[0][1], tr[1][1], tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
     auto const surface = static_cast<Surface*>(window);
     ui::Dataspace dataspace = surface->getBuffersDataSpace();
-    result.appendFormat("   wideColor=%d, hdr=%d, colorMode=%s, dataspace: %s (%d)\n",
-                        mDisplayHasWideColor, mDisplayHasHdr,
+    result.appendFormat("   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
+                        mHasWideColorGamut, mHasHdr10,
                         decodeColorMode(mActiveColorMode).c_str(),
                         dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
 
