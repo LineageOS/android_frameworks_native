@@ -845,10 +845,10 @@ TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
   ASSERT_NE(nullptr, write_queue.get());
 
   DvrWriteBuffer* buffer = nullptr;
-  dvrWriteBufferCreateEmpty(&buffer);
+  DvrNativeBufferMetadata metadata;
   int fence_fd = -1;
-  int error =
-      dvrWriteBufferQueueDequeue(write_queue.get(), 1000, buffer, &fence_fd);
+  int error = dvrWriteBufferQueueGainBuffer(write_queue.get(), /*timeout=*/1000,
+                                            &buffer, &metadata, &fence_fd);
   ASSERT_EQ(0, error);
 
   AHardwareBuffer* hardware_buffer = nullptr;
