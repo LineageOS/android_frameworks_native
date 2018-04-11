@@ -1020,18 +1020,8 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
     int32_t type = hw->getDisplayType();
     ColorMode currentMode = hw->getActiveColorMode();
     Dataspace currentDataSpace = hw->getCompositionDataSpace();
+    RenderIntent currentRenderIntent = hw->getActiveRenderIntent();
 
-    if (mode == currentMode && dataSpace == currentDataSpace) {
-        return;
-    }
-
-    if (type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
-        ALOGW("Trying to set config for virtual display");
-        return;
-    }
-
-    hw->setActiveColorMode(mode);
-    hw->setCompositionDataSpace(dataSpace);
     // Natural Mode means it's color managed and the color must be right,
     // thus we pick RenderIntent::COLORIMETRIC as render intent.
     // Native Mode means the display is not color managed, and whichever
@@ -1046,6 +1036,19 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
         hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY) {
         renderIntent = RenderIntent::ENHANCE;
     }
+
+    if (mode == currentMode && dataSpace == currentDataSpace &&
+        renderIntent == currentRenderIntent) {
+        return;
+    }
+
+    if (type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
+        ALOGW("Trying to set config for virtual display");
+        return;
+    }
+
+    hw->setActiveColorMode(mode);
+    hw->setCompositionDataSpace(dataSpace);
     hw->setActiveRenderIntent(renderIntent);
     getHwComposer().setActiveColorMode(type, mode, renderIntent);
 
