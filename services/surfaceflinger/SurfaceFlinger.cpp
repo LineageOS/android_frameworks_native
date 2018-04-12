@@ -2121,7 +2121,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // with mStateLock held to guarantee that mCurrentState won't change
     // until the transaction is committed.
 
-    mVsyncModulator.setTransactionStart(VSyncModulator::TransactionStart::NORMAL);
+    mVsyncModulator.onTransactionHandled();
     transactionFlags = getTransactionFlags(eTransactionMask);
     handleTransactionLocked(transactionFlags);
 
