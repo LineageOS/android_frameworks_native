@@ -2,6 +2,15 @@
 
 namespace android {
 
+float RenderArea::getCaptureFillValue(CaptureFill captureFill) {
+    switch(captureFill) {
+        case CaptureFill::CLEAR:
+            return 0.0f;
+        case CaptureFill::OPAQUE:
+        default:
+            return 1.0f;
+    }
+}
 /*
  * Checks that the requested width and height are valid and updates them to the render area
  * dimensions if they are set to 0
