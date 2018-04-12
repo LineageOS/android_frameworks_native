@@ -213,7 +213,7 @@ class VrHwc : public IComposer, public ComposerHal, public ComposerView {
 
   std::string dumpDebugInfo() override { return {}; }
   void registerEventCallback(EventCallback* callback) override;
-  void unregisterEventCallback() override {}
+  void unregisterEventCallback() override;
 
   uint32_t getMaxVirtualDisplayCount() override;
   Error createVirtualDisplay(uint32_t width, uint32_t height,
