@@ -73,8 +73,4 @@ void Description::setOutputTransferFunction(TransferFunction transferFunction) {
     mOutputTransferFunction = transferFunction;
 }
 
-void Description::enableToneMapping(bool enable) {
-    mToneMappingEnabled = enable;
-}
-
 } /* namespace android */
