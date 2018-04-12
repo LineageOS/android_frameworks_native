@@ -314,8 +314,6 @@ public:
 
     // force full composition on all displays
     void repaintEverything();
-    // Can only be called from the main thread or with mStateLock held
-    void repaintEverythingLocked();
 
     // returns the default Display
     sp<const DisplayDevice> getDefaultDisplayDevice() const {

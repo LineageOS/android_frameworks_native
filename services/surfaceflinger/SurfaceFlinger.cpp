@@ -1387,7 +1387,7 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId,
     if (sequenceId != getBE().mComposerSequenceId) {
         return;
     }
-    repaintEverythingLocked();
+    repaintEverything();
 }
 
 void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
@@ -1949,7 +1949,7 @@ void SurfaceFlinger::setUpHWComposer() {
     ALOGV("setUpHWComposer");
 
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
-        bool dirty = !mDisplays[dpy]->getDirtyRegion(false).isEmpty();
+        bool dirty = !mDisplays[dpy]->getDirtyRegion(mRepaintEverything).isEmpty();
         bool empty = mDisplays[dpy]->getVisibleLayersSortedByZ().size() == 0;
         bool wasEmpty = !mDisplays[dpy]->lastCompositionHadVisibleLayers;
 
@@ -3716,7 +3716,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
-        repaintEverythingLocked();
+        repaintEverything();
 
         struct sched_param param = {0};
         param.sched_priority = 1;
@@ -4637,20 +4637,9 @@ status_t SurfaceFlinger::onTransact(
     return err;
 }
 
-void SurfaceFlinger::repaintEverythingLocked() {
-    android_atomic_or(1, &mRepaintEverything);
-    for (size_t dpy = 0; dpy < mDisplays.size(); dpy++) {
-        const sp<DisplayDevice>& displayDevice(mDisplays[dpy]);
-        const Rect bounds(displayDevice->getBounds());
-        displayDevice->dirtyRegion.orSelf(Region(bounds));
-    }
-    signalTransaction();
-}
-
 void SurfaceFlinger::repaintEverything() {
-    ConditionalLock _l(mStateLock,
-            std::this_thread::get_id() != mMainThreadId);
-    repaintEverythingLocked();
+    android_atomic_or(1, &mRepaintEverything);
+    signalTransaction();
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope
