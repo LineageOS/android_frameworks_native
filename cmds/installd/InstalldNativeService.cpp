@@ -356,8 +356,8 @@ static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t ui
  * Ensure that we have a hard-limit quota to protect against abusive apps;
  * they should never use more than 90% of blocks or 50% of inodes.
  */
-static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std::string& device,
-        uid_t uid) {
+static int prepare_app_quota(const std::unique_ptr<std::string>& uuid ATTRIBUTE_UNUSED,
+        const std::string& device, uid_t uid) {
     // Skip when reserved blocks are protecting us against abusive apps
     if (android::base::GetBoolProperty(kPropHasReserved, false)) return 0;
     // Skip when device no quotas present
