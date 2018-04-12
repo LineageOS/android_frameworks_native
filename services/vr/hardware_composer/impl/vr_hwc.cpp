@@ -251,20 +251,22 @@ VrHwc::~VrHwc() {}
 bool VrHwc::hasCapability(hwc2_capability_t /* capability */) { return false; }
 
 void VrHwc::registerEventCallback(EventCallback* callback) {
-  event_callback_ = callback;
-
-  if (client_ != nullptr) {
-    {
-      int32_t width, height;
-      GetPrimaryDisplaySize(&width, &height);
-      std::lock_guard<std::mutex> guard(mutex_);
-      // Create the primary display late to avoid initialization issues between
-      // VR HWC and SurfaceFlinger.
-      displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
-    }
-    event_callback_->onHotplug(kDefaultDisplayId,
-                               IComposerCallback::Connection::CONNECTED);
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    event_callback_ = callback;
+    int32_t width, height;
+    GetPrimaryDisplaySize(&width, &height);
+    // Create the primary display late to avoid initialization issues between
+    // VR HWC and SurfaceFlinger.
+    displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
   }
+  event_callback_->onHotplug(kDefaultDisplayId,
+                             IComposerCallback::Connection::CONNECTED);
+}
+
+void VrHwc::unregisterEventCallback() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  event_callback_ = nullptr;
 }
 
 uint32_t VrHwc::getMaxVirtualDisplayCount() { return 1; }
