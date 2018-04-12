@@ -3612,17 +3612,6 @@ GL_APICALL void GL_APIENTRY glEndTilingQCOM (GLbitfield preserveMask);
 #define GL_SHADER_BINARY_VIV              0x8FC4
 #endif /* GL_VIV_shader_binary */
 
-/* Temporary hack to allow frameworks/base/libs/hwui/debug to build.
- * This function was removed from the Khronos version of the headers
- * (it is specified with the EXT prefix, not OES). */
-#ifndef GL_ANDROID_draw_elements_base_vertex_backwards_compatibility
-#define GL_ANDROID_draw_elements_base_vertex_backwards_compatibility 1
-typedef void (GL_APIENTRYP PFNGLMULTIDRAWELEMENTSBASEVERTEXOESPROC) (GLenum mode, const GLsizei *count, GLenum type, const void *const*indices, GLsizei primcount, const GLint *basevertex);
-#ifdef GL_GLEXT_PROTOTYPES
-GL_APICALL void GL_APIENTRY glMultiDrawElementsBaseVertexOES (GLenum mode, const GLsizei *count, GLenum type, const void *const*indices, GLsizei primcount, const GLint *basevertex);
-#endif
-#endif /* GL_ANDROID_draw_elements_base_vertex_backwards_compatibility */
-
 #ifdef __cplusplus
 }
 #endif
