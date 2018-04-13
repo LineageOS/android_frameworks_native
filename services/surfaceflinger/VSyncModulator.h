@@ -55,8 +55,17 @@ public:
     }
 
     void setTransactionStart(TransactionStart transactionStart) {
-        if (transactionStart == mTransactionStart) return;
+        // An early transaction stays an early transaction.
+        if (transactionStart == mTransactionStart || mTransactionStart == TransactionStart::EARLY) {
+            return;
+        }
         mTransactionStart = transactionStart;
+        updatePhaseOffsets();
+    }
+
+    void onTransactionHandled() {
+        if (mTransactionStart == TransactionStart::NORMAL) return;
+        mTransactionStart = TransactionStart::NORMAL;
         updatePhaseOffsets();
     }
 
