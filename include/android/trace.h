@@ -15,6 +15,11 @@
  */
 
 /**
+ * @addtogroup Tracing
+ * @{
+ */
+
+/**
  * @file trace.h
  * @brief Writes trace events to the system trace buffer.
  *
@@ -65,3 +70,5 @@ void ATrace_endSection();
 #endif
 
 #endif // ANDROID_NATIVE_TRACE_H
+
+/** @} */

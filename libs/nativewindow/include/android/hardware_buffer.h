@@ -15,6 +15,11 @@
  */
 
 /**
+ * @addtogroup NativeActivity Native Activity
+ * @{
+ */
+
+/**
  * @file hardware_buffer.h
  */
 
@@ -244,3 +249,5 @@ int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** out
 __END_DECLS
 
 #endif // ANDROID_HARDWARE_BUFFER_H
+
+/** @} */
