@@ -48,7 +48,8 @@ void dvrWriteBufferDestroy(DvrWriteBuffer* write_buffer) {
     ALOGW_IF(
         write_buffer->slot != -1,
         "dvrWriteBufferDestroy: Destroying a buffer associated with a valid "
-        "buffer queue slot. This may indicate possible leaks.");
+        "buffer queue slot. This may indicate possible leaks, buffer_id=%d.",
+        dvrWriteBufferGetId(write_buffer));
     delete write_buffer;
   }
 }
@@ -118,7 +119,8 @@ void dvrReadBufferDestroy(DvrReadBuffer* read_buffer) {
     ALOGW_IF(
         read_buffer->slot != -1,
         "dvrReadBufferDestroy: Destroying a buffer associated with a valid "
-        "buffer queue slot. This may indicate possible leaks.");
+        "buffer queue slot. This may indicate possible leaks, buffer_id=%d.",
+        dvrReadBufferGetId(read_buffer));
     delete read_buffer;
   }
 }
