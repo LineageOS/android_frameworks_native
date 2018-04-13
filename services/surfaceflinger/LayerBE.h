@@ -19,9 +19,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <gui/HdrMetadata.h>
 #include <ui/Region.h>
-
-#include "SurfaceFlinger.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
@@ -40,6 +39,7 @@ struct CompositionInfo {
     LayerBE* layer = nullptr;
     struct {
         HWC2::Layer* hwcLayer;
+        bool skipGeometry = true;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;
@@ -54,6 +54,8 @@ struct CompositionInfo {
         sp<NativeHandle> sidebandStream;
         ui::Dataspace dataspace;
         hwc_color_t color;
+        bool supportedPerFrameMetadata = false;
+        HdrMetadata hdrMetadata;
     } hwc;
     struct {
         Mesh* mesh;
