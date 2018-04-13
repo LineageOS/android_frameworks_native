@@ -2424,6 +2424,43 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
     }
 }
 
+/**
+ * If one of the meta shortcuts is detected, process them here:
+ *     Meta + Backspace -> generate BACK
+ *     Meta + Enter -> generate HOME
+ * This will potentially overwrite keyCode and metaState.
+ */
+void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int32_t action,
+        int32_t& keyCode, int32_t& metaState) {
+    if (metaState & AMETA_META_ON && action == AKEY_EVENT_ACTION_DOWN) {
+        int32_t newKeyCode = AKEYCODE_UNKNOWN;
+        if (keyCode == AKEYCODE_DEL) {
+            newKeyCode = AKEYCODE_BACK;
+        } else if (keyCode == AKEYCODE_ENTER) {
+            newKeyCode = AKEYCODE_HOME;
+        }
+        if (newKeyCode != AKEYCODE_UNKNOWN) {
+            AutoMutex _l(mLock);
+            struct KeyReplacement replacement = {keyCode, deviceId};
+            mReplacedKeys.add(replacement, newKeyCode);
+            keyCode = newKeyCode;
+            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
+        }
+    } else if (action == AKEY_EVENT_ACTION_UP) {
+        // In order to maintain a consistent stream of up and down events, check to see if the key
+        // going up is one we've replaced in a down event and haven't yet replaced in an up event,
+        // even if the modifier was released between the down and the up events.
+        AutoMutex _l(mLock);
+        struct KeyReplacement replacement = {keyCode, deviceId};
+        ssize_t index = mReplacedKeys.indexOfKey(replacement);
+        if (index >= 0) {
+            keyCode = mReplacedKeys.valueAt(index);
+            mReplacedKeys.removeItemsAt(index);
+            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
+        }
+    }
+}
+
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("notifyKey - eventTime=%" PRId64
@@ -2451,33 +2488,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     int32_t keyCode = args->keyCode;
-    if (metaState & AMETA_META_ON && args->action == AKEY_EVENT_ACTION_DOWN) {
-        int32_t newKeyCode = AKEYCODE_UNKNOWN;
-        if (keyCode == AKEYCODE_DEL) {
-            newKeyCode = AKEYCODE_BACK;
-        } else if (keyCode == AKEYCODE_ENTER) {
-            newKeyCode = AKEYCODE_HOME;
-        }
-        if (newKeyCode != AKEYCODE_UNKNOWN) {
-            AutoMutex _l(mLock);
-            struct KeyReplacement replacement = {keyCode, args->deviceId};
-            mReplacedKeys.add(replacement, newKeyCode);
-            keyCode = newKeyCode;
-            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
-        }
-    } else if (args->action == AKEY_EVENT_ACTION_UP) {
-        // In order to maintain a consistent stream of up and down events, check to see if the key
-        // going up is one we've replaced in a down event and haven't yet replaced in an up event,
-        // even if the modifier was released between the down and the up events.
-        AutoMutex _l(mLock);
-        struct KeyReplacement replacement = {keyCode, args->deviceId};
-        ssize_t index = mReplacedKeys.indexOfKey(replacement);
-        if (index >= 0) {
-            keyCode = mReplacedKeys.valueAt(index);
-            mReplacedKeys.removeItemsAt(index);
-            metaState &= ~(AMETA_META_ON | AMETA_META_LEFT_ON | AMETA_META_RIGHT_ON);
-        }
-    }
+    accelerateMetaShortcuts(args->deviceId, args->action, keyCode, metaState);
 
     KeyEvent event;
     event.initialize(args->deviceId, args->source, args->action,
@@ -2664,20 +2675,29 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
     EventEntry* lastInjectedEntry;
     switch (event->getType()) {
     case AINPUT_EVENT_TYPE_KEY: {
-        const KeyEvent* keyEvent = static_cast<const KeyEvent*>(event);
-        int32_t action = keyEvent->getAction();
+        KeyEvent keyEvent;
+        keyEvent.initialize(*static_cast<const KeyEvent*>(event));
+        int32_t action = keyEvent.getAction();
         if (! validateKeyEvent(action)) {
             return INPUT_EVENT_INJECTION_FAILED;
         }
 
-        int32_t flags = keyEvent->getFlags();
+        int32_t flags = keyEvent.getFlags();
+        int32_t keyCode = keyEvent.getKeyCode();
+        int32_t metaState = keyEvent.getMetaState();
+        accelerateMetaShortcuts(keyEvent.getDeviceId(), action,
+                /*byref*/ keyCode, /*byref*/ metaState);
+        keyEvent.initialize(keyEvent.getDeviceId(), keyEvent.getSource(), action,
+            flags, keyCode, keyEvent.getScanCode(), metaState, 0,
+            keyEvent.getDownTime(), keyEvent.getEventTime());
+
         if (flags & AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY) {
             policyFlags |= POLICY_FLAG_VIRTUAL;
         }
 
         if (!(policyFlags & POLICY_FLAG_FILTERED)) {
             android::base::Timer t;
-            mPolicy->interceptKeyBeforeQueueing(keyEvent, /*byref*/ policyFlags);
+            mPolicy->interceptKeyBeforeQueueing(&keyEvent, /*byref*/ policyFlags);
             if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
                 ALOGW("Excessive delay in interceptKeyBeforeQueueing; took %s ms",
                         std::to_string(t.duration().count()).c_str());
@@ -2685,11 +2705,11 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         }
 
         mLock.lock();
-        firstInjectedEntry = new KeyEntry(keyEvent->getEventTime(),
-                keyEvent->getDeviceId(), keyEvent->getSource(),
+        firstInjectedEntry = new KeyEntry(keyEvent.getEventTime(),
+                keyEvent.getDeviceId(), keyEvent.getSource(),
                 policyFlags, action, flags,
-                keyEvent->getKeyCode(), keyEvent->getScanCode(), keyEvent->getMetaState(),
-                keyEvent->getRepeatCount(), keyEvent->getDownTime());
+                keyEvent.getKeyCode(), keyEvent.getScanCode(), keyEvent.getMetaState(),
+                keyEvent.getRepeatCount(), keyEvent.getDownTime());
         lastInjectedEntry = firstInjectedEntry;
         break;
     }
