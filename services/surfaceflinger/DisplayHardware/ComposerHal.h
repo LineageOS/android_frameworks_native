@@ -37,32 +37,32 @@ namespace android {
 
 namespace Hwc2 {
 
-using android::frameworks::vr::composer::V1_0::IVrComposerClient;
+using frameworks::vr::composer::V1_0::IVrComposerClient;
 
-using android::hardware::graphics::common::V1_0::ColorTransform;
-using android::hardware::graphics::common::V1_0::Hdr;
-using android::hardware::graphics::common::V1_0::Transform;
-using android::hardware::graphics::common::V1_1::ColorMode;
-using android::hardware::graphics::common::V1_1::Dataspace;
-using android::hardware::graphics::common::V1_1::PixelFormat;
-using android::hardware::graphics::common::V1_1::RenderIntent;
+namespace types = hardware::graphics::common;
 
-using android::hardware::graphics::composer::V2_1::Config;
-using android::hardware::graphics::composer::V2_1::Display;
-using android::hardware::graphics::composer::V2_1::Error;
-using android::hardware::graphics::composer::V2_1::IComposer;
-using android::hardware::graphics::composer::V2_1::IComposerCallback;
-using android::hardware::graphics::composer::V2_1::Layer;
-using android::hardware::graphics::composer::V2_2::IComposerClient;
+namespace V2_1 = hardware::graphics::composer::V2_1;
+namespace V2_2 = hardware::graphics::composer::V2_2;
 
-using android::hardware::graphics::composer::V2_2::CommandReaderBase;
-using android::hardware::graphics::composer::V2_2::CommandWriterBase;
+using types::V1_0::ColorTransform;
+using types::V1_0::Hdr;
+using types::V1_0::Transform;
 
-using android::hardware::kSynchronizedReadWrite;
-using android::hardware::MessageQueue;
-using android::hardware::MQDescriptorSync;
-using android::hardware::hidl_vec;
-using android::hardware::hidl_handle;
+using types::V1_1::ColorMode;
+using types::V1_1::Dataspace;
+using types::V1_1::PixelFormat;
+using types::V1_1::RenderIntent;
+
+using V2_1::Config;
+using V2_1::Display;
+using V2_1::Error;
+using V2_1::IComposerCallback;
+using V2_1::Layer;
+
+using V2_2::CommandReaderBase;
+using V2_2::CommandWriterBase;
+using V2_2::IComposer;
+using V2_2::IComposerClient;
 
 class Composer {
 public:
@@ -396,8 +396,9 @@ private:
     // this function to execute the command queue.
     Error execute();
 
-    sp<IComposer> mComposer;
-    sp<hardware::graphics::composer::V2_1::IComposerClient> mClient;
+    sp<V2_1::IComposer> mComposer;
+
+    sp<V2_1::IComposerClient> mClient;
     sp<IComposerClient> mClient_2_2;
 
     // 64KiB minus a small space for metadata such as read/write pointers

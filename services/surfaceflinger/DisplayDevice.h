@@ -84,8 +84,8 @@ public:
             std::unique_ptr<RE::Surface> renderSurface,
             int displayWidth,
             int displayHeight,
-            bool supportWideColor,
-            bool supportHdr,
+            bool hasWideColorGamut,
+            bool hasHdr10,
             int initialPowerMode);
     // clang-format on
 
@@ -135,8 +135,8 @@ public:
     // machine happy without actually queueing a buffer if nothing has changed
     status_t beginFrame(bool mustRecompose) const;
     status_t prepareFrame(HWComposer& hwc);
-    bool getWideColorSupport() const { return mDisplayHasWideColor; }
-    bool getHdrSupport() const { return mDisplayHasHdr; }
+    bool hasWideColorGamut() const { return mHasWideColorGamut; }
+    bool hasHdr10() const { return mHasHdr10; }
 
     void swapBuffers(HWComposer& hwc) const;
 
@@ -165,9 +165,12 @@ public:
 
     ui::ColorMode getActiveColorMode() const;
     void setActiveColorMode(ui::ColorMode mode);
+    ui::RenderIntent getActiveRenderIntent() const;
+    void setActiveRenderIntent(ui::RenderIntent renderIntent);
     android_color_transform_t getColorTransform() const;
     void setColorTransform(const mat4& transform);
     void setCompositionDataSpace(ui::Dataspace dataspace);
+    ui::Dataspace getCompositionDataSpace() const;
 
     /* ------------------------------------------------------------------------
      * Display active config management.
@@ -241,14 +244,17 @@ private:
     int mActiveConfig;
     // current active color mode
     ui::ColorMode mActiveColorMode;
+    // Current active render intent.
+    ui::RenderIntent mActiveRenderIntent;
+    ui::Dataspace mCompositionDataSpace;
     // Current color transform
     android_color_transform_t mColorTransform;
 
     // Need to know if display is wide-color capable or not.
     // Initialized by SurfaceFlinger when the DisplayDevice is created.
     // Fed to RenderEngine during composition.
-    bool mDisplayHasWideColor;
-    bool mDisplayHasHdr;
+    bool mHasWideColorGamut;
+    bool mHasHdr10;
 };
 
 struct DisplayDeviceState {
@@ -281,7 +287,8 @@ public:
                               rotation) {}
     DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqHeight,
                       uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
-          : RenderArea(reqHeight, reqWidth, rotation), mDevice(device), mSourceCrop(sourceCrop) {}
+          : RenderArea(reqHeight, reqWidth, CaptureFill::OPAQUE, rotation), mDevice(device),
+                              mSourceCrop(sourceCrop) {}
 
     const Transform& getTransform() const override { return mDevice->getTransform(); }
     Rect getBounds() const override { return mDevice->getBounds(); }
@@ -290,9 +297,9 @@ public:
     bool isSecure() const override { return mDevice->isSecure(); }
     bool needsFiltering() const override { return mDevice->needsFiltering(); }
     Rect getSourceCrop() const override { return mSourceCrop; }
-    bool getWideColorSupport() const override { return mDevice->getWideColorSupport(); }
-    ui::ColorMode getActiveColorMode() const override {
-        return mDevice->getActiveColorMode();
+    bool getWideColorSupport() const override { return mDevice->hasWideColorGamut(); }
+    ui::Dataspace getDataSpace() const override {
+        return mDevice->getCompositionDataSpace();
     }
 
 private:

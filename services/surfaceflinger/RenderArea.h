@@ -9,10 +9,15 @@
 namespace android {
 
 class RenderArea {
+
 public:
-    RenderArea(uint32_t reqHeight, uint32_t reqWidth,
+    enum class CaptureFill {CLEAR, OPAQUE};
+
+    static float getCaptureFillValue(CaptureFill captureFill);
+
+    RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
                ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
-          : mReqHeight(reqHeight), mReqWidth(reqWidth) {
+          : mReqHeight(reqHeight), mReqWidth(reqWidth), mCaptureFill(captureFill) {
         mRotationFlags = Transform::fromRotation(rotation);
     }
 
@@ -25,21 +30,23 @@ public:
     virtual bool isSecure() const = 0;
     virtual bool needsFiltering() const = 0;
     virtual Rect getSourceCrop() const = 0;
+    virtual bool getWideColorSupport() const = 0;
+    virtual ui::Dataspace getDataSpace() const = 0;
 
     virtual void render(std::function<void()> drawLayers) { drawLayers(); }
 
     int getReqHeight() const { return mReqHeight; };
     int getReqWidth() const { return mReqWidth; };
     Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
-    virtual bool getWideColorSupport() const = 0;
-    virtual ui::ColorMode getActiveColorMode() const = 0;
-
     status_t updateDimensions();
+
+    CaptureFill getCaptureFill() const { return mCaptureFill; };
 
 private:
     uint32_t mReqHeight;
     uint32_t mReqWidth;
     Transform::orientation_flags mRotationFlags;
+    CaptureFill mCaptureFill;
 };
 
 } // namespace android
