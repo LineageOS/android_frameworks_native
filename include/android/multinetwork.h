@@ -14,6 +14,15 @@
  * limitations under the License.
  */
 
+/**
+ * @addtogroup Networking
+ * @{
+ */
+
+/**
+ * @file multinetwork.h
+ */
+
 #ifndef ANDROID_MULTINETWORK_H
 #define ANDROID_MULTINETWORK_H
 
@@ -104,3 +113,5 @@ int android_getaddrinfofornetwork(net_handle_t network,
 __END_DECLS
 
 #endif  // ANDROID_MULTINETWORK_H
+
+/** @} */
