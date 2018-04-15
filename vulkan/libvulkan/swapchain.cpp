@@ -580,7 +580,7 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
               strerror(-err), err);
         return VK_ERROR_SURFACE_LOST_KHR;
     }
-    capabilities->minImageCount = 2;
+    capabilities->minImageCount = max_buffer_count == 1 ? 1 : 2;
     capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
 
     capabilities->currentExtent =
