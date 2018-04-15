@@ -1387,7 +1387,7 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId,
     if (sequenceId != getBE().mComposerSequenceId) {
         return;
     }
-    repaintEverythingLocked();
+    repaintEverything();
 }
 
 void SurfaceFlinger::setVsyncEnabled(int disp, int enabled) {
@@ -1949,7 +1949,7 @@ void SurfaceFlinger::setUpHWComposer() {
     ALOGV("setUpHWComposer");
 
     for (size_t dpy=0 ; dpy<mDisplays.size() ; dpy++) {
-        bool dirty = !mDisplays[dpy]->getDirtyRegion(false).isEmpty();
+        bool dirty = !mDisplays[dpy]->getDirtyRegion(mRepaintEverything).isEmpty();
         bool empty = mDisplays[dpy]->getVisibleLayersSortedByZ().size() == 0;
         bool wasEmpty = !mDisplays[dpy]->lastCompositionHadVisibleLayers;
 
@@ -2166,7 +2166,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // with mStateLock held to guarantee that mCurrentState won't change
     // until the transaction is committed.
 
-    mVsyncModulator.setTransactionStart(VSyncModulator::TransactionStart::NORMAL);
+    mVsyncModulator.onTransactionHandled();
     transactionFlags = getTransactionFlags(eTransactionMask);
     handleTransactionLocked(transactionFlags);
 
@@ -3716,7 +3716,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
 
         mVisibleRegionsDirty = true;
         mHasPoweredOff = true;
-        repaintEverythingLocked();
+        repaintEverything();
 
         struct sched_param param = {0};
         param.sched_priority = 1;
@@ -4637,20 +4637,9 @@ status_t SurfaceFlinger::onTransact(
     return err;
 }
 
-void SurfaceFlinger::repaintEverythingLocked() {
-    android_atomic_or(1, &mRepaintEverything);
-    for (size_t dpy = 0; dpy < mDisplays.size(); dpy++) {
-        const sp<DisplayDevice>& displayDevice(mDisplays[dpy]);
-        const Rect bounds(displayDevice->getBounds());
-        displayDevice->dirtyRegion.orSelf(Region(bounds));
-    }
-    signalTransaction();
-}
-
 void SurfaceFlinger::repaintEverything() {
-    ConditionalLock _l(mStateLock,
-            std::this_thread::get_id() != mMainThreadId);
-    repaintEverythingLocked();
+    android_atomic_or(1, &mRepaintEverything);
+    signalTransaction();
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope
@@ -4694,7 +4683,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
                         int32_t reqWidth, int32_t reqHeight, bool childrenOnly)
-              : RenderArea(reqHeight, reqWidth),
+              : RenderArea(reqHeight, reqWidth, CaptureFill::CLEAR),
                 mLayer(layer),
                 mCrop(crop),
                 mFlinger(flinger),
@@ -4929,8 +4918,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                     renderArea.getRotationFlags());
     engine.disableTexturing();
 
+    const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
     // redraw the screen entirely...
-    engine.clearWithColor(0, 0, 0, 1);
+    engine.clearWithColor(0, 0, 0, alpha);
 
     traverseLayers([&](Layer* layer) {
         if (filtering) layer->setFiltering(true);
