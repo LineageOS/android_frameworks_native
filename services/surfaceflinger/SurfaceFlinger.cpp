@@ -5120,7 +5120,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     traverseLayers([&](Layer* layer) {
         if (filtering) layer->setFiltering(true);
-        layer->draw(renderArea, useIdentityTransform);
+        layer->drawNow(renderArea, useIdentityTransform);
         if (filtering) layer->setFiltering(false);
     });
 }

@@ -52,7 +52,7 @@ struct CompositionInfo {
         Region visibleRegion;
         Region surfaceDamage;
         sp<NativeHandle> sidebandStream;
-        android_dataspace dataspace;
+        ui::Dataspace dataspace;
         hwc_color_t color;
     } hwc;
     struct {
@@ -61,9 +61,11 @@ struct CompositionInfo {
         bool clearArea = false;
         bool preMultipliedAlpha = false;
         bool opaque = false;
+        bool disableTexture = false;
         half4 color;
         Texture texture;
         bool useIdentityTransform = false;
+        bool Y410BT2020 = false;
     } re;
 
     void dump(const char* tag) const;

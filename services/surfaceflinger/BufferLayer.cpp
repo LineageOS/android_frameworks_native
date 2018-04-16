@@ -160,6 +160,8 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
                          bool useIdentityTransform) const {
     ATRACE_CALL();
 
+    CompositionInfo& compositionInfo = getBE().compositionInfo;
+
     if (CC_UNLIKELY(mActiveBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
@@ -241,6 +243,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
         mTexture.setDimensions(mActiveBuffer->getWidth(), mActiveBuffer->getHeight());
         mTexture.setFiltering(useFiltering);
         mTexture.setMatrix(textureMatrix);
+        compositionInfo.re.texture = mTexture;
 
         engine.setupLayerTexturing(mTexture);
     } else {
@@ -248,6 +251,23 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
     }
     drawWithOpenGL(renderArea, useIdentityTransform);
     engine.disableTexturing();
+}
+
+void BufferLayer::drawNow(const RenderArea& renderArea, bool useIdentityTransform) const {
+    CompositionInfo& compositionInfo = getBE().compositionInfo;
+    auto& engine(mFlinger->getRenderEngine());
+
+    draw(renderArea, useIdentityTransform);
+
+    engine.setupLayerTexturing(compositionInfo.re.texture);
+    engine.setupLayerBlending(compositionInfo.re.preMultipliedAlpha, compositionInfo.re.opaque,
+            false, compositionInfo.re.color);
+    engine.setSourceDataSpace(compositionInfo.hwc.dataspace);
+    engine.setSourceY410BT2020(compositionInfo.re.Y410BT2020);
+    engine.drawMesh(getBE().getMesh());
+    engine.disableBlending();
+    engine.disableTexturing();
+    engine.setSourceY410BT2020(false);
 }
 
 void BufferLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
