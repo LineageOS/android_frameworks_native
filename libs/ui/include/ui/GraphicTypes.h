@@ -24,6 +24,7 @@
 namespace android {
 namespace ui {
 
+using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_1::ColorMode;
 using android::hardware::graphics::common::V1_1::Dataspace;
 using android::hardware::graphics::common::V1_1::PixelFormat;

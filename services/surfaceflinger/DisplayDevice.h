@@ -85,7 +85,7 @@ public:
             int displayWidth,
             int displayHeight,
             bool hasWideColorGamut,
-            bool hasHdr10,
+            const HdrCapabilities& hdrCapabilities,
             int initialPowerMode);
     // clang-format on
 
@@ -136,7 +136,9 @@ public:
     status_t beginFrame(bool mustRecompose) const;
     status_t prepareFrame(HWComposer& hwc);
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
-    bool hasHdr10() const { return mHasHdr10; }
+    bool hasHDR10Support() const { return mHasHdr10; }
+    bool hasHLGSupport() const { return mHasHLG; }
+    bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
 
     void swapBuffers(HWComposer& hwc) const;
 
@@ -255,6 +257,8 @@ private:
     // Fed to RenderEngine during composition.
     bool mHasWideColorGamut;
     bool mHasHdr10;
+    bool mHasHLG;
+    bool mHasDolbyVision;
 };
 
 struct DisplayDeviceState {
