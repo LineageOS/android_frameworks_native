@@ -76,10 +76,6 @@ int dvrWriteBufferQueueGetId(DvrWriteBufferQueue* write_queue);
 int dvrWriteBufferQueueGetANativeWindow(DvrWriteBufferQueue* write_queue,
                                         ANativeWindow** out_window);
 
-// @deprecated Please use dvrWriteBufferQueueGetANativeWindow instead.
-int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
-                                          ANativeWindow** out_window);
-
 // Create a read buffer queue from an existing write buffer queue.
 //
 // @param write_queue The DvrWriteBufferQueue of interest.
@@ -88,10 +84,6 @@ int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
 // @return Zero on success, or negative error code.
 int dvrWriteBufferQueueCreateReadQueue(DvrWriteBufferQueue* write_queue,
                                        DvrReadBufferQueue** out_read_queue);
-
-// @deprecated Please use dvrWriteBufferQueueGainBuffer instead.
-int dvrWriteBufferQueueDequeue(DvrWriteBufferQueue* write_queue, int timeout,
-                               DvrWriteBuffer* out_buffer, int* out_fence_fd);
 
 // Gains a buffer to write into.
 //
@@ -175,11 +167,6 @@ int dvrReadBufferQueueGetEventFd(DvrReadBufferQueue* read_queue);
 // @return Zero on success, or negative error code.
 int dvrReadBufferQueueCreateReadQueue(DvrReadBufferQueue* read_queue,
                                       DvrReadBufferQueue** out_read_queue);
-
-// @deprecated Please use dvrReadBufferQueueAcquireBuffer instead.
-int dvrReadBufferQueueDequeue(DvrReadBufferQueue* read_queue, int timeout,
-                              DvrReadBuffer* out_buffer, int* out_fence_fd,
-                              void* out_meta, size_t meta_size_bytes);
 
 // Dequeues a buffer to read from.
 //
