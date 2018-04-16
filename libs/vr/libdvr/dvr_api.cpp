@@ -41,10 +41,19 @@ int dvrGetApi(void* api, size_t struct_size, int version) {
     }                                                          \
   } while (0)
 
+#define DVR_V1_API_ENTRY_DEPRECATED(name)                      \
+  do {                                                         \
+    if ((offsetof(DvrApi_v1, name) + sizeof(dvr_api->name)) <= \
+        clamped_struct_size) {                                 \
+      dvr_api->name = nullptr;                                 \
+    }                                                          \
+  } while (0)
+
 #include "include/dvr/dvr_api_entries.h"
 
 // Undefine macro definitions to play nice with Google3 style rules.
 #undef DVR_V1_API_ENTRY
+#undef DVR_V1_API_ENTRY_DEPRECATED
 
     return 0;
   }

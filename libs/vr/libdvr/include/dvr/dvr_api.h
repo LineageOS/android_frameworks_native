@@ -443,11 +443,13 @@ static_assert(sizeof(DvrNativeBufferMetadata) == 104,
 struct DvrApi_v1 {
 // Defines an API entry for V1 (no version suffix).
 #define DVR_V1_API_ENTRY(name) Dvr##name##Ptr name
+#define DVR_V1_API_ENTRY_DEPRECATED(name) Dvr##name##Ptr name
 
 #include "dvr_api_entries.h"
 
 // Undefine macro definitions to play nice with Google3 style rules.
 #undef DVR_V1_API_ENTRY
+#undef DVR_V1_API_ENTRY_DEPRECATED
 };
 
 int dvrGetApi(void* api, size_t struct_size, int version);
