@@ -434,12 +434,22 @@ int DvrReadBufferQueue::ReleaseBuffer(DvrReadBuffer* read_buffer,
     return -EINVAL;
   }
   if (read_buffer->read_buffer->id() != consumer_queue_->GetBufferId(slot)) {
-    ALOGE(
-        "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released does not "
-        "belong to this buffer queue. Releasing buffer: id=%d, buffer in "
-        "queue: id=%d",
-        read_buffer->read_buffer->id(), consumer_queue_->GetBufferId(slot));
-    return -EINVAL;
+    if (consumer_queue_->GetBufferId(slot) > 0) {
+      ALOGE(
+          "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released may not "
+          "belong to this queue (queue_id=%d): attempting to release buffer "
+          "(buffer_id=%d) at slot %d which holds a different buffer "
+          "(buffer_id=%d).",
+          consumer_queue_->id(), read_buffer->read_buffer->id(),
+          static_cast<int>(slot), consumer_queue_->GetBufferId(slot));
+    } else {
+      ALOGI(
+          "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released may not "
+          "belong to this queue (queue_id=%d): attempting to release buffer "
+          "(buffer_id=%d) at slot %d which is empty.",
+          consumer_queue_->id(), read_buffer->read_buffer->id(),
+          static_cast<int>(slot));
+    }
   }
 
   pdx::LocalHandle fence(release_fence_fd);
