@@ -525,4 +525,55 @@ TEST_F(DvrBufferQueueTest, StableBufferIdAndHardwareBuffer) {
   }
 }
 
+TEST_F(DvrBufferQueueTest, ConsumerReleaseAfterProducerDestroy) {
+  int ret = api_.WriteBufferQueueCreate(
+      kBufferWidth, kBufferHeight, kBufferFormat, kLayerCount, kBufferUsage,
+      kQueueCapacity, sizeof(DvrNativeBufferMetadata), &write_queue_);
+  ASSERT_EQ(ret, 0);
+
+  DvrReadBufferQueue* read_queue = nullptr;
+  DvrReadBuffer* rb = nullptr;
+  DvrWriteBuffer* wb = nullptr;
+  DvrNativeBufferMetadata meta1;
+  DvrNativeBufferMetadata meta2;
+  int fence_fd = -1;
+
+  ret = api_.WriteBufferQueueCreateReadQueue(write_queue_, &read_queue);
+  ASSERT_EQ(ret, 0);
+
+  api_.ReadBufferQueueSetBufferAvailableCallback(
+      read_queue, &BufferAvailableCallback, this);
+
+  // Gain buffer for writing.
+  ret = api_.WriteBufferQueueGainBuffer(write_queue_, /*timeout=*/0, &wb,
+                                        &meta1, &fence_fd);
+  ASSERT_EQ(ret, 0);
+  close(fence_fd);
+
+  // Post buffer to the read_queue.
+  ret = api_.WriteBufferQueuePostBuffer(write_queue_, wb, &meta1, /*fence=*/-1);
+  ASSERT_EQ(ret, 0);
+  wb = nullptr;
+
+  // Acquire buffer for reading.
+  ret = api_.ReadBufferQueueAcquireBuffer(read_queue, /*timeout=*/10, &rb,
+                                          &meta2, &fence_fd);
+  ASSERT_EQ(ret, 0);
+  close(fence_fd);
+
+  // Destroy the write buffer queue and make sure the reader queue is picking
+  // these events up.
+  api_.WriteBufferQueueDestroy(write_queue_);
+  ret = api_.ReadBufferQueueHandleEvents(read_queue);
+  ASSERT_EQ(0, ret);
+
+  // Release buffer to the write_queue.
+  ret = api_.ReadBufferQueueReleaseBuffer(read_queue, rb, &meta2,
+                                          /*release_fence_fd=*/-1);
+  ASSERT_EQ(ret, 0);
+  rb = nullptr;
+
+  api_.ReadBufferQueueDestroy(read_queue);
+}
+
 }  // namespace
