@@ -489,6 +489,9 @@ static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
     bool haveColorSpaceSupport = dp->haveExtension("EGL_KHR_gl_colorspace");
     switch (format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGBX_8888:
+        // RGB_888 is never returned by getNativePixelFormat, but is included here for completeness.
+        case HAL_PIXEL_FORMAT_RGB_888:
             if (haveColorSpaceSupport) {
                 // Spec says:
                 //     [fn1] Only OpenGL and OpenGL ES contexts which support sRGB
