@@ -966,7 +966,12 @@ status_t Parcel::read(void* outData, size_t len) const
             && len <= PAD_SIZE(len)) {
         if (mObjectsSize > 0) {
             status_t err = validateReadData(mDataPos + PAD_SIZE(len));
-            if(err != NO_ERROR) return err;
+            if(err != NO_ERROR) {
+                // Still increment the data position by the expected length
+                mDataPos += PAD_SIZE(len);
+                ALOGV("read Setting data pos of %p to %zu", this, mDataPos);
+                return err;
+            }
         }
         memcpy(outData, mData+mDataPos, len);
         mDataPos += PAD_SIZE(len);
@@ -982,7 +987,12 @@ const void* Parcel::readInplace(size_t len) const
             && len <= PAD_SIZE(len)) {
         if (mObjectsSize > 0) {
             status_t err = validateReadData(mDataPos + PAD_SIZE(len));
-            if(err != NO_ERROR) return NULL;
+            if(err != NO_ERROR) {
+                // Still increment the data position by the expected length
+                mDataPos += PAD_SIZE(len);
+                ALOGV("readInplace Setting data pos of %p to %zu", this, mDataPos);
+                return NULL;
+            }
         }
 
         const void* data = mData+mDataPos;
@@ -1000,7 +1010,11 @@ status_t Parcel::readAligned(T *pArg) const {
     if ((mDataPos+sizeof(T)) <= mDataSize) {
         if (mObjectsSize > 0) {
             status_t err = validateReadData(mDataPos + sizeof(T));
-            if(err != NO_ERROR) return err;
+            if(err != NO_ERROR) {
+                // Still increment the data position by the expected length
+                mDataPos += sizeof(T);
+                return err;
+            }
         }
 
         const void* data = mData+mDataPos;
