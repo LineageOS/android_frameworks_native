@@ -81,7 +81,7 @@ protected:
         sp<DisplayDevice> build() {
             return new DisplayDevice(mFlinger.mFlinger.get(), mType, mHwcId, false, mDisplayToken,
                                      mNativeWindow, mDisplaySurface, std::move(mRenderSurface), 0,
-                                     0, false, false, HWC_POWER_MODE_NORMAL);
+                                     0, false, {}, HWC_POWER_MODE_NORMAL);
         }
 
         FakeDisplayDeviceFactory& setNativeWindow(const sp<ANativeWindow>& nativeWindow) {

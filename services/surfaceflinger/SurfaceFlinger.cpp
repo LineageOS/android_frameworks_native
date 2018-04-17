@@ -106,6 +106,7 @@ using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using ui::ColorMode;
 using ui::Dataspace;
+using ui::Hdr;
 using ui::RenderIntent;
 
 namespace {
@@ -1118,21 +1119,23 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
         return BAD_VALUE;
     }
 
-    std::unique_ptr<HdrCapabilities> capabilities =
-            getBE().mHwc->getHdrCapabilities(displayDevice->getHwcDisplayId());
-    if (capabilities) {
-        if (displayDevice->hasWideColorGamut() && !displayDevice->hasHdr10()) {
+    HdrCapabilities capabilities;
+    int status = getBE().mHwc->getHdrCapabilities(
+        displayDevice->getHwcDisplayId(), &capabilities);
+    if (status == NO_ERROR) {
+        if (displayDevice->hasWideColorGamut() &&
+            !displayDevice->hasHDR10Support()) {
             // insert HDR10 as we will force client composition for HDR10
             // layers
-            std::vector<int32_t> types = capabilities->getSupportedHdrTypes();
-            types.push_back(HAL_HDR_HDR10);
+            std::vector<Hdr> types = capabilities.getSupportedHdrTypes();
+            types.push_back(Hdr::HDR10);
 
             *outCapabilities = HdrCapabilities(types,
-                    capabilities->getDesiredMaxLuminance(),
-                    capabilities->getDesiredMaxAverageLuminance(),
-                    capabilities->getDesiredMinLuminance());
+                    capabilities.getDesiredMaxLuminance(),
+                    capabilities.getDesiredMaxAverageLuminance(),
+                    capabilities.getDesiredMinLuminance());
         } else {
-            *outCapabilities = std::move(*capabilities);
+            *outCapabilities = std::move(capabilities);
         }
     } else {
         return BAD_VALUE;
@@ -1906,7 +1909,7 @@ ui::Dataspace SurfaceFlinger::getBestDataspace(
                 // Historically, HDR dataspaces are ignored by SurfaceFlinger. But
                 // since SurfaceFlinger simulates HDR support now, it should honor
                 // them unless there is also native support.
-                if (!displayDevice->hasHdr10()) {
+                if (!displayDevice->hasHDR10Support()) {
                     return Dataspace::V0_SCRGB_LINEAR;
                 }
                 break;
@@ -2024,7 +2027,7 @@ void SurfaceFlinger::setUpHWComposer() {
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
                  layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                    !displayDevice->hasHdr10()) {
+                    !displayDevice->hasHDR10Support()) {
                 layer->forceClientComposition(hwcId);
             }
 
@@ -2277,13 +2280,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         }
     }
 
-    bool hasHdr10 = false;
-    std::unique_ptr<HdrCapabilities> hdrCapabilities = getHwComposer().getHdrCapabilities(hwcId);
-    if (hdrCapabilities) {
-        const std::vector<int32_t> types = hdrCapabilities->getSupportedHdrTypes();
-        auto iter = std::find(types.cbegin(), types.cend(), HAL_HDR_HDR10);
-        hasHdr10 = iter != types.cend();
-    }
+    HdrCapabilities hdrCapabilities;
+    getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
@@ -2316,7 +2314,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     sp<DisplayDevice> hw =
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
-                              hasWideColorGamut, hasHdr10, initialPowerMode);
+                              hasWideColorGamut, hdrCapabilities, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
