@@ -114,14 +114,29 @@ static int otapreopt_chroot(const int argc, char **arg) {
         LOG(ERROR) << "Target slot suffix not legal: " << arg[2];
         exit(207);
     }
-    std::string vendor_partition = StringPrintf("/dev/block/bootdevice/by-name/vendor%s",
-                                                arg[2]);
-    int vendor_result = mount(vendor_partition.c_str(),
-                              "/postinstall/vendor",
-                              "ext4",
-                              MS_RDONLY,
-                              /* data */ nullptr);
-    UNUSED(vendor_result);
+    {
+      std::string vendor_partition = StringPrintf("/dev/block/bootdevice/by-name/vendor%s",
+                                                  arg[2]);
+      int vendor_result = mount(vendor_partition.c_str(),
+                                "/postinstall/vendor",
+                                "ext4",
+                                MS_RDONLY,
+                                /* data */ nullptr);
+      UNUSED(vendor_result);
+    }
+
+    // Try to mount the product partition. update_engine doesn't do this for us, but we
+    // want it for product APKs. Same notes as vendor above.
+    {
+      std::string product_partition = StringPrintf("/dev/block/bootdevice/by-name/product%s",
+                                                   arg[2]);
+      int product_result = mount(product_partition.c_str(),
+                                 "/postinstall/product",
+                                 "ext4",
+                                 MS_RDONLY,
+                                 /* data */ nullptr);
+      UNUSED(product_result);
+    }
 
     // Chdir into /postinstall.
     if (chdir("/postinstall") != 0) {
