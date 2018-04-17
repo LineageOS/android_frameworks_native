@@ -316,7 +316,12 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
                 wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
                 wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
-                wideColorState.enableToneMapping(true);
+                break;
+            case Dataspace::BT2020_HLG:
+            case Dataspace::BT2020_ITU_HLG:
+                wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
+                wideColorState.setInputTransferFunction(Description::TransferFunction::HLG);
+                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
                 break;
             default:
                 // treat all other dataspaces as sRGB
