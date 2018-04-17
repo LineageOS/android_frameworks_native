@@ -316,15 +316,26 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
                 wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
                 wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
-                wideColorState.enableToneMapping(true);
+                break;
+            case Dataspace::BT2020_HLG:
+            case Dataspace::BT2020_ITU_HLG:
+                wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
+                wideColorState.setInputTransferFunction(Description::TransferFunction::HLG);
+                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
                 break;
             default:
                 // treat all other dataspaces as sRGB
                 wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
-                if ((mDataSpace & Dataspace::TRANSFER_MASK) & Dataspace::TRANSFER_LINEAR) {
-                    wideColorState.setInputTransferFunction(Description::TransferFunction::LINEAR);
-                } else {
-                    wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
+                switch (static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK)) {
+                    case Dataspace::TRANSFER_LINEAR:
+                        wideColorState.setInputTransferFunction(
+                                Description::TransferFunction::LINEAR);
+                        break;
+                    default:
+                        // treat all other transfer functions as sRGB
+                        wideColorState.setInputTransferFunction(
+                                Description::TransferFunction::SRGB);
+                        break;
                 }
                 wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
                 ALOGV("drawMesh: gamut transform applied");

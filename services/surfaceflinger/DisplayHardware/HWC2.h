@@ -228,7 +228,7 @@ public:
     [[clang::warn_unused_result]] Error getType(DisplayType* outType) const;
     [[clang::warn_unused_result]] Error supportsDoze(bool* outSupport) const;
     [[clang::warn_unused_result]] Error getHdrCapabilities(
-            std::unique_ptr<android::HdrCapabilities>* outCapabilities) const;
+            android::HdrCapabilities* outCapabilities) const;
     [[clang::warn_unused_result]] Error getReleaseFences(
             std::unordered_map<Layer*,
                     android::sp<android::Fence>>* outFences) const;
