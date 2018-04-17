@@ -448,26 +448,21 @@ Error Display::supportsDoze(bool* outSupport) const
     return Error::None;
 }
 
-Error Display::getHdrCapabilities(
-        std::unique_ptr<HdrCapabilities>* outCapabilities) const
+Error Display::getHdrCapabilities(HdrCapabilities* outCapabilities) const
 {
     float maxLuminance = -1.0f;
     float maxAverageLuminance = -1.0f;
     float minLuminance = -1.0f;
-    std::vector<Hwc2::Hdr> intTypes;
-    auto intError = mComposer.getHdrCapabilities(mId, &intTypes,
+    std::vector<Hwc2::Hdr> types;
+    auto intError = mComposer.getHdrCapabilities(mId, &types,
             &maxLuminance, &maxAverageLuminance, &minLuminance);
     auto error = static_cast<HWC2::Error>(intError);
 
-    std::vector<int32_t> types;
-    for (auto type : intTypes) {
-        types.push_back(static_cast<int32_t>(type));
-    }
     if (error != Error::None) {
         return error;
     }
 
-    *outCapabilities = std::make_unique<HdrCapabilities>(std::move(types),
+    *outCapabilities = HdrCapabilities(std::move(types),
             maxLuminance, maxAverageLuminance, minLuminance);
     return Error::None;
 }
