@@ -47,10 +47,10 @@ using testing::SetArgPointee;
 
 using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_1::ColorMode;
+using android::hardware::graphics::common::V1_1::RenderIntent;
 using android::Hwc2::Error;
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
-using android::Hwc2::RenderIntent;
 
 using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
@@ -494,33 +494,6 @@ struct WideColorP3ColorimetricSupportedVariant {
     }
 };
 
-// For this variant, SurfaceFlinger should configure itself with wide color
-// display support, and the display should respond with an non-empty list of
-// supported color modes.
-template <typename Display>
-struct WideColorP3EnhanceSupportedVariant {
-    static constexpr bool WIDE_COLOR_SUPPORTED = true;
-
-    static void injectConfigChange(DisplayTransactionTest* test) {
-        test->mFlinger.mutableHasWideColorDisplay() = true;
-        test->mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::ENHANCED;
-    }
-
-    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getColorModes(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<ColorMode>({ColorMode::DISPLAY_P3})),
-                                Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    getRenderIntents(Display::HWC_DISPLAY_ID, ColorMode::DISPLAY_P3, _))
-                .WillOnce(
-                        DoAll(SetArgPointee<2>(std::vector<RenderIntent>({RenderIntent::ENHANCE})),
-                              Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    setColorMode(Display::HWC_DISPLAY_ID, ColorMode::SRGB, RenderIntent::ENHANCE))
-                .WillOnce(Return(Error::NONE));
-    }
-};
-
 // For this variant, SurfaceFlinger should configure itself with wide display
 // support, but the display should respond with an empty list of supported color
 // modes. Wide-color support for the display should not be configured.
@@ -637,9 +610,6 @@ using HwcVirtualDisplayCase =
              HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>>;
 using WideColorP3ColorimetricDisplayCase =
         Case<PrimaryDisplayVariant, WideColorP3ColorimetricSupportedVariant<PrimaryDisplayVariant>,
-             HdrNotSupportedVariant<PrimaryDisplayVariant>>;
-using WideColorP3EnhanceDisplayCase =
-        Case<PrimaryDisplayVariant, WideColorP3EnhanceSupportedVariant<PrimaryDisplayVariant>,
              HdrNotSupportedVariant<PrimaryDisplayVariant>>;
 using Hdr10DisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
@@ -1041,10 +1011,6 @@ TEST_F(SetupNewDisplayDeviceInternalTest, createHwcVirtualDisplay) {
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createWideColorP3Display) {
     setupNewDisplayDeviceInternalTest<WideColorP3ColorimetricDisplayCase>();
-}
-
-TEST_F(SetupNewDisplayDeviceInternalTest, createWideColorP3EnhanceDisplay) {
-    setupNewDisplayDeviceInternalTest<WideColorP3EnhanceDisplayCase>();
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createHdr10Display) {
