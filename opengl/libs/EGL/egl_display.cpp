@@ -206,12 +206,16 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
 
         mExtensionString = gBuiltinExtensionString;
 
+        hasColorSpaceSupport = findExtension(disp.queryString.extensions, "EGL_KHR_gl_colorspace");
+
+        // Note: CDD requires that devices supporting wide color and/or HDR color also support
+        // the EGL_KHR_gl_colorspace extension.
         bool wideColorBoardConfig =
                 getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(
                         false);
 
         // Add wide-color extensions if device can support wide-color
-        if (wideColorBoardConfig) {
+        if (wideColorBoardConfig && hasColorSpaceSupport) {
             mExtensionString.append(
                     "EGL_EXT_gl_colorspace_scrgb EGL_EXT_gl_colorspace_scrgb_linear "
                     "EGL_EXT_gl_colorspace_display_p3_linear EGL_EXT_gl_colorspace_display_p3 ");
@@ -220,7 +224,7 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
         bool hasHdrBoardConfig =
                 getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
 
-        if (hasHdrBoardConfig) {
+        if (hasHdrBoardConfig && hasColorSpaceSupport) {
             // hasHDRBoardConfig indicates the system is capable of supporting HDR content.
             // Typically that means there is an HDR capable display attached, but could be
             // support for attaching an HDR display. In either case, advertise support for
