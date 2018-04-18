@@ -51,6 +51,7 @@
 #include "RenderEngine/Texture.h"
 
 #include <math/vec4.h>
+#include <vector>
 
 using namespace android::surfaceflinger;
 
@@ -564,6 +565,10 @@ public:
                                  const LayerVector::Visitor& visitor);
     void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
 
+    /**
+     * Traverse only children in z order, ignoring relative layers that are not children of the
+     * parent.
+     */
     void traverseChildrenInZOrder(LayerVector::StateSet stateSet,
                                   const LayerVector::Visitor& visitor);
 
@@ -778,6 +783,22 @@ protected:
     wp<Layer> mDrawingParent;
 
     mutable LayerBE mBE;
+
+private:
+    /**
+     * Returns an unsorted vector of all layers that are part of this tree.
+     * That includes the current layer and all its descendants.
+     */
+    std::vector<Layer*> getLayersInTree(LayerVector::StateSet stateSet);
+    /**
+     * Traverses layers that are part of this tree in the correct z order.
+     * layersInTree must be sorted before calling this method.
+     */
+    void traverseChildrenInZOrderInner(const std::vector<Layer*>& layersInTree,
+                                       LayerVector::StateSet stateSet,
+                                       const LayerVector::Visitor& visitor);
+    LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
+                                          const std::vector<Layer*>& layersInTree);
 };
 
 // ---------------------------------------------------------------------------
