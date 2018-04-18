@@ -47,6 +47,7 @@ static const char* hal_interfaces_to_dump[] {
         "android.hardware.drm@1.0::IDrmFactory",
         "android.hardware.graphics.composer@2.1::IComposer",
         "android.hardware.media.omx@1.0::IOmx",
+        "android.hardware.media.omx@1.0::IOmxStore",
         "android.hardware.sensors@1.0::ISensors",
         "android.hardware.vr@1.0::IVr",
         NULL,
