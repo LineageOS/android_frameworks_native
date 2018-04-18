@@ -515,7 +515,27 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         recomputeVisibleRegions = true;
     }
 
-    setDataSpace(mConsumer->getCurrentDataSpace());
+    // Dataspace::V0_SRGB and Dataspace::V0_SRGB_LINEAR are not legacy
+    // data space, however since framework doesn't distinguish them out of
+    // legacy SRGB, we have to treat them as the same for now.
+    // UNKNOWN is treated as legacy SRGB when the connected api is EGL.
+    ui::Dataspace dataSpace = mConsumer->getCurrentDataSpace();
+    switch (dataSpace) {
+        case ui::Dataspace::V0_SRGB:
+            dataSpace = ui::Dataspace::SRGB;
+            break;
+        case ui::Dataspace::V0_SRGB_LINEAR:
+            dataSpace = ui::Dataspace::SRGB_LINEAR;
+            break;
+        case ui::Dataspace::UNKNOWN:
+            if (mConsumer->getCurrentApi() == NATIVE_WINDOW_API_EGL) {
+                dataSpace = ui::Dataspace::SRGB;
+            }
+            break;
+        default:
+            break;
+    }
+    setDataSpace(dataSpace);
 
     Rect crop(mConsumer->getCurrentCrop());
     const uint32_t transform(mConsumer->getCurrentTransform());

@@ -51,11 +51,10 @@ public:
         LINEAR,
         SRGB,
         ST2084,
+        HLG,  // Hybrid Log-Gamma for HDR.
     };
     void setInputTransferFunction(TransferFunction transferFunction);
     void setOutputTransferFunction(TransferFunction transferFunction);
-
-    void enableToneMapping(bool enable);
 
 private:
     friend class Program;
@@ -84,9 +83,6 @@ private:
     // transfer functions for the input/output
     TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
     TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
-
-    // tone-map the color
-    bool mToneMappingEnabled = false;
 };
 
 } /* namespace android */

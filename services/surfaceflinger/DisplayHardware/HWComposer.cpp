@@ -824,24 +824,22 @@ void HWComposer::clearReleaseFences(int32_t displayId) {
     mDisplayData[displayId].releaseFences.clear();
 }
 
-std::unique_ptr<HdrCapabilities> HWComposer::getHdrCapabilities(
-        int32_t displayId) {
+status_t HWComposer::getHdrCapabilities(
+        int32_t displayId, HdrCapabilities* outCapabilities) {
     if (!isValidDisplay(displayId)) {
         ALOGE("getHdrCapabilities: Display %d is not valid", displayId);
-        return nullptr;
+        return BAD_INDEX;
     }
 
     auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
-    std::unique_ptr<HdrCapabilities> capabilities;
-    auto error = hwcDisplay->getHdrCapabilities(&capabilities);
+    auto error = hwcDisplay->getHdrCapabilities(outCapabilities);
     if (error != HWC2::Error::None) {
         ALOGE("getOutputCapabilities: Failed to get capabilities on display %d:"
-                " %s (%d)", displayId, to_string(error).c_str(),
-                static_cast<int32_t>(error));
-        return nullptr;
+              " %s (%d)", displayId, to_string(error).c_str(),
+              static_cast<int32_t>(error));
+        return UNKNOWN_ERROR;
     }
-
-    return capabilities;
+    return NO_ERROR;
 }
 
 std::vector<ui::RenderIntent> HWComposer::getRenderIntents(int32_t displayId,
