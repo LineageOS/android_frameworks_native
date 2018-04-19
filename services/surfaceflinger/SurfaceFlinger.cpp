@@ -2905,7 +2905,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
-                  displayDevice->getDisplayName().string());
+                  displayDevice->getDisplayName().c_str());
             getRenderEngine().resetCurrentSurface();
 
             // |mStateLock| not needed as we are on the main thread

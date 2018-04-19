@@ -37,6 +37,7 @@
 #include "RenderEngine/Surface.h"
 
 #include <memory>
+#include <string>
 
 struct ANativeWindow;
 
@@ -152,8 +153,8 @@ public:
     }
     inline Rect bounds() const { return getBounds(); }
 
-    void setDisplayName(const String8& displayName);
-    const String8& getDisplayName() const { return mDisplayName; }
+    void setDisplayName(const std::string& displayName);
+    const std::string& getDisplayName() const { return mDisplayName; }
 
     bool makeCurrent() const;
     void setViewportAndProjection() const;
@@ -208,7 +209,7 @@ private:
     int             mDisplayWidth;
     int             mDisplayHeight;
     mutable uint32_t mPageFlipCount;
-    String8         mDisplayName;
+    std::string     mDisplayName;
     bool            mIsSecure;
 
     /*
@@ -283,7 +284,7 @@ struct DisplayDeviceState {
     uint8_t orientation = 0;
     uint32_t width = 0;
     uint32_t height = 0;
-    String8 displayName;
+    std::string displayName;
     bool isSecure = false;
 };
 
