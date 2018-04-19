@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <algorithm>
 
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>
@@ -1777,27 +1778,79 @@ void Layer::traverseInReverseZOrder(LayerVector::StateSet stateSet,
     }
 }
 
-/**
- * Traverse only children in z order, ignoring relative layers.
- */
-void Layer::traverseChildrenInZOrder(LayerVector::StateSet stateSet,
-                                     const LayerVector::Visitor& visitor) {
+LayerVector Layer::makeChildrenTraversalList(LayerVector::StateSet stateSet,
+                                             const std::vector<Layer*>& layersInTree) {
+    LOG_ALWAYS_FATAL_IF(stateSet == LayerVector::StateSet::Invalid,
+                        "makeTraversalList received invalid stateSet");
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
+    const State& state = useDrawing ? mDrawingState : mCurrentState;
+
+    LayerVector traverse;
+    for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
+        sp<Layer> strongRelative = weakRelative.promote();
+        // Only add relative layers that are also descendents of the top most parent of the tree.
+        // If a relative layer is not a descendent, then it should be ignored.
+        if (std::binary_search(layersInTree.begin(), layersInTree.end(), strongRelative.get())) {
+            traverse.add(strongRelative);
+        }
+    }
+
+    for (const sp<Layer>& child : children) {
+        const State& childState = useDrawing ? child->mDrawingState : child->mCurrentState;
+        // If a layer has a relativeOf layer, only ignore if the layer it's relative to is a
+        // descendent of the top most parent of the tree. If it's not a descendent, then just add
+        // the child here since it won't be added later as a relative.
+        if (std::binary_search(layersInTree.begin(), layersInTree.end(),
+                               childState.zOrderRelativeOf.promote().get())) {
+            continue;
+        }
+        traverse.add(child);
+    }
+
+    return traverse;
+}
+
+void Layer::traverseChildrenInZOrderInner(const std::vector<Layer*>& layersInTree,
+                                          LayerVector::StateSet stateSet,
+                                          const LayerVector::Visitor& visitor) {
+    const LayerVector list = makeChildrenTraversalList(stateSet, layersInTree);
 
     size_t i = 0;
-    for (; i < children.size(); i++) {
-        const auto& relative = children[i];
+    for (; i < list.size(); i++) {
+        const auto& relative = list[i];
         if (relative->getZ() >= 0) {
             break;
         }
-        relative->traverseChildrenInZOrder(stateSet, visitor);
+        relative->traverseChildrenInZOrderInner(layersInTree, stateSet, visitor);
     }
+
     visitor(this);
-    for (; i < children.size(); i++) {
-        const auto& relative = children[i];
-        relative->traverseChildrenInZOrder(stateSet, visitor);
+    for (; i < list.size(); i++) {
+        const auto& relative = list[i];
+        relative->traverseChildrenInZOrderInner(layersInTree, stateSet, visitor);
     }
+}
+
+std::vector<Layer*> Layer::getLayersInTree(LayerVector::StateSet stateSet) {
+    const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
+    const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
+
+    std::vector<Layer*> layersInTree = {this};
+    for (size_t i = 0; i < children.size(); i++) {
+        const auto& child = children[i];
+        std::vector<Layer*> childLayers = child->getLayersInTree(stateSet);
+        layersInTree.insert(layersInTree.end(), childLayers.cbegin(), childLayers.cend());
+    }
+
+    return layersInTree;
+}
+
+void Layer::traverseChildrenInZOrder(LayerVector::StateSet stateSet,
+                                     const LayerVector::Visitor& visitor) {
+    std::vector<Layer*> layersInTree = getLayersInTree(stateSet);
+    std::sort(layersInTree.begin(), layersInTree.end());
+    traverseChildrenInZOrderInner(layersInTree, stateSet, visitor);
 }
 
 Transform Layer::getTransform() const {
