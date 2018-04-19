@@ -925,7 +925,6 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& display) {
 void SurfaceFlinger::setActiveConfigInternal(const sp<DisplayDevice>& hw, int mode) {
     ALOGD("Set active config mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
           this);
-    int32_t type = hw->getDisplayType();
     int currentMode = hw->getActiveConfig();
 
     if (mode == currentMode) {
@@ -933,13 +932,13 @@ void SurfaceFlinger::setActiveConfigInternal(const sp<DisplayDevice>& hw, int mo
         return;
     }
 
-    if (type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
+    if (hw->isVirtual()) {
         ALOGW("Trying to set config for virtual display");
         return;
     }
 
     hw->setActiveConfig(mode);
-    getHwComposer().setActiveConfig(type, mode);
+    getHwComposer().setActiveConfig(hw->getDisplayType(), mode);
 }
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& display, int mode) {
@@ -963,7 +962,7 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& display, int mode) {
             if (hw == nullptr) {
                 ALOGE("Attempt to set active config = %d for null display %p",
                         mMode, mDisplay.get());
-            } else if (hw->getDisplayType() >= DisplayDevice::DISPLAY_VIRTUAL) {
+            } else if (hw->isVirtual()) {
                 ALOGW("Attempt to set active config = %d for virtual display",
                         mMode);
             } else {
@@ -1020,7 +1019,6 @@ ColorMode SurfaceFlinger::getActiveColorMode(const sp<IBinder>& display) {
 
 void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
                                                 ColorMode mode, Dataspace dataSpace) {
-    int32_t type = hw->getDisplayType();
     ColorMode currentMode = hw->getActiveColorMode();
     Dataspace currentDataSpace = hw->getCompositionDataSpace();
     RenderIntent currentRenderIntent = hw->getActiveRenderIntent();
@@ -1034,9 +1032,8 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
 
     // In Auto Color Mode, we want to strech to panel color space, right now
     // only the built-in display supports it.
-    if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-        mBuiltinDisplaySupportsEnhance &&
-        hw->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY) {
+    if (mDisplayColorSetting == DisplayColorSetting::ENHANCED && mBuiltinDisplaySupportsEnhance &&
+        hw->isPrimary()) {
         renderIntent = RenderIntent::ENHANCE;
     }
 
@@ -1045,7 +1042,7 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
         return;
     }
 
-    if (type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
+    if (hw->isVirtual()) {
         ALOGW("Trying to set config for virtual display");
         return;
     }
@@ -1053,7 +1050,7 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& hw,
     hw->setActiveColorMode(mode);
     hw->setCompositionDataSpace(dataSpace);
     hw->setActiveRenderIntent(renderIntent);
-    getHwComposer().setActiveColorMode(type, mode, renderIntent);
+    getHwComposer().setActiveColorMode(hw->getDisplayType(), mode, renderIntent);
 
     ALOGV("Set active color mode: %s (%d), active render intent: %s (%d), type=%d",
           decodeColorMode(mode).c_str(), mode,
@@ -1085,7 +1082,7 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& display,
             if (hw == nullptr) {
                 ALOGE("Attempt to set active color mode %s (%d) for null display %p",
                       decodeColorMode(mMode).c_str(), mMode, mDisplay.get());
-            } else if (hw->getDisplayType() >= DisplayDevice::DISPLAY_VIRTUAL) {
+            } else if (hw->isVirtual()) {
                 ALOGW("Attempt to set active color mode %s %d for virtual display",
                       decodeColorMode(mMode).c_str(), mMode);
             } else {
@@ -1968,7 +1965,7 @@ void SurfaceFlinger::setUpHWComposer() {
         //   emit any black frames until a layer is added to the layer stack.
         bool mustRecompose = dirty && !(empty && wasEmpty);
 
-        ALOGV_IF(mDisplays[dpy]->getDisplayType() == DisplayDevice::DISPLAY_VIRTUAL,
+        ALOGV_IF(mDisplays[dpy]->isVirtual(),
                 "dpy[%zu]: %s composition (%sdirty %sempty %swasEmpty)", dpy,
                 mustRecompose ? "doing" : "skipping",
                 dirty ? "+" : "-",
@@ -2294,7 +2291,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
      */
     std::unique_ptr<RE::Surface> renderSurface = getRenderEngine().createSurface();
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
-    renderSurface->setAsync(state.type >= DisplayDevice::DISPLAY_VIRTUAL);
+    renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
     const int displayWidth = renderSurface->queryWidth();
     const int displayHeight = renderSurface->queryHeight();
@@ -2306,13 +2303,12 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     // * In makeCurrent(), using eglSwapInterval. Some EGL drivers set the
     //   window's swap interval in eglMakeCurrent, so they'll override the
     //   interval we set here.
-    if (state.type >= DisplayDevice::DISPLAY_VIRTUAL) {
+    if (state.isVirtual()) {
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
     // virtual displays are always considered enabled
-    auto initialPowerMode = (state.type >= DisplayDevice::DISPLAY_VIRTUAL) ? HWC_POWER_MODE_NORMAL
-                                                                           : HWC_POWER_MODE_OFF;
+    auto initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
     sp<DisplayDevice> hw =
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
@@ -2942,7 +2938,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             }
         }
 
-        if (displayDevice->getDisplayType() != DisplayDevice::DISPLAY_PRIMARY) {
+        if (!displayDevice->isPrimary()) {
             // just to be on the safe side, we don't set the
             // scissor on the main display. It should never be needed
             // anyways (though in theory it could since the API allows it).
@@ -3684,7 +3680,6 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
              int mode, bool stateLockHeld) {
     ALOGD("Set power mode=%d, type=%d flinger=%p", mode, hw->getDisplayType(),
             this);
-    int32_t type = hw->getDisplayType();
     int currentMode = hw->getPowerMode();
 
     if (mode == currentMode) {
@@ -3692,7 +3687,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
     }
 
     hw->setPowerMode(mode);
-    if (type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
+    if (hw->isVirtual()) {
         ALOGW("Trying to set power mode for virtual display");
         return;
     }
@@ -3707,11 +3702,11 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
         mInterceptor->savePowerModeUpdate(mCurrentState.displays.valueAt(idx).sequenceId, mode);
     }
 
+    int32_t type = hw->getDisplayType();
     if (currentMode == HWC_POWER_MODE_OFF) {
         // Turn on the display
         getHwComposer().setPowerMode(type, mode);
-        if (type == DisplayDevice::DISPLAY_PRIMARY &&
-            mode != HWC_POWER_MODE_DOZE_SUSPEND) {
+        if (hw->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
             // FIXME: eventthread only knows about the main display right now
             mEventThread->onScreenAcquired();
             resyncToHardwareVsync(true);
@@ -3733,8 +3728,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
             ALOGW("Couldn't set SCHED_OTHER on display off");
         }
 
-        if (type == DisplayDevice::DISPLAY_PRIMARY &&
-            currentMode != HWC_POWER_MODE_DOZE_SUSPEND) {
+        if (hw->isPrimary() && currentMode != HWC_POWER_MODE_DOZE_SUSPEND) {
             disableHardwareVsync(true); // also cancels any in-progress resync
 
             // FIXME: eventthread only knows about the main display right now
@@ -3748,15 +3742,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
                mode == HWC_POWER_MODE_NORMAL) {
         // Update display while dozing
         getHwComposer().setPowerMode(type, mode);
-        if (type == DisplayDevice::DISPLAY_PRIMARY &&
-            currentMode == HWC_POWER_MODE_DOZE_SUSPEND) {
+        if (hw->isPrimary() && currentMode == HWC_POWER_MODE_DOZE_SUSPEND) {
             // FIXME: eventthread only knows about the main display right now
             mEventThread->onScreenAcquired();
             resyncToHardwareVsync(true);
         }
     } else if (mode == HWC_POWER_MODE_DOZE_SUSPEND) {
         // Leave display going to doze
-        if (type == DisplayDevice::DISPLAY_PRIMARY) {
+        if (hw->isPrimary()) {
             disableHardwareVsync(true); // also cancels any in-progress resync
             // FIXME: eventthread only knows about the main display right now
             mEventThread->onScreenReleased();
@@ -3783,7 +3776,7 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& display, int mode) {
             if (hw == nullptr) {
                 ALOGE("Attempt to set power mode = %d for null display %p",
                         mMode, mDisplay.get());
-            } else if (hw->getDisplayType() >= DisplayDevice::DISPLAY_VIRTUAL) {
+            } else if (hw->isVirtual()) {
                 ALOGW("Attempt to set power mode = %d for virtual display",
                         mMode);
             } else {

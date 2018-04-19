@@ -451,7 +451,7 @@ void DisplayDevice::setProjection(int orientation,
     }
 
     mOrientation = orientation;
-    if (mType == DisplayType::DISPLAY_PRIMARY) {
+    if (isPrimary()) {
         uint32_t transform = 0;
         switch (mOrientation) {
             case DisplayState::eOrientationDefault:
