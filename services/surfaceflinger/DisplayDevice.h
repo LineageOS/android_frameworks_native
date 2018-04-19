@@ -267,15 +267,10 @@ private:
 };
 
 struct DisplayDeviceState {
-    DisplayDeviceState() = default;
-    DisplayDeviceState(DisplayDevice::DisplayType type, bool isSecure);
-
     bool isValid() const { return type >= 0; }
-    bool isMainDisplay() const { return type == DisplayDevice::DISPLAY_PRIMARY; }
-    bool isVirtualDisplay() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
+    bool isVirtual() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
 
-    static std::atomic<int32_t> nextDisplayId;
-    int32_t displayId = nextDisplayId++;
+    int32_t sequenceId = sNextSequenceId++;
     DisplayDevice::DisplayType type = DisplayDevice::DISPLAY_ID_INVALID;
     sp<IGraphicBufferProducer> surface;
     uint32_t layerStack = DisplayDevice::NO_LAYER_STACK;
@@ -286,6 +281,9 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     std::string displayName;
     bool isSecure = false;
+
+private:
+    static std::atomic<int32_t> sNextSequenceId;
 };
 
 class DisplayRenderArea : public RenderArea {

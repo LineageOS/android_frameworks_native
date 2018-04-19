@@ -408,8 +408,10 @@ sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
     sp<BBinder> token = new DisplayToken(this);
 
     Mutex::Autolock _l(mStateLock);
-    DisplayDeviceState info(DisplayDevice::DISPLAY_VIRTUAL, secure);
+    DisplayDeviceState info;
+    info.type = DisplayDevice::DISPLAY_VIRTUAL;
     info.displayName = displayName;
+    info.isSecure = secure;
     mCurrentState.displays.add(token, info);
     mInterceptor->saveDisplayCreation(info);
     return token;
@@ -425,11 +427,11 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& display) {
     }
 
     const DisplayDeviceState& info(mCurrentState.displays.valueAt(idx));
-    if (!info.isVirtualDisplay()) {
+    if (!info.isVirtual()) {
         ALOGE("destroyDisplay called for non-virtual display");
         return;
     }
-    mInterceptor->saveDisplayDeletion(info.displayId);
+    mInterceptor->saveDisplayDeletion(info.sequenceId);
     mCurrentState.displays.removeItemsAt(idx);
     setTransactionFlags(eDisplayTransactionNeeded);
 }
@@ -2224,10 +2226,11 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             if (!mBuiltinDisplays[displayType].get()) {
                 ALOGV("Creating built in display %d", displayType);
                 mBuiltinDisplays[displayType] = new BBinder();
-                // All non-virtual displays are currently considered secure.
-                DisplayDeviceState info(displayType, true);
+                DisplayDeviceState info;
+                info.type = displayType;
                 info.displayName = displayType == DisplayDevice::DISPLAY_PRIMARY ?
                         "Built-in Screen" : "External Screen";
+                info.isSecure = true; // All physical displays are currently considered secure.
                 mCurrentState.displays.add(mBuiltinDisplays[displayType], info);
                 mInterceptor->saveDisplayCreation(info);
             }
@@ -2237,7 +2240,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             ssize_t idx = mCurrentState.displays.indexOfKey(mBuiltinDisplays[displayType]);
             if (idx >= 0) {
                 const DisplayDeviceState& info(mCurrentState.displays.valueAt(idx));
-                mInterceptor->saveDisplayDeletion(info.displayId);
+                mInterceptor->saveDisplayDeletion(info.sequenceId);
                 mCurrentState.displays.removeItemsAt(idx);
             }
             mBuiltinDisplays[displayType].clear();
@@ -2415,7 +2418,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 mCreateBufferQueue(&bqProducer, &bqConsumer, false);
 
                 int32_t hwcId = -1;
-                if (state.isVirtualDisplay()) {
+                if (state.isVirtual()) {
                     // Virtual displays without a surface are dormant:
                     // they have external state (layer stack, projection,
                     // etc.) but no internal state (i.e. a DisplayDevice).
@@ -2462,7 +2465,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                     mDisplays.add(display,
                                   setupNewDisplayDeviceInternal(display, hwcId, state, dispSurface,
                                                                 producer));
-                    if (!state.isVirtualDisplay()) {
+                    if (!state.isVirtual()) {
                         mEventThread->onHotplugReceived(state.type, true);
                     }
                 }
@@ -3701,7 +3704,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& hw,
             ALOGW("Surface Interceptor SavePowerMode: invalid display token");
             return;
         }
-        mInterceptor->savePowerModeUpdate(mCurrentState.displays.valueAt(idx).displayId, mode);
+        mInterceptor->savePowerModeUpdate(mCurrentState.displays.valueAt(idx).sequenceId, mode);
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
