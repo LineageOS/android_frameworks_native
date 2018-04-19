@@ -1357,19 +1357,40 @@ static void dumpstate() {
     printf("== Running Application Activities\n");
     printf("========================================================\n");
 
-    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"});
+    // The following dumpsys internally collects output from running apps, so it can take a long
+    // time. So let's extend the timeout.
+
+    const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
+
+    RunDumpsys("APP ACTIVITIES", {"activity", "-v", "all"}, DUMPSYS_COMPONENTS_OPTIONS);
 
     printf("========================================================\n");
-    printf("== Running Application Services\n");
+    printf("== Running Application Services (platform)\n");
     printf("========================================================\n");
 
-    RunDumpsys("APP SERVICES", {"activity", "service", "all"});
+    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS);
 
     printf("========================================================\n");
-    printf("== Running Application Providers\n");
+    printf("== Running Application Services (non-platform)\n");
     printf("========================================================\n");
 
-    RunDumpsys("APP PROVIDERS", {"activity", "provider", "all"});
+    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS);
+
+    printf("========================================================\n");
+    printf("== Running Application Providers (platform)\n");
+    printf("========================================================\n");
+
+    RunDumpsys("APP PROVIDERS PLATFORM", {"activity", "provider", "all-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS);
+
+    printf("========================================================\n");
+    printf("== Running Application Providers (non-platform)\n");
+    printf("========================================================\n");
+
+    RunDumpsys("APP PROVIDERS NON-PLATFORM", {"activity", "provider", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS);
 
     printf("========================================================\n");
     printf("== Dropbox crashes\n");
