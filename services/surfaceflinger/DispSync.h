@@ -124,12 +124,21 @@ public:
     // the refresh after next. etc.
     nsecs_t computeNextRefresh(int periodOffset) const;
 
+    // In certain situations the present fences aren't a good indicator of vsync
+    // time, e.g. when vr flinger is active, or simply aren't available,
+    // e.g. when the sync framework isn't present. Use this method to toggle
+    // whether or not DispSync ignores present fences. If present fences are
+    // ignored, DispSync will always ask for hardware vsync events by returning
+    // true from addPresentFence() and addResyncSample().
+    void setIgnorePresentFences(bool ignore);
+
     // dump appends human-readable debug info to the result string.
     void dump(String8& result) const;
 
 private:
     void updateModelLocked();
     void updateErrorLocked();
+    void resetLocked();
     void resetErrorLocked();
 
     enum { MAX_RESYNC_SAMPLES = 32 };

@@ -20,7 +20,6 @@ sourceFiles = [
     "display_surface.cpp",
     "hardware_composer.cpp",
     "vr_flinger.cpp",
-    "vsync_service.cpp",
 ]
 
 includeFiles = [ "include" ]
