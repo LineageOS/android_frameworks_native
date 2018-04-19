@@ -56,15 +56,6 @@ cc_library {
     export_header_lib_headers: [
         "libnativebase_headers",
     ],
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
-    target: {
-        vendor: {
-            exclude_srcs: ["detached_buffer.cpp"],
-        },
-    },
 }
 
 cc_test {
