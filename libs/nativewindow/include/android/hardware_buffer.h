@@ -214,7 +214,7 @@ typedef struct AHardwareBuffer AHardwareBuffer;
  * Allocates a buffer that backs an AHardwareBuffer using the passed
  * AHardwareBuffer_Desc.
  *
- * \return NO_ERROR on success, or an error number of the allocation fails for
+ * \return 0 on success, or an error number of the allocation fails for
  * any reason. The returned buffer has a reference count of 1.
  */
 int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc,
@@ -267,7 +267,7 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
  * may return an error or leave the buffer's content into an indeterminate
  * state.
  *
- * \return NO_ERROR on success, BAD_VALUE if \a buffer is NULL or if the usage
+ * \return 0 on success, -EINVAL if \a buffer is NULL or if the usage
  * flags are not a combination of AHARDWAREBUFFER_USAGE_CPU_*, or an error
  * number of the lock fails for any reason.
  */
@@ -281,7 +281,7 @@ int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
  * completed. The caller is responsible for closing the fence when it is no
  * longer needed.
  *
- * \return NO_ERROR on success, BAD_VALUE if \a buffer is NULL, or an error
+ * \return 0 on success, -EINVAL if \a buffer is NULL, or an error
  * number if the unlock fails for any reason.
  */
 int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence);
@@ -289,7 +289,7 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence);
 /**
  * Send the AHardwareBuffer to an AF_UNIX socket.
  *
- * \return NO_ERROR on success, BAD_VALUE if \a buffer is NULL, or an error
+ * \return 0 on success, -EINVAL if \a buffer is NULL, or an error
  * number if the operation fails for any reason.
  */
 int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd);
@@ -297,7 +297,7 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
 /**
  * Receive the AHardwareBuffer from an AF_UNIX socket.
  *
- * \return NO_ERROR on success, BAD_VALUE if \a outBuffer is NULL, or an error
+ * \return 0 on success, -EINVAL if \a outBuffer is NULL, or an error
  * number if the operation fails for any reason.
  */
 int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer);
