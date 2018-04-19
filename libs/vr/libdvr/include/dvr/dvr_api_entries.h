@@ -181,3 +181,8 @@ DVR_V1_API_ENTRY(ReadBufferQueueReleaseBuffer);
 DVR_V1_API_ENTRY(PoseClientGetDataReader);
 DVR_V1_API_ENTRY(PoseClientDataCapture);
 DVR_V1_API_ENTRY(PoseClientDataReaderDestroy);
+
+// Tracking
+DVR_V1_API_ENTRY(TrackingCameraCreate);
+DVR_V1_API_ENTRY(TrackingCameraStart);
+DVR_V1_API_ENTRY(TrackingCameraStop);
