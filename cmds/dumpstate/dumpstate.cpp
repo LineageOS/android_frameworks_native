@@ -1519,18 +1519,14 @@ static void DumpstateTelephonyOnly() {
                SEC_TO_MSEC(10));
     RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
+    RunDumpsys("BATTERYSTATS", {"batterystats"}, CommandOptions::WithTimeout(90).Build(),
+               SEC_TO_MSEC(10));
 
     printf("========================================================\n");
     printf("== Running Application Services\n");
     printf("========================================================\n");
 
     RunDumpsys("TELEPHONY SERVICES", {"activity", "service", "TelephonyDebugService"});
-
-    printf("========================================================\n");
-    printf("== Checkins\n");
-    printf("========================================================\n");
-
-    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
 
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
