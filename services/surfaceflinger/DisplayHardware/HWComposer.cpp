@@ -842,6 +842,25 @@ status_t HWComposer::getHdrCapabilities(
     return NO_ERROR;
 }
 
+int32_t HWComposer::getSupportedPerFrameMetadata(int32_t displayId) const {
+    if (!isValidDisplay(displayId)) {
+        ALOGE("getPerFrameMetadataKeys: Attempted to access invalid display %d",
+                displayId);
+        return 0;
+    }
+
+    int32_t supportedMetadata;
+    auto error = mDisplayData[displayId].hwcDisplay->getSupportedPerFrameMetadata(
+            &supportedMetadata);
+    if (error != HWC2::Error::None) {
+        ALOGE("getPerFrameMetadataKeys failed for display %d: %s (%d)", displayId,
+              to_string(error).c_str(), static_cast<int32_t>(error));
+        return 0;
+    }
+
+    return supportedMetadata;
+}
+
 std::vector<ui::RenderIntent> HWComposer::getRenderIntents(int32_t displayId,
         ui::ColorMode colorMode) const {
     if (!isValidDisplay(displayId)) {
@@ -853,7 +872,7 @@ std::vector<ui::RenderIntent> HWComposer::getRenderIntents(int32_t displayId,
     std::vector<ui::RenderIntent> renderIntents;
     auto error = mDisplayData[displayId].hwcDisplay->getRenderIntents(colorMode, &renderIntents);
     if (error != HWC2::Error::None) {
-        ALOGE("getColorModes failed for display %d: %s (%d)", displayId,
+        ALOGE("getRenderIntents failed for display %d: %s (%d)", displayId,
                 to_string(error).c_str(), static_cast<int32_t>(error));
         return std::vector<ui::RenderIntent>();
     }

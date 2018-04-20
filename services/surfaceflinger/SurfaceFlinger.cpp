@@ -2314,7 +2314,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     sp<DisplayDevice> hw =
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
-                              hasWideColorGamut, hdrCapabilities, initialPowerMode);
+                              hasWideColorGamut, hdrCapabilities,
+                              getHwComposer().getSupportedPerFrameMetadata(hwcId),
+                              initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
