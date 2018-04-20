@@ -27,7 +27,6 @@
 #include <math/mat4.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
-
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
@@ -212,6 +211,10 @@ public:
             std::unordered_map<Layer*, Composition>* outTypes);
     [[clang::warn_unused_result]] Error getColorModes(
             std::vector<android::ui::ColorMode>* outModes) const;
+    // outSupportedPerFrameMetadata is an opaque bitmask to the callers
+    // but contains HdrMetadata::Type::*.
+    [[clang::warn_unused_result]] Error getSupportedPerFrameMetadata(
+            int32_t* outSupportedPerFrameMetadata) const;
     [[clang::warn_unused_result]] Error getRenderIntents(
             android::ui::ColorMode colorMode,
             std::vector<android::ui::RenderIntent>* outRenderIntents) const;
@@ -318,7 +321,9 @@ public:
     [[clang::warn_unused_result]] Error setCompositionType(Composition type);
     [[clang::warn_unused_result]] Error setDataspace(
             android::ui::Dataspace dataspace);
-    [[clang::warn_unused_result]] Error setHdrMetadata(const android::HdrMetadata& metadata);
+    [[clang::warn_unused_result]] Error setPerFrameMetadata(
+            const int32_t supportedPerFrameMetadata,
+            const android::HdrMetadata& metadata);
     [[clang::warn_unused_result]] Error setDisplayFrame(
             const android::Rect& frame);
     [[clang::warn_unused_result]] Error setPlaneAlpha(float alpha);
