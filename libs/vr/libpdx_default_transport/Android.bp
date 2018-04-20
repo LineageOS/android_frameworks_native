@@ -12,10 +12,6 @@ cc_defaults {
     name: "pdx_default_transport_lib_defaults",
     export_include_dirs: ["private"],
     whole_static_libs: ["libpdx"],
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
 }
 
 cc_defaults {
@@ -37,10 +33,6 @@ cc_library_shared {
         "pdx_default_transport_lib_defaults",
         "pdx_use_transport_uds",
     ],
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
     shared_libs: [
         "libbase",
         "libbinder",

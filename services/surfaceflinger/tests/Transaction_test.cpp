@@ -2376,6 +2376,58 @@ TEST_F(ScreenCaptureTest, CaptureTransparent) {
     mCapture->expectColor(Rect(0, 10, 9, 19), {0, 0, 0, 0});
 }
 
+TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"), 10,
+                                                                 10, PIXEL_FORMAT_RGBA_8888, 0);
+    fillSurfaceRGBA8(child, 200, 200, 200);
+    fillSurfaceRGBA8(relative, 100, 100, 100);
+
+    SurfaceComposerClient::Transaction()
+            .show(child)
+            // Set relative layer above fg layer so should be shown above when computing all layers.
+            .setRelativeLayer(relative, fgHandle, 1)
+            .show(relative)
+            .apply(true);
+
+    // Captures mFGSurfaceControl layer and its child. Relative layer shouldn't be captured.
+    ScreenCapture::captureLayers(&mCapture, fgHandle);
+    mCapture->expectFGColor(10, 10);
+    mCapture->expectChildColor(0, 0);
+}
+
+TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
+    auto fgHandle = mFGSurfaceControl->getHandle();
+
+    sp<SurfaceControl> child =
+            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> relative =
+            mComposerClient->createSurface(String8("Relative surface"), 10, 10,
+                                           PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    fillSurfaceRGBA8(child, 200, 200, 200);
+    fillSurfaceRGBA8(relative, 100, 100, 100);
+
+    SurfaceComposerClient::Transaction()
+            .show(child)
+            // Set relative layer below fg layer but relative to child layer so it should be shown
+            // above child layer.
+            .setLayer(relative, -1)
+            .setRelativeLayer(relative, child->getHandle(), 1)
+            .show(relative)
+            .apply(true);
+
+    // Captures mFGSurfaceControl layer and its children. Relative layer is a child of fg so its
+    // relative value should be taken into account, placing it above child layer.
+    ScreenCapture::captureLayers(&mCapture, fgHandle);
+    mCapture->expectFGColor(10, 10);
+    // Relative layer is showing on top of child layer
+    mCapture->expectColor(Rect(0, 0, 9, 9), {100, 100, 100, 255});
+}
 
 // In the following tests we verify successful skipping of a parent layer,
 // so we use the same verification logic and only change how we mutate

@@ -36,6 +36,7 @@ cc_library {
     vndk: {
         enabled: true,
     },
+    double_loadable: true,
 
     srcs: [
         "ActivityManager.cpp",
@@ -74,6 +75,28 @@ cc_library {
         "Value.cpp",
         ":libbinder_aidl",
     ],
+
+    target: {
+        vendor: {
+            exclude_srcs: [
+                "ActivityManager.cpp",
+                "AppOpsManager.cpp",
+                "IActivityManager.cpp",
+                "IAppOpsCallback.cpp",
+                "IAppOpsService.cpp",
+                "IBatteryStats.cpp",
+                "IMediaResourceMonitor.cpp",
+                "IPermissionController.cpp",
+                "IProcessInfoService.cpp",
+                "IUidObserver.cpp",
+                "PermissionCache.cpp",
+                "PermissionController.cpp",
+                "ProcessInfoService.cpp",
+                "IpPrefix.cpp",
+                ":libbinder_aidl",
+            ],
+        },
+    },
 
     aidl: {
         export_aidl_headers: true,
