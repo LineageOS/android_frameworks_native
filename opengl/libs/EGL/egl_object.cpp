@@ -317,7 +317,14 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
 
     // call the implementation's glGetString(GL_EXTENSIONS)
     const char* exts = (const char*)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
-    if (!exts) return;
+    if (!exts) {
+#ifndef NV_ANDROID_FRAMEWORK_ENHANCEMENTS
+        return;
+#else
+        gEGLImpl.hooks[version]->gl.glGetError();
+        exts = "";
+#endif
+}
 
     // If this context is sharing with another context, and the other context was reset
     // e.g. due to robustness failure, this context might also be reset and glGetString can
