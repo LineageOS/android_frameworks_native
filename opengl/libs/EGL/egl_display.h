@@ -113,6 +113,7 @@ public:
     DisplayImpl     disp;
     bool    finishOnSwap;       // property: debug.egl.finish
     bool    traceGpuCompletion; // property: debug.egl.traceGpuCompletion
+    bool    hasColorSpaceSupport;
 
 private:
     friend class egl_display_ptr;

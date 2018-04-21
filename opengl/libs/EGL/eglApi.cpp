@@ -80,6 +80,7 @@ extern char const * const gBuiltinExtensionString;
 extern char const * const gExtensionString;
 
 // clang-format off
+// Extensions implemented by the EGL wrapper.
 char const * const gBuiltinExtensionString =
         "EGL_KHR_get_all_proc_addresses "
         "EGL_ANDROID_presentation_time "
@@ -91,10 +92,11 @@ char const * const gBuiltinExtensionString =
         "EGL_EXT_surface_CTA861_3_metadata "
         ;
 
+// Whitelist of extensions exposed to applications if implemented in the vendor driver.
 char const * const gExtensionString  =
         "EGL_KHR_image "                        // mandatory
         "EGL_KHR_image_base "                   // mandatory
-        "EGL_KHR_image_gl_colorspace "
+        "EGL_EXT_image_gl_colorspace "
         "EGL_KHR_image_pixmap "
         "EGL_KHR_lock_surface "
         "EGL_KHR_gl_colorspace "
@@ -451,12 +453,8 @@ EGLBoolean eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config,
 // surfaces
 // ----------------------------------------------------------------------------
 
-// Turn linear formats into corresponding sRGB formats when colorspace is
-// EGL_GL_COLORSPACE_SRGB_KHR, or turn sRGB formats into corresponding linear
-// formats when colorspace is EGL_GL_COLORSPACE_LINEAR_KHR. In any cases where
-// the modification isn't possible, the original dataSpace is returned.
-static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
-                                               EGLint colorspace) {
+// Translates EGL color spaces to Android data spaces.
+static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace) {
     if (colorspace == EGL_GL_COLORSPACE_LINEAR_KHR) {
         return HAL_DATASPACE_SRGB_LINEAR;
     } else if (colorspace == EGL_GL_COLORSPACE_SRGB_KHR) {
@@ -474,196 +472,135 @@ static android_dataspace modifyBufferDataspace(android_dataspace dataSpace,
     } else if (colorspace == EGL_GL_COLORSPACE_BT2020_PQ_EXT) {
         return HAL_DATASPACE_BT2020_PQ;
     }
-    return dataSpace;
+    return HAL_DATASPACE_UNKNOWN;
 }
 
-// stripAttributes is used by eglCreateWindowSurface, eglCreatePbufferSurface
-// and eglCreatePixmapSurface to clean up color space related Window parameters
-// that a driver does not advertise support for.
-// Return true if stripped_attrib_list has stripped contents.
+// Returns a list of color spaces understood by the vendor EGL driver.
+static std::vector<EGLint> getDriverColorSpaces(egl_display_ptr dp,
+                                                android_pixel_format format) {
+    std::vector<EGLint> colorSpaces;
+    if (!dp->hasColorSpaceSupport) return colorSpaces;
 
-static EGLBoolean stripAttributes(egl_display_ptr dp, const EGLint* attrib_list,
-                                  EGLint format,
-                                  std::vector<EGLint>& stripped_attrib_list) {
-    std::vector<EGLint> allowedColorSpaces;
-    bool haveColorSpaceSupport = dp->haveExtension("EGL_KHR_gl_colorspace");
-    switch (format) {
-        case HAL_PIXEL_FORMAT_RGBA_8888:
-        case HAL_PIXEL_FORMAT_RGBX_8888:
-        // RGB_888 is never returned by getNativePixelFormat, but is included here for completeness.
-        case HAL_PIXEL_FORMAT_RGB_888:
-            if (haveColorSpaceSupport) {
-                // Spec says:
-                //     [fn1] Only OpenGL and OpenGL ES contexts which support sRGB
-                //     rendering must respect requests for EGL_GL_COLORSPACE_SRGB_KHR, and
-                //     only to sRGB formats supported by the context (normally just SRGB8)
-                //     Older versions not supporting sRGB rendering will ignore this
-                //     surface attribute.
-                //
-                // We support sRGB and pixel format is SRGB8, so allow
-                // the EGL_GL_COLORSPACE_SRGB_KHR and
-                // EGL_GL_COLORSPACE_LINEAR_KHR
-                // colorspaces to be specified.
+    // OpenGL drivers only support sRGB encoding with 8-bit formats.
+    // RGB_888 is never returned by getNativePixelFormat, but is included for completeness.
+    const bool formatSupportsSRGBEncoding =
+        format == HAL_PIXEL_FORMAT_RGBA_8888 || format == HAL_PIXEL_FORMAT_RGBX_8888 ||
+        format == HAL_PIXEL_FORMAT_RGB_888;
+    const bool formatIsFloatingPoint = format == HAL_PIXEL_FORMAT_RGBA_FP16;
 
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_SRGB_KHR);
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_LINEAR_KHR);
-            }
-            if (findExtension(dp->disp.queryString.extensions,
-                                  "EGL_EXT_gl_colorspace_display_p3_linear")) {
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT);
-            }
-            if (findExtension(dp->disp.queryString.extensions,
-                                  "EGL_EXT_gl_colorspace_display_p3")) {
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_DISPLAY_P3_EXT);
-            }
-            if (findExtension(dp->disp.queryString.extensions,
-                                  "EGL_EXT_gl_colorspace_bt2020_linear")) {
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_LINEAR_EXT);
-            }
-            if (findExtension(dp->disp.queryString.extensions,
-                                  "EGL_EXT_gl_colorspace_bt2020_pq")) {
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
-            }
-            if (findExtension(dp->disp.queryString.extensions,
-                                  "EGL_EXT_gl_colorspace_scrgb_linear")) {
-                allowedColorSpaces.push_back(EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT);
-            }
-            break;
-
-        case HAL_PIXEL_FORMAT_RGBA_FP16:
-        case HAL_PIXEL_FORMAT_RGBA_1010102:
-        case HAL_PIXEL_FORMAT_RGB_565:
-            // Future: if driver supports XXXX extension, we can pass down that colorspace
-        default:
-            break;
-    }
-
-    if (!attrib_list) return false;
-
-    bool stripped = false;
-    for (const EGLint* attr = attrib_list; attr[0] != EGL_NONE; attr += 2) {
-        switch (attr[0]) {
-            case EGL_GL_COLORSPACE_KHR: {
-                    EGLint colorSpace = attr[1];
-                    bool found = false;
-                    // Verify that color space is allowed
-                    for (auto it : allowedColorSpaces) {
-                        if (colorSpace == it) {
-                            found = true;
-                        }
-                    }
-                    if (found) {
-                        // Found supported attribute
-                        stripped_attrib_list.push_back(attr[0]);
-                        stripped_attrib_list.push_back(attr[1]);
-                    } else if (!haveColorSpaceSupport) {
-                        // Device does not support colorspace extension
-                        // pass on the attribute and let downstream
-                        // components validate like normal
-                        stripped_attrib_list.push_back(attr[0]);
-                        stripped_attrib_list.push_back(attr[1]);
-                    } else {
-                        // Found supported attribute that driver does not
-                        // support, strip it.
-                        stripped = true;
-                    }
-                }
-                break;
-            default:
-                stripped_attrib_list.push_back(attr[0]);
-                stripped_attrib_list.push_back(attr[1]);
-                break;
+    if (formatSupportsSRGBEncoding) {
+        // sRGB and linear are always supported when color space support is present.
+        colorSpaces.push_back(EGL_GL_COLORSPACE_SRGB_KHR);
+        colorSpaces.push_back(EGL_GL_COLORSPACE_LINEAR_KHR);
+        // DCI-P3 uses the sRGB transfer function, so it's only relevant for 8-bit formats.
+        if (findExtension(dp->disp.queryString.extensions,
+                              "EGL_EXT_gl_colorspace_display_p3")) {
+            colorSpaces.push_back(EGL_GL_COLORSPACE_DISPLAY_P3_EXT);
         }
     }
 
-    // Make sure there is at least one attribute
-    if (stripped) {
-        stripped_attrib_list.push_back(EGL_NONE);
+    // According to the spec, scRGB is only supported for floating point formats.
+    // For non-linear scRGB, the application is responsible for applying the
+    // transfer function.
+    if (formatIsFloatingPoint) {
+        if (findExtension(dp->disp.queryString.extensions,
+                  "EGL_EXT_gl_colorspace_scrgb")) {
+            colorSpaces.push_back(EGL_GL_COLORSPACE_SCRGB_EXT);
+        }
+        if (findExtension(dp->disp.queryString.extensions,
+                  "EGL_EXT_gl_colorspace_scrgb_linear")) {
+            colorSpaces.push_back(EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT);
+        }
     }
-    return stripped;
+
+    // BT2020 can be used with any pixel format. PQ encoding must be applied by the
+    // application and does not affect the behavior of OpenGL.
+    if (findExtension(dp->disp.queryString.extensions,
+                          "EGL_EXT_gl_colorspace_bt2020_linear")) {
+        colorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_LINEAR_EXT);
+    }
+    if (findExtension(dp->disp.queryString.extensions,
+                          "EGL_EXT_gl_colorspace_bt2020_pq")) {
+        colorSpaces.push_back(EGL_GL_COLORSPACE_BT2020_PQ_EXT);
+    }
+
+    // Linear DCI-P3 simply uses different primaries than standard RGB and thus
+    // can be used with any pixel format.
+    if (findExtension(dp->disp.queryString.extensions,
+                          "EGL_EXT_gl_colorspace_display_p3_linear")) {
+        colorSpaces.push_back(EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT);
+    }
+    return colorSpaces;
 }
 
-static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, NativeWindowType window,
-                                         const EGLint* attrib_list, EGLint& colorSpace,
-                                         android_dataspace& dataSpace) {
-    colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
-    dataSpace = HAL_DATASPACE_UNKNOWN;
+// Cleans up color space related parameters that the driver does not understand.
+// If there is no color space attribute in attrib_list, colorSpace is left
+// unmodified.
+static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
+                                    android_pixel_format format, const EGLint* attrib_list,
+                                    EGLint* colorSpace,
+                                    std::vector<EGLint>* strippedAttribList) {
+    for (const EGLint* attr = attrib_list; attr && attr[0] != EGL_NONE; attr += 2) {
+        bool copyAttribute = true;
+        if (attr[0] == EGL_GL_COLORSPACE_KHR) {
+            // Fail immediately if the driver doesn't have color space support at all.
+            if (!dp->hasColorSpaceSupport) return false;
+            *colorSpace = attr[1];
 
-    if (attrib_list && dp->haveExtension("EGL_KHR_gl_colorspace")) {
-        for (const EGLint* attr = attrib_list; *attr != EGL_NONE; attr += 2) {
-            if (*attr == EGL_GL_COLORSPACE_KHR) {
-                colorSpace = attr[1];
-                bool found = false;
-                bool verify = true;
-                // Verify that color space is allowed
-                if (colorSpace == EGL_GL_COLORSPACE_SRGB_KHR ||
-                    colorSpace == EGL_GL_COLORSPACE_LINEAR_KHR) {
-                    // SRGB and LINEAR are always supported when EGL_KHR_gl_colorspace
-                    // is available, so no need to verify.
-                    found = true;
-                    verify = false;
-                } else if (colorSpace == EGL_GL_COLORSPACE_BT2020_LINEAR_EXT &&
-                           dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_linear")) {
-                    found = true;
-                } else if (colorSpace == EGL_GL_COLORSPACE_BT2020_PQ_EXT &&
-                           dp->haveExtension("EGL_EXT_gl_colorspace_bt2020_pq")) {
-                    found = true;
-                } else if (colorSpace == EGL_GL_COLORSPACE_SCRGB_EXT &&
-                           dp->haveExtension("EGL_EXT_gl_colorspace_scrgb")) {
-                    found = true;
-                } else if (colorSpace == EGL_GL_COLORSPACE_SCRGB_LINEAR_EXT &&
-                           dp->haveExtension("EGL_EXT_gl_colorspace_scrgb_linear")) {
-                    found = true;
-                } else if (colorSpace == EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT &&
-                           dp->haveExtension("EGL_EXT_gl_colorspace_display_p3_linear")) {
-                    found = true;
-                } else if (colorSpace == EGL_GL_COLORSPACE_DISPLAY_P3_EXT &&
-                           dp->haveExtension("EGL_EXT_gl_colorspace_display_p3")) {
-                    found = true;
+            // Strip the attribute if the driver doesn't understand it.
+            copyAttribute = false;
+            std::vector<EGLint> driverColorSpaces = getDriverColorSpaces(dp, format);
+            for (auto driverColorSpace : driverColorSpaces) {
+                if (attr[1] == driverColorSpace) {
+                    copyAttribute = true;
+                    break;
                 }
-                if (!found) {
-                    return false;
-                }
-                if (verify && window) {
-                    bool wide_color_support = true;
-                    // Ordinarily we'd put a call to native_window_get_wide_color_support
-                    // at the beginning of the function so that we'll have the
-                    // result when needed elsewhere in the function.
-                    // However, because eglCreateWindowSurface is called by SurfaceFlinger and
-                    // SurfaceFlinger is required to answer the call below we would
-                    // end up in a deadlock situation. By moving the call to only happen
-                    // if the application has specifically asked for wide-color we avoid
-                    // the deadlock with SurfaceFlinger since it will not ask for a
-                    // wide-color surface.
-                    int err = native_window_get_wide_color_support(window, &wide_color_support);
-
-                    if (err) {
-                        ALOGE("getColorSpaceAttribute: invalid window (win=%p) "
-                              "failed (%#x) (already connected to another API?)",
-                              window, err);
-                        return false;
-                    }
-                    if (!wide_color_support) {
-                        // Application has asked for a wide-color colorspace but
-                        // wide-color support isn't available on the display the window is on.
-                        return false;
-                    }
-                }
-                // Only change the dataSpace from default if the application
-                // has explicitly set the color space with a EGL_GL_COLORSPACE_KHR attribute.
-                dataSpace = modifyBufferDataspace(dataSpace, colorSpace);
             }
+        }
+        if (copyAttribute) {
+            strippedAttribList->push_back(attr[0]);
+            strippedAttribList->push_back(attr[1]);
+        }
+    }
+    // Terminate the attribute list.
+    strippedAttribList->push_back(EGL_NONE);
+
+    // If the passed color space has wide color gamut, check whether the target native window
+    // supports wide color.
+    const bool colorSpaceIsNarrow =
+        *colorSpace == EGL_GL_COLORSPACE_SRGB_KHR ||
+        *colorSpace == EGL_GL_COLORSPACE_LINEAR_KHR;
+    if (window && !colorSpaceIsNarrow) {
+        bool windowSupportsWideColor = true;
+        // Ordinarily we'd put a call to native_window_get_wide_color_support
+        // at the beginning of the function so that we'll have the
+        // result when needed elsewhere in the function.
+        // However, because eglCreateWindowSurface is called by SurfaceFlinger and
+        // SurfaceFlinger is required to answer the call below we would
+        // end up in a deadlock situation. By moving the call to only happen
+        // if the application has specifically asked for wide-color we avoid
+        // the deadlock with SurfaceFlinger since it will not ask for a
+        // wide-color surface.
+        int err = native_window_get_wide_color_support(window, &windowSupportsWideColor);
+
+        if (err) {
+            ALOGE("processAttributes: invalid window (win=%p) "
+                  "failed (%#x) (already connected to another API?)",
+                  window, err);
+            return false;
+        }
+        if (!windowSupportsWideColor) {
+            // Application has asked for a wide-color colorspace but
+            // wide-color support isn't available on the display the window is on.
+            return false;
         }
     }
     return true;
 }
 
-static EGLBoolean getColorSpaceAttribute(egl_display_ptr dp, const EGLint* attrib_list,
-                                         EGLint& colorSpace, android_dataspace& dataSpace) {
-    return getColorSpaceAttribute(dp, NULL, attrib_list, colorSpace, dataSpace);
-}
-
-void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig config, EGLint& format) {
+// Gets the native pixel format corrsponding to the passed EGLConfig.
+void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig config,
+                          android_pixel_format* format) {
     // Set the native window's buffers format to match what this config requests.
     // Whether to use sRGB gamma is not part of the EGLconfig, but is part
     // of our native format. So if sRGB gamma is requested, we have to
@@ -697,27 +634,27 @@ void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig confi
     // endif
     if (a == 0) {
         if (colorDepth <= 16) {
-            format = HAL_PIXEL_FORMAT_RGB_565;
+            *format = HAL_PIXEL_FORMAT_RGB_565;
         } else {
             if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
                 if (colorDepth > 24) {
-                    format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                    *format = HAL_PIXEL_FORMAT_RGBA_1010102;
                 } else {
-                    format = HAL_PIXEL_FORMAT_RGBX_8888;
+                    *format = HAL_PIXEL_FORMAT_RGBX_8888;
                 }
             } else {
-                format = HAL_PIXEL_FORMAT_RGBA_FP16;
+                *format = HAL_PIXEL_FORMAT_RGBA_FP16;
             }
         }
     } else {
         if (componentType == EGL_COLOR_COMPONENT_TYPE_FIXED_EXT) {
             if (colorDepth > 24) {
-                format = HAL_PIXEL_FORMAT_RGBA_1010102;
+                *format = HAL_PIXEL_FORMAT_RGBA_1010102;
             } else {
-                format = HAL_PIXEL_FORMAT_RGBA_8888;
+                *format = HAL_PIXEL_FORMAT_RGBA_8888;
             }
         } else {
-            format = HAL_PIXEL_FORMAT_RGBA_FP16;
+            *format = HAL_PIXEL_FORMAT_RGBA_FP16;
         }
     }
 }
@@ -758,8 +695,6 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
     egl_connection_t* cnx = NULL;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
-        EGLDisplay iDpy = dp->disp.dpy;
-
         if (!window) {
             return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
@@ -778,39 +713,36 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
             return setError(EGL_BAD_ALLOC, EGL_NO_SURFACE);
         }
 
-        EGLint format;
-        getNativePixelFormat(iDpy, cnx, config, format);
+        EGLDisplay iDpy = dp->disp.dpy;
+        android_pixel_format format;
+        getNativePixelFormat(iDpy, cnx, config, &format);
 
         // now select correct colorspace and dataspace based on user's attribute list
-        EGLint colorSpace;
-        android_dataspace dataSpace;
-        if (!getColorSpaceAttribute(dp, window, attrib_list, colorSpace, dataSpace)) {
+        EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+        std::vector<EGLint> strippedAttribList;
+        if (!processAttributes(dp, window, format, attrib_list, &colorSpace,
+                               &strippedAttribList)) {
             ALOGE("error invalid colorspace: %d", colorSpace);
             return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
         }
+        attrib_list = strippedAttribList.data();
 
-        std::vector<EGLint> strippedAttribList;
-        if (stripAttributes(dp, attrib_list, format, strippedAttribList)) {
-            // Had to modify the attribute list due to use of color space.
-            // Use modified list from here on.
-            attrib_list = strippedAttribList.data();
-        }
-
-        if (format != 0) {
+        {
             int err = native_window_set_buffers_format(window, format);
             if (err != 0) {
                 ALOGE("error setting native window pixel format: %s (%d)",
-                        strerror(-err), err);
+                      strerror(-err), err);
                 native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
                 return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
             }
         }
 
-        if (dataSpace != 0) {
+        android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
+        if (dataSpace != HAL_DATASPACE_UNKNOWN) {
             int err = native_window_set_buffers_data_space(window, dataSpace);
             if (err != 0) {
                 ALOGE("error setting native window pixel dataSpace: %s (%d)",
-                        strerror(-err), err);
+                      strerror(-err), err);
                 native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
                 return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
             }
@@ -844,14 +776,20 @@ EGLSurface eglCreatePixmapSurface(  EGLDisplay dpy, EGLConfig config,
 
     egl_connection_t* cnx = NULL;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
-    EGLint colorSpace;
-    android_dataspace dataSpace;
     if (dp) {
+        EGLDisplay iDpy = dp->disp.dpy;
+        android_pixel_format format;
+        getNativePixelFormat(iDpy, cnx, config, &format);
+
         // now select a corresponding sRGB format if needed
-        if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
+        EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+        std::vector<EGLint> strippedAttribList;
+        if (!processAttributes(dp, nullptr, format, attrib_list, &colorSpace,
+                               &strippedAttribList)) {
             ALOGE("error invalid colorspace: %d", colorSpace);
             return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
         }
+        attrib_list = strippedAttribList.data();
 
         EGLSurface surface = cnx->egl.eglCreatePixmapSurface(
                 dp->disp.dpy, config, pixmap, attrib_list);
@@ -872,26 +810,18 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
         EGLDisplay iDpy = dp->disp.dpy;
-        EGLint format;
-        getNativePixelFormat(iDpy, cnx, config, format);
+        android_pixel_format format;
+        getNativePixelFormat(iDpy, cnx, config, &format);
 
-        // now select correct colorspace and dataspace based on user's attribute list
-        EGLint colorSpace;
-        android_dataspace dataSpace;
-        if (!getColorSpaceAttribute(dp, attrib_list, colorSpace, dataSpace)) {
+        // Select correct colorspace based on user's attribute list
+        EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+        std::vector<EGLint> strippedAttribList;
+        if (!processAttributes(dp, nullptr, format, attrib_list, &colorSpace,
+                               &strippedAttribList)) {
             ALOGE("error invalid colorspace: %d", colorSpace);
             return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
         }
-
-        // Pbuffers are not displayed so we don't need to store the
-        // colorspace. We do need to filter out color spaces the
-        // driver doesn't know how to process.
-        std::vector<EGLint> strippedAttribList;
-        if (stripAttributes(dp, attrib_list, format, strippedAttribList)) {
-            // Had to modify the attribute list due to use of color space.
-            // Use modified list from here on.
-            attrib_list = strippedAttribList.data();
-        }
+        attrib_list = strippedAttribList.data();
 
         EGLSurface surface = cnx->egl.eglCreatePbufferSurface(
                 dp->disp.dpy, config, attrib_list);
