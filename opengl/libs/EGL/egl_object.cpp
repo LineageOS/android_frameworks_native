@@ -124,6 +124,11 @@ void egl_context_t::onMakeCurrent(EGLSurface draw, EGLSurface read) {
     if (gl_extensions.isEmpty()) {
         // call the implementation's glGetString(GL_EXTENSIONS)
         const char* exts = (const char *)gEGLImpl.hooks[version]->gl.glGetString(GL_EXTENSIONS);
+        // In an opengl 3.0+ context, GL_EXTENSIONS is not valid for glGetString
+        if (exts == NULL) {
+            gEGLImpl.hooks[version]->gl.glGetError();
+            return;
+        }
         gl_extensions.setTo(exts);
         if (gl_extensions.find("GL_EXT_debug_marker") < 0) {
             String8 temp("GL_EXT_debug_marker ");
