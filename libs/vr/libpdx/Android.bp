@@ -1,3 +1,9 @@
+cc_library_headers {
+    name: "libpdx_headers",
+    export_include_dirs: ["private"],
+    vendor_available: true,
+}
+
 cc_library_static {
     name: "libpdx",
     clang: true,
@@ -8,8 +14,8 @@ cc_library_static {
         "-DLOG_TAG=\"libpdx\"",
         "-DTRACE=0",
     ],
-    export_include_dirs: ["private"],
-    local_include_dirs: ["private"],
+    header_libs: ["libpdx_headers"],
+    export_header_lib_headers: ["libpdx_headers"],
     srcs: [
         "client.cpp",
         "service.cpp",
