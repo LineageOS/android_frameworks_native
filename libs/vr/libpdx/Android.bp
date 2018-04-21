@@ -28,10 +28,6 @@ cc_library_static {
         "libutils",
         "liblog",
     ],
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
 }
 
 cc_test {
