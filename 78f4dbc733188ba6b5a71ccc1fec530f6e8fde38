@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "76bed9e6_f3f1d9e7",
+        "filename": "opengl/libs/EGL/getProcAddress.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 59,
+      "author": {
+        "id": 16082
+      },
+      "writtenOn": "2018-04-22T00:34:30Z",
+      "side": 1,
+      "message": "Am I missing something obvious here?",
+      "range": {
+        "startLine": 59,
+        "startChar": 45,
+        "endLine": 59,
+        "endChar": 56
+      },
+      "revId": "78f4dbc733188ba6b5a71ccc1fec530f6e8fde38",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
