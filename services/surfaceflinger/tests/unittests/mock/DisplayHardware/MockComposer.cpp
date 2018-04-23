@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-#include "MockGraphicBufferConsumer.h"
+#include "mock/DisplayHardware/MockComposer.h"
 
 namespace android {
+namespace Hwc2 {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-GraphicBufferConsumer::GraphicBufferConsumer() = default;
-GraphicBufferConsumer::~GraphicBufferConsumer() = default;
+Composer::Composer() = default;
+Composer::~Composer() = default;
 
 } // namespace mock
+} // namespace Hwc2
 } // namespace android

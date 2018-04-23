@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "MockGraphicBufferProducer.h"
+#include "mock/MockEventControlThread.h"
 
 namespace android {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-GraphicBufferProducer::GraphicBufferProducer() = default;
-GraphicBufferProducer::~GraphicBufferProducer() = default;
+EventControlThread::EventControlThread() = default;
+EventControlThread::~EventControlThread() = default;
 
 } // namespace mock
 } // namespace android
