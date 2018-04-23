@@ -41,7 +41,6 @@ cc_test {
         "libmath",
     ],
     shared_libs: [
-        "android.hardware.graphics.common@1.0",
         "android.hardware.graphics.common@1.1",
         "libcutils",
         "libEGL",

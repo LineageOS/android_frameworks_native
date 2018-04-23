@@ -715,48 +715,6 @@ Error Composer::setLayerDataspace(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error Composer::setLayerHdrMetadata(Display display, Layer layer, const HdrMetadata& metadata) {
-    if (!mClient_2_2) {
-        return Error::UNSUPPORTED;
-    }
-
-    mWriter.selectDisplay(display);
-    mWriter.selectLayer(layer);
-
-    std::vector<IComposerClient::PerFrameMetadata> composerMetadata;
-    using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
-    if (metadata.validTypes & HdrMetadata::SMPTE2086) {
-        composerMetadata
-                .insert(composerMetadata.end(),
-                        {{PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X,
-                          metadata.smpte2086.displayPrimaryRed.x},
-                         {PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
-                          metadata.smpte2086.displayPrimaryRed.y},
-                         {PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
-                          metadata.smpte2086.displayPrimaryGreen.x},
-                         {PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_Y,
-                          metadata.smpte2086.displayPrimaryGreen.y},
-                         {PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_X,
-                          metadata.smpte2086.displayPrimaryBlue.x},
-                         {PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_Y,
-                          metadata.smpte2086.displayPrimaryBlue.y},
-                         {PerFrameMetadataKey::WHITE_POINT_X, metadata.smpte2086.whitePoint.x},
-                         {PerFrameMetadataKey::WHITE_POINT_Y, metadata.smpte2086.whitePoint.y},
-                         {PerFrameMetadataKey::MAX_LUMINANCE, metadata.smpte2086.maxLuminance},
-                         {PerFrameMetadataKey::MIN_LUMINANCE, metadata.smpte2086.minLuminance}});
-    }
-    if (metadata.validTypes & HdrMetadata::CTA861_3) {
-        composerMetadata.insert(composerMetadata.end(),
-                                {{PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL,
-                                  metadata.cta8613.maxContentLightLevel},
-                                 {PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
-                                  metadata.cta8613.maxFrameAverageLightLevel}});
-    }
-
-    mWriter.setLayerPerFrameMetadata(composerMetadata);
-    return Error::NONE;
-}
-
 Error Composer::setLayerDisplayFrame(Display display, Layer layer,
         const IComposerClient::Rect& frame)
 {
@@ -926,6 +884,18 @@ Error Composer::execute()
 }
 
 // Composer HAL 2.2
+
+Error Composer::setLayerPerFrameMetadata(Display display, Layer layer,
+        const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) {
+    if (!mClient_2_2) {
+        return Error::UNSUPPORTED;
+    }
+
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerPerFrameMetadata(perFrameMetadatas);
+    return Error::NONE;
+}
 
 Error Composer::getPerFrameMetadataKeys(
         Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) {
