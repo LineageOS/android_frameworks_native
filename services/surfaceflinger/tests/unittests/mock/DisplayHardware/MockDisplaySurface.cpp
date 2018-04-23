@@ -14,22 +14,14 @@
  * limitations under the License.
  */
 
-#include "MockRenderEngine.h"
+#include "mock/DisplayHardware/MockDisplaySurface.h"
 
 namespace android {
-namespace RE {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-RenderEngine::RenderEngine() = default;
-RenderEngine::~RenderEngine() = default;
-
-Surface::Surface() = default;
-Surface::~Surface() = default;
-
-Image::Image() = default;
-Image::~Image() = default;
+DisplaySurface::DisplaySurface() = default;
+DisplaySurface::~DisplaySurface() = default;
 
 } // namespace mock
-} // namespace RE
 } // namespace android

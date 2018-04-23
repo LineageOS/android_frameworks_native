@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "MockMessageQueue.h"
+#include "mock/gui/MockGraphicBufferConsumer.h"
 
 namespace android {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-MessageQueue::MessageQueue() = default;
-MessageQueue::~MessageQueue() = default;
+GraphicBufferConsumer::GraphicBufferConsumer() = default;
+GraphicBufferConsumer::~GraphicBufferConsumer() = default;
 
 } // namespace mock
 } // namespace android
