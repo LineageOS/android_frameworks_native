@@ -51,7 +51,7 @@ public:
 
     sp<Layer> getLayerUser(const sp<IBinder>& handle) const;
 
-    void setParentLayer(const sp<Layer>& parentLayer);
+    void updateParent(const sp<Layer>& parentLayer);
 
 private:
     // ISurfaceComposerClient interface
