@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "MockEventControlThread.h"
+#include "mock/MockSurfaceInterceptor.h"
 
 namespace android {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-EventControlThread::EventControlThread() = default;
-EventControlThread::~EventControlThread() = default;
+SurfaceInterceptor::SurfaceInterceptor() = default;
+SurfaceInterceptor::~SurfaceInterceptor() = default;
 
 } // namespace mock
 } // namespace android

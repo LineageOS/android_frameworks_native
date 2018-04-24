@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-#include "MockComposer.h"
+#include "mock/MockEventThread.h"
 
 namespace android {
-namespace Hwc2 {
 namespace mock {
 
 // Explicit default instantiation is recommended.
-Composer::Composer() = default;
-Composer::~Composer() = default;
+EventThread::EventThread() = default;
+EventThread::~EventThread() = default;
 
 } // namespace mock
-} // namespace Hwc2
 } // namespace android

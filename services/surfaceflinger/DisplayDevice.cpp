@@ -79,6 +79,7 @@ DisplayDevice::DisplayDevice(
         int displayHeight,
         bool hasWideColorGamut,
         const HdrCapabilities& hdrCapabilities,
+        const int32_t supportedPerFrameMetadata,
         int initialPowerMode)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
@@ -103,7 +104,8 @@ DisplayDevice::DisplayDevice(
       mHasWideColorGamut(hasWideColorGamut),
       mHasHdr10(false),
       mHasHLG(false),
-      mHasDolbyVision(false)
+      mHasDolbyVision(false),
+      mSupportedPerFrameMetadata(supportedPerFrameMetadata)
 {
     // clang-format on
     for (Hdr hdrType : hdrCapabilities.getSupportedHdrTypes()) {
