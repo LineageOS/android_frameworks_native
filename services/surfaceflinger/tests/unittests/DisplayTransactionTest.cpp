@@ -21,20 +21,19 @@
 #include <gtest/gtest.h>
 
 #include <log/log.h>
-#include "system/window.h"
 
-#include "MockComposer.h"
-#include "MockDisplaySurface.h"
-#include "MockEventControlThread.h"
-#include "MockEventThread.h"
-#include "MockGraphicBufferConsumer.h"
-#include "MockGraphicBufferProducer.h"
-#include "MockMessageQueue.h"
-#include "MockNativeWindow.h"
-#include "MockNativeWindowSurface.h"
-#include "MockRenderEngine.h"
-#include "MockSurfaceInterceptor.h"
 #include "TestableSurfaceFlinger.h"
+#include "mock/DisplayHardware/MockComposer.h"
+#include "mock/DisplayHardware/MockDisplaySurface.h"
+#include "mock/MockEventControlThread.h"
+#include "mock/MockEventThread.h"
+#include "mock/MockMessageQueue.h"
+#include "mock/MockNativeWindowSurface.h"
+#include "mock/MockSurfaceInterceptor.h"
+#include "mock/RenderEngine/MockRenderEngine.h"
+#include "mock/gui/MockGraphicBufferConsumer.h"
+#include "mock/gui/MockGraphicBufferProducer.h"
+#include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
 namespace {
@@ -81,7 +80,7 @@ protected:
         sp<DisplayDevice> build() {
             return new DisplayDevice(mFlinger.mFlinger.get(), mType, mHwcId, false, mDisplayToken,
                                      mNativeWindow, mDisplaySurface, std::move(mRenderSurface), 0,
-                                     0, false, {}, HWC_POWER_MODE_NORMAL);
+                                     0, false, {}, 0, HWC_POWER_MODE_NORMAL);
         }
 
         FakeDisplayDeviceFactory& setNativeWindow(const sp<ANativeWindow>& nativeWindow) {

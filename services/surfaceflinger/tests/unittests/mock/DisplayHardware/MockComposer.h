@@ -99,7 +99,8 @@ public:
     MOCK_METHOD3(setLayerColor, Error(Display, Layer, const IComposerClient::Color&));
     MOCK_METHOD3(setLayerCompositionType, Error(Display, Layer, IComposerClient::Composition));
     MOCK_METHOD3(setLayerDataspace, Error(Display, Layer, Dataspace));
-    MOCK_METHOD3(setLayerHdrMetadata, Error(Display, Layer, const HdrMetadata&));
+    MOCK_METHOD3(setLayerPerFrameMetadata,
+                 Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadata>&));
     MOCK_METHOD3(setLayerDisplayFrame, Error(Display, Layer, const IComposerClient::Rect&));
     MOCK_METHOD3(setLayerPlaneAlpha, Error(Display, Layer, float));
     MOCK_METHOD3(setLayerSidebandStream, Error(Display, Layer, const native_handle_t*));

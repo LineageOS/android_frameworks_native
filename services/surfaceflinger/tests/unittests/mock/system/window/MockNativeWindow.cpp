@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "MockNativeWindow.h"
+#include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
 namespace mock {

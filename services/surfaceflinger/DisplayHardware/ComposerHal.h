@@ -64,6 +64,9 @@ using V2_2::CommandWriterBase;
 using V2_2::IComposer;
 using V2_2::IComposerClient;
 
+using PerFrameMetadata = IComposerClient::PerFrameMetadata;
+using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
+
 class Composer {
 public:
     virtual ~Composer() = 0;
@@ -160,8 +163,6 @@ public:
     virtual Error setLayerCompositionType(Display display, Layer layer,
                                           IComposerClient::Composition type) = 0;
     virtual Error setLayerDataspace(Display display, Layer layer, Dataspace dataspace) = 0;
-    virtual Error setLayerHdrMetadata(Display display, Layer layer,
-                                      const HdrMetadata& metadata) = 0;
     virtual Error setLayerDisplayFrame(Display display, Layer layer,
                                        const IComposerClient::Rect& frame) = 0;
     virtual Error setLayerPlaneAlpha(Display display, Layer layer, float alpha) = 0;
@@ -176,6 +177,9 @@ public:
     virtual Error setLayerInfo(Display display, Layer layer, uint32_t type, uint32_t appId) = 0;
 
     // Composer HAL 2.2
+    virtual Error setLayerPerFrameMetadata(
+            Display display, Layer layer,
+            const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) = 0;
     virtual Error getPerFrameMetadataKeys(
             Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) = 0;
     virtual Error getRenderIntents(Display display, ColorMode colorMode,
@@ -353,7 +357,6 @@ public:
     Error setLayerCompositionType(Display display, Layer layer,
                                   IComposerClient::Composition type) override;
     Error setLayerDataspace(Display display, Layer layer, Dataspace dataspace) override;
-    Error setLayerHdrMetadata(Display display, Layer layer, const HdrMetadata& metadata) override;
     Error setLayerDisplayFrame(Display display, Layer layer,
                                const IComposerClient::Rect& frame) override;
     Error setLayerPlaneAlpha(Display display, Layer layer, float alpha) override;
@@ -368,6 +371,9 @@ public:
     Error setLayerInfo(Display display, Layer layer, uint32_t type, uint32_t appId) override;
 
     // Composer HAL 2.2
+    Error setLayerPerFrameMetadata(
+            Display display, Layer layer,
+            const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) override;
     Error getPerFrameMetadataKeys(
             Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) override;
     Error getRenderIntents(Display display, ColorMode colorMode,
