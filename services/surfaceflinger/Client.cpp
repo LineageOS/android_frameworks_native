@@ -65,9 +65,14 @@ Client::~Client()
     }
 }
 
-void Client::setParentLayer(const sp<Layer>& parentLayer) {
+void Client::updateParent(const sp<Layer>& parentLayer) {
     Mutex::Autolock _l(mLock);
-    mParentLayer = parentLayer;
+
+    // If we didn't ever have a parent, then we must instead be
+    // relying on permissions and we never need a parent.
+    if (mParentLayer != nullptr) {
+        mParentLayer = parentLayer;
+    }
 }
 
 sp<Layer> Client::getParentLayer(bool* outParentDied) const {
