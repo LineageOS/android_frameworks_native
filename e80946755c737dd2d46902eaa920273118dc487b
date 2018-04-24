@@ -22,6 +22,30 @@
       "revId": "e80946755c737dd2d46902eaa920273118dc487b",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "4e666757_eb011782",
+        "filename": "services/batteryservice/BatteryProperties.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 16185
+      },
+      "writtenOn": "2018-04-24T06:58:11Z",
+      "side": 1,
+      "message": "Is there a better way you\u0027d recommend to handle it? I\u0027m open to whatever is correct.",
+      "parentUuid": "cadf651f_21f0ab35",
+      "range": {
+        "startLine": 48,
+        "startChar": 0,
+        "endLine": 51,
+        "endChar": 29
+      },
+      "revId": "e80946755c737dd2d46902eaa920273118dc487b",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
