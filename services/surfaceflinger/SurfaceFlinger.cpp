@@ -1123,12 +1123,16 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
     int status = getBE().mHwc->getHdrCapabilities(
         displayDevice->getHwcDisplayId(), &capabilities);
     if (status == NO_ERROR) {
-        if (displayDevice->hasWideColorGamut() &&
-            !displayDevice->hasHDR10Support()) {
-            // insert HDR10 as we will force client composition for HDR10
-            // layers
+        if (displayDevice->hasWideColorGamut()) {
             std::vector<Hdr> types = capabilities.getSupportedHdrTypes();
-            types.push_back(Hdr::HDR10);
+            // insert HDR10/HLG as we will force client composition for HDR10/HLG
+            // layers
+            if (!displayDevice->hasHDR10Support()) {
+                types.push_back(Hdr::HDR10);
+            }
+            if (!displayDevice->hasHLGSupport()) {
+                types.push_back(Hdr::HLG);
+            }
 
             *outCapabilities = HdrCapabilities(types,
                     capabilities.getDesiredMaxLuminance(),
@@ -1904,17 +1908,23 @@ ui::Dataspace SurfaceFlinger::getBestDataspace(
             case Dataspace::V0_SCRGB_LINEAR:
                 // return immediately
                 return Dataspace::V0_SCRGB_LINEAR;
+            case Dataspace::DISPLAY_P3:
+                bestDataspace = Dataspace::DISPLAY_P3;
+                break;
+            // Historically, HDR dataspaces are ignored by SurfaceFlinger. But
+            // since SurfaceFlinger simulates HDR support now, it should honor
+            // them unless there is also native support.
             case Dataspace::BT2020_PQ:
             case Dataspace::BT2020_ITU_PQ:
-                // Historically, HDR dataspaces are ignored by SurfaceFlinger. But
-                // since SurfaceFlinger simulates HDR support now, it should honor
-                // them unless there is also native support.
                 if (!displayDevice->hasHDR10Support()) {
                     return Dataspace::V0_SCRGB_LINEAR;
                 }
                 break;
-            case Dataspace::DISPLAY_P3:
-                bestDataspace = Dataspace::DISPLAY_P3;
+            case Dataspace::BT2020_HLG:
+            case Dataspace::BT2020_ITU_HLG:
+                if (!displayDevice->hasHLGSupport()) {
+                    return Dataspace::V0_SCRGB_LINEAR;
+                }
                 break;
             default:
                 break;
@@ -2028,6 +2038,11 @@ void SurfaceFlinger::setUpHWComposer() {
             if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
                  layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
                     !displayDevice->hasHDR10Support()) {
+                layer->forceClientComposition(hwcId);
+            }
+            if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
+                 layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
+                    !displayDevice->hasHLGSupport()) {
                 layer->forceClientComposition(hwcId);
             }
 
