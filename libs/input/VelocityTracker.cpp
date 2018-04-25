@@ -115,7 +115,7 @@ VelocityTracker::VelocityTracker(const char* strategy) :
 
     // Allow the default strategy to be overridden using a system property for debugging.
     if (!strategy) {
-        int length = property_get("debug.velocitytracker.strategy", value, NULL);
+        int length = property_get("persist.input.velocitytracker.strategy", value, NULL);
         if (length > 0) {
             strategy = value;
         } else {
