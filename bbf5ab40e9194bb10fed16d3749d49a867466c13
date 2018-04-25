@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "da36fab4_ceebb3c5",
+        "filename": "opengl/libs/EGL/egl_object.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 131,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-04-25T03:31:54Z",
+      "side": 1,
+      "message": "Wouldn\u0027t it be better to just detect GL3 and not do the offending call?",
+      "range": {
+        "startLine": 127,
+        "startChar": 8,
+        "endLine": 131,
+        "endChar": 9
+      },
+      "revId": "bbf5ab40e9194bb10fed16d3749d49a867466c13",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
