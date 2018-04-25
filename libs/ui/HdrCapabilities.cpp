@@ -27,7 +27,6 @@ HdrCapabilities::~HdrCapabilities() = default;
 HdrCapabilities::HdrCapabilities(HdrCapabilities&& other) = default;
 HdrCapabilities& HdrCapabilities::operator=(HdrCapabilities&& other) = default;
 
-
 size_t HdrCapabilities::getFlattenedSize() const {
     return  sizeof(mMaxLuminance) +
             sizeof(mMaxAverageLuminance) +

@@ -80,6 +80,9 @@ private:
 
     /* location of the color uniform */
     GLint mColorLoc;
+
+    /* location of display luminance uniform */
+    GLint mDisplayMaxLuminanceLoc;
 };
 
 } /* namespace android */

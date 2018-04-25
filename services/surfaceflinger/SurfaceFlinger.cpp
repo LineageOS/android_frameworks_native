@@ -1119,31 +1119,14 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
         return BAD_VALUE;
     }
 
-    HdrCapabilities capabilities;
-    int status = getBE().mHwc->getHdrCapabilities(
-        displayDevice->getHwcDisplayId(), &capabilities);
-    if (status == NO_ERROR) {
-        if (displayDevice->hasWideColorGamut()) {
-            std::vector<Hdr> types = capabilities.getSupportedHdrTypes();
-            // insert HDR10/HLG as we will force client composition for HDR10/HLG
-            // layers
-            if (!displayDevice->hasHDR10Support()) {
-                types.push_back(Hdr::HDR10);
-            }
-            if (!displayDevice->hasHLGSupport()) {
-                types.push_back(Hdr::HLG);
-            }
-
-            *outCapabilities = HdrCapabilities(types,
-                    capabilities.getDesiredMaxLuminance(),
-                    capabilities.getDesiredMaxAverageLuminance(),
-                    capabilities.getDesiredMinLuminance());
-        } else {
-            *outCapabilities = std::move(capabilities);
-        }
-    } else {
-        return BAD_VALUE;
-    }
+    // At this point the DisplayDeivce should already be set up,
+    // meaning the luminance information is already queried from
+    // hardware composer and stored properly.
+    const HdrCapabilities& capabilities = displayDevice->getHdrCapabilities();
+    *outCapabilities = HdrCapabilities(capabilities.getSupportedHdrTypes(),
+                                       capabilities.getDesiredMaxLuminance(),
+                                       capabilities.getDesiredMaxAverageLuminance(),
+                                       capabilities.getDesiredMinLuminance());
 
     return NO_ERROR;
 }
@@ -2917,6 +2900,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             outputDataspace = displayDevice->getCompositionDataSpace();
         }
         getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
+        getBE().mRenderEngine->setDisplayMaxLuminance(
+                displayDevice->getHdrCapabilities().getDesiredMaxLuminance());
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -4721,6 +4706,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         }
         bool getWideColorSupport() const override { return false; }
         Dataspace getDataSpace() const override { return Dataspace::UNKNOWN; }
+        float getDisplayMaxLuminance() const override {
+            return DisplayDevice::sDefaultMaxLumiance;
+        }
 
         class ReparentForDrawing {
         public:
@@ -4923,7 +4911,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     if (renderArea.getWideColorSupport()) {
         outputDataspace = renderArea.getDataSpace();
     }
-    getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
+    engine.setOutputDataSpace(outputDataspace);
+    engine.setDisplayMaxLuminance(renderArea.getDisplayMaxLuminance());
 
     // make sure to clear all GL error flags
     engine.checkErrors();

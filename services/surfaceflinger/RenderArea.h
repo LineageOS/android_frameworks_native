@@ -32,6 +32,7 @@ public:
     virtual Rect getSourceCrop() const = 0;
     virtual bool getWideColorSupport() const = 0;
     virtual ui::Dataspace getDataSpace() const = 0;
+    virtual float getDisplayMaxLuminance() const = 0;
 
     virtual void render(std::function<void()> drawLayers) { drawLayers(); }
 

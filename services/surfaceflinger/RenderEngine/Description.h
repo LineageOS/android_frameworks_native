@@ -55,6 +55,7 @@ public:
     };
     void setInputTransferFunction(TransferFunction transferFunction);
     void setOutputTransferFunction(TransferFunction transferFunction);
+    void setDisplayMaxLuminance(const float maxLuminance);
 
 private:
     friend class Program;
@@ -83,6 +84,8 @@ private:
     // transfer functions for the input/output
     TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
     TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
+
+    float mDisplayMaxLuminance;
 };
 
 } /* namespace android */
