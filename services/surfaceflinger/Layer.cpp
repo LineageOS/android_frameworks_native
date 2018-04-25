@@ -1589,7 +1589,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
 
         sp<Client> client(child->mClientRef.promote());
         if (client != nullptr) {
-            client->setParentLayer(newParent);
+            client->updateParent(newParent);
         }
     }
     mCurrentChildren.clear();
@@ -1625,7 +1625,7 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
     sp<Client> newParentClient(newParent->mClientRef.promote());
 
     if (client != newParentClient) {
-        client->setParentLayer(newParent);
+        client->updateParent(newParent);
     }
 
     return true;
