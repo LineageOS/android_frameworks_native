@@ -266,6 +266,14 @@ pdx::Status<void> BufferHubService::HandleMessage(Message& message) {
       SetChannel(channel->channel_id(), nullptr);
       return {};
 
+    case DetachedBufferRPC::Promote::Opcode:
+      // In addition to the message handler in the DetachedBufferChannel's
+      // HandleMessage method, we also need to invalid the channel. Note that
+      // this has to be done after HandleMessage returns to make sure the IPC
+      // request has went back to the client first.
+      SetChannel(channel->channel_id(), nullptr);
+      return {};
+
     default:
       return DefaultHandleMessage(message);
   }

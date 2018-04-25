@@ -1,4 +1,5 @@
 #include "detached_buffer_channel.h"
+#include "producer_channel.h"
 
 using android::pdx::BorrowedHandle;
 using android::pdx::ErrorStatus;
@@ -62,6 +63,14 @@ DetachedBufferChannel::DetachedBufferChannel(BufferHubService* service,
   }
 }
 
+DetachedBufferChannel::~DetachedBufferChannel() {
+  ALOGD_IF(TRACE,
+           "DetachedBufferChannel::~DetachedBufferChannel: channel_id=%d "
+           "buffer_id=%d.",
+           channel_id(), buffer_id());
+  Hangup();
+}
+
 BufferHubChannel::BufferInfo DetachedBufferChannel::GetBufferInfo() const {
   return BufferInfo(buffer_id(), /*consumer_count=*/0, buffer_.width(),
                     buffer_.height(), buffer_.layer_count(), buffer_.format(),
@@ -106,13 +115,44 @@ Status<BufferDescription<BorrowedHandle>> DetachedBufferChannel::OnImport(
 }
 
 Status<RemoteChannelHandle> DetachedBufferChannel::OnPromote(
-    Message& /*message*/) {
+    Message& message) {
   ATRACE_NAME("DetachedBufferChannel::OnPromote");
   ALOGD_IF(TRACE, "DetachedBufferChannel::OnPromote: buffer_id=%d",
            buffer_id());
 
-  // TODO(b/69982239): Implement the logic to promote a detached buffer.
-  return ErrorStatus(ENOSYS);
+  // Note that the new ProducerChannel will have different channel_id, but
+  // inherits the buffer_id from the DetachedBuffer.
+  int channel_id;
+  auto status = message.PushChannel(0, nullptr, &channel_id);
+  if (!status) {
+    ALOGE(
+        "DetachedBufferChannel::OnPromote: Failed to push ProducerChannel: %s.",
+        status.GetErrorMessage().c_str());
+    return ErrorStatus(ENOMEM);
+  }
+
+  std::unique_ptr<ProducerChannel> channel = ProducerChannel::Create(
+      service(), buffer_id(), channel_id, std::move(buffer_),
+      std::move(metadata_buffer_), user_metadata_size_);
+  if (!channel) {
+    ALOGE(
+        "DetachedBufferChannel::OnPromote: Failed to create ProducerChannel "
+        "from a DetachedBufferChannel, buffer_id=%d.",
+        buffer_id());
+  }
+
+  const auto channel_status =
+      service()->SetChannel(channel_id, std::move(channel));
+  if (!channel_status) {
+    // Technically, this should never fail, as we just pushed the channel. Note
+    // that LOG_FATAL will be stripped out in non-debug build.
+    LOG_FATAL(
+        "DetachedBufferChannel::OnPromote: Failed to set new producer buffer "
+        "channel: %s.",
+        channel_status.GetErrorMessage().c_str());
+  }
+
+  return status;
 }
 
 }  // namespace dvr

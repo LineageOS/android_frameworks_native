@@ -19,18 +19,18 @@
     return result;                            \
   })()
 
-using android::sp;
 using android::GraphicBuffer;
+using android::sp;
 using android::dvr::BufferConsumer;
+using android::dvr::BufferProducer;
+using android::dvr::DetachedBuffer;
+using android::dvr::BufferHubDefs::IsBufferAcquired;
+using android::dvr::BufferHubDefs::IsBufferGained;
+using android::dvr::BufferHubDefs::IsBufferPosted;
+using android::dvr::BufferHubDefs::IsBufferReleased;
 using android::dvr::BufferHubDefs::kConsumerStateMask;
 using android::dvr::BufferHubDefs::kMetadataHeaderSize;
 using android::dvr::BufferHubDefs::kProducerStateBit;
-using android::dvr::BufferHubDefs::IsBufferGained;
-using android::dvr::BufferHubDefs::IsBufferPosted;
-using android::dvr::BufferHubDefs::IsBufferAcquired;
-using android::dvr::BufferHubDefs::IsBufferReleased;
-using android::dvr::BufferProducer;
-using android::dvr::DetachedBuffer;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
@@ -376,8 +376,8 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
   EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
-    EXPECT_TRUE(IsBufferPosted(cs[i]->buffer_state(),
-                               cs[i]->buffer_state_bit()));
+    EXPECT_TRUE(
+        IsBufferPosted(cs[i]->buffer_state(), cs[i]->buffer_state_bit()));
     EXPECT_LT(0, RETRY_EINTR(cs[i]->Poll(kPollTimeoutMs)));
     EXPECT_EQ(0, cs[i]->AcquireAsync(&metadata, &invalid_fence));
     EXPECT_TRUE(IsBufferAcquired(p->buffer_state()));
@@ -792,6 +792,7 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   // Detached buffer handle can be use to construct a new DetachedBuffer object.
   auto d = DetachedBuffer::Import(std::move(handle));
   EXPECT_FALSE(handle.valid());
+  EXPECT_TRUE(d->IsConnected());
   EXPECT_TRUE(d->IsValid());
 
   ASSERT_TRUE(d->buffer() != nullptr);
@@ -801,10 +802,11 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
 
 TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
   // Buffer Creation will fail: BLOB format requires height to be 1.
-  auto b1 = DetachedBuffer::Create(kWidth, /*height=2*/2, kLayerCount,
+  auto b1 = DetachedBuffer::Create(kWidth, /*height=2*/ 2, kLayerCount,
                                    /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage,
                                    kUserMetadataSize);
 
+  EXPECT_FALSE(b1->IsConnected());
   EXPECT_FALSE(b1->IsValid());
   EXPECT_TRUE(b1->buffer() == nullptr);
 
@@ -813,6 +815,7 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
       kWidth, kHeight, kLayerCount, kFormat, kUsage,
       /*user_metadata_size=*/std::numeric_limits<size_t>::max());
 
+  EXPECT_FALSE(b2->IsConnected());
   EXPECT_FALSE(b2->IsValid());
   EXPECT_TRUE(b2->buffer() == nullptr);
 
@@ -822,6 +825,7 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
       /*user_metadata_size=*/std::numeric_limits<size_t>::max() -
           kMetadataHeaderSize);
 
+  EXPECT_FALSE(b3->IsConnected());
   EXPECT_FALSE(b3->IsValid());
   EXPECT_TRUE(b3->buffer() == nullptr);
 }
@@ -831,6 +835,7 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBuffer) {
                                    kUsage, kUserMetadataSize);
   int b1_id = b1->id();
 
+  EXPECT_TRUE(b1->IsConnected());
   EXPECT_TRUE(b1->IsValid());
   ASSERT_TRUE(b1->buffer() != nullptr);
   EXPECT_NE(b1->id(), 0);
@@ -843,6 +848,7 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBuffer) {
   ASSERT_TRUE(g1 != nullptr);
   EXPECT_TRUE(g1->isDetachedBuffer());
 
+  EXPECT_FALSE(b1->IsConnected());
   EXPECT_FALSE(b1->IsValid());
   EXPECT_TRUE(b1->buffer() == nullptr);
 
@@ -856,6 +862,7 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBuffer) {
 
   auto b2 = DetachedBuffer::Import(std::move(h1->handle()));
   ASSERT_FALSE(h1->isValid());
+  EXPECT_TRUE(b2->IsConnected());
   EXPECT_TRUE(b2->IsValid());
 
   ASSERT_TRUE(b2->buffer() != nullptr);
@@ -864,4 +871,77 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBuffer) {
   // The newly created DetachedBuffer should share the original buffer_id.
   EXPECT_EQ(b2->id(), b1_id);
   EXPECT_FALSE(b2->buffer()->isDetachedBuffer());
+}
+
+TEST_F(LibBufferHubTest, TestPromoteDetachedBuffer) {
+  auto b1 = DetachedBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                   kUsage, kUserMetadataSize);
+  int b1_id = b1->id();
+  EXPECT_TRUE(b1->IsValid());
+
+  auto status_or_handle = b1->Promote();
+  EXPECT_TRUE(status_or_handle);
+
+  // The detached buffer should have hangup.
+  EXPECT_GT(RETRY_EINTR(b1->Poll(kPollTimeoutMs)), 0);
+  auto status_or_int = b1->GetEventMask(POLLHUP);
+  EXPECT_TRUE(status_or_int.ok());
+  EXPECT_EQ(status_or_int.get(), POLLHUP);
+
+  // The buffer client is still considered as connected but invalid.
+  EXPECT_TRUE(b1->IsConnected());
+  EXPECT_FALSE(b1->IsValid());
+
+  // Gets the channel handle for the producer.
+  LocalChannelHandle h1 = status_or_handle.take();
+  EXPECT_TRUE(h1.valid());
+
+  std::unique_ptr<BufferProducer> p1 = BufferProducer::Import(std::move(h1));
+  EXPECT_FALSE(h1.valid());
+  ASSERT_TRUE(p1 != nullptr);
+  int p1_id = p1->id();
+
+  // A newly promoted ProducerBuffer should inherit the same buffer id.
+  EXPECT_EQ(b1_id, p1_id);
+  EXPECT_TRUE(IsBufferGained(p1->buffer_state()));
+}
+
+TEST_F(LibBufferHubTest, TestDetachThenPromote) {
+  std::unique_ptr<BufferProducer> p1 = BufferProducer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p1.get() != nullptr);
+  int p1_id = p1->id();
+
+  // Detached the producer.
+  auto status_or_handle = p1->Detach();
+  EXPECT_TRUE(status_or_handle.ok());
+  LocalChannelHandle h1 = status_or_handle.take();
+  EXPECT_TRUE(h1.valid());
+
+  // Detached buffer handle can be use to construct a new DetachedBuffer object.
+  auto b1 = DetachedBuffer::Import(std::move(h1));
+  EXPECT_FALSE(h1.valid());
+  EXPECT_TRUE(b1->IsValid());
+  int b1_id = b1->id();
+  EXPECT_EQ(b1_id, p1_id);
+
+  // Promote the detached buffer.
+  status_or_handle = b1->Promote();
+  // The buffer client is still considered as connected but invalid.
+  EXPECT_TRUE(b1->IsConnected());
+  EXPECT_FALSE(b1->IsValid());
+  EXPECT_TRUE(status_or_handle.ok());
+
+  // Gets the channel handle for the producer.
+  LocalChannelHandle h2 = status_or_handle.take();
+  EXPECT_TRUE(h2.valid());
+
+  std::unique_ptr<BufferProducer> p2 = BufferProducer::Import(std::move(h2));
+  EXPECT_FALSE(h2.valid());
+  ASSERT_TRUE(p2 != nullptr);
+  int p2_id = p2->id();
+
+  // A newly promoted ProducerBuffer should inherit the same buffer id.
+  EXPECT_EQ(b1_id, p2_id);
+  EXPECT_TRUE(IsBufferGained(p2->buffer_state()));
 }
