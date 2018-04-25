@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "f3367ef0_8401e500",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 5
+      },
+      "lineNbr": 8,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-04-25T03:33:46Z",
+      "side": 1,
+      "message": "I think multiline topics are treated weirdly by git sometimes too, so careful here.",
+      "range": {
+        "startLine": 7,
+        "startChar": 0,
+        "endLine": 8,
+        "endChar": 27
+      },
+      "revId": "6989fcff0c38312d64abcc17c50ed70a08a3175d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
