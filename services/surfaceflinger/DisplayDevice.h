@@ -129,6 +129,7 @@ public:
     uint32_t                getLayerStack() const { return mLayerStack; }
     int32_t                 getDisplayType() const { return mType; }
     bool                    isPrimary() const { return mType == DISPLAY_PRIMARY; }
+    bool                    isVirtual() const { return mType == DISPLAY_VIRTUAL; }
     int32_t                 getHwcDisplayId() const { return mHwcDisplayId; }
     const wp<IBinder>&      getDisplayToken() const { return mDisplayToken; }
 
