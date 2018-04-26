@@ -37,6 +37,7 @@
 #include "RenderEngine/Surface.h"
 
 #include <memory>
+#include <string>
 
 struct ANativeWindow;
 
@@ -152,8 +153,8 @@ public:
     }
     inline Rect bounds() const { return getBounds(); }
 
-    void setDisplayName(const String8& displayName);
-    const String8& getDisplayName() const { return mDisplayName; }
+    void setDisplayName(const std::string& displayName);
+    const std::string& getDisplayName() const { return mDisplayName; }
 
     bool makeCurrent() const;
     void setViewportAndProjection() const;
@@ -208,7 +209,7 @@ private:
     int             mDisplayWidth;
     int             mDisplayHeight;
     mutable uint32_t mPageFlipCount;
-    String8         mDisplayName;
+    std::string     mDisplayName;
     bool            mIsSecure;
 
     /*
@@ -266,15 +267,10 @@ private:
 };
 
 struct DisplayDeviceState {
-    DisplayDeviceState() = default;
-    DisplayDeviceState(DisplayDevice::DisplayType type, bool isSecure);
-
     bool isValid() const { return type >= 0; }
-    bool isMainDisplay() const { return type == DisplayDevice::DISPLAY_PRIMARY; }
-    bool isVirtualDisplay() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
+    bool isVirtual() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
 
-    static std::atomic<int32_t> nextDisplayId;
-    int32_t displayId = nextDisplayId++;
+    int32_t sequenceId = sNextSequenceId++;
     DisplayDevice::DisplayType type = DisplayDevice::DISPLAY_ID_INVALID;
     sp<IGraphicBufferProducer> surface;
     uint32_t layerStack = DisplayDevice::NO_LAYER_STACK;
@@ -283,8 +279,11 @@ struct DisplayDeviceState {
     uint8_t orientation = 0;
     uint32_t width = 0;
     uint32_t height = 0;
-    String8 displayName;
+    std::string displayName;
     bool isSecure = false;
+
+private:
+    static std::atomic<int32_t> sNextSequenceId;
 };
 
 class DisplayRenderArea : public RenderArea {

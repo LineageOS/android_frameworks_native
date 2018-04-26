@@ -230,7 +230,9 @@ sp<BBinder> DisplayTransactionTest::setupFakeExistingPhysicalDisplay(
             .add(displayToken,
                  FakeDisplayDeviceFactory(mFlinger, displayToken, type, type).build());
 
-    DisplayDeviceState state(type, true);
+    DisplayDeviceState state;
+    state.type = type;
+    state.isSecure = true;
     mFlinger.mutableCurrentState().displays.add(displayToken, state);
     mFlinger.mutableDrawingState().displays.add(displayToken, state);
 

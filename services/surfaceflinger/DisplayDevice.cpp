@@ -149,8 +149,8 @@ int DisplayDevice::getHeight() const {
     return mDisplayHeight;
 }
 
-void DisplayDevice::setDisplayName(const String8& displayName) {
-    if (!displayName.isEmpty()) {
+void DisplayDevice::setDisplayName(const std::string& displayName) {
+    if (!displayName.empty()) {
         // never override the name with an empty name
         mDisplayName = displayName;
     }
@@ -201,8 +201,7 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
 
     status_t result = mDisplaySurface->advanceFrame();
     if (result != NO_ERROR) {
-        ALOGE("[%s] failed pushing new frame to HWC: %d",
-                mDisplayName.string(), result);
+        ALOGE("[%s] failed pushing new frame to HWC: %d", mDisplayName.c_str(), result);
     }
 }
 
@@ -481,7 +480,7 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 void DisplayDevice::dump(String8& result) const {
     const Transform& tr(mGlobalTransform);
     ANativeWindow* const window = mNativeWindow.get();
-    result.appendFormat("+ DisplayDevice: %s\n", mDisplayName.string());
+    result.appendFormat("+ DisplayDevice: %s\n", mDisplayName.c_str());
     result.appendFormat("   type=%x, hwcId=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "
                         "(%d:%d:%d:%d), orient=%2d (type=%08x), "
                         "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
@@ -508,18 +507,6 @@ void DisplayDevice::dump(String8& result) const {
     result.append(surfaceDump);
 }
 
-std::atomic<int32_t> DisplayDeviceState::nextDisplayId(1);
-
-DisplayDeviceState::DisplayDeviceState(DisplayDevice::DisplayType type, bool isSecure)
-    : type(type),
-      layerStack(DisplayDevice::NO_LAYER_STACK),
-      orientation(0),
-      width(0),
-      height(0),
-      isSecure(isSecure)
-{
-    viewport.makeInvalid();
-    frame.makeInvalid();
-}
+std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);
 
 }  // namespace android
