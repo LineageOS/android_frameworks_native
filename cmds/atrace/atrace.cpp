@@ -117,6 +117,7 @@ static const TracingCategory k_categories[] = {
     { "adb",        "ADB",              ATRACE_TAG_ADB, { } },
     { "vibrator",   "Vibrator",         ATRACE_TAG_VIBRATOR, { } },
     { "aidl",       "AIDL calls",       ATRACE_TAG_AIDL, { } },
+    { "nnapi",      "NNAPI",            ATRACE_TAG_NNAPI, { } },
     { k_coreServiceCategory, "Core services", 0, { } },
     { k_pdxServiceCategory, "PDX services", 0, { } },
     { "sched",      "CPU Scheduling",   0, {
