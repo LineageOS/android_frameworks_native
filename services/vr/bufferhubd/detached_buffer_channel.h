@@ -11,6 +11,8 @@ namespace dvr {
 
 class DetachedBufferChannel : public BufferHubChannel {
  public:
+  ~DetachedBufferChannel() override;
+
   template <typename... Args>
   static std::unique_ptr<DetachedBufferChannel> Create(Args&&... args) {
     auto buffer = std::unique_ptr<DetachedBufferChannel>(
