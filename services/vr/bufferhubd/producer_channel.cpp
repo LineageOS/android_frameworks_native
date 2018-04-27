@@ -35,6 +35,30 @@ static inline uint64_t FindNextClearedBit(uint64_t bits) {
 
 }  // namespace
 
+ProducerChannel::ProducerChannel(BufferHubService* service, int buffer_id,
+                                 int channel_id, IonBuffer buffer,
+                                 IonBuffer metadata_buffer,
+                                 size_t user_metadata_size, int* error)
+    : BufferHubChannel(service, buffer_id, channel_id, kProducerType),
+      buffer_(std::move(buffer)),
+      metadata_buffer_(std::move(metadata_buffer)),
+      user_metadata_size_(user_metadata_size),
+      metadata_buf_size_(BufferHubDefs::kMetadataHeaderSize +
+                         user_metadata_size) {
+  if (!buffer_.IsValid()) {
+    ALOGE("ProducerChannel::ProducerChannel: Invalid buffer.");
+    *error = -EINVAL;
+    return;
+  }
+  if (!metadata_buffer_.IsValid()) {
+    ALOGE("ProducerChannel::ProducerChannel: Invalid metadata buffer.");
+    *error = -EINVAL;
+    return;
+  }
+
+  *error = InitializeBuffer();
+}
+
 ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
                                  uint32_t width, uint32_t height,
                                  uint32_t layer_count, uint32_t format,
@@ -63,13 +87,16 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
     return;
   }
 
+  *error = InitializeBuffer();
+}
+
+int ProducerChannel::InitializeBuffer() {
   void* metadata_ptr = nullptr;
   if (int ret = metadata_buffer_.Lock(BufferHubDefs::kMetadataUsage, /*x=*/0,
                                       /*y=*/0, metadata_buf_size_,
                                       /*height=*/1, &metadata_ptr)) {
     ALOGE("ProducerChannel::ProducerChannel: Failed to lock metadata.");
-    *error = -ret;
-    return;
+    return ret;
   }
   metadata_header_ =
       reinterpret_cast<BufferHubDefs::MetadataHeader*>(metadata_ptr);
@@ -85,15 +112,13 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
   release_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
   if (!acquire_fence_fd_ || !release_fence_fd_) {
     ALOGE("ProducerChannel::ProducerChannel: Failed to create shared fences.");
-    *error = -EIO;
-    return;
+    return -EIO;
   }
 
   dummy_fence_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
   if (!dummy_fence_fd_) {
     ALOGE("ProducerChannel::ProducerChannel: Failed to create dummy fences.");
-    *error = -EIO;
-    return;
+    return EIO;
   }
 
   epoll_event event;
@@ -105,12 +130,25 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
         "ProducerChannel::ProducerChannel: Failed to modify the shared "
         "release fence to include the dummy fence: %s",
         strerror(errno));
-    *error = -EIO;
-    return;
+    return -EIO;
   }
 
   // Success.
-  *error = 0;
+  return 0;
+}
+
+std::unique_ptr<ProducerChannel> ProducerChannel::Create(
+    BufferHubService* service, int buffer_id, int channel_id, IonBuffer buffer,
+    IonBuffer metadata_buffer, size_t user_metadata_size) {
+  int error = 0;
+  std::unique_ptr<ProducerChannel> producer(new ProducerChannel(
+      service, buffer_id, channel_id, std::move(buffer),
+      std::move(metadata_buffer), user_metadata_size, &error));
+
+  if (error < 0)
+    return nullptr;
+  else
+    return producer;
 }
 
 Status<std::shared_ptr<ProducerChannel>> ProducerChannel::Create(
