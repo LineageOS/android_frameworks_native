@@ -141,7 +141,7 @@ cc_library_shared {
     ],
     logtags: ["EventLog/EventLogTags.logtags"],
     include_dirs: [
-        "external/vulkan-validation-layers/libs/vkjson",
+        "frameworks/native/vulkan/vkjson",
         "frameworks/native/vulkan/include",
     ],
     cppflags: [
