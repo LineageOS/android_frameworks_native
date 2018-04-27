@@ -647,6 +647,309 @@ using HdrDolbyVisionDisplayCase =
              HdrDolbyVisionSupportedVariant<PrimaryDisplayVariant>>;
 
 /* ------------------------------------------------------------------------
+ *
+ * SurfaceFlinger::onHotplugReceived
+ */
+
+TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
+    constexpr int currentSequenceId = 123;
+    constexpr hwc2_display_t displayId1 = 456;
+    constexpr hwc2_display_t displayId2 = 654;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // Set the current sequence id for accepted events
+    mFlinger.mutableComposerSequenceId() = currentSequenceId;
+
+    // Set the main thread id so that the current thread does not appear to be
+    // the main thread.
+    mFlinger.mutableMainThreadId() = std::thread::id();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We expect invalidate() to be invoked once to trigger display transaction
+    // processing.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    // Simulate two hotplug events (a connect and a disconnect)
+    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Connected);
+    mFlinger.onHotplugReceived(currentSequenceId, displayId2, HWC2::Connection::Disconnected);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display transaction needed flag should be set.
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // All events should be in the pending event queue.
+    const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
+    ASSERT_EQ(2u, pendingEvents.size());
+    EXPECT_EQ(displayId1, pendingEvents[0].display);
+    EXPECT_EQ(HWC2::Connection::Connected, pendingEvents[0].connection);
+    EXPECT_EQ(displayId2, pendingEvents[1].display);
+    EXPECT_EQ(HWC2::Connection::Disconnected, pendingEvents[1].connection);
+}
+
+TEST_F(DisplayTransactionTest, hotplugDiscardsUnexpectedEvents) {
+    constexpr int currentSequenceId = 123;
+    constexpr int otherSequenceId = 321;
+    constexpr hwc2_display_t displayId = 456;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // Set the current sequence id for accepted events
+    mFlinger.mutableComposerSequenceId() = currentSequenceId;
+
+    // Set the main thread id so that the current thread does not appear to be
+    // the main thread.
+    mFlinger.mutableMainThreadId() = std::thread::id();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We do not expect any calls to invalidate().
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(0);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    // Call with an unexpected sequence id
+    mFlinger.onHotplugReceived(otherSequenceId, displayId, HWC2::Connection::Invalid);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display transaction needed flag should not be set
+    EXPECT_FALSE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // There should be no pending events
+    EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
+}
+
+TEST_F(DisplayTransactionTest, hotplugProcessesEnqueuedEventsIfCalledOnMainThread) {
+    constexpr int currentSequenceId = 123;
+    constexpr hwc2_display_t displayId1 = 456;
+
+    // --------------------------------------------------------------------
+    // Note:
+    // --------------------------------------------------------------------
+    // This test case is a bit tricky. We want to verify that
+    // onHotplugReceived() calls processDisplayHotplugEventsLocked(), but we
+    // don't really want to provide coverage for everything the later function
+    // does as there are specific tests for it.
+    // --------------------------------------------------------------------
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // Set the current sequence id for accepted events
+    mFlinger.mutableComposerSequenceId() = currentSequenceId;
+
+    // Set the main thread id so that the current thread does appear to be the
+    // main thread.
+    mFlinger.mutableMainThreadId() = std::this_thread::get_id();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We expect invalidate() to be invoked once to trigger display transaction
+    // processing.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    // Simulate a disconnect on a display id that is not connected. This should
+    // be enqueued by onHotplugReceived(), and dequeued by
+    // processDisplayHotplugEventsLocked(), but then ignored as invalid.
+    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Disconnected);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display transaction needed flag should be set.
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // There should be no event queued on return, as it should have been
+    // processed.
+    EXPECT_TRUE(mFlinger.mutablePendingHotplugEvents().empty());
+}
+
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::createDisplay
+ */
+
+TEST_F(DisplayTransactionTest, createDisplaySetsCurrentStateForNonsecureDisplay) {
+    const String8 name("virtual.test");
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call should notify the interceptor that a display was created.
+    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    sp<IBinder> displayToken = mFlinger.createDisplay(name, false);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been added to the current state
+    ASSERT_TRUE(hasCurrentDisplayState(displayToken));
+    const auto& display = getCurrentDisplayState(displayToken);
+    EXPECT_EQ(DisplayDevice::DISPLAY_VIRTUAL, display.type);
+    EXPECT_EQ(false, display.isSecure);
+    EXPECT_EQ(name.string(), display.displayName);
+
+    // --------------------------------------------------------------------
+    // Cleanup conditions
+
+    // Destroying the display invalidates the display state.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+}
+
+TEST_F(DisplayTransactionTest, createDisplaySetsCurrentStateForSecureDisplay) {
+    const String8 name("virtual.test");
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call should notify the interceptor that a display was created.
+    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    sp<IBinder> displayToken = mFlinger.createDisplay(name, true);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been added to the current state
+    ASSERT_TRUE(hasCurrentDisplayState(displayToken));
+    const auto& display = getCurrentDisplayState(displayToken);
+    EXPECT_EQ(DisplayDevice::DISPLAY_VIRTUAL, display.type);
+    EXPECT_EQ(true, display.isSecure);
+    EXPECT_EQ(name.string(), display.displayName);
+
+    // --------------------------------------------------------------------
+    // Cleanup conditions
+
+    // Destroying the display invalidates the display state.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+}
+
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::destroyDisplay
+ */
+
+TEST_F(DisplayTransactionTest, destroyDisplayClearsCurrentStateForDisplay) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A virtual display exists
+    auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
+    existing.inject();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call should notify the interceptor that a display was created.
+    EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
+
+    // Destroying the display invalidates the display state.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.destroyDisplay(existing.token());
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The display should have been removed from the current state
+    EXPECT_FALSE(hasCurrentDisplayState(existing.token()));
+
+    // Ths display should still exist in the drawing state
+    EXPECT_TRUE(hasDrawingDisplayState(existing.token()));
+
+    // The display transaction needed flasg should be set
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+}
+
+TEST_F(DisplayTransactionTest, destroyDisplayHandlesUnknownDisplay) {
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    sp<BBinder> displayToken = new BBinder();
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.destroyDisplay(displayToken);
+}
+
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::resetDisplayState
+ */
+
+TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // vsync is enabled and available
+    mFlinger.mutablePrimaryHWVsyncEnabled() = true;
+    mFlinger.mutableHWVsyncAvailable() = true;
+
+    // A display exists
+    auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
+    existing.inject();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // The call disable vsyncs
+    EXPECT_CALL(*mEventControlThread, setVsyncEnabled(false)).Times(1);
+
+    // The call clears the current render engine surface
+    EXPECT_CALL(*mRenderEngine, resetCurrentSurface());
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.resetDisplayState();
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // vsyncs should be off and not available.
+    EXPECT_FALSE(mFlinger.mutablePrimaryHWVsyncEnabled());
+    EXPECT_FALSE(mFlinger.mutableHWVsyncAvailable());
+
+    // The display should have been removed from the display map.
+    EXPECT_FALSE(hasDisplayDevice(existing.token()));
+
+    // The display should still exist in the current state
+    EXPECT_TRUE(hasCurrentDisplayState(existing.token()));
+
+    // The display should have been removed from the drawing state
+    EXPECT_FALSE(hasDrawingDisplayState(existing.token()));
+}
+
+/* ------------------------------------------------------------------------
  * SurfaceFlinger::setupNewDisplayDeviceInternal
  */
 
@@ -1119,6 +1422,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
     // A virtual display was added to the current state, and it has a
     // surface(producer)
     sp<BBinder> displayToken = new BBinder();
+
     DisplayDeviceState info;
     info.type = Case::Display::TYPE;
     info.isSecure = static_cast<bool>(Case::Display::SECURE);
@@ -1240,6 +1544,200 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
 
     // The existing token should have been removed
     verifyDisplayIsNotConnected(existing.token());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr uint32_t oldLayerStack = 0u;
+    constexpr uint32_t newLayerStack = 123u;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the layerStack state
+    display.mutableDrawingDisplayState().layerStack = oldLayerStack;
+    display.mutableCurrentDisplayState().layerStack = newLayerStack;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newLayerStack, getDisplayDevice(display.token())->getLayerStack());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr int oldTransform = 0;
+    constexpr int newTransform = 2;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the orientation state
+    display.mutableDrawingDisplayState().orientation = oldTransform;
+    display.mutableCurrentDisplayState().orientation = newTransform;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newTransform, getDisplayDevice(display.token())->getOrientation());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    const Rect oldViewport(0, 0, 0, 0);
+    const Rect newViewport(0, 0, 123, 456);
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().viewport = oldViewport;
+    display.mutableCurrentDisplayState().viewport = newViewport;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newViewport, getDisplayDevice(display.token())->getViewport());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    const Rect oldFrame(0, 0, 0, 0);
+    const Rect newFrame(0, 0, 123, 456);
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().frame = oldFrame;
+    display.mutableCurrentDisplayState().frame = newFrame;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    EXPECT_EQ(newFrame, getDisplayDevice(display.token())->getFrame());
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr int oldWidth = 0;
+    constexpr int oldHeight = 10;
+    constexpr int newWidth = 123;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto nativeWindow = new mock::NativeWindow();
+    auto displaySurface = new mock::DisplaySurface();
+    auto renderSurface = new RE::mock::Surface();
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.setNativeWindow(nativeWindow);
+    display.setDisplaySurface(displaySurface);
+    display.setRenderSurface(std::unique_ptr<RE::Surface>(renderSurface));
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().width = oldWidth;
+    display.mutableDrawingDisplayState().height = oldHeight;
+    display.mutableCurrentDisplayState().width = newWidth;
+    display.mutableCurrentDisplayState().height = oldHeight;
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(newWidth, oldHeight)).Times(1);
+    EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
+    EXPECT_CALL(*renderSurface, queryWidth()).WillOnce(Return(newWidth));
+    EXPECT_CALL(*renderSurface, queryHeight()).WillOnce(Return(oldHeight));
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+}
+
+TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
+    using Case = NonHwcVirtualDisplayCase;
+
+    constexpr int oldWidth = 0;
+    constexpr int oldHeight = 10;
+    constexpr int newHeight = 123;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto nativeWindow = new mock::NativeWindow();
+    auto displaySurface = new mock::DisplaySurface();
+    auto renderSurface = new RE::mock::Surface();
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.setNativeWindow(nativeWindow);
+    display.setDisplaySurface(displaySurface);
+    display.setRenderSurface(std::unique_ptr<RE::Surface>(renderSurface));
+    display.inject();
+
+    // There is a change to the viewport state
+    display.mutableDrawingDisplayState().width = oldWidth;
+    display.mutableDrawingDisplayState().height = oldHeight;
+    display.mutableCurrentDisplayState().width = oldWidth;
+    display.mutableCurrentDisplayState().height = newHeight;
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
+    EXPECT_CALL(*displaySurface, resizeBuffers(oldWidth, newHeight)).Times(1);
+    EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
+    EXPECT_CALL(*renderSurface, queryWidth()).WillOnce(Return(oldWidth));
+    EXPECT_CALL(*renderSurface, queryHeight()).WillOnce(Return(newHeight));
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
 }
 
 } // namespace
