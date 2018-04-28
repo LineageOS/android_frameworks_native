@@ -3,7 +3,11 @@
 #include <pdx/file_handle.h>
 #include <ui/DetachedBufferHandle.h>
 
+#include <poll.h>
+
+using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
+using android::pdx::Status;
 
 namespace android {
 namespace dvr {
@@ -78,9 +82,26 @@ int DetachedBuffer::ImportGraphicBuffer() {
   return 0;
 }
 
-std::unique_ptr<BufferProducer> DetachedBuffer::Promote() {
-  ALOGE("DetachedBuffer::Promote: Not implemented.");
-  return nullptr;
+int DetachedBuffer::Poll(int timeout_ms) {
+  ATRACE_NAME("DetachedBuffer::Poll");
+  pollfd p = {client_.event_fd(), POLLIN, 0};
+  return poll(&p, 1, timeout_ms);
+}
+
+Status<LocalChannelHandle> DetachedBuffer::Promote() {
+  ATRACE_NAME("DetachedBuffer::Promote");
+  ALOGD_IF(TRACE, "DetachedBuffer::Promote: id=%d.", id_);
+
+  auto status_or_handle =
+      client_.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
+  if (status_or_handle.ok()) {
+    // Invalidate the buffer.
+    buffer_ = {};
+  } else {
+    ALOGE("DetachedBuffer::Promote: Failed to promote buffer (id=%d): %s.", id_,
+          status_or_handle.GetErrorMessage().c_str());
+  }
+  return status_or_handle;
 }
 
 sp<GraphicBuffer> DetachedBuffer::TakeGraphicBuffer() {

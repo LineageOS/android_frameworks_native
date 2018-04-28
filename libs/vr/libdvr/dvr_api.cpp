@@ -12,6 +12,7 @@
 #include <dvr/dvr_display_manager.h>
 #include <dvr/dvr_performance.h>
 #include <dvr/dvr_surface.h>
+#include <dvr/dvr_tracking.h>
 #include <dvr/dvr_vsync.h>
 
 // Headers not yet moved into libdvr.

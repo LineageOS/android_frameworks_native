@@ -18,17 +18,17 @@ namespace dvr {
 
 class BufferHubClient : public pdx::Client {
  public:
-  using LocalChannelHandle = pdx::LocalChannelHandle;
-
   BufferHubClient();
-  explicit BufferHubClient(LocalChannelHandle channel_handle);
+  explicit BufferHubClient(pdx::LocalChannelHandle channel_handle);
 
   bool IsValid() const;
-  LocalChannelHandle TakeChannelHandle();
+  pdx::LocalChannelHandle TakeChannelHandle();
 
   using pdx::Client::Close;
+  using pdx::Client::GetChannel;
   using pdx::Client::InvokeRemoteMethod;
   using pdx::Client::IsConnected;
+  using pdx::Client::event_fd;
 };
 
 class BufferHubBuffer : public pdx::Client {

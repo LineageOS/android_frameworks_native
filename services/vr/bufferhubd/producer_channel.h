@@ -30,6 +30,12 @@ class ProducerChannel : public BufferHubChannel {
   template <typename T>
   using BufferWrapper = pdx::rpc::BufferWrapper<T>;
 
+  static std::unique_ptr<ProducerChannel> Create(BufferHubService* service,
+                                                 int buffer_id, int channel_id,
+                                                 IonBuffer buffer,
+                                                 IonBuffer metadata_buffer,
+                                                 size_t user_metadata_size);
+
   static pdx::Status<std::shared_ptr<ProducerChannel>> Create(
       BufferHubService* service, int channel_id, uint32_t width,
       uint32_t height, uint32_t layer_count, uint32_t format, uint64_t usage,
@@ -92,10 +98,14 @@ class ProducerChannel : public BufferHubChannel {
   pdx::LocalHandle release_fence_fd_;
   pdx::LocalHandle dummy_fence_fd_;
 
+  ProducerChannel(BufferHubService* service, int buffer_id, int channel_id,
+                  IonBuffer buffer, IonBuffer metadata_buffer,
+                  size_t user_metadata_size, int* error);
   ProducerChannel(BufferHubService* service, int channel, uint32_t width,
                   uint32_t height, uint32_t layer_count, uint32_t format,
                   uint64_t usage, size_t user_metadata_size, int* error);
 
+  int InitializeBuffer();
   pdx::Status<BufferDescription<BorrowedHandle>> OnGetBuffer(Message& message);
   pdx::Status<void> OnProducerPost(Message& message, LocalFence acquire_fence);
   pdx::Status<LocalFence> OnProducerGain(Message& message);
