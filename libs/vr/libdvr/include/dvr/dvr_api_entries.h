@@ -184,5 +184,6 @@ DVR_V1_API_ENTRY(PoseClientDataReaderDestroy);
 
 // Tracking
 DVR_V1_API_ENTRY(TrackingCameraCreate);
+DVR_V1_API_ENTRY(TrackingCameraDestroy);
 DVR_V1_API_ENTRY(TrackingCameraStart);
 DVR_V1_API_ENTRY(TrackingCameraStop);
