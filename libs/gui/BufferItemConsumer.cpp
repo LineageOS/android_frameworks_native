@@ -92,10 +92,13 @@ status_t BufferItemConsumer::releaseBuffer(const BufferItem &item,
     Mutex::Autolock _l(mMutex);
 
     err = addReleaseFenceLocked(item.mSlot, item.mGraphicBuffer, releaseFence);
+    if (err != OK) {
+        BI_LOGE("Failed to addReleaseFenceLocked");
+    }
 
     err = releaseBufferLocked(item.mSlot, item.mGraphicBuffer, EGL_NO_DISPLAY,
             EGL_NO_SYNC_KHR);
-    if (err != OK) {
+    if (err != OK && err != IGraphicBufferConsumer::STALE_BUFFER_SLOT) {
         BI_LOGE("Failed to release buffer: %s (%d)",
                 strerror(-err), err);
     }
