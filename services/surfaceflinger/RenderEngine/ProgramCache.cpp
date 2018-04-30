@@ -125,13 +125,17 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                  description.mPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
             .set(Key::OPACITY_MASK,
                  description.mOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
-            .set(Key::COLOR_MATRIX_MASK,
-                 description.mColorMatrixEnabled ? Key::COLOR_MATRIX_ON : Key::COLOR_MATRIX_OFF);
+            .set(Key::Key::INPUT_TRANSFORM_MATRIX_MASK,
+                 description.hasInputTransformMatrix() ?
+                     Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
+            .set(Key::Key::OUTPUT_TRANSFORM_MATRIX_MASK,
+                 description.hasOutputTransformMatrix() || description.hasColorMatrix() ?
+                     Key::OUTPUT_TRANSFORM_MATRIX_ON : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
 
     needs.set(Key::Y410_BT2020_MASK,
               description.mY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
 
-    if (needs.hasColorMatrix()) {
+    if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
         switch (description.mInputTransferFunction) {
             case Description::TransferFunction::LINEAR:
             default:
@@ -441,11 +445,42 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             )__SHADER__";
     }
 
-    if (needs.hasColorMatrix()) {
-        fs << "uniform mat4 colorMatrix;";
+    if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
         // Currently, only the OOTF of BT2020 PQ needs display maximum luminance.
         if (needs.getInputTF() == Key::INPUT_TF_ST2084) {
             fs << "uniform float displayMaxLuminance";
+        }
+
+        if (needs.hasInputTransformMatrix()) {
+            fs << "uniform mat3 inputTransformMatrix;";
+            fs << R"__SHADER__(
+                highp vec3 InputTransform(const highp vec3 color) {
+                    return inputTransformMatrix * color;
+                }
+            )__SHADER__";
+        } else {
+            fs << R"__SHADER__(
+                highp vec3 InputTransform(const highp vec3 color) {
+                    return color;
+                }
+            )__SHADER__";
+        }
+
+        // the transformation from a wider colorspace to a narrower one can
+        // result in >1.0 or <0.0 pixel values
+        if (needs.hasOutputTransformMatrix()) {
+            fs << "uniform mat4 outputTransformMatrix;";
+            fs << R"__SHADER__(
+                highp vec3 OutputTransform(const highp vec3 color) {
+                    return clamp(vec3(outputTransformMatrix * vec4(color, 1.0)), 0.0, 1.0);
+                }
+            )__SHADER__";
+        } else {
+            fs << R"__SHADER__(
+                highp vec3 OutputTransform(const highp vec3 color) {
+                    return clamp(color, 0.0, 1.0);
+                }
+            )__SHADER__";
         }
 
         generateEOTF(fs, needs);
@@ -476,18 +511,13 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         }
     }
 
-    if (needs.hasColorMatrix()) {
+    if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // un-premultiply if needed before linearization
             // avoid divide by 0 by adding 0.5/256 to the alpha channel
             fs << "gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.a + 0.0019);";
         }
-        fs << "vec4 transformed = colorMatrix * vec4(OOTF(EOTF(gl_FragColor.rgb)), 1);";
-        // the transformation from a wider colorspace to a narrower one can
-        // result in >1.0 or <0.0 pixel values
-        fs << "transformed.rgb = clamp(transformed.rgb, 0.0, 1.0);";
-        // We assume the last row is always {0,0,0,1} and we skip the division by w
-        fs << "gl_FragColor.rgb = OETF(transformed.rgb);";
+        fs << "gl_FragColor.rgb = OETF(OutputTransform(OOTF(InputTransform(EOTF(gl_FragColor.rgb)))));";
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";

@@ -131,15 +131,24 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
     // mColorBlindnessCorrection = M;
 
     if (mPlatformHasWideColor) {
-        // Compute sRGB to DisplayP3 color transform
-        // NOTE: For now, we are limiting wide-color support to
-        // Display-P3 only.
-        mSrgbToDisplayP3 = mat4(
-                ColorSpaceConnector(ColorSpace::sRGB(), ColorSpace::DisplayP3()).getTransform());
+        ColorSpace srgb(ColorSpace::sRGB());
+        ColorSpace displayP3(ColorSpace::DisplayP3());
+        ColorSpace bt2020(ColorSpace::BT2020());
 
-        // Compute BT2020 to DisplayP3 color transform
-        mBt2020ToDisplayP3 = mat4(
-                ColorSpaceConnector(ColorSpace::BT2020(), ColorSpace::DisplayP3()).getTransform());
+        // Compute sRGB to Display P3 transform matrix.
+        // NOTE: For now, we are limiting output wide color space support to
+        // Display-P3 only.
+        mSrgbToDisplayP3 = mat4(ColorSpaceConnector(srgb, displayP3).getTransform());
+
+        // Compute Display P3 to sRGB transform matrix.
+        mDisplayP3ToSrgb = mat4(ColorSpaceConnector(displayP3, srgb).getTransform());
+
+        // no chromatic adaptation needed since all color spaces use D65 for their white points.
+        mSrgbToXyz = srgb.getRGBtoXYZ();
+        mDisplayP3ToXyz = displayP3.getRGBtoXYZ();
+        mBt2020ToXyz = bt2020.getRGBtoXYZ();
+        mXyzToDisplayP3 = mat4(displayP3.getXYZtoRGB());
+        mXyzToBt2020 = mat4(bt2020.getXYZtoRGB());
     }
 }
 
@@ -307,44 +316,96 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     glVertexAttribPointer(Program::position, mesh.getVertexSize(), GL_FLOAT, GL_FALSE,
                           mesh.getByteStride(), mesh.getPositions());
 
-    // TODO(b/73825729) Refactor this code block to handle BT2020 color space properly.
-    // DISPLAY_P3 is the only supported wide color output
-    if (mPlatformHasWideColor && mOutputDataSpace == Dataspace::DISPLAY_P3) {
+    // By default, DISPLAY_P3 is the only supported wide color output. However,
+    // when HDR content is present, hardware composer may be able to handle
+    // BT2020 data space, in that case, the output data space is set to be
+    // BT2020_HLG or BT2020_PQ respectively. In GPU fall back we need
+    // to respect this and convert non-HDR content to HDR format.
+    if (mPlatformHasWideColor) {
         Description wideColorState = mState;
-        switch (mDataSpace) {
-            case Dataspace::DISPLAY_P3:
-                // input matches output
-                break;
-            case Dataspace::BT2020_PQ:
-            case Dataspace::BT2020_ITU_PQ:
-                wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
-                wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
-                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
-                break;
-            case Dataspace::BT2020_HLG:
-            case Dataspace::BT2020_ITU_HLG:
-                wideColorState.setColorMatrix(mState.getColorMatrix() * mBt2020ToDisplayP3);
-                wideColorState.setInputTransferFunction(Description::TransferFunction::HLG);
-                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
-                break;
-            default:
-                // treat all other dataspaces as sRGB
-                wideColorState.setColorMatrix(mState.getColorMatrix() * mSrgbToDisplayP3);
-                switch (static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK)) {
-                    case Dataspace::TRANSFER_LINEAR:
-                        wideColorState.setInputTransferFunction(
-                                Description::TransferFunction::LINEAR);
-                        break;
-                    default:
-                        // treat all other transfer functions as sRGB
-                        wideColorState.setInputTransferFunction(
-                                Description::TransferFunction::SRGB);
-                        break;
-                }
-                wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
-                ALOGV("drawMesh: gamut transform applied");
-                break;
+        Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
+        Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
+        Dataspace outputStandard = static_cast<Dataspace>(mOutputDataSpace &
+                                                          Dataspace::STANDARD_MASK);
+        Dataspace outputTransfer = static_cast<Dataspace>(mOutputDataSpace &
+                                                          Dataspace::TRANSFER_MASK);
+        bool needsXYZConversion = needsXYZTransformMatrix();
+
+        if (needsXYZConversion) {
+            // The supported input color spaces are standard RGB, Display P3 and BT2020.
+            switch (inputStandard) {
+                case Dataspace::STANDARD_DCI_P3:
+                    wideColorState.setInputTransformMatrix(mDisplayP3ToXyz);
+                    break;
+                case Dataspace::STANDARD_BT2020:
+                    wideColorState.setInputTransformMatrix(mBt2020ToXyz);
+                    break;
+                default:
+                    wideColorState.setInputTransformMatrix(mSrgbToXyz);
+                    break;
+            }
+
+            // The supported output color spaces are Display P3 and BT2020.
+            switch (outputStandard) {
+                case Dataspace::STANDARD_BT2020:
+                    wideColorState.setOutputTransformMatrix(mXyzToBt2020);
+                    break;
+                default:
+                    wideColorState.setOutputTransformMatrix(mXyzToDisplayP3);
+                    break;
+            }
+        } else if (inputStandard != outputStandard) {
+            // At this point, the input data space and output data space could be both
+            // HDR data spaces, but they match each other, we do nothing in this case.
+            // In addition to the case above, the input data space could be
+            // - scRGB linear
+            // - scRGB non-linear
+            // - sRGB
+            // - Display P3
+            // The output data spaces could be
+            // - sRGB
+            // - Display P3
+            if (outputStandard == Dataspace::STANDARD_BT709) {
+                wideColorState.setOutputTransformMatrix(mDisplayP3ToSrgb);
+            } else if (outputStandard == Dataspace::STANDARD_DCI_P3) {
+                wideColorState.setOutputTransformMatrix(mSrgbToDisplayP3);
+            }
         }
+
+        // we need to convert the RGB value to linear space and convert it back when:
+        // - there is a color matrix that is not an identity matrix, or
+        // - there is an output transform matrix that is not an identity matrix, or
+        // - the input transfer function doesn't match the output transfer function.
+        if (wideColorState.hasColorMatrix() || wideColorState.hasOutputTransformMatrix() ||
+            inputTransfer != outputTransfer) {
+            switch (inputTransfer) {
+                case Dataspace::TRANSFER_ST2084:
+                    wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
+                    break;
+                case Dataspace::TRANSFER_HLG:
+                    wideColorState.setInputTransferFunction(Description::TransferFunction::HLG);
+                    break;
+                case Dataspace::TRANSFER_LINEAR:
+                    wideColorState.setInputTransferFunction(Description::TransferFunction::LINEAR);
+                    break;
+                default:
+                    wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
+                    break;
+            }
+
+            switch (outputTransfer) {
+                case Dataspace::TRANSFER_ST2084:
+                    wideColorState.setOutputTransferFunction(Description::TransferFunction::ST2084);
+                    break;
+                case Dataspace::TRANSFER_HLG:
+                    wideColorState.setOutputTransferFunction(Description::TransferFunction::HLG);
+                    break;
+                default:
+                    wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
+                    break;
+            }
+        }
+
         ProgramCache::getInstance().useProgram(wideColorState);
 
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
@@ -371,6 +432,33 @@ void GLES20RenderEngine::dump(String8& result) {
     result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
                         dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
                         dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
+}
+
+bool GLES20RenderEngine::isHdrDataSpace(const Dataspace dataSpace) const {
+    const Dataspace standard = static_cast<Dataspace>(dataSpace & Dataspace::STANDARD_MASK);
+    const Dataspace transfer = static_cast<Dataspace>(dataSpace & Dataspace::TRANSFER_MASK);
+    return standard == Dataspace::STANDARD_BT2020 &&
+        (transfer == Dataspace::TRANSFER_ST2084 || transfer == Dataspace::TRANSFER_HLG);
+}
+
+// For convenience, we want to convert the input color space to XYZ color space first,
+// and then convert from XYZ color space to output color space when
+// - SDR and HDR contents are mixed, either SDR content will be converted to HDR or
+//   HDR content will be tone-mapped to SDR; Or,
+// - there are HDR PQ and HLG contents presented at the same time, where we want to convert
+//   HLG content to PQ content.
+// In either case above, we need to operate the Y value in XYZ color space. Thus, when either
+// input data space or output data space is HDR data space, and the input transfer function
+// doesn't match the output transfer function, we would enable an intermediate transfrom to
+// XYZ color space.
+bool GLES20RenderEngine::needsXYZTransformMatrix() const {
+    const bool isInputHdrDataSpace = isHdrDataSpace(mDataSpace);
+    const bool isOutputHdrDataSpace = isHdrDataSpace(mOutputDataSpace);
+    const Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
+    const Dataspace outputTransfer = static_cast<Dataspace>(mOutputDataSpace &
+                                                            Dataspace::TRANSFER_MASK);
+
+    return (isInputHdrDataSpace || isOutputHdrDataSpace) && inputTransfer != outputTransfer;
 }
 
 // ---------------------------------------------------------------------------
