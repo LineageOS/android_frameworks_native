@@ -88,6 +88,8 @@
 #include <cutils/compiler.h>
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/types.h>
 #include <configstore/Utils.h>
 
 #include <layerproto/LayerProtoParser.h>
@@ -281,6 +283,26 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
 
     hasWideColorDisplay =
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
+
+    V1_1::DisplayOrientation primaryDisplayOrientation =
+        getDisplayOrientation< V1_1::ISurfaceFlingerConfigs, &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
+            V1_1::DisplayOrientation::ORIENTATION_0);
+
+    switch (primaryDisplayOrientation) {
+        case V1_1::DisplayOrientation::ORIENTATION_90:
+            mPrimaryDisplayOrientation = DisplayState::eOrientation90;
+            break;
+        case V1_1::DisplayOrientation::ORIENTATION_180:
+            mPrimaryDisplayOrientation = DisplayState::eOrientation180;
+            break;
+        case V1_1::DisplayOrientation::ORIENTATION_270:
+            mPrimaryDisplayOrientation = DisplayState::eOrientation270;
+            break;
+        default:
+            mPrimaryDisplayOrientation = DisplayState::eOrientationDefault;
+            break;
+    }
+    ALOGV("Primary Display Orientation is set to %2d.", mPrimaryDisplayOrientation);
 
     mPrimaryDispSync.init(SurfaceFlinger::hasSyncFramework, SurfaceFlinger::dispSyncPresentTimeOffset);
 
@@ -894,6 +916,11 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
 
         // All non-virtual displays are currently considered secure.
         info.secure = true;
+
+        if (type == DisplayDevice::DISPLAY_PRIMARY &&
+            mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+            std::swap(info.w, info.h);
+        }
 
         configs->push_back(info);
     }
@@ -4913,7 +4940,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              bool useIdentityTransform) {
     ATRACE_CALL();
 
-    renderArea.updateDimensions();
+    renderArea.updateDimensions(mPrimaryDisplayOrientation);
 
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
@@ -4997,13 +5024,35 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto reqHeight = renderArea.getReqHeight();
     Rect sourceCrop = renderArea.getSourceCrop();
 
-    const bool filtering = static_cast<int32_t>(reqWidth) != raWidth ||
-            static_cast<int32_t>(reqHeight) != raHeight;
+    bool filtering = false;
+    if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+        filtering = static_cast<int32_t>(reqWidth) != raHeight ||
+                static_cast<int32_t>(reqHeight) != raWidth;
+    } else {
+        filtering = static_cast<int32_t>(reqWidth) != raWidth ||
+                static_cast<int32_t>(reqHeight) != raHeight;
+    }
 
     // if a default or invalid sourceCrop is passed in, set reasonable values
     if (sourceCrop.width() == 0 || sourceCrop.height() == 0 || !sourceCrop.isValid()) {
         sourceCrop.setLeftTop(Point(0, 0));
         sourceCrop.setRightBottom(Point(raWidth, raHeight));
+    } else if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
+        Transform tr;
+        uint32_t flags = 0x00;
+        switch (mPrimaryDisplayOrientation) {
+            case DisplayState::eOrientation90:
+                flags = Transform::ROT_90;
+                break;
+            case DisplayState::eOrientation180:
+                flags = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation270:
+                flags = Transform::ROT_270;
+                break;
+        }
+        tr.set(flags, raWidth, raHeight);
+        sourceCrop = tr.transform(sourceCrop);
     }
 
     // ensure that sourceCrop is inside screen
@@ -5027,9 +5076,40 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // make sure to clear all GL error flags
     engine.checkErrors();
 
+    Transform::orientation_flags rotation = renderArea.getRotationFlags();
+    if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
+        // convert hw orientation into flag presentation
+        // here inverse transform needed
+        uint8_t hw_rot_90  = 0x00;
+        uint8_t hw_flip_hv = 0x00;
+        switch (mPrimaryDisplayOrientation) {
+            case DisplayState::eOrientation90:
+                hw_rot_90 = Transform::ROT_90;
+                hw_flip_hv = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation180:
+                hw_flip_hv = Transform::ROT_180;
+                break;
+            case DisplayState::eOrientation270:
+                hw_rot_90  = Transform::ROT_90;
+                break;
+        }
+
+        // transform flags operation
+        // 1) flip H V if both have ROT_90 flag
+        // 2) XOR these flags
+        uint8_t rotation_rot_90  = rotation & Transform::ROT_90;
+        uint8_t rotation_flip_hv = rotation & Transform::ROT_180;
+        if (rotation_rot_90 & hw_rot_90) {
+            rotation_flip_hv = (~rotation_flip_hv) & Transform::ROT_180;
+        }
+        rotation = static_cast<Transform::orientation_flags>
+                   ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
+    }
+
     // set-up our viewport
     engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, raHeight, yswap,
-                                    renderArea.getRotationFlags());
+                                    rotation);
     engine.disableTexturing();
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
