@@ -168,6 +168,227 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
     return needs;
 }
 
+// Generate EOTF that converts signal values to relative display light,
+// both normalized to [0, 1].
+void ProgramCache::generateEOTF(Formatter& fs, const Key& needs) {
+    switch (needs.getInputTF()) {
+        case Key::INPUT_TF_SRGB:
+            fs << R"__SHADER__(
+                float EOTF_sRGB(float srgb) {
+                    return srgb <= 0.04045 ? srgb / 12.92 : pow((srgb + 0.055) / 1.055, 2.4);
+                }
+
+                vec3 EOTF_sRGB(const vec3 srgb) {
+                    return vec3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
+                }
+
+                vec3 EOTF(const vec3 srgb) {
+                    return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
+                }
+            )__SHADER__";
+            break;
+        case Key::INPUT_TF_ST2084:
+            fs << R"__SHADER__(
+                vec3 EOTF(const highp vec3 color) {
+                    const highp float m1 = (2610.0 / 4096.0) / 4.0;
+                    const highp float m2 = (2523.0 / 4096.0) * 128.0;
+                    const highp float c1 = (3424.0 / 4096.0);
+                    const highp float c2 = (2413.0 / 4096.0) * 32.0;
+                    const highp float c3 = (2392.0 / 4096.0) * 32.0;
+
+                    highp vec3 tmp = pow(color, 1.0 / vec3(m2));
+                    tmp = max(tmp - c1, 0.0) / (c2 - c3 * tmp);
+                    return pow(tmp, 1.0 / vec3(m1));
+                }
+            )__SHADER__";
+            break;
+        case Key::INPUT_TF_HLG:
+            fs << R"__SHADER__(
+                highp float EOTF_channel(const highp float channel) {
+                    const highp float a = 0.17883277;
+                    const highp float b = 0.28466892;
+                    const highp float c = 0.55991073;
+                    return channel <= 0.5 ? channel * channel / 3.0 :
+                            (exp((channel - c) / a) + b) / 12.0;
+                }
+
+                vec3 EOTF(const highp vec3 color) {
+                    return vec3(EOTF_channel(color.r), EOTF_channel(color.g),
+                            EOTF_channel(color.b));
+                }
+            )__SHADER__";
+            break;
+        default:
+            fs << R"__SHADER__(
+                vec3 EOTF(const vec3 linear) {
+                    return linear;
+                }
+            )__SHADER__";
+            break;
+    }
+}
+
+// Generate OOTF that modifies the relative scence light to relative display light.
+void ProgramCache::generateOOTF(Formatter& fs, const Key& needs) {
+    fs << R"__SHADER__(
+        highp float CalculateY(const highp vec3 color) {
+            // BT2020 standard uses the unadjusted KR = 0.2627,
+            // KB = 0.0593 luminance interpretation for RGB conversion.
+            return color.r * 0.262700 + color.g * 0.677998 + color.b * 0.059302;
+        }
+    )__SHADER__";
+
+    // Generate OOTF that modifies the relative display light.
+    switch(needs.getInputTF()) {
+        case Key::INPUT_TF_ST2084:
+            fs << R"__SHADER__(
+                highp vec3 OOTF(const highp vec3 color) {
+                    const float maxLumi = 10000.0;
+                    const float maxMasteringLumi = 1000.0;
+                    const float maxContentLumi = 1000.0;
+                    const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
+                    const float maxOutLumi = 500.0;
+
+                    // Calculate Y value in XYZ color space.
+                    float colorY = CalculateY(color);
+
+                    // convert to nits first
+                    float nits = colorY * maxLumi;
+
+                    // clamp to max input luminance
+                    nits = clamp(nits, 0.0, maxInLumi);
+
+                    // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
+                    if (maxInLumi <= maxOutLumi) {
+                        nits *= maxOutLumi / maxInLumi;
+                    } else {
+                        // three control points
+                        const float x0 = 10.0;
+                        const float y0 = 17.0;
+                        const float x1 = maxOutLumi * 0.75;
+                        const float y1 = x1;
+                        const float x2 = x1 + (maxInLumi - x1) / 2.0;
+                        const float y2 = y1 + (maxOutLumi - y1) * 0.75;
+
+                        // horizontal distances between the last three control points
+                        const float h12 = x2 - x1;
+                        const float h23 = maxInLumi - x2;
+                        // tangents at the last three control points
+                        const float m1 = (y2 - y1) / h12;
+                        const float m3 = (maxOutLumi - y2) / h23;
+                        const float m2 = (m1 + m3) / 2.0;
+
+                        if (nits < x0) {
+                            // scale [0.0, x0] to [0.0, y0] linearly
+                            const float slope = y0 / x0;
+                            nits *= slope;
+                        } else if (nits < x1) {
+                            // scale [x0, x1] to [y0, y1] linearly
+                            const float slope = (y1 - y0) / (x1 - x0);
+                            nits = y0 + (nits - x0) * slope;
+                        } else if (nits < x2) {
+                            // scale [x1, x2] to [y1, y2] using Hermite interp
+                            float t = (nits - x1) / h12;
+                            nits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) * (1.0 - t) +
+                                    (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
+                        } else {
+                            // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
+                            float t = (nits - x2) / h23;
+                            nits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) * (1.0 - t) +
+                                    (maxOutLumi * (3.0 - 2.0 * t) + h23 * m3 * (t - 1.0)) * t * t;
+                        }
+                    }
+
+                    // convert back to [0.0, 1.0]
+                    float targetY = nits / maxOutLumi;
+                    return color * (targetY / max(1e-6, colorY));
+                }
+            )__SHADER__";
+            break;
+        case Key::INPUT_TF_HLG:
+            fs << R"__SHADER__(
+                highp vec3 OOTF(const highp vec3 color) {
+                    const float maxOutLumi = 500.0;
+                    const float gamma = 1.2 + 0.42 * log(maxOutLumi / 1000.0) / log(10.0);
+                    // The formula is:
+                    // alpha * pow(Y, gamma - 1.0) * color + beta;
+                    // where alpha is 1.0, beta is 0.0 as recommended in
+                    // Rec. ITU-R BT.2100-1 TABLE 5.
+                    return pow(CalculateY(color), gamma - 1.0) * color;
+                }
+            )__SHADER__";
+            break;
+        default:
+            fs << R"__SHADER__(
+                highp vec3 OOTF(const highp vec3 color) {
+                    return color;
+                }
+            )__SHADER__";
+            break;
+    }
+}
+
+// Generate OETF that converts relative display light to signal values,
+// both normalized to [0, 1]
+void ProgramCache::generateOETF(Formatter& fs, const Key& needs) {
+    switch (needs.getOutputTF()) {
+        case Key::OUTPUT_TF_SRGB:
+            fs << R"__SHADER__(
+                float OETF_sRGB(const float linear) {
+                    return linear <= 0.0031308 ?
+                            linear * 12.92 : (pow(linear, 1.0 / 2.4) * 1.055) - 0.055;
+                }
+
+                vec3 OETF_sRGB(const vec3 linear) {
+                    return vec3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
+                }
+
+                vec3 OETF(const vec3 linear) {
+                    return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
+                }
+            )__SHADER__";
+            break;
+        case Key::OUTPUT_TF_ST2084:
+            fs << R"__SHADER__(
+                vec3 OETF(const vec3 linear) {
+                    const float m1 = (2610.0 / 4096.0) / 4.0;
+                    const float m2 = (2523.0 / 4096.0) * 128.0;
+                    const float c1 = (3424.0 / 4096.0);
+                    const float c2 = (2413.0 / 4096.0) * 32.0;
+                    const float c3 = (2392.0 / 4096.0) * 32.0;
+
+                    vec3 tmp = pow(linear, vec3(m1));
+                    tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
+                    return pow(tmp, vec3(m2));
+                }
+            )__SHADER__";
+            break;
+        case Key::OUTPUT_TF_HLG:
+            fs << R"__SHADER__(
+                highp float OETF_channel(const highp float channel) {
+                    const highp float a = 0.17883277;
+                    const highp float b = 0.28466892;
+                    const highp float c = 0.55991073;
+                    return channel <= 1.0 / 12.0 ? sqrt(3.0 * channel) :
+                            a * log(12.0 * channel - b) + c;
+                }
+
+                vec3 OETF(const highp vec3 color) {
+                    return vec3(OETF_channel(color.r), OETF_channel(color.g),
+                            OETF_channel(color.b));
+                }
+            )__SHADER__";
+            break;
+        default:
+            fs << R"__SHADER__(
+                vec3 OETF(const vec3 linear) {
+                    return linear;
+                }
+            )__SHADER__";
+            break;
+    }
+}
+
 String8 ProgramCache::generateVertexShader(const Key& needs) {
     Formatter vs;
     if (needs.isTexturing()) {
@@ -223,221 +444,9 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     if (needs.hasColorMatrix()) {
         fs << "uniform mat4 colorMatrix;";
 
-        // Generate EOTF that converts signal values to relative display light,
-        // both normalized to [0, 1].
-        switch (needs.getInputTF()) {
-            case Key::INPUT_TF_LINEAR:
-            default:
-                fs << R"__SHADER__(
-                    vec3 EOTF(const vec3 linear) {
-                        return linear;
-                    }
-                )__SHADER__";
-                break;
-            case Key::INPUT_TF_SRGB:
-                fs << R"__SHADER__(
-                    float EOTF_sRGB(float srgb) {
-                        return srgb <= 0.04045 ? srgb / 12.92 : pow((srgb + 0.055) / 1.055, 2.4);
-                    }
-
-                    vec3 EOTF_sRGB(const vec3 srgb) {
-                        return vec3(EOTF_sRGB(srgb.r), EOTF_sRGB(srgb.g), EOTF_sRGB(srgb.b));
-                    }
-
-                    vec3 EOTF(const vec3 srgb) {
-                        return sign(srgb.rgb) * EOTF_sRGB(abs(srgb.rgb));
-                    }
-                )__SHADER__";
-                break;
-            case Key::INPUT_TF_ST2084:
-                fs << R"__SHADER__(
-                    vec3 EOTF(const highp vec3 color) {
-                        const highp float m1 = (2610.0 / 4096.0) / 4.0;
-                        const highp float m2 = (2523.0 / 4096.0) * 128.0;
-                        const highp float c1 = (3424.0 / 4096.0);
-                        const highp float c2 = (2413.0 / 4096.0) * 32.0;
-                        const highp float c3 = (2392.0 / 4096.0) * 32.0;
-
-                        highp vec3 tmp = pow(color, 1.0 / vec3(m2));
-                        tmp = max(tmp - c1, 0.0) / (c2 - c3 * tmp);
-                        return pow(tmp, 1.0 / vec3(m1));
-                    }
-                    )__SHADER__";
-                break;
-          case Key::INPUT_TF_HLG:
-              fs << R"__SHADER__(
-                  highp float EOTF_channel(const highp float channel) {
-                      const highp float a = 0.17883277;
-                      const highp float b = 0.28466892;
-                      const highp float c = 0.55991073;
-                      return channel <= 0.5 ? channel * channel / 3.0 :
-                              (exp((channel - c) / a) + b) / 12.0;
-                  }
-
-                  vec3 EOTF(const highp vec3 color) {
-                      return vec3(EOTF_channel(color.r), EOTF_channel(color.g),
-                              EOTF_channel(color.b));
-                  }
-                  )__SHADER__";
-              break;
-        }
-
-        fs << R"__SHADER__(
-            highp float CalculateY(const highp vec3 color) {
-                // BT2020 standard uses the unadjusted KR = 0.2627,
-                // KB = 0.0593 luminance interpretation for RGB conversion.
-                return color.r * 0.262700 + color.g * 0.677998 +
-                        color.b * 0.059302;
-            }
-        )__SHADER__";
-
-        // Generate OOTF that modifies the relative display light.
-        switch(needs.getInputTF()) {
-            case Key::INPUT_TF_ST2084:
-                fs << R"__SHADER__(
-                    highp vec3 OOTF(const highp vec3 color) {
-                        const float maxLumi = 10000.0;
-                        const float maxMasteringLumi = 1000.0;
-                        const float maxContentLumi = 1000.0;
-                        const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
-                        const float maxOutLumi = 500.0;
-
-                        // Calculate Y value in XYZ color space.
-                        float colorY = CalculateY(color);
-
-                        // convert to nits first
-                        float nits = colorY * maxLumi;
-
-                        // clamp to max input luminance
-                        nits = clamp(nits, 0.0, maxInLumi);
-
-                        // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
-                        if (maxInLumi <= maxOutLumi) {
-                            nits *= maxOutLumi / maxInLumi;
-                        } else {
-                            // three control points
-                            const float x0 = 10.0;
-                            const float y0 = 17.0;
-                            const float x1 = maxOutLumi * 0.75;
-                            const float y1 = x1;
-                            const float x2 = x1 + (maxInLumi - x1) / 2.0;
-                            const float y2 = y1 + (maxOutLumi - y1) * 0.75;
-
-                            // horizontal distances between the last three control points
-                            const float h12 = x2 - x1;
-                            const float h23 = maxInLumi - x2;
-                            // tangents at the last three control points
-                            const float m1 = (y2 - y1) / h12;
-                            const float m3 = (maxOutLumi - y2) / h23;
-                            const float m2 = (m1 + m3) / 2.0;
-
-                            if (nits < x0) {
-                                // scale [0.0, x0] to [0.0, y0] linearly
-                                const float slope = y0 / x0;
-                                nits *= slope;
-                            } else if (nits < x1) {
-                                // scale [x0, x1] to [y0, y1] linearly
-                                const float slope = (y1 - y0) / (x1 - x0);
-                                nits = y0 + (nits - x0) * slope;
-                            } else if (nits < x2) {
-                                // scale [x1, x2] to [y1, y2] using Hermite interp
-                                float t = (nits - x1) / h12;
-                                nits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) * (1.0 - t) +
-                                       (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
-                            } else {
-                                // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
-                                float t = (nits - x2) / h23;
-                                nits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) * (1.0 - t) +
-                                       (maxOutLumi * (3.0 - 2.0 * t) + h23 * m3 * (t - 1.0)) * t * t;
-                            }
-                        }
-
-                        // convert back to [0.0, 1.0]
-                        float targetY = nits / maxOutLumi;
-                        return color * (targetY / max(1e-6, colorY));
-                    }
-                )__SHADER__";
-                break;
-            case Key::INPUT_TF_HLG:
-                fs << R"__SHADER__(
-                    highp vec3 OOTF(const highp vec3 color) {
-                        const float maxOutLumi = 500.0;
-                        const float gamma = 1.2 + 0.42 * log(maxOutLumi / 1000.0) / log(10.0);
-                        // The formula is:
-                        // alpha * pow(Y, gamma - 1.0) * color + beta;
-                        // where alpha is 1.0, beta is 0.0 as recommended in
-                        // Rec. ITU-R BT.2100-1 TABLE 5.
-                        return pow(CalculateY(color), gamma - 1.0) * color;
-                    }
-                )__SHADER__";
-                break;
-            default:
-                fs << R"__SHADER__(
-                    highp vec3 OOTF(const highp vec3 color) {
-                        return color;
-                    }
-                )__SHADER__";
-        }
-
-        // Generate OETF that converts relative display light to signal values,
-        // both normalized to [0, 1]
-        switch (needs.getOutputTF()) {
-            case Key::OUTPUT_TF_LINEAR:
-            default:
-                fs << R"__SHADER__(
-                    vec3 OETF(const vec3 linear) {
-                        return linear;
-                    }
-                )__SHADER__";
-                break;
-            case Key::OUTPUT_TF_SRGB:
-                fs << R"__SHADER__(
-                    float OETF_sRGB(const float linear) {
-                        return linear <= 0.0031308 ?
-                                linear * 12.92 : (pow(linear, 1.0 / 2.4) * 1.055) - 0.055;
-                    }
-
-                    vec3 OETF_sRGB(const vec3 linear) {
-                        return vec3(OETF_sRGB(linear.r), OETF_sRGB(linear.g), OETF_sRGB(linear.b));
-                    }
-
-                    vec3 OETF(const vec3 linear) {
-                        return sign(linear.rgb) * OETF_sRGB(abs(linear.rgb));
-                    }
-                )__SHADER__";
-                break;
-            case Key::OUTPUT_TF_ST2084:
-                fs << R"__SHADER__(
-                    vec3 OETF(const vec3 linear) {
-                        const float m1 = (2610.0 / 4096.0) / 4.0;
-                        const float m2 = (2523.0 / 4096.0) * 128.0;
-                        const float c1 = (3424.0 / 4096.0);
-                        const float c2 = (2413.0 / 4096.0) * 32.0;
-                        const float c3 = (2392.0 / 4096.0) * 32.0;
-
-                        vec3 tmp = pow(linear, vec3(m1));
-                        tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
-                        return pow(tmp, vec3(m2));
-                    }
-                )__SHADER__";
-                break;
-            case Key::OUTPUT_TF_HLG:
-                fs << R"__SHADER__(
-                    highp float OETF_channel(const highp float channel) {
-                        const highp float a = 0.17883277;
-                        const highp float b = 0.28466892;
-                        const highp float c = 0.55991073;
-                        return channel <= 1.0 / 12.0 ? sqrt(3.0 * channel) :
-                                a * log(12.0 * channel - b) + c;
-                    }
-
-                    vec3 OETF(const highp vec3 color) {
-                        return vec3(OETF_channel(color.r), OETF_channel(color.g),
-                                OETF_channel(color.b));
-                    }
-                )__SHADER__";
-                break;
-        }
+        generateEOTF(fs, needs);
+        generateOOTF(fs, needs);
+        generateOETF(fs, needs);
     }
 
     fs << "void main(void) {" << indent;
