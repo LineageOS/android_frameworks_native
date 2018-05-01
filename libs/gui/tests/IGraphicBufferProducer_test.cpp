@@ -695,10 +695,7 @@ TEST_P(IGraphicBufferProducerTest,
     sp<Fence> fence;
     sp<GraphicBuffer> buffer;
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
-        ASSERT_EQ(NO_INIT, mProducer->detachNextBuffer(&buffer, &fence));
-    }
+    ASSERT_EQ(NO_INIT, mProducer->detachNextBuffer(&buffer, &fence));
 }
 
 TEST_P(IGraphicBufferProducerTest,
@@ -735,10 +732,7 @@ TEST_P(IGraphicBufferProducerTest,
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
-        ASSERT_EQ(NO_INIT, mProducer->detachBuffer(slot));
-    }
+    ASSERT_EQ(NO_INIT, mProducer->detachBuffer(slot));
 }
 
 TEST_P(IGraphicBufferProducerTest,
@@ -778,10 +772,17 @@ TEST_P(IGraphicBufferProducerTest,
     sp<GraphicBuffer> buffer;
 
     setupDequeueRequestBuffer(&slot, &fence, &buffer);
+    ASSERT_TRUE(buffer != nullptr);
 
-    if (GetParam() == USE_BUFFER_QUEUE_PRODUCER) {
-        // TODO(b/38137191): Implement BufferHubProducer::detachBuffer
-        ASSERT_OK(mProducer->detachBuffer(slot));
+    ASSERT_OK(mProducer->detachBuffer(slot));
+    EXPECT_OK(buffer->initCheck());
+
+    if (GetParam() == USE_BUFFER_HUB_PRODUCER) {
+        // For a GraphicBuffer backed by BufferHub, once detached from an IGBP, it should have
+        // isDetachedBuffer() set. Note that this only applies to BufferHub.
+        EXPECT_TRUE(buffer->isDetachedBuffer());
+    } else {
+        EXPECT_FALSE(buffer->isDetachedBuffer());
     }
 
     ASSERT_OK(mProducer->disconnect(TEST_API));
