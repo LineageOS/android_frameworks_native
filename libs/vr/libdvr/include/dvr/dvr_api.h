@@ -371,6 +371,7 @@ typedef int (*DvrPerformanceSetSchedulerPolicyPtr)(
 
 // dvr_tracking.h
 typedef int (*DvrTrackingCameraCreatePtr)(DvrTrackingCamera** out_camera);
+typedef void (*DvrTrackingCameraDestroyPtr)(DvrTrackingCamera* camera);
 typedef int (*DvrTrackingCameraStartPtr)(DvrTrackingCamera* camera,
                                          DvrWriteBufferQueue* write_queue);
 typedef int (*DvrTrackingCameraStopPtr)(DvrTrackingCamera* camera);

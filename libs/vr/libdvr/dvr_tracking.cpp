@@ -15,6 +15,10 @@ int dvrTrackingCameraCreate(DvrTrackingCamera**) {
   return -ENOSYS;
 }
 
+void dvrTrackingCameraDestroy(DvrTrackingCamera*) {
+  ALOGE("dvrTrackingCameraDestroy is not implemented.");
+}
+
 int dvrTrackingCameraStart(DvrTrackingCamera*, DvrWriteBufferQueue*) {
   ALOGE("dvrTrackingCameraCreate is not implemented.");
   return -ENOSYS;

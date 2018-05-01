@@ -19,6 +19,12 @@ cc_library_headers {
     vendor_available: true,
 }
 
+cc_library_headers {
+    name: "libdvr_private_headers",
+    export_include_dirs: ["."],
+    vendor_available: false,
+}
+
 cflags = [
     "-DDVR_TRACKING_IMPLEMENTED=0",
     "-DLOG_TAG=\"libdvr\"",

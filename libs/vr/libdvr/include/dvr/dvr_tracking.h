@@ -23,6 +23,11 @@ typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 // @return Zero on success, or negative error code.
 int dvrTrackingCameraCreate(DvrTrackingCamera** out_camera);
 
+// Destroys a DvrTrackingCamera handle.
+//
+// @param camera The DvrTrackingCamera of interest.
+void dvrTrackingCameraDestroy(DvrTrackingCamera* camera);
+
 // Starts the DvrTrackingCamera.
 //
 // On successful return, all DvrReadBufferQueue's associated with the given

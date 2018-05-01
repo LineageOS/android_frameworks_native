@@ -13,6 +13,7 @@ class DvrTrackingTest : public DvrApiTest {};
 
 TEST_F(DvrTrackingTest, NotImplemented) {
   ASSERT_TRUE(api_.TrackingCameraCreate != nullptr);
+  ASSERT_TRUE(api_.TrackingCameraDestroy != nullptr);
   ASSERT_TRUE(api_.TrackingCameraStart != nullptr);
   ASSERT_TRUE(api_.TrackingCameraStop != nullptr);
 
