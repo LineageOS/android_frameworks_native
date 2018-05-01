@@ -159,10 +159,19 @@ LOCAL_SHARED_LIBRARIES := \
 
 ifeq ($(TARGET_USES_QCOM_BSP), true)
   ifeq ($(TARGET_SUPPORTS_WEARABLES),true)
-    LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libgralloc
-    LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libqdutils
+    ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),)
+      LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libgralloc
+      LOCAL_C_INCLUDES += $(BOARD_DISPLAY_HAL)/libqdutils
+    else
+      LOCAL_C_INCLUDES += hardware/qcom/display-$(TARGET_QCOM_DISPLAY_VARIANT)/libgralloc
+      LOCAL_C_INCLUDES += hardware/qcom/display-$(TARGET_QCOM_DISPLAY_VARIANT)/libqdutils
+    endif
   else
-    LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display
+    ifeq ($(TARGET_QCOM_DISPLAY_VARIANT),)
+      LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display
+    else
+      LOCAL_C_INCLUDES += $(TARGET_OUT_HEADERS)/qcom/display-$(TARGET_QCOM_DISPLAY_VARIANT)
+    endif
   endif
   LOCAL_SHARED_LIBRARIES += libqdutils
   LOCAL_SHARED_LIBRARIES += libqdMetaData
