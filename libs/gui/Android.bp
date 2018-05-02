@@ -142,10 +142,26 @@ cc_library_shared {
         "android.hardware.configstore-utils",
     ],
 
+    // bufferhub is not used when building libgui for vendors
+    target: {
+        vendor: {
+            cflags: ["-DNO_BUFFERHUB"],
+            exclude_srcs: [
+                "BufferHubConsumer.cpp",
+                "BufferHubProducer.cpp",
+            ],
+            exclude_shared_libs: [
+                "libbufferhubqueue",
+                "libpdx_default_transport",
+            ],
+        },
+    },
+
     header_libs: [
         "libdvr_headers",
         "libnativebase_headers",
         "libgui_headers",
+        "libpdx_headers",
     ],
 
     export_shared_lib_headers: [
