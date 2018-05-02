@@ -247,7 +247,7 @@ void ProgramCache::generateOOTF(Formatter& fs, const Key& needs) {
                     const float maxMasteringLumi = 1000.0;
                     const float maxContentLumi = 1000.0;
                     const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
-                    const float maxOutLumi = 500.0;
+                    const float maxOutLumi = displayMaxLuminance;
 
                     // Calculate Y value in XYZ color space.
                     float colorY = CalculateY(color);
@@ -443,6 +443,10 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
 
     if (needs.hasColorMatrix()) {
         fs << "uniform mat4 colorMatrix;";
+        // Currently, only the OOTF of BT2020 PQ needs display maximum luminance.
+        if (needs.getInputTF() == Key::INPUT_TF_ST2084) {
+            fs << "uniform float displayMaxLuminance";
+        }
 
         generateEOTF(fs, needs);
         generateOOTF(fs, needs);
