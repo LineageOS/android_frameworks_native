@@ -187,3 +187,7 @@ DVR_V1_API_ENTRY(TrackingCameraCreate);
 DVR_V1_API_ENTRY(TrackingCameraDestroy);
 DVR_V1_API_ENTRY(TrackingCameraStart);
 DVR_V1_API_ENTRY(TrackingCameraStop);
+DVR_V1_API_ENTRY(TrackingSensorsCreate);
+DVR_V1_API_ENTRY(TrackingSensorsDestroy);
+DVR_V1_API_ENTRY(TrackingSensorsStart);
+DVR_V1_API_ENTRY(TrackingSensorsStop);

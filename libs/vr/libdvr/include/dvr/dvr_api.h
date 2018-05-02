@@ -10,6 +10,7 @@
 #include <dvr/dvr_display_types.h>
 #include <dvr/dvr_hardware_composer_types.h>
 #include <dvr/dvr_pose.h>
+#include <dvr/dvr_tracking.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,8 +50,6 @@ typedef int32_t DvrGlobalBufferKey;
 
 typedef struct DvrSurfaceAttributeValue DvrSurfaceAttributeValue;
 typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
-
-typedef struct DvrTrackingCamera DvrTrackingCamera;
 
 // Note: To avoid breaking others during active development, only modify this
 // struct by appending elements to the end.
@@ -375,6 +374,13 @@ typedef void (*DvrTrackingCameraDestroyPtr)(DvrTrackingCamera* camera);
 typedef int (*DvrTrackingCameraStartPtr)(DvrTrackingCamera* camera,
                                          DvrWriteBufferQueue* write_queue);
 typedef int (*DvrTrackingCameraStopPtr)(DvrTrackingCamera* camera);
+
+typedef int (*DvrTrackingSensorsCreatePtr)(DvrTrackingSensors** out_sensors,
+                                           const char* mode);
+typedef void (*DvrTrackingSensorsDestroyPtr)(DvrTrackingSensors* sensors);
+typedef int (*DvrTrackingSensorsStartPtr)(
+    DvrTrackingSensors* sensors, DvrTrackingSensorEventCallback callback);
+typedef int (*DvrTrackingSensorsStopPtr)(DvrTrackingSensors* sensors);
 
 // The buffer metadata that an Android Surface (a.k.a. ANativeWindow)
 // will populate. A DvrWriteBufferQueue must be created with this metadata iff

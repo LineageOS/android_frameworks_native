@@ -1,12 +1,36 @@
 #ifndef ANDROID_DVR_TRACKING_H_
 #define ANDROID_DVR_TRACKING_H_
 
+#include <stdint.h>
 #include <sys/cdefs.h>
 
 __BEGIN_DECLS
 
+// Represents a sensor event.
+typedef struct DvrTrackingSensorEvent {
+  // The sensor type.
+  int32_t sensor;
+
+  // Event type.
+  int32_t type;
+
+  // This is the timestamp recorded from the device. Taken in the middle
+  // of the integration interval and adjusted for any low pass filtering.
+  int64_t timestamp_ns;
+
+  // The event data.
+  float x;
+  float y;
+  float z;
+} DvrTrackingSensorEvent;
+
+typedef struct DvrTrackingSensors DvrTrackingSensors;
 typedef struct DvrTrackingCamera DvrTrackingCamera;
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
+
+// The callback for DvrTrackingSensors session that will deliver the events.
+// This callback is passed to dvrTrackingSensorsStart.
+typedef void (*DvrTrackingSensorEventCallback)(DvrTrackingSensorEvent* event);
 
 // Creates a DvrTrackingCamera session.
 //
@@ -55,6 +79,47 @@ int dvrTrackingCameraStart(DvrTrackingCamera* camera,
 // @param camera The DvrTrackingCamera of interest.
 // @return Zero on success, or negative error code.
 int dvrTrackingCameraStop(DvrTrackingCamera* camera);
+
+// Creates a DvrTrackingSensors session.
+//
+// This will initialize but not start device sensors (gyro / accel). Upon
+// successfull creation, the clients can call dvrTrackingSensorsStart to start
+// receiving sensor events.
+//
+// @param out_sensors The pointer of a DvrTrackingSensors will be filled here if
+//     the method call succeeds.
+// @param mode The sensor mode.
+//        mode="ndk": Use the Android NDK.
+//        mode="direct": Use direct mode sensors (lower latency).
+// @return Zero on success, or negative error code.
+int dvrTrackingSensorsCreate(DvrTrackingSensors** out_sensors,
+                             const char* mode);
+
+// Destroy a DvrTrackingSensors session.
+//
+// @param sensors The DvrTrackingSensors struct to destroy.
+void dvrTrackingSensorsDestroy(DvrTrackingSensors* sensors);
+
+// Start the tracking.
+//
+// This will start the device sensors and start pumping the feature and sensor
+// events as they arrive.
+//
+// @param client A tracking client created by dvrTrackingSensorsCreate.
+// @param callback A callback that will receive the sensor events on an
+// arbitrary thread.
+// @return Zero on success, or negative error code.
+int dvrTrackingSensorsStart(DvrTrackingSensors* sensors,
+                            DvrTrackingSensorEventCallback callback);
+
+// Stop the tracking.
+//
+// This will stop the device sensors. dvrTrackingSensorsStart can be called to
+// restart them again.
+//
+// @param client A tracking client created by dvrTrackingClientCreate.
+// @return Zero on success, or negative error code.
+int dvrTrackingSensorsStop(DvrTrackingSensors* sensors);
 
 __END_DECLS
 
