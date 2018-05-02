@@ -73,4 +73,8 @@ void Description::setOutputTransferFunction(TransferFunction transferFunction) {
     mOutputTransferFunction = transferFunction;
 }
 
+void Description::setDisplayMaxLuminance(const float maxLuminance) {
+    mDisplayMaxLuminance = maxLuminance;
+}
+
 } /* namespace android */
