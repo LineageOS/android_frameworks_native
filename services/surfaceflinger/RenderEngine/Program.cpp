@@ -64,6 +64,7 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mTextureMatrixLoc = glGetUniformLocation(programId, "texture");
         mSamplerLoc = glGetUniformLocation(programId, "sampler");
         mColorLoc = glGetUniformLocation(programId, "color");
+        mDisplayMaxLuminanceLoc = glGetUniformLocation(programId, "displayMaxLuminance");
 
         // set-up the default values for our uniforms
         glUseProgram(programId);
@@ -135,6 +136,9 @@ void Program::setUniforms(const Description& desc) {
     }
     if (mColorMatrixLoc >= 0) {
         glUniformMatrix4fv(mColorMatrixLoc, 1, GL_FALSE, desc.mColorMatrix.asArray());
+    }
+    if (mDisplayMaxLuminanceLoc >= 0) {
+        glUniform1f(mDisplayMaxLuminanceLoc, desc.mDisplayMaxLuminance);
     }
     // these uniforms are always present
     glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.mProjectionMatrix.asArray());

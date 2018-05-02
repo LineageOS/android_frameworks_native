@@ -27,6 +27,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
 #include <ui/GraphicTypes.h>
+#include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
 #include <utils/RefBase.h>
 #include <utils/Mutex.h>
@@ -54,6 +55,9 @@ class HWComposer;
 class DisplayDevice : public LightRefBase<DisplayDevice>
 {
 public:
+    constexpr static float sDefaultMinLumiance = 0.0;
+    constexpr static float sDefaultMaxLumiance = 500.0;
+
     // region in layer-stack space
     mutable Region dirtyRegion;
     // region in screen space
@@ -143,6 +147,13 @@ public:
     bool hasHDR10Support() const { return mHasHdr10; }
     bool hasHLGSupport() const { return mHasHLG; }
     bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
+    // The returned HdrCapabilities is the combination of HDR capabilities from
+    // hardware composer and RenderEngine. When the DisplayDevice supports wide
+    // color gamut, RenderEngine is able to simulate HDR support in Display P3
+    // color space for both PQ and HLG HDR contents. The minimum and maximum
+    // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
+    // respectively if hardware composer doesn't return meaningful values.
+    const HdrCapabilities& getHdrCapabilities() const { return mHdrCapabilities; }
 
     void swapBuffers(HWComposer& hwc) const;
 
@@ -263,7 +274,7 @@ private:
     bool mHasHdr10;
     bool mHasHLG;
     bool mHasDolbyVision;
-
+    HdrCapabilities mHdrCapabilities;
     const int32_t mSupportedPerFrameMetadata;
 };
 
@@ -308,6 +319,9 @@ public:
     bool getWideColorSupport() const override { return mDevice->hasWideColorGamut(); }
     ui::Dataspace getDataSpace() const override {
         return mDevice->getCompositionDataSpace();
+    }
+    float getDisplayMaxLuminance() const override {
+        return mDevice->getHdrCapabilities().getDesiredMaxLuminance();
     }
 
 private:
