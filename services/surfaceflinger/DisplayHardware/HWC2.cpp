@@ -434,6 +434,11 @@ std::vector<std::shared_ptr<const Display::Config>> Display::getConfigs() const
     return configs;
 }
 
+Error Display::getIdentificationData(uint8_t* outPort, std::vector<uint8_t>* outData) const {
+    auto intError = mComposer.getDisplayIdentificationData(mId, outPort, outData);
+    return static_cast<Error>(intError);
+}
+
 Error Display::getName(std::string* outName) const
 {
     auto intError = mComposer.getDisplayName(mId, outName);

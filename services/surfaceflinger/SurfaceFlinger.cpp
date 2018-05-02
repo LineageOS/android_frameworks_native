@@ -78,6 +78,7 @@
 #include "clz.h"
 
 #include "DisplayHardware/ComposerHal.h"
+#include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
@@ -2209,7 +2210,7 @@ DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t d
     if (primaryDisplayId && primaryDisplayId == display) {
         return DisplayDevice::DISPLAY_PRIMARY;
     } else if (externalDisplayId && externalDisplayId == display) {
-        return  DisplayDevice::DISPLAY_EXTERNAL;
+        return DisplayDevice::DISPLAY_EXTERNAL;
     } else if (connection == HWC2::Connection::Connected && !primaryDisplayId) {
         return DisplayDevice::DISPLAY_PRIMARY;
     } else if (connection == HWC2::Connection::Connected && !externalDisplayId) {
@@ -2232,7 +2233,11 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             continue;
         }
 
-        getBE().mHwc->onHotplug(event.display, displayType, event.connection);
+        const auto displayId =
+                getBE().mHwc->onHotplug(event.display, displayType, event.connection);
+        if (displayId) {
+            ALOGV("Display %" PRIu64 " has stable ID %" PRIu64, event.display, *displayId);
+        }
 
         if (event.connection == HWC2::Connection::Connected) {
             if (!mBuiltinDisplays[displayType].get()) {
@@ -3917,6 +3922,13 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
                 mLayerStats.dump(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) &&
+                (args[index] == String16("--display-identification"))) {
+                index++;
+                dumpDisplayIdentificationData(result);
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
@@ -4086,6 +4098,49 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
     result.append("\n");
 }
 
+void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
+    for (size_t d = 0; d < mDisplays.size(); d++) {
+        const sp<const DisplayDevice>& displayDevice(mDisplays[d]);
+        const int32_t hwcId = displayDevice->getHwcDisplayId();
+        const auto displayId = getHwComposer().getHwcDisplayId(hwcId);
+        if (!displayId) {
+            continue;
+        }
+
+        result.appendFormat("Display %d: ", hwcId);
+        uint8_t port;
+        DisplayIdentificationData data;
+        if (!getHwComposer().getDisplayIdentificationData(*displayId, &port, &data)) {
+            result.append("no identification data\n");
+            continue;
+        }
+
+        if (!isEdid(data)) {
+            result.append("unknown identification data: ");
+            for (uint8_t byte : data) {
+                result.appendFormat("%x ", byte);
+            }
+            result.append("\n");
+            continue;
+        }
+
+        const auto edid = parseEdid(data);
+        if (!edid) {
+            result.append("invalid EDID: ");
+            for (uint8_t byte : data) {
+                result.appendFormat("%x ", byte);
+            }
+            result.append("\n");
+            continue;
+        }
+
+        result.appendFormat("port=%u pnpId=%s displayName=\"", port, edid->pnpId.data());
+        result.append(edid->displayName.data(), edid->displayName.length());
+        result.append("\"\n");
+    }
+    result.append("\n");
+}
+
 void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
     result.appendFormat("hasWideColorDisplay: %d\n", hasWideColorDisplay);
     result.appendFormat("DisplayColorSetting: %d\n", mDisplayColorSetting);
@@ -4177,6 +4232,9 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     appendUiConfigString(result);
     appendGuiConfigString(result);
     result.append("\n");
+
+    result.append("\nDisplay identification data:\n");
+    dumpDisplayIdentificationData(result);
 
     result.append("\nWide-Color information:\n");
     dumpWideColorInfo(result);

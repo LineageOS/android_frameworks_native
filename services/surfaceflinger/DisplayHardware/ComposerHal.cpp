@@ -22,7 +22,6 @@
 
 #include "ComposerHal.h"
 
-#include <android/hardware/graphics/composer/2.2/IComposer.h>
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
 #include <gui/BufferQueue.h>
 #include <hidl/HidlTransportUtils.h>
@@ -172,22 +171,31 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
     }
 
-    mComposer->createClient(
-            [&](const auto& tmpError, const auto& tmpClient)
-            {
-                if (tmpError == Error::NONE) {
-                    mClient = tmpClient;
-                }
-            });
-    if (mClient == nullptr) {
-        LOG_ALWAYS_FATAL("failed to create composer client");
+    if (sp<IComposer> composer_2_3 = IComposer::castFrom(mComposer)) {
+        composer_2_3->createClient_2_3([&](const auto& tmpError, const auto& tmpClient) {
+            if (tmpError == Error::NONE) {
+                mClient = tmpClient;
+                mClient_2_2 = tmpClient;
+                mClient_2_3 = tmpClient;
+            }
+        });
+    } else {
+        mComposer->createClient([&](const auto& tmpError, const auto& tmpClient) {
+            if (tmpError != Error::NONE) {
+                return;
+            }
+
+            mClient = tmpClient;
+            if (sp<V2_2::IComposer> composer_2_2 = V2_2::IComposer::castFrom(mComposer)) {
+                mClient_2_2 = V2_2::IComposerClient::castFrom(mClient);
+                LOG_ALWAYS_FATAL_IF(mClient_2_2 == nullptr,
+                                    "IComposer 2.2 did not return IComposerClient 2.2");
+            }
+        });
     }
 
-    // 2.2 support is optional
-    sp<IComposer> composer_2_2 = IComposer::castFrom(mComposer);
-    if (composer_2_2 != nullptr) {
-        mClient_2_2 = IComposerClient::castFrom(mClient);
-        LOG_ALWAYS_FATAL_IF(mClient_2_2 == nullptr, "IComposer 2.2 did not return IComposerClient 2.2");
+    if (mClient == nullptr) {
+        LOG_ALWAYS_FATAL("failed to create composer client");
     }
 
     if (mIsUsingVrComposer) {
@@ -953,6 +961,30 @@ Error Composer::getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatri
 
         *outMatrix = mat4(tmpMatrix.data());
     });
+
+    return error;
+}
+
+// Composer HAL 2.3
+
+Error Composer::getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                             std::vector<uint8_t>* outData) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayIdentificationData(display,
+                                              [&](const auto& tmpError, const auto& tmpPort,
+                                                  const auto& tmpData) {
+                                                  error = tmpError;
+                                                  if (error != Error::NONE) {
+                                                      return;
+                                                  }
+
+                                                  *outPort = tmpPort;
+                                                  *outData = tmpData;
+                                              });
 
     return error;
 }

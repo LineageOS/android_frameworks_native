@@ -725,6 +725,7 @@ private:
     void recordBufferingStats(const char* layerName,
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
+    void dumpDisplayIdentificationData(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
     LayersProto dumpVisibleLayersProtoInfo(int32_t hwcId) const;
