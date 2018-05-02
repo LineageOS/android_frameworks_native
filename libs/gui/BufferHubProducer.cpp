@@ -136,7 +136,7 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
                                           uint32_t height, PixelFormat format, uint64_t usage,
                                           uint64_t* /*outBufferAge*/,
                                           FrameEventHistoryDelta* /* out_timestamps */) {
-    ALOGW("dequeueBuffer: w=%u, h=%u, format=%d, usage=%" PRIu64, width, height, format, usage);
+    ALOGV("dequeueBuffer: w=%u, h=%u, format=%d, usage=%" PRIu64, width, height, format, usage);
 
     status_t ret;
     std::unique_lock<std::mutex> lock(mutex_);
@@ -208,7 +208,7 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
 
     buffers_[slot].mBufferState.freeQueued();
     buffers_[slot].mBufferState.dequeue();
-    ALOGW("dequeueBuffer: slot=%zu", slot);
+    ALOGV("dequeueBuffer: slot=%zu", slot);
 
     // TODO(jwcai) Handle fence properly. |BufferHub| has full fence support, we
     // just need to exopose that through |BufferHubQueue| once we need fence.
