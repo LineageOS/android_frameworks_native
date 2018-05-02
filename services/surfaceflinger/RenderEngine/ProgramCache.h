@@ -28,6 +28,7 @@
 namespace android {
 
 class Description;
+class Formatter;
 class Program;
 class String8;
 
@@ -132,6 +133,12 @@ private:
     void primeCache();
     // compute a cache Key from a Description
     static Key computeKey(const Description& description);
+    // Generate EOTF based from Key.
+    static void generateEOTF(Formatter& fs, const Key& needs);
+    // Generate OOTF based from Key.
+    static void generateOOTF(Formatter& fs, const Key& needs);
+    // Generate OETF based from Key.
+    static void generateOETF(Formatter& fs, const Key& needs);
     // generates a program from the Key
     static Program* generateProgram(const Key& needs);
     // generates the vertex shader from the Key
