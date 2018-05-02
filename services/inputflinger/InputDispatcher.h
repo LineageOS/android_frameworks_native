@@ -931,6 +931,9 @@ private:
     };
     // Maps the key code replaced, device id tuple to the key code it was replaced with
     KeyedVector<KeyReplacement, int32_t> mReplacedKeys;
+    // Process certain Meta + Key combinations
+    void accelerateMetaShortcuts(const int32_t deviceId, const int32_t action,
+            int32_t& keyCode, int32_t& metaState);
 
     // Deferred command processing.
     bool haveCommandsLocked() const;
