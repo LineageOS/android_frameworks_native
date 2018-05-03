@@ -1470,8 +1470,12 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
+                mTimeStats.incrementMissedFrames(true);
                 signalLayerUpdate();
                 break;
+            }
+            if (frameMissed) {
+                mTimeStats.incrementMissedFrames(false);
             }
 
             // Now that we're going to make it to the handleMessageTransaction()
@@ -1769,6 +1773,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
             mAnimFrameTracker.setActualPresentTime(presentTime);
         }
         mAnimFrameTracker.advanceFrame();
+    }
+
+    mTimeStats.incrementTotalFrames();
+    if (mHadClientComposition) {
+        mTimeStats.incrementClientCompositionFrames();
     }
 
     if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) &&
@@ -3825,12 +3834,6 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
         size_t index = 0;
         size_t numArgs = args.size();
 
-        if (asProto) {
-            LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
-            dumpAll = false;
-        }
-
         if (numArgs) {
             if ((index < numArgs) &&
                     (args[index] == String16("--list"))) {
@@ -3914,10 +3917,21 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
                 dumpDisplayIdentificationData(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) && (args[index] == String16("--timestats"))) {
+                index++;
+                mTimeStats.parseArgs(asProto, args, index, result);
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
-            dumpAllLocked(args, index, result);
+            if (asProto) {
+                LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
+                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+            } else {
+                dumpAllLocked(args, index, result);
+            }
         }
 
         if (locked) {

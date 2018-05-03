@@ -64,6 +64,7 @@
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
 #include "StartPropertySetThread.h"
+#include "TimeStats/TimeStats.h"
 #include "LayerBE.h"
 #include "VSyncModulator.h"
 
@@ -818,6 +819,7 @@ private:
             std::make_unique<impl::SurfaceInterceptor>(this);
     SurfaceTracing mTracing;
     LayerStats mLayerStats;
+    TimeStats& mTimeStats = TimeStats::getInstance();
     bool mUseHwcVirtualDisplays = false;
 
     // Restrict layers to use two buffers in their bufferqueues.
