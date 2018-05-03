@@ -26,7 +26,8 @@
 
 #include <android-base/macros.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
-#include <hidl-util/FQName.h>
+#include <hidl-util/FqInstance.h>
+#include <vintf/HalManifest.h>
 
 #include "Command.h"
 #include "NullableOStream.h"
@@ -113,7 +114,7 @@ protected:
     void removeDeadProcesses(Pids *pids);
 
     virtual Partition getPartition(pid_t pid);
-    Partition resolvePartition(Partition processPartition, const FQName& fqName) const;
+    Partition resolvePartition(Partition processPartition, const FqInstance &fqInstance) const;
 
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
@@ -122,6 +123,10 @@ protected:
     NullableOStream<std::ostream> out() const;
 
     void registerAllOptions();
+
+    // helper functions to dumpVintf.
+    bool addEntryWithInstance(const TableEntry &entry, vintf::HalManifest *manifest) const;
+    bool addEntryWithoutInstance(const TableEntry &entry, const vintf::HalManifest *manifest) const;
 
     Table mServicesTable{};
     Table mPassthroughRefTable{};
