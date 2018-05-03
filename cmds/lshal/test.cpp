@@ -418,62 +418,35 @@ TEST_F(ListTest, Fetch) {
 }
 
 TEST_F(ListTest, DumpVintf) {
-    const std::string expected =
-        "<!-- \n"
-        "    This is a skeleton device manifest. Notes: \n" + ListCommand::INIT_VINTF_NOTES +
-        "-->\n"
-        "<manifest version=\"1.0\" type=\"device\">\n"
-        "    <hal format=\"hidl\">\n"
-        "        <name>a.h.foo1</name>\n"
-        "        <transport>hwbinder</transport>\n"
-        "        <version>1.0</version>\n"
-        "        <interface>\n"
-        "            <name>IFoo</name>\n"
-        "            <instance>1</instance>\n"
-        "        </interface>\n"
-        "    </hal>\n"
-        "    <hal format=\"hidl\">\n"
-        "        <name>a.h.foo2</name>\n"
-        "        <transport>hwbinder</transport>\n"
-        "        <version>2.0</version>\n"
-        "        <interface>\n"
-        "            <name>IFoo</name>\n"
-        "            <instance>2</instance>\n"
-        "        </interface>\n"
-        "    </hal>\n"
-        "    <hal format=\"hidl\">\n"
-        "        <name>a.h.foo3</name>\n"
-        "        <transport arch=\"32\">passthrough</transport>\n"
-        "        <version>3.0</version>\n"
-        "        <interface>\n"
-        "            <name>IFoo</name>\n"
-        "            <instance>3</instance>\n"
-        "        </interface>\n"
-        "    </hal>\n"
-        "    <hal format=\"hidl\">\n"
-        "        <name>a.h.foo4</name>\n"
-        "        <transport arch=\"32\">passthrough</transport>\n"
-        "        <version>4.0</version>\n"
-        "        <interface>\n"
-        "            <name>IFoo</name>\n"
-        "            <instance>4</instance>\n"
-        "        </interface>\n"
-        "    </hal>\n"
-        "    <hal format=\"hidl\">\n"
-        "        <name>a.h.foo5</name>\n"
-        "        <transport arch=\"32\">passthrough</transport>\n"
-        "        <version>5.0</version>\n"
-        "    </hal>\n"
-        "    <hal format=\"hidl\">\n"
-        "        <name>a.h.foo6</name>\n"
-        "        <transport arch=\"32\">passthrough</transport>\n"
-        "        <version>6.0</version>\n"
-        "    </hal>\n"
-        "</manifest>\n";
+    const std::string expected = "<manifest version=\"1.0\" type=\"device\">\n"
+                                 "    <hal format=\"hidl\">\n"
+                                 "        <name>a.h.foo1</name>\n"
+                                 "        <transport>hwbinder</transport>\n"
+                                 "        <fqname>@1.0::IFoo/1</fqname>\n"
+                                 "    </hal>\n"
+                                 "    <hal format=\"hidl\">\n"
+                                 "        <name>a.h.foo2</name>\n"
+                                 "        <transport>hwbinder</transport>\n"
+                                 "        <fqname>@2.0::IFoo/2</fqname>\n"
+                                 "    </hal>\n"
+                                 "    <hal format=\"hidl\">\n"
+                                 "        <name>a.h.foo3</name>\n"
+                                 "        <transport arch=\"32\">passthrough</transport>\n"
+                                 "        <fqname>@3.0::IFoo/3</fqname>\n"
+                                 "    </hal>\n"
+                                 "    <hal format=\"hidl\">\n"
+                                 "        <name>a.h.foo4</name>\n"
+                                 "        <transport arch=\"32\">passthrough</transport>\n"
+                                 "        <fqname>@4.0::IFoo/4</fqname>\n"
+                                 "    </hal>\n"
+                                 "</manifest>";
 
     optind = 1; // mimic Lshal::parseArg()
     EXPECT_EQ(0u, mockList->main(createArg({"lshal", "--init-vintf"})));
-    EXPECT_EQ(expected, out.str());
+    auto output = out.str();
+    EXPECT_THAT(output, HasSubstr(expected));
+    EXPECT_THAT(output, HasSubstr("a.h.foo5@5.0::IFoo/5"));
+    EXPECT_THAT(output, HasSubstr("a.h.foo6@6.0::IFoo/6"));
     EXPECT_EQ("", err.str());
 
     vintf::HalManifest m;
