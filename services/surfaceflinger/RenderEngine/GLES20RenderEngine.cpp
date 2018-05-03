@@ -224,6 +224,10 @@ void GLES20RenderEngine::setOutputDataSpace(Dataspace dataspace) {
     mOutputDataSpace = dataspace;
 }
 
+void GLES20RenderEngine::setDisplayMaxLuminance(const float maxLuminance) {
+    mState.setDisplayMaxLuminance(maxLuminance);
+}
+
 void GLES20RenderEngine::setupLayerTexturing(const Texture& texture) {
     GLuint target = texture.getTextureTarget();
     glBindTexture(target, texture.getTextureName());
