@@ -125,6 +125,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/sched/sched_waking/enable" },
         { OPT,      "events/sched/sched_blocked_reason/enable" },
         { OPT,      "events/sched/sched_cpu_hotplug/enable" },
+        { OPT,      "events/sched/sched_pi_setprio/enable" },
         { OPT,      "events/cgroup/enable" },
     } },
     { "irq",        "IRQ Events",   0, {
