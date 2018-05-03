@@ -426,9 +426,11 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     bool queuedBuffer = false;
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
-                    mFreezeGeometryUpdates);
+                    getTransformToDisplayInverse(),  mFreezeGeometryUpdates);
+
     status_t updateResult = mConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync, &mAutoRefresh,
                                                       &queuedBuffer, mLastFrameNumberReceived);
+
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.

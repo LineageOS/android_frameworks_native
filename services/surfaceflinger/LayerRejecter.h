@@ -29,6 +29,7 @@ namespace android {
                       bool stickySet,
                       const char *name,
                       int32_t overrideScalingMode,
+                      bool transformToDisplayInverse,
                       bool &freezePositionUpdates);
 
         virtual bool reject(const sp<GraphicBuffer> &buf, const BufferItem &item);
@@ -40,6 +41,7 @@ namespace android {
         bool mStickyTransformSet;
         const char *mName;
         int32_t mOverrideScalingMode;
+        bool mTransformToDisplayInverse;
         bool &mFreezeGeometryUpdates;
     };
 }  // namespace android
