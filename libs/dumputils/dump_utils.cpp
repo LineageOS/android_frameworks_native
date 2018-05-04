@@ -42,6 +42,7 @@ static const char* native_processes_to_dump[] = {
 /* list of hal interface to dump containing process during native dumps */
 static const char* hal_interfaces_to_dump[] {
         "android.hardware.audio@2.0::IDevicesFactory",
+        "android.hardware.audio@4.0::IDevicesFactory",
         "android.hardware.bluetooth@1.0::IBluetoothHci",
         "android.hardware.camera.provider@2.4::ICameraProvider",
         "android.hardware.drm@1.0::IDrmFactory",

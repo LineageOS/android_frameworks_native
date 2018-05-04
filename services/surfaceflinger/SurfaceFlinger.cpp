@@ -78,6 +78,7 @@
 #include "clz.h"
 
 #include "DisplayHardware/ComposerHal.h"
+#include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
@@ -1118,31 +1119,14 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& display,
         return BAD_VALUE;
     }
 
-    HdrCapabilities capabilities;
-    int status = getBE().mHwc->getHdrCapabilities(
-        displayDevice->getHwcDisplayId(), &capabilities);
-    if (status == NO_ERROR) {
-        if (displayDevice->hasWideColorGamut()) {
-            std::vector<Hdr> types = capabilities.getSupportedHdrTypes();
-            // insert HDR10/HLG as we will force client composition for HDR10/HLG
-            // layers
-            if (!displayDevice->hasHDR10Support()) {
-                types.push_back(Hdr::HDR10);
-            }
-            if (!displayDevice->hasHLGSupport()) {
-                types.push_back(Hdr::HLG);
-            }
-
-            *outCapabilities = HdrCapabilities(types,
-                    capabilities.getDesiredMaxLuminance(),
-                    capabilities.getDesiredMaxAverageLuminance(),
-                    capabilities.getDesiredMinLuminance());
-        } else {
-            *outCapabilities = std::move(capabilities);
-        }
-    } else {
-        return BAD_VALUE;
-    }
+    // At this point the DisplayDeivce should already be set up,
+    // meaning the luminance information is already queried from
+    // hardware composer and stored properly.
+    const HdrCapabilities& capabilities = displayDevice->getHdrCapabilities();
+    *outCapabilities = HdrCapabilities(capabilities.getSupportedHdrTypes(),
+                                       capabilities.getDesiredMaxLuminance(),
+                                       capabilities.getDesiredMaxAverageLuminance(),
+                                       capabilities.getDesiredMinLuminance());
 
     return NO_ERROR;
 }
@@ -1486,8 +1470,12 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
+                mTimeStats.incrementMissedFrames(true);
                 signalLayerUpdate();
                 break;
+            }
+            if (frameMissed) {
+                mTimeStats.incrementMissedFrames(false);
             }
 
             // Now that we're going to make it to the handleMessageTransaction()
@@ -1785,6 +1773,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
             mAnimFrameTracker.setActualPresentTime(presentTime);
         }
         mAnimFrameTracker.advanceFrame();
+    }
+
+    mTimeStats.incrementTotalFrames();
+    if (mHadClientComposition) {
+        mTimeStats.incrementClientCompositionFrames();
     }
 
     if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) &&
@@ -2209,7 +2202,7 @@ DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t d
     if (primaryDisplayId && primaryDisplayId == display) {
         return DisplayDevice::DISPLAY_PRIMARY;
     } else if (externalDisplayId && externalDisplayId == display) {
-        return  DisplayDevice::DISPLAY_EXTERNAL;
+        return DisplayDevice::DISPLAY_EXTERNAL;
     } else if (connection == HWC2::Connection::Connected && !primaryDisplayId) {
         return DisplayDevice::DISPLAY_PRIMARY;
     } else if (connection == HWC2::Connection::Connected && !externalDisplayId) {
@@ -2232,7 +2225,11 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
             continue;
         }
 
-        getBE().mHwc->onHotplug(event.display, displayType, event.connection);
+        const auto displayId =
+                getBE().mHwc->onHotplug(event.display, displayType, event.connection);
+        if (displayId) {
+            ALOGV("Display %" PRIu64 " has stable ID %" PRIu64, event.display, *displayId);
+        }
 
         if (event.connection == HWC2::Connection::Connected) {
             if (!mBuiltinDisplays[displayType].get()) {
@@ -2916,6 +2913,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             outputDataspace = displayDevice->getCompositionDataSpace();
         }
         getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
+        getBE().mRenderEngine->setDisplayMaxLuminance(
+                displayDevice->getHdrCapabilities().getDesiredMaxLuminance());
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -3835,12 +3834,6 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
         size_t index = 0;
         size_t numArgs = args.size();
 
-        if (asProto) {
-            LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
-            dumpAll = false;
-        }
-
         if (numArgs) {
             if ((index < numArgs) &&
                     (args[index] == String16("--list"))) {
@@ -3917,10 +3910,28 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
                 mLayerStats.dump(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) &&
+                (args[index] == String16("--display-identification"))) {
+                index++;
+                dumpDisplayIdentificationData(result);
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) && (args[index] == String16("--timestats"))) {
+                index++;
+                mTimeStats.parseArgs(asProto, args, index, result);
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
-            dumpAllLocked(args, index, result);
+            if (asProto) {
+                LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
+                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+            } else {
+                dumpAllLocked(args, index, result);
+            }
         }
 
         if (locked) {
@@ -4086,6 +4097,49 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
     result.append("\n");
 }
 
+void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
+    for (size_t d = 0; d < mDisplays.size(); d++) {
+        const sp<const DisplayDevice>& displayDevice(mDisplays[d]);
+        const int32_t hwcId = displayDevice->getHwcDisplayId();
+        const auto displayId = getHwComposer().getHwcDisplayId(hwcId);
+        if (!displayId) {
+            continue;
+        }
+
+        result.appendFormat("Display %d: ", hwcId);
+        uint8_t port;
+        DisplayIdentificationData data;
+        if (!getHwComposer().getDisplayIdentificationData(*displayId, &port, &data)) {
+            result.append("no identification data\n");
+            continue;
+        }
+
+        if (!isEdid(data)) {
+            result.append("unknown identification data: ");
+            for (uint8_t byte : data) {
+                result.appendFormat("%x ", byte);
+            }
+            result.append("\n");
+            continue;
+        }
+
+        const auto edid = parseEdid(data);
+        if (!edid) {
+            result.append("invalid EDID: ");
+            for (uint8_t byte : data) {
+                result.appendFormat("%x ", byte);
+            }
+            result.append("\n");
+            continue;
+        }
+
+        result.appendFormat("port=%u pnpId=%s displayName=\"", port, edid->pnpId.data());
+        result.append(edid->displayName.data(), edid->displayName.length());
+        result.append("\"\n");
+    }
+    result.append("\n");
+}
+
 void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
     result.appendFormat("hasWideColorDisplay: %d\n", hasWideColorDisplay);
     result.appendFormat("DisplayColorSetting: %d\n", mDisplayColorSetting);
@@ -4177,6 +4231,9 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     appendUiConfigString(result);
     appendGuiConfigString(result);
     result.append("\n");
+
+    result.append("\nDisplay identification data:\n");
+    dumpDisplayIdentificationData(result);
 
     result.append("\nWide-Color information:\n");
     dumpWideColorInfo(result);
@@ -4717,6 +4774,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         }
         bool getWideColorSupport() const override { return false; }
         Dataspace getDataSpace() const override { return Dataspace::UNKNOWN; }
+        float getDisplayMaxLuminance() const override {
+            return DisplayDevice::sDefaultMaxLumiance;
+        }
 
         class ReparentForDrawing {
         public:
@@ -4919,7 +4979,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     if (renderArea.getWideColorSupport()) {
         outputDataspace = renderArea.getDataSpace();
     }
-    getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
+    engine.setOutputDataSpace(outputDataspace);
+    engine.setDisplayMaxLuminance(renderArea.getDisplayMaxLuminance());
 
     // make sure to clear all GL error flags
     engine.checkErrors();

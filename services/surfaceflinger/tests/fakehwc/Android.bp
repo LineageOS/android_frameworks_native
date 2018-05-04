@@ -25,6 +25,7 @@ cc_test {
         "liblog",
         "libnativewindow",
         "libsync",
+        "libtimestats_proto",
         "libui",
         "libutils",
     ],

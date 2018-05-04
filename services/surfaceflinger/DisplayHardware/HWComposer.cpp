@@ -96,6 +96,22 @@ void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
     mHwcDevice->registerCallback(callback, sequenceId);
 }
 
+bool HWComposer::getDisplayIdentificationData(hwc2_display_t displayId, uint8_t* outPort,
+                                              DisplayIdentificationData* outData) const {
+    HWC2::Display* display = mHwcDevice->getDisplayById(displayId);
+    if (!display) {
+        ALOGE("getDisplayIdentificationData: Attempted to access invalid display %" PRIu64,
+              displayId);
+        return false;
+    }
+    const auto error = display->getIdentificationData(outPort, outData);
+    if (error != HWC2::Error::None) {
+        ALOGE("getDisplayIdentificationData failed for display %" PRIu64, displayId);
+        return false;
+    }
+    return true;
+}
+
 bool HWComposer::hasCapability(HWC2::Capability capability) const
 {
     return mHwcDevice->getCapabilities().count(capability) > 0;
@@ -131,23 +147,35 @@ void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
     }
 }
 
-void HWComposer::onHotplug(hwc2_display_t displayId, int32_t displayType,
-                           HWC2::Connection connection) {
+std::optional<DisplayId> HWComposer::onHotplug(hwc2_display_t displayId, int32_t displayType,
+                                               HWC2::Connection connection) {
     if (displayType >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
         ALOGE("Invalid display type of %d", displayType);
-        return;
+        return {};
     }
 
     ALOGV("hotplug: %" PRIu64 ", %s %s", displayId,
             displayType == DisplayDevice::DISPLAY_PRIMARY ? "primary" : "external",
             to_string(connection).c_str());
     mHwcDevice->onHotplug(displayId, connection);
+
+    std::optional<DisplayId> stableId;
+
+    uint8_t port;
+    DisplayIdentificationData data;
+    if (getDisplayIdentificationData(displayId, &port, &data)) {
+        stableId = generateDisplayId(port, data);
+        ALOGE_IF(!stableId, "Failed to generate stable ID for display %" PRIu64, displayId);
+    }
+
     // Disconnect is handled through HWComposer::disconnectDisplay via
     // SurfaceFlinger's onHotplugReceived callback handling
     if (connection == HWC2::Connection::Connected) {
         mDisplayData[displayType].hwcDisplay = mHwcDevice->getDisplayById(displayId);
         mHwcDisplaySlots[displayId] = displayType;
     }
+
+    return stableId;
 }
 
 bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,

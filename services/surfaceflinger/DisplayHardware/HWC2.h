@@ -224,6 +224,8 @@ public:
     // Doesn't call into the HWC2 device, so no errors are possible
     std::vector<std::shared_ptr<const Config>> getConfigs() const;
 
+    [[clang::warn_unused_result]] Error getIdentificationData(uint8_t* outPort,
+                                                              std::vector<uint8_t>* outData) const;
     [[clang::warn_unused_result]] Error getName(std::string* outName) const;
     [[clang::warn_unused_result]] Error getRequests(
             DisplayRequest* outDisplayRequests,

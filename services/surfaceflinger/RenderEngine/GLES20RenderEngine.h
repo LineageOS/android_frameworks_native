@@ -75,17 +75,7 @@ protected:
     void setSourceY410BT2020(bool enable) override;
     void setSourceDataSpace(ui::Dataspace source) override;
     void setOutputDataSpace(ui::Dataspace dataspace) override;
-
-    // Current dataspace of layer being rendered
-    ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;
-
-    // Current output dataspace of the render engine
-    ui::Dataspace mOutputDataSpace = ui::Dataspace::UNKNOWN;
-
-    // Currently only supporting sRGB, BT2020 and DisplayP3 color spaces
-    const bool mPlatformHasWideColor = false;
-    mat4 mSrgbToDisplayP3;
-    mat4 mBt2020ToDisplayP3;
+    void setDisplayMaxLuminance(const float maxLuminance) override;
 
     virtual void setupLayerTexturing(const Texture& texture);
     virtual void setupLayerBlackedOut();
@@ -98,6 +88,28 @@ protected:
 
     virtual size_t getMaxTextureSize() const;
     virtual size_t getMaxViewportDims() const;
+
+    // Current dataspace of layer being rendered
+    ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;
+
+    // Current output dataspace of the render engine
+    ui::Dataspace mOutputDataSpace = ui::Dataspace::UNKNOWN;
+
+    // Currently only supporting sRGB, BT2020 and DisplayP3 color spaces
+    const bool mPlatformHasWideColor = false;
+    mat4 mSrgbToDisplayP3;
+    mat4 mDisplayP3ToSrgb;
+    mat3 mSrgbToXyz;
+    mat3 mBt2020ToXyz;
+    mat3 mDisplayP3ToXyz;
+    mat4 mXyzToDisplayP3;
+    mat4 mXyzToBt2020;
+
+private:
+    // A data space is considered HDR data space if it has BT2020 color space
+    // with PQ or HLG transfer function.
+    bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
+    bool needsXYZTransformMatrix() const;
 };
 
 // ---------------------------------------------------------------------------

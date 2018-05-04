@@ -25,8 +25,8 @@
 
 #include <android/frameworks/vr/composer/1.0/IVrComposerClient.h>
 #include <android/hardware/graphics/common/1.1/types.h>
-#include <android/hardware/graphics/composer/2.2/IComposer.h>
-#include <android/hardware/graphics/composer/2.2/IComposerClient.h>
+#include <android/hardware/graphics/composer/2.3/IComposer.h>
+#include <android/hardware/graphics/composer/2.3/IComposerClient.h>
 #include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
@@ -43,6 +43,7 @@ namespace types = hardware::graphics::common;
 
 namespace V2_1 = hardware::graphics::composer::V2_1;
 namespace V2_2 = hardware::graphics::composer::V2_2;
+namespace V2_3 = hardware::graphics::composer::V2_3;
 
 using types::V1_0::ColorTransform;
 using types::V1_0::Hdr;
@@ -61,8 +62,9 @@ using V2_1::Layer;
 
 using V2_2::CommandReaderBase;
 using V2_2::CommandWriterBase;
-using V2_2::IComposer;
-using V2_2::IComposerClient;
+
+using V2_3::IComposer;
+using V2_3::IComposerClient;
 
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
@@ -185,6 +187,10 @@ public:
     virtual Error getRenderIntents(Display display, ColorMode colorMode,
             std::vector<RenderIntent>* outRenderIntents) = 0;
     virtual Error getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix) = 0;
+
+    // Composer HAL 2.3
+    virtual Error getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                               std::vector<uint8_t>* outData) = 0;
 };
 
 namespace impl {
@@ -380,6 +386,10 @@ public:
             std::vector<RenderIntent>* outRenderIntents) override;
     Error getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix) override;
 
+    // Composer HAL 2.3
+    Error getDisplayIdentificationData(Display display, uint8_t* outPort,
+                                       std::vector<uint8_t>* outData) override;
+
 private:
     class CommandWriter : public CommandWriterBase {
     public:
@@ -405,7 +415,8 @@ private:
     sp<V2_1::IComposer> mComposer;
 
     sp<V2_1::IComposerClient> mClient;
-    sp<IComposerClient> mClient_2_2;
+    sp<V2_2::IComposerClient> mClient_2_2;
+    sp<IComposerClient> mClient_2_3;
 
     // 64KiB minus a small space for metadata such as read/write pointers
     static constexpr size_t kWriterInitialSize =

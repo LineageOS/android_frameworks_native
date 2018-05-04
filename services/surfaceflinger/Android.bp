@@ -25,6 +25,7 @@ cc_defaults {
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.composer@2.1",
         "android.hardware.graphics.composer@2.2",
+        "android.hardware.graphics.composer@2.3",
         "android.hardware.power@1.0",
         "libbase",
         "libbinder",
@@ -45,6 +46,7 @@ cc_defaults {
         "libpdx_default_transport",
         "libprotobuf-cpp-lite",
         "libsync",
+        "libtimestats_proto",
         "libui",
         "libutils",
         "libvulkan",
@@ -67,6 +69,7 @@ cc_defaults {
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.composer@2.1",
         "android.hardware.graphics.composer@2.2",
+        "android.hardware.graphics.composer@2.3",
         "libhidlbase",
         "libhidltransport",
         "libhwbinder",
@@ -90,6 +93,7 @@ filegroup {
         "ContainerLayer.cpp",
         "DisplayDevice.cpp",
         "DisplayHardware/ComposerHal.cpp",
+        "DisplayHardware/DisplayIdentification.cpp",
         "DisplayHardware/FramebufferSurface.cpp",
         "DisplayHardware/HWC2.cpp",
         "DisplayHardware/HWComposer.cpp",
@@ -103,7 +107,7 @@ filegroup {
         "FrameTracker.cpp",
         "GpuService.cpp",
         "Layer.cpp",
-	"LayerBE.cpp",
+        "LayerBE.cpp",
         "LayerProtoHelper.cpp",
         "LayerRejecter.cpp",
         "LayerStats.cpp",
@@ -125,6 +129,7 @@ filegroup {
         "SurfaceFlinger.cpp",
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
+        "TimeStats/TimeStats.cpp",
         "Transform.cpp",
     ],
 }
@@ -173,6 +178,7 @@ cc_binary {
         "liblayers_proto",
         "liblog",
         "libsurfaceflinger",
+        "libtimestats_proto",
         "libutils",
     ],
     static_libs: [
@@ -214,5 +220,6 @@ cc_library_shared {
 
 subdirs = [
     "layerproto",
+    "TimeStats/timestatsproto",
     "tests",
 ]

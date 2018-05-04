@@ -19,6 +19,7 @@ cc_test {
     test_suites: ["device-tests"],
     srcs: [
         ":libsurfaceflinger_sources",
+        "DisplayIdentificationTest.cpp",
         "DisplayTransactionTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplaySurface.cpp",

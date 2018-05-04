@@ -354,6 +354,8 @@ struct HwcDisplayVariant {
                     getDisplayAttribute(HWC_DISPLAY_ID, HWC_ACTIVE_CONFIG_ID,
                                         IComposerClient::Attribute::DPI_Y, _))
                 .WillOnce(DoAll(SetArgPointee<3>(DEFAULT_DPI), Return(Error::NONE)));
+        EXPECT_CALL(*test->mComposer, getDisplayIdentificationData(HWC_DISPLAY_ID, _, _))
+                .WillRepeatedly(Return(Error::UNSUPPORTED));
     }
 
     // Called by tests to set up HWC call expectations
@@ -385,6 +387,11 @@ struct PhysicalDisplayVariant
         public HwcDisplayVariant<hwcDisplayId, HWC2::DisplayType::Physical,
                                  DisplayVariant<type, type, width, height, critical, Async::FALSE,
                                                 Secure::TRUE, GRALLOC_USAGE_PHYSICAL_DISPLAY>> {};
+
+// An invalid display
+using InvalidDisplayVariant =
+        DisplayVariant<DisplayDevice::DISPLAY_ID_INVALID, DisplayDevice::DISPLAY_ID_INVALID, 0, 0,
+                       Critical::FALSE, Async::FALSE, Secure::FALSE, 0>;
 
 // A primary display is a physical display that is critical
 using PrimaryDisplayVariant =
@@ -645,6 +652,8 @@ using HdrHlgDisplayCase =
 using HdrDolbyVisionDisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
              HdrDolbyVisionSupportedVariant<PrimaryDisplayVariant>>;
+using InvalidDisplayCase = Case<InvalidDisplayVariant, WideColorSupportNotConfiguredVariant,
+                                NonHwcDisplayHdrSupportVariant>;
 
 /* ------------------------------------------------------------------------
  *
@@ -1571,7 +1580,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayLayerStackChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newLayerStack, getDisplayDevice(display.token())->getLayerStack());
+    EXPECT_EQ(newLayerStack, display.mutableDisplayDevice()->getLayerStack());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
@@ -1599,7 +1608,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayTransformChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newTransform, getDisplayDevice(display.token())->getOrientation());
+    EXPECT_EQ(newTransform, display.mutableDisplayDevice()->getOrientation());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
@@ -1627,7 +1636,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayViewportChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newViewport, getDisplayDevice(display.token())->getViewport());
+    EXPECT_EQ(newViewport, display.mutableDisplayDevice()->getViewport());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
@@ -1655,7 +1664,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayFrameChanges) {
     // --------------------------------------------------------------------
     // Postconditions
 
-    EXPECT_EQ(newFrame, getDisplayDevice(display.token())->getFrame());
+    EXPECT_EQ(newFrame, display.mutableDisplayDevice()->getFrame());
 }
 
 TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
@@ -1738,6 +1747,580 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // Invocation
 
     mFlinger.handleTransactionLocked(eDisplayTransactionNeeded);
+}
+
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::setDisplayStateLocked
+ */
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWithUnknownDisplay) {
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // We have an unknown display token not associated with a known display
+    sp<BBinder> displayToken = new BBinder();
+
+    // The requested display state references the unknown display.
+    DisplayState state;
+    state.what = DisplayState::eLayerStackChanged;
+    state.token = displayToken;
+    state.layerStack = 456;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The display token still doesn't match anything known.
+    EXPECT_FALSE(hasCurrentDisplayState(displayToken));
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWithInvalidDisplay) {
+    using Case = InvalidDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // An invalid display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The invalid display has some state
+    display.mutableCurrentDisplayState().layerStack = 654u;
+
+    // The requested display state tries to change the display state.
+    DisplayState state;
+    state.what = DisplayState::eLayerStackChanged;
+    state.token = display.token();
+    state.layerStack = 456;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The current display layer stack value is unchanged.
+    EXPECT_EQ(654u, getCurrentDisplayState(display.token()).layerStack);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWhenNoChanges) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is already set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // No changes are made to the display
+    DisplayState state;
+    state.what = 0;
+    state.token = display.token();
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfSurfaceDidNotChange) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is already set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a surface that can be set.
+    sp<mock::GraphicBufferProducer> surface = new mock::GraphicBufferProducer();
+
+    // The current display state has the surface set
+    display.mutableCurrentDisplayState().surface = surface;
+
+    // The incoming request sets the same surface
+    DisplayState state;
+    state.what = DisplayState::eSurfaceChanged;
+    state.token = display.token();
+    state.surface = surface;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The current display state is unchanged.
+    EXPECT_EQ(surface.get(), display.getCurrentDisplayState().surface.get());
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfSurfaceChanged) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is already set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // There is a surface that can be set.
+    sp<mock::GraphicBufferProducer> surface = new mock::GraphicBufferProducer();
+
+    // The current display state does not have a surface
+    display.mutableCurrentDisplayState().surface = nullptr;
+
+    // The incoming request sets a surface
+    DisplayState state;
+    state.what = DisplayState::eSurfaceChanged;
+    state.token = display.token();
+    state.surface = surface;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The current display layer stack state is set to the new value
+    EXPECT_EQ(surface.get(), display.getCurrentDisplayState().surface.get());
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfLayerStackDidNotChange) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is already set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The display has a layer stack set
+    display.mutableCurrentDisplayState().layerStack = 456u;
+
+    // The incoming request sets the same layer stack
+    DisplayState state;
+    state.what = DisplayState::eLayerStackChanged;
+    state.token = display.token();
+    state.layerStack = 456u;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The current display state is unchanged
+    EXPECT_EQ(456u, display.getCurrentDisplayState().layerStack);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfLayerStackChanged) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The display has a layer stack set
+    display.mutableCurrentDisplayState().layerStack = 654u;
+
+    // The incoming request sets a different layer stack
+    DisplayState state;
+    state.what = DisplayState::eLayerStackChanged;
+    state.token = display.token();
+    state.layerStack = 456u;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The desired display state has been set to the new value.
+    EXPECT_EQ(456u, display.getCurrentDisplayState().layerStack);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfProjectionDidNotChange) {
+    using Case = SimplePrimaryDisplayCase;
+    constexpr int initialOrientation = 180;
+    const Rect initialFrame = {1, 2, 3, 4};
+    const Rect initialViewport = {5, 6, 7, 8};
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The current display state projection state is all set
+    display.mutableCurrentDisplayState().orientation = initialOrientation;
+    display.mutableCurrentDisplayState().frame = initialFrame;
+    display.mutableCurrentDisplayState().viewport = initialViewport;
+
+    // The incoming request sets the same projection state
+    DisplayState state;
+    state.what = DisplayState::eDisplayProjectionChanged;
+    state.token = display.token();
+    state.orientation = initialOrientation;
+    state.frame = initialFrame;
+    state.viewport = initialViewport;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The current display state is unchanged
+    EXPECT_EQ(initialOrientation, display.getCurrentDisplayState().orientation);
+
+    EXPECT_EQ(initialFrame, display.getCurrentDisplayState().frame);
+    EXPECT_EQ(initialViewport, display.getCurrentDisplayState().viewport);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfOrientationChanged) {
+    using Case = SimplePrimaryDisplayCase;
+    constexpr int initialOrientation = 90;
+    constexpr int desiredOrientation = 180;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The current display state has an orientation set
+    display.mutableCurrentDisplayState().orientation = initialOrientation;
+
+    // The incoming request sets a different orientation
+    DisplayState state;
+    state.what = DisplayState::eDisplayProjectionChanged;
+    state.token = display.token();
+    state.orientation = desiredOrientation;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The current display state has the new value.
+    EXPECT_EQ(desiredOrientation, display.getCurrentDisplayState().orientation);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfFrameChanged) {
+    using Case = SimplePrimaryDisplayCase;
+    const Rect initialFrame = {0, 0, 0, 0};
+    const Rect desiredFrame = {5, 6, 7, 8};
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The current display state does not have a frame
+    display.mutableCurrentDisplayState().frame = initialFrame;
+
+    // The incoming request sets a frame
+    DisplayState state;
+    state.what = DisplayState::eDisplayProjectionChanged;
+    state.token = display.token();
+    state.frame = desiredFrame;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The current display state has the new value.
+    EXPECT_EQ(desiredFrame, display.getCurrentDisplayState().frame);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfViewportChanged) {
+    using Case = SimplePrimaryDisplayCase;
+    const Rect initialViewport = {0, 0, 0, 0};
+    const Rect desiredViewport = {5, 6, 7, 8};
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The current display state does not have a viewport
+    display.mutableCurrentDisplayState().viewport = initialViewport;
+
+    // The incoming request sets a viewport
+    DisplayState state;
+    state.what = DisplayState::eDisplayProjectionChanged;
+    state.token = display.token();
+    state.viewport = desiredViewport;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The current display state has the new value.
+    EXPECT_EQ(desiredViewport, display.getCurrentDisplayState().viewport);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingIfSizeDidNotChange) {
+    using Case = SimplePrimaryDisplayCase;
+    constexpr uint32_t initialWidth = 1024;
+    constexpr uint32_t initialHeight = 768;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The current display state has a size set
+    display.mutableCurrentDisplayState().width = initialWidth;
+    display.mutableCurrentDisplayState().height = initialHeight;
+
+    // The incoming request sets the same display size
+    DisplayState state;
+    state.what = DisplayState::eDisplaySizeChanged;
+    state.token = display.token();
+    state.width = initialWidth;
+    state.height = initialHeight;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags are empty
+    EXPECT_EQ(0u, flags);
+
+    // The current display state is unchanged
+    EXPECT_EQ(initialWidth, display.getCurrentDisplayState().width);
+    EXPECT_EQ(initialHeight, display.getCurrentDisplayState().height);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfWidthChanged) {
+    using Case = SimplePrimaryDisplayCase;
+    constexpr uint32_t initialWidth = 0;
+    constexpr uint32_t desiredWidth = 1024;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The display does not yet have a width
+    display.mutableCurrentDisplayState().width = initialWidth;
+
+    // The incoming request sets a display width
+    DisplayState state;
+    state.what = DisplayState::eDisplaySizeChanged;
+    state.token = display.token();
+    state.width = desiredWidth;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The current display state has the new value.
+    EXPECT_EQ(desiredWidth, display.getCurrentDisplayState().width);
+}
+
+TEST_F(DisplayTransactionTest, setDisplayStateLockedRequestsUpdateIfHeightChanged) {
+    using Case = SimplePrimaryDisplayCase;
+    constexpr uint32_t initialHeight = 0;
+    constexpr uint32_t desiredHeight = 768;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A display is set up
+    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
+    display.inject();
+
+    // The display does not yet have a height
+    display.mutableCurrentDisplayState().height = initialHeight;
+
+    // The incoming request sets a display height
+    DisplayState state;
+    state.what = DisplayState::eDisplaySizeChanged;
+    state.token = display.token();
+    state.height = desiredHeight;
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    uint32_t flags = mFlinger.setDisplayStateLocked(state);
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The returned flags indicate a transaction is needed
+    EXPECT_EQ(eDisplayTransactionNeeded, flags);
+
+    // The current display state has the new value.
+    EXPECT_EQ(desiredHeight, display.getCurrentDisplayState().height);
+}
+
+/* ------------------------------------------------------------------------
+ * SurfaceFlinger::onInitializeDisplays
+ */
+
+TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
+    using Case = SimplePrimaryDisplayCase;
+
+    // --------------------------------------------------------------------
+    // Preconditions
+
+    // A primary display is set up
+    Case::Display::injectHwcDisplay(this);
+    auto primaryDisplay = Case::Display::makeFakeExistingDisplayInjector(this);
+    primaryDisplay.inject();
+
+    // --------------------------------------------------------------------
+    // Call Expectations
+
+    // We expect the surface interceptor to possibly be used, but we treat it as
+    // disabled since it is called as a side effect rather than directly by this
+    // function.
+    EXPECT_CALL(*mSurfaceInterceptor, isEnabled()).WillOnce(Return(false));
+
+    // We expect a call to get the active display config.
+    Case::Display::setupHwcGetActiveConfigCallExpectations(this);
+
+    // We expect invalidate() to be invoked once to trigger display transaction
+    // processing.
+    EXPECT_CALL(*mMessageQueue, invalidate()).Times(1);
+
+    // --------------------------------------------------------------------
+    // Invocation
+
+    mFlinger.onInitializeDisplays();
+
+    // --------------------------------------------------------------------
+    // Postconditions
+
+    // The primary display should have a current state
+    ASSERT_TRUE(hasCurrentDisplayState(primaryDisplay.token()));
+    const auto& primaryDisplayState = getCurrentDisplayState(primaryDisplay.token());
+    // The layer stack state should be set to zero
+    EXPECT_EQ(0u, primaryDisplayState.layerStack);
+    // The orientation state should be set to zero
+    EXPECT_EQ(0, primaryDisplayState.orientation);
+
+    // The frame state should be set to INVALID
+    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.frame);
+
+    // The viewport state should be set to INVALID
+    EXPECT_EQ(Rect::INVALID_RECT, primaryDisplayState.viewport);
+
+    // The width and height should both be zero
+    EXPECT_EQ(0u, primaryDisplayState.width);
+    EXPECT_EQ(0u, primaryDisplayState.height);
+
+    // The display should be set to HWC_POWER_MODE_NORMAL
+    ASSERT_TRUE(hasDisplayDevice(primaryDisplay.token()));
+    auto displayDevice = primaryDisplay.mutableDisplayDevice();
+    EXPECT_EQ(HWC_POWER_MODE_NORMAL, displayDevice->getPowerMode());
+
+    // The display refresh period should be set in the frame tracker.
+    FrameStats stats;
+    mFlinger.getAnimFrameTracker().getStats(&stats);
+    EXPECT_EQ(DEFAULT_REFRESH_RATE, stats.refreshPeriodNano);
+
+    // The display transaction needed flag should be set.
+    EXPECT_TRUE(hasTransactionFlagSet(eDisplayTransactionNeeded));
+
+    // The compositor timing should be set to default values
+    const auto& compositorTiming = mFlinger.getCompositorTiming();
+    EXPECT_EQ(-DEFAULT_REFRESH_RATE, compositorTiming.deadline);
+    EXPECT_EQ(DEFAULT_REFRESH_RATE, compositorTiming.interval);
+    EXPECT_EQ(DEFAULT_REFRESH_RATE, compositorTiming.presentLatency);
 }
 
 } // namespace

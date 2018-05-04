@@ -29,6 +29,26 @@ int dvrTrackingCameraStop(DvrTrackingCamera*) {
   return -ENOSYS;
 }
 
+int dvrTrackingSensorsCreate(DvrTrackingSensors**, const char*) {
+  ALOGE("dvrTrackingSensorsCreate is not implemented.");
+  return -ENOSYS;
+}
+
+void dvrTrackingSensorsDestroy(DvrTrackingSensors*) {
+  ALOGE("dvrTrackingSensorsDestroy is not implemented.");
+}
+
+int dvrTrackingSensorsStart(DvrTrackingSensors*,
+                            DvrTrackingSensorEventCallback) {
+  ALOGE("dvrTrackingStart is not implemented.");
+  return -ENOSYS;
+}
+
+int dvrTrackingSensorsStop(DvrTrackingSensors*) {
+  ALOGE("dvrTrackingStop is not implemented.");
+  return -ENOSYS;
+}
+
 }  // extern "C"
 
 #endif  // DVR_TRACKING_IMPLEMENTED

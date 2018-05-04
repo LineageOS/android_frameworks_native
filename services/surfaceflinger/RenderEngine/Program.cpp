@@ -58,12 +58,13 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mVertexShader = vertexId;
         mFragmentShader = fragmentId;
         mInitialized = true;
-
-        mColorMatrixLoc = glGetUniformLocation(programId, "colorMatrix");
         mProjectionMatrixLoc = glGetUniformLocation(programId, "projection");
         mTextureMatrixLoc = glGetUniformLocation(programId, "texture");
         mSamplerLoc = glGetUniformLocation(programId, "sampler");
         mColorLoc = glGetUniformLocation(programId, "color");
+        mDisplayMaxLuminanceLoc = glGetUniformLocation(programId, "displayMaxLuminance");
+        mInputTransformMatrixLoc = glGetUniformLocation(programId, "inputTransformMatrix");
+        mOutputTransformMatrixLoc = glGetUniformLocation(programId, "outputTransformMatrix");
 
         // set-up the default values for our uniforms
         glUseProgram(programId);
@@ -133,8 +134,19 @@ void Program::setUniforms(const Description& desc) {
         const float color[4] = {desc.mColor.r, desc.mColor.g, desc.mColor.b, desc.mColor.a};
         glUniform4fv(mColorLoc, 1, color);
     }
-    if (mColorMatrixLoc >= 0) {
-        glUniformMatrix4fv(mColorMatrixLoc, 1, GL_FALSE, desc.mColorMatrix.asArray());
+    if (mInputTransformMatrixLoc >= 0) {
+        glUniformMatrix3fv(mInputTransformMatrixLoc, 1, GL_FALSE,
+                           desc.mInputTransformMatrix.asArray());
+    }
+    if (mOutputTransformMatrixLoc >= 0) {
+        // The output transform matrix and color matrix can be combined as one matrix
+        // that is applied right before applying OETF.
+        mat4 outputTransformMatrix = desc.mColorMatrix * desc.mOutputTransformMatrix;
+        glUniformMatrix4fv(mOutputTransformMatrixLoc, 1, GL_FALSE,
+                           outputTransformMatrix.asArray());
+    }
+    if (mDisplayMaxLuminanceLoc >= 0) {
+        glUniform1f(mDisplayMaxLuminanceLoc, desc.mDisplayMaxLuminance);
     }
     // these uniforms are always present
     glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.mProjectionMatrix.asArray());

@@ -39,7 +39,7 @@ uint64_t getValid10UsageBits() {
     static const uint64_t valid10UsageBits = []() -> uint64_t {
         using hardware::graphics::common::V1_0::BufferUsage;
         uint64_t bits = 0;
-        for (const auto bit : hardware::hidl_enum_iterator<BufferUsage>()) {
+        for (const auto bit : hardware::hidl_enum_range<BufferUsage>()) {
             bits = bits | bit;
         }
         // TODO(b/72323293, b/72703005): Remove these additional bits
@@ -54,7 +54,7 @@ uint64_t getValid11UsageBits() {
     static const uint64_t valid11UsageBits = []() -> uint64_t {
         using hardware::graphics::common::V1_1::BufferUsage;
         uint64_t bits = 0;
-        for (const auto bit : hardware::hidl_enum_iterator<BufferUsage>()) {
+        for (const auto bit : hardware::hidl_enum_range<BufferUsage>()) {
             bits = bits | bit;
         }
         return bits;

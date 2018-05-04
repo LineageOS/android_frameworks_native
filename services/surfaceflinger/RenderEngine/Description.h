@@ -43,6 +43,11 @@ public:
     void setColor(const half4& color);
     void setProjectionMatrix(const mat4& mtx);
     void setColorMatrix(const mat4& mtx);
+    void setInputTransformMatrix(const mat3& matrix);
+    void setOutputTransformMatrix(const mat4& matrix);
+    bool hasInputTransformMatrix() const;
+    bool hasOutputTransformMatrix() const;
+    bool hasColorMatrix() const;
     const mat4& getColorMatrix() const;
 
     void setY410BT2020(bool enable);
@@ -55,6 +60,7 @@ public:
     };
     void setInputTransferFunction(TransferFunction transferFunction);
     void setOutputTransferFunction(TransferFunction transferFunction);
+    void setDisplayMaxLuminance(const float maxLuminance);
 
 private:
     friend class Program;
@@ -71,11 +77,6 @@ private:
 
     // color used when texturing is disabled or when setting alpha.
     half4 mColor;
-    // projection matrix
-    mat4 mProjectionMatrix;
-
-    bool mColorMatrixEnabled = false;
-    mat4 mColorMatrix;
 
     // true if the sampled pixel values are in Y410/BT2020 rather than RGBA
     bool mY410BT2020 = false;
@@ -83,6 +84,14 @@ private:
     // transfer functions for the input/output
     TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
     TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
+
+    float mDisplayMaxLuminance;
+
+    // projection matrix
+    mat4 mProjectionMatrix;
+    mat4 mColorMatrix;
+    mat3 mInputTransformMatrix;
+    mat4 mOutputTransformMatrix;
 };
 
 } /* namespace android */

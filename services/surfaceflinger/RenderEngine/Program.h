@@ -69,9 +69,6 @@ private:
     /* location of the projection matrix uniform */
     GLint mProjectionMatrixLoc;
 
-    /* location of the color matrix uniform */
-    GLint mColorMatrixLoc;
-
     /* location of the texture matrix uniform */
     GLint mTextureMatrixLoc;
 
@@ -80,6 +77,13 @@ private:
 
     /* location of the color uniform */
     GLint mColorLoc;
+
+    /* location of display luminance uniform */
+    GLint mDisplayMaxLuminanceLoc;
+
+    /* location of transform matrix */
+    GLint mInputTransformMatrixLoc;
+    GLint mOutputTransformMatrixLoc;
 };
 
 } /* namespace android */

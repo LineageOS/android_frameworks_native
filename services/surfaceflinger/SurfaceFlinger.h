@@ -64,6 +64,7 @@
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
 #include "StartPropertySetThread.h"
+#include "TimeStats/TimeStats.h"
 #include "LayerBE.h"
 #include "VSyncModulator.h"
 
@@ -725,6 +726,7 @@ private:
     void recordBufferingStats(const char* layerName,
             std::vector<OccupancyTracker::Segment>&& history);
     void dumpBufferingStats(String8& result) const;
+    void dumpDisplayIdentificationData(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
     LayersProto dumpVisibleLayersProtoInfo(int32_t hwcId) const;
@@ -817,6 +819,7 @@ private:
             std::make_unique<impl::SurfaceInterceptor>(this);
     SurfaceTracing mTracing;
     LayerStats mLayerStats;
+    TimeStats& mTimeStats = TimeStats::getInstance();
     bool mUseHwcVirtualDisplays = false;
 
     // Restrict layers to use two buffers in their bufferqueues.

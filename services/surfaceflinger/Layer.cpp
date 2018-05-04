@@ -1528,10 +1528,16 @@ void Layer::dumpFrameEvents(String8& result) {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
+    mTimeStats.onDisconnect(getName().c_str());
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                      FrameEventHistoryDelta* outDelta) {
+    if (newTimestamps) {
+        mTimeStats.setPostTime(getName().c_str(), newTimestamps->frameNumber,
+                               newTimestamps->postedTime);
+    }
+
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     if (newTimestamps) {
         // If there are any unsignaled fences in the aquire timeline at this
