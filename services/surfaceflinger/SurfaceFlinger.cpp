@@ -2989,7 +2989,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
                         bool restore = false;
                         mat4 savedMatrix;
                         if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                            layer->isLegacySrgbDataSpace()) {
+                            layer->isLegacyDataSpace()) {
                             savedMatrix =
                                 getRenderEngine().setupColorTransform(legacySrgbSaturationMatrix);
                             restore = true;
