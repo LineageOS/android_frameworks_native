@@ -1873,13 +1873,13 @@ void SurfaceFlinger::rebuildLayerStacks() {
 // Returns a dataspace that fits all visible layers.  The returned dataspace
 // can only be one of
 //
-//  - Dataspace::V0_SRGB
+//  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
 //  - Dataspace::DISPLAY_P3
 //  - Dataspace::V0_SCRGB_LINEAR
 // TODO(b/73825729) Add BT2020 data space.
 ui::Dataspace SurfaceFlinger::getBestDataspace(
         const sp<const DisplayDevice>& displayDevice) const {
-    Dataspace bestDataspace = Dataspace::V0_SRGB;
+    Dataspace bestDataspace = Dataspace::SRGB;
     for (const auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
         switch (layer->getDataSpace()) {
             case Dataspace::V0_SCRGB:
@@ -1930,7 +1930,7 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& displayDevice,
             break;
         default:
             *outMode = ColorMode::SRGB;
-            *outDataSpace = Dataspace::V0_SRGB;
+            *outDataSpace = Dataspace::SRGB;
             break;
     }
 }
@@ -2901,7 +2901,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             colorMatrix = mDrawingState.colorMatrix;
         }
 
-        applyLegacyColorMatrix = mDisplayColorSetting == DisplayColorSetting::ENHANCED;
+        applyLegacyColorMatrix = (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
+                outputDataspace != Dataspace::UNKNOWN &&
+                outputDataspace != Dataspace::SRGB);
         if (applyLegacyColorMatrix) {
             if (applyColorMatrix) {
                 legacyColorMatrix = colorMatrix * mLegacySrgbSaturationMatrix;
