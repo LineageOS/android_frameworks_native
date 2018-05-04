@@ -115,25 +115,25 @@ nsecs_t Fence::getSignalTime() const {
         return SIGNAL_TIME_INVALID;
     }
 
-    struct sync_fence_info_data* finfo = sync_fence_info(mFenceFd);
+    struct sync_file_info* finfo = sync_file_info(mFenceFd);
     if (finfo == NULL) {
-        ALOGE("sync_fence_info returned NULL for fd %d", mFenceFd);
+        ALOGE("sync_file_info returned NULL for fd %d", mFenceFd);
         return SIGNAL_TIME_INVALID;
     }
     if (finfo->status != 1) {
-        sync_fence_info_free(finfo);
+        sync_file_info_free(finfo);
         return SIGNAL_TIME_PENDING;
     }
 
-    struct sync_pt_info* pinfo = NULL;
     uint64_t timestamp = 0;
-    while ((pinfo = sync_pt_info(finfo, pinfo)) != NULL) {
-        if (pinfo->timestamp_ns > timestamp) {
-            timestamp = pinfo->timestamp_ns;
+    struct sync_fence_info* pinfo = sync_get_fence_info(finfo);
+    for (size_t i = 0; i < finfo->num_fences; i++) {
+        if (pinfo[i].timestamp_ns > timestamp) {
+            timestamp = pinfo[i].timestamp_ns;
         }
     }
-    sync_fence_info_free(finfo);
 
+    sync_file_info_free(finfo);
     return nsecs_t(timestamp);
 }
 
