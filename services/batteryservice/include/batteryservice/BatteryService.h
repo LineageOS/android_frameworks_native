@@ -17,7 +17,6 @@
 #ifndef ANDROID_BATTERYSERVICE_H
 #define ANDROID_BATTERYSERVICE_H
 
-#include <binder/Parcel.h>
 #include <sys/types.h>
 #include <utils/Errors.h>
 #include <utils/String8.h>
@@ -54,16 +53,10 @@ struct BatteryProperties {
     int batteryFullCharge;
     int batteryChargeCounter;
     String8 batteryTechnology;
-
-    status_t writeToParcel(Parcel* parcel) const;
-    status_t readFromParcel(Parcel* parcel);
 };
 
 struct BatteryProperty {
     int64_t valueInt64;
-
-    status_t writeToParcel(Parcel* parcel) const;
-    status_t readFromParcel(Parcel* parcel);
 };
 
 }; // namespace android
