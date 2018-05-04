@@ -375,12 +375,19 @@ private:
             // always uses the Drawing StateSet.
             layersSortedByZ = other.layersSortedByZ;
             displays = other.displays;
+            colorMatrixChanged = other.colorMatrixChanged;
+            if (colorMatrixChanged) {
+                colorMatrix = other.colorMatrix;
+            }
             return *this;
         }
 
         const LayerVector::StateSet stateSet = LayerVector::StateSet::Invalid;
         LayerVector layersSortedByZ;
         DefaultKeyedVector< wp<IBinder>, DisplayDeviceState> displays;
+
+        bool colorMatrixChanged = true;
+        mat4 colorMatrix;
 
         void traverseInZOrder(const LayerVector::Visitor& visitor) const;
         void traverseInReverseZOrder(const LayerVector::Visitor& visitor) const;
@@ -655,8 +662,6 @@ private:
                        ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace) const;
 
-    mat4 computeSaturationMatrix() const;
-
     void setUpHWComposer();
     void doComposition();
     void doDebugFlashRegions();
@@ -744,6 +749,8 @@ private:
     // Check to see if we should handoff to vr flinger.
     void updateVrFlinger();
 
+    void updateColorMatrixLocked();
+
     /* ------------------------------------------------------------------------
      * Attributes
      */
@@ -756,6 +763,11 @@ private:
     bool mTransactionPending;
     bool mAnimTransactionPending;
     SortedVector< sp<Layer> > mLayersPendingRemoval;
+
+    // global color transform states
+    Daltonizer mDaltonizer;
+    float mGlobalSaturationFactor = 1.0f;
+    mat4 mClientColorMatrix;
 
     // Can't be unordered_set because wp<> isn't hashable
     std::set<wp<IBinder>> mGraphicBufferProducerList;
@@ -847,12 +859,6 @@ private:
 
     bool mInjectVSyncs;
 
-    Daltonizer mDaltonizer;
-
-    mat4 mPreviousColorMatrix;
-    mat4 mColorMatrix;
-    bool mHasColorMatrix;
-
     // Static screen stats
     bool mHasPoweredOff;
 
@@ -870,8 +876,6 @@ private:
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
     // Applied on sRGB layers when the render intent is non-colorimetric.
     mat4 mLegacySrgbSaturationMatrix;
-    // Applied globally.
-    float mGlobalSaturationFactor = 1.0f;
     bool mBuiltinDisplaySupportsEnhance = false;
 
     using CreateBufferQueueFunction =
