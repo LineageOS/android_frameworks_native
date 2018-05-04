@@ -123,6 +123,7 @@ cc_library_shared {
         "android.hardware.graphics.common@1.1",
         "libsync",
         "libbinder",
+        "libbufferhub",
         "libbufferhubqueue",  // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
         "libpdx_default_transport",
         "libcutils",
@@ -149,6 +150,7 @@ cc_library_shared {
                 "BufferHubProducer.cpp",
             ],
             exclude_shared_libs: [
+                "libbufferhub",
                 "libbufferhubqueue",
                 "libpdx_default_transport",
             ],

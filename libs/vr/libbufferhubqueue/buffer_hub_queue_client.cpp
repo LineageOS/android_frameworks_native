@@ -524,6 +524,40 @@ Status<void> ProducerQueue::AddBuffer(
   return BufferHubQueue::Enqueue({buffer, slot, 0ULL});
 }
 
+Status<size_t> ProducerQueue::InsertBuffer(
+    const std::shared_ptr<BufferProducer>& buffer) {
+  if (buffer == nullptr ||
+      !BufferHubDefs::IsBufferGained(buffer->buffer_state())) {
+    ALOGE(
+        "ProducerQueue::InsertBuffer: Can only insert a buffer when it's in "
+        "gained state.");
+    return ErrorStatus(EINVAL);
+  }
+
+  auto status_or_slot =
+      InvokeRemoteMethod<BufferHubRPC::ProducerQueueInsertBuffer>(
+          buffer->cid());
+  if (!status_or_slot) {
+    ALOGE(
+        "ProducerQueue::InsertBuffer: Failed to insert producer buffer: "
+        "buffer_cid=%d, error: %s.",
+        buffer->cid(), status_or_slot.GetErrorMessage().c_str());
+    return status_or_slot.error_status();
+  }
+
+  size_t slot = status_or_slot.get();
+
+  // Note that we are calling AddBuffer() from the base class to explicitly
+  // avoid Enqueue() the BufferProducer.
+  auto status = BufferHubQueue::AddBuffer(buffer, slot);
+  if (!status) {
+    ALOGE("ProducerQueue::InsertBuffer: Failed to add buffer: %s.",
+          status.GetErrorMessage().c_str());
+    return status.error_status();
+  }
+  return {slot};
+}
+
 Status<void> ProducerQueue::RemoveBuffer(size_t slot) {
   auto status =
       InvokeRemoteMethod<BufferHubRPC::ProducerQueueRemoveBuffer>(slot);

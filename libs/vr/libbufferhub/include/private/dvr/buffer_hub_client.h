@@ -107,7 +107,13 @@ class BufferHubBuffer : public pdx::Client {
   IonBuffer* buffer() { return &buffer_; }
   const IonBuffer* buffer() const { return &buffer_; }
 
+  // Gets ID of the buffer client. All BufferHubBuffer clients derived from the
+  // same buffer in bufferhubd share the same buffer id.
   int id() const { return id_; }
+
+  // Gets the channel id of the buffer client. Each BufferHubBuffer client has
+  // its system unique channel id.
+  int cid() const { return cid_; }
 
   // Returns the buffer buffer state.
   uint64_t buffer_state() { return buffer_state_->load(); };
@@ -170,6 +176,7 @@ class BufferHubBuffer : public pdx::Client {
   // for logging and debugging purposes only and should not be used for lookup
   // or any other functional purpose as a security precaution.
   int id_;
+  int cid_;
   uint64_t buffer_state_bit_{0ULL};
   IonBuffer buffer_;
   IonBuffer metadata_buffer_;
