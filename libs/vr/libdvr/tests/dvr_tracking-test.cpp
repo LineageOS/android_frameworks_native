@@ -20,6 +20,15 @@ TEST_F(DvrTrackingTest, NotImplemented) {
   EXPECT_EQ(api_.TrackingCameraCreate(nullptr), -ENOSYS);
   EXPECT_EQ(api_.TrackingCameraStart(nullptr, nullptr), -ENOSYS);
   EXPECT_EQ(api_.TrackingCameraStop(nullptr), -ENOSYS);
+
+  ASSERT_TRUE(api_.TrackingSensorsCreate != nullptr);
+  ASSERT_TRUE(api_.TrackingSensorsDestroy != nullptr);
+  ASSERT_TRUE(api_.TrackingSensorsStart != nullptr);
+  ASSERT_TRUE(api_.TrackingSensorsStop != nullptr);
+
+  EXPECT_EQ(api_.TrackingSensorsCreate(nullptr, nullptr), -ENOSYS);
+  EXPECT_EQ(api_.TrackingSensorsStart(nullptr, nullptr), -ENOSYS);
+  EXPECT_EQ(api_.TrackingSensorsStop(nullptr), -ENOSYS);
 }
 
 #endif  // DVR_TRACKING_IMPLEMENTED
