@@ -129,8 +129,8 @@ SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() {
     for (auto ele : deltas) {
         SFTimeStatsDeltaProto* deltaProto = layerProto.add_deltas();
         deltaProto->set_delta_name(ele.first);
-        SFTimeStatsHistogramBucketProto* histProto = deltaProto->add_histograms();
         for (auto histEle : ele.second.hist) {
+            SFTimeStatsHistogramBucketProto* histProto = deltaProto->add_histograms();
             histProto->set_render_millis(histEle.first);
             histProto->set_frame_count(histEle.second);
         }
