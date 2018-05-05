@@ -305,7 +305,7 @@ static bool dump_anrd_trace() {
     }
 
     // find anrd's pid if it is running.
-    pid = GetPidByName("/system/xbin/anrd");
+    pid = GetPidByName("/system/bin/anrd");
 
     if (pid > 0) {
         if (stat(trace_path, &st) == 0) {
