@@ -244,7 +244,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
-        mHasColorMatrix(false),
         mHasPoweredOff(false),
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
@@ -723,10 +722,13 @@ void SurfaceFlinger::init() {
 }
 
 void SurfaceFlinger::readPersistentProperties() {
+    Mutex::Autolock _l(mStateLock);
+
     char value[PROPERTY_VALUE_MAX];
 
     property_get("persist.sys.sf.color_saturation", value, "1.0");
     mGlobalSaturationFactor = atof(value);
+    updateColorMatrixLocked();
     ALOGV("Saturation is set to %.2f", mGlobalSaturationFactor);
 
     property_get("persist.sys.sf.native_mode", value, "0");
@@ -1470,8 +1472,12 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (mPropagateBackpressure && frameMissed) {
+                mTimeStats.incrementMissedFrames(true);
                 signalLayerUpdate();
                 break;
+            }
+            if (frameMissed) {
+                mTimeStats.incrementMissedFrames(false);
             }
 
             // Now that we're going to make it to the handleMessageTransaction()
@@ -1771,6 +1777,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         mAnimFrameTracker.advanceFrame();
     }
 
+    mTimeStats.incrementTotalFrames();
+    if (mHadClientComposition) {
+        mTimeStats.incrementClientCompositionFrames();
+    }
+
     if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) &&
             hw->getPowerMode() == HWC_POWER_MODE_OFF) {
         return;
@@ -1857,22 +1868,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
             displayDevice->dirtyRegion.orSelf(dirtyRegion);
         }
     }
-}
-
-mat4 SurfaceFlinger::computeSaturationMatrix() const {
-    if (mGlobalSaturationFactor == 1.0f) {
-        return mat4();
-    }
-
-    // Rec.709 luma coefficients
-    float3 luminance{0.213f, 0.715f, 0.072f};
-    luminance *= 1.0f - mGlobalSaturationFactor;
-    return mat4(
-        vec4{luminance.r + mGlobalSaturationFactor, luminance.r, luminance.r, 0.0f},
-        vec4{luminance.g, luminance.g + mGlobalSaturationFactor, luminance.g, 0.0f},
-        vec4{luminance.b, luminance.b, luminance.b + mGlobalSaturationFactor, 0.0f},
-        vec4{0.0f, 0.0f, 0.0f, 1.0f}
-    );
 }
 
 // Returns a dataspace that fits all visible layers.  The returned dataspace
@@ -2000,9 +1995,6 @@ void SurfaceFlinger::setUpHWComposer() {
         }
     }
 
-
-    mat4 colorMatrix = mColorMatrix * computeSaturationMatrix() * mDaltonizer();
-
     // Set the per-frame data
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
         auto& displayDevice = mDisplays[displayId];
@@ -2011,9 +2003,9 @@ void SurfaceFlinger::setUpHWComposer() {
         if (hwcId < 0) {
             continue;
         }
-        if (colorMatrix != mPreviousColorMatrix) {
-            displayDevice->setColorTransform(colorMatrix);
-            status_t result = getBE().mHwc->setColorTransform(hwcId, colorMatrix);
+        if (mDrawingState.colorMatrixChanged) {
+            displayDevice->setColorTransform(mDrawingState.colorMatrix);
+            status_t result = getBE().mHwc->setColorTransform(hwcId, mDrawingState.colorMatrix);
             ALOGE_IF(result != NO_ERROR, "Failed to set color transform on "
                     "display %zd: %d", displayId, result);
         }
@@ -2046,7 +2038,7 @@ void SurfaceFlinger::setUpHWComposer() {
         }
     }
 
-    mPreviousColorMatrix = colorMatrix;
+    mDrawingState.colorMatrixChanged = false;
 
     for (size_t displayId = 0; displayId < mDisplays.size(); ++displayId) {
         auto& displayDevice = mDisplays[displayId];
@@ -2635,6 +2627,9 @@ void SurfaceFlinger::commitTransaction()
     mAnimCompositionPending = mAnimTransactionPending;
 
     mDrawingState = mCurrentState;
+    // clear the "changed" flags in current state
+    mCurrentState.colorMatrixChanged = false;
+
     mDrawingState.traverseInZOrder([](Layer* layer) {
         layer->commitChildList();
     });
@@ -2887,9 +2882,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     mat4 legacySrgbSaturationMatrix = mLegacySrgbSaturationMatrix;
     const bool applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
     if (applyColorMatrix) {
-        mat4 colorMatrix = mColorMatrix * computeSaturationMatrix() * mDaltonizer();
-        oldColorMatrix = getRenderEngine().setupColorTransform(colorMatrix);
-        legacySrgbSaturationMatrix = colorMatrix * legacySrgbSaturationMatrix;
+        oldColorMatrix = getRenderEngine().setupColorTransform(mDrawingState.colorMatrix);
+        legacySrgbSaturationMatrix = mDrawingState.colorMatrix * legacySrgbSaturationMatrix;
     }
 
     if (hasClientComposition) {
@@ -3824,12 +3818,6 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
         size_t index = 0;
         size_t numArgs = args.size();
 
-        if (asProto) {
-            LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-            result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
-            dumpAll = false;
-        }
-
         if (numArgs) {
             if ((index < numArgs) &&
                     (args[index] == String16("--list"))) {
@@ -3906,10 +3894,21 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
                 mLayerStats.dump(result);
                 dumpAll = false;
             }
+
+            if ((index < numArgs) && (args[index] == String16("--timestats"))) {
+                index++;
+                mTimeStats.parseArgs(asProto, args, index, result);
+                dumpAll = false;
+            }
         }
 
         if (dumpAll) {
-            dumpAllLocked(args, index, result);
+            if (asProto) {
+                LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
+                result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
+            } else {
+                dumpAllLocked(args, index, result);
+            }
         }
 
         if (locked) {
@@ -4349,6 +4348,30 @@ bool SurfaceFlinger::startDdmConnection()
     return true;
 }
 
+void SurfaceFlinger::updateColorMatrixLocked() {
+    mat4 colorMatrix;
+    if (mGlobalSaturationFactor != 1.0f) {
+        // Rec.709 luma coefficients
+        float3 luminance{0.213f, 0.715f, 0.072f};
+        luminance *= 1.0f - mGlobalSaturationFactor;
+        mat4 saturationMatrix = mat4(
+            vec4{luminance.r + mGlobalSaturationFactor, luminance.r, luminance.r, 0.0f},
+            vec4{luminance.g, luminance.g + mGlobalSaturationFactor, luminance.g, 0.0f},
+            vec4{luminance.b, luminance.b, luminance.b + mGlobalSaturationFactor, 0.0f},
+            vec4{0.0f, 0.0f, 0.0f, 1.0f}
+        );
+        colorMatrix = mClientColorMatrix * saturationMatrix * mDaltonizer();
+    } else {
+        colorMatrix = mClientColorMatrix * mDaltonizer();
+    }
+
+    if (mCurrentState.colorMatrix != colorMatrix) {
+        mCurrentState.colorMatrix = colorMatrix;
+        mCurrentState.colorMatrixChanged = true;
+        setTransactionFlags(eTransactionNeeded);
+    }
+}
+
 status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     switch (code) {
         case CREATE_CONNECTION:
@@ -4483,6 +4506,7 @@ status_t SurfaceFlinger::onTransact(
                 return NO_ERROR;
             }
             case 1014: {
+                Mutex::Autolock _l(mStateLock);
                 // daltonize
                 n = data.readInt32();
                 switch (n % 10) {
@@ -4504,33 +4528,33 @@ status_t SurfaceFlinger::onTransact(
                 } else {
                     mDaltonizer.setMode(ColorBlindnessMode::Simulation);
                 }
-                invalidateHwcGeometry();
-                repaintEverything();
+
+                updateColorMatrixLocked();
                 return NO_ERROR;
             }
             case 1015: {
+                Mutex::Autolock _l(mStateLock);
                 // apply a color matrix
                 n = data.readInt32();
                 if (n) {
                     // color matrix is sent as a column-major mat4 matrix
                     for (size_t i = 0 ; i < 4; i++) {
                         for (size_t j = 0; j < 4; j++) {
-                            mColorMatrix[i][j] = data.readFloat();
+                            mClientColorMatrix[i][j] = data.readFloat();
                         }
                     }
                 } else {
-                    mColorMatrix = mat4();
+                    mClientColorMatrix = mat4();
                 }
 
                 // Check that supplied matrix's last row is {0,0,0,1} so we can avoid
                 // the division by w in the fragment shader
-                float4 lastRow(transpose(mColorMatrix)[3]);
+                float4 lastRow(transpose(mClientColorMatrix)[3]);
                 if (any(greaterThan(abs(lastRow - float4{0, 0, 0, 1}), float4{1e-4f}))) {
                     ALOGE("The color transform's last row must be (0, 0, 0, 1)");
                 }
 
-                invalidateHwcGeometry();
-                repaintEverything();
+                updateColorMatrixLocked();
                 return NO_ERROR;
             }
             // This is an experimental interface
@@ -4573,10 +4597,10 @@ status_t SurfaceFlinger::onTransact(
                 return NO_ERROR;
             }
             case 1022: { // Set saturation boost
+                Mutex::Autolock _l(mStateLock);
                 mGlobalSaturationFactor = std::max(0.0f, std::min(data.readFloat(), 2.0f));
 
-                invalidateHwcGeometry();
-                repaintEverything();
+                updateColorMatrixLocked();
                 return NO_ERROR;
             }
             case 1023: { // Set native mode

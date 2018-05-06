@@ -41,6 +41,7 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
+#include "TimeStats/TimeStats.h"
 #include "Transform.h"
 
 #include <layerproto/LayerProtoHeader.h>
@@ -736,6 +737,8 @@ protected:
     ConsumerFrameEventHistory mFrameEventHistory;
     FenceTimeline mAcquireTimeline;
     FenceTimeline mReleaseTimeline;
+
+    TimeStats& mTimeStats = TimeStats::getInstance();
 
     // main thread
     int mActiveBufferSlot;

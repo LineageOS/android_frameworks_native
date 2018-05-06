@@ -36,6 +36,7 @@ cc_test {
         "liblayers_proto",
         "liblog",
         "libprotobuf-cpp-full",
+        "libtimestats_proto",
         "libui",
         "libutils",
     ]
