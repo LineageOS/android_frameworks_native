@@ -1859,7 +1859,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 
 // Returns a data space that fits all visible layers.  The returned data space
 // can only be one of
-//  - Dataspace::V0_SRGB
+//  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
 //  - Dataspace::DISPLAY_P3
 //  - Dataspace::V0_SCRGB_LINEAR
 // The returned HDR data space is one of
@@ -1868,7 +1868,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 //  - Dataspace::BT2020_PQ
 Dataspace SurfaceFlinger::getBestDataspace(
     const sp<const DisplayDevice>& displayDevice, Dataspace* outHdrDataSpace) const {
-    Dataspace bestDataSpace = Dataspace::V0_SRGB;
+    Dataspace bestDataSpace = Dataspace::SRGB;
     *outHdrDataSpace = Dataspace::UNKNOWN;
 
     for (const auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
@@ -1878,7 +1878,7 @@ Dataspace SurfaceFlinger::getBestDataspace(
                 bestDataSpace = Dataspace::V0_SCRGB_LINEAR;
                 break;
             case Dataspace::DISPLAY_P3:
-                if (bestDataSpace == Dataspace::V0_SRGB) {
+                if (bestDataSpace == Dataspace::SRGB) {
                     bestDataSpace = Dataspace::DISPLAY_P3;
                 }
                 break;
@@ -1959,7 +1959,7 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& displayDevice,
                 break;
             default:
                 *outMode = ColorMode::SRGB;
-                *outDataSpace = Dataspace::V0_SRGB;
+                *outDataSpace = Dataspace::SRGB;
                 break;
         }
     }
@@ -2992,7 +2992,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             colorMatrix = mDrawingState.colorMatrix;
         }
 
-        applyLegacyColorMatrix = mDisplayColorSetting == DisplayColorSetting::ENHANCED;
+        applyLegacyColorMatrix = (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
+                outputDataspace != Dataspace::UNKNOWN &&
+                outputDataspace != Dataspace::SRGB);
         if (applyLegacyColorMatrix) {
             if (applyColorMatrix) {
                 legacyColorMatrix = colorMatrix * mLegacySrgbSaturationMatrix;
