@@ -483,7 +483,8 @@ private:
     // Called on the main thread in response to setActiveColorMode()
     void setActiveColorModeInternal(const sp<DisplayDevice>& hw,
                                     ui::ColorMode colorMode,
-                                    ui::Dataspace dataSpace);
+                                    ui::Dataspace dataSpace,
+                                    ui::RenderIntent renderIntent);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -655,12 +656,18 @@ private:
             nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
-    // Given a dataSpace, returns the appropriate color_mode to use
-    // to display that dataSpace.
-    ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& displayDevice) const;
+    ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& displayDevice,
+                                   ui::Dataspace* outHdrDataSpace) const;
+
+    // Returns the appropriate ColorMode, Dataspace and RenderIntent for the
+    // DisplayDevice. The function only returns the supported ColorMode,
+    // Dataspace and RenderIntent.
     void pickColorMode(const sp<DisplayDevice>& displayDevice,
                        ui::ColorMode* outMode,
-                       ui::Dataspace* outDataSpace) const;
+                       ui::Dataspace* outDataSpace,
+                       ui::RenderIntent* outRenderIntent) const;
+    ui::RenderIntent pickRenderIntent(const sp<DisplayDevice>& displayDevice,
+                                      ui::ColorMode colorMode) const;
 
     void setUpHWComposer();
     void doComposition();
