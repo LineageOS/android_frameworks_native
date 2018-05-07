@@ -30,10 +30,6 @@ cc_library_static {
     whole_static_libs: [
         "libselinux",
     ],
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
 }
 
 cc_test {
