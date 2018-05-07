@@ -303,8 +303,8 @@ public:
     // desaturated in order to match what they appears like visually.
     // With color management, these contents will appear desaturated, thus
     // needed to be saturated so that they match what they are designed for
-    // visually. When returns true, legacy SRGB data space is passed to HWC.
-    bool isLegacySrgbDataSpace() const;
+    // visually.
+    bool isLegacyDataSpace() const;
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with

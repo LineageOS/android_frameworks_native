@@ -1872,13 +1872,13 @@ void SurfaceFlinger::rebuildLayerStacks() {
 // Returns a dataspace that fits all visible layers.  The returned dataspace
 // can only be one of
 //
-//  - Dataspace::V0_SRGB
+//  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
 //  - Dataspace::DISPLAY_P3
 //  - Dataspace::V0_SCRGB_LINEAR
 // TODO(b/73825729) Add BT2020 data space.
 ui::Dataspace SurfaceFlinger::getBestDataspace(
         const sp<const DisplayDevice>& displayDevice) const {
-    Dataspace bestDataspace = Dataspace::V0_SRGB;
+    Dataspace bestDataspace = Dataspace::SRGB;
     for (const auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
         switch (layer->getDataSpace()) {
             case Dataspace::V0_SCRGB:
@@ -1929,7 +1929,7 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& displayDevice,
             break;
         default:
             *outMode = ColorMode::SRGB;
-            *outDataSpace = Dataspace::V0_SRGB;
+            *outDataSpace = Dataspace::SRGB;
             break;
     }
 }
@@ -2872,18 +2872,13 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     const DisplayRenderArea renderArea(displayDevice);
     const auto hwcId = displayDevice->getHwcDisplayId();
     const bool hasClientComposition = getBE().mHwc->hasClientComposition(hwcId);
-    const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(hwcId);
-    const bool skipClientColorTransform = getBE().mHwc->hasCapability(
-        HWC2::Capability::SkipClientColorTransform);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
-    mat4 oldColorMatrix;
-    mat4 legacySrgbSaturationMatrix = mLegacySrgbSaturationMatrix;
-    const bool applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
-    if (applyColorMatrix) {
-        oldColorMatrix = getRenderEngine().setupColorTransform(mDrawingState.colorMatrix);
-        legacySrgbSaturationMatrix = mDrawingState.colorMatrix * legacySrgbSaturationMatrix;
-    }
+    bool applyColorMatrix = false;
+    bool applyLegacyColorMatrix = false;
+    mat4 colorMatrix;
+    mat4 legacyColorMatrix;
+    const mat4* currentColorMatrix = nullptr;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
@@ -2895,6 +2890,26 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
         getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
         getBE().mRenderEngine->setDisplayMaxLuminance(
                 displayDevice->getHdrCapabilities().getDesiredMaxLuminance());
+
+        const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(hwcId);
+        const bool skipClientColorTransform = getBE().mHwc->hasCapability(
+            HWC2::Capability::SkipClientColorTransform);
+
+        applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
+        if (applyColorMatrix) {
+            colorMatrix = mDrawingState.colorMatrix;
+        }
+
+        applyLegacyColorMatrix = (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
+                outputDataspace != Dataspace::UNKNOWN &&
+                outputDataspace != Dataspace::SRGB);
+        if (applyLegacyColorMatrix) {
+            if (applyColorMatrix) {
+                legacyColorMatrix = colorMatrix * mLegacySrgbSaturationMatrix;
+            } else {
+                legacyColorMatrix = mLegacySrgbSaturationMatrix;
+            }
+        }
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -2957,69 +2972,57 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
 
     ALOGV("Rendering client layers");
     const Transform& displayTransform = displayDevice->getTransform();
-    if (hwcId >= 0) {
-        // we're using h/w composer
-        bool firstLayer = true;
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(bounds.intersect(
-                    displayTransform.transform(layer->visibleRegion)));
-            ALOGV("Layer: %s", layer->getName().string());
-            ALOGV("  Composition type: %s",
-                    to_string(layer->getCompositionType(hwcId)).c_str());
-            if (!clip.isEmpty()) {
-                switch (layer->getCompositionType(hwcId)) {
-                    case HWC2::Composition::Cursor:
-                    case HWC2::Composition::Device:
-                    case HWC2::Composition::Sideband:
-                    case HWC2::Composition::SolidColor: {
-                        const Layer::State& state(layer->getDrawingState());
-                        if (layer->getClearClientTarget(hwcId) && !firstLayer &&
-                                layer->isOpaque(state) && (state.color.a == 1.0f)
-                                && hasClientComposition) {
-                            // never clear the very first layer since we're
-                            // guaranteed the FB is already cleared
-                            layer->clearWithOpenGL(renderArea);
-                        }
-                        break;
+    bool firstLayer = true;
+    for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+        const Region clip(bounds.intersect(
+                displayTransform.transform(layer->visibleRegion)));
+        ALOGV("Layer: %s", layer->getName().string());
+        ALOGV("  Composition type: %s",
+                to_string(layer->getCompositionType(hwcId)).c_str());
+        if (!clip.isEmpty()) {
+            switch (layer->getCompositionType(hwcId)) {
+                case HWC2::Composition::Cursor:
+                case HWC2::Composition::Device:
+                case HWC2::Composition::Sideband:
+                case HWC2::Composition::SolidColor: {
+                    const Layer::State& state(layer->getDrawingState());
+                    if (layer->getClearClientTarget(hwcId) && !firstLayer &&
+                            layer->isOpaque(state) && (state.color.a == 1.0f)
+                            && hasClientComposition) {
+                        // never clear the very first layer since we're
+                        // guaranteed the FB is already cleared
+                        layer->clearWithOpenGL(renderArea);
                     }
-                    case HWC2::Composition::Client: {
-                        // Only apply saturation matrix layer that is legacy SRGB dataspace
-                        // when auto color mode is on.
-                        bool restore = false;
-                        mat4 savedMatrix;
-                        if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                            layer->isLegacySrgbDataSpace()) {
-                            savedMatrix =
-                                getRenderEngine().setupColorTransform(legacySrgbSaturationMatrix);
-                            restore = true;
-                        }
-                        layer->draw(renderArea, clip);
-                        if (restore) {
-                            getRenderEngine().setupColorTransform(savedMatrix);
-                        }
-                        break;
-                    }
-                    default:
-                        break;
+                    break;
                 }
-            } else {
-                ALOGV("  Skipping for empty clip");
+                case HWC2::Composition::Client: {
+                    // switch color matrices lazily
+                    if (layer->isLegacyDataSpace()) {
+                        if (applyLegacyColorMatrix && currentColorMatrix != &legacyColorMatrix) {
+                            getRenderEngine().setupColorTransform(legacyColorMatrix);
+                            currentColorMatrix = &legacyColorMatrix;
+                        }
+                    } else {
+                        if (applyColorMatrix && currentColorMatrix != &colorMatrix) {
+                            getRenderEngine().setupColorTransform(colorMatrix);
+                            currentColorMatrix = &colorMatrix;
+                        }
+                    }
+
+                    layer->draw(renderArea, clip);
+                    break;
+                }
+                default:
+                    break;
             }
-            firstLayer = false;
+        } else {
+            ALOGV("  Skipping for empty clip");
         }
-    } else {
-        // we're not using h/w composer
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(bounds.intersect(
-                    displayTransform.transform(layer->visibleRegion)));
-            if (!clip.isEmpty()) {
-                layer->draw(renderArea, clip);
-            }
-        }
+        firstLayer = false;
     }
 
-    if (applyColorMatrix) {
-        getRenderEngine().setupColorTransform(oldColorMatrix);
+    if (applyColorMatrix || applyLegacyColorMatrix) {
+        getRenderEngine().setupColorTransform(mat4());
     }
 
     // disable scissor at the end of the frame
