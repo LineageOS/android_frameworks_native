@@ -2964,18 +2964,13 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     const DisplayRenderArea renderArea(displayDevice);
     const auto hwcId = displayDevice->getHwcDisplayId();
     const bool hasClientComposition = getBE().mHwc->hasClientComposition(hwcId);
-    const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(hwcId);
-    const bool skipClientColorTransform = getBE().mHwc->hasCapability(
-        HWC2::Capability::SkipClientColorTransform);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
-    mat4 oldColorMatrix;
-    mat4 legacySrgbSaturationMatrix = mLegacySrgbSaturationMatrix;
-    const bool applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
-    if (applyColorMatrix) {
-        oldColorMatrix = getRenderEngine().setupColorTransform(mDrawingState.colorMatrix);
-        legacySrgbSaturationMatrix = mDrawingState.colorMatrix * legacySrgbSaturationMatrix;
-    }
+    bool applyColorMatrix = false;
+    bool applyLegacyColorMatrix = false;
+    mat4 colorMatrix;
+    mat4 legacyColorMatrix;
+    const mat4* currentColorMatrix = nullptr;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
@@ -2987,6 +2982,24 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
         getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
         getBE().mRenderEngine->setDisplayMaxLuminance(
                 displayDevice->getHdrCapabilities().getDesiredMaxLuminance());
+
+        const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(hwcId);
+        const bool skipClientColorTransform = getBE().mHwc->hasCapability(
+            HWC2::Capability::SkipClientColorTransform);
+
+        applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
+        if (applyColorMatrix) {
+            colorMatrix = mDrawingState.colorMatrix;
+        }
+
+        applyLegacyColorMatrix = mDisplayColorSetting == DisplayColorSetting::ENHANCED;
+        if (applyLegacyColorMatrix) {
+            if (applyColorMatrix) {
+                legacyColorMatrix = colorMatrix * mLegacySrgbSaturationMatrix;
+            } else {
+                legacyColorMatrix = mLegacySrgbSaturationMatrix;
+            }
+        }
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -3073,22 +3086,22 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    // Only apply saturation matrix layer that is legacy SRGB dataspace
-                    // when auto color mode is on.
-                    bool restore = false;
-                    mat4 savedMatrix;
-                    if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                        layer->isLegacyDataSpace()) {
+                    // switch color matrices lazily
+                    if (layer->isLegacyDataSpace()) {
                         // TODO(b/78891890) Legacy sRGB saturation matrix should be set
                         // separately.
-                        savedMatrix =
-                            getRenderEngine().setupColorTransform(legacySrgbSaturationMatrix);
-                        restore = true;
+                        if (applyLegacyColorMatrix && currentColorMatrix != &legacyColorMatrix) {
+                            getRenderEngine().setupColorTransform(legacyColorMatrix);
+                            currentColorMatrix = &legacyColorMatrix;
+                        }
+                    } else {
+                        if (applyColorMatrix && currentColorMatrix != &colorMatrix) {
+                            getRenderEngine().setupColorTransform(colorMatrix);
+                            currentColorMatrix = &colorMatrix;
+                        }
                     }
+
                     layer->draw(renderArea, clip);
-                    if (restore) {
-                        getRenderEngine().setupColorTransform(savedMatrix);
-                    }
                     break;
                 }
                 default:
@@ -3100,8 +3113,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
         firstLayer = false;
     }
 
-    if (applyColorMatrix) {
-        getRenderEngine().setupColorTransform(oldColorMatrix);
+    if (applyColorMatrix || applyLegacyColorMatrix) {
+        getRenderEngine().setupColorTransform(mat4());
     }
 
     // disable scissor at the end of the frame

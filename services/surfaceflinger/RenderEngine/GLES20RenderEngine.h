@@ -80,7 +80,7 @@ protected:
     virtual void setupLayerTexturing(const Texture& texture);
     virtual void setupLayerBlackedOut();
     virtual void setupFillWithColor(float r, float g, float b, float a);
-    virtual mat4 setupColorTransform(const mat4& colorTransform);
+    virtual void setupColorTransform(const mat4& colorTransform);
     virtual void disableTexturing();
     virtual void disableBlending();
 
