@@ -1650,9 +1650,10 @@ bool Layer::detachChildren() {
     return true;
 }
 
-bool Layer::isLegacySrgbDataSpace() const {
-    return mDrawingState.dataSpace == ui::Dataspace::SRGB ||
-        mDrawingState.dataSpace == ui::Dataspace::SRGB_LINEAR;
+bool Layer::isLegacyDataSpace() const {
+    // return true when no higher bits are set
+    return !(mDrawingState.dataSpace & (ui::Dataspace::STANDARD_MASK |
+                ui::Dataspace::TRANSFER_MASK | ui::Dataspace::RANGE_MASK));
 }
 
 void Layer::setParent(const sp<Layer>& layer) {
