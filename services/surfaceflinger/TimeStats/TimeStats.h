@@ -64,7 +64,7 @@ public:
     static TimeStats& getInstance();
     void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, String8& result);
     void incrementTotalFrames();
-    void incrementMissedFrames(bool propagateBackpressure);
+    void incrementMissedFrames();
     void incrementClientCompositionFrames();
 
     void setPostTime(const std::string& layerName, uint64_t frameNumber, nsecs_t postTime);

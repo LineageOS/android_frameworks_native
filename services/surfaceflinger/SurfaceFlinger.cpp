@@ -1459,13 +1459,12 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                     (mPreviousPresentFence->getSignalTime() ==
                             Fence::SIGNAL_TIME_PENDING);
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
-            if (mPropagateBackpressure && frameMissed) {
-                mTimeStats.incrementMissedFrames(true);
-                signalLayerUpdate();
-                break;
-            }
             if (frameMissed) {
-                mTimeStats.incrementMissedFrames(false);
+                mTimeStats.incrementMissedFrames();
+                if (mPropagateBackpressure) {
+                    signalLayerUpdate();
+                    break;
+                }
             }
 
             // Now that we're going to make it to the handleMessageTransaction()
