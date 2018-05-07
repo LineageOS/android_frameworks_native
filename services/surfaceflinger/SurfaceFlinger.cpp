@@ -3049,67 +3049,55 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
 
     ALOGV("Rendering client layers");
     const Transform& displayTransform = displayDevice->getTransform();
-    if (hwcId >= 0) {
-        // we're using h/w composer
-        bool firstLayer = true;
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(bounds.intersect(
-                    displayTransform.transform(layer->visibleRegion)));
-            ALOGV("Layer: %s", layer->getName().string());
-            ALOGV("  Composition type: %s",
-                    to_string(layer->getCompositionType(hwcId)).c_str());
-            if (!clip.isEmpty()) {
-                switch (layer->getCompositionType(hwcId)) {
-                    case HWC2::Composition::Cursor:
-                    case HWC2::Composition::Device:
-                    case HWC2::Composition::Sideband:
-                    case HWC2::Composition::SolidColor: {
-                        const Layer::State& state(layer->getDrawingState());
-                        if (layer->getClearClientTarget(hwcId) && !firstLayer &&
-                                layer->isOpaque(state) && (state.color.a == 1.0f)
-                                && hasClientComposition) {
-                            // never clear the very first layer since we're
-                            // guaranteed the FB is already cleared
-                            layer->clearWithOpenGL(renderArea);
-                        }
-                        break;
+    bool firstLayer = true;
+    for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+        const Region clip(bounds.intersect(
+                displayTransform.transform(layer->visibleRegion)));
+        ALOGV("Layer: %s", layer->getName().string());
+        ALOGV("  Composition type: %s",
+                to_string(layer->getCompositionType(hwcId)).c_str());
+        if (!clip.isEmpty()) {
+            switch (layer->getCompositionType(hwcId)) {
+                case HWC2::Composition::Cursor:
+                case HWC2::Composition::Device:
+                case HWC2::Composition::Sideband:
+                case HWC2::Composition::SolidColor: {
+                    const Layer::State& state(layer->getDrawingState());
+                    if (layer->getClearClientTarget(hwcId) && !firstLayer &&
+                            layer->isOpaque(state) && (state.color.a == 1.0f)
+                            && hasClientComposition) {
+                        // never clear the very first layer since we're
+                        // guaranteed the FB is already cleared
+                        layer->clearWithOpenGL(renderArea);
                     }
-                    case HWC2::Composition::Client: {
-                        // Only apply saturation matrix layer that is legacy SRGB dataspace
-                        // when auto color mode is on.
-                        bool restore = false;
-                        mat4 savedMatrix;
-                        if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                            layer->isLegacyDataSpace()) {
-                            // TODO(b/78891890) Legacy sRGB saturation matrix should be set
-                            // separately.
-                            savedMatrix =
-                                getRenderEngine().setupColorTransform(legacySrgbSaturationMatrix);
-                            restore = true;
-                        }
-                        layer->draw(renderArea, clip);
-                        if (restore) {
-                            getRenderEngine().setupColorTransform(savedMatrix);
-                        }
-                        break;
-                    }
-                    default:
-                        break;
+                    break;
                 }
-            } else {
-                ALOGV("  Skipping for empty clip");
+                case HWC2::Composition::Client: {
+                    // Only apply saturation matrix layer that is legacy SRGB dataspace
+                    // when auto color mode is on.
+                    bool restore = false;
+                    mat4 savedMatrix;
+                    if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
+                        layer->isLegacyDataSpace()) {
+                        // TODO(b/78891890) Legacy sRGB saturation matrix should be set
+                        // separately.
+                        savedMatrix =
+                            getRenderEngine().setupColorTransform(legacySrgbSaturationMatrix);
+                        restore = true;
+                    }
+                    layer->draw(renderArea, clip);
+                    if (restore) {
+                        getRenderEngine().setupColorTransform(savedMatrix);
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
-            firstLayer = false;
+        } else {
+            ALOGV("  Skipping for empty clip");
         }
-    } else {
-        // we're not using h/w composer
-        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const Region clip(bounds.intersect(
-                    displayTransform.transform(layer->visibleRegion)));
-            if (!clip.isEmpty()) {
-                layer->draw(renderArea, clip);
-            }
-        }
+        firstLayer = false;
     }
 
     if (applyColorMatrix) {
