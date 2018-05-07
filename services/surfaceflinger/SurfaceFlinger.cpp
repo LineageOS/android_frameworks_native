@@ -3080,7 +3080,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
                         bool restore = false;
                         mat4 savedMatrix;
                         if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                            layer->isLegacySrgbDataSpace()) {
+                            layer->isLegacyDataSpace()) {
                             // TODO(b/78891890) Legacy sRGB saturation matrix should be set
                             // separately.
                             savedMatrix =
