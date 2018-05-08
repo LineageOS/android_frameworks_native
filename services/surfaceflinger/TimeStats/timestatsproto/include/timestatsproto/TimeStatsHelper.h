@@ -17,9 +17,6 @@
 
 #include <timestatsproto/TimeStatsProtoHeader.h>
 
-#include <math/vec4.h>
-
-#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>

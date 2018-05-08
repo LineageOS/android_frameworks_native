@@ -20,10 +20,6 @@ package android.surfaceflinger;
 
 option optimize_for = LITE_RUNTIME;
 
-// frameworks/base/core/proto/android/service/sftimestats.proto is based on
-// this proto. Please only make valid protobuf changes to these messages, and
-// keep the other file in sync with this one.
-
 message SFTimeStatsGlobalProto {
   // The start & end timestamps in UTC as
   // milliseconds since January 1, 1970
