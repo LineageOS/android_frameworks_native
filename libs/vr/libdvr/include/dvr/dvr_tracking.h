@@ -4,29 +4,20 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
+#include <dvr/dvr_tracking_types.h>
+
 __BEGIN_DECLS
 
-// Represents a sensor event.
-typedef struct DvrTrackingSensorEvent {
-  // The sensor type.
-  int32_t sensor;
-
-  // Event type.
-  int32_t type;
-
-  // This is the timestamp recorded from the device. Taken in the middle
-  // of the integration interval and adjusted for any low pass filtering.
-  int64_t timestamp_ns;
-
-  // The event data.
-  float x;
-  float y;
-  float z;
-} DvrTrackingSensorEvent;
-
-typedef struct DvrTrackingSensors DvrTrackingSensors;
+typedef struct DvrReadBuffer DvrReadBuffer;
 typedef struct DvrTrackingCamera DvrTrackingCamera;
+typedef struct DvrTrackingFeatureExtractor DvrTrackingFeatureExtractor;
+typedef struct DvrTrackingSensors DvrTrackingSensors;
 typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
+
+// The callback for DvrTrackingFeatureExtractor that will deliver the feature
+// events. This callback is passed to dvrTrackingFeatureExtractorStart.
+typedef void (*DvrTrackingFeatureCallback)(void* context,
+                                           const DvrTrackingFeatures* event);
 
 // The callback for DvrTrackingSensors session that will deliver the events.
 // This callback is passed to dvrTrackingSensorsStart.
@@ -67,7 +58,8 @@ void dvrTrackingCameraDestroy(DvrTrackingCamera* camera);
 // @param write_queue A DvrWriteBufferQueue that the camera stack can use to
 //     populate the buffer into. The queue must be empty and the camera stack
 //     will request buffer allocation with proper buffer dimension, format, and
-//     usage.
+//     usage. Note that the write queue must be created with user_metadata_size
+//     set to sizeof(DvrTrackingBufferMetadata).
 // @return Zero on success, or negative error code.
 int dvrTrackingCameraStart(DvrTrackingCamera* camera,
                            DvrWriteBufferQueue* write_queue);
@@ -96,12 +88,12 @@ int dvrTrackingCameraStop(DvrTrackingCamera* camera);
 int dvrTrackingSensorsCreate(DvrTrackingSensors** out_sensors,
                              const char* mode);
 
-// Destroy a DvrTrackingSensors session.
+// Destroys a DvrTrackingSensors session.
 //
 // @param sensors The DvrTrackingSensors struct to destroy.
 void dvrTrackingSensorsDestroy(DvrTrackingSensors* sensors);
 
-// Start the tracking.
+// Starts the tracking sensor session.
 //
 // This will start the device sensors and start pumping the feature and sensor
 // events as they arrive.
@@ -115,7 +107,7 @@ int dvrTrackingSensorsStart(DvrTrackingSensors* sensors,
                             DvrTrackingSensorEventCallback callback,
                             void* context);
 
-// Stop the tracking.
+// Stops a DvrTrackingSensors session.
 //
 // This will stop the device sensors. dvrTrackingSensorsStart can be called to
 // restart them again.
@@ -123,6 +115,67 @@ int dvrTrackingSensorsStart(DvrTrackingSensors* sensors,
 // @param client A tracking client created by dvrTrackingClientCreate.
 // @return Zero on success, or negative error code.
 int dvrTrackingSensorsStop(DvrTrackingSensors* sensors);
+
+// Creates a tracking feature extractor.
+//
+// This will initialize but not start the feature extraction session. Upon
+// successful creation, the client can call dvrTrackingFeatureExtractorStart to
+// start receiving features.
+//
+// @param out_extractor The pointer of a DvrTrackingFeatureExtractor will be
+//     filled here if the method call succeeds.
+int dvrTrackingFeatureExtractorCreate(
+    DvrTrackingFeatureExtractor** out_extractor);
+
+// Destroys a tracking feature extractor.
+//
+// @param extractor The DvrTrackingFeatureExtractor to destroy.
+void dvrTrackingFeatureExtractorDestroy(DvrTrackingFeatureExtractor* extractor);
+
+// Starts the tracking feature extractor.
+//
+// This will start the extractor and start pumping the output feature events to
+// the registered callback. Note that this method will create one or more
+// threads to handle feature processing.
+//
+// @param extractor The DvrTrackingFeatureExtractor to destroy.
+int dvrTrackingFeatureExtractorStart(DvrTrackingFeatureExtractor* extractor,
+                                     DvrTrackingFeatureCallback callback,
+                                     void* context);
+
+// Stops the tracking feature extractor.
+//
+// This will stop the extractor session and clean up all internal resourcse
+// related to this extractor. On succssful return, all internal therad started
+// by dvrTrackingFeatureExtractorStart should be stopped.
+//
+// @param extractor The DvrTrackingFeatureExtractor to destroy.
+int dvrTrackingFeatureExtractorStop(DvrTrackingFeatureExtractor* extractor);
+
+// Processes one buffer to extract features from.
+//
+// The buffer will be sent over to DSP for feature extraction. Once the process
+// is done, the processing thread will invoke DvrTrackingFeatureCallback with
+// newly extracted features. Note that not all buffers will be processed, as the
+// underlying DSP can only process buffers at a certain framerate. If a buffer
+// needs to be skipped, out_skipped filed will be set to true. Also note that
+// for successfully processed stereo buffer, two callbacks (one for each eye)
+// will be fired.
+//
+// @param extractor The DvrTrackingFeatureExtractor to destroy.
+// @param buffer The buffer to extract features from. Note that the buffer must
+//     be in acquired state for the buffer to be processed. Also note that the
+//     buffer will be released back to its producer on successful return of the
+//     method.
+// @param metadata The metadata associated with the buffer. Should be populated
+//     by DvrTrackingCamera session as user defined metadata.
+// @param out_skipped On successful return, the field will be set to true iff
+//     the buffer was skipped; and false iff the buffer was processed. This
+//     field is optional and nullptr can be passed here to ignore the field.
+// @return Zero on success, or negative error code.
+int dvrTrackingFeatureExtractorProcessBuffer(
+    DvrTrackingFeatureExtractor* extractor, DvrReadBuffer* buffer,
+    const DvrTrackingBufferMetadata* metadata, bool* out_skipped);
 
 __END_DECLS
 
