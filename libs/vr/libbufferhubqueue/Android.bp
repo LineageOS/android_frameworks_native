@@ -59,10 +59,6 @@ cc_library_shared {
     static_libs: staticLibraries,
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
 }
 
 subdirs = ["benchmarks", "tests"]

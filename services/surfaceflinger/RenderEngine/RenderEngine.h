@@ -112,7 +112,7 @@ public:
     virtual void setupLayerBlackedOut() = 0;
     virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
 
-    virtual mat4 setupColorTransform(const mat4& /* colorTransform */) = 0;
+    virtual void setupColorTransform(const mat4& /* colorTransform */) = 0;
 
     virtual void disableTexturing() = 0;
     virtual void disableBlending() = 0;
@@ -224,7 +224,7 @@ public:
 
     void checkErrors() const override;
 
-    mat4 setupColorTransform(const mat4& /* colorTransform */) override { return mat4(); }
+    void setupColorTransform(const mat4& /* colorTransform */) override {}
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const;
