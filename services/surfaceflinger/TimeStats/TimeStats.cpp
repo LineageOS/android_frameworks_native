@@ -87,15 +87,12 @@ void TimeStats::incrementTotalFrames() {
     timeStats.totalFrames++;
 }
 
-void TimeStats::incrementMissedFrames(bool propagateBackpressure) {
+void TimeStats::incrementMissedFrames() {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (propagateBackpressure) {
-        timeStats.totalFrames--;
-    }
     timeStats.missedFrames++;
 }
 

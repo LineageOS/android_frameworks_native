@@ -519,11 +519,9 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         recomputeVisibleRegions = true;
     }
 
-    // Dataspace::V0_SRGB and Dataspace::V0_SRGB_LINEAR are not legacy
-    // data space, however since framework doesn't distinguish them out of
-    // legacy SRGB, we have to treat them as the same for now.
-    // UNKNOWN is treated as legacy SRGB when the connected api is EGL.
     ui::Dataspace dataSpace = mConsumer->getCurrentDataSpace();
+    // treat modern dataspaces as legacy dataspaces whenever possible, until
+    // we can trust the buffer producers
     switch (dataSpace) {
         case ui::Dataspace::V0_SRGB:
             dataSpace = ui::Dataspace::SRGB;
@@ -531,10 +529,17 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         case ui::Dataspace::V0_SRGB_LINEAR:
             dataSpace = ui::Dataspace::SRGB_LINEAR;
             break;
-        case ui::Dataspace::UNKNOWN:
-            if (mConsumer->getCurrentApi() == NATIVE_WINDOW_API_EGL) {
-                dataSpace = ui::Dataspace::SRGB;
-            }
+        case ui::Dataspace::V0_JFIF:
+            dataSpace = ui::Dataspace::JFIF;
+            break;
+        case ui::Dataspace::V0_BT601_625:
+            dataSpace = ui::Dataspace::BT601_625;
+            break;
+        case ui::Dataspace::V0_BT601_525:
+            dataSpace = ui::Dataspace::BT601_525;
+            break;
+        case ui::Dataspace::V0_BT709:
+            dataSpace = ui::Dataspace::BT709;
             break;
         default:
             break;

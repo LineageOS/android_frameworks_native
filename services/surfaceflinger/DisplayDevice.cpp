@@ -80,6 +80,7 @@ DisplayDevice::DisplayDevice(
         bool hasWideColorGamut,
         const HdrCapabilities& hdrCapabilities,
         const int32_t supportedPerFrameMetadata,
+        const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hdrAndRenderIntents,
         int initialPowerMode)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
@@ -105,7 +106,11 @@ DisplayDevice::DisplayDevice(
       mHasHdr10(false),
       mHasHLG(false),
       mHasDolbyVision(false),
-      mSupportedPerFrameMetadata(supportedPerFrameMetadata)
+      mSupportedPerFrameMetadata(supportedPerFrameMetadata),
+      mHasBT2100PQColorimetric(false),
+      mHasBT2100PQEnhance(false),
+      mHasBT2100HLGColorimetric(false),
+      mHasBT2100HLGEnhance(false)
 {
     // clang-format on
     std::vector<Hdr> types = hdrCapabilities.getSupportedHdrTypes();
@@ -144,6 +149,18 @@ DisplayDevice::DisplayDevice(
         }
     }
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
+
+    auto iter = hdrAndRenderIntents.find(ColorMode::BT2100_PQ);
+    if (iter != hdrAndRenderIntents.end()) {
+        hasToneMapping(iter->second,
+                       &mHasBT2100PQColorimetric, &mHasBT2100PQEnhance);
+    }
+
+    iter = hdrAndRenderIntents.find(ColorMode::BT2100_HLG);
+    if (iter != hdrAndRenderIntents.end()) {
+        hasToneMapping(iter->second,
+                       &mHasBT2100HLGColorimetric, &mHasBT2100HLGEnhance);
+    }
 
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
@@ -526,6 +543,22 @@ void DisplayDevice::dump(String8& result) const {
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
     result.append(surfaceDump);
+}
+
+void DisplayDevice::hasToneMapping(const std::vector<RenderIntent>& renderIntents,
+                                   bool* outColorimetric, bool *outEnhance) {
+    for (auto intent : renderIntents) {
+        switch (intent) {
+            case RenderIntent::TONE_MAP_COLORIMETRIC:
+                *outColorimetric = true;
+                break;
+            case RenderIntent::TONE_MAP_ENHANCE:
+                *outEnhance = true;
+                break;
+            default:
+                break;
+        }
+    }
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);
