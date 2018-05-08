@@ -17,6 +17,7 @@ cc_library_shared {
     },
 
     cppflags: [
+        "-std=c++1z",
         "-Werror",
         "-Wno-c++98-compat-pedantic",
         "-Wno-disabled-macro-expansion",
@@ -29,5 +30,4 @@ cc_library_shared {
         "-Wno-undef",
         "-Wno-unused-parameter",
     ],
-
 }

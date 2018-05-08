@@ -26,6 +26,7 @@
 #include <utils/Vector.h>
 
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -90,9 +91,7 @@ private:
     void disable();
     void clear();
     bool isEnabled();
-    void dump(bool asProto, uint32_t maxLayer, String8& result);
-    void dumpAsTextLocked(String8& result);
-    void dumpAsProtoLocked(String8& result);
+    void dump(bool asProto, std::optional<uint32_t> maxLayers, String8& result);
 
     std::atomic<bool> mEnabled = false;
     std::mutex mMutex;
