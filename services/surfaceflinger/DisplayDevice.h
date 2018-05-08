@@ -20,6 +20,7 @@
 #include "Transform.h"
 
 #include <stdlib.h>
+#include <unordered_map>
 
 #include <math/mat4.h>
 
@@ -90,6 +91,7 @@ public:
             bool hasWideColorGamut,
             const HdrCapabilities& hdrCapabilities,
             const int32_t supportedPerFrameMetadata,
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hdrAndRenderIntents,
             int initialPowerMode);
     // clang-format on
 
@@ -142,6 +144,7 @@ public:
     status_t beginFrame(bool mustRecompose) const;
     status_t prepareFrame(HWComposer& hwc);
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
+    // Whether h/w composer has native support for specific HDR type.
     bool hasHDR10Support() const { return mHasHdr10; }
     bool hasHLGSupport() const { return mHasHLG; }
     bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
@@ -152,6 +155,14 @@ public:
     // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
     // respectively if hardware composer doesn't return meaningful values.
     const HdrCapabilities& getHdrCapabilities() const { return mHdrCapabilities; }
+
+    // Whether h/w composer has BT2100_PQ color mode.
+    bool hasBT2100PQColorimetricSupport() const { return mHasBT2100PQColorimetric; }
+    bool hasBT2100PQEnhanceSupport() const { return mHasBT2100PQEnhance; }
+
+    // Whether h/w composer has BT2100_HLG color mode.
+    bool hasBT2100HLGColorimetricSupport() const { return mHasBT2100HLGColorimetric; }
+    bool hasBT2100HLGEnhanceSupport() const { return mHasBT2100HLGEnhance; }
 
     void swapBuffers(HWComposer& hwc) const;
 
@@ -203,6 +214,9 @@ public:
     void dump(String8& result) const;
 
 private:
+    void hasToneMapping(const std::vector<ui::RenderIntent>& renderIntents,
+                        bool* outColorimetric, bool *outEnhance);
+
     /*
      *  Constants, set during initialization
      */
@@ -274,6 +288,12 @@ private:
     bool mHasDolbyVision;
     HdrCapabilities mHdrCapabilities;
     const int32_t mSupportedPerFrameMetadata;
+    // Whether h/w composer has BT2100_PQ and BT2100_HLG color mode with
+    // colorimetrical tone mapping or enhanced tone mapping.
+    bool mHasBT2100PQColorimetric;
+    bool mHasBT2100PQEnhance;
+    bool mHasBT2100HLGColorimetric;
+    bool mHasBT2100HLGEnhance;
 };
 
 struct DisplayDeviceState {
