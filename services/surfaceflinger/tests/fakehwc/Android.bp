@@ -30,6 +30,5 @@ cc_test {
         "libtrace_proto",
         "libgmock"
     ],
-    tags: ["tests"],
     test_suites: ["device-tests"]
 }

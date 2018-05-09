@@ -58,7 +58,6 @@ testFiles = [
 
 cc_test {
     name: "libdvrcommon_test",
-    tags: ["optional"],
 
     srcs: testFiles,
     cflags: [

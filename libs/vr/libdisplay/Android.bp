@@ -50,7 +50,6 @@ headerLibraries = [
 ]
 
 cc_library {
-    tags: ["tests"],
     srcs: sourceFiles,
     cflags: ["-DLOG_TAG=\"libdisplay\"",
         "-DTRACE=0",
