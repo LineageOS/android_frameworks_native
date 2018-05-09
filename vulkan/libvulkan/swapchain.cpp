@@ -185,6 +185,7 @@ class TimingInfo {
 struct Surface {
     android::sp<ANativeWindow> window;
     VkSwapchainKHR swapchain_handle;
+    uint64_t consumer_usage;
 };
 
 VkSurfaceKHR HandleFromSurface(Surface* surface) {
@@ -496,9 +497,18 @@ VkResult CreateAndroidSurfaceKHR(
 
     surface->window = pCreateInfo->window;
     surface->swapchain_handle = VK_NULL_HANDLE;
+    int err = native_window_get_consumer_usage(surface->window.get(),
+                                               &surface->consumer_usage);
+    if (err != android::NO_ERROR) {
+        ALOGE("native_window_get_consumer_usage() failed: %s (%d)",
+              strerror(-err), err);
+        surface->~Surface();
+        allocator->pfnFree(allocator->pUserData, surface);
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
 
     // TODO(jessehall): Create and use NATIVE_WINDOW_API_VULKAN.
-    int err =
+    err =
         native_window_api_connect(surface->window.get(), NATIVE_WINDOW_API_EGL);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
@@ -536,9 +546,45 @@ void DestroySurfaceKHR(VkInstance instance,
 VKAPI_ATTR
 VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
                                             uint32_t /*queue_family*/,
-                                            VkSurfaceKHR /*surface*/,
+                                            VkSurfaceKHR surface_handle,
                                             VkBool32* supported) {
-    *supported = VK_TRUE;
+    const Surface* surface = SurfaceFromHandle(surface_handle);
+    if (!surface) {
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    const ANativeWindow* window = surface->window.get();
+
+    int query_value;
+    int err = window->query(window, NATIVE_WINDOW_FORMAT, &query_value);
+    if (err != 0 || query_value < 0) {
+        ALOGE("NATIVE_WINDOW_FORMAT query failed: %s (%d) value=%d",
+              strerror(-err), err, query_value);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
+    android_pixel_format native_format =
+        static_cast<android_pixel_format>(query_value);
+
+    bool format_supported = false;
+    switch (native_format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGB_565:
+            format_supported = true;
+            break;
+        default:
+            break;
+    }
+
+    // USAGE_CPU_READ_MASK 0xFUL
+    // USAGE_CPU_WRITE_MASK (0xFUL << 4)
+    // The currently used bits are as below:
+    // USAGE_CPU_READ_RARELY = 2UL
+    // USAGE_CPU_READ_OFTEN = 3UL
+    // USAGE_CPU_WRITE_RARELY = (2UL << 4)
+    // USAGE_CPU_WRITE_OFTEN = (3UL << 4)
+    *supported = static_cast<VkBool32>(format_supported ||
+                                       (surface->consumer_usage & 0xFFUL) == 0);
+
     return VK_SUCCESS;
 }
 
