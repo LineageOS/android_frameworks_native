@@ -152,7 +152,7 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
 
     LayerRecord& layerRecord = timeStatsTracker[layerName];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
-    std::vector<TimeRecord>& timeRecords = layerRecord.timeRecords;
+    std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     while (!timeRecords.empty()) {
         if (!recordReadyLocked(layerName, &timeRecords[0])) break;
         ALOGV("[%s]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerName.c_str(),
@@ -199,8 +199,7 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
             timeStats.stats[layerName].statsEnd = static_cast<int64_t>(std::time(0));
         }
         prevTimeRecord = timeRecords[0];
-        // TODO(zzyiwei): change timeRecords to use std::deque
-        timeRecords.erase(timeRecords.begin());
+        timeRecords.pop_front();
         layerRecord.waitData--;
     }
 }
