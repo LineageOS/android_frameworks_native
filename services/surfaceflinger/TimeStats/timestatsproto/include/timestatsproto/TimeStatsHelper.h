@@ -17,9 +17,7 @@
 
 #include <timestatsproto/TimeStatsProtoHeader.h>
 
-#include <math/vec4.h>
-
-#include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -36,8 +34,8 @@ public:
         std::unordered_map<int32_t, int32_t> hist;
 
         void insert(int32_t delta);
-        float averageTime();
-        std::string toString();
+        float averageTime() const;
+        std::string toString() const;
     };
 
     class TimeStatsLayer {
@@ -49,8 +47,8 @@ public:
         int32_t totalFrames = 0;
         std::unordered_map<std::string, Histogram> deltas;
 
-        std::string toString();
-        SFTimeStatsLayerProto toProto();
+        std::string toString() const;
+        SFTimeStatsLayerProto toProto() const;
     };
 
     class TimeStatsGlobal {
@@ -61,10 +59,13 @@ public:
         int32_t missedFrames = 0;
         int32_t clientCompositionFrames = 0;
         std::unordered_map<std::string, TimeStatsLayer> stats;
-        std::vector<TimeStatsLayer*> dumpStats;
 
-        std::string toString();
-        SFTimeStatsGlobalProto toProto();
+        std::string toString(std::optional<uint32_t> maxLayers) const;
+        SFTimeStatsGlobalProto toProto(std::optional<uint32_t> maxLayers) const;
+
+    private:
+        std::vector<TimeStatsLayer const*> generateDumpStats(
+                std::optional<uint32_t> maxLayers) const;
     };
 };
 
