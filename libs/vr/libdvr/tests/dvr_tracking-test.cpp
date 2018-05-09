@@ -53,7 +53,7 @@ TEST_F(DvrTrackingTest, NotImplemented) {
   ASSERT_TRUE(api_.TrackingSensorsStop != nullptr);
 
   EXPECT_EQ(api_.TrackingSensorsCreate(nullptr, nullptr), -ENOSYS);
-  EXPECT_EQ(api_.TrackingSensorsStart(nullptr, nullptr), -ENOSYS);
+  EXPECT_EQ(api_.TrackingSensorsStart(nullptr, nullptr, nullptr), -ENOSYS);
   EXPECT_EQ(api_.TrackingSensorsStop(nullptr), -ENOSYS);
 }
 

@@ -38,8 +38,8 @@ void dvrTrackingSensorsDestroy(DvrTrackingSensors*) {
   ALOGE("dvrTrackingSensorsDestroy is not implemented.");
 }
 
-int dvrTrackingSensorsStart(DvrTrackingSensors*,
-                            DvrTrackingSensorEventCallback) {
+int dvrTrackingSensorsStart(DvrTrackingSensors*, DvrTrackingSensorEventCallback,
+                            void*) {
   ALOGE("dvrTrackingStart is not implemented.");
   return -ENOSYS;
 }
