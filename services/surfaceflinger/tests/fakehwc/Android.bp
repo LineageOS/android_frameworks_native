@@ -1,7 +1,6 @@
 cc_test {
     name: "sffakehwc_test",
     defaults: ["surfaceflinger_defaults"],
-    tags: ["test"],
     test_suites: ["device-tests"],
     srcs: [
          "FakeComposerClient.cpp",

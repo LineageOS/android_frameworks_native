@@ -15,7 +15,6 @@
 cc_binary {
     name: "test-vsync-events",
     defaults: ["surfaceflinger_defaults"],
-    tags: ["test"],
     srcs: [
         "vsync.cpp",
     ],

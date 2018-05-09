@@ -14,7 +14,6 @@
 
 cc_test {
     name: "libsurfaceflinger_unittest",
-    tags: ["test"],
     defaults: ["libsurfaceflinger_defaults"],
     test_suites: ["device-tests"],
     srcs: [

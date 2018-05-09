@@ -38,7 +38,6 @@ cc_test {
         "-Wno-error=sign-compare", // to fix later
     ],
     name: "buffer_hub_queue-test",
-    tags: ["optional"],
 }
 
 cc_test {
@@ -55,5 +54,4 @@ cc_test {
         "-Werror",
     ],
     name: "buffer_hub_queue_producer-test",
-    tags: ["optional"],
 }
