@@ -15,7 +15,6 @@
 cc_test {
     name: "SurfaceFlinger_test",
     defaults: ["surfaceflinger_defaults"],
-    tags: ["test"],
     test_suites: ["device-tests"],
     srcs: [
         "Stress_test.cpp",
