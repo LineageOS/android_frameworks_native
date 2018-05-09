@@ -129,7 +129,8 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                  description.hasInputTransformMatrix() ?
                      Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
             .set(Key::Key::OUTPUT_TRANSFORM_MATRIX_MASK,
-                 description.hasOutputTransformMatrix() || description.hasColorMatrix() ?
+                 description.hasOutputTransformMatrix() || description.hasColorMatrix() ||
+                 (!description.hasInputTransformMatrix() && description.hasSaturationMatrix()) ?
                      Key::OUTPUT_TRANSFORM_MATRIX_ON : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
 
     needs.set(Key::Y410_BT2020_MASK,
@@ -518,10 +519,10 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         }
 
         if (needs.hasInputTransformMatrix()) {
-            fs << "uniform mat3 inputTransformMatrix;";
+            fs << "uniform mat4 inputTransformMatrix;";
             fs << R"__SHADER__(
                 highp vec3 InputTransform(const highp vec3 color) {
-                    return inputTransformMatrix * color;
+                    return vec3(inputTransformMatrix * vec4(color, 1.0));
                 }
             )__SHADER__";
         } else {
