@@ -379,7 +379,8 @@ typedef int (*DvrTrackingSensorsCreatePtr)(DvrTrackingSensors** out_sensors,
                                            const char* mode);
 typedef void (*DvrTrackingSensorsDestroyPtr)(DvrTrackingSensors* sensors);
 typedef int (*DvrTrackingSensorsStartPtr)(
-    DvrTrackingSensors* sensors, DvrTrackingSensorEventCallback callback);
+    DvrTrackingSensors* sensors, DvrTrackingSensorEventCallback callback,
+    void* context);
 typedef int (*DvrTrackingSensorsStopPtr)(DvrTrackingSensors* sensors);
 
 // The buffer metadata that an Android Surface (a.k.a. ANativeWindow)
