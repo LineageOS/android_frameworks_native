@@ -77,6 +77,7 @@ class LayerBE {
 public:
     friend class Layer;
     friend class BufferLayer;
+    friend class BufferQueueLayer;
     friend class ColorLayer;
     friend class SurfaceFlinger;
 

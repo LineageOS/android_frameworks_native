@@ -63,6 +63,7 @@
 #include <private/gui/SyncFeatures.h>
 
 #include "BufferLayer.h"
+#include "BufferQueueLayer.h"
 #include "Client.h"
 #include "ColorLayer.h"
 #include "Colorizer.h"
@@ -2869,7 +2870,7 @@ bool SurfaceFlinger::handlePageFlip()
     // Display is now waiting on Layer 1's frame, which is behind layer 0's
     // second frame. But layer 0's second frame could be waiting on display.
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (layer->hasQueuedFrame()) {
+        if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(mPrimaryDispSync)) {
                 mLayersWithQueuedFrames.push_back(layer);
@@ -3593,9 +3594,8 @@ status_t SurfaceFlinger::createLayer(
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceNormal:
-            result = createBufferLayer(client,
-                    uniqueName, w, h, flags, format,
-                    handle, gbp, &layer);
+            result = createBufferQueueLayer(client, uniqueName, w, h, flags, format, handle, gbp,
+                                            &layer);
 
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
@@ -3659,10 +3659,11 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
     return uniqueName;
 }
 
-status_t SurfaceFlinger::createBufferLayer(const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags, PixelFormat& format,
-        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
-{
+status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const String8& name,
+                                                uint32_t w, uint32_t h, uint32_t flags,
+                                                PixelFormat& format, sp<IBinder>* handle,
+                                                sp<IGraphicBufferProducer>* gbp,
+                                                sp<Layer>* outLayer) {
     // initialize the surfaces
     switch (format) {
     case PIXEL_FORMAT_TRANSPARENT:
@@ -3674,15 +3675,15 @@ status_t SurfaceFlinger::createBufferLayer(const sp<Client>& client,
         break;
     }
 
-    sp<BufferLayer> layer = new BufferLayer(this, client, name, w, h, flags);
-    status_t err = layer->setBuffers(w, h, format, flags);
+    sp<BufferQueueLayer> layer = new BufferQueueLayer(this, client, name, w, h, flags);
+    status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
         *gbp = layer->getProducer();
         *outLayer = layer;
     }
 
-    ALOGE_IF(err, "createBufferLayer() failed (%s)", strerror(-err));
+    ALOGE_IF(err, "createBufferQueueLayer() failed (%s)", strerror(-err));
     return err;
 }
 

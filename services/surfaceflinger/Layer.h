@@ -425,7 +425,6 @@ public:
 
     virtual bool isBufferLatched() const { return false; }
 
-    bool isPotentialCursor() const { return mPotentialCursor; }
     /*
      * called with the state lock from a binder thread when the layer is
      * removed from the current list to the pending removal list
@@ -449,13 +448,11 @@ public:
     Rect getContentCrop() const;
 
     /*
-     * Returns if a frame is queued.
+     * Returns if a frame is ready
      */
-    bool hasQueuedFrame() const {
-        return mQueuedFrames > 0 || mSidebandStreamChanged || mAutoRefresh;
-    }
+    virtual bool hasReadyFrame() const { return false; }
 
-    int32_t getQueuedFrameCount() const { return mQueuedFrames; }
+    virtual int32_t getQueuedFrameCount() const { return 0; }
 
     // -----------------------------------------------------------------------
 
@@ -674,10 +671,6 @@ protected:
     Mutex mPendingStateMutex;
     Vector<State> mPendingStates;
 
-    // thread-safe
-    volatile int32_t mQueuedFrames;
-    volatile int32_t mSidebandStreamChanged; // used like an atomic boolean
-
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
 
@@ -691,15 +684,12 @@ protected:
     TimeStats& mTimeStats = TimeStats::getInstance();
 
     // main thread
-    int mActiveBufferSlot;
     sp<GraphicBuffer> mActiveBuffer;
-    sp<NativeHandle> mSidebandStream;
     ui::Dataspace mCurrentDataSpace = ui::Dataspace::UNKNOWN;
     Rect mCurrentCrop;
     uint32_t mCurrentTransform;
     // We encode unset as -1.
     int32_t mOverrideScalingMode;
-    bool mCurrentOpacity;
     std::atomic<uint64_t> mCurrentFrameNumber;
     bool mFrameLatencyNeeded;
     // Whether filtering is forced on or not
@@ -720,12 +710,6 @@ protected:
     // This layer can be a cursor on some displays.
     bool mPotentialCursor;
 
-    // Local copy of the queued contents of the incoming BufferQueue
-    mutable Mutex mQueueItemLock;
-    Condition mQueueItemCondition;
-    Vector<BufferItem> mQueueItems;
-    std::atomic<uint64_t> mLastFrameNumberReceived;
-    bool mAutoRefresh;
     bool mFreezeGeometryUpdates;
 
     // Child list about to be committed/used for editing.

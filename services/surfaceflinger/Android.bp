@@ -91,6 +91,7 @@ filegroup {
     srcs: [
         "BufferLayer.cpp",
         "BufferLayerConsumer.cpp",
+        "BufferQueueLayer.cpp",
         "Client.cpp",
         "ColorLayer.cpp",
         "ContainerLayer.cpp",
