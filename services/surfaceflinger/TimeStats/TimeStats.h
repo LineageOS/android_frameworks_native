@@ -59,6 +59,7 @@ class TimeStats {
     };
 
     struct LayerRecord {
+        std::string layerName;
         // This is the index in timeRecords, at which the timestamps for that
         // specific frame are still not fully received. This is not waiting for
         // fences to signal, but rather waiting to receive those fences/timestamps.
@@ -85,23 +86,24 @@ public:
     void incrementMissedFrames();
     void incrementClientCompositionFrames();
 
-    void setPostTime(const std::string& layerName, uint64_t frameNumber, nsecs_t postTime);
-    void setLatchTime(const std::string& layerName, uint64_t frameNumber, nsecs_t latchTime);
-    void setDesiredTime(const std::string& layerName, uint64_t frameNumber, nsecs_t desiredTime);
-    void setAcquireTime(const std::string& layerName, uint64_t frameNumber, nsecs_t acquireTime);
-    void setAcquireFence(const std::string& layerName, uint64_t frameNumber,
+    void setLayerName(int32_t layerID, const std::string& layerName);
+    void setPostTime(int32_t layerID, uint64_t frameNumber, nsecs_t postTime);
+    void setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latchTime);
+    void setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t desiredTime);
+    void setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t acquireTime);
+    void setAcquireFence(int32_t layerID, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& acquireFence);
-    void setPresentTime(const std::string& layerName, uint64_t frameNumber, nsecs_t presentTime);
-    void setPresentFence(const std::string& layerName, uint64_t frameNumber,
+    void setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t presentTime);
+    void setPresentFence(int32_t layerID, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& presentFence);
     // On producer disconnect with BufferQueue.
-    void onDisconnect(const std::string& layerName);
+    void onDisconnect(int32_t layerID);
     // On layer tear down.
-    void onDestroy(const std::string& layerName);
+    void onDestroy(int32_t layerID);
     // When SF is cleaning up the queue, clear the LayerRecord as well.
-    void clearLayerRecord(const std::string& layerName);
+    void clearLayerRecord(int32_t layerID);
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
-    void removeTimeRecord(const std::string& layerName, uint64_t frameNumber);
+    void removeTimeRecord(int32_t layerID, uint64_t frameNumber);
 
     void setPowerMode(int32_t powerMode);
     void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence);
@@ -109,8 +111,8 @@ public:
 private:
     TimeStats() = default;
 
-    bool recordReadyLocked(const std::string& layerName, TimeRecord* timeRecord);
-    void flushAvailableRecordsToStatsLocked(const std::string& layerName);
+    bool recordReadyLocked(int32_t layerID, TimeRecord* timeRecord);
+    void flushAvailableRecordsToStatsLocked(int32_t layerID);
     void flushPowerTimeLocked();
     void flushAvailableGlobalRecordsToStatsLocked();
 
@@ -123,7 +125,8 @@ private:
     std::atomic<bool> mEnabled = false;
     std::mutex mMutex;
     TimeStatsHelper::TimeStatsGlobal mTimeStats;
-    std::unordered_map<std::string, LayerRecord> mTimeStatsTracker;
+    // Hashmap for LayerRecord with layerID as the hash key
+    std::unordered_map<int32_t, LayerRecord> mTimeStatsTracker;
     PowerTime mPowerTime;
     GlobalRecord mGlobalRecord;
 };

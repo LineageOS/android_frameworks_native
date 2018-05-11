@@ -227,6 +227,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     // BufferItem's that weren't actually queued. This can happen in shared
     // buffer mode.
     bool queuedBuffer = false;
+    const int32_t layerID = getSequence();
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
@@ -247,7 +248,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // and return early
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
-            mTimeStats.removeTimeRecord(getName().c_str(), mQueueItems[0].mFrameNumber);
+            mTimeStats.removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
         }
@@ -261,7 +262,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             Mutex::Autolock lock(mQueueItemLock);
             mQueueItems.clear();
             mQueuedFrames = 0;
-            mTimeStats.clearLayerRecord(getName().c_str());
+            mTimeStats.clearLayerRecord(layerID);
         }
 
         // Once we have hit this state, the shadow queue may no longer
@@ -282,14 +283,13 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // Remove any stale buffers that have been dropped during
         // updateTexImage
         while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
-            mTimeStats.removeTimeRecord(getName().c_str(), mQueueItems[0].mFrameNumber);
+            mTimeStats.removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
         }
 
-        const std::string layerName(getName().c_str());
-        mTimeStats.setAcquireFence(layerName, currentFrameNumber, mQueueItems[0].mFenceTime);
-        mTimeStats.setLatchTime(layerName, currentFrameNumber, latchTime);
+        mTimeStats.setAcquireFence(layerID, currentFrameNumber, mQueueItems[0].mFenceTime);
+        mTimeStats.setLatchTime(layerID, currentFrameNumber, latchTime);
 
         mQueueItems.removeAt(0);
     }
