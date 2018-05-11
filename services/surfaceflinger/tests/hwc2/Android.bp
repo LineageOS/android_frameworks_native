@@ -15,7 +15,6 @@
 cc_test {
     name: "test-hwc2",
     defaults: ["surfaceflinger_defaults"],
-    tags: ["test"],
     cflags: [
         "-DEGL_EGLEXT_PROTOTYPES",
         "-DGL_GLEXT_PROTOTYPES",

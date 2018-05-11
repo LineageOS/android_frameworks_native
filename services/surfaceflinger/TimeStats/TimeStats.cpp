@@ -59,14 +59,15 @@ void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, size_t& in
     }
 
     if (argsMap.count("-dump")) {
-        int64_t maxLayers = 0;
+        std::optional<uint32_t> maxLayers = std::nullopt;
         auto iter = argsMap.find("-maxlayers");
         if (iter != argsMap.end() && iter->second + 1 < static_cast<int32_t>(args.size())) {
-            maxLayers = strtol(String8(args[iter->second + 1]).c_str(), nullptr, 10);
-            maxLayers = std::clamp(maxLayers, int64_t(0), int64_t(UINT32_MAX));
+            int64_t value = strtol(String8(args[iter->second + 1]).c_str(), nullptr, 10);
+            value = std::clamp(value, int64_t(0), int64_t(UINT32_MAX));
+            maxLayers = static_cast<uint32_t>(value);
         }
 
-        dump(asProto, static_cast<uint32_t>(maxLayers), result);
+        dump(asProto, maxLayers, result);
     }
 
     if (argsMap.count("-clear")) {
@@ -147,12 +148,27 @@ static int32_t msBetween(nsecs_t start, nsecs_t end) {
     return static_cast<int32_t>(delta);
 }
 
+static std::string getPackageName(const std::string& layerName) {
+    // This regular expression captures the following for instance:
+    // StatusBar in StatusBar#0
+    // com.appname in com.appname/com.appname.activity#0
+    // com.appname in SurfaceView - com.appname/com.appname.activity#0
+    const std::regex re("(?:SurfaceView[-\\s\\t]+)?([^/]+).*#\\d+");
+    std::smatch match;
+    if (std::regex_match(layerName.begin(), layerName.end(), match, re)) {
+        // There must be a match for group 1 otherwise the whole string is not
+        // matched and the above will return false
+        return match[1];
+    }
+    return "";
+}
+
 void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName) {
     ATRACE_CALL();
 
     LayerRecord& layerRecord = timeStatsTracker[layerName];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
-    std::vector<TimeRecord>& timeRecords = layerRecord.timeRecords;
+    std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     while (!timeRecords.empty()) {
         if (!recordReadyLocked(layerName, &timeRecords[0])) break;
         ALOGV("[%s]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerName.c_str(),
@@ -161,6 +177,7 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
         if (prevTimeRecord.ready) {
             if (!timeStats.stats.count(layerName)) {
                 timeStats.stats[layerName].layerName = layerName;
+                timeStats.stats[layerName].packageName = getPackageName(layerName);
                 timeStats.stats[layerName].statsStart = static_cast<int64_t>(std::time(0));
             }
             TimeStatsHelper::TimeStatsLayer& timeStatsLayer = timeStats.stats[layerName];
@@ -199,8 +216,7 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
             timeStats.stats[layerName].statsEnd = static_cast<int64_t>(std::time(0));
         }
         prevTimeRecord = timeRecords[0];
-        // TODO(zzyiwei): change timeRecords to use std::deque
-        timeRecords.erase(timeRecords.begin());
+        timeRecords.pop_front();
         layerRecord.waitData--;
     }
 }
@@ -434,7 +450,6 @@ void TimeStats::clear() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     ALOGD("Cleared");
-    timeStats.dumpStats.clear();
     timeStats.stats.clear();
     timeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
     timeStats.statsEnd = 0;
@@ -447,7 +462,7 @@ bool TimeStats::isEnabled() {
     return mEnabled.load();
 }
 
-void TimeStats::dump(bool asProto, uint32_t maxLayers, String8& result) {
+void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, String8& result) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
@@ -457,39 +472,15 @@ void TimeStats::dump(bool asProto, uint32_t maxLayers, String8& result) {
 
     timeStats.statsEnd = static_cast<int64_t>(std::time(0));
 
-    // TODO(zzyiwei): refactor dumpStats into TimeStatsHelper
-    timeStats.dumpStats.clear();
-    for (auto& ele : timeStats.stats) {
-        timeStats.dumpStats.push_back(&ele.second);
-    }
-
-    std::sort(timeStats.dumpStats.begin(), timeStats.dumpStats.end(),
-              [](TimeStatsHelper::TimeStatsLayer* const& l,
-                 TimeStatsHelper::TimeStatsLayer* const& r) {
-                  return l->totalFrames > r->totalFrames;
-              });
-
-    if (maxLayers != 0 && maxLayers < timeStats.dumpStats.size()) {
-        timeStats.dumpStats.resize(maxLayers);
-    }
-
     if (asProto) {
-        dumpAsProtoLocked(result);
+        ALOGD("Dumping TimeStats as proto");
+        SFTimeStatsGlobalProto timeStatsProto = timeStats.toProto(maxLayers);
+        result.append(timeStatsProto.SerializeAsString().c_str(), timeStatsProto.ByteSize());
     } else {
-        dumpAsTextLocked(result);
+        ALOGD("Dumping TimeStats as text");
+        result.append(timeStats.toString(maxLayers).c_str());
+        result.append("\n");
     }
-}
-
-void TimeStats::dumpAsTextLocked(String8& result) {
-    ALOGD("Dumping TimeStats as text");
-    result.append(timeStats.toString().c_str());
-    result.append("\n");
-}
-
-void TimeStats::dumpAsProtoLocked(String8& result) {
-    ALOGD("Dumping TimeStats as proto");
-    SFTimeStatsGlobalProto timeStatsProto = timeStats.toProto();
-    result.append(timeStatsProto.SerializeAsString().c_str(), timeStatsProto.ByteSize());
 }
 
 } // namespace android

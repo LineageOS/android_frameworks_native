@@ -17,7 +17,6 @@
 #include <timestatsproto/TimeStatsHelper.h>
 
 #include <array>
-#include <regex>
 
 #define HISTOGRAM_SIZE 85
 
@@ -47,55 +46,39 @@ void TimeStatsHelper::Histogram::insert(int32_t delta) {
     hist[*iter]++;
 }
 
-float TimeStatsHelper::Histogram::averageTime() {
+float TimeStatsHelper::Histogram::averageTime() const {
     int64_t ret = 0;
     int64_t count = 0;
-    for (auto ele : hist) {
+    for (auto& ele : hist) {
         count += ele.second;
         ret += ele.first * ele.second;
     }
     return static_cast<float>(ret) / count;
 }
 
-std::string TimeStatsHelper::Histogram::toString() {
+std::string TimeStatsHelper::Histogram::toString() const {
     std::string result;
     for (int32_t i = 0; i < HISTOGRAM_SIZE; ++i) {
         int32_t bucket = histogramConfig[i];
-        int32_t count = (hist.count(bucket) == 0) ? 0 : hist[bucket];
+        int32_t count = (hist.count(bucket) == 0) ? 0 : hist.at(bucket);
         StringAppendF(&result, "%dms=%d ", bucket, count);
     }
     result.back() = '\n';
     return result;
 }
 
-static std::string getPackageName(const std::string& layerName) {
-    // This regular expression captures the following for instance:
-    // StatusBar in StatusBar#0
-    // com.appname in com.appname/com.appname.activity#0
-    // com.appname in SurfaceView - com.appname/com.appname.activity#0
-    const std::regex re("(?:SurfaceView[-\\s\\t]+)?([^/]+).*#\\d+");
-    std::smatch match;
-    if (std::regex_match(layerName.begin(), layerName.end(), match, re)) {
-        // There must be a match for group 1 otherwise the whole string is not
-        // matched and the above will return false
-        return match[1];
-    }
-    return "";
-}
-
-std::string TimeStatsHelper::TimeStatsLayer::toString() {
+std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     std::string result = "";
     StringAppendF(&result, "layerName = %s\n", layerName.c_str());
-    packageName = getPackageName(layerName);
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
     StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
     StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
     StringAppendF(&result, "totalFrames= %d\n", totalFrames);
-    if (deltas.find("present2present") != deltas.end()) {
-        StringAppendF(&result, "averageFPS = %.3f\n",
-                      1000.0 / deltas["present2present"].averageTime());
+    auto iter = deltas.find("present2present");
+    if (iter != deltas.end()) {
+        StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
     }
-    for (auto ele : deltas) {
+    for (auto& ele : deltas) {
         StringAppendF(&result, "%s histogram is as below:\n", ele.first.c_str());
         StringAppendF(&result, "%s", ele.second.toString().c_str());
     }
@@ -103,7 +86,7 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() {
     return result;
 }
 
-std::string TimeStatsHelper::TimeStatsGlobal::toString() {
+std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> maxLayers) const {
     std::string result = "SurfaceFlinger TimeStats:\n";
     StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
     StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
@@ -111,25 +94,25 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString() {
     StringAppendF(&result, "missedFrames= %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames= %d\n", clientCompositionFrames);
     StringAppendF(&result, "TimeStats for each layer is as below:\n");
-    for (auto ele : dumpStats) {
+    const auto dumpStats = generateDumpStats(maxLayers);
+    for (auto& ele : dumpStats) {
         StringAppendF(&result, "%s", ele->toString().c_str());
     }
 
     return result;
 }
 
-SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() {
+SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() const {
     SFTimeStatsLayerProto layerProto;
     layerProto.set_layer_name(layerName);
-    packageName = getPackageName(layerName);
     layerProto.set_package_name(packageName);
     layerProto.set_stats_start(statsStart);
     layerProto.set_stats_end(statsEnd);
     layerProto.set_total_frames(totalFrames);
-    for (auto ele : deltas) {
+    for (auto& ele : deltas) {
         SFTimeStatsDeltaProto* deltaProto = layerProto.add_deltas();
         deltaProto->set_delta_name(ele.first);
-        for (auto histEle : ele.second.hist) {
+        for (auto& histEle : ele.second.hist) {
             SFTimeStatsHistogramBucketProto* histProto = deltaProto->add_histograms();
             histProto->set_render_millis(histEle.first);
             histProto->set_frame_count(histEle.second);
@@ -138,18 +121,39 @@ SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() {
     return layerProto;
 }
 
-SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto() {
+SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
+        std::optional<uint32_t> maxLayers) const {
     SFTimeStatsGlobalProto globalProto;
     globalProto.set_stats_start(statsStart);
     globalProto.set_stats_end(statsEnd);
     globalProto.set_total_frames(totalFrames);
     globalProto.set_missed_frames(missedFrames);
     globalProto.set_client_composition_frames(clientCompositionFrames);
-    for (auto ele : dumpStats) {
+    const auto dumpStats = generateDumpStats(maxLayers);
+    for (auto& ele : dumpStats) {
         SFTimeStatsLayerProto* layerProto = globalProto.add_stats();
         layerProto->CopyFrom(ele->toProto());
     }
     return globalProto;
+}
+
+std::vector<TimeStatsHelper::TimeStatsLayer const*>
+TimeStatsHelper::TimeStatsGlobal::generateDumpStats(std::optional<uint32_t> maxLayers) const {
+    std::vector<TimeStatsLayer const*> dumpStats;
+    for (auto& ele : stats) {
+        dumpStats.push_back(&ele.second);
+    }
+
+    std::sort(dumpStats.begin(), dumpStats.end(),
+              [](TimeStatsHelper::TimeStatsLayer const* l,
+                 TimeStatsHelper::TimeStatsLayer const* r) {
+                  return l->totalFrames > r->totalFrames;
+              });
+
+    if (maxLayers && (*maxLayers < dumpStats.size())) {
+        dumpStats.resize(*maxLayers);
+    }
+    return dumpStats;
 }
 
 } // namespace surfaceflinger

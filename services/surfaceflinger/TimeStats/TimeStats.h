@@ -25,9 +25,10 @@
 #include <utils/String8.h>
 #include <utils/Vector.h>
 
+#include <deque>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
-#include <vector>
 
 using namespace android::surfaceflinger;
 
@@ -57,7 +58,7 @@ class TimeStats {
         // fences to signal, but rather waiting to receive those fences/timestamps.
         int32_t waitData = -1;
         TimeRecord prevTimeRecord;
-        std::vector<TimeRecord> timeRecords;
+        std::deque<TimeRecord> timeRecords;
     };
 
 public:
@@ -90,9 +91,7 @@ private:
     void disable();
     void clear();
     bool isEnabled();
-    void dump(bool asProto, uint32_t maxLayer, String8& result);
-    void dumpAsTextLocked(String8& result);
-    void dumpAsProtoLocked(String8& result);
+    void dump(bool asProto, std::optional<uint32_t> maxLayers, String8& result);
 
     std::atomic<bool> mEnabled = false;
     std::mutex mMutex;

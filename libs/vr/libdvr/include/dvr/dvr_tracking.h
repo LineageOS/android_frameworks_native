@@ -30,7 +30,8 @@ typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 
 // The callback for DvrTrackingSensors session that will deliver the events.
 // This callback is passed to dvrTrackingSensorsStart.
-typedef void (*DvrTrackingSensorEventCallback)(DvrTrackingSensorEvent* event);
+typedef void (*DvrTrackingSensorEventCallback)(void* context,
+                                               DvrTrackingSensorEvent* event);
 
 // Creates a DvrTrackingCamera session.
 //
@@ -106,11 +107,13 @@ void dvrTrackingSensorsDestroy(DvrTrackingSensors* sensors);
 // events as they arrive.
 //
 // @param client A tracking client created by dvrTrackingSensorsCreate.
+// @param context A client supplied pointer that will be passed to the callback.
 // @param callback A callback that will receive the sensor events on an
 // arbitrary thread.
 // @return Zero on success, or negative error code.
 int dvrTrackingSensorsStart(DvrTrackingSensors* sensors,
-                            DvrTrackingSensorEventCallback callback);
+                            DvrTrackingSensorEventCallback callback,
+                            void* context);
 
 // Stop the tracking.
 //
