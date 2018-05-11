@@ -475,6 +475,12 @@ static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace) {
     return HAL_DATASPACE_UNKNOWN;
 }
 
+// Get the colorspace value that should be reported from queries. When the colorspace
+// is unknown (no attribute passed), default to reporting LINEAR.
+static EGLint getReportedColorSpace(EGLint colorspace) {
+    return colorspace == EGL_UNKNOWN ? EGL_GL_COLORSPACE_LINEAR_KHR : colorspace;
+}
+
 // Returns a list of color spaces understood by the vendor EGL driver.
 static std::vector<EGLint> getDriverColorSpaces(egl_display_ptr dp,
                                                 android_pixel_format format) {
@@ -569,7 +575,8 @@ static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
     // supports wide color.
     const bool colorSpaceIsNarrow =
         *colorSpace == EGL_GL_COLORSPACE_SRGB_KHR ||
-        *colorSpace == EGL_GL_COLORSPACE_LINEAR_KHR;
+        *colorSpace == EGL_GL_COLORSPACE_LINEAR_KHR ||
+        *colorSpace == EGL_UNKNOWN;
     if (window && !colorSpaceIsNarrow) {
         bool windowSupportsWideColor = true;
         // Ordinarily we'd put a call to native_window_get_wide_color_support
@@ -718,7 +725,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         getNativePixelFormat(iDpy, cnx, config, &format);
 
         // now select correct colorspace and dataspace based on user's attribute list
-        EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+        EGLint colorSpace = EGL_UNKNOWN;
         std::vector<EGLint> strippedAttribList;
         if (!processAttributes(dp, window, format, attrib_list, &colorSpace,
                                &strippedAttribList)) {
@@ -757,7 +764,8 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
                 iDpy, config, window, attrib_list);
         if (surface != EGL_NO_SURFACE) {
             egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, window, surface, colorSpace, cnx);
+                    new egl_surface_t(dp.get(), config, window, surface,
+                                      getReportedColorSpace(colorSpace), cnx);
             return s;
         }
 
@@ -782,7 +790,7 @@ EGLSurface eglCreatePixmapSurface(  EGLDisplay dpy, EGLConfig config,
         getNativePixelFormat(iDpy, cnx, config, &format);
 
         // now select a corresponding sRGB format if needed
-        EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+        EGLint colorSpace = EGL_UNKNOWN;
         std::vector<EGLint> strippedAttribList;
         if (!processAttributes(dp, nullptr, format, attrib_list, &colorSpace,
                                &strippedAttribList)) {
@@ -794,7 +802,9 @@ EGLSurface eglCreatePixmapSurface(  EGLDisplay dpy, EGLConfig config,
         EGLSurface surface = cnx->egl.eglCreatePixmapSurface(
                 dp->disp.dpy, config, pixmap, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface, colorSpace, cnx);
+            egl_surface_t* s =
+                    new egl_surface_t(dp.get(), config, NULL, surface,
+                                      getReportedColorSpace(colorSpace), cnx);
             return s;
         }
     }
@@ -814,7 +824,7 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
         getNativePixelFormat(iDpy, cnx, config, &format);
 
         // Select correct colorspace based on user's attribute list
-        EGLint colorSpace = EGL_GL_COLORSPACE_LINEAR_KHR;
+        EGLint colorSpace = EGL_UNKNOWN;
         std::vector<EGLint> strippedAttribList;
         if (!processAttributes(dp, nullptr, format, attrib_list, &colorSpace,
                                &strippedAttribList)) {
@@ -826,7 +836,9 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
         EGLSurface surface = cnx->egl.eglCreatePbufferSurface(
                 dp->disp.dpy, config, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface, colorSpace, cnx);
+            egl_surface_t* s =
+                    new egl_surface_t(dp.get(), config, NULL, surface,
+                                      getReportedColorSpace(colorSpace), cnx);
             return s;
         }
     }
