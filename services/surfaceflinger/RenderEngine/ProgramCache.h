@@ -126,6 +126,29 @@ public:
         }
         inline int getInputTF() const { return (mKey & INPUT_TF_MASK); }
         inline int getOutputTF() const { return (mKey & OUTPUT_TF_MASK); }
+
+        // When HDR and non-HDR contents are mixed, or different types of HDR contents are
+        // mixed, we will do a tone mapping process to tone map the input content to output
+        // content. Currently, the following conversions handled, they are:
+        // * SDR -> HLG
+        // * SDR -> PQ
+        // * HLG -> PQ
+        inline bool needsToneMapping() const {
+            int inputTF = getInputTF();
+            int outputTF = getOutputTF();
+
+            // Return false when converting from SDR to SDR.
+            if (inputTF == Key::INPUT_TF_SRGB && outputTF == Key::OUTPUT_TF_LINEAR) {
+                return false;
+            }
+            if (inputTF == Key::INPUT_TF_LINEAR && outputTF == Key::OUTPUT_TF_SRGB) {
+                return false;
+            }
+
+            inputTF >>= Key::INPUT_TF_SHIFT;
+            outputTF >>= Key::OUTPUT_TF_SHIFT;
+            return inputTF != outputTF;
+        }
         inline bool isY410BT2020() const { return (mKey & Y410_BT2020_MASK) == Y410_BT2020_ON; }
 
         // this is the definition of a friend function -- not a method of class Needs
@@ -148,6 +171,8 @@ private:
     static Key computeKey(const Description& description);
     // Generate EOTF based from Key.
     static void generateEOTF(Formatter& fs, const Key& needs);
+    // Generate necessary tone mapping methods for OOTF.
+    static void generateToneMappingProcess(Formatter& fs, const Key& needs);
     // Generate OOTF based from Key.
     static void generateOOTF(Formatter& fs, const Key& needs);
     // Generate OETF based from Key.

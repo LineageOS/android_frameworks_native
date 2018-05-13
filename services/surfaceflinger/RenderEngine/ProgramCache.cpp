@@ -232,103 +232,169 @@ void ProgramCache::generateEOTF(Formatter& fs, const Key& needs) {
     }
 }
 
-// Generate OOTF that modifies the relative scence light to relative display light.
-void ProgramCache::generateOOTF(Formatter& fs, const Key& needs) {
-    fs << R"__SHADER__(
-        highp float CalculateY(const highp vec3 color) {
-            // BT2020 standard uses the unadjusted KR = 0.2627,
-            // KB = 0.0593 luminance interpretation for RGB conversion.
-            return color.r * 0.262700 + color.g * 0.677998 + color.b * 0.059302;
-        }
-    )__SHADER__";
-
-    // Generate OOTF that modifies the relative display light.
-    switch(needs.getInputTF()) {
+void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
+    // Convert relative light to absolute light.
+    switch (needs.getInputTF()) {
         case Key::INPUT_TF_ST2084:
             fs << R"__SHADER__(
-                highp vec3 OOTF(const highp vec3 color) {
-                    const float maxLumi = 10000.0;
-                    const float maxMasteringLumi = 1000.0;
-                    const float maxContentLumi = 1000.0;
-                    const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
-                    float maxOutLumi = displayMaxLuminance;
-
-                    // Calculate Y value in XYZ color space.
-                    float colorY = CalculateY(color);
-
-                    // convert to nits first
-                    float nits = colorY * maxLumi;
-
-                    // clamp to max input luminance
-                    nits = clamp(nits, 0.0, maxInLumi);
-
-                    // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
-                    if (maxInLumi <= maxOutLumi) {
-                        nits *= maxOutLumi / maxInLumi;
-                    } else {
-                        // three control points
-                        const float x0 = 10.0;
-                        const float y0 = 17.0;
-                        float x1 = maxOutLumi * 0.75;
-                        float y1 = x1;
-                        float x2 = x1 + (maxInLumi - x1) / 2.0;
-                        float y2 = y1 + (maxOutLumi - y1) * 0.75;
-
-                        // horizontal distances between the last three control points
-                        float h12 = x2 - x1;
-                        float h23 = maxInLumi - x2;
-                        // tangents at the last three control points
-                        float m1 = (y2 - y1) / h12;
-                        float m3 = (maxOutLumi - y2) / h23;
-                        float m2 = (m1 + m3) / 2.0;
-
-                        if (nits < x0) {
-                            // scale [0.0, x0] to [0.0, y0] linearly
-                            const float slope = y0 / x0;
-                            nits *= slope;
-                        } else if (nits < x1) {
-                            // scale [x0, x1] to [y0, y1] linearly
-                            float slope = (y1 - y0) / (x1 - x0);
-                            nits = y0 + (nits - x0) * slope;
-                        } else if (nits < x2) {
-                            // scale [x1, x2] to [y1, y2] using Hermite interp
-                            float t = (nits - x1) / h12;
-                            nits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) * (1.0 - t) +
-                                    (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
-                        } else {
-                            // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
-                            float t = (nits - x2) / h23;
-                            nits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) * (1.0 - t) +
-                                    (maxOutLumi * (3.0 - 2.0 * t) + h23 * m3 * (t - 1.0)) * t * t;
-                        }
-                    }
-
-                    // convert back to [0.0, 1.0]
-                    float targetY = nits / maxOutLumi;
-                    return color * (targetY / max(1e-6, colorY));
+                highp vec3 ScaleLuminance(highp vec3 color) {
+                    return color * 10000.0;
                 }
             )__SHADER__";
             break;
         case Key::INPUT_TF_HLG:
             fs << R"__SHADER__(
-                highp vec3 OOTF(const highp vec3 color) {
-                    const float maxOutLumi = 500.0;
-                    const float gamma = 1.2 + 0.42 * log(maxOutLumi / 1000.0) / log(10.0);
+                highp vec3 ScaleLuminance(highp vec3 color) {
                     // The formula is:
                     // alpha * pow(Y, gamma - 1.0) * color + beta;
-                    // where alpha is 1.0, beta is 0.0 as recommended in
-                    // Rec. ITU-R BT.2100-1 TABLE 5.
-                    return pow(CalculateY(color), gamma - 1.0) * color;
+                    // where alpha is 1000.0, gamma is 1.2, beta is 0.0.
+                    return color * 1000.0 * pow(color.y, 0.2);
                 }
             )__SHADER__";
             break;
         default:
             fs << R"__SHADER__(
-                highp vec3 OOTF(const highp vec3 color) {
+                highp vec3 ScaleLuminance(highp vec3 color) {
+                    return color * displayMaxLuminance;
+                }
+            )__SHADER__";
+            break;
+    }
+
+    // Tone map absolute light to display luminance range.
+    switch (needs.getInputTF()) {
+        case Key::INPUT_TF_ST2084:
+        case Key::INPUT_TF_HLG:
+            switch (needs.getOutputTF()) {
+                case Key::OUTPUT_TF_HLG:
+                    // Right now when mixed PQ and HLG contents are presented,
+                    // HLG content will always be converted to PQ. However, for
+                    // completeness, we simply clamp the value to [0.0, 1000.0].
+                    fs << R"__SHADER__(
+                        highp vec3 ToneMap(highp vec3 color) {
+                            return clamp(color, 0.0, 1000.0);
+                        }
+                    )__SHADER__";
+                    break;
+                case Key::OUTPUT_TF_ST2084:
+                    fs << R"__SHADER__(
+                        highp vec3 ToneMap(highp vec3 color) {
+                            return color;
+                        }
+                    )__SHADER__";
+                    break;
+                default:
+                    fs << R"__SHADER__(
+                        highp vec3 ToneMap(highp vec3 color) {
+                            const float maxMasteringLumi = 1000.0;
+                            const float maxContentLumi = 1000.0;
+                            const float maxInLumi = min(maxMasteringLumi, maxContentLumi);
+                            float maxOutLumi = displayMaxLuminance;
+
+                            float nits = color.y;
+
+                            // clamp to max input luminance
+                            nits = clamp(nits, 0.0, maxInLumi);
+
+                            // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
+                            if (maxInLumi <= maxOutLumi) {
+                                nits *= maxOutLumi / maxInLumi;
+                            } else {
+                                // three control points
+                                const float x0 = 10.0;
+                                const float y0 = 17.0;
+                                float x1 = maxOutLumi * 0.75;
+                                float y1 = x1;
+                                float x2 = x1 + (maxInLumi - x1) / 2.0;
+                                float y2 = y1 + (maxOutLumi - y1) * 0.75;
+
+                                // horizontal distances between the last three control points
+                                const float h12 = x2 - x1;
+                                const float h23 = maxInLumi - x2;
+                                // tangents at the last three control points
+                                const float m1 = (y2 - y1) / h12;
+                                const float m3 = (maxOutLumi - y2) / h23;
+                                const float m2 = (m1 + m3) / 2.0;
+
+                                if (nits < x0) {
+                                    // scale [0.0, x0] to [0.0, y0] linearly
+                                    const float slope = y0 / x0;
+                                    nits *= slope;
+                                } else if (nits < x1) {
+                                    // scale [x0, x1] to [y0, y1] linearly
+                                    const float slope = (y1 - y0) / (x1 - x0);
+                                    nits = y0 + (nits - x0) * slope;
+                                } else if (nits < x2) {
+                                    // scale [x1, x2] to [y1, y2] using Hermite interp
+                                    float t = (nits - x1) / h12;
+                                    nits = (y1 * (1.0 + 2.0 * t) + h12 * m1 * t) * (1.0 - t) * (1.0 - t) +
+                                            (y2 * (3.0 - 2.0 * t) + h12 * m2 * (t - 1.0)) * t * t;
+                                } else {
+                                    // scale [x2, maxInLumi] to [y2, maxOutLumi] using Hermite interp
+                                    float t = (nits - x2) / h23;
+                                    nits = (y2 * (1.0 + 2.0 * t) + h23 * m2 * t) * (1.0 - t) * (1.0 - t) +
+                                            (maxOutLumi * (3.0 - 2.0 * t) + h23 * m3 * (t - 1.0)) * t * t;
+                                }
+                            }
+
+                            return color * (nits / max(1e-6, color.y));
+                        }
+                    )__SHADER__";
+                    break;
+            }
+            break;
+        default:
+            // TODO(73825729) We need to revert the tone mapping in
+            // hardware composer properly.
+            fs << R"__SHADER__(
+                highp vec3 ToneMap(highp vec3 color) {
                     return color;
                 }
             )__SHADER__";
             break;
+    }
+
+    // convert absolute light to relative light.
+    switch (needs.getOutputTF()) {
+        case Key::OUTPUT_TF_ST2084:
+            fs << R"__SHADER__(
+                highp vec3 NormalizeLuminance(highp vec3 color) {
+                    return color / 10000.0;
+                }
+            )__SHADER__";
+            break;
+        case Key::OUTPUT_TF_HLG:
+            fs << R"__SHADER__(
+                highp vec3 NormalizeLuminance(highp vec3 color) {
+                    return color / 1000.0 * pow(color.y / 1000.0, -0.2 / 1.2);
+                }
+            )__SHADER__";
+            break;
+        default:
+            fs << R"__SHADER__(
+                highp vec3 NormalizeLuminance(highp vec3 color) {
+                    return color / displayMaxLuminance;
+                }
+            )__SHADER__";
+            break;
+    }
+}
+
+// Generate OOTF that modifies the relative scence light to relative display light.
+void ProgramCache::generateOOTF(Formatter& fs, const ProgramCache::Key& needs) {
+    if (!needs.needsToneMapping()) {
+        fs << R"__SHADER__(
+            highp vec3 OOTF(const highp vec3 color) {
+                return color;
+            }
+        )__SHADER__";
+    } else {
+        generateToneMappingProcess(fs, needs);
+        fs << R"__SHADER__(
+            highp vec3 OOTF(const highp vec3 color) {
+                return NormalizeLuminance(ToneMap(ScaleLuminance(color)));
+            }
+        )__SHADER__";
     }
 }
 
@@ -446,8 +512,8 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     }
 
     if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
-        // Currently, only the OOTF of BT2020 PQ needs display maximum luminance.
-        if (needs.getInputTF() == Key::INPUT_TF_ST2084) {
+        // Currently, display maximum luminance is needed when doing tone mapping.
+        if (needs.needsToneMapping()) {
             fs << "uniform float displayMaxLuminance;";
         }
 
