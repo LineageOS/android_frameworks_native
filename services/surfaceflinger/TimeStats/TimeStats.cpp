@@ -225,12 +225,12 @@ static bool layerNameIsValid(const std::string& layerName) {
     // This regular expression captures the following layer names for instance:
     // 1) StatusBat#0
     // 2) NavigationBar#1
-    // 3) com.*#0
-    // 4) SurfaceView - com.*#0
-    // Using [-\\s\t]+ for the conjunction part between SurfaceView and com.* is
-    // a bit more robust in case there's a slight change.
+    // 3) co(m).*#0
+    // 4) SurfaceView - co(m).*#0
+    // Using [-\\s\t]+ for the conjunction part between SurfaceView and co(m).*
+    // is a bit more robust in case there's a slight change.
     // The layer name would only consist of . / $ _ 0-9 a-z A-Z in most cases.
-    std::regex re("(((SurfaceView[-\\s\\t]+)?com\\.[./$\\w]+)|((Status|Navigation)Bar))#\\d+");
+    std::regex re("(((SurfaceView[-\\s\\t]+)?com?\\.[./$\\w]+)|((Status|Navigation)Bar))#\\d+");
     return std::regex_match(layerName.begin(), layerName.end(), re);
 }
 
