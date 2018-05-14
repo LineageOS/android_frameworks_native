@@ -309,20 +309,20 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                                 float y2 = y1 + (maxOutLumi - y1) * 0.75;
 
                                 // horizontal distances between the last three control points
-                                const float h12 = x2 - x1;
-                                const float h23 = maxInLumi - x2;
+                                float h12 = x2 - x1;
+                                float h23 = maxInLumi - x2;
                                 // tangents at the last three control points
-                                const float m1 = (y2 - y1) / h12;
-                                const float m3 = (maxOutLumi - y2) / h23;
-                                const float m2 = (m1 + m3) / 2.0;
+                                float m1 = (y2 - y1) / h12;
+                                float m3 = (maxOutLumi - y2) / h23;
+                                float m2 = (m1 + m3) / 2.0;
 
                                 if (nits < x0) {
                                     // scale [0.0, x0] to [0.0, y0] linearly
-                                    const float slope = y0 / x0;
+                                    float slope = y0 / x0;
                                     nits *= slope;
                                 } else if (nits < x1) {
                                     // scale [x0, x1] to [y0, y1] linearly
-                                    const float slope = (y1 - y0) / (x1 - x0);
+                                    float slope = (y1 - y0) / (x1 - x0);
                                     nits = y0 + (nits - x0) * slope;
                                 } else if (nits < x2) {
                                     // scale [x1, x2] to [y1, y2] using Hermite interp
