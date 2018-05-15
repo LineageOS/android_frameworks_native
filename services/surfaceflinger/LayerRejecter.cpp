@@ -31,6 +31,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
                              bool stickySet,
                              const char* name,
                              int32_t overrideScalingMode,
+                             bool transformToDisplayInverse,
                              bool& freezePositionUpdates)
   : mFront(front),
     mCurrent(current),
@@ -38,6 +39,7 @@ LayerRejecter::LayerRejecter(Layer::State& front,
     mStickyTransformSet(stickySet),
     mName(name),
     mOverrideScalingMode(overrideScalingMode),
+    mTransformToDisplayInverse(transformToDisplayInverse),
     mFreezeGeometryUpdates(freezePositionUpdates) {}
 
 bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item) {
@@ -52,6 +54,13 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
     // (Take the buffer's orientation into account)
     if (item.mTransform & Transform::ROT_90) {
         swap(bufWidth, bufHeight);
+    }
+
+    if (mTransformToDisplayInverse) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        if (invTransform & Transform::ROT_90) {
+            swap(bufWidth, bufHeight);
+        }
     }
 
     int actualScalingMode = mOverrideScalingMode >= 0 ? mOverrideScalingMode : item.mScalingMode;
