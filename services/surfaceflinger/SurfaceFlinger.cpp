@@ -4810,12 +4810,6 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 return mCrop;
             }
         }
-        bool getWideColorSupport() const override { return false; }
-        Dataspace getDataSpace() const override { return Dataspace::UNKNOWN; }
-        float getDisplayMaxLuminance() const override {
-            return DisplayDevice::sDefaultMaxLumiance;
-        }
-
         class ReparentForDrawing {
         public:
             const sp<Layer>& oldParent;
@@ -5013,12 +5007,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, raHeight);
     }
 
-    Dataspace outputDataspace = Dataspace::UNKNOWN;
-    if (renderArea.getWideColorSupport()) {
-        outputDataspace = renderArea.getDataSpace();
-    }
-    engine.setOutputDataSpace(outputDataspace);
-    engine.setDisplayMaxLuminance(renderArea.getDisplayMaxLuminance());
+    // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
+    engine.setOutputDataSpace(Dataspace::SRGB);
+    engine.setDisplayMaxLuminance(DisplayDevice::sDefaultMaxLumiance);
 
     // make sure to clear all GL error flags
     engine.checkErrors();

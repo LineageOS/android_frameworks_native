@@ -336,13 +336,6 @@ public:
     bool isSecure() const override { return mDevice->isSecure(); }
     bool needsFiltering() const override { return mDevice->needsFiltering(); }
     Rect getSourceCrop() const override { return mSourceCrop; }
-    bool getWideColorSupport() const override { return mDevice->hasWideColorGamut(); }
-    ui::Dataspace getDataSpace() const override {
-        return mDevice->getCompositionDataSpace();
-    }
-    float getDisplayMaxLuminance() const override {
-        return mDevice->getHdrCapabilities().getDesiredMaxLuminance();
-    }
 
 private:
     const sp<const DisplayDevice> mDevice;
