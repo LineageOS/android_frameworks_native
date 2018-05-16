@@ -129,7 +129,8 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                  description.hasInputTransformMatrix() ?
                      Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
             .set(Key::Key::OUTPUT_TRANSFORM_MATRIX_MASK,
-                 description.hasOutputTransformMatrix() || description.hasColorMatrix() ?
+                 description.hasOutputTransformMatrix() || description.hasColorMatrix() ||
+                 (!description.hasInputTransformMatrix() && description.hasSaturationMatrix()) ?
                      Key::OUTPUT_TRANSFORM_MATRIX_ON : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
 
     needs.set(Key::Y410_BT2020_MASK,
@@ -309,20 +310,20 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                                 float y2 = y1 + (maxOutLumi - y1) * 0.75;
 
                                 // horizontal distances between the last three control points
-                                const float h12 = x2 - x1;
-                                const float h23 = maxInLumi - x2;
+                                float h12 = x2 - x1;
+                                float h23 = maxInLumi - x2;
                                 // tangents at the last three control points
-                                const float m1 = (y2 - y1) / h12;
-                                const float m3 = (maxOutLumi - y2) / h23;
-                                const float m2 = (m1 + m3) / 2.0;
+                                float m1 = (y2 - y1) / h12;
+                                float m3 = (maxOutLumi - y2) / h23;
+                                float m2 = (m1 + m3) / 2.0;
 
                                 if (nits < x0) {
                                     // scale [0.0, x0] to [0.0, y0] linearly
-                                    const float slope = y0 / x0;
+                                    float slope = y0 / x0;
                                     nits *= slope;
                                 } else if (nits < x1) {
                                     // scale [x0, x1] to [y0, y1] linearly
-                                    const float slope = (y1 - y0) / (x1 - x0);
+                                    float slope = (y1 - y0) / (x1 - x0);
                                     nits = y0 + (nits - x0) * slope;
                                 } else if (nits < x2) {
                                     // scale [x1, x2] to [y1, y2] using Hermite interp
@@ -518,10 +519,10 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         }
 
         if (needs.hasInputTransformMatrix()) {
-            fs << "uniform mat3 inputTransformMatrix;";
+            fs << "uniform mat4 inputTransformMatrix;";
             fs << R"__SHADER__(
                 highp vec3 InputTransform(const highp vec3 color) {
-                    return inputTransformMatrix * color;
+                    return vec3(inputTransformMatrix * vec4(color, 1.0));
                 }
             )__SHADER__";
         } else {
