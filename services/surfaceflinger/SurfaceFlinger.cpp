@@ -317,8 +317,7 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
-    // TODO (b/74616334): Reduce the default value once we isolate the leak
-    const size_t defaultListSize = 4 * MAX_LAYERS;
+    const size_t defaultListSize = MAX_LAYERS;
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
@@ -3144,12 +3143,14 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
             parent->addChild(lbc);
         }
 
-        mGraphicBufferProducerList.insert(IInterface::asBinder(gbc).get());
-        // TODO (b/74616334): Change this back to a fatal assert once the leak is fixed
-        ALOGE_IF(mGraphicBufferProducerList.size() > mMaxGraphicBufferProducerListSize,
-                 "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
-                 mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize,
-                 mNumLayers);
+        if (gbc != nullptr) {
+            mGraphicBufferProducerList.insert(IInterface::asBinder(gbc).get());
+            LOG_ALWAYS_FATAL_IF(mGraphicBufferProducerList.size() >
+                                        mMaxGraphicBufferProducerListSize,
+                                "Suspected IGBP leak: %zu IGBPs (%zu max), %zu Layers",
+                                mGraphicBufferProducerList.size(),
+                                mMaxGraphicBufferProducerListSize, mNumLayers);
+        }
         mLayersAdded = true;
         mNumLayers++;
     }
