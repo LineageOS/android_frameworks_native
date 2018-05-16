@@ -100,7 +100,8 @@ bool RecentEventLogger::populateLastEvent(sensors_event_t *event) const {
 size_t RecentEventLogger::logSizeBySensorType(int sensorType) {
     return (sensorType == SENSOR_TYPE_STEP_COUNTER ||
             sensorType == SENSOR_TYPE_SIGNIFICANT_MOTION ||
-            sensorType == SENSOR_TYPE_ACCELEROMETER) ? LOG_SIZE_LARGE : LOG_SIZE;
+            sensorType == SENSOR_TYPE_ACCELEROMETER ||
+            sensorType == SENSOR_TYPE_LIGHT) ? LOG_SIZE_LARGE : LOG_SIZE;
 }
 
 RecentEventLogger::SensorEventLog::SensorEventLog(const sensors_event_t& e) : mEvent(e) {
