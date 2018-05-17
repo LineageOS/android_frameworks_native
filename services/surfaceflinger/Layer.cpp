@@ -1337,10 +1337,6 @@ bool Layer::setDataSpace(ui::Dataspace dataSpace) {
     return true;
 }
 
-ui::Dataspace Layer::getDataSpace() const {
-    return mCurrentState.dataSpace;
-}
-
 uint32_t Layer::getLayerStack() const {
     auto p = mDrawingParent.promote();
     if (p == nullptr) {
@@ -1433,7 +1429,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();
-    info.mDataSpace = static_cast<android_dataspace>(getDataSpace());
+    info.mDataSpace = static_cast<android_dataspace>(ds.dataSpace);
     info.mMatrix[0][0] = ds.active.transform[0][0];
     info.mMatrix[0][1] = ds.active.transform[0][1];
     info.mMatrix[1][0] = ds.active.transform[1][0];
@@ -1960,7 +1956,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_is_opaque(isOpaque(state));
     layerInfo->set_invalidate(contentDirty);
-    layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(getDataSpace())));
+    layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(state.dataSpace)));
     layerInfo->set_pixel_format(decodePixelFormat(getPixelFormat()));
     LayerProtoHelper::writeToProto(getColor(), layerInfo->mutable_color());
     LayerProtoHelper::writeToProto(state.color, layerInfo->mutable_requested_color());
