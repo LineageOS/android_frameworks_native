@@ -103,6 +103,7 @@ protected:
     mat3 mSrgbToXyz;
     mat3 mBt2020ToXyz;
     mat3 mDisplayP3ToXyz;
+    mat4 mXyzToSrgb;
     mat4 mXyzToDisplayP3;
     mat4 mXyzToBt2020;
 
