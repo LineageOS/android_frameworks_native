@@ -375,6 +375,19 @@ typedef int (*DvrTrackingCameraStartPtr)(DvrTrackingCamera* camera,
                                          DvrWriteBufferQueue* write_queue);
 typedef int (*DvrTrackingCameraStopPtr)(DvrTrackingCamera* camera);
 
+typedef int (*DvrTrackingFeatureExtractorCreatePtr)(
+    DvrTrackingFeatureExtractor** out_extractor);
+typedef void (*DvrTrackingFeatureExtractorDestroyPtr)(
+    DvrTrackingFeatureExtractor* extractor);
+typedef int (*DvrTrackingFeatureExtractorStartPtr)(
+    DvrTrackingFeatureExtractor* extractor,
+    DvrTrackingFeatureCallback callback, void* context);
+typedef int (*DvrTrackingFeatureExtractorStopPtr)(
+    DvrTrackingFeatureExtractor* extractor);
+typedef int (*DvrTrackingFeatureExtractorProcessBufferPtr)(
+    DvrTrackingFeatureExtractor* extractor, DvrReadBuffer* buffer,
+    const DvrTrackingBufferMetadata* metadata, bool* out_skipped);
+
 typedef int (*DvrTrackingSensorsCreatePtr)(DvrTrackingSensors** out_sensors,
                                            const char* mode);
 typedef void (*DvrTrackingSensorsDestroyPtr)(DvrTrackingSensors* sensors);

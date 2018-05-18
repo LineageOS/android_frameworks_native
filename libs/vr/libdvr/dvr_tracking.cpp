@@ -29,6 +29,34 @@ int dvrTrackingCameraStop(DvrTrackingCamera*) {
   return -ENOSYS;
 }
 
+int dvrTrackingFeatureExtractorCreate(DvrTrackingFeatureExtractor**) {
+  ALOGE("dvrTrackingFeatureExtractorCreate is not implemented.");
+  return -ENOSYS;
+}
+
+void dvrTrackingFeatureExtractorDestroy(DvrTrackingFeatureExtractor*) {
+  ALOGE("dvrTrackingFeatureExtractorDestroy is not implemented.");
+}
+
+int dvrTrackingFeatureExtractorStart(DvrTrackingFeatureExtractor*,
+                                     DvrTrackingFeatureCallback, void*) {
+  ALOGE("dvrTrackingFeatureExtractorCreate is not implemented.");
+  return -ENOSYS;
+}
+
+int dvrTrackingFeatureExtractorStop(DvrTrackingFeatureExtractor*) {
+  ALOGE("dvrTrackingFeatureExtractorCreate is not implemented.");
+  return -ENOSYS;
+}
+
+int dvrTrackingFeatureExtractorProcessBuffer(DvrTrackingFeatureExtractor*,
+                                             DvrReadBuffer*,
+                                             const DvrTrackingBufferMetadata*,
+                                             bool*) {
+  ALOGE("dvrTrackingFeatureExtractorProcessBuffer is not implemented.");
+  return -ENOSYS;
+}
+
 int dvrTrackingSensorsCreate(DvrTrackingSensors**, const char*) {
   ALOGE("dvrTrackingSensorsCreate is not implemented.");
   return -ENOSYS;

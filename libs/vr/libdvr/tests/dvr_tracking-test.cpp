@@ -13,9 +13,15 @@ TEST_F(DvrTrackingTest, Implemented) {
   ASSERT_TRUE(api_.TrackingCameraCreate != nullptr);
   ASSERT_TRUE(api_.TrackingCameraStart != nullptr);
   ASSERT_TRUE(api_.TrackingCameraStop != nullptr);
+
+  ASSERT_TRUE(api_.TrackingFeatureExtractorCreate != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorDestroy != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorStart != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorStop != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorProcessBuffer != nullptr);
 }
 
-TEST_F(DvrTrackingTest, CreateFailsForInvalidInput) {
+TEST_F(DvrTrackingTest, CameraCreateFailsForInvalidInput) {
   int ret;
   ret = api_.TrackingCameraCreate(nullptr);
   EXPECT_EQ(ret, -EINVAL);
@@ -25,7 +31,7 @@ TEST_F(DvrTrackingTest, CreateFailsForInvalidInput) {
   EXPECT_EQ(ret, -EINVAL);
 }
 
-TEST_F(DvrTrackingTest, CreateDestroy) {
+TEST_F(DvrTrackingTest, CameraCreateDestroy) {
   DvrTrackingCamera* camera = nullptr;
   int ret = api_.TrackingCameraCreate(&camera);
 
@@ -33,6 +39,27 @@ TEST_F(DvrTrackingTest, CreateDestroy) {
   ASSERT_TRUE(camera != nullptr);
 
   api_.TrackingCameraDestroy(camera);
+}
+
+TEST_F(DvrTrackingTest, FeatureExtractorCreateFailsForInvalidInput) {
+  int ret;
+  ret = api_.TrackingFeatureExtractorCreate(nullptr);
+  EXPECT_EQ(ret, -EINVAL);
+
+  DvrTrackingFeatureExtractor* camera =
+      reinterpret_cast<DvrTrackingFeatureExtractor*>(42);
+  ret = api_.TrackingFeatureExtractorCreate(&camera);
+  EXPECT_EQ(ret, -EINVAL);
+}
+
+TEST_F(DvrTrackingTest, FeatureExtractorCreateDestroy) {
+  DvrTrackingFeatureExtractor* camera = nullptr;
+  int ret = api_.TrackingFeatureExtractorCreate(&camera);
+
+  EXPECT_EQ(ret, 0);
+  ASSERT_TRUE(camera != nullptr);
+
+  api_.TrackingFeatureExtractorDestroy(camera);
 }
 
 #else  // !DVR_TRACKING_IMPLEMENTED
@@ -46,6 +73,20 @@ TEST_F(DvrTrackingTest, NotImplemented) {
   EXPECT_EQ(api_.TrackingCameraCreate(nullptr), -ENOSYS);
   EXPECT_EQ(api_.TrackingCameraStart(nullptr, nullptr), -ENOSYS);
   EXPECT_EQ(api_.TrackingCameraStop(nullptr), -ENOSYS);
+
+  ASSERT_TRUE(api_.TrackingFeatureExtractorCreate != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorDestroy != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorStart != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorStop != nullptr);
+  ASSERT_TRUE(api_.TrackingFeatureExtractorProcessBuffer != nullptr);
+
+  EXPECT_EQ(api_.TrackingFeatureExtractorCreate(nullptr), -ENOSYS);
+  EXPECT_EQ(api_.TrackingFeatureExtractorStart(nullptr, nullptr, nullptr),
+            -ENOSYS);
+  EXPECT_EQ(api_.TrackingFeatureExtractorStop(nullptr), -ENOSYS);
+  EXPECT_EQ(api_.TrackingFeatureExtractorProcessBuffer(nullptr, nullptr,
+                                                       nullptr, nullptr),
+            -ENOSYS);
 
   ASSERT_TRUE(api_.TrackingSensorsCreate != nullptr);
   ASSERT_TRUE(api_.TrackingSensorsDestroy != nullptr);
