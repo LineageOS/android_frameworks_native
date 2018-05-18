@@ -664,8 +664,6 @@ private:
                        ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace,
                        ui::RenderIntent* outRenderIntent) const;
-    ui::RenderIntent pickRenderIntent(const sp<DisplayDevice>& displayDevice,
-                                      ui::ColorMode colorMode) const;
 
     void setUpHWComposer();
     void doComposition();
