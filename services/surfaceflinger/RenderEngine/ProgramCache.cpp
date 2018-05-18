@@ -422,13 +422,13 @@ void ProgramCache::generateOETF(Formatter& fs, const Key& needs) {
         case Key::OUTPUT_TF_ST2084:
             fs << R"__SHADER__(
                 vec3 OETF(const vec3 linear) {
-                    const float m1 = (2610.0 / 4096.0) / 4.0;
-                    const float m2 = (2523.0 / 4096.0) * 128.0;
-                    const float c1 = (3424.0 / 4096.0);
-                    const float c2 = (2413.0 / 4096.0) * 32.0;
-                    const float c3 = (2392.0 / 4096.0) * 32.0;
+                    const highp float m1 = (2610.0 / 4096.0) / 4.0;
+                    const highp float m2 = (2523.0 / 4096.0) * 128.0;
+                    const highp float c1 = (3424.0 / 4096.0);
+                    const highp float c2 = (2413.0 / 4096.0) * 32.0;
+                    const highp float c3 = (2392.0 / 4096.0) * 32.0;
 
-                    vec3 tmp = pow(linear, vec3(m1));
+                    highp vec3 tmp = pow(linear, vec3(m1));
                     tmp = (c1 + c2 * tmp) / (1.0 + c3 * tmp);
                     return pow(tmp, vec3(m2));
                 }
