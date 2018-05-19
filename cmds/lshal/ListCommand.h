@@ -46,6 +46,12 @@ struct PidInfo {
     uint32_t threadCount; // number of threads total
 };
 
+enum class HalType {
+    BINDERIZED_SERVICES = 0,
+    PASSTHROUGH_CLIENTS,
+    PASSTHROUGH_LIBRARIES
+};
+
 class ListCommand : public Command {
 public:
     ListCommand(Lshal &lshal) : Command(lshal) {}
@@ -128,6 +134,9 @@ protected:
     bool addEntryWithInstance(const TableEntry &entry, vintf::HalManifest *manifest) const;
     bool addEntryWithoutInstance(const TableEntry &entry, const vintf::HalManifest *manifest) const;
 
+    // Helper function. Whether to list entries corresponding to a given HAL type.
+    bool shouldReportHalType(const HalType &type) const;
+
     Table mServicesTable{};
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
@@ -143,6 +152,10 @@ protected:
 
     // If true, explanatory text are not emitted.
     bool mNeat = false;
+
+    // Type(s) of HAL associations to list. By default, report all.
+    std::vector<HalType> mListTypes{HalType::BINDERIZED_SERVICES, HalType::PASSTHROUGH_CLIENTS,
+                                    HalType::PASSTHROUGH_LIBRARIES};
 
     // If an entry does not exist, need to ask /proc/{pid}/cmdline to get it.
     // If an entry exist but is an empty string, process might have died.

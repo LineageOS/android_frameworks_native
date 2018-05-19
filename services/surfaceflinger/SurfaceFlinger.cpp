@@ -1871,7 +1871,7 @@ Dataspace SurfaceFlinger::getBestDataspace(
     *outHdrDataSpace = Dataspace::UNKNOWN;
 
     for (const auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-        switch (layer->getDataSpace()) {
+        switch (layer->getDrawingState().dataSpace) {
             case Dataspace::V0_SCRGB:
             case Dataspace::V0_SCRGB_LINEAR:
                 bestDataSpace = Dataspace::V0_SCRGB_LINEAR;
@@ -2089,13 +2089,13 @@ void SurfaceFlinger::setUpHWComposer() {
                     "display %zd: %d", displayId, result);
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
-                 layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
+            if ((layer->getDrawingState().dataSpace == Dataspace::BT2020_PQ ||
+                 layer->getDrawingState().dataSpace == Dataspace::BT2020_ITU_PQ) &&
                     !displayDevice->hasHDR10Support()) {
                 layer->forceClientComposition(hwcId);
             }
-            if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
-                 layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
+            if ((layer->getDrawingState().dataSpace == Dataspace::BT2020_HLG ||
+                 layer->getDrawingState().dataSpace == Dataspace::BT2020_ITU_HLG) &&
                     !displayDevice->hasHLGSupport()) {
                 layer->forceClientComposition(hwcId);
             }
