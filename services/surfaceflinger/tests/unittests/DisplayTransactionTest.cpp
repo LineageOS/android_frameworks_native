@@ -45,12 +45,13 @@ using testing::Mock;
 using testing::Return;
 using testing::SetArgPointee;
 
-using android::hardware::graphics::common::V1_0::Hdr;
-using android::hardware::graphics::common::V1_1::ColorMode;
-using android::hardware::graphics::common::V1_1::RenderIntent;
+using android::Hwc2::ColorMode;
 using android::Hwc2::Error;
+using android::Hwc2::Hdr;
 using android::Hwc2::IComposer;
 using android::Hwc2::IComposerClient;
+using android::Hwc2::PerFrameMetadataKey;
+using android::Hwc2::RenderIntent;
 
 using FakeDisplayDeviceInjector = TestableSurfaceFlinger::FakeDisplayDeviceInjector;
 using FakeHwcDisplayInjector = TestableSurfaceFlinger::FakeHwcDisplayInjector;
@@ -585,48 +586,118 @@ struct HdrNotSupportedVariant {
     }
 };
 
+struct NonHwcPerFrameMetadataSupportVariant {
+    static constexpr int PER_FRAME_METADATA_KEYS = 0;
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(_, _)).Times(0);
+    }
+};
+
+template <typename Display>
+struct NoPerFrameMetadataSupportVariant {
+    static constexpr int PER_FRAME_METADATA_KEYS = 0;
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<PerFrameMetadataKey>()),
+                                Return(Error::NONE)));
+    }
+};
+
+template <typename Display>
+struct Smpte2086PerFrameMetadataSupportVariant {
+    static constexpr int PER_FRAME_METADATA_KEYS = HdrMetadata::Type::SMPTE2086;
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<PerFrameMetadataKey>({
+                                        PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X,
+                                        PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
+                                        PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
+                                        PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_Y,
+                                        PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_X,
+                                        PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_Y,
+                                        PerFrameMetadataKey::WHITE_POINT_X,
+                                        PerFrameMetadataKey::WHITE_POINT_Y,
+                                        PerFrameMetadataKey::MAX_LUMINANCE,
+                                        PerFrameMetadataKey::MIN_LUMINANCE,
+                                })),
+                                Return(Error::NONE)));
+    }
+};
+
+template <typename Display>
+struct Cta861_3_PerFrameMetadataSupportVariant {
+    static constexpr int PER_FRAME_METADATA_KEYS = HdrMetadata::Type::CTA861_3;
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<PerFrameMetadataKey>({
+                                        PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL,
+                                        PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
+                                })),
+                                Return(Error::NONE)));
+    }
+};
+
 /* ------------------------------------------------------------------------
  * Typical display configurations to test
  */
 
-template <typename DisplayPolicy, typename WideColorSupportPolicy, typename HdrSupportPolicy>
+template <typename DisplayPolicy, typename WideColorSupportPolicy, typename HdrSupportPolicy,
+          typename PerFrameMetadataSupportPolicy>
 struct Case {
     using Display = DisplayPolicy;
     using WideColorSupport = WideColorSupportPolicy;
     using HdrSupport = HdrSupportPolicy;
+    using PerFrameMetadataSupport = PerFrameMetadataSupportPolicy;
 };
 
 using SimplePrimaryDisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
-             HdrNotSupportedVariant<PrimaryDisplayVariant>>;
+             HdrNotSupportedVariant<PrimaryDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
 using SimpleExternalDisplayCase =
         Case<ExternalDisplayVariant, WideColorNotSupportedVariant<ExternalDisplayVariant>,
-             HdrNotSupportedVariant<ExternalDisplayVariant>>;
+             HdrNotSupportedVariant<ExternalDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<ExternalDisplayVariant>>;
 using SimpleTertiaryDisplayCase =
         Case<TertiaryDisplayVariant, WideColorNotSupportedVariant<TertiaryDisplayVariant>,
-             HdrNotSupportedVariant<TertiaryDisplayVariant>>;
+             HdrNotSupportedVariant<TertiaryDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<TertiaryDisplayVariant>>;
 using NonHwcVirtualDisplayCase =
         Case<NonHwcVirtualDisplayVariant<1024, 768, Secure::FALSE>,
-             WideColorSupportNotConfiguredVariant, NonHwcDisplayHdrSupportVariant>;
+             WideColorSupportNotConfiguredVariant, NonHwcDisplayHdrSupportVariant,
+             NonHwcPerFrameMetadataSupportVariant>;
 using SimpleHwcVirtualDisplayVariant = HwcVirtualDisplayVariant<1024, 768, Secure::TRUE>;
 using HwcVirtualDisplayCase =
         Case<SimpleHwcVirtualDisplayVariant, WideColorSupportNotConfiguredVariant,
-             HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>>;
+             HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<SimpleHwcVirtualDisplayVariant>>;
 using WideColorP3ColorimetricDisplayCase =
         Case<PrimaryDisplayVariant, WideColorP3ColorimetricSupportedVariant<PrimaryDisplayVariant>,
-             HdrNotSupportedVariant<PrimaryDisplayVariant>>;
+             HdrNotSupportedVariant<PrimaryDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
 using Hdr10DisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
-             Hdr10SupportedVariant<PrimaryDisplayVariant>>;
+             Hdr10SupportedVariant<PrimaryDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
 using HdrHlgDisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
-             HdrHlgSupportedVariant<PrimaryDisplayVariant>>;
+             HdrHlgSupportedVariant<PrimaryDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
 using HdrDolbyVisionDisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
-             HdrDolbyVisionSupportedVariant<PrimaryDisplayVariant>>;
+             HdrDolbyVisionSupportedVariant<PrimaryDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
+using HdrSmpte2086DisplayCase =
+        Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
+             HdrNotSupportedVariant<PrimaryDisplayVariant>,
+             Smpte2086PerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
+using HdrCta861_3_DisplayCase =
+        Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
+             HdrNotSupportedVariant<PrimaryDisplayVariant>,
+             Cta861_3_PerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
 using InvalidDisplayCase = Case<InvalidDisplayVariant, WideColorSupportNotConfiguredVariant,
-                                NonHwcDisplayHdrSupportVariant>;
-
+                                NonHwcDisplayHdrSupportVariant,
+                                NoPerFrameMetadataSupportVariant<InvalidDisplayVariant>>;
 /* ------------------------------------------------------------------------
  *
  * SurfaceFlinger::onHotplugReceived
@@ -970,6 +1041,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
     Case::WideColorSupport::setupComposerCallExpectations(this);
     Case::HdrSupport::setupComposerCallExpectations(this);
+    Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -994,6 +1066,8 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::HdrSupport::HDR_HLG_SUPPORTED, device->hasHLGSupport());
     EXPECT_EQ(Case::HdrSupport::HDR_DOLBY_VISION_SUPPORTED, device->hasDolbyVisionSupport());
     EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveConfig());
+    EXPECT_EQ(Case::PerFrameMetadataSupport::PER_FRAME_METADATA_KEYS,
+              device->getSupportedPerFrameMetadata());
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createSimplePrimaryDisplay) {
@@ -1030,6 +1104,14 @@ TEST_F(SetupNewDisplayDeviceInternalTest, createHdrHlgDisplay) {
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createHdrDolbyVisionDisplay) {
     setupNewDisplayDeviceInternalTest<HdrDolbyVisionDisplayCase>();
+}
+
+TEST_F(SetupNewDisplayDeviceInternalTest, createHdrSmpte2086DisplayCase) {
+    setupNewDisplayDeviceInternalTest<HdrSmpte2086DisplayCase>();
+}
+
+TEST_F(SetupNewDisplayDeviceInternalTest, createHdrCta816_3_DisplayCase) {
+    setupNewDisplayDeviceInternalTest<HdrCta861_3_DisplayCase>();
 }
 
 /* ------------------------------------------------------------------------
@@ -1089,6 +1171,7 @@ void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessin
 
     Case::WideColorSupport::setupComposerCallExpectations(this);
     Case::HdrSupport::setupComposerCallExpectations(this);
+    Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
 
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
     EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::TYPE, true)).Times(1);
@@ -1432,6 +1515,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
     Case::Display::setupHwcVirtualDisplayCreationCallExpectations(this);
     Case::WideColorSupport::setupComposerCallExpectations(this);
     Case::HdrSupport::setupComposerCallExpectations(this);
+    Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
 
     // --------------------------------------------------------------------
     // Invocation
