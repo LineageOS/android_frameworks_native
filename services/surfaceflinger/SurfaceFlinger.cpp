@@ -1466,6 +1466,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                     mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getSignalTime() ==
                             Fence::SIGNAL_TIME_PENDING);
+            mFrameMissedCount += frameMissed;
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (frameMissed) {
                 mTimeStats.incrementMissedFrames();
@@ -4339,6 +4340,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("\n");
     dumpStaticScreenStats(result);
     result.append("\n");
+
+    result.appendFormat("Missed frame count: %u\n\n", mFrameMissedCount.load());
 
     dumpBufferingStats(result);
 
