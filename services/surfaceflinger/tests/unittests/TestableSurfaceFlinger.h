@@ -89,11 +89,19 @@ public:
 
     auto onInitializeDisplays() { return mFlinger->onInitializeDisplays(); }
 
+    auto setPowerModeInternal(const sp<DisplayDevice>& hw, int mode, bool stateLockHeld = false) {
+        return mFlinger->setPowerModeInternal(hw, mode, stateLockHeld);
+    }
+
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */
 
     const auto& getAnimFrameTracker() const { return mFlinger->mAnimFrameTracker; }
+    const auto& getHasPoweredOff() const { return mFlinger->mHasPoweredOff; }
+    const auto& getHWVsyncAvailable() const { return mFlinger->mHWVsyncAvailable; }
+    const auto& getVisibleRegionsDirty() const { return mFlinger->mVisibleRegionsDirty; }
+
     const auto& getCompositorTiming() const { return mFlinger->getBE().mCompositorTiming; }
 
     /* ------------------------------------------------------------------------
