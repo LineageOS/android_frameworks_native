@@ -708,8 +708,18 @@ void DisplayDevice::populateColorModes(
         return;
     }
 
+    // collect all known SDR render intents
+    std::unordered_set<RenderIntent> sdrRenderIntents(sSdrRenderIntents.begin(),
+                                                      sSdrRenderIntents.end());
+    auto iter = hwcColorModes.find(ColorMode::SRGB);
+    if (iter != hwcColorModes.end()) {
+        for (auto intent : iter->second) {
+            sdrRenderIntents.insert(intent);
+        }
+    }
+
     // add known SDR combinations
-    for (auto intent : sSdrRenderIntents) {
+    for (auto intent : sdrRenderIntents) {
         for (auto mode : sSdrColorModes) {
             addColorMode(hwcColorModes, mode, intent);
         }

@@ -878,7 +878,6 @@ private:
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
     // Applied on sRGB layers when the render intent is non-colorimetric.
     mat4 mLegacySrgbSaturationMatrix;
-    bool mBuiltinDisplaySupportsEnhance = false;
 
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
