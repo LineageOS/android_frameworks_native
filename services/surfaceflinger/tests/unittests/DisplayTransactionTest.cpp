@@ -306,11 +306,7 @@ struct HwcDisplayVariant {
     static constexpr HWC2::DisplayType HWC_DISPLAY_TYPE = hwcDisplayType;
 
     // The HWC active configuration id
-    // TODO(b/69807179): SurfaceFlinger does not correctly get the active
-    // config. Once it does, change this to non-zero so that it is properly
-    // covered.
-    // static constexpr int HWC_ACTIVE_CONFIG_ID = 2001;
-    static constexpr int HWC_ACTIVE_CONFIG_ID = 0;
+    static constexpr int HWC_ACTIVE_CONFIG_ID = 2001;
 
     static void injectPendingHotplugEvent(DisplayTransactionTest* test,
                                           HWC2::Connection connection) {
@@ -362,13 +358,11 @@ struct HwcDisplayVariant {
     // Called by tests to set up HWC call expectations
     static void setupHwcGetActiveConfigCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getActiveConfig(HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(HWC_ACTIVE_CONFIG_ID), Return(Error::NONE)));
+                .WillRepeatedly(DoAll(SetArgPointee<1>(HWC_ACTIVE_CONFIG_ID), Return(Error::NONE)));
     }
 };
 
 struct NonHwcDisplayVariant {
-    static constexpr int HWC_ACTIVE_CONFIG_ID = 0;
-
     static void injectHwcDisplay(DisplayTransactionTest*) {}
 
     static void setupHwcGetActiveConfigCallExpectations(DisplayTransactionTest* test) {
@@ -1033,10 +1027,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
 
     // Various native window calls will be made.
     Case::Display::setupNativeWindowSurfaceCreationCallExpectations(this);
-
-    // TODO(b/69807179): SurfaceFlinger does not correctly get the active config.
-    // Case::Display::setupHwcGetActiveConfigCallExpectations(this)
-
+    Case::Display::setupHwcGetActiveConfigCallExpectations(this);
     Case::WideColorSupport::setupComposerCallExpectations(this);
     Case::HdrSupport::setupComposerCallExpectations(this);
     Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
@@ -1060,7 +1051,10 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::HdrSupport::HDR10_SUPPORTED, device->hasHDR10Support());
     EXPECT_EQ(Case::HdrSupport::HDR_HLG_SUPPORTED, device->hasHLGSupport());
     EXPECT_EQ(Case::HdrSupport::HDR_DOLBY_VISION_SUPPORTED, device->hasDolbyVisionSupport());
-    EXPECT_EQ(Case::Display::HWC_ACTIVE_CONFIG_ID, device->getActiveConfig());
+    // Note: This is not Case::Display::HWC_ACTIVE_CONFIG_ID as the ids are
+    // remapped, and the test only ever sets up one config. If there were an error
+    // looking up the remapped index, device->getActiveConfig() would be -1 instead.
+    EXPECT_EQ(0, device->getActiveConfig());
     EXPECT_EQ(Case::PerFrameMetadataSupport::PER_FRAME_METADATA_KEYS,
               device->getSupportedPerFrameMetadata());
 }
