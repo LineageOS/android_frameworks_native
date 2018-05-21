@@ -2418,6 +2418,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     }
     setActiveColorModeInternal(hw, defaultColorMode, defaultDataSpace,
                                RenderIntent::COLORIMETRIC);
+    if (state.type < DisplayDevice::DISPLAY_VIRTUAL) {
+        hw->setActiveConfig(getHwComposer().getActiveConfigIndex(state.type));
+    }
     hw->setLayerStack(state.layerStack);
     hw->setProjection(state.orientation, state.viewport, state.frame);
     hw->setDisplayName(state.displayName);
