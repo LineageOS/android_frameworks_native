@@ -3658,7 +3658,8 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
         });
     }
 
-    ALOGD_IF(dupeCounter > 0, "duplicate layer name: changing %s to %s", name.c_str(), uniqueName.c_str());
+    ALOGV_IF(dupeCounter > 0, "duplicate layer name: changing %s to %s", name.c_str(),
+             uniqueName.c_str());
 
     return uniqueName;
 }
