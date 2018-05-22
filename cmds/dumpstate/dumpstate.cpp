@@ -1504,6 +1504,7 @@ static void DumpstateRadioCommon() {
 // This method collects dumpsys for telephony debugging only
 static void DumpstateTelephonyOnly() {
     DurationReporter duration_reporter("DUMPSTATE");
+    const CommandOptions DUMPSYS_COMPONENTS_OPTIONS = CommandOptions::WithTimeout(60).Build();
 
     DumpstateRadioCommon();
 
@@ -1527,6 +1528,13 @@ static void DumpstateTelephonyOnly() {
     printf("========================================================\n");
 
     RunDumpsys("TELEPHONY SERVICES", {"activity", "service", "TelephonyDebugService"});
+
+    printf("========================================================\n");
+    printf("== Running Application Services (non-platform)\n");
+    printf("========================================================\n");
+
+    RunDumpsys("APP SERVICES NON-PLATFORM", {"activity", "service", "all-non-platform"},
+            DUMPSYS_COMPONENTS_OPTIONS);
 
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);

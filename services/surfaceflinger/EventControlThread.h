@@ -26,8 +26,6 @@
 
 namespace android {
 
-class SurfaceFlinger;
-
 class EventControlThread {
 public:
     virtual ~EventControlThread();

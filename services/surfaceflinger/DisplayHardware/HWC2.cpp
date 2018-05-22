@@ -30,8 +30,9 @@
 
 #include <android/configuration.h>
 
-#include <algorithm>
 #include <inttypes.h>
+#include <algorithm>
+#include <iterator>
 #include <set>
 
 using android::Fence;
@@ -333,6 +334,31 @@ Error Display::getActiveConfig(
         // Return no error, but the caller needs to check for a null pointer to
         // detect this case
         *outConfig = nullptr;
+    }
+
+    return Error::None;
+}
+
+Error Display::getActiveConfigIndex(int* outIndex) const {
+    ALOGV("[%" PRIu64 "] getActiveConfigIndex", mId);
+    hwc2_config_t configId = 0;
+    auto intError = mComposer.getActiveConfig(mId, &configId);
+    auto error = static_cast<Error>(intError);
+
+    if (error != Error::None) {
+        ALOGE("Unable to get active config for mId:[%" PRIu64 "]", mId);
+        *outIndex = -1;
+        return error;
+    }
+
+    auto pos = mConfigs.find(configId);
+    if (pos != mConfigs.end()) {
+        *outIndex = std::distance(mConfigs.begin(), pos);
+    } else {
+        ALOGE("[%" PRIu64 "] getActiveConfig returned unknown config %u", mId, configId);
+        // Return no error, but the caller needs to check for a negative index
+        // to detect this case
+        *outIndex = -1;
     }
 
     return Error::None;

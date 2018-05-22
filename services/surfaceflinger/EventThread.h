@@ -37,6 +37,7 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
+class EventThreadTest;
 class SurfaceFlinger;
 class String8;
 
@@ -82,7 +83,9 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
     class Connection : public BnDisplayEventConnection {
     public:
         explicit Connection(EventThread* eventThread);
-        status_t postEvent(const DisplayEventReceiver::Event& event);
+        virtual ~Connection();
+
+        virtual status_t postEvent(const DisplayEventReceiver::Event& event);
 
         // count >= 1 : continuous event. count is the vsync rate
         // count == 0 : one-shot event that has not fired
@@ -90,7 +93,6 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
         int32_t count;
 
     private:
-        virtual ~Connection();
         virtual void onFirstRef();
         status_t stealReceiveChannel(gui::BitTube* outChannel) override;
         status_t setVsyncRate(uint32_t count) override;
@@ -100,8 +102,11 @@ class EventThread : public android::EventThread, private VSyncSource::Callback {
     };
 
 public:
-    EventThread(VSyncSource* src, SurfaceFlinger& flinger, bool interceptVSyncs,
-                const char* threadName);
+    using ResyncWithRateLimitCallback = std::function<void()>;
+    using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
+
+    EventThread(VSyncSource* src, ResyncWithRateLimitCallback resyncWithRateLimitCallback,
+                InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
     ~EventThread();
 
     sp<BnDisplayEventConnection> createEventConnection() const override;
@@ -124,6 +129,8 @@ public:
     void setPhaseOffset(nsecs_t phaseOffset) override;
 
 private:
+    friend EventThreadTest;
+
     void threadMain();
     Vector<sp<EventThread::Connection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
                                                            DisplayEventReceiver::Event* event)
@@ -137,8 +144,9 @@ private:
     void onVSyncEvent(nsecs_t timestamp) override;
 
     // constants
-    VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
-    SurfaceFlinger& mFlinger;
+    VSyncSource* const mVSyncSource GUARDED_BY(mMutex) = nullptr;
+    const ResyncWithRateLimitCallback mResyncWithRateLimitCallback;
+    const InterceptVSyncsCallback mInterceptVSyncsCallback;
 
     std::thread mThread;
     mutable std::mutex mMutex;
@@ -155,8 +163,6 @@ private:
 
     // for debugging
     bool mDebugVsyncEnabled GUARDED_BY(mMutex) = false;
-
-    const bool mInterceptVSyncs = false;
 };
 
 // ---------------------------------------------------------------------------
