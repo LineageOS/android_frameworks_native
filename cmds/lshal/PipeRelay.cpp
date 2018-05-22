@@ -16,7 +16,6 @@
 
 #include "PipeRelay.h"
 
-#include <sys/socket.h>
 #include <utils/Thread.h>
 
 namespace android {
@@ -58,7 +57,7 @@ bool PipeRelay::RelayThread::threadLoop() {
 
 PipeRelay::PipeRelay(std::ostream &os)
     : mInitCheck(NO_INIT) {
-    int res = socketpair(AF_UNIX, SOCK_STREAM, 0 /* protocol */, mFds);
+    int res = pipe(mFds);
 
     if (res < 0) {
         mInitCheck = -errno;
@@ -77,20 +76,13 @@ void PipeRelay::CloseFd(int *fd) {
 }
 
 PipeRelay::~PipeRelay() {
-    if (mFds[1] >= 0) {
-        shutdown(mFds[1], SHUT_WR);
-    }
-
-    if (mFds[0] >= 0) {
-        shutdown(mFds[0], SHUT_RD);
-    }
+    CloseFd(&mFds[1]);
 
     if (mThread != NULL) {
         mThread->join();
         mThread.clear();
     }
 
-    CloseFd(&mFds[1]);
     CloseFd(&mFds[0]);
 }
 
