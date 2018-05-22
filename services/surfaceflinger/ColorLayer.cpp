@@ -77,9 +77,9 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
 
     setCompositionType(hwcId, HWC2::Composition::SolidColor);
 
-    error = (*hwcLayer)->setDataspace(mDrawingState.dataSpace);
+    error = (*hwcLayer)->setDataspace(mCurrentDataSpace);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
