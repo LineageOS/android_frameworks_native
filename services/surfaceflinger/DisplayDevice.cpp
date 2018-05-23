@@ -100,7 +100,6 @@ DisplayDevice::DisplayDevice(
       mFrame(Rect::INVALID_RECT),
       mPowerMode(initialPowerMode),
       mActiveConfig(0),
-      mActiveColorMode(ColorMode::NATIVE),
       mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
       mHasWideColorGamut(hasWideColorGamut),
       mHasHdr10(false),

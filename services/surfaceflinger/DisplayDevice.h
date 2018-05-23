@@ -274,10 +274,10 @@ private:
     // Current active config
     int mActiveConfig;
     // current active color mode
-    ui::ColorMode mActiveColorMode;
+    ui::ColorMode mActiveColorMode = ui::ColorMode::NATIVE;
     // Current active render intent.
-    ui::RenderIntent mActiveRenderIntent;
-    ui::Dataspace mCompositionDataSpace;
+    ui::RenderIntent mActiveRenderIntent = ui::RenderIntent::COLORIMETRIC;
+    ui::Dataspace mCompositionDataSpace = ui::Dataspace::UNKNOWN;
     // Current color transform
     android_color_transform_t mColorTransform;
 
