@@ -840,6 +840,7 @@ private:
     LayerStats mLayerStats;
     TimeStats& mTimeStats = TimeStats::getInstance();
     bool mUseHwcVirtualDisplays = false;
+    std::atomic<uint32_t> mFrameMissedCount{0};
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
