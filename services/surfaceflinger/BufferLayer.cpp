@@ -553,7 +553,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         default:
             break;
     }
-    setDataSpace(dataSpace);
+    mCurrentDataSpace = dataSpace;
 
     Rect crop(mConsumer->getCurrentCrop());
     const uint32_t transform(mConsumer->getCurrentTransform());
@@ -660,10 +660,10 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
         setCompositionType(hwcId, HWC2::Composition::Device);
     }
 
-    ALOGV("setPerFrameData: dataspace = %d", mDrawingState.dataSpace);
-    error = hwcLayer->setDataspace(mDrawingState.dataSpace);
+    ALOGV("setPerFrameData: dataspace = %d", mCurrentDataSpace);
+    error = hwcLayer->setDataspace(mCurrentDataSpace);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mDrawingState.dataSpace,
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
@@ -866,9 +866,9 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     auto& engine(mFlinger->getRenderEngine());
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
                               getColor());
-    engine.setSourceDataSpace(mCurrentState.dataSpace);
+    engine.setSourceDataSpace(mCurrentDataSpace);
 
-    if (mCurrentState.dataSpace == ui::Dataspace::BT2020_ITU_PQ &&
+    if (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
         mConsumer->getCurrentApi() == NATIVE_WINDOW_API_MEDIA &&
         getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102) {
         engine.setSourceY410BT2020(true);
