@@ -1,5 +1,7 @@
 #include "RenderArea.h"
 
+#include <gui/LayerState.h>
+
 namespace android {
 
 float RenderArea::getCaptureFillValue(CaptureFill captureFill) {
@@ -15,13 +17,17 @@ float RenderArea::getCaptureFillValue(CaptureFill captureFill) {
  * Checks that the requested width and height are valid and updates them to the render area
  * dimensions if they are set to 0
  */
-status_t RenderArea::updateDimensions() {
+status_t RenderArea::updateDimensions(int displayRotation) {
     // get screen geometry
 
     uint32_t width = getWidth();
     uint32_t height = getHeight();
 
     if (mRotationFlags & Transform::ROT_90) {
+        std::swap(width, height);
+    }
+
+    if (displayRotation & DisplayState::eOrientationSwapMask) {
         std::swap(width, height);
     }
 
