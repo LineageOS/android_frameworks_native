@@ -36,7 +36,7 @@ public:
     int getReqHeight() const { return mReqHeight; };
     int getReqWidth() const { return mReqWidth; };
     Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
-    status_t updateDimensions();
+    status_t updateDimensions(int displayRotation);
 
     CaptureFill getCaptureFill() const { return mCaptureFill; };
 

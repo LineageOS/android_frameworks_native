@@ -604,6 +604,15 @@ void DisplayDevice::setProjection(int orientation,
     TL.set(-src_x, -src_y);
     TP.set(dst_x, dst_y);
 
+    // need to take care of primary display rotation for mGlobalTransform
+    // for case if the panel is not installed aligned with device orientation
+    if (mType == DisplayType::DISPLAY_PRIMARY) {
+        int primaryDisplayOrientation = mFlinger->getPrimaryDisplayOrientation();
+        DisplayDevice::orientationToTransfrom(
+                (orientation + primaryDisplayOrientation) % (DisplayState::eOrientation270 + 1),
+                w, h, &R);
+    }
+
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
