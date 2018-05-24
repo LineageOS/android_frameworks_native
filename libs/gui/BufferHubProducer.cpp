@@ -19,6 +19,7 @@
 #include <inttypes.h>
 #include <log/log.h>
 #include <system/window.h>
+#include <ui/DetachedBufferHandle.h>
 
 namespace android {
 
@@ -224,15 +225,142 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
     return ret;
 }
 
-status_t BufferHubProducer::detachBuffer(int /* slot */) {
-    ALOGE("BufferHubProducer::detachBuffer not implemented.");
-    return INVALID_OPERATION;
+status_t BufferHubProducer::detachBuffer(int slot) {
+    ALOGV("detachBuffer: slot=%d", slot);
+    std::unique_lock<std::mutex> lock(mutex_);
+
+    return DetachBufferLocked(static_cast<size_t>(slot));
 }
 
-status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* /* out_buffer */,
-                                             sp<Fence>* /* out_fence */) {
-    ALOGE("BufferHubProducer::detachNextBuffer not implemented.");
-    return INVALID_OPERATION;
+status_t BufferHubProducer::DetachBufferLocked(size_t slot) {
+    if (connected_api_ == kNoConnectedApi) {
+        ALOGE("detachBuffer: BufferHubProducer is not connected.");
+        return NO_INIT;
+    }
+
+    if (slot >= static_cast<size_t>(max_buffer_count_)) {
+        ALOGE("detachBuffer: slot index %zu out of range [0, %d)", slot, max_buffer_count_);
+        return BAD_VALUE;
+    } else if (!buffers_[slot].mBufferState.isDequeued()) {
+        ALOGE("detachBuffer: slot %zu is not owned by the producer (state = %s)", slot,
+              buffers_[slot].mBufferState.string());
+        return BAD_VALUE;
+    } else if (!buffers_[slot].mRequestBufferCalled) {
+        ALOGE("detachBuffer: buffer in slot %zu has not been requested", slot);
+        return BAD_VALUE;
+    }
+    std::shared_ptr<BufferProducer> buffer_producer = queue_->GetBuffer(slot);
+    if (buffer_producer == nullptr || buffer_producer->buffer() == nullptr) {
+        ALOGE("detachBuffer: Invalid BufferProducer at slot %zu.", slot);
+        return BAD_VALUE;
+    }
+    sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
+    if (graphic_buffer == nullptr) {
+        ALOGE("detachBuffer: Invalid GraphicBuffer at slot %zu.", slot);
+        return BAD_VALUE;
+    }
+
+    // Remove the BufferProducer from the ProducerQueue.
+    status_t error = RemoveBuffer(slot);
+    if (error != NO_ERROR) {
+        ALOGE("detachBuffer: Failed to remove buffer, slot=%zu, error=%d.", slot, error);
+        return error;
+    }
+
+    // Here we need to convert the existing ProducerBuffer into a DetachedBufferHandle and inject
+    // the handle into the GraphicBuffer object at the requested slot.
+    auto status_or_handle = buffer_producer->Detach();
+    if (!status_or_handle.ok()) {
+        ALOGE("detachBuffer: Failed to detach from a BufferProducer at slot %zu, error=%d.", slot,
+              status_or_handle.error());
+        return BAD_VALUE;
+    }
+    std::unique_ptr<DetachedBufferHandle> handle =
+            DetachedBufferHandle::Create(status_or_handle.take());
+    if (!handle->isValid()) {
+        ALOGE("detachBuffer: Failed to create a DetachedBufferHandle at slot %zu.", slot);
+        return BAD_VALUE;
+    }
+
+    return graphic_buffer->setDetachedBufferHandle(std::move(handle));
+}
+
+status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<Fence>* out_fence) {
+    ALOGV("detachNextBuffer.");
+
+    if (out_buffer == nullptr || out_fence == nullptr) {
+        ALOGE("detachNextBuffer: Invalid parameter: out_buffer=%p, out_fence=%p", out_buffer,
+              out_fence);
+        return BAD_VALUE;
+    }
+
+    std::unique_lock<std::mutex> lock(mutex_);
+
+    if (connected_api_ == kNoConnectedApi) {
+        ALOGE("detachNextBuffer: BufferHubProducer is not connected.");
+        return NO_INIT;
+    }
+
+    // detachNextBuffer is equivalent to calling dequeueBuffer, requestBuffer, and detachBuffer in
+    // sequence, except for two things:
+    //
+    // 1) It is unnecessary to know the dimensions, format, or usage of the next buffer, i.e. the
+    // function just returns whatever BufferProducer is available from the ProducerQueue and no
+    // buffer allocation or re-allocation will happen.
+    // 2) It will not block, since if it cannot find an appropriate buffer to return, it will return
+    // an error instead.
+    size_t slot = 0;
+    LocalHandle fence;
+
+    // First, dequeue a BufferProducer from the ProducerQueue with no timeout. Report error
+    // immediately if ProducerQueue::Dequeue() fails.
+    auto status_or_buffer = queue_->Dequeue(/*timeout=*/0, &slot, &fence);
+    if (!status_or_buffer.ok()) {
+        ALOGE("detachNextBuffer: Failed to dequeue buffer, error=%d.", status_or_buffer.error());
+        return NO_MEMORY;
+    }
+
+    std::shared_ptr<BufferProducer> buffer_producer = status_or_buffer.take();
+    if (buffer_producer == nullptr) {
+        ALOGE("detachNextBuffer: Dequeued buffer is null.");
+        return NO_MEMORY;
+    }
+
+    // With the BufferHub backed solution, slot returned from |queue_->Dequeue| is guaranteed to
+    // be available for producer's use. It's either in free state (if the buffer has never been used
+    // before) or in queued state (if the buffer has been dequeued and queued back to
+    // BufferHubQueue).
+    if (!buffers_[slot].mBufferState.isFree() && !buffers_[slot].mBufferState.isQueued()) {
+        ALOGE("detachNextBuffer: slot %zu is not free or queued, actual state: %s.", slot,
+              buffers_[slot].mBufferState.string());
+        return BAD_VALUE;
+    }
+    if (buffers_[slot].mBufferProducer == nullptr) {
+        ALOGE("detachNextBuffer: BufferProducer at slot %zu is null.", slot);
+        return BAD_VALUE;
+    }
+    if (buffers_[slot].mBufferProducer->id() != buffer_producer->id()) {
+        ALOGE("detachNextBuffer: BufferProducer at slot %zu has mismatched id, actual: "
+              "%d, expected: %d.",
+              slot, buffers_[slot].mBufferProducer->id(), buffer_producer->id());
+        return BAD_VALUE;
+    }
+
+    ALOGV("detachNextBuffer: slot=%zu", slot);
+    buffers_[slot].mBufferState.freeQueued();
+    buffers_[slot].mBufferState.dequeue();
+
+    // Second, request the buffer.
+    sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
+    buffers_[slot].mGraphicBuffer = buffer_producer->buffer()->buffer();
+
+    // Finally, detach the buffer and then return.
+    status_t error = DetachBufferLocked(slot);
+    if (error == NO_ERROR) {
+        *out_fence = new Fence(fence.Release());
+        *out_buffer = graphic_buffer;
+    }
+    return error;
 }
 
 status_t BufferHubProducer::attachBuffer(int* /* out_slot */,
@@ -654,26 +782,28 @@ status_t BufferHubProducer::AllocateBuffer(uint32_t width, uint32_t height, uint
 status_t BufferHubProducer::RemoveBuffer(size_t slot) {
     auto status = queue_->RemoveBuffer(slot);
     if (!status) {
-        ALOGE("BufferHubProducer::RemoveBuffer: Failed to remove buffer: %s",
-              status.GetErrorMessage().c_str());
+        ALOGE("BufferHubProducer::RemoveBuffer: Failed to remove buffer at slot: %zu, error: %s.",
+              slot, status.GetErrorMessage().c_str());
         return INVALID_OPERATION;
     }
 
     // Reset in memory objects related the the buffer.
     buffers_[slot].mBufferProducer = nullptr;
-    buffers_[slot].mGraphicBuffer = nullptr;
     buffers_[slot].mBufferState.detachProducer();
+    buffers_[slot].mFence = Fence::NO_FENCE;
+    buffers_[slot].mGraphicBuffer = nullptr;
+    buffers_[slot].mRequestBufferCalled = false;
     return NO_ERROR;
 }
 
 status_t BufferHubProducer::FreeAllBuffers() {
     for (size_t slot = 0; slot < BufferHubQueue::kMaxQueueCapacity; slot++) {
         // Reset in memory objects related the the buffer.
-        buffers_[slot].mGraphicBuffer = nullptr;
-        buffers_[slot].mBufferState.reset();
-        buffers_[slot].mRequestBufferCalled = false;
         buffers_[slot].mBufferProducer = nullptr;
+        buffers_[slot].mBufferState.reset();
         buffers_[slot].mFence = Fence::NO_FENCE;
+        buffers_[slot].mGraphicBuffer = nullptr;
+        buffers_[slot].mRequestBufferCalled = false;
     }
 
     auto status = queue_->FreeAllBuffers();

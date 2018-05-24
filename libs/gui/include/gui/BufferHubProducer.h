@@ -165,6 +165,10 @@ private:
     // buffers are acquired by the consumer, we can't .
     status_t FreeAllBuffers();
 
+    // Helper function that implements the detachBuffer() call, but assuming |mutex_| has been
+    // locked already.
+    status_t DetachBufferLocked(size_t slot);
+
     // Concreate implementation backed by BufferHubBuffer.
     std::shared_ptr<dvr::ProducerQueue> queue_;
 
