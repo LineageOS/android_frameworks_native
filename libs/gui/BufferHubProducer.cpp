@@ -18,6 +18,7 @@
 #include <gui/BufferHubProducer.h>
 #include <inttypes.h>
 #include <log/log.h>
+#include <private/dvr/detached_buffer.h>
 #include <system/window.h>
 #include <ui/DetachedBufferHandle.h>
 
@@ -363,13 +364,86 @@ status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<F
     return error;
 }
 
-status_t BufferHubProducer::attachBuffer(int* /* out_slot */,
-                                         const sp<GraphicBuffer>& /* buffer */) {
-    // With this BufferHub backed implementation, we assume (for now) all buffers
-    // are allocated and owned by the BufferHub. Thus the attempt of transfering
-    // ownership of a buffer to the buffer queue is intentionally unsupported.
-    LOG_ALWAYS_FATAL("BufferHubProducer::attachBuffer not supported.");
-    return INVALID_OPERATION;
+status_t BufferHubProducer::attachBuffer(int* out_slot, const sp<GraphicBuffer>& buffer) {
+    // In the BufferHub design, all buffers are allocated and owned by the BufferHub. Thus only
+    // GraphicBuffers that are originated from BufferHub can be attached to a BufferHubProducer.
+    ALOGV("queueBuffer: buffer=%p", buffer.get());
+
+    if (out_slot == nullptr) {
+        ALOGE("attachBuffer: out_slot cannot be NULL.");
+        return BAD_VALUE;
+    }
+    if (buffer == nullptr || !buffer->isDetachedBuffer()) {
+        ALOGE("attachBuffer: invalid GraphicBuffer.");
+        return BAD_VALUE;
+    }
+
+    std::unique_lock<std::mutex> lock(mutex_);
+
+    if (connected_api_ == kNoConnectedApi) {
+        ALOGE("attachBuffer: BufferQueue has no connected producer");
+        return NO_INIT;
+    }
+
+    // Before attaching the buffer, caller is supposed to call
+    // IGraphicBufferProducer::setGenerationNumber to inform the
+    // BufferHubProducer the next generation number.
+    if (buffer->getGenerationNumber() != generation_number_) {
+        ALOGE("attachBuffer: Mismatched generation number, buffer: %u, queue: %u.",
+              buffer->getGenerationNumber(), generation_number_);
+        return BAD_VALUE;
+    }
+
+    // Creates a BufferProducer from the GraphicBuffer.
+    std::unique_ptr<DetachedBufferHandle> detached_handle = buffer->takeDetachedBufferHandle();
+    if (detached_handle == nullptr) {
+        ALOGE("attachBuffer: DetachedBufferHandle cannot be NULL.");
+        return BAD_VALUE;
+    }
+    auto detached_buffer = DetachedBuffer::Import(std::move(detached_handle->handle()));
+    if (detached_buffer == nullptr) {
+        ALOGE("attachBuffer: DetachedBuffer cannot be NULL.");
+        return BAD_VALUE;
+    }
+    auto status_or_handle = detached_buffer->Promote();
+    if (!status_or_handle.ok()) {
+        ALOGE("attachBuffer: Failed to promote a DetachedBuffer into a BufferProducer, error=%d.",
+              status_or_handle.error());
+        return BAD_VALUE;
+    }
+    std::shared_ptr<BufferProducer> buffer_producer =
+            BufferProducer::Import(status_or_handle.take());
+    if (buffer_producer == nullptr) {
+        ALOGE("attachBuffer: Failed to import BufferProducer.");
+        return BAD_VALUE;
+    }
+
+    // Adds the BufferProducer into the Queue.
+    auto status_or_slot = queue_->InsertBuffer(buffer_producer);
+    if (!status_or_slot.ok()) {
+        ALOGE("attachBuffer: Failed to insert buffer, error=%d.", status_or_slot.error());
+        return BAD_VALUE;
+    }
+
+    size_t slot = status_or_slot.get();
+    ALOGV("attachBuffer: returning slot %zu.", slot);
+    if (slot >= static_cast<size_t>(max_buffer_count_)) {
+        ALOGE("attachBuffer: Invalid slot: %zu.", slot);
+        return BAD_VALUE;
+    }
+
+    // The just attached buffer should be in dequeued state according to IGraphicBufferProducer
+    // interface. In BufferHub's language the buffer should be in Gained state.
+    buffers_[slot].mGraphicBuffer = buffer;
+    buffers_[slot].mBufferState.attachProducer();
+    buffers_[slot].mEglFence = EGL_NO_SYNC_KHR;
+    buffers_[slot].mFence = Fence::NO_FENCE;
+    buffers_[slot].mRequestBufferCalled = true;
+    buffers_[slot].mAcquireCalled = false;
+    buffers_[slot].mNeedsReallocation = false;
+
+    *out_slot = static_cast<int>(slot);
+    return NO_ERROR;
 }
 
 status_t BufferHubProducer::queueBuffer(int slot, const QueueBufferInput& input,

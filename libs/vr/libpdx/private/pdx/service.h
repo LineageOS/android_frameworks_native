@@ -59,9 +59,18 @@ class Channel : public std::enable_shared_from_this<Channel> {
   virtual ~Channel() {}
 
   /*
+   * Accessors to the pid of the last active client.
+   */
+  pid_t GetActiveProcessId() const { return client_pid_; }
+  void SetActiveProcessId(pid_t pid) { client_pid_ = pid; }
+
+  /*
    * Utility to get a shared_ptr reference from the channel context pointer.
    */
   static std::shared_ptr<Channel> GetFromMessageInfo(const MessageInfo& info);
+
+ private:
+  pid_t client_pid_ = 0;
 };
 
 /*
