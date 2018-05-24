@@ -58,6 +58,7 @@ using std::string;
 #define MAX_SYS_FILES 10
 
 const char* k_traceTagsProperty = "debug.atrace.tags.enableflags";
+const char* k_userInitiatedTraceProperty = "debug.atrace.user_initiated";
 
 const char* k_traceAppsNumberProperty = "debug.atrace.app_number";
 const char* k_traceAppsPropertyTemplate = "debug.atrace.app_%d";
@@ -446,6 +447,16 @@ static bool isCategorySupportedForRoot(const TracingCategory& category)
 static bool setTraceOverwriteEnable(bool enable)
 {
     return setKernelOptionEnable(k_tracingOverwriteEnablePath, enable);
+}
+
+// Set the user initiated trace property
+static bool setUserInitiatedTraceProperty(bool enable)
+{
+    if (!android::base::SetProperty(k_userInitiatedTraceProperty, enable ? "1" : "")) {
+        fprintf(stderr, "error setting user initiated strace system property\n");
+        return false;
+    }
+    return true;
 }
 
 // Enable or disable kernel tracing.
@@ -841,6 +852,8 @@ static bool setUpKernelTracing()
 {
     bool ok = true;
 
+    ok &= setUserInitiatedTraceProperty(true);
+
     // Set up the tracing options.
     ok &= setCategoriesEnableFromFile(g_categoriesFile);
     ok &= setTraceOverwriteEnable(g_traceOverwrite);
@@ -888,6 +901,7 @@ static void cleanUpKernelTracing()
     setTraceBufferSizeKB(1);
     setPrintTgidEnableIfPresent(false);
     setKernelTraceFuncs(NULL);
+    setUserInitiatedTraceProperty(false);
 }
 
 // Enable tracing in the kernel.
