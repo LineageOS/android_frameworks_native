@@ -2904,9 +2904,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             getRenderEngine().setupColorTransform(mDrawingState.colorMatrix);
         }
 
-        needsLegacyColorMatrix = (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                outputDataspace != Dataspace::UNKNOWN &&
-                outputDataspace != Dataspace::SRGB);
+        needsLegacyColorMatrix =
+            (displayDevice->getActiveRenderIntent() == RenderIntent::ENHANCE &&
+             outputDataspace != Dataspace::UNKNOWN &&
+             outputDataspace != Dataspace::SRGB);
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
