@@ -497,8 +497,7 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
-    const auto displayId = display->getId();
+void BufferStateLayer::setHwcLayerBuffer(DisplayId displayId) {
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
 

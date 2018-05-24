@@ -495,8 +495,10 @@ void SurfaceInterceptor::addDisplayCreationLocked(Increment* increment,
     DisplayCreation* creation(increment->mutable_display_creation());
     creation->set_id(info.sequenceId);
     creation->set_name(info.displayName);
-    creation->set_type(info.type);
     creation->set_is_secure(info.isSecure);
+    if (info.displayId) {
+        creation->set_display_id(*info.displayId);
+    }
 }
 
 void SurfaceInterceptor::addDisplayDeletionLocked(Increment* increment, int32_t sequenceId) {

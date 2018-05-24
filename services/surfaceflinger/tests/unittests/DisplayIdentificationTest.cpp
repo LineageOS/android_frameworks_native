@@ -68,32 +68,44 @@ DisplayIdentificationData asDisplayIdentificationData(const unsigned char (&byte
 
 } // namespace
 
+const DisplayIdentificationData& getInternalEdid() {
+    static const DisplayIdentificationData data = asDisplayIdentificationData(kInternalEdid);
+    return data;
+}
+
+const DisplayIdentificationData& getExternalEdid() {
+    static const DisplayIdentificationData data = asDisplayIdentificationData(kExternalEdid);
+    return data;
+}
+
+const DisplayIdentificationData& getExternalEedid() {
+    static const DisplayIdentificationData data = asDisplayIdentificationData(kExternalEedid);
+    return data;
+}
+
 TEST(DisplayIdentificationTest, isEdid) {
     EXPECT_FALSE(isEdid({}));
 
-    EXPECT_TRUE(isEdid(asDisplayIdentificationData(kInternalEdid)));
-    EXPECT_TRUE(isEdid(asDisplayIdentificationData(kExternalEdid)));
-    EXPECT_TRUE(isEdid(asDisplayIdentificationData(kExternalEedid)));
+    EXPECT_TRUE(isEdid(getInternalEdid()));
+    EXPECT_TRUE(isEdid(getExternalEdid()));
+    EXPECT_TRUE(isEdid(getExternalEedid()));
 }
 
 TEST(DisplayIdentificationTest, parseEdid) {
-    auto data = asDisplayIdentificationData(kInternalEdid);
-    auto edid = parseEdid(data);
+    auto edid = parseEdid(getInternalEdid());
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x4ca3u, edid->manufacturerId);
     EXPECT_STREQ("SEC", edid->pnpId.data());
     // ASCII text should be used as fallback if display name and serial number are missing.
     EXPECT_EQ("121AT11-801", edid->displayName);
 
-    data = asDisplayIdentificationData(kExternalEdid);
-    edid = parseEdid(data);
+    edid = parseEdid(getExternalEdid());
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x22f0u, edid->manufacturerId);
     EXPECT_STREQ("HWP", edid->pnpId.data());
     EXPECT_EQ("HP ZR30w", edid->displayName);
 
-    data = asDisplayIdentificationData(kExternalEedid);
-    edid = parseEdid(data);
+    edid = parseEdid(getExternalEedid());
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x4c2du, edid->manufacturerId);
     EXPECT_STREQ("SAM", edid->pnpId.data());
@@ -105,7 +117,7 @@ TEST(DisplayIdentificationTest, parseInvalidEdid) {
     EXPECT_FALSE(parseEdid({}));
 
     // Display name must be printable.
-    auto data = asDisplayIdentificationData(kExternalEdid);
+    auto data = getExternalEdid();
     data[97] = '\x1b';
     auto edid = parseEdid(data);
     ASSERT_TRUE(edid);
@@ -128,20 +140,32 @@ TEST(DisplayIdentificationTest, getPnpId) {
     EXPECT_STREQ("SAM", getPnpId(0x4c2du).value_or(PnpId{}).data());
 }
 
-TEST(DisplayIdentificationTest, generateDisplayId) {
-    const auto primaryId = generateDisplayId(0, asDisplayIdentificationData(kInternalEdid));
-    ASSERT_TRUE(primaryId);
+TEST(DisplayIdentificationTest, parseDisplayIdentificationData) {
+    const auto primaryInfo = parseDisplayIdentificationData(0, getInternalEdid());
+    ASSERT_TRUE(primaryInfo);
 
-    const auto secondaryId = generateDisplayId(1, asDisplayIdentificationData(kExternalEdid));
-    ASSERT_TRUE(secondaryId);
+    const auto secondaryInfo = parseDisplayIdentificationData(1, getExternalEdid());
+    ASSERT_TRUE(secondaryInfo);
 
-    const auto tertiaryId = generateDisplayId(2, asDisplayIdentificationData(kExternalEedid));
-    ASSERT_TRUE(tertiaryId);
+    const auto tertiaryInfo = parseDisplayIdentificationData(2, getExternalEedid());
+    ASSERT_TRUE(tertiaryInfo);
 
     // Display IDs should be unique.
-    EXPECT_NE(primaryId, secondaryId);
-    EXPECT_NE(primaryId, tertiaryId);
-    EXPECT_NE(secondaryId, tertiaryId);
+    EXPECT_NE(primaryInfo->id, secondaryInfo->id);
+    EXPECT_NE(primaryInfo->id, tertiaryInfo->id);
+    EXPECT_NE(secondaryInfo->id, tertiaryInfo->id);
+}
+
+TEST(DisplayIdentificationTest, getFallbackDisplayId) {
+    // Manufacturer ID should be invalid.
+    ASSERT_FALSE(getPnpId(getFallbackDisplayId(0)));
+    ASSERT_FALSE(getPnpId(getFallbackDisplayId(0xffu)));
+}
+
+TEST(DisplayIdentificationTest, getVirtualDisplayId) {
+    // Manufacturer ID should be invalid.
+    ASSERT_FALSE(getPnpId(getVirtualDisplayId(0)));
+    ASSERT_FALSE(getPnpId(getVirtualDisplayId(0xffff'ffffu)));
 }
 
 } // namespace android
