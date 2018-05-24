@@ -158,29 +158,18 @@ bool useTrebleTestingOverride() {
     return std::string(value) == "true";
 }
 
-DisplayColorSetting toDisplayColorSetting(int value) {
-    switch(value) {
-        case 0:
-            return DisplayColorSetting::MANAGED;
-        case 1:
-            return DisplayColorSetting::UNMANAGED;
-        case 2:
-            return DisplayColorSetting::ENHANCED;
-        default:
-            return DisplayColorSetting::MANAGED;
-    }
-}
-
 std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     switch(displayColorSetting) {
         case DisplayColorSetting::MANAGED:
-            return std::string("Natural Mode");
+            return std::string("Managed");
         case DisplayColorSetting::UNMANAGED:
-            return std::string("Saturated Mode");
+            return std::string("Unmanaged");
         case DisplayColorSetting::ENHANCED:
-            return std::string("Auto Color Mode");
+            return std::string("Enhanced");
+        default:
+            return std::string("Unknown ") +
+                std::to_string(static_cast<int>(displayColorSetting));
     }
-    return std::string("Unknown Display Color Setting");
 }
 
 NativeWindowSurface::~NativeWindowSurface() = default;
@@ -738,9 +727,7 @@ void SurfaceFlinger::readPersistentProperties() {
     ALOGV("Saturation is set to %.2f", mGlobalSaturationFactor);
 
     property_get("persist.sys.sf.native_mode", value, "0");
-    mDisplayColorSetting = toDisplayColorSetting(atoi(value));
-    ALOGV("Display Color Setting is set to %s.",
-          decodeDisplayColorSetting(mDisplayColorSetting).c_str());
+    mDisplayColorSetting = static_cast<DisplayColorSetting>(atoi(value));
 }
 
 void SurfaceFlinger::startBootAnim() {
@@ -1868,7 +1855,6 @@ void SurfaceFlinger::rebuildLayerStacks() {
 // can only be one of
 //  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
 //  - Dataspace::DISPLAY_P3
-//  - Dataspace::V0_SCRGB_LINEAR
 // The returned HDR data space is one of
 //  - Dataspace::UNKNOWN
 //  - Dataspace::BT2020_HLG
@@ -1882,12 +1868,8 @@ Dataspace SurfaceFlinger::getBestDataspace(
         switch (layer->getDataSpace()) {
             case Dataspace::V0_SCRGB:
             case Dataspace::V0_SCRGB_LINEAR:
-                bestDataSpace = Dataspace::V0_SCRGB_LINEAR;
-                break;
             case Dataspace::DISPLAY_P3:
-                if (bestDataSpace == Dataspace::SRGB) {
-                    bestDataSpace = Dataspace::DISPLAY_P3;
-                }
+                bestDataSpace = Dataspace::DISPLAY_P3;
                 break;
             case Dataspace::BT2020_PQ:
             case Dataspace::BT2020_ITU_PQ:
@@ -1923,104 +1905,28 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& displayDevice,
     Dataspace hdrDataSpace;
     Dataspace bestDataSpace = getBestDataspace(displayDevice, &hdrDataSpace);
 
-    if (hdrDataSpace == Dataspace::BT2020_PQ) {
-        // Hardware composer can handle BT2100 ColorMode only when
-        // - colorimetrical tone mapping is supported, or
-        // - Auto mode is turned on and enhanced tone mapping is supported.
-        if (displayDevice->hasBT2100PQColorimetricSupport() ||
-            (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-             displayDevice->hasBT2100PQEnhanceSupport())) {
-            *outMode = ColorMode::BT2100_PQ;
-            *outDataSpace = Dataspace::BT2020_PQ;
-        } else if (displayDevice->hasHDR10Support()) {
-            // Legacy HDR support.  HDR layers are treated as UNKNOWN layers.
-            hdrDataSpace = Dataspace::UNKNOWN;
-        } else {
-            // Simulate PQ through RenderEngine, pick DISPLAY_P3 color mode.
-            *outMode = ColorMode::DISPLAY_P3;
-            *outDataSpace = Dataspace::DISPLAY_P3;
-        }
-    } else if (hdrDataSpace == Dataspace::BT2020_HLG) {
-        if (displayDevice->hasBT2100HLGColorimetricSupport() ||
-            (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-             displayDevice->hasBT2100HLGEnhanceSupport())) {
-            *outMode = ColorMode::BT2100_HLG;
-            *outDataSpace = Dataspace::BT2020_HLG;
-        } else if (displayDevice->hasHLGSupport()) {
-            // Legacy HDR support.  HDR layers are treated as UNKNOWN layers.
-            hdrDataSpace = Dataspace::UNKNOWN;
-        } else {
-            // Simulate HLG through RenderEngine, pick DISPLAY_P3 color mode.
-            *outMode = ColorMode::DISPLAY_P3;
-            *outDataSpace = Dataspace::DISPLAY_P3;
-        }
+    RenderIntent intent;
+    switch (mDisplayColorSetting) {
+        case DisplayColorSetting::MANAGED:
+        case DisplayColorSetting::UNMANAGED:
+            intent = RenderIntent::COLORIMETRIC;
+            break;
+        case DisplayColorSetting::ENHANCED:
+            intent = RenderIntent::ENHANCE;
+            break;
+        default: // vendor display color setting
+            intent = static_cast<RenderIntent>(mDisplayColorSetting);
+            break;
     }
 
-    // At this point, there's no HDR layer.
-    if (hdrDataSpace == Dataspace::UNKNOWN) {
-        switch (bestDataSpace) {
-            case Dataspace::DISPLAY_P3:
-            case Dataspace::V0_SCRGB_LINEAR:
-                *outMode = ColorMode::DISPLAY_P3;
-                *outDataSpace = Dataspace::DISPLAY_P3;
-                break;
-            default:
-                *outMode = ColorMode::SRGB;
-                *outDataSpace = Dataspace::SRGB;
-                break;
-        }
-    }
-    *outRenderIntent = pickRenderIntent(displayDevice, *outMode);
-}
-
-RenderIntent SurfaceFlinger::pickRenderIntent(const sp<DisplayDevice>& displayDevice,
-                                              ColorMode colorMode) const {
-    // Native Mode means the display is not color managed, and whichever
-    // render intent is picked doesn't matter, thus return
-    // RenderIntent::COLORIMETRIC as default here.
-    if (mDisplayColorSetting == DisplayColorSetting::UNMANAGED) {
-        return RenderIntent::COLORIMETRIC;
+    // respect hdrDataSpace only when there is modern HDR support
+    if (hdrDataSpace != Dataspace::UNKNOWN && displayDevice->hasModernHdrSupport(hdrDataSpace)) {
+        bestDataSpace = hdrDataSpace;
+        intent = mDisplayColorSetting == DisplayColorSetting::ENHANCED ?
+            RenderIntent::TONE_MAP_ENHANCE : RenderIntent::TONE_MAP_COLORIMETRIC;
     }
 
-    // In Auto Color Mode, we want to strech to panel color space, right now
-    // only the built-in display supports it.
-    if (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-        mBuiltinDisplaySupportsEnhance &&
-        displayDevice->getDisplayType() == DisplayDevice::DISPLAY_PRIMARY) {
-        switch (colorMode) {
-            case ColorMode::DISPLAY_P3:
-            case ColorMode::SRGB:
-                return RenderIntent::ENHANCE;
-            // In Auto Color Mode, BT2100_PQ and BT2100_HLG will only be picked
-            // when TONE_MAP_ENHANCE or TONE_MAP_COLORIMETRIC is supported.
-            // If TONE_MAP_ENHANCE is not supported, fall back to TONE_MAP_COLORIMETRIC.
-            case ColorMode::BT2100_PQ:
-                return displayDevice->hasBT2100PQEnhanceSupport() ?
-                    RenderIntent::TONE_MAP_ENHANCE : RenderIntent::TONE_MAP_COLORIMETRIC;
-            case ColorMode::BT2100_HLG:
-                return displayDevice->hasBT2100HLGEnhanceSupport() ?
-                    RenderIntent::TONE_MAP_ENHANCE : RenderIntent::TONE_MAP_COLORIMETRIC;
-            // This statement shouldn't be reached, switch cases will always
-            // cover all possible ColorMode returned by pickColorMode.
-            default:
-                return RenderIntent::COLORIMETRIC;
-        }
-    }
-
-    // Either enhance is not supported or we are in natural mode.
-
-    // Natural Mode means it's color managed and the color must be right,
-    // thus we pick RenderIntent::COLORIMETRIC as render intent for non-HDR
-    // content and pick RenderIntent::TONE_MAP_COLORIMETRIC for HDR content.
-    switch (colorMode) {
-        // In Natural Color Mode, BT2100_PQ and BT2100_HLG will only be picked
-        // when TONE_MAP_COLORIMETRIC is supported.
-        case ColorMode::BT2100_PQ:
-        case ColorMode::BT2100_HLG:
-            return RenderIntent::TONE_MAP_COLORIMETRIC;
-        default:
-            return RenderIntent::COLORIMETRIC;
-    }
+    displayDevice->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
 void SurfaceFlinger::setUpHWComposer() {
@@ -2332,7 +2238,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const wp<IBinder>& display, int hwcId, const DisplayDeviceState& state,
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
     bool hasWideColorGamut = false;
-    std::unordered_map<ColorMode, std::vector<RenderIntent>> hdrAndRenderIntents;
+    std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
 
     if (hasWideColorDisplay) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(hwcId);
@@ -2349,18 +2255,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
             std::vector<RenderIntent> renderIntents = getHwComposer().getRenderIntents(hwcId,
                                                                                        colorMode);
-            if (state.type == DisplayDevice::DISPLAY_PRIMARY) {
-                for (auto intent : renderIntents) {
-                    if (intent == RenderIntent::ENHANCE) {
-                        mBuiltinDisplaySupportsEnhance = true;
-                        break;
-                    }
-                }
-            }
-
-            if (colorMode == ColorMode::BT2100_PQ || colorMode == ColorMode::BT2100_HLG) {
-                hdrAndRenderIntents.emplace(colorMode, renderIntents);
-            }
+            hwcColorModes.emplace(colorMode, renderIntents);
         }
     }
 
@@ -2400,7 +2295,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
                               hasWideColorGamut, hdrCapabilities,
                               getHwComposer().getSupportedPerFrameMetadata(hwcId),
-                              hdrAndRenderIntents, initialPowerMode);
+                              hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2410,7 +2305,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
     if (hasWideColorGamut) {
         defaultColorMode = ColorMode::SRGB;
-        defaultDataSpace = Dataspace::V0_SRGB;
+        defaultDataSpace = Dataspace::SRGB;
     }
     setActiveColorModeInternal(hw, defaultColorMode, defaultDataSpace,
                                RenderIntent::COLORIMETRIC);
@@ -2997,9 +2892,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             getRenderEngine().setupColorTransform(mDrawingState.colorMatrix);
         }
 
-        needsLegacyColorMatrix = (mDisplayColorSetting == DisplayColorSetting::ENHANCED &&
-                outputDataspace != Dataspace::UNKNOWN &&
-                outputDataspace != Dataspace::SRGB);
+        needsLegacyColorMatrix =
+            (displayDevice->getActiveRenderIntent() >= RenderIntent::ENHANCE &&
+             outputDataspace != Dataspace::UNKNOWN &&
+             outputDataspace != Dataspace::SRGB);
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -4171,7 +4067,8 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
 
 void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
     result.appendFormat("hasWideColorDisplay: %d\n", hasWideColorDisplay);
-    result.appendFormat("DisplayColorSetting: %d\n", mDisplayColorSetting);
+    result.appendFormat("DisplayColorSetting: %s\n",
+            decodeDisplayColorSetting(mDisplayColorSetting).c_str());
 
     // TODO: print out if wide-color mode is active or not
 
@@ -4699,15 +4596,7 @@ status_t SurfaceFlinger::onTransact(
                 return NO_ERROR;
             }
             case 1023: { // Set native mode
-                int32_t value = data.readInt32();
-                if (value > 2) {
-                    return BAD_VALUE;
-                }
-                if (value == 2 && !mBuiltinDisplaySupportsEnhance) {
-                    return BAD_VALUE;
-                }
-
-                mDisplayColorSetting = toDisplayColorSetting(value);
+                mDisplayColorSetting = static_cast<DisplayColorSetting>(data.readInt32());
                 invalidateHwcGeometry();
                 repaintEverything();
                 return NO_ERROR;
@@ -4736,20 +4625,27 @@ status_t SurfaceFlinger::onTransact(
             }
             // Is a DisplayColorSetting supported?
             case 1027: {
-                int32_t value = data.readInt32();
-                switch (value) {
-                    case 0:
-                        reply->writeBool(hasWideColorDisplay);
-                        return NO_ERROR;
-                    case 1:
-                        reply->writeBool(true);
-                        return NO_ERROR;
-                    case 2:
-                        reply->writeBool(mBuiltinDisplaySupportsEnhance);
-                        return NO_ERROR;
-                    default:
-                        return BAD_VALUE;
+                sp<const DisplayDevice> hw(getDefaultDisplayDevice());
+                if (!hw) {
+                    return NAME_NOT_FOUND;
                 }
+
+                DisplayColorSetting setting = static_cast<DisplayColorSetting>(data.readInt32());
+                switch (setting) {
+                    case DisplayColorSetting::MANAGED:
+                        reply->writeBool(hasWideColorDisplay);
+                        break;
+                    case DisplayColorSetting::UNMANAGED:
+                        reply->writeBool(true);
+                        break;
+                    case DisplayColorSetting::ENHANCED:
+                        reply->writeBool(hw->hasRenderIntent(RenderIntent::ENHANCE));
+                        break;
+                    default: // vendor display color setting
+                        reply->writeBool(hw->hasRenderIntent(static_cast<RenderIntent>(setting)));
+                        break;
+                }
+                return NO_ERROR;
             }
         }
     }

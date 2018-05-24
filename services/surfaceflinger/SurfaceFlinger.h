@@ -664,8 +664,6 @@ private:
                        ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace,
                        ui::RenderIntent* outRenderIntent) const;
-    ui::RenderIntent pickRenderIntent(const sp<DisplayDevice>& displayDevice,
-                                      ui::ColorMode colorMode) const;
 
     void setUpHWComposer();
     void doComposition();
@@ -880,7 +878,6 @@ private:
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
     // Applied on sRGB layers when the render intent is non-colorimetric.
     mat4 mLegacySrgbSaturationMatrix;
-    bool mBuiltinDisplaySupportsEnhance = false;
 
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
