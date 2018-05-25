@@ -54,7 +54,17 @@ enum class TableColumnType : unsigned int {
     THREADS,
     RELEASED,
     HASH,
+    VINTF,
 };
+
+enum : unsigned int {
+    VINTF_INFO_EMPTY = 0,
+    DEVICE_MANIFEST = 1 << 0,
+    DEVICE_MATRIX = 1 << 1,
+    FRAMEWORK_MANIFEST = 1 << 2,
+    FRAMEWORK_MATRIX = 1 << 3,
+};
+using VintfInfo = unsigned int;
 
 enum {
     NO_PID = -1,
@@ -75,6 +85,7 @@ struct TableEntry {
     // empty: unknown, all zeros: unreleased, otherwise: released
     std::string hash{};
     Partition partition{Partition::UNKNOWN};
+    VintfInfo vintfInfo{VINTF_INFO_EMPTY};
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
@@ -92,6 +103,8 @@ struct TableEntry {
     }
 
     std::string isReleased() const;
+
+    std::string getVintfInfo() const;
 
     std::string getField(TableColumnType type) const;
 
