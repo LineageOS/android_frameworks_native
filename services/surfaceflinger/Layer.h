@@ -455,15 +455,7 @@ public:
         if (getBE().mHwcLayers.count(hwcId) == 0) {
             return nullptr;
         }
-        return *(getBE().mHwcLayers[hwcId].layer.get());
-    }
-
-    bool setHwcLayer(int32_t hwcId) {
-        if (getBE().mHwcLayers.count(hwcId) == 0) {
-            return false;
-        }
-        getBE().compositionInfo.hwc.hwcLayer = getBE().mHwcLayers[hwcId].layer;
-        return true;
+        return getBE().mHwcLayers[hwcId].layer;
     }
 
     // -----------------------------------------------------------------------
