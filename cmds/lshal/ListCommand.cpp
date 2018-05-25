@@ -279,7 +279,7 @@ void ListCommand::postprocess() {
             continue;
         }
         for (TableEntry &interfaceEntry : mPassthroughRefTable) {
-            if (interfaceEntry.arch != ARCH_UNKNOWN) {
+            if (interfaceEntry.arch != vintf::Arch::ARCH_EMPTY) {
                 continue;
             }
             FQName interfaceName;
@@ -332,23 +332,13 @@ bool ListCommand::addEntryWithInstance(const TableEntry& entry,
 
     vintf::Arch arch;
     if (entry.transport == vintf::Transport::HWBINDER) {
-        arch = vintf::Arch::ARCH_EMPTY;
+        arch = vintf::Arch::ARCH_EMPTY; // no need to specify arch in manifest
     } else if (entry.transport == vintf::Transport::PASSTHROUGH) {
-        switch (entry.arch) {
-            case lshal::ARCH32:
-                arch = vintf::Arch::ARCH_32;
-                break;
-            case lshal::ARCH64:
-                arch = vintf::Arch::ARCH_64;
-                break;
-            case lshal::ARCH_BOTH:
-                arch = vintf::Arch::ARCH_32_64;
-                break;
-            case lshal::ARCH_UNKNOWN: // fallthrough
-            default:
-                err() << "Warning: '" << entry.interfaceName << "' doesn't have bitness info.";
-                return false;
+        if (entry.arch == vintf::Arch::ARCH_EMPTY) {
+            err() << "Warning: '" << entry.interfaceName << "' doesn't have bitness info.";
+            return false;
         }
+        arch = entry.arch;
     } else {
         err() << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
         return false;
@@ -437,15 +427,15 @@ std::string ListCommand::INIT_VINTF_NOTES{
     "       until they are updated.\n"
 };
 
-static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
+static vintf::Arch fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
     switch (a) {
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_64BIT:
-            return ARCH64;
+            return vintf::Arch::ARCH_64;
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_32BIT:
-            return ARCH32;
+            return vintf::Arch::ARCH_32;
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::UNKNOWN: // fallthrough
         default:
-            return ARCH_UNKNOWN;
+            return vintf::Arch::ARCH_EMPTY;
     }
 }
 
