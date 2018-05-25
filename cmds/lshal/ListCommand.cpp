@@ -330,13 +330,10 @@ bool ListCommand::addEntryWithInstance(const TableEntry& entry,
         return true; // strip out instances that is in a different partition.
     }
 
-    vintf::Transport transport;
     vintf::Arch arch;
-    if (entry.transport == "hwbinder") {
-        transport = vintf::Transport::HWBINDER;
+    if (entry.transport == vintf::Transport::HWBINDER) {
         arch = vintf::Arch::ARCH_EMPTY;
-    } else if (entry.transport == "passthrough") {
-        transport = vintf::Transport::PASSTHROUGH;
+    } else if (entry.transport == vintf::Transport::PASSTHROUGH) {
         switch (entry.arch) {
             case lshal::ARCH32:
                 arch = vintf::Arch::ARCH_32;
@@ -358,7 +355,7 @@ bool ListCommand::addEntryWithInstance(const TableEntry& entry,
     }
 
     std::string e;
-    if (!manifest->insertInstance(fqInstance, transport, arch, vintf::HalFormat::HIDL, &e)) {
+    if (!manifest->insertInstance(fqInstance, entry.transport, arch, vintf::HalFormat::HIDL, &e)) {
         err() << "Warning: Cannot insert '" << fqInstance.string() << ": " << e << std::endl;
         return false;
     }
@@ -534,7 +531,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
                     std::string{info.instanceName.c_str()};
             entries.emplace(interfaceName, TableEntry{
                 .interfaceName = interfaceName,
-                .transport = "passthrough",
+                .transport = vintf::Transport::PASSTHROUGH,
                 .clientPids = info.clientPids,
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
@@ -566,7 +563,7 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
                 .interfaceName =
                         std::string{info.interfaceName.c_str()} + "/" +
                         std::string{info.instanceName.c_str()},
-                .transport = "passthrough",
+                .transport = vintf::Transport::PASSTHROUGH,
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
                 .clientPids = info.clientPids,
                 .arch = fromBaseArchitecture(info.arch)
@@ -582,9 +579,11 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
 }
 
 Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
+    using vintf::operator<<;
+
     if (!shouldReportHalType(HalType::BINDERIZED_SERVICES)) { return OK; }
 
-    const std::string mode = "hwbinder";
+    const vintf::Transport mode = vintf::Transport::HWBINDER;
     hidl_vec<hidl_string> fqInstanceNames;
     // copying out for timeoutIPC
     auto listRet = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &names) {

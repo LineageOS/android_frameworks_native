@@ -17,6 +17,7 @@
 #include <android-base/logging.h>
 
 #include <hidl-hash/Hash.h>
+#include <vintf/parse_string.h>
 
 #include "TableEntry.h"
 
@@ -68,7 +69,7 @@ std::string TableEntry::getField(TableColumnType type) const {
         case TableColumnType::INTERFACE_NAME:
             return interfaceName;
         case TableColumnType::TRANSPORT:
-            return transport;
+            return vintf::to_string(transport);
         case TableColumnType::SERVER_PID:
             return serverPid == NO_PID ? "N/A" : std::to_string(serverPid);
         case TableColumnType::SERVER_CMD:
@@ -155,6 +156,7 @@ bool TableEntry::operator==(const TableEntry& other) const {
 }
 
 std::string TableEntry::to_string() const {
+    using vintf::operator<<;
     std::stringstream ss;
     ss << "name=" << interfaceName << ";transport=" << transport << ";thread=" << getThreadUsage()
        << ";server=" << serverPid
