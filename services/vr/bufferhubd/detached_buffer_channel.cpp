@@ -109,6 +109,7 @@ Status<BufferDescription<BorrowedHandle>> DetachedBufferChannel::OnImport(
   return BufferDescription<BorrowedHandle>{buffer_,
                                            metadata_buffer_,
                                            buffer_id(),
+                                           channel_id(),
                                            /*buffer_state_bit=*/0,
                                            BorrowedHandle{},
                                            BorrowedHandle{}};

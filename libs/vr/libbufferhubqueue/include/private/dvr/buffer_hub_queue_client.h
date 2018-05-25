@@ -331,6 +331,13 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
   pdx::Status<void> AddBuffer(const std::shared_ptr<BufferProducer>& buffer,
                               size_t slot);
 
+  // Inserts a ProducerBuffer into the queue. On success, the method returns the
+  // |slot| number where the new buffer gets inserted. Note that the buffer
+  // being inserted should be in Gain'ed state prior to the call and it's
+  // considered as already Dequeued when the function returns.
+  pdx::Status<size_t> InsertBuffer(
+      const std::shared_ptr<BufferProducer>& buffer);
+
   // Remove producer buffer from the queue.
   pdx::Status<void> RemoveBuffer(size_t slot) override;
 

@@ -343,6 +343,8 @@ public:
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
+    int getPrimaryDisplayOrientation() const { return mPrimaryDisplayOrientation; }
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
@@ -666,8 +668,6 @@ private:
                        ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace,
                        ui::RenderIntent* outRenderIntent) const;
-    ui::RenderIntent pickRenderIntent(const sp<DisplayDevice>& displayDevice,
-                                      ui::ColorMode colorMode) const;
 
     void setUpHWComposer();
     void doComposition();
@@ -840,6 +840,7 @@ private:
     LayerStats mLayerStats;
     TimeStats& mTimeStats = TimeStats::getInstance();
     bool mUseHwcVirtualDisplays = false;
+    std::atomic<uint32_t> mFrameMissedCount{0};
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
@@ -848,6 +849,7 @@ private:
     mutable std::unique_ptr<MessageQueue> mEventQueue{std::make_unique<impl::MessageQueue>()};
     FrameTracker mAnimFrameTracker;
     DispSync mPrimaryDispSync;
+    int mPrimaryDisplayOrientation = DisplayState::eOrientationDefault;
 
     // protected by mDestroyedLayerLock;
     mutable Mutex mDestroyedLayerLock;
@@ -883,7 +885,6 @@ private:
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
     // Applied on sRGB layers when the render intent is non-colorimetric.
     mat4 mLegacySrgbSaturationMatrix;
-    bool mBuiltinDisplaySupportsEnhance = false;
 
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,

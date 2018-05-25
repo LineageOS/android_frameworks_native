@@ -507,10 +507,7 @@ struct WideColorNotSupportedVariant {
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getColorModes(Display::HWC_DISPLAY_ID, _))
                 .WillOnce(DoAll(SetArgPointee<1>(std::vector<ColorMode>()), Return(Error::NONE)));
-        EXPECT_CALL(*test->mComposer,
-                    setColorMode(Display::HWC_DISPLAY_ID, ColorMode::NATIVE,
-                                 RenderIntent::COLORIMETRIC))
-                .WillOnce(Return(Error::NONE));
+        EXPECT_CALL(*test->mComposer, setColorMode(_, _, _)).Times(0);
     }
 };
 

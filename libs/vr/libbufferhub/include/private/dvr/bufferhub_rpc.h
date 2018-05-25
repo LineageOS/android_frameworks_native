@@ -164,10 +164,11 @@ class BufferDescription {
  public:
   BufferDescription() = default;
   BufferDescription(const IonBuffer& buffer, const IonBuffer& metadata, int id,
-                    uint64_t buffer_state_bit,
+                    int buffer_cid, uint64_t buffer_state_bit,
                     const FileHandleType& acquire_fence_fd,
                     const FileHandleType& release_fence_fd)
       : id_(id),
+        buffer_cid_(buffer_cid),
         buffer_state_bit_(buffer_state_bit),
         buffer_(buffer, id),
         metadata_(metadata, id),
@@ -180,6 +181,9 @@ class BufferDescription {
   // ID of the buffer client. All BufferHubBuffer clients derived from the same
   // buffer in bufferhubd share the same buffer id.
   int id() const { return id_; }
+  // Channel ID of the buffer client. Each BufferHubBuffer client has its system
+  // unique channel id.
+  int buffer_cid() const { return buffer_cid_; }
   // State mask of the buffer client. Each BufferHubBuffer client backed by the
   // same buffer channel has uniqued state bit among its siblings. For a
   // producer buffer the bit must be kProducerStateBit; for a consumer the bit
@@ -193,6 +197,7 @@ class BufferDescription {
 
  private:
   int id_{-1};
+  int buffer_cid_{-1};
   uint64_t buffer_state_bit_{0};
   // Two IonBuffers: one for the graphic buffer and one for metadata.
   NativeBufferHandle<FileHandleType> buffer_;
@@ -202,7 +207,7 @@ class BufferDescription {
   FileHandleType acquire_fence_fd_;
   FileHandleType release_fence_fd_;
 
-  PDX_SERIALIZABLE_MEMBERS(BufferDescription<FileHandleType>, id_,
+  PDX_SERIALIZABLE_MEMBERS(BufferDescription<FileHandleType>, id_, buffer_cid_,
                            buffer_state_bit_, buffer_, metadata_,
                            acquire_fence_fd_, release_fence_fd_);
 
@@ -381,6 +386,7 @@ struct BufferHubRPC {
     kOpCreateConsumerQueue,
     kOpGetQueueInfo,
     kOpProducerQueueAllocateBuffers,
+    kOpProducerQueueInsertBuffer,
     kOpProducerQueueRemoveBuffer,
     kOpConsumerQueueImportBuffers,
     // TODO(b/77153033): Separate all those RPC operations into subclasses.
@@ -430,6 +436,8 @@ struct BufferHubRPC {
                     std::vector<std::pair<LocalChannelHandle, size_t>>(
                         uint32_t width, uint32_t height, uint32_t layer_count,
                         uint32_t format, uint64_t usage, size_t buffer_count));
+  PDX_REMOTE_METHOD(ProducerQueueInsertBuffer, kOpProducerQueueInsertBuffer,
+                    size_t(int buffer_cid));
   PDX_REMOTE_METHOD(ProducerQueueRemoveBuffer, kOpProducerQueueRemoveBuffer,
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,

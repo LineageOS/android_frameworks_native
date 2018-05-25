@@ -43,6 +43,8 @@ class ProducerChannel : public BufferHubChannel {
 
   ~ProducerChannel() override;
 
+  uint64_t buffer_state() const { return buffer_state_->load(); }
+
   bool HandleMessage(Message& message) override;
   void HandleImpulse(Message& message) override;
 

@@ -236,9 +236,13 @@ bool ProducerChannel::HandleMessage(Message& message) {
 
 BufferDescription<BorrowedHandle> ProducerChannel::GetBuffer(
     uint64_t buffer_state_bit) {
-  return {
-      buffer_,          metadata_buffer_,           buffer_id(),
-      buffer_state_bit, acquire_fence_fd_.Borrow(), release_fence_fd_.Borrow()};
+  return {buffer_,
+          metadata_buffer_,
+          buffer_id(),
+          channel_id(),
+          buffer_state_bit,
+          acquire_fence_fd_.Borrow(),
+          release_fence_fd_.Borrow()};
 }
 
 Status<BufferDescription<BorrowedHandle>> ProducerChannel::OnGetBuffer(

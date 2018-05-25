@@ -92,7 +92,7 @@ public:
             bool hasWideColorGamut,
             const HdrCapabilities& hdrCapabilities,
             const int32_t supportedPerFrameMetadata,
-            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hdrAndRenderIntents,
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
             int initialPowerMode);
     // clang-format on
 
@@ -145,11 +145,17 @@ public:
     // machine happy without actually queueing a buffer if nothing has changed
     status_t beginFrame(bool mustRecompose) const;
     status_t prepareFrame(HWComposer& hwc);
+
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
     // Whether h/w composer has native support for specific HDR type.
     bool hasHDR10Support() const { return mHasHdr10; }
     bool hasHLGSupport() const { return mHasHLG; }
     bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
+
+    // Return true if the corresponding color mode for the HDR dataspace is
+    // supported.
+    bool hasModernHdrSupport(ui::Dataspace dataspace) const;
+
     // The returned HdrCapabilities is the combination of HDR capabilities from
     // hardware composer and RenderEngine. When the DisplayDevice supports wide
     // color gamut, RenderEngine is able to simulate HDR support in Display P3
@@ -158,13 +164,12 @@ public:
     // respectively if hardware composer doesn't return meaningful values.
     const HdrCapabilities& getHdrCapabilities() const { return mHdrCapabilities; }
 
-    // Whether h/w composer has BT2100_PQ color mode.
-    bool hasBT2100PQColorimetricSupport() const { return mHasBT2100PQColorimetric; }
-    bool hasBT2100PQEnhanceSupport() const { return mHasBT2100PQEnhance; }
+    // Return true if intent is supported by the display.
+    bool hasRenderIntent(ui::RenderIntent intent) const;
 
-    // Whether h/w composer has BT2100_HLG color mode.
-    bool hasBT2100HLGColorimetricSupport() const { return mHasBT2100HLGColorimetric; }
-    bool hasBT2100HLGEnhanceSupport() const { return mHasBT2100HLGEnhance; }
+    void getBestColorMode(ui::Dataspace dataspace, ui::RenderIntent intent,
+                          ui::Dataspace* outDataspace, ui::ColorMode* outMode,
+                          ui::RenderIntent* outIntent) const;
 
     void swapBuffers(HWComposer& hwc) const;
 
@@ -216,9 +221,6 @@ public:
     void dump(String8& result) const;
 
 private:
-    void hasToneMapping(const std::vector<ui::RenderIntent>& renderIntents,
-                        bool* outColorimetric, bool *outEnhance);
-
     /*
      *  Constants, set during initialization
      */
@@ -274,10 +276,10 @@ private:
     // Current active config
     int mActiveConfig;
     // current active color mode
-    ui::ColorMode mActiveColorMode;
+    ui::ColorMode mActiveColorMode = ui::ColorMode::NATIVE;
     // Current active render intent.
-    ui::RenderIntent mActiveRenderIntent;
-    ui::Dataspace mCompositionDataSpace;
+    ui::RenderIntent mActiveRenderIntent = ui::RenderIntent::COLORIMETRIC;
+    ui::Dataspace mCompositionDataSpace = ui::Dataspace::UNKNOWN;
     // Current color transform
     android_color_transform_t mColorTransform;
 
@@ -290,12 +292,26 @@ private:
     bool mHasDolbyVision;
     HdrCapabilities mHdrCapabilities;
     const int32_t mSupportedPerFrameMetadata;
-    // Whether h/w composer has BT2100_PQ and BT2100_HLG color mode with
-    // colorimetrical tone mapping or enhanced tone mapping.
-    bool mHasBT2100PQColorimetric;
-    bool mHasBT2100PQEnhance;
-    bool mHasBT2100HLGColorimetric;
-    bool mHasBT2100HLGEnhance;
+
+    // Mappings from desired Dataspace/RenderIntent to the supported
+    // Dataspace/ColorMode/RenderIntent.
+    using ColorModeKey = uint64_t;
+    struct ColorModeValue {
+        ui::Dataspace dataspace;
+        ui::ColorMode colorMode;
+        ui::RenderIntent renderIntent;
+    };
+
+    static ColorModeKey getColorModeKey(ui::Dataspace dataspace, ui::RenderIntent intent) {
+        return (static_cast<uint64_t>(dataspace) << 32) | static_cast<uint32_t>(intent);
+    }
+    void populateColorModes(
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes);
+    void addColorMode(
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
+            const ui::ColorMode mode, const ui::RenderIntent intent);
+
+    std::unordered_map<ColorModeKey, ColorModeValue> mColorModes;
 };
 
 struct DisplayDeviceState {

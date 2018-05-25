@@ -18,6 +18,9 @@
 #undef LOG_TAG
 #define LOG_TAG "DisplayDevice"
 
+#include <array>
+#include <unordered_set>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -55,6 +58,7 @@ namespace android {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using android::ui::ColorMode;
+using android::ui::Dataspace;
 using android::ui::Hdr;
 using android::ui::RenderIntent;
 
@@ -64,6 +68,147 @@ using android::ui::RenderIntent;
  */
 
 uint32_t DisplayDevice::sPrimaryDisplayOrientation = 0;
+
+namespace {
+
+// ordered list of known SDR color modes
+const std::array<ColorMode, 2> sSdrColorModes = {
+        ColorMode::DISPLAY_P3,
+        ColorMode::SRGB,
+};
+
+// ordered list of known HDR color modes
+const std::array<ColorMode, 2> sHdrColorModes = {
+        ColorMode::BT2100_PQ,
+        ColorMode::BT2100_HLG,
+};
+
+// ordered list of known SDR render intents
+const std::array<RenderIntent, 2> sSdrRenderIntents = {
+        RenderIntent::ENHANCE,
+        RenderIntent::COLORIMETRIC,
+};
+
+// ordered list of known HDR render intents
+const std::array<RenderIntent, 2> sHdrRenderIntents = {
+        RenderIntent::TONE_MAP_ENHANCE,
+        RenderIntent::TONE_MAP_COLORIMETRIC,
+};
+
+// map known color mode to dataspace
+Dataspace colorModeToDataspace(ColorMode mode) {
+    switch (mode) {
+        case ColorMode::SRGB:
+            return Dataspace::SRGB;
+        case ColorMode::DISPLAY_P3:
+            return Dataspace::DISPLAY_P3;
+        case ColorMode::BT2100_HLG:
+            return Dataspace::BT2020_HLG;
+        case ColorMode::BT2100_PQ:
+            return Dataspace::BT2020_PQ;
+        default:
+            return Dataspace::UNKNOWN;
+    }
+}
+
+// Return a list of candidate color modes.
+std::vector<ColorMode> getColorModeCandidates(ColorMode mode) {
+    std::vector<ColorMode> candidates;
+
+    // add mode itself
+    candidates.push_back(mode);
+
+    // check if mode is HDR
+    bool isHdr = false;
+    for (auto hdrMode : sHdrColorModes) {
+        if (hdrMode == mode) {
+            isHdr = true;
+            break;
+        }
+    }
+
+    // add other HDR candidates when mode is HDR
+    if (isHdr) {
+        for (auto hdrMode : sHdrColorModes) {
+            if (hdrMode != mode) {
+                candidates.push_back(hdrMode);
+            }
+        }
+    }
+
+    // add other SDR candidates
+    for (auto sdrMode : sSdrColorModes) {
+        if (sdrMode != mode) {
+            candidates.push_back(sdrMode);
+        }
+    }
+
+    return candidates;
+}
+
+// Return a list of candidate render intents.
+std::vector<RenderIntent> getRenderIntentCandidates(RenderIntent intent) {
+    std::vector<RenderIntent> candidates;
+
+    // add intent itself
+    candidates.push_back(intent);
+
+    // check if intent is HDR
+    bool isHdr = false;
+    for (auto hdrIntent : sHdrRenderIntents) {
+        if (hdrIntent == intent) {
+            isHdr = true;
+            break;
+        }
+    }
+
+    // add other HDR candidates when intent is HDR
+    if (isHdr) {
+        for (auto hdrIntent : sHdrRenderIntents) {
+            if (hdrIntent != intent) {
+                candidates.push_back(hdrIntent);
+            }
+        }
+    }
+
+    // add COLORIMETRIC
+    if (intent != RenderIntent::COLORIMETRIC) {
+        candidates.push_back(RenderIntent::COLORIMETRIC);
+    }
+
+    return candidates;
+}
+
+// Return the best color mode supported by HWC.
+ColorMode getHwcColorMode(
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes,
+        ColorMode mode) {
+    std::vector<ColorMode> candidates = getColorModeCandidates(mode);
+    for (auto candidate : candidates) {
+        auto iter = hwcColorModes.find(candidate);
+        if (iter != hwcColorModes.end()) {
+            return candidate;
+        }
+    }
+
+    return ColorMode::NATIVE;
+}
+
+// Return the best render intent supported by HWC.
+RenderIntent getHwcRenderIntent(const std::vector<RenderIntent>& hwcIntents, RenderIntent intent) {
+    std::vector<RenderIntent> candidates = getRenderIntentCandidates(intent);
+    for (auto candidate : candidates) {
+        for (auto hwcIntent : hwcIntents) {
+            if (candidate == hwcIntent) {
+                return candidate;
+            }
+        }
+    }
+
+    return RenderIntent::COLORIMETRIC;
+}
+
+} // anonymous namespace
 
 // clang-format off
 DisplayDevice::DisplayDevice(
@@ -80,7 +225,7 @@ DisplayDevice::DisplayDevice(
         bool hasWideColorGamut,
         const HdrCapabilities& hdrCapabilities,
         const int32_t supportedPerFrameMetadata,
-        const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hdrAndRenderIntents,
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes,
         int initialPowerMode)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
@@ -100,19 +245,16 @@ DisplayDevice::DisplayDevice(
       mFrame(Rect::INVALID_RECT),
       mPowerMode(initialPowerMode),
       mActiveConfig(0),
-      mActiveColorMode(ColorMode::NATIVE),
       mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
       mHasWideColorGamut(hasWideColorGamut),
       mHasHdr10(false),
       mHasHLG(false),
       mHasDolbyVision(false),
-      mSupportedPerFrameMetadata(supportedPerFrameMetadata),
-      mHasBT2100PQColorimetric(false),
-      mHasBT2100PQEnhance(false),
-      mHasBT2100HLGColorimetric(false),
-      mHasBT2100HLGEnhance(false)
+      mSupportedPerFrameMetadata(supportedPerFrameMetadata)
 {
     // clang-format on
+    populateColorModes(hwcColorModes);
+
     std::vector<Hdr> types = hdrCapabilities.getSupportedHdrTypes();
     for (Hdr hdrType : types) {
         switch (hdrType) {
@@ -149,18 +291,6 @@ DisplayDevice::DisplayDevice(
         }
     }
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
-
-    auto iter = hdrAndRenderIntents.find(ColorMode::BT2100_PQ);
-    if (iter != hdrAndRenderIntents.end()) {
-        hasToneMapping(iter->second,
-                       &mHasBT2100PQColorimetric, &mHasBT2100PQEnhance);
-    }
-
-    iter = hdrAndRenderIntents.find(ColorMode::BT2100_HLG);
-    if (iter != hdrAndRenderIntents.end()) {
-        hasToneMapping(iter->second,
-                       &mHasBT2100HLGColorimetric, &mHasBT2100HLGEnhance);
-    }
 
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
@@ -474,6 +604,15 @@ void DisplayDevice::setProjection(int orientation,
     TL.set(-src_x, -src_y);
     TP.set(dst_x, dst_y);
 
+    // need to take care of primary display rotation for mGlobalTransform
+    // for case if the panel is not installed aligned with device orientation
+    if (mType == DisplayType::DISPLAY_PRIMARY) {
+        int primaryDisplayOrientation = mFlinger->getPrimaryDisplayOrientation();
+        DisplayDevice::orientationToTransfrom(
+                (orientation + primaryDisplayOrientation) % (DisplayState::eOrientation270 + 1),
+                w, h, &R);
+    }
+
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
@@ -545,19 +684,97 @@ void DisplayDevice::dump(String8& result) const {
     result.append(surfaceDump);
 }
 
-void DisplayDevice::hasToneMapping(const std::vector<RenderIntent>& renderIntents,
-                                   bool* outColorimetric, bool *outEnhance) {
-    for (auto intent : renderIntents) {
-        switch (intent) {
-            case RenderIntent::TONE_MAP_COLORIMETRIC:
-                *outColorimetric = true;
-                break;
-            case RenderIntent::TONE_MAP_ENHANCE:
-                *outEnhance = true;
-                break;
-            default:
-                break;
+// Map dataspace/intent to the best matched dataspace/colorMode/renderIntent
+// supported by HWC.
+void DisplayDevice::addColorMode(
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes,
+        const ColorMode mode, const RenderIntent intent) {
+    // find the best color mode
+    const ColorMode hwcColorMode = getHwcColorMode(hwcColorModes, mode);
+
+    // find the best render intent
+    auto iter = hwcColorModes.find(hwcColorMode);
+    const auto& hwcIntents =
+            iter != hwcColorModes.end() ? iter->second : std::vector<RenderIntent>();
+    const RenderIntent hwcIntent = getHwcRenderIntent(hwcIntents, intent);
+
+    const Dataspace dataspace = colorModeToDataspace(mode);
+    const Dataspace hwcDataspace = colorModeToDataspace(hwcColorMode);
+
+    ALOGV("DisplayDevice %d/%d: map (%s, %s) to (%s, %s, %s)", mType, mHwcDisplayId,
+          dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
+          decodeRenderIntent(intent).c_str(),
+          dataspaceDetails(static_cast<android_dataspace_t>(hwcDataspace)).c_str(),
+          decodeColorMode(hwcColorMode).c_str(), decodeRenderIntent(hwcIntent).c_str());
+
+    mColorModes[getColorModeKey(dataspace, intent)] = {hwcDataspace, hwcColorMode, hwcIntent};
+}
+
+void DisplayDevice::populateColorModes(
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes) {
+    if (!hasWideColorGamut()) {
+        return;
+    }
+
+    // collect all known SDR render intents
+    std::unordered_set<RenderIntent> sdrRenderIntents(sSdrRenderIntents.begin(),
+                                                      sSdrRenderIntents.end());
+    auto iter = hwcColorModes.find(ColorMode::SRGB);
+    if (iter != hwcColorModes.end()) {
+        for (auto intent : iter->second) {
+            sdrRenderIntents.insert(intent);
         }
+    }
+
+    // add known SDR combinations
+    for (auto intent : sdrRenderIntents) {
+        for (auto mode : sSdrColorModes) {
+            addColorMode(hwcColorModes, mode, intent);
+        }
+    }
+
+    // add known HDR combinations
+    for (auto intent : sHdrRenderIntents) {
+        for (auto mode : sHdrColorModes) {
+            addColorMode(hwcColorModes, mode, intent);
+        }
+    }
+}
+
+bool DisplayDevice::hasRenderIntent(RenderIntent intent) const {
+    // assume a render intent is supported when SRGB supports it; we should
+    // get rid of that assumption.
+    auto iter = mColorModes.find(getColorModeKey(Dataspace::SRGB, intent));
+    return iter != mColorModes.end() && iter->second.renderIntent == intent;
+}
+
+bool DisplayDevice::hasModernHdrSupport(Dataspace dataspace) const {
+    if ((dataspace == Dataspace::BT2020_PQ && hasHDR10Support()) ||
+        (dataspace == Dataspace::BT2020_HLG && hasHLGSupport())) {
+        auto iter =
+                mColorModes.find(getColorModeKey(dataspace, RenderIntent::TONE_MAP_COLORIMETRIC));
+        return iter != mColorModes.end() && iter->second.dataspace == dataspace;
+    }
+
+    return false;
+}
+
+void DisplayDevice::getBestColorMode(Dataspace dataspace, RenderIntent intent,
+                                     Dataspace* outDataspace, ColorMode* outMode,
+                                     RenderIntent* outIntent) const {
+    auto iter = mColorModes.find(getColorModeKey(dataspace, intent));
+    if (iter != mColorModes.end()) {
+        *outDataspace = iter->second.dataspace;
+        *outMode = iter->second.colorMode;
+        *outIntent = iter->second.renderIntent;
+    } else {
+        ALOGE("map unknown (%s)/(%s) to default color mode",
+              dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
+              decodeRenderIntent(intent).c_str());
+
+        *outDataspace = Dataspace::UNKNOWN;
+        *outMode = ColorMode::NATIVE;
+        *outIntent = RenderIntent::COLORIMETRIC;
     }
 }
 

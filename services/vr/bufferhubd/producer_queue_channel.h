@@ -38,8 +38,12 @@ class ProducerQueueChannel : public BufferHubChannel {
                                  uint32_t format, uint64_t usage,
                                  size_t buffer_count);
 
-  // Detach a BufferHubProducer indicated by |slot|. Note that the buffer must
-  // be in Gain'ed state for the producer queue to detach.
+  // Inserts a BufferProducer into the queue. Note that the buffer must be in
+  // Gain'ed state for the operation to succeed.
+  pdx::Status<size_t> OnProducerQueueInsertBuffer(pdx::Message& message, int buffer_cid);
+
+  // Removes a BufferProducer indicated by |slot|. Note that the buffer must be
+  // in Gain'ed state for the operation to succeed.
   pdx::Status<void> OnProducerQueueRemoveBuffer(pdx::Message& message,
                                                 size_t slot);
 

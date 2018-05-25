@@ -42,11 +42,13 @@ LocalChannelHandle BufferHubClient::TakeChannelHandle() {
 BufferHubBuffer::BufferHubBuffer(LocalChannelHandle channel_handle)
     : Client{pdx::default_transport::ClientChannel::Create(
           std::move(channel_handle))},
-      id_(-1) {}
+      id_(-1),
+      cid_(-1) {}
 BufferHubBuffer::BufferHubBuffer(const std::string& endpoint_path)
     : Client{pdx::default_transport::ClientChannelFactory::Create(
           endpoint_path)},
-      id_(-1) {}
+      id_(-1),
+      cid_(-1) {}
 
 BufferHubBuffer::~BufferHubBuffer() {
   if (metadata_header_ != nullptr) {
@@ -136,6 +138,7 @@ int BufferHubBuffer::ImportBuffer() {
   }
 
   id_ = new_id;
+  cid_ = buffer_desc.buffer_cid();
   buffer_state_bit_ = buffer_desc.buffer_state_bit();
 
   // Note that here the buffer state is mapped from shared memory as an atomic

@@ -181,6 +181,40 @@ TEST_F(BufferHubQueueTest, TestProducerConsumer) {
   }
 }
 
+TEST_F(BufferHubQueueTest, TestInsertBuffer) {
+  ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
+
+  consumer_queue_ = producer_queue_->CreateConsumerQueue();
+  ASSERT_TRUE(consumer_queue_ != nullptr);
+  EXPECT_EQ(producer_queue_->capacity(), 0);
+  EXPECT_EQ(consumer_queue_->capacity(), 0);
+
+  std::shared_ptr<BufferProducer> p1 = BufferProducer::Create(
+      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage, 0);
+  ASSERT_TRUE(p1 != nullptr);
+
+  // Inserting a posted buffer will fail.
+  DvrNativeBufferMetadata meta;
+  EXPECT_EQ(p1->PostAsync(&meta, LocalHandle()), 0);
+  auto status_or_slot = producer_queue_->InsertBuffer(p1);
+  EXPECT_FALSE(status_or_slot.ok());
+  EXPECT_EQ(status_or_slot.error(), EINVAL);
+
+  // Inserting a gained buffer will succeed.
+  std::shared_ptr<BufferProducer> p2 = BufferProducer::Create(
+      kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage);
+  ASSERT_TRUE(p2 != nullptr);
+  status_or_slot = producer_queue_->InsertBuffer(p2);
+  EXPECT_TRUE(status_or_slot.ok());
+  // This is the first buffer inserted, should take slot 0.
+  size_t slot = status_or_slot.get();
+  EXPECT_EQ(slot, 0);
+
+  // Wait and expect the consumer to kick up the newly inserted buffer.
+  WaitAndHandleOnce(consumer_queue_.get(), kTimeoutMs);
+  EXPECT_EQ(consumer_queue_->capacity(), 1ULL);
+}
+
 TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
   ASSERT_TRUE(CreateProducerQueue(config_builder_.Build(), UsagePolicy{}));
   DvrNativeBufferMetadata mo;
