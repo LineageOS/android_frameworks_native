@@ -741,7 +741,7 @@ private:
     void dumpDisplayIdentificationData(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
-    LayersProto dumpVisibleLayersProtoInfo(int32_t hwcId) const;
+    LayersProto dumpVisibleLayersProtoInfo(const DisplayDevice& displayDevice) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
