@@ -64,6 +64,7 @@ cc_defaults {
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
+        "display_intf_headers",
     ],
     export_static_lib_headers: [
         "libserviceutils",
@@ -154,9 +155,6 @@ cc_library_shared {
     include_dirs: [
         "frameworks/native/vulkan/vkjson",
         "frameworks/native/vulkan/include",
-        "hardware/qcom/display/include",
-        "hardware/qcom/display/gralloc",
-        "hardware/qcom/display/libqdutils",
     ],
     cppflags: [
         "-fwhole-program-vtables", // requires ThinLTO
@@ -180,10 +178,6 @@ cc_binary {
     srcs: ["main_surfaceflinger.cpp"],
     whole_static_libs: [
         "libsigchain",
-    ],
-    include_dirs: [
-        "hardware/qcom/display/include",
-        "hardware/qcom/display/gralloc",
     ],
     shared_libs: [
         "android.frameworks.displayservice@1.0",
