@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 72
+define VERSION_PATCH 76
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -377,6 +377,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_variable_pointers") define VK_KHR_VARIABLE_POINTERS_SPEC_VERSION 1
 @extension("VK_KHR_variable_pointers") define VK_KHR_VARIABLE_POINTERS_EXTENSION_NAME "VK_KHR_variable_pointers"
 
+// 122
+@extension("VK_KHR_get_display_properties2") define VK_KHR_GET_DISPLAY_PROPERTIES_2_SPEC_VERSION 1
+@extension("VK_KHR_get_display_properties2") define VK_KHR_GET_DISPLAY_PROPERTIES_2_EXTENSION_NAME "VK_KHR_get_display_properties2"
+
 // 123
 @extension("VK_MVK_ios_surface") define VK_MVK_IOS_SURFACE_SPEC_VERSION 1
 @extension("VK_MVK_ios_surface") define VK_MVK_IOS_SURFACE_EXTENSION_NAME "VK_MVK_ios_surface"
@@ -488,6 +492,10 @@ define NULL_HANDLE 0
 // 169
 @extension("VK_KHR_maintenance3") define VK_KHR_MAINTENANCE3_SPEC_VERSION 1
 @extension("VK_KHR_maintenance3") define VK_KHR_MAINTENANCE3_EXTENSION_NAME "VK_KHR_maintenance3"
+
+// 170
+@extension("VK_KHR_draw_indirect_count") define VK_KHR_DRAW_INDIRECT_COUNT_SPEC_VERSION 1
+@extension("VK_KHR_draw_indirect_count") define VK_KHR_DRAW_INDIRECT_COUNT_EXTENSION_NAME "VK_KHR_draw_indirect_count"
 
 // 175
 @extension("VK_EXT_global_priority") define VK_EXT_GLOBAL_PRIORITY_SPEC_VERSION 1
@@ -1520,6 +1528,13 @@ enum VkStructureType {
 
     //@extension("VK_KHR_variable_pointers") // 121
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES_KHR = 1000120000,
+
+    //@extension("VK_KHR_display_properties2") // 122
+    VK_STRUCTURE_TYPE_DISPLAY_PROPERTIES_2_KHR                  = 1000121000,
+    VK_STRUCTURE_TYPE_DISPLAY_PLANE_PROPERTIES_2_KHR            = 1000121001,
+    VK_STRUCTURE_TYPE_DISPLAY_MODE_PROPERTIES_2_KHR             = 1000121002,
+    VK_STRUCTURE_TYPE_DISPLAY_PLANE_INFO_2_KHR                  = 1000121003,
+    VK_STRUCTURE_TYPE_DISPLAY_PLANE_CAPABILITIES_2_KHR          = 1000121004,
 
     //@extension("VK_MVK_ios_surface") // 123
     VK_STRUCTURE_TYPE_IOS_SURFACE_CREATE_INFO_MVK               = 1000122000,
@@ -4194,6 +4209,16 @@ class VkDispatchIndirectCommand {
     u32                                         z
 }
 
+class VkBaseOutStructure {
+    VkStructureType                             sType
+    void*                                       pNext
+}
+
+class VkBaseInStructure {
+    VkStructureType                             sType
+    const void*                                 pNext
+}
+
 //@vulkan1_1 structures
 
 class VkPhysicalDeviceSubgroupProperties {
@@ -6005,6 +6030,42 @@ class VkPhysicalDeviceVariablePointerFeaturesKHR {
     void*                                           pNext
     VkBool32                                        variablePointersStorageBuffer
     VkBool32                                        variablePointers
+}
+
+@extension("VK_KHR_display_properties2") // 122
+class VkDisplayProperties2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkDisplayPropertiesKHR                          displayProperties
+}
+
+@extension("VK_KHR_display_properties2") // 122
+class VkDisplayPlaneProperties2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkDisplayPlanePropertiesKHR                     displayPlaneProperties
+}
+
+@extension("VK_KHR_display_properties2") // 122
+class VkDisplayModeProperties2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkDisplayModePropertiesKHR                      displayModeProperties
+}
+
+@extension("VK_KHR_display_properties2") // 122
+class VkDisplayPlaneInfo2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkDisplayModeKHR                                mode
+    u32                                             planeIndex
+}
+
+@extension("VK_KHR_display_properties2") // 122
+class VkDisplayPlaneCapabilities2KHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkDisplayPlaneCapabilitiesKHR                   capabilities
 }
 
 @extension("VK_MVK_ios_surface") // 123
@@ -10018,6 +10079,39 @@ cmd VkResult vkGetPhysicalDeviceSurfaceFormats2KHR(
     return ?
 }
 
+@extension("VK_KHR_display_properties2") // 122
+cmd VkResult vkGetPhysicalDeviceDisplayProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        u32*                                        pPropertyCount,
+        VkDisplayProperties2KHR*                    pProperties) {
+    return ?
+}
+
+@extension("VK_KHR_display_properties2") // 122
+cmd VkResult vkGetPhysicalDeviceDisplayPlaneProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        u32*                                        pPropertyCount,
+        VkDisplayPlaneProperties2KHR*               pProperties) {
+    return ?
+}
+
+@extension("VK_KHR_display_properties2") // 122
+cmd VkResult vkGetDisplayModeProperties2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        VkDisplayKHR                                display,
+        u32*                                        pPropertyCount,
+        VkDisplayModeProperties2KHR*                pProperties) {
+    return ?
+}
+
+@extension("VK_KHR_display_properties2") // 122
+cmd VkResult vkGetDisplayPlaneCapabilities2KHR(
+        VkPhysicalDevice                            physicalDevice,
+        const VkDisplayPlaneInfo2KHR*               pDisplayPlaneInfo,
+        VkDisplayPlaneCapabilities2KHR*             pCapabilities) {
+    return ?
+}
+
 @extension("VK_MVK_ios_surface") // 123
 cmd VkResult vkCreateIOSSurfaceMVK(
         VkInstance                                  instance,
@@ -10241,6 +10335,28 @@ cmd void vkGetDescriptorSetLayoutSupportKHR(
         VkDevice                                    device,
         const VkDescriptorSetLayoutCreateInfo*      pCreateInfo,
         VkDescriptorSetLayoutSupportKHR*            pSupport) {
+}
+
+@extension("VK_KHR_draw_indirect_count") // 170
+cmd void vkCmdDrawIndirectCountKHR(
+        VkCommandBuffer                             commandBuffer,
+        VkBuffer                                    buffer,
+        VkDeviceSize                                offset,
+        VkBuffer                                    countBuffer,
+        VkDeviceSize                                countBufferOffset,
+        u32                                         maxDrawCount,
+        u32                                         stride) {
+}
+
+@extension("VK_KHR_draw_indirect_count") // 170
+cmd void vkCmdDrawIndexedIndirectCountKHR(
+        VkCommandBuffer                             commandBuffer,
+        VkBuffer                                    buffer,
+        VkDeviceSize                                offset,
+        VkBuffer                                    countBuffer,
+        VkDeviceSize                                countBufferOffset,
+        u32                                         maxDrawCount,
+        u32                                         stride) {
 }
 
 @extension("VK_EXT_external_memory_host") // 179
