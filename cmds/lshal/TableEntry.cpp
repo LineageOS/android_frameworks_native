@@ -96,8 +96,11 @@ std::string TableEntry::getField(TableColumnType type) const {
 std::string TableEntry::isReleased() const {
     static const std::string unreleased = Hash::hexString(Hash::kEmptyHash);
 
-    if (hash.empty() || hash == unreleased) {
-        return " "; // unknown or unreleased
+    if (hash.empty()) {
+        return "?";
+    }
+    if (hash == unreleased) {
+        return "N"; // unknown or unreleased
     }
     return "Y"; // released
 }
