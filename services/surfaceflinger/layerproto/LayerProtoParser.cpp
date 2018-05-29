@@ -114,6 +114,7 @@ LayerProtoParser::Layer* LayerProtoParser::generateLayer(const LayerProto& layer
     layer->transform = generateTransform(layerProto.transform());
     layer->requestedTransform = generateTransform(layerProto.requested_transform());
     layer->activeBuffer = generateActiveBuffer(layerProto.active_buffer());
+    layer->bufferTransform = generateTransform(layerProto.buffer_transform());
     layer->queuedFrames = layerProto.queued_frames();
     layer->refreshPending = layerProto.refresh_pending();
     layer->hwcFrame = generateRect(layerProto.hwc_frame());
@@ -312,6 +313,7 @@ std::string LayerProtoParser::Layer::to_string() const {
     StringAppendF(&result, "      zOrderRelativeOf=%s\n",
                   zOrderRelativeOf == nullptr ? "none" : zOrderRelativeOf->name.c_str());
     StringAppendF(&result, "      activeBuffer=%s,", activeBuffer.to_string().c_str());
+    StringAppendF(&result, " tr=%s", bufferTransform.to_string().c_str());
     StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d,", queuedFrames, refreshPending);
     StringAppendF(&result, " windowType=%d, appId=%d", windowType, appId);
 

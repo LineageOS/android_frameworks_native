@@ -1438,15 +1438,18 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
 }
 
 void Layer::miniDumpHeader(String8& result) {
-    result.append("----------------------------------------");
-    result.append("---------------------------------------\n");
+    result.append("-------------------------------");
+    result.append("-------------------------------");
+    result.append("-----------------------------\n");
     result.append(" Layer name\n");
     result.append("           Z | ");
     result.append(" Comp Type | ");
+    result.append(" Transform | ");
     result.append("  Disp Frame (LTRB) | ");
     result.append("         Source Crop (LTRB)\n");
-    result.append("----------------------------------------");
-    result.append("---------------------------------------\n");
+    result.append("-------------------------------");
+    result.append("-------------------------------");
+    result.append("-----------------------------\n");
 }
 
 void Layer::miniDump(String8& result, int32_t displayId) const {
@@ -1475,13 +1478,15 @@ void Layer::miniDump(String8& result, int32_t displayId) const {
         result.appendFormat("  %10d | ", layerState.z);
     }
     result.appendFormat("%10s | ", to_string(getCompositionType(displayId)).c_str());
+    result.appendFormat("%10s | ", to_string(hwcInfo.transform).c_str());
     const Rect& frame = hwcInfo.displayFrame;
     result.appendFormat("%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
     const FloatRect& crop = hwcInfo.sourceCrop;
     result.appendFormat("%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right, crop.bottom);
 
-    result.append("- - - - - - - - - - - - - - - - - - - - ");
-    result.append("- - - - - - - - - - - - - - - - - - - -\n");
+    result.append("- - - - - - - - - - - - - - - -");
+    result.append("- - - - - - - - - - - - - - - -");
+    result.append("- - - - - - - - - - - - - - -\n");
 }
 
 void Layer::dumpFrameStats(String8& result) const {
@@ -1964,6 +1969,8 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     auto buffer = getBE().compositionInfo.mBuffer;
     if (buffer != nullptr) {
         LayerProtoHelper::writeToProto(buffer, layerInfo->mutable_active_buffer());
+        LayerProtoHelper::writeToProto(Transform(mCurrentTransform),
+                                       layerInfo->mutable_buffer_transform());
     }
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
