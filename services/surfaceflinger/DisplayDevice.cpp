@@ -162,18 +162,20 @@ std::vector<RenderIntent> getRenderIntentCandidates(RenderIntent intent) {
         }
     }
 
-    // add other HDR candidates when intent is HDR
     if (isHdr) {
+        // add other HDR candidates when intent is HDR
         for (auto hdrIntent : sHdrRenderIntents) {
             if (hdrIntent != intent) {
                 candidates.push_back(hdrIntent);
             }
         }
-    }
-
-    // add COLORIMETRIC
-    if (intent != RenderIntent::COLORIMETRIC) {
-        candidates.push_back(RenderIntent::COLORIMETRIC);
+    } else {
+        // add other SDR candidates when intent is SDR
+        for (auto sdrIntent : sSdrRenderIntents) {
+            if (sdrIntent != intent) {
+                candidates.push_back(sdrIntent);
+            }
+        }
     }
 
     return candidates;
@@ -727,14 +729,24 @@ void DisplayDevice::populateColorModes(
         }
     }
 
-    // add known SDR combinations
+    // add all known SDR combinations
     for (auto intent : sdrRenderIntents) {
         for (auto mode : sSdrColorModes) {
             addColorMode(hwcColorModes, mode, intent);
         }
     }
 
-    // add known HDR combinations
+    // collect all known HDR render intents
+    std::unordered_set<RenderIntent> hdrRenderIntents(sHdrRenderIntents.begin(),
+                                                      sHdrRenderIntents.end());
+    iter = hwcColorModes.find(ColorMode::BT2100_PQ);
+    if (iter != hwcColorModes.end()) {
+        for (auto intent : iter->second) {
+            hdrRenderIntents.insert(intent);
+        }
+    }
+
+    // add all known HDR combinations
     for (auto intent : sHdrRenderIntents) {
         for (auto mode : sHdrColorModes) {
             addColorMode(hwcColorModes, mode, intent);
