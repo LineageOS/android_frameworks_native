@@ -44,6 +44,7 @@ using ::android::hardware::hidl_death_recipient;
 using ::android::hardware::hidl_handle;
 using ::android::hardware::hidl_string;
 using ::android::hardware::hidl_vec;
+using android::vintf::Arch;
 using android::vintf::Transport;
 
 using InstanceDebugInfo = IServiceManager::InstanceDebugInfo;
@@ -390,15 +391,15 @@ TEST_F(ListTest, GetPidInfoCached) {
 
 TEST_F(ListTest, Fetch) {
     EXPECT_EQ(0u, mockList->fetch());
-    std::array<Transport, 6> transports{{Transport::HWBINDER, Transport::HWBINDER,
-                                         Transport::PASSTHROUGH, Transport::PASSTHROUGH,
-                                         Transport::PASSTHROUGH, Transport::PASSTHROUGH}};
-    std::array<Architecture, 6> archs{{ARCH64, ARCH64, ARCH32, ARCH32, ARCH32, ARCH32}};
+    vintf::TransportArch hwbinder{Transport::HWBINDER, Arch::ARCH_64};
+    vintf::TransportArch passthrough{Transport::PASSTHROUGH, Arch::ARCH_32};
+    std::array<vintf::TransportArch, 6> transportArchs{{hwbinder, hwbinder, passthrough,
+                                                        passthrough, passthrough, passthrough}};
     int id = 1;
     mockList->forEachTable([&](const Table& table) {
         ASSERT_EQ(2u, table.size());
         for (const auto& entry : table) {
-            auto transport = transports[id - 1];
+            auto transport = transportArchs.at(id - 1).transport;
             TableEntry expected{
                 .interfaceName = getFqInstanceName(id),
                 .transport = transport,
@@ -411,7 +412,7 @@ TEST_F(ListTest, Fetch) {
                 .serverObjectAddress = transport == Transport::HWBINDER ? getPtr(id) : NO_PTR,
                 .clientPids = getClients(id),
                 .clientCmdlines = {},
-                .arch = archs[id - 1],
+                .arch = transportArchs.at(id - 1).arch,
             };
             EXPECT_EQ(expected, entry) << expected.to_string() << " vs. " << entry.to_string();
 

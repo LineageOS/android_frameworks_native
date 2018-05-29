@@ -27,19 +27,19 @@
 namespace android {
 namespace lshal {
 
-static const std::string &getArchString(Architecture arch) {
+static const std::string &getArchString(vintf::Arch arch) {
     static const std::string sStr64 = "64";
     static const std::string sStr32 = "32";
     static const std::string sStrBoth = "32+64";
     static const std::string sStrUnknown = "";
     switch (arch) {
-        case ARCH64:
+        case vintf::Arch::ARCH_64:
             return sStr64;
-        case ARCH32:
+        case vintf::Arch::ARCH_32:
             return sStr32;
-        case ARCH_BOTH:
+        case vintf::Arch::ARCH_32_64:
             return sStrBoth;
-        case ARCH_UNKNOWN: // fall through
+        case vintf::Arch::ARCH_EMPTY: // fall through
         default:
             return sStrUnknown;
     }
