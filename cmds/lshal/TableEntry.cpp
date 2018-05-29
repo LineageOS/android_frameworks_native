@@ -16,6 +16,9 @@
 #define LOG_TAG "lshal"
 #include <android-base/logging.h>
 
+#include <map>
+
+#include <android-base/strings.h>
 #include <hidl-hash/Hash.h>
 #include <vintf/parse_string.h>
 
@@ -58,6 +61,7 @@ static std::string getTitle(TableColumnType type) {
         case TableColumnType::THREADS:          return "Thread Use";
         case TableColumnType::RELEASED:         return "R";
         case TableColumnType::HASH:             return "Hash";
+        case TableColumnType::VINTF:            return "VINTF";
         default:
             LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
@@ -88,6 +92,8 @@ std::string TableEntry::getField(TableColumnType type) const {
             return isReleased();
         case TableColumnType::HASH:
             return hash;
+        case TableColumnType::VINTF:
+            return getVintfInfo();
         default:
             LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
@@ -104,6 +110,23 @@ std::string TableEntry::isReleased() const {
         return "N"; // unknown or unreleased
     }
     return "Y"; // released
+}
+
+std::string TableEntry::getVintfInfo() const {
+    static const std::map<VintfInfo, std::string> values{
+            {DEVICE_MANIFEST, "DM"},
+            {DEVICE_MATRIX, "DC"},
+            {FRAMEWORK_MANIFEST, "FM"},
+            {FRAMEWORK_MATRIX, "FC"},
+    };
+    std::vector<std::string> ret;
+    for (const auto& pair : values) {
+        if (vintfInfo & pair.first) {
+            ret.push_back(pair.second);
+        }
+    }
+    auto joined = base::Join(ret, ',');
+    return joined.empty() ? "X" : joined;
 }
 
 TextTable Table::createTextTable(bool neat,
