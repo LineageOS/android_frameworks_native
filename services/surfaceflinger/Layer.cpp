@@ -479,15 +479,14 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
     return crop;
 }
 
-void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z)
-{
-    const auto hwcId = displayDevice->getHwcDisplayId();
+void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
+    const auto hwcId = display->getHwcDisplayId();
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
 
     // enable this layer
     hwcInfo.forceClientComposition = false;
 
-    if (isSecure() && !displayDevice->isSecure()) {
+    if (isSecure() && !display->isSecure()) {
         hwcInfo.forceClientComposition = true;
     }
 
@@ -514,7 +513,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
     if (!s.crop.isEmpty()) {
         Rect activeCrop(s.crop);
         activeCrop = t.transform(activeCrop);
-        if (!activeCrop.intersect(displayDevice->getViewport(), &activeCrop)) {
+        if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
             activeCrop.clear();
         }
         activeCrop = t.inverse().transform(activeCrop, true);
@@ -543,10 +542,10 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
             frame.clear();
         }
     }
-    if (!frame.intersect(displayDevice->getViewport(), &frame)) {
+    if (!frame.intersect(display->getViewport(), &frame)) {
         frame.clear();
     }
-    const Transform& tr(displayDevice->getTransform());
+    const Transform& tr = display->getTransform();
     Rect transformedFrame = tr.transform(frame);
     error = hwcLayer->setDisplayFrame(transformedFrame);
     if (error != HWC2::Error::None) {
@@ -557,7 +556,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z
         hwcInfo.displayFrame = transformedFrame;
     }
 
-    FloatRect sourceCrop = computeCrop(displayDevice);
+    FloatRect sourceCrop = computeCrop(display);
     error = hwcLayer->setSourceCrop(sourceCrop);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
@@ -660,8 +659,8 @@ bool Layer::getForceClientComposition(int32_t hwcId) {
     return getBE().mHwcLayers[hwcId].forceClientComposition;
 }
 
-void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
-    auto hwcId = displayDevice->getHwcDisplayId();
+void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
+    auto hwcId = display->getHwcDisplayId();
     if (getBE().mHwcLayers.count(hwcId) == 0 ||
         getCompositionType(hwcId) != HWC2::Composition::Cursor) {
         return;
@@ -679,11 +678,11 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& displayDevice) {
     // Subtract the transparent region and snap to the bounds
     Rect bounds = reduce(win, s.activeTransparentRegion);
     Rect frame(getTransform().transform(bounds));
-    frame.intersect(displayDevice->getViewport(), &frame);
+    frame.intersect(display->getViewport(), &frame);
     if (!s.finalCrop.isEmpty()) {
         frame.intersect(s.finalCrop, &frame);
     }
-    auto& displayTransform(displayDevice->getTransform());
+    auto& displayTransform = display->getTransform();
     auto position = displayTransform.transform(frame);
 
     auto error = getBE().mHwcLayers[hwcId].layer->setCursorPosition(position.left,

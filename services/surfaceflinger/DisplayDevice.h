@@ -194,7 +194,7 @@ public:
      */
     int getPowerMode() const;
     void setPowerMode(int mode);
-    bool isDisplayOn() const;
+    bool isPoweredOn() const;
 
     ui::ColorMode getActiveColorMode() const;
     void setActiveColorMode(ui::ColorMode mode);

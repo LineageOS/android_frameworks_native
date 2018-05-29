@@ -436,8 +436,8 @@ int DisplayDevice::getPowerMode()  const {
     return mPowerMode;
 }
 
-bool DisplayDevice::isDisplayOn() const {
-    return (mPowerMode != HWC_POWER_MODE_OFF);
+bool DisplayDevice::isPoweredOn() const {
+    return mPowerMode != HWC_POWER_MODE_OFF;
 }
 
 // ----------------------------------------------------------------------------

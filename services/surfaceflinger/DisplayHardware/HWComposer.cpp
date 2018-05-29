@@ -431,11 +431,11 @@ status_t HWComposer::setClientTarget(int32_t displayId, uint32_t slot,
     return NO_ERROR;
 }
 
-status_t HWComposer::prepare(DisplayDevice& displayDevice) {
+status_t HWComposer::prepare(DisplayDevice& display) {
     ATRACE_CALL();
 
     Mutex::Autolock _l(mDisplayLock);
-    auto displayId = displayDevice.getHwcDisplayId();
+    auto displayId = display.getHwcDisplayId();
     if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
         ALOGV("Skipping HWComposer prepare for non-HWC display");
         return NO_ERROR;
@@ -502,7 +502,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
 
     displayData.hasClientComposition = false;
     displayData.hasDeviceComposition = false;
-    for (auto& layer : displayDevice.getVisibleLayersSortedByZ()) {
+    for (auto& layer : display.getVisibleLayersSortedByZ()) {
         auto hwcLayer = layer->getHwcLayer(displayId);
 
         if (changedTypes.count(hwcLayer) != 0) {

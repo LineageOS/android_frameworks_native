@@ -61,11 +61,11 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && s.color.a;
 }
 
-void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
-    const Transform& tr = displayDevice->getTransform();
-    const auto& viewport = displayDevice->getViewport();
+void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
+    const Transform& tr = display->getTransform();
+    const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
-    auto hwcId = displayDevice->getHwcDisplayId();
+    auto hwcId = display->getHwcDisplayId();
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
