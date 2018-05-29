@@ -24,6 +24,8 @@
 #include <iostream>
 
 #include <procpartition/procpartition.h>
+#include <vintf/Arch.h>
+#include <vintf/Transport.h>
 
 #include "TextTable.h"
 
@@ -40,14 +42,6 @@ enum : unsigned int {
 };
 using TableEntrySource = unsigned int;
 
-enum : unsigned int {
-    ARCH_UNKNOWN = 0,
-    ARCH32       = 1 << 0,
-    ARCH64       = 1 << 1,
-    ARCH_BOTH    = ARCH32 | ARCH64
-};
-using Architecture = unsigned int;
-
 enum class TableColumnType : unsigned int {
     INTERFACE_NAME,
     TRANSPORT,
@@ -60,7 +54,17 @@ enum class TableColumnType : unsigned int {
     THREADS,
     RELEASED,
     HASH,
+    VINTF,
 };
+
+enum : unsigned int {
+    VINTF_INFO_EMPTY = 0,
+    DEVICE_MANIFEST = 1 << 0,
+    DEVICE_MATRIX = 1 << 1,
+    FRAMEWORK_MANIFEST = 1 << 2,
+    FRAMEWORK_MATRIX = 1 << 3,
+};
+using VintfInfo = unsigned int;
 
 enum {
     NO_PID = -1,
@@ -69,7 +73,7 @@ enum {
 
 struct TableEntry {
     std::string interfaceName{};
-    std::string transport{};
+    vintf::Transport transport{vintf::Transport::EMPTY};
     int32_t serverPid{NO_PID};
     uint32_t threadUsage{0};
     uint32_t threadCount{0};
@@ -77,10 +81,11 @@ struct TableEntry {
     uint64_t serverObjectAddress{NO_PTR};
     Pids clientPids{};
     std::vector<std::string> clientCmdlines{};
-    Architecture arch{ARCH_UNKNOWN};
+    vintf::Arch arch{vintf::Arch::ARCH_EMPTY};
     // empty: unknown, all zeros: unreleased, otherwise: released
     std::string hash{};
     Partition partition{Partition::UNKNOWN};
+    VintfInfo vintfInfo{VINTF_INFO_EMPTY};
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;
@@ -98,6 +103,8 @@ struct TableEntry {
     }
 
     std::string isReleased() const;
+
+    std::string getVintfInfo() const;
 
     std::string getField(TableColumnType type) const;
 

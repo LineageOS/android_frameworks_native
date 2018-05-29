@@ -16,7 +16,11 @@
 #define LOG_TAG "lshal"
 #include <android-base/logging.h>
 
+#include <map>
+
+#include <android-base/strings.h>
 #include <hidl-hash/Hash.h>
+#include <vintf/parse_string.h>
 
 #include "TableEntry.h"
 
@@ -26,19 +30,19 @@
 namespace android {
 namespace lshal {
 
-static const std::string &getArchString(Architecture arch) {
+static const std::string &getArchString(vintf::Arch arch) {
     static const std::string sStr64 = "64";
     static const std::string sStr32 = "32";
     static const std::string sStrBoth = "32+64";
-    static const std::string sStrUnknown = "";
+    static const std::string sStrUnknown = "?";
     switch (arch) {
-        case ARCH64:
+        case vintf::Arch::ARCH_64:
             return sStr64;
-        case ARCH32:
+        case vintf::Arch::ARCH_32:
             return sStr32;
-        case ARCH_BOTH:
+        case vintf::Arch::ARCH_32_64:
             return sStrBoth;
-        case ARCH_UNKNOWN: // fall through
+        case vintf::Arch::ARCH_EMPTY: // fall through
         default:
             return sStrUnknown;
     }
@@ -57,6 +61,7 @@ static std::string getTitle(TableColumnType type) {
         case TableColumnType::THREADS:          return "Thread Use";
         case TableColumnType::RELEASED:         return "R";
         case TableColumnType::HASH:             return "Hash";
+        case TableColumnType::VINTF:            return "VINTF";
         default:
             LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
@@ -68,7 +73,7 @@ std::string TableEntry::getField(TableColumnType type) const {
         case TableColumnType::INTERFACE_NAME:
             return interfaceName;
         case TableColumnType::TRANSPORT:
-            return transport;
+            return vintf::to_string(transport);
         case TableColumnType::SERVER_PID:
             return serverPid == NO_PID ? "N/A" : std::to_string(serverPid);
         case TableColumnType::SERVER_CMD:
@@ -87,6 +92,8 @@ std::string TableEntry::getField(TableColumnType type) const {
             return isReleased();
         case TableColumnType::HASH:
             return hash;
+        case TableColumnType::VINTF:
+            return getVintfInfo();
         default:
             LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
@@ -96,10 +103,30 @@ std::string TableEntry::getField(TableColumnType type) const {
 std::string TableEntry::isReleased() const {
     static const std::string unreleased = Hash::hexString(Hash::kEmptyHash);
 
-    if (hash.empty() || hash == unreleased) {
-        return " "; // unknown or unreleased
+    if (hash.empty()) {
+        return "?";
+    }
+    if (hash == unreleased) {
+        return "N"; // unknown or unreleased
     }
     return "Y"; // released
+}
+
+std::string TableEntry::getVintfInfo() const {
+    static const std::map<VintfInfo, std::string> values{
+            {DEVICE_MANIFEST, "DM"},
+            {DEVICE_MATRIX, "DC"},
+            {FRAMEWORK_MANIFEST, "FM"},
+            {FRAMEWORK_MATRIX, "FC"},
+    };
+    std::vector<std::string> ret;
+    for (const auto& pair : values) {
+        if (vintfInfo & pair.first) {
+            ret.push_back(pair.second);
+        }
+    }
+    auto joined = base::Join(ret, ',');
+    return joined.empty() ? "X" : joined;
 }
 
 TextTable Table::createTextTable(bool neat,
@@ -152,6 +179,7 @@ bool TableEntry::operator==(const TableEntry& other) const {
 }
 
 std::string TableEntry::to_string() const {
+    using vintf::operator<<;
     std::stringstream ss;
     ss << "name=" << interfaceName << ";transport=" << transport << ";thread=" << getThreadUsage()
        << ";server=" << serverPid

@@ -28,6 +28,7 @@
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl-util/FqInstance.h>
 #include <vintf/HalManifest.h>
+#include <vintf/VintfObject.h>
 
 #include "Command.h"
 #include "NullableOStream.h"
@@ -87,7 +88,9 @@ public:
 
 protected:
     Status parseArgs(const Arg &arg);
+    // Retrieve first-hand information
     Status fetch();
+    // Retrieve derived information base on existing table
     virtual void postprocess();
     Status dump();
     void putEntry(TableEntrySource source, TableEntry &&entry);
@@ -121,6 +124,13 @@ protected:
 
     virtual Partition getPartition(pid_t pid);
     Partition resolvePartition(Partition processPartition, const FqInstance &fqInstance) const;
+
+    VintfInfo getVintfInfo(const std::string &fqInstanceName, vintf::TransportArch ta) const;
+    // Allow to mock these functions for testing.
+    virtual std::shared_ptr<const vintf::HalManifest> getDeviceManifest() const;
+    virtual std::shared_ptr<const vintf::CompatibilityMatrix> getDeviceMatrix() const;
+    virtual std::shared_ptr<const vintf::HalManifest> getFrameworkManifest() const;
+    virtual std::shared_ptr<const vintf::CompatibilityMatrix> getFrameworkMatrix() const;
 
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
