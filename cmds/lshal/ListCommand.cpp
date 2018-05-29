@@ -126,6 +126,67 @@ Partition ListCommand::resolvePartition(Partition process, const FqInstance& fqI
     return process;
 }
 
+bool match(const vintf::ManifestInstance& instance, const FqInstance& fqInstance,
+           vintf::TransportArch ta) {
+    // For hwbinder libs, allow missing arch in manifest.
+    // For passthrough libs, allow missing interface/instance in table.
+    return (ta.transport == instance.transport()) &&
+            (ta.transport == vintf::Transport::HWBINDER ||
+             vintf::contains(instance.arch(), ta.arch)) &&
+            (!fqInstance.hasInterface() || fqInstance.getInterface() == instance.interface()) &&
+            (!fqInstance.hasInstance() || fqInstance.getInstance() == instance.instance());
+}
+
+bool match(const vintf::MatrixInstance& instance, const FqInstance& fqInstance,
+           vintf::TransportArch /* ta */) {
+    return (!fqInstance.hasInterface() || fqInstance.getInterface() == instance.interface()) &&
+            (!fqInstance.hasInstance() || instance.matchInstance(fqInstance.getInstance()));
+}
+
+template <typename ObjectType>
+VintfInfo getVintfInfo(const std::shared_ptr<const ObjectType>& object,
+                       const FqInstance& fqInstance, vintf::TransportArch ta, VintfInfo value) {
+    bool found = false;
+    (void)object->forEachInstanceOfVersion(fqInstance.getPackage(), fqInstance.getVersion(),
+                                           [&](const auto& instance) {
+                                               found = match(instance, fqInstance, ta);
+                                               return !found; // continue if not found
+                                           });
+    return found ? value : VINTF_INFO_EMPTY;
+}
+
+std::shared_ptr<const vintf::HalManifest> ListCommand::getDeviceManifest() const {
+    return vintf::VintfObject::GetDeviceHalManifest();
+}
+
+std::shared_ptr<const vintf::CompatibilityMatrix> ListCommand::getDeviceMatrix() const {
+    return vintf::VintfObject::GetDeviceCompatibilityMatrix();
+}
+
+std::shared_ptr<const vintf::HalManifest> ListCommand::getFrameworkManifest() const {
+    return vintf::VintfObject::GetFrameworkHalManifest();
+}
+
+std::shared_ptr<const vintf::CompatibilityMatrix> ListCommand::getFrameworkMatrix() const {
+    return vintf::VintfObject::GetFrameworkCompatibilityMatrix();
+}
+
+VintfInfo ListCommand::getVintfInfo(const std::string& fqInstanceName,
+                                    vintf::TransportArch ta) const {
+    FqInstance fqInstance;
+    if (!fqInstance.setTo(fqInstanceName) &&
+        // Ignore interface / instance for passthrough libs
+        !fqInstance.setTo(splitFirst(fqInstanceName, ':').first)) {
+        err() << "Warning: Cannot parse '" << fqInstanceName << "'; no VINTF info." << std::endl;
+        return VINTF_INFO_EMPTY;
+    }
+
+    return lshal::getVintfInfo(getDeviceManifest(), fqInstance, ta, DEVICE_MANIFEST) |
+            lshal::getVintfInfo(getFrameworkManifest(), fqInstance, ta, FRAMEWORK_MANIFEST) |
+            lshal::getVintfInfo(getDeviceMatrix(), fqInstance, ta, DEVICE_MATRIX) |
+            lshal::getVintfInfo(getFrameworkMatrix(), fqInstance, ta, FRAMEWORK_MATRIX);
+}
+
 static bool scanBinderContext(pid_t pid,
         const std::string &contextName,
         std::function<void(const std::string&)> eachLine) {
@@ -269,6 +330,7 @@ void ListCommand::postprocess() {
         }
         for (TableEntry& entry : table) {
             entry.partition = getPartition(entry.serverPid);
+            entry.vintfInfo = getVintfInfo(entry.interfaceName, {entry.transport, entry.arch});
         }
     });
     // use a double for loop here because lshal doesn't care about efficiency.
@@ -776,6 +838,15 @@ void ListCommand::registerAllOptions() {
         return OK;
     }, "Emit debug info from\nIBase::debug with empty options. Cannot be used with --neat.\n"
         "Writes to specified file if 'arg' is provided, otherwise stdout."});
+
+    mOptions.push_back({'V', "vintf", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::VINTF);
+        return OK;
+    }, "print VINTF info. This column contains a comma-separated list of:\n"
+       "    - DM: device manifest\n"
+       "    - DC: device compatibility matrix\n"
+       "    - FM: framework manifest\n"
+       "    - FC: framework compatibility matrix"});
 
     // long options without short alternatives
     mOptions.push_back({'\0', "init-vintf", no_argument, v++, [](ListCommand* thiz, const char* arg) {
