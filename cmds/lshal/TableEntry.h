@@ -24,6 +24,7 @@
 #include <iostream>
 
 #include <procpartition/procpartition.h>
+#include <vintf/Arch.h>
 #include <vintf/Transport.h>
 
 #include "TextTable.h"
@@ -40,14 +41,6 @@ enum : unsigned int {
     LIST_DLLIB, // through listing dynamic libraries
 };
 using TableEntrySource = unsigned int;
-
-enum : unsigned int {
-    ARCH_UNKNOWN = 0,
-    ARCH32       = 1 << 0,
-    ARCH64       = 1 << 1,
-    ARCH_BOTH    = ARCH32 | ARCH64
-};
-using Architecture = unsigned int;
 
 enum class TableColumnType : unsigned int {
     INTERFACE_NAME,
@@ -78,7 +71,7 @@ struct TableEntry {
     uint64_t serverObjectAddress{NO_PTR};
     Pids clientPids{};
     std::vector<std::string> clientCmdlines{};
-    Architecture arch{ARCH_UNKNOWN};
+    vintf::Arch arch{vintf::Arch::ARCH_EMPTY};
     // empty: unknown, all zeros: unreleased, otherwise: released
     std::string hash{};
     Partition partition{Partition::UNKNOWN};
