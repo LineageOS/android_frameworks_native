@@ -276,7 +276,7 @@ public:
             return mFlinger.mutableCurrentState().displays.valueFor(mDisplayToken);
         }
 
-        auto& mutableDisplayDevice() { return mFlinger.mutableDisplays().valueFor(mDisplayToken); }
+        auto& mutableDisplayDevice() { return mFlinger.mutableDisplays()[mDisplayToken]; }
 
         auto& setNativeWindow(const sp<ANativeWindow>& nativeWindow) {
             mNativeWindow = nativeWindow;
@@ -305,7 +305,7 @@ public:
                                       mNativeWindow, mDisplaySurface, std::move(mRenderSurface), 0,
                                       0, false, HdrCapabilities(), 0, hdrAndRenderIntents,
                                       HWC_POWER_MODE_NORMAL);
-            mFlinger.mutableDisplays().add(mDisplayToken, device);
+            mFlinger.mutableDisplays().emplace(mDisplayToken, device);
 
             DisplayDeviceState state;
             state.type = mType;

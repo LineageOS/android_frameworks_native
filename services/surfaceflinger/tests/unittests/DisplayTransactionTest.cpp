@@ -207,11 +207,11 @@ bool DisplayTransactionTest::hasTransactionFlagSet(int flag) {
 }
 
 bool DisplayTransactionTest::hasDisplayDevice(sp<IBinder> displayToken) {
-    return mFlinger.mutableDisplays().indexOfKey(displayToken) >= 0;
+    return mFlinger.mutableDisplays().count(displayToken) == 1;
 }
 
 sp<DisplayDevice> DisplayTransactionTest::getDisplayDevice(sp<IBinder> displayToken) {
-    return mFlinger.mutableDisplays().valueFor(displayToken);
+    return mFlinger.mutableDisplays()[displayToken];
 }
 
 bool DisplayTransactionTest::hasCurrentDisplayState(sp<IBinder> displayToken) {

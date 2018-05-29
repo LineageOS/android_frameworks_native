@@ -1500,8 +1500,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     mPreviousPresentFence = getBE().mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
     mHadClientComposition = false;
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         mHadClientComposition = mHadClientComposition ||
                 getBE().mHwc->hasClientComposition(display->getHwcDisplayId());
     }
@@ -1517,8 +1516,7 @@ void SurfaceFlinger::doDebugFlashRegions()
         return;
 
     const bool repaintEverything = mRepaintEverything;
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (display->isPoweredOn()) {
             // transform the dirty region into this screen's coordinate space
             const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
@@ -1542,8 +1540,7 @@ void SurfaceFlinger::doDebugFlashRegions()
         usleep(mDebugRegion * 1000);
     }
 
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (!display->isPoweredOn()) {
             continue;
         }
@@ -1565,8 +1562,7 @@ void SurfaceFlinger::doTracing(const char* where) {
 void SurfaceFlinger::logLayerStats() {
     ATRACE_CALL();
     if (CC_UNLIKELY(mLayerStats.isEnabled())) {
-        for (size_t i = 0; i < mDisplays.size(); ++i) {
-            const auto& display = mDisplays[i];
+        for (const auto& [token, display] : mDisplays) {
             if (display->isPrimary()) {
                 mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(*display));
                 return;
@@ -1771,12 +1767,12 @@ void SurfaceFlinger::rebuildLayerStacks() {
         mVisibleRegionsDirty = false;
         invalidateHwcGeometry();
 
-        for (size_t i = 0; i < mDisplays.size(); ++i) {
+        for (const auto& pair : mDisplays) {
+            const auto& display = pair.second;
             Region opaqueRegion;
             Region dirtyRegion;
             Vector<sp<Layer>> layersSortedByZ;
             Vector<sp<Layer>> layersNeedingFences;
-            const auto& display = mDisplays[i];
             const Transform& tr = display->getTransform();
             const Rect bounds = display->getBounds();
             if (display->isPoweredOn()) {
@@ -1905,8 +1901,7 @@ void SurfaceFlinger::setUpHWComposer() {
     ATRACE_CALL();
     ALOGV("setUpHWComposer");
 
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
         bool empty = display->getVisibleLayersSortedByZ().size() == 0;
         bool wasEmpty = !display->lastCompositionHadVisibleLayers;
@@ -1935,8 +1930,7 @@ void SurfaceFlinger::setUpHWComposer() {
     // build the h/w work list
     if (CC_UNLIKELY(mGeometryInvalid)) {
         mGeometryInvalid = false;
-        for (size_t i = 0; i < mDisplays.size(); ++i) {
-            const auto& display = mDisplays[i];
+        for (const auto& [token, display] : mDisplays) {
             const auto hwcId = display->getHwcDisplayId();
             if (hwcId >= 0) {
                 const Vector<sp<Layer>>& currentLayers = display->getVisibleLayersSortedByZ();
@@ -1959,8 +1953,7 @@ void SurfaceFlinger::setUpHWComposer() {
     }
 
     // Set the per-frame data
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         const auto hwcId = display->getHwcDisplayId();
 
         if (hwcId < 0) {
@@ -2004,8 +1997,7 @@ void SurfaceFlinger::setUpHWComposer() {
 
     mDrawingState.colorMatrixChanged = false;
 
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (!display->isPoweredOn()) {
             continue;
         }
@@ -2021,8 +2013,7 @@ void SurfaceFlinger::doComposition() {
     ALOGV("doComposition");
 
     const bool repaintEverything = android_atomic_and(0, &mRepaintEverything);
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (display->isPoweredOn()) {
             // transform the dirty region into this screen's coordinate space
             const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
@@ -2045,8 +2036,7 @@ void SurfaceFlinger::postFramebuffer()
     const nsecs_t now = systemTime();
     mDebugInSwapBuffers = now;
 
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (!display->isPoweredOn()) {
             continue;
         }
@@ -2322,7 +2312,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 }
                 if (draw[i].type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES)
                     mEventThread->onHotplugReceived(draw[i].type, false);
-                mDisplays.removeItem(draw.keyAt(i));
+                mDisplays.erase(draw.keyAt(i));
             } else {
                 // this display is in both lists. see if something changed.
                 const DisplayDeviceState& state(curr[j]);
@@ -2337,7 +2327,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                     if (const auto display = getDisplayDeviceLocked(displayToken)) {
                         display->disconnect(getHwComposer());
                     }
-                    mDisplays.removeItem(displayToken);
+                    mDisplays.erase(displayToken);
                     mDrawingState.displays.removeItemsAt(i);
                     dc--;
                     // at this point we must loop to the next item
@@ -2417,9 +2407,9 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 
                 const wp<IBinder>& displayToken = curr.keyAt(i);
                 if (dispSurface != nullptr) {
-                    mDisplays.add(displayToken,
-                                  setupNewDisplayDeviceInternal(displayToken, hwcId, state,
-                                                                dispSurface, producer));
+                    mDisplays.emplace(displayToken,
+                                      setupNewDisplayDeviceInternal(displayToken, hwcId, state,
+                                                                    dispSurface, producer));
                     if (!state.isVirtual()) {
                         mEventThread->onHotplugReceived(state.type, true);
                     }
@@ -2483,7 +2473,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         // happened yet, so we must use the current state layer list
         // (soon to become the drawing state list).
         //
-        sp<const DisplayDevice> display;
+        sp<const DisplayDevice> hintDisplay;
         uint32_t currentlayerStack = 0;
         bool first = true;
         mCurrentState.traverseInZOrder([&](Layer* layer) {
@@ -2496,34 +2486,33 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // figure out if this layerstack is mirrored
                 // (more than one display) if so, pick the default display,
                 // if not, pick the only display it's on.
-                display = nullptr;
-                for (size_t i = 0; i < mDisplays.size(); ++i) {
-                    if (layer->belongsToDisplay(mDisplays[i]->getLayerStack(),
-                                                mDisplays[i]->isPrimary())) {
-                        if (display) {
-                            display = nullptr;
+                hintDisplay = nullptr;
+                for (const auto& [token, display] : mDisplays) {
+                    if (layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
+                        if (hintDisplay) {
+                            hintDisplay = nullptr;
                             break;
                         } else {
-                            display = mDisplays[i];
+                            hintDisplay = display;
                         }
                     }
                 }
             }
 
-            if (!display) {
+            if (!hintDisplay) {
                 // NOTE: TEMPORARY FIX ONLY. Real fix should cause layers to
                 // redraw after transform hint changes. See bug 8508397.
 
                 // could be null when this layer is using a layerStack
                 // that is not visible on any display. Also can occur at
                 // screen off/on times.
-                display = getDefaultDisplayDeviceLocked();
+                hintDisplay = getDefaultDisplayDeviceLocked();
             }
 
-            // disp can be null if there is no display available at all to get
+            // could be null if there is no display available at all to get
             // the transform hint from.
-            if (display) {
-                layer->updateTransformHint(display);
+            if (hintDisplay) {
+                layer->updateTransformHint(hintDisplay);
             }
 
             first = false;
@@ -2566,8 +2555,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 
 void SurfaceFlinger::updateCursorAsync()
 {
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (display->getHwcDisplayId() < 0) {
             continue;
         }
@@ -2744,8 +2732,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 }
 
 void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         if (layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
             display->dirtyRegion.orSelf(dirty);
         }
@@ -4030,8 +4017,7 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
 }
 
 void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         const int32_t hwcId = display->getHwcDisplayId();
         const auto displayId = getHwComposer().getHwcDisplayId(hwcId);
         if (!displayId) {
@@ -4079,8 +4065,7 @@ void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
 
     // TODO: print out if wide-color mode is active or not
 
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         const int32_t hwcId = display->getHwcDisplayId();
         if (hwcId == DisplayDevice::DISPLAY_ID_INVALID) {
             continue;
@@ -4217,8 +4202,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     colorizer.bold(result);
     result.appendFormat("Displays (%zu entries)\n", mDisplays.size());
     colorizer.reset(result);
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         display->dump(result);
     }
     result.append("\n");
@@ -4273,8 +4257,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     /*
      * HWC layer minidump
      */
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        const auto& display = mDisplays[i];
+    for (const auto& [token, display] : mDisplays) {
         const int32_t hwcId = display->getHwcDisplayId();
         if (hwcId == DisplayDevice::DISPLAY_ID_INVALID) {
             continue;
@@ -4319,9 +4302,9 @@ const Vector< sp<Layer> >&
 SurfaceFlinger::getLayerSortedByZForHwcDisplay(int id) {
     // Note: mStateLock is held here
     wp<IBinder> displayToken;
-    for (size_t i = 0; i < mDisplays.size(); ++i) {
-        if (mDisplays.valueAt(i)->getHwcDisplayId() == id) {
-            displayToken = mDisplays.keyAt(i);
+    for (const auto& [token, display] : mDisplays) {
+        if (display->getHwcDisplayId() == id) {
+            displayToken = token;
             break;
         }
     }

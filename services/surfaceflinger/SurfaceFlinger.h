@@ -610,7 +610,8 @@ private:
 
     // NOTE: can only be called from the main thread or with mStateLock held
     sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) {
-        return mDisplays.valueFor(displayToken);
+        const auto it = mDisplays.find(displayToken);
+        return it == mDisplays.end() ? nullptr : it->second;
     }
 
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
@@ -808,7 +809,7 @@ private:
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
-    DefaultKeyedVector< wp<IBinder>, sp<DisplayDevice> > mDisplays;
+    std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays;
 
     // don't use a lock for these, we don't care
     int mDebugRegion;
