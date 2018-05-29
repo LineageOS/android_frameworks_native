@@ -799,7 +799,7 @@ void ListCommand::registerAllOptions() {
     mOptions.push_back({'l', "released", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::RELEASED);
         return OK;
-    }, "print the 'is released?' column\n(Y=released, empty=unreleased or unknown)"});
+    }, "print the 'is released?' column\n(Y=released, N=unreleased, ?=unknown)"});
     mOptions.push_back({'t', "transport", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::TRANSPORT);
         return OK;

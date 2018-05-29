@@ -34,7 +34,7 @@ static const std::string &getArchString(vintf::Arch arch) {
     static const std::string sStr64 = "64";
     static const std::string sStr32 = "32";
     static const std::string sStrBoth = "32+64";
-    static const std::string sStrUnknown = "";
+    static const std::string sStrUnknown = "?";
     switch (arch) {
         case vintf::Arch::ARCH_64:
             return sStr64;
