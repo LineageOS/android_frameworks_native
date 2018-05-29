@@ -44,6 +44,7 @@ using ::android::hardware::hidl_death_recipient;
 using ::android::hardware::hidl_handle;
 using ::android::hardware::hidl_string;
 using ::android::hardware::hidl_vec;
+using android::vintf::Transport;
 
 using InstanceDebugInfo = IServiceManager::InstanceDebugInfo;
 
@@ -389,22 +390,25 @@ TEST_F(ListTest, GetPidInfoCached) {
 
 TEST_F(ListTest, Fetch) {
     EXPECT_EQ(0u, mockList->fetch());
-    std::array<std::string, 6> transports{{"hwbinder", "hwbinder", "passthrough",
-                                          "passthrough", "passthrough", "passthrough"}};
+    std::array<Transport, 6> transports{{Transport::HWBINDER, Transport::HWBINDER,
+                                         Transport::PASSTHROUGH, Transport::PASSTHROUGH,
+                                         Transport::PASSTHROUGH, Transport::PASSTHROUGH}};
     std::array<Architecture, 6> archs{{ARCH64, ARCH64, ARCH32, ARCH32, ARCH32, ARCH32}};
     int id = 1;
     mockList->forEachTable([&](const Table& table) {
         ASSERT_EQ(2u, table.size());
         for (const auto& entry : table) {
-            const auto& transport = transports[id - 1];
+            auto transport = transports[id - 1];
             TableEntry expected{
                 .interfaceName = getFqInstanceName(id),
                 .transport = transport,
-                .serverPid = transport == "hwbinder" ? id : NO_PID,
-                .threadUsage = transport == "hwbinder" ? getPidInfoFromId(id).threadUsage : 0,
-                .threadCount = transport == "hwbinder" ? getPidInfoFromId(id).threadCount : 0,
+                .serverPid = transport == Transport::HWBINDER ? id : NO_PID,
+                .threadUsage =
+                        transport == Transport::HWBINDER ? getPidInfoFromId(id).threadUsage : 0,
+                .threadCount =
+                        transport == Transport::HWBINDER ? getPidInfoFromId(id).threadCount : 0,
                 .serverCmdline = {},
-                .serverObjectAddress = transport == "hwbinder" ? getPtr(id) : NO_PTR,
+                .serverObjectAddress = transport == Transport::HWBINDER ? getPtr(id) : NO_PTR,
                 .clientPids = getClients(id),
                 .clientCmdlines = {},
                 .arch = archs[id - 1],

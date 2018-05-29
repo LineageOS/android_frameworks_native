@@ -24,6 +24,7 @@
 #include <iostream>
 
 #include <procpartition/procpartition.h>
+#include <vintf/Transport.h>
 
 #include "TextTable.h"
 
@@ -69,7 +70,7 @@ enum {
 
 struct TableEntry {
     std::string interfaceName{};
-    std::string transport{};
+    vintf::Transport transport{vintf::Transport::EMPTY};
     int32_t serverPid{NO_PID};
     uint32_t threadUsage{0};
     uint32_t threadCount{0};
