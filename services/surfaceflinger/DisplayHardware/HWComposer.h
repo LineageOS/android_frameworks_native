@@ -183,7 +183,7 @@ private:
     // For unit tests
     friend TestableSurfaceFlinger;
 
-    static const int32_t VIRTUAL_DISPLAY_ID_BASE = 2;
+    static const int32_t VIRTUAL_DISPLAY_ID_BASE = HWC_DISPLAY_VIRTUAL;
 
     bool isValidDisplay(int32_t displayId) const;
     static void validateChange(HWC2::Composition from, HWC2::Composition to);
