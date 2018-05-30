@@ -1932,25 +1932,25 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& displayDevice,
     Dataspace hdrDataSpace;
     Dataspace bestDataSpace = getBestDataspace(displayDevice, &hdrDataSpace);
 
+    // respect hdrDataSpace only when there is modern HDR support
+    const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
+        displayDevice->hasModernHdrSupport(hdrDataSpace);
+    if (isHdr) {
+        bestDataSpace = hdrDataSpace;
+    }
+
     RenderIntent intent;
     switch (mDisplayColorSetting) {
         case DisplayColorSetting::MANAGED:
         case DisplayColorSetting::UNMANAGED:
-            intent = RenderIntent::COLORIMETRIC;
+            intent = isHdr ? RenderIntent::TONE_MAP_COLORIMETRIC : RenderIntent::COLORIMETRIC;
             break;
         case DisplayColorSetting::ENHANCED:
-            intent = RenderIntent::ENHANCE;
+            intent = isHdr ? RenderIntent::TONE_MAP_ENHANCE : RenderIntent::ENHANCE;
             break;
         default: // vendor display color setting
             intent = static_cast<RenderIntent>(mDisplayColorSetting);
             break;
-    }
-
-    // respect hdrDataSpace only when there is modern HDR support
-    if (hdrDataSpace != Dataspace::UNKNOWN && displayDevice->hasModernHdrSupport(hdrDataSpace)) {
-        bestDataSpace = hdrDataSpace;
-        intent = mDisplayColorSetting == DisplayColorSetting::ENHANCED ?
-            RenderIntent::TONE_MAP_ENHANCE : RenderIntent::TONE_MAP_COLORIMETRIC;
     }
 
     displayDevice->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
