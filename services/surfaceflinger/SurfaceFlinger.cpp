@@ -1613,19 +1613,15 @@ void SurfaceFlinger::doTracing(const char* where) {
 void SurfaceFlinger::logLayerStats() {
     ATRACE_CALL();
     if (CC_UNLIKELY(mLayerStats.isEnabled())) {
-        int32_t hwcId = -1;
         for (size_t dpy = 0; dpy < mDisplays.size(); ++dpy) {
             const sp<const DisplayDevice>& displayDevice(mDisplays[dpy]);
             if (displayDevice->isPrimary()) {
-                hwcId = displayDevice->getHwcDisplayId();
-                break;
+                mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(*displayDevice));
+                return;
             }
         }
-        if (hwcId < 0) {
-            ALOGE("LayerStats: Hmmm, no primary display?");
-            return;
-        }
-        mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(hwcId));
+
+        ALOGE("logLayerStats: no primary display");
     }
 }
 
@@ -4185,19 +4181,18 @@ LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const 
     return layersProto;
 }
 
-LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(int32_t hwcId) const {
+LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& displayDevice) const {
     LayersProto layersProto;
-    const sp<DisplayDevice>& displayDevice(mDisplays[hwcId]);
 
     SizeProto* resolution = layersProto.mutable_resolution();
-    resolution->set_w(displayDevice->getWidth());
-    resolution->set_h(displayDevice->getHeight());
+    resolution->set_w(displayDevice.getWidth());
+    resolution->set_h(displayDevice.getHeight());
 
-    layersProto.set_color_mode(decodeColorMode(displayDevice->getActiveColorMode()));
-    layersProto.set_color_transform(decodeColorTransform(displayDevice->getColorTransform()));
-    layersProto.set_global_transform(
-            static_cast<int32_t>(displayDevice->getOrientationTransform()));
+    layersProto.set_color_mode(decodeColorMode(displayDevice.getActiveColorMode()));
+    layersProto.set_color_transform(decodeColorTransform(displayDevice.getColorTransform()));
+    layersProto.set_global_transform(static_cast<int32_t>(displayDevice.getOrientationTransform()));
 
+    const int32_t hwcId = displayDevice.getHwcDisplayId();
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(hwcId)) {
             LayerProto* layerProto = layersProto.add_layers();
