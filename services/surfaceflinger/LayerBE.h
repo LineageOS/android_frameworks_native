@@ -40,7 +40,6 @@ struct CompositionInfo {
     LayerBE* layer = nullptr;
     struct {
         HWC2::Layer* hwcLayer;
-        int32_t hwid = -1;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;

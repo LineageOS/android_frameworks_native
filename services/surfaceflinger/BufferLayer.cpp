@@ -612,8 +612,8 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     const Transform& tr = display->getTransform();
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
-    auto hwcId = display->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
+    const auto displayId = display->getId();
+    auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
@@ -631,7 +631,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
 
     // Sideband layers
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
-        setCompositionType(hwcId, HWC2::Composition::Sideband);
+        setCompositionType(displayId, HWC2::Composition::Sideband);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
         error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
         if (error != HWC2::Error::None) {
@@ -645,10 +645,10 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     // Device or Cursor layers
     if (mPotentialCursor) {
         ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(hwcId, HWC2::Composition::Cursor);
+        setCompositionType(displayId, HWC2::Composition::Cursor);
     } else {
         ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(hwcId, HWC2::Composition::Device);
+        setCompositionType(displayId, HWC2::Composition::Device);
     }
 
     ALOGV("setPerFrameData: dataspace = %d", mCurrentDataSpace);
@@ -667,8 +667,8 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    getBE().mHwcLayers[hwcId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot,
-                                                       &hwcBuffer);
+    getBE().mHwcLayers[displayId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
+                                                           &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);

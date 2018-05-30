@@ -677,7 +677,8 @@ private:
      */
     DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
             HWC2::Connection connection) const;
-    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken, int hwcId,
+    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
+                                                    int32_t displayId,
                                                     const DisplayDeviceState& state,
                                                     const sp<DisplaySurface>& dispSurface,
                                                     const sp<IGraphicBufferProducer>& producer);

@@ -234,8 +234,8 @@ const DisplayDeviceState& DisplayTransactionTest::getDrawingDisplayState(sp<IBin
  *
  */
 
-template <DisplayDevice::DisplayType type, DisplayDevice::DisplayType hwcId, int width, int height,
-          Critical critical, Async async, Secure secure, int grallocUsage>
+template <DisplayDevice::DisplayType type, DisplayDevice::DisplayType displayId, int width,
+          int height, Critical critical, Async async, Secure secure, int grallocUsage>
 struct DisplayVariant {
     // The display width and height
     static constexpr int WIDTH = width;
@@ -245,7 +245,7 @@ struct DisplayVariant {
 
     // The type for this display
     static constexpr DisplayDevice::DisplayType TYPE = type;
-    static constexpr DisplayDevice::DisplayType HWCOMPOSER_ID = hwcId;
+    static constexpr DisplayDevice::DisplayType DISPLAY_ID = displayId;
 
     // When creating native window surfaces for the framebuffer, whether those should be critical
     static constexpr Critical CRITICAL = critical;
@@ -257,7 +257,7 @@ struct DisplayVariant {
     static constexpr Secure SECURE = secure;
 
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
-        auto injector = FakeDisplayDeviceInjector(test->mFlinger, TYPE, HWCOMPOSER_ID);
+        auto injector = FakeDisplayDeviceInjector(test->mFlinger, TYPE, DISPLAY_ID);
         injector.setSecure(static_cast<bool>(SECURE));
         return injector;
     }

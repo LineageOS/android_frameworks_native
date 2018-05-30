@@ -70,11 +70,11 @@ public:
 
     auto resetDisplayState() { return mFlinger->resetDisplayState(); }
 
-    auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken, int hwcId,
+    auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken, int32_t displayId,
                                        const DisplayDeviceState& state,
                                        const sp<DisplaySurface>& dispSurface,
                                        const sp<IGraphicBufferProducer>& producer) {
-        return mFlinger->setupNewDisplayDeviceInternal(displayToken, hwcId, state, dispSurface,
+        return mFlinger->setupNewDisplayDeviceInternal(displayToken, displayId, state, dispSurface,
                                                        producer);
     }
 
@@ -255,8 +255,8 @@ public:
     class FakeDisplayDeviceInjector {
     public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger, DisplayDevice::DisplayType type,
-                                  int hwcId)
-              : mFlinger(flinger), mType(type), mHwcId(hwcId) {}
+                                  int32_t displayId)
+              : mFlinger(flinger), mType(type), mDisplayId(displayId) {}
 
         sp<IBinder> token() const { return mDisplayToken; }
 
@@ -301,10 +301,10 @@ public:
         sp<DisplayDevice> inject() {
             std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hdrAndRenderIntents;
             sp<DisplayDevice> device =
-                    new DisplayDevice(mFlinger.mFlinger.get(), mType, mHwcId, mSecure, mDisplayToken,
-                                      mNativeWindow, mDisplaySurface, std::move(mRenderSurface), 0,
-                                      0, false, HdrCapabilities(), 0, hdrAndRenderIntents,
-                                      HWC_POWER_MODE_NORMAL);
+                    new DisplayDevice(mFlinger.mFlinger.get(), mType, mDisplayId, mSecure,
+                                      mDisplayToken, mNativeWindow, mDisplaySurface,
+                                      std::move(mRenderSurface), 0, 0, false, HdrCapabilities(), 0,
+                                      hdrAndRenderIntents, HWC_POWER_MODE_NORMAL);
             mFlinger.mutableDisplays().emplace(mDisplayToken, device);
 
             DisplayDeviceState state;
@@ -324,7 +324,7 @@ public:
         TestableSurfaceFlinger& mFlinger;
         sp<BBinder> mDisplayToken = new BBinder();
         DisplayDevice::DisplayType mType;
-        int mHwcId;
+        const int32_t mDisplayId;
         sp<ANativeWindow> mNativeWindow;
         sp<DisplaySurface> mDisplaySurface;
         std::unique_ptr<RE::Surface> mRenderSurface;

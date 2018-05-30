@@ -1502,7 +1502,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     mHadClientComposition = false;
     for (const auto& [token, display] : mDisplays) {
         mHadClientComposition = mHadClientComposition ||
-                getBE().mHwc->hasClientComposition(display->getHwcDisplayId());
+                getBE().mHwc->hasClientComposition(display->getId());
     }
     mVsyncModulator.setLastFrameUsedRenderEngine(mHadClientComposition);
 
@@ -1547,7 +1547,7 @@ void SurfaceFlinger::doDebugFlashRegions()
 
         status_t result = display->prepareFrame(*getBE().mHwc);
         ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
-                 display->getHwcDisplayId(), result, strerror(-result));
+                 display->getId(), result, strerror(-result));
     }
 }
 
@@ -1789,13 +1789,13 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         } else {
                             // Clear out the HWC layer if this layer was
                             // previously visible, but no longer is
-                            hwcLayerDestroyed = layer->destroyHwcLayer(display->getHwcDisplayId());
+                            hwcLayerDestroyed = layer->destroyHwcLayer(display->getId());
                         }
                     } else {
                         // WM changes display->layerStack upon sleep/awake.
                         // Here we make sure we delete the HWC layers even if
                         // WM changed their layer stack.
-                        hwcLayerDestroyed = layer->destroyHwcLayer(display->getHwcDisplayId());
+                        hwcLayerDestroyed = layer->destroyHwcLayer(display->getId());
                     }
 
                     // If a layer is not going to get a release fence because
@@ -1917,8 +1917,8 @@ void SurfaceFlinger::setUpHWComposer() {
         bool mustRecompose = dirty && !(empty && wasEmpty);
 
         ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
-                 display->getHwcDisplayId(), mustRecompose ? "doing" : "skipping",
-                 dirty ? "+" : "-", empty ? "+" : "-", wasEmpty ? "+" : "-");
+                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
+                 empty ? "+" : "-", wasEmpty ? "+" : "-");
 
         display->beginFrame(mustRecompose);
 
@@ -1931,21 +1931,21 @@ void SurfaceFlinger::setUpHWComposer() {
     if (CC_UNLIKELY(mGeometryInvalid)) {
         mGeometryInvalid = false;
         for (const auto& [token, display] : mDisplays) {
-            const auto hwcId = display->getHwcDisplayId();
-            if (hwcId >= 0) {
+            const auto displayId = display->getId();
+            if (displayId >= 0) {
                 const Vector<sp<Layer>>& currentLayers = display->getVisibleLayersSortedByZ();
                 for (size_t i = 0; i < currentLayers.size(); i++) {
                     const auto& layer = currentLayers[i];
-                    if (!layer->hasHwcLayer(hwcId)) {
-                        if (!layer->createHwcLayer(getBE().mHwc.get(), hwcId)) {
-                            layer->forceClientComposition(hwcId);
+                    if (!layer->hasHwcLayer(displayId)) {
+                        if (!layer->createHwcLayer(getBE().mHwc.get(), displayId)) {
+                            layer->forceClientComposition(displayId);
                             continue;
                         }
                     }
 
                     layer->setGeometry(display, i);
                     if (mDebugDisableHWC || mDebugRegion) {
-                        layer->forceClientComposition(hwcId);
+                        layer->forceClientComposition(displayId);
                     }
                 }
             }
@@ -1954,32 +1954,32 @@ void SurfaceFlinger::setUpHWComposer() {
 
     // Set the per-frame data
     for (const auto& [token, display] : mDisplays) {
-        const auto hwcId = display->getHwcDisplayId();
-
-        if (hwcId < 0) {
+        const auto displayId = display->getId();
+        if (displayId < 0) {
             continue;
         }
+
         if (mDrawingState.colorMatrixChanged) {
             display->setColorTransform(mDrawingState.colorMatrix);
-            status_t result = getBE().mHwc->setColorTransform(hwcId, mDrawingState.colorMatrix);
+            status_t result = getBE().mHwc->setColorTransform(displayId, mDrawingState.colorMatrix);
             ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display %d: %d",
-                     display->getHwcDisplayId(), result);
+                     displayId, result);
         }
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
             if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
                  layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
                 !display->hasHDR10Support()) {
-                layer->forceClientComposition(hwcId);
+                layer->forceClientComposition(displayId);
             }
             if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
                  layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
                 !display->hasHLGSupport()) {
-                layer->forceClientComposition(hwcId);
+                layer->forceClientComposition(displayId);
             }
 
-            if (layer->getForceClientComposition(hwcId)) {
+            if (layer->getForceClientComposition(displayId)) {
                 ALOGV("[%s] Requesting Client composition", layer->getName().string());
-                layer->setCompositionType(hwcId, HWC2::Composition::Client);
+                layer->setCompositionType(displayId, HWC2::Composition::Client);
                 continue;
             }
 
@@ -2004,7 +2004,7 @@ void SurfaceFlinger::setUpHWComposer() {
 
         status_t result = display->prepareFrame(*getBE().mHwc);
         ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
-                 display->getHwcDisplayId(), result, strerror(-result));
+                 display->getId(), result, strerror(-result));
     }
 }
 
@@ -2040,9 +2040,9 @@ void SurfaceFlinger::postFramebuffer()
         if (!display->isPoweredOn()) {
             continue;
         }
-        const auto hwcId = display->getHwcDisplayId();
-        if (hwcId >= 0) {
-            getBE().mHwc->presentAndGetReleaseFences(hwcId);
+        const auto displayId = display->getId();
+        if (displayId >= 0) {
+            getBE().mHwc->presentAndGetReleaseFences(displayId);
         }
         display->onSwapBuffersCompleted();
         display->makeCurrent();
@@ -2050,15 +2050,15 @@ void SurfaceFlinger::postFramebuffer()
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
-            auto hwcLayer = layer->getHwcLayer(hwcId);
-            sp<Fence> releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            auto hwcLayer = layer->getHwcLayer(displayId);
+            sp<Fence> releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer);
 
             // If the layer was client composited in the previous frame, we
             // need to merge with the previous client target acquire fence.
             // Since we do not track that, always merge with the current
             // client target acquire fence when it is available, even though
             // this is suboptimal.
-            if (layer->getCompositionType(hwcId) == HWC2::Composition::Client) {
+            if (layer->getCompositionType(displayId) == HWC2::Composition::Client) {
                 releaseFence = Fence::merge("LayerRelease", releaseFence,
                                             display->getClientTargetAcquireFence());
             }
@@ -2070,14 +2070,14 @@ void SurfaceFlinger::postFramebuffer()
         // display->getVisibleLayersSortedByZ.  The best we can do is to
         // supply them with the present fence.
         if (!display->getLayersNeedingFences().isEmpty()) {
-            sp<Fence> presentFence = getBE().mHwc->getPresentFence(hwcId);
+            sp<Fence> presentFence = getBE().mHwc->getPresentFence(displayId);
             for (auto& layer : display->getLayersNeedingFences()) {
                 layer->getBE().onLayerDisplayed(presentFence);
             }
         }
 
-        if (hwcId >= 0) {
-            getBE().mHwc->clearReleaseFences(hwcId);
+        if (displayId >= 0) {
+            getBE().mHwc->clearReleaseFences(displayId);
         }
     }
 
@@ -2123,7 +2123,7 @@ void SurfaceFlinger::handleTransaction(uint32_t transactionFlags)
     // here the transaction has been committed
 }
 
-DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t display,
+DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t hwcDisplayId,
                                                                 HWC2::Connection connection) const {
     // Figure out whether the event is for the primary display or an
     // external display by matching the Hwc display id against one for a
@@ -2132,17 +2132,16 @@ DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t d
     // have a connected primary display, we assume the new display is meant to
     // be the primary display, and then if we don't have an external display,
     // we assume it is that.
-    const auto primaryDisplayId =
-            getBE().mHwc->getHwcDisplayId(DisplayDevice::DISPLAY_PRIMARY);
-    const auto externalDisplayId =
+    const auto primaryHwcDisplayId = getBE().mHwc->getHwcDisplayId(DisplayDevice::DISPLAY_PRIMARY);
+    const auto externalHwcDisplayId =
             getBE().mHwc->getHwcDisplayId(DisplayDevice::DISPLAY_EXTERNAL);
-    if (primaryDisplayId && primaryDisplayId == display) {
+    if (primaryHwcDisplayId && primaryHwcDisplayId == hwcDisplayId) {
         return DisplayDevice::DISPLAY_PRIMARY;
-    } else if (externalDisplayId && externalDisplayId == display) {
+    } else if (externalHwcDisplayId && externalHwcDisplayId == hwcDisplayId) {
         return DisplayDevice::DISPLAY_EXTERNAL;
-    } else if (connection == HWC2::Connection::Connected && !primaryDisplayId) {
+    } else if (connection == HWC2::Connection::Connected && !primaryHwcDisplayId) {
         return DisplayDevice::DISPLAY_PRIMARY;
-    } else if (connection == HWC2::Connection::Connected && !externalDisplayId) {
+    } else if (connection == HWC2::Connection::Connected && !externalHwcDisplayId) {
         return DisplayDevice::DISPLAY_EXTERNAL;
     }
 
@@ -2199,13 +2198,13 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 }
 
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
-        const wp<IBinder>& displayToken, int hwcId, const DisplayDeviceState& state,
+        const wp<IBinder>& displayToken, int32_t displayId, const DisplayDeviceState& state,
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
     bool hasWideColorGamut = false;
     std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
 
     if (hasWideColorDisplay) {
-        std::vector<ColorMode> modes = getHwComposer().getColorModes(hwcId);
+        std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (ColorMode colorMode : modes) {
             switch (colorMode) {
                 case ColorMode::DISPLAY_P3:
@@ -2217,14 +2216,14 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                     break;
             }
 
-            std::vector<RenderIntent> renderIntents = getHwComposer().getRenderIntents(hwcId,
-                                                                                       colorMode);
+            std::vector<RenderIntent> renderIntents =
+                    getHwComposer().getRenderIntents(displayId, colorMode);
             hwcColorModes.emplace(colorMode, renderIntents);
         }
     }
 
     HdrCapabilities hdrCapabilities;
-    getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+    getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
@@ -2254,11 +2253,11 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     auto initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
     sp<DisplayDevice> display =
-            new DisplayDevice(this, state.type, hwcId, state.isSecure, displayToken, nativeWindow,
-                              dispSurface, std::move(renderSurface), displayWidth, displayHeight,
-                              hasWideColorGamut, hdrCapabilities,
-                              getHwComposer().getSupportedPerFrameMetadata(hwcId), hwcColorModes,
-                              initialPowerMode);
+            new DisplayDevice(this, state.type, displayId, state.isSecure, displayToken,
+                              nativeWindow, dispSurface, std::move(renderSurface), displayWidth,
+                              displayHeight, hasWideColorGamut, hdrCapabilities,
+                              getHwComposer().getSupportedPerFrameMetadata(displayId),
+                              hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2362,7 +2361,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 sp<IGraphicBufferConsumer> bqConsumer;
                 mCreateBufferQueue(&bqProducer, &bqConsumer, false);
 
-                int32_t hwcId = -1;
+                int32_t displayId = -1;
                 if (state.isVirtual()) {
                     // Virtual displays without a surface are dormant:
                     // they have external state (layer stack, projection,
@@ -2381,13 +2380,14 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                             ALOGE_IF(status != NO_ERROR, "Unable to query format (%d)", status);
                             auto format = static_cast<ui::PixelFormat>(intFormat);
 
-                            getBE().mHwc->allocateVirtualDisplay(width, height, &format, &hwcId);
+                            getBE().mHwc->allocateVirtualDisplay(width, height, &format,
+                                                                 &displayId);
                         }
 
                         // TODO: Plumb requested format back up to consumer
 
                         sp<VirtualDisplaySurface> vds =
-                                new VirtualDisplaySurface(*getBE().mHwc, hwcId, state.surface,
+                                new VirtualDisplaySurface(*getBE().mHwc, displayId, state.surface,
                                                           bqProducer, bqConsumer,
                                                           state.displayName);
 
@@ -2400,15 +2400,15 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                              "surface is provided (%p), ignoring it",
                              state.surface.get());
 
-                    hwcId = state.type;
-                    dispSurface = new FramebufferSurface(*getBE().mHwc, hwcId, bqConsumer);
+                    displayId = state.type;
+                    dispSurface = new FramebufferSurface(*getBE().mHwc, displayId, bqConsumer);
                     producer = bqProducer;
                 }
 
                 const wp<IBinder>& displayToken = curr.keyAt(i);
                 if (dispSurface != nullptr) {
                     mDisplays.emplace(displayToken,
-                                      setupNewDisplayDeviceInternal(displayToken, hwcId, state,
+                                      setupNewDisplayDeviceInternal(displayToken, displayId, state,
                                                                     dispSurface, producer));
                     if (!state.isVirtual()) {
                         mEventThread->onHotplugReceived(state.type, true);
@@ -2556,7 +2556,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 void SurfaceFlinger::updateCursorAsync()
 {
     for (const auto& [token, display] : mDisplays) {
-        if (display->getHwcDisplayId() < 0) {
+        if (display->getId() < 0) {
             continue;
         }
 
@@ -2804,7 +2804,7 @@ void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& display
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
     // 2) There is work to be done (the dirty region isn't empty)
-    bool isHwcDisplay = display->getHwcDisplayId() >= 0;
+    bool isHwcDisplay = display->getId() >= 0;
     if (!isHwcDisplay && inDirtyRegion.isEmpty()) {
         ALOGV("Skipping display composition");
         return;
@@ -2822,8 +2822,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
 
     const Region bounds(display->bounds());
     const DisplayRenderArea renderArea(display);
-    const auto hwcId = display->getHwcDisplayId();
-    const bool hasClientComposition = getBE().mHwc->hasClientComposition(hwcId);
+    const auto displayId = display->getId();
+    const bool hasClientComposition = getBE().mHwc->hasClientComposition(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
     bool applyColorMatrix = false;
@@ -2841,7 +2841,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         getBE().mRenderEngine->setDisplayMaxLuminance(
                 display->getHdrCapabilities().getDesiredMaxLuminance());
 
-        const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(hwcId);
+        const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(displayId);
         const bool skipClientColorTransform = getBE().mHwc->hasCapability(
             HWC2::Capability::SkipClientColorTransform);
 
@@ -2920,18 +2920,16 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         const Region clip(bounds.intersect(
                 displayTransform.transform(layer->visibleRegion)));
         ALOGV("Layer: %s", layer->getName().string());
-        ALOGV("  Composition type: %s",
-                to_string(layer->getCompositionType(hwcId)).c_str());
+        ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
         if (!clip.isEmpty()) {
-            switch (layer->getCompositionType(hwcId)) {
+            switch (layer->getCompositionType(displayId)) {
                 case HWC2::Composition::Cursor:
                 case HWC2::Composition::Device:
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
                     const Layer::State& state(layer->getDrawingState());
-                    if (layer->getClearClientTarget(hwcId) && !firstLayer &&
-                            layer->isOpaque(state) && (state.color.a == 1.0f)
-                            && hasClientComposition) {
+                    if (layer->getClearClientTarget(displayId) && !firstLayer &&
+                        layer->isOpaque(state) && (state.color.a == 1.0f) && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
                         layer->clearWithOpenGL(renderArea);
@@ -3623,7 +3621,7 @@ void SurfaceFlinger::initializeDisplays() {
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int mode,
                                           bool stateLockHeld) {
-    const int32_t displayId = display->getHwcDisplayId();
+    const int32_t displayId = display->getId();
     ALOGD("Setting power mode %d on display %d", mode, displayId);
 
     int currentMode = display->getPowerMode();
@@ -4018,16 +4016,16 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
 
 void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
     for (const auto& [token, display] : mDisplays) {
-        const int32_t hwcId = display->getHwcDisplayId();
-        const auto displayId = getHwComposer().getHwcDisplayId(hwcId);
-        if (!displayId) {
+        const int32_t displayId = display->getId();
+        const auto hwcDisplayId = getHwComposer().getHwcDisplayId(displayId);
+        if (!hwcDisplayId) {
             continue;
         }
 
-        result.appendFormat("Display %d: ", hwcId);
+        result.appendFormat("Display %d (HWC display %" PRIu64 "): ", displayId, *hwcDisplayId);
         uint8_t port;
         DisplayIdentificationData data;
-        if (!getHwComposer().getDisplayIdentificationData(*displayId, &port, &data)) {
+        if (!getHwComposer().getDisplayIdentificationData(*hwcDisplayId, &port, &data)) {
             result.append("no identification data\n");
             continue;
         }
@@ -4066,13 +4064,13 @@ void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
     // TODO: print out if wide-color mode is active or not
 
     for (const auto& [token, display] : mDisplays) {
-        const int32_t hwcId = display->getHwcDisplayId();
-        if (hwcId == DisplayDevice::DISPLAY_ID_INVALID) {
+        const int32_t displayId = display->getId();
+        if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
             continue;
         }
 
-        result.appendFormat("Display %d color modes:\n", hwcId);
-        std::vector<ColorMode> modes = getHwComposer().getColorModes(hwcId);
+        result.appendFormat("Display %d color modes:\n", displayId);
+        std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (auto&& mode : modes) {
             result.appendFormat("    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
         }
@@ -4107,11 +4105,11 @@ LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& disp
     layersProto.set_color_transform(decodeColorTransform(display.getColorTransform()));
     layersProto.set_global_transform(static_cast<int32_t>(display.getOrientationTransform()));
 
-    const int32_t hwcId = display.getHwcDisplayId();
+    const int32_t displayId = display.getId();
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(hwcId)) {
+        if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(displayId)) {
             LayerProto* layerProto = layersProto.add_layers();
-            layer->writeToProto(layerProto, hwcId);
+            layer->writeToProto(layerProto, displayId);
         }
     });
 
@@ -4258,16 +4256,14 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
      * HWC layer minidump
      */
     for (const auto& [token, display] : mDisplays) {
-        const int32_t hwcId = display->getHwcDisplayId();
-        if (hwcId == DisplayDevice::DISPLAY_ID_INVALID) {
+        const int32_t displayId = display->getId();
+        if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
             continue;
         }
 
-        result.appendFormat("Display %d HWC layers:\n", hwcId);
+        result.appendFormat("Display %d HWC layers:\n", displayId);
         Layer::miniDumpHeader(result);
-        mCurrentState.traverseInZOrder([&](Layer* layer) {
-            layer->miniDump(result, hwcId);
-        });
+        mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, displayId); });
         result.append("\n");
     }
 
@@ -4298,18 +4294,17 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     }
 }
 
-const Vector< sp<Layer> >&
-SurfaceFlinger::getLayerSortedByZForHwcDisplay(int id) {
+const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(int32_t displayId) {
     // Note: mStateLock is held here
     wp<IBinder> displayToken;
     for (const auto& [token, display] : mDisplays) {
-        if (display->getHwcDisplayId() == id) {
+        if (display->getId() == displayId) {
             displayToken = token;
             break;
         }
     }
     if (displayToken == nullptr) {
-        ALOGE("getLayerSortedByZForHwcDisplay: invalid hwc display id %d", id);
+        ALOGE("getLayerSortedByZForHwcDisplay: Invalid display %d", displayId);
         // Just use the primary display so we have something to return
         displayToken = getBuiltInDisplay(DisplayDevice::DISPLAY_PRIMARY);
     }
