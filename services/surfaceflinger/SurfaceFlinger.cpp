@@ -483,25 +483,11 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    sp<LambdaMessage> readProperties = new LambdaMessage([&]() {
-        readPersistentProperties();
-    });
-    postMessageAsync(readProperties);
+    postMessageAsync(new LambdaMessage([this] { readPersistentProperties(); }));
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
-    class MessageDestroyGLTexture : public MessageBase {
-        RE::RenderEngine& engine;
-        uint32_t texture;
-    public:
-        MessageDestroyGLTexture(RE::RenderEngine& engine, uint32_t texture)
-              : engine(engine), texture(texture) {}
-        virtual bool handler() {
-            engine.deleteTextures(1, &texture);
-            return true;
-        }
-    };
-    postMessageAsync(new MessageDestroyGLTexture(getRenderEngine(), texture));
+    postMessageAsync(new LambdaMessage([=] { getRenderEngine().deleteTextures(1, &texture); }));
 }
 
 class DispSyncSource final : public VSyncSource, private DispSync::Callback {
@@ -650,7 +636,7 @@ void SurfaceFlinger::init() {
             std::make_unique<DispSyncSource>(&mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs,
                                              true, "app");
     mEventThread = std::make_unique<impl::EventThread>(mEventThreadSource.get(),
-                                                       [this]() { resyncWithRateLimit(); },
+                                                       [this] { resyncWithRateLimit(); },
                                                        impl::EventThread::InterceptVSyncsCallback(),
                                                        "appEventThread");
     mSfEventThreadSource =
@@ -659,7 +645,7 @@ void SurfaceFlinger::init() {
 
     mSFEventThread =
             std::make_unique<impl::EventThread>(mSfEventThreadSource.get(),
-                                                [this]() { resyncWithRateLimit(); },
+                                                [this] { resyncWithRateLimit(); },
                                                 [this](nsecs_t timestamp) {
                                                     mInterceptor->saveVSyncEvent(timestamp);
                                                 },
@@ -690,19 +676,18 @@ void SurfaceFlinger::init() {
     getDefaultDisplayDeviceLocked()->makeCurrent();
 
     if (useVrFlinger) {
-        auto vrFlingerRequestDisplayCallback = [this] (bool requestDisplay) {
+        auto vrFlingerRequestDisplayCallback = [this](bool requestDisplay) {
             // This callback is called from the vr flinger dispatch thread. We
             // need to call signalTransaction(), which requires holding
             // mStateLock when we're not on the main thread. Acquiring
             // mStateLock from the vr flinger dispatch thread might trigger a
             // deadlock in surface flinger (see b/66916578), so post a message
             // to be handled on the main thread instead.
-            sp<LambdaMessage> message = new LambdaMessage([=]() {
+            postMessageAsync(new LambdaMessage([=] {
                 ALOGI("VR request display mode: requestDisplay=%d", requestDisplay);
                 mVrFlingerRequestsDisplay = requestDisplay;
                 signalTransaction();
-            });
-            postMessageAsync(message);
+            }));
         };
         mVrFlinger = dvr::VrFlinger::Create(getBE().mHwc->getComposer(),
                 getBE().mHwc->getHwcDisplayId(HWC_DISPLAY_PRIMARY).value_or(0),
@@ -953,7 +938,7 @@ void SurfaceFlinger::setActiveConfigInternal(const sp<DisplayDevice>& display, i
 }
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
-    postMessageSync(new LambdaMessage([&]() {
+    postMessageSync(new LambdaMessage([&] {
         Vector<DisplayInfo> configs;
         getDisplayConfigs(displayToken, &configs);
         if (mode < 0 || mode >= static_cast<int>(configs.size())) {
@@ -1038,7 +1023,7 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& display
 }
 
 status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ColorMode mode) {
-    postMessageSync(new LambdaMessage([&]() {
+    postMessageSync(new LambdaMessage([&] {
         Vector<ColorMode> modes;
         getDisplayColorModes(displayToken, &modes);
         bool exists = std::find(std::begin(modes), std::end(modes), mode) != std::end(modes);
@@ -1098,7 +1083,7 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& displayToken,
 }
 
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
-    sp<LambdaMessage> enableVSyncInjections = new LambdaMessage([&]() {
+    postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
 
         if (mInjectVSyncs == enable) {
@@ -1110,8 +1095,7 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             if (mVSyncInjector.get() == nullptr) {
                 mVSyncInjector = std::make_unique<InjectVSyncSource>();
                 mInjectorEventThread = std::make_unique<
-                        impl::EventThread>(mVSyncInjector.get(),
-                                           [this]() { resyncWithRateLimit(); },
+                        impl::EventThread>(mVSyncInjector.get(), [this] { resyncWithRateLimit(); },
                                            impl::EventThread::InterceptVSyncsCallback(),
                                            "injEventThread");
             }
@@ -1122,8 +1106,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
         }
 
         mInjectVSyncs = enable;
-    });
-    postMessageSync(enableVSyncInjections);
+    }));
+
     return NO_ERROR;
 }
 
@@ -3606,17 +3590,8 @@ void SurfaceFlinger::onInitializeDisplays() {
 }
 
 void SurfaceFlinger::initializeDisplays() {
-    class MessageScreenInitialized : public MessageBase {
-        SurfaceFlinger* flinger;
-    public:
-        explicit MessageScreenInitialized(SurfaceFlinger* flinger) : flinger(flinger) { }
-        virtual bool handler() {
-            flinger->onInitializeDisplays();
-            return true;
-        }
-    };
-    sp<MessageBase> msg = new MessageScreenInitialized(this);
-    postMessageAsync(msg);  // we may be called from main thread, use async message
+    // Async since we may be called from the main thread.
+    postMessageAsync(new LambdaMessage([this] { onInitializeDisplays(); }));
 }
 
 void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int mode,
@@ -3708,7 +3683,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 }
 
 void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
-    postMessageSync(new LambdaMessage([&]() {
+    postMessageSync(new LambdaMessage([&] {
         const auto display = getDisplayDevice(displayToken);
         if (!display) {
             ALOGE("Attempt to set power mode %d for invalid display token %p", mode,
@@ -4817,7 +4792,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
     const int uid = IPCThreadState::self()->getCallingUid();
     const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
 
-    sp<LambdaMessage> message = new LambdaMessage([&]() {
+    sp<LambdaMessage> message = new LambdaMessage([&] {
         // If there is a refresh pending, bug out early and tell the binder thread to try again
         // after the refresh.
         if (mRefreshPending) {
@@ -4832,7 +4807,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         int fd = -1;
         {
             Mutex::Autolock _l(mStateLock);
-            renderArea.render([&]() {
+            renderArea.render([&] {
                 result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
                                                  useIdentityTransform, forSystem, &fd);
             });
@@ -4848,14 +4823,14 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 
     status_t result = postMessageAsync(message);
     if (result == NO_ERROR) {
-        captureCondition.wait(captureLock, [&]() { return captureResult; });
+        captureCondition.wait(captureLock, [&] { return captureResult; });
         while (*captureResult == EAGAIN) {
             captureResult.reset();
             result = postMessageAsync(message);
             if (result != NO_ERROR) {
                 return result;
             }
-            captureCondition.wait(captureLock, [&]() { return captureResult; });
+            captureCondition.wait(captureLock, [&] { return captureResult; });
         }
         result = *captureResult;
     }
