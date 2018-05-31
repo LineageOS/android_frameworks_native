@@ -1505,7 +1505,7 @@ void SurfaceFlinger::handleMessageRefresh() {
         mHadClientComposition = mHadClientComposition ||
                 getBE().mHwc->hasClientComposition(display->getHwcDisplayId());
     }
-    mVsyncModulator.setLastFrameUsedRenderEngine(mHadClientComposition);
+    mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
 }
