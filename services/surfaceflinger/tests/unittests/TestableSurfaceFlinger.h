@@ -64,15 +64,17 @@ public:
         return mFlinger->createDisplay(displayName, secure);
     }
 
-    auto destroyDisplay(const sp<IBinder>& display) { return mFlinger->destroyDisplay(display); }
+    auto destroyDisplay(const sp<IBinder>& displayToken) {
+        return mFlinger->destroyDisplay(displayToken);
+    }
 
     auto resetDisplayState() { return mFlinger->resetDisplayState(); }
 
-    auto setupNewDisplayDeviceInternal(const wp<IBinder>& display, int hwcId,
+    auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken, int hwcId,
                                        const DisplayDeviceState& state,
                                        const sp<DisplaySurface>& dispSurface,
                                        const sp<IGraphicBufferProducer>& producer) {
-        return mFlinger->setupNewDisplayDeviceInternal(display, hwcId, state, dispSurface,
+        return mFlinger->setupNewDisplayDeviceInternal(displayToken, hwcId, state, dispSurface,
                                                        producer);
     }
 
@@ -111,7 +113,7 @@ public:
 
     auto& mutableHasWideColorDisplay() { return SurfaceFlinger::hasWideColorDisplay; }
 
-    auto& mutableBuiltinDisplays() { return mFlinger->mBuiltinDisplays; }
+    auto& mutableDisplayTokens() { return mFlinger->mDisplayTokens; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
@@ -312,7 +314,7 @@ public:
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
             if (mType >= DisplayDevice::DISPLAY_PRIMARY && mType < DisplayDevice::DISPLAY_VIRTUAL) {
-                mFlinger.mutableBuiltinDisplays()[mType] = mDisplayToken;
+                mFlinger.mutableDisplayTokens()[mType] = mDisplayToken;
             }
 
             return device;

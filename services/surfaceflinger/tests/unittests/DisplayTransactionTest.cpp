@@ -1202,7 +1202,7 @@ void HandleTransactionLockedTest::verifyPhysicalDisplayIsConnected() {
     static_assert(0 <= Case::Display::TYPE &&
                           Case::Display::TYPE < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES,
                   "Must use a valid physical display type index for the fixed-size array");
-    auto& displayToken = mFlinger.mutableBuiltinDisplays()[Case::Display::TYPE];
+    auto& displayToken = mFlinger.mutableDisplayTokens()[Case::Display::TYPE];
     ASSERT_TRUE(displayToken != nullptr);
 
     verifyDisplayIsConnected<Case>(displayToken);
@@ -1308,7 +1308,7 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
     // The display should not be set up as a built-in display.
     ASSERT_TRUE(0 <= Case::Display::TYPE &&
                 Case::Display::TYPE < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES);
-    auto displayToken = mFlinger.mutableBuiltinDisplays()[Case::Display::TYPE];
+    auto displayToken = mFlinger.mutableDisplayTokens()[Case::Display::TYPE];
     EXPECT_TRUE(displayToken == nullptr);
 
     // The existing token should have been removed
@@ -1401,7 +1401,7 @@ TEST_F(HandleTransactionLockedTest, processesHotplugConnectThenDisconnectPrimary
     // The display should not be set up as a primary built-in display.
     ASSERT_TRUE(0 <= Case::Display::TYPE &&
                 Case::Display::TYPE < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES);
-    auto displayToken = mFlinger.mutableBuiltinDisplays()[Case::Display::TYPE];
+    auto displayToken = mFlinger.mutableDisplayTokens()[Case::Display::TYPE];
     EXPECT_TRUE(displayToken == nullptr);
 }
 
@@ -1444,7 +1444,7 @@ TEST_F(HandleTransactionLockedTest, processesHotplugDisconnectThenConnectPrimary
     static_assert(0 <= Case::Display::TYPE &&
                           Case::Display::TYPE < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES,
                   "Display type must be a built-in display");
-    EXPECT_NE(existing.token(), mFlinger.mutableBuiltinDisplays()[Case::Display::TYPE]);
+    EXPECT_NE(existing.token(), mFlinger.mutableDisplayTokens()[Case::Display::TYPE]);
 
     // A new display should be connected in its place
 
@@ -2698,7 +2698,7 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfNoChange) {
     EXPECT_EQ(HWC_POWER_MODE_NORMAL, display.mutableDisplayDevice()->getPowerMode());
 }
 
-TEST_F(SetPowerModeInternalTest, setPowerModeInternalJustSetsInternalStateIfVirtualDisplay) {
+TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfVirtualDisplay) {
     using Case = HwcVirtualDisplayCase;
 
     // --------------------------------------------------------------------
@@ -2713,13 +2713,13 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalJustSetsInternalStateIfVirt
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // The display is set to HWC_POWER_MODE_OFF
-    getDisplayDevice(display.token())->setPowerMode(HWC_POWER_MODE_OFF);
+    // The display is set to HWC_POWER_MODE_NORMAL
+    getDisplayDevice(display.token())->setPowerMode(HWC_POWER_MODE_NORMAL);
 
     // --------------------------------------------------------------------
     // Invocation
 
-    mFlinger.setPowerModeInternal(display.mutableDisplayDevice(), HWC_POWER_MODE_NORMAL);
+    mFlinger.setPowerModeInternal(display.mutableDisplayDevice(), HWC_POWER_MODE_OFF);
 
     // --------------------------------------------------------------------
     // Postconditions

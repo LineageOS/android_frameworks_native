@@ -316,10 +316,10 @@ protected:
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
-    void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
+    void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
     void forceClientComposition(int32_t hwcId);
     bool getForceClientComposition(int32_t hwcId);
-    virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
+    virtual void setPerFrameData(const sp<const DisplayDevice>& display) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state

@@ -606,13 +606,13 @@ void BufferLayer::setDefaultBufferSize(uint32_t w, uint32_t h) {
     mConsumer->setDefaultBufferSize(w, h);
 }
 
-void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
+void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
-    const Transform& tr = displayDevice->getTransform();
-    const auto& viewport = displayDevice->getViewport();
+    const Transform& tr = display->getTransform();
+    const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
-    auto hwcId = displayDevice->getHwcDisplayId();
+    auto hwcId = display->getHwcDisplayId();
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
@@ -659,7 +659,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     }
 
     const HdrMetadata& metadata = mConsumer->getCurrentHdrMetadata();
-    error = hwcLayer->setPerFrameMetadata(displayDevice->getSupportedPerFrameMetadata(), metadata);
+    error = hwcLayer->setPerFrameMetadata(display->getSupportedPerFrameMetadata(), metadata);
     if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
         ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));

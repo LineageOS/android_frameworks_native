@@ -92,7 +92,7 @@ public:
     void destroyLayer(int32_t displayId, HWC2::Layer* layer);
 
     // Asks the HAL what it can do
-    status_t prepare(DisplayDevice& displayDevice);
+    status_t prepare(DisplayDevice& display);
 
     status_t setClientTarget(int32_t displayId, uint32_t slot,
             const sp<Fence>& acquireFence,
