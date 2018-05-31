@@ -98,8 +98,9 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mQueueItems(),
         mLastFrameNumberReceived(0),
         mAutoRefresh(false),
-        mFreezeGeometryUpdates(false) {
-
+        mFreezeGeometryUpdates(false),
+        mCurrentChildren(LayerVector::StateSet::Current),
+        mDrawingChildren(LayerVector::StateSet::Drawing) {
     mCurrentCrop.makeInvalid();
 
     uint32_t layerFlags = 0;
@@ -138,7 +139,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     CompositorTiming compositorTiming;
     flinger->getCompositorTiming(&compositorTiming);
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
-
 }
 
 void Layer::onFirstRef() {}
@@ -1691,7 +1691,7 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
         return children;
     }
 
-    LayerVector traverse;
+    LayerVector traverse(stateSet);
     for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
@@ -1789,7 +1789,7 @@ LayerVector Layer::makeChildrenTraversalList(LayerVector::StateSet stateSet,
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    LayerVector traverse;
+    LayerVector traverse(stateSet);
     for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         // Only add relative layers that are also descendents of the top most parent of the tree.

@@ -367,7 +367,7 @@ private:
 
     class State {
     public:
-        explicit State(LayerVector::StateSet set) : stateSet(set) {}
+        explicit State(LayerVector::StateSet set) : stateSet(set), layersSortedByZ(set) {}
         State& operator=(const State& other) {
             // We explicitly don't copy stateSet so that, e.g., mDrawingState
             // always uses the Drawing StateSet.
