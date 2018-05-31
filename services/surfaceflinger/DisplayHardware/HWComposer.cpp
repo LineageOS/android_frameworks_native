@@ -435,7 +435,7 @@ status_t HWComposer::prepare(DisplayDevice& display) {
     ATRACE_CALL();
 
     Mutex::Autolock _l(mDisplayLock);
-    auto displayId = display.getHwcDisplayId();
+    const auto displayId = display.getId();
     if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
         ALOGV("Skipping HWComposer prepare for non-HWC display");
         return NO_ERROR;
@@ -723,11 +723,11 @@ void HWComposer::disconnectDisplay(int displayId) {
         ++mRemainingHwcVirtualDisplays;
     }
 
-    auto hwcId = displayData.hwcDisplay->getId();
-    mHwcDisplaySlots.erase(hwcId);
+    const auto hwcDisplayId = displayData.hwcDisplay->getId();
+    mHwcDisplaySlots.erase(hwcDisplayId);
     displayData.reset();
 
-    mHwcDevice->destroyDisplay(hwcId);
+    mHwcDevice->destroyDisplay(hwcDisplayId);
 }
 
 status_t HWComposer::setOutputBuffer(int32_t displayId,

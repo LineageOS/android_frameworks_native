@@ -65,8 +65,8 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     const Transform& tr = display->getTransform();
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
-    auto hwcId = display->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
+    const auto displayId = display->getId();
+    auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
@@ -75,7 +75,7 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
         visible.dump(LOG_TAG);
     }
 
-    setCompositionType(hwcId, HWC2::Composition::SolidColor);
+    setCompositionType(displayId, HWC2::Composition::SolidColor);
 
     error = hwcLayer->setDataspace(mCurrentDataSpace);
     if (error != HWC2::Error::None) {
