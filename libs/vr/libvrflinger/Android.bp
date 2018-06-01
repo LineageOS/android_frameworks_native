@@ -93,3 +93,7 @@ cc_library_static {
     header_libs: headerLibraries,
     name: "libvrflinger",
 }
+
+subdirs = [
+    "tests",
+]
