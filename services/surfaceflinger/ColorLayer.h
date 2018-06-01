@@ -34,7 +34,7 @@ public:
                         bool useIdentityTransform) const;
     bool isVisible() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
+    void setPerFrameData(const sp<const DisplayDevice>& display) override;
 };
 
 } // namespace android

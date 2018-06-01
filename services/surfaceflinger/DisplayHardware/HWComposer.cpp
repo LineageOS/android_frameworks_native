@@ -431,11 +431,11 @@ status_t HWComposer::setClientTarget(int32_t displayId, uint32_t slot,
     return NO_ERROR;
 }
 
-status_t HWComposer::prepare(DisplayDevice& displayDevice) {
+status_t HWComposer::prepare(DisplayDevice& display) {
     ATRACE_CALL();
 
     Mutex::Autolock _l(mDisplayLock);
-    auto displayId = displayDevice.getHwcDisplayId();
+    const auto displayId = display.getId();
     if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
         ALOGV("Skipping HWComposer prepare for non-HWC display");
         return NO_ERROR;
@@ -502,7 +502,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
 
     displayData.hasClientComposition = false;
     displayData.hasDeviceComposition = false;
-    for (auto& layer : displayDevice.getVisibleLayersSortedByZ()) {
+    for (auto& layer : display.getVisibleLayersSortedByZ()) {
         auto hwcLayer = layer->getHwcLayer(displayId);
 
         if (changedTypes.count(hwcLayer) != 0) {
@@ -723,11 +723,11 @@ void HWComposer::disconnectDisplay(int displayId) {
         ++mRemainingHwcVirtualDisplays;
     }
 
-    auto hwcId = displayData.hwcDisplay->getId();
-    mHwcDisplaySlots.erase(hwcId);
+    const auto hwcDisplayId = displayData.hwcDisplay->getId();
+    mHwcDisplaySlots.erase(hwcDisplayId);
     displayData.reset();
 
-    mHwcDevice->destroyDisplay(hwcId);
+    mHwcDevice->destroyDisplay(hwcDisplayId);
 }
 
 status_t HWComposer::setOutputBuffer(int32_t displayId,

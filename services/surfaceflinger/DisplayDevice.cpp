@@ -162,18 +162,20 @@ std::vector<RenderIntent> getRenderIntentCandidates(RenderIntent intent) {
         }
     }
 
-    // add other HDR candidates when intent is HDR
     if (isHdr) {
+        // add other HDR candidates when intent is HDR
         for (auto hdrIntent : sHdrRenderIntents) {
             if (hdrIntent != intent) {
                 candidates.push_back(hdrIntent);
             }
         }
-    }
-
-    // add COLORIMETRIC
-    if (intent != RenderIntent::COLORIMETRIC) {
-        candidates.push_back(RenderIntent::COLORIMETRIC);
+    } else {
+        // add other SDR candidates when intent is SDR
+        for (auto sdrIntent : sSdrRenderIntents) {
+            if (sdrIntent != intent) {
+                candidates.push_back(sdrIntent);
+            }
+        }
     }
 
     return candidates;
@@ -214,7 +216,7 @@ RenderIntent getHwcRenderIntent(const std::vector<RenderIntent>& hwcIntents, Ren
 DisplayDevice::DisplayDevice(
         const sp<SurfaceFlinger>& flinger,
         DisplayType type,
-        int32_t hwcId,
+        int32_t id,
         bool isSecure,
         const wp<IBinder>& displayToken,
         const sp<ANativeWindow>& nativeWindow,
@@ -230,7 +232,7 @@ DisplayDevice::DisplayDevice(
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
       mType(type),
-      mHwcDisplayId(hwcId),
+      mId(id),
       mDisplayToken(displayToken),
       mNativeWindow(nativeWindow),
       mDisplaySurface(displaySurface),
@@ -299,9 +301,9 @@ DisplayDevice::DisplayDevice(
 DisplayDevice::~DisplayDevice() = default;
 
 void DisplayDevice::disconnect(HWComposer& hwc) {
-    if (mHwcDisplayId >= 0) {
-        hwc.disconnectDisplay(mHwcDisplayId);
-        mHwcDisplayId = -1;
+    if (mId >= 0) {
+        hwc.disconnectDisplay(mId);
+        mId = -1;
     }
 }
 
@@ -345,8 +347,8 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
     }
 
     DisplaySurface::CompositionType compositionType;
-    bool hasClient = hwc.hasClientComposition(mHwcDisplayId);
-    bool hasDevice = hwc.hasDeviceComposition(mHwcDisplayId);
+    bool hasClient = hwc.hasClientComposition(mId);
+    bool hasDevice = hwc.hasDeviceComposition(mId);
     if (hasClient && hasDevice) {
         compositionType = DisplaySurface::COMPOSITION_MIXED;
     } else if (hasClient) {
@@ -363,7 +365,7 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
 }
 
 void DisplayDevice::swapBuffers(HWComposer& hwc) const {
-    if (hwc.hasClientComposition(mHwcDisplayId) || hwc.hasFlipClientTargetRequest(mHwcDisplayId)) {
+    if (hwc.hasClientComposition(mId) || hwc.hasFlipClientTargetRequest(mId)) {
         mSurface->swapBuffers();
     }
 
@@ -434,8 +436,8 @@ int DisplayDevice::getPowerMode()  const {
     return mPowerMode;
 }
 
-bool DisplayDevice::isDisplayOn() const {
-    return (mPowerMode != HWC_POWER_MODE_OFF);
+bool DisplayDevice::isPoweredOn() const {
+    return mPowerMode != HWC_POWER_MODE_OFF;
 }
 
 // ----------------------------------------------------------------------------
@@ -658,10 +660,10 @@ void DisplayDevice::dump(String8& result) const {
     const Transform& tr(mGlobalTransform);
     ANativeWindow* const window = mNativeWindow.get();
     result.appendFormat("+ DisplayDevice: %s\n", mDisplayName.c_str());
-    result.appendFormat("   type=%x, hwcId=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "
+    result.appendFormat("   type=%x, ID=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "
                         "(%d:%d:%d:%d), orient=%2d (type=%08x), "
                         "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
-                        mType, mHwcDisplayId, mLayerStack, mDisplayWidth, mDisplayHeight, window,
+                        mType, mId, mLayerStack, mDisplayWidth, mDisplayHeight, window,
                         mSurface->queryRedSize(), mSurface->queryGreenSize(),
                         mSurface->queryBlueSize(), mSurface->queryAlphaSize(), mOrientation,
                         tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
@@ -701,7 +703,7 @@ void DisplayDevice::addColorMode(
     const Dataspace dataspace = colorModeToDataspace(mode);
     const Dataspace hwcDataspace = colorModeToDataspace(hwcColorMode);
 
-    ALOGV("DisplayDevice %d/%d: map (%s, %s) to (%s, %s, %s)", mType, mHwcDisplayId,
+    ALOGV("DisplayDevice %d/%d: map (%s, %s) to (%s, %s, %s)", mType, mId,
           dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
           decodeRenderIntent(intent).c_str(),
           dataspaceDetails(static_cast<android_dataspace_t>(hwcDataspace)).c_str(),
@@ -726,14 +728,24 @@ void DisplayDevice::populateColorModes(
         }
     }
 
-    // add known SDR combinations
+    // add all known SDR combinations
     for (auto intent : sdrRenderIntents) {
         for (auto mode : sSdrColorModes) {
             addColorMode(hwcColorModes, mode, intent);
         }
     }
 
-    // add known HDR combinations
+    // collect all known HDR render intents
+    std::unordered_set<RenderIntent> hdrRenderIntents(sHdrRenderIntents.begin(),
+                                                      sHdrRenderIntents.end());
+    iter = hwcColorModes.find(ColorMode::BT2100_PQ);
+    if (iter != hwcColorModes.end()) {
+        for (auto intent : iter->second) {
+            hdrRenderIntents.insert(intent);
+        }
+    }
+
+    // add all known HDR combinations
     for (auto intent : sHdrRenderIntents) {
         for (auto mode : sHdrColorModes) {
             addColorMode(hwcColorModes, mode, intent);

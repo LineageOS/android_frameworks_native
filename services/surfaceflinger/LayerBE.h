@@ -32,31 +32,6 @@ namespace android {
 
 class LayerBE;
 
-class LayerContainer
-{
-    public:
-        LayerContainer(HWComposer* hwc, int32_t hwcId) : mHwc(hwc), mHwcId(hwcId) {
-            mLayer = hwc->createLayer(hwcId);
-        }
-
-        ~LayerContainer() {
-            mHwc->destroyLayer(mHwcId, mLayer);
-        }
-
-        HWC2::Layer* operator->() {
-            return mLayer;
-        }
-
-        operator HWC2::Layer*const () const {
-            return mLayer;
-        }
-
-    private:
-        HWComposer* mHwc;
-        int32_t mHwcId;
-        HWC2::Layer* mLayer;
-};
-
 struct CompositionInfo {
     std::string layerName;
     HWC2::Composition compositionType;
@@ -64,8 +39,7 @@ struct CompositionInfo {
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     LayerBE* layer = nullptr;
     struct {
-        std::shared_ptr<LayerContainer> hwcLayer;
-        int32_t hwid = -1;
+        HWC2::Layer* hwcLayer;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;
@@ -125,7 +99,7 @@ private:
                 transform(HWC2::Transform::None) {}
 
         HWComposer* hwc;
-        std::shared_ptr<LayerContainer> layer;
+        HWC2::Layer* layer;
         bool forceClientComposition;
         HWC2::Composition compositionType;
         bool clearClientTarget;

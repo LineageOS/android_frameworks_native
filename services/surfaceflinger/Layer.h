@@ -304,7 +304,7 @@ public:
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
-    void writeToProto(LayerProto* layerInfo, int32_t hwcId);
+    void writeToProto(LayerProto* layerInfo, int32_t displayId);
 
 protected:
     /*
@@ -316,17 +316,17 @@ protected:
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
-    void setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z);
-    void forceClientComposition(int32_t hwcId);
-    bool getForceClientComposition(int32_t hwcId);
-    virtual void setPerFrameData(const sp<const DisplayDevice>& displayDevice) = 0;
+    void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
+    void forceClientComposition(int32_t displayId);
+    bool getForceClientComposition(int32_t displayId);
+    virtual void setPerFrameData(const sp<const DisplayDevice>& display) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
-    void setCompositionType(int32_t hwcId, HWC2::Composition type, bool callIntoHwc = true);
-    HWC2::Composition getCompositionType(int32_t hwcId) const;
-    void setClearClientTarget(int32_t hwcId, bool clear);
-    bool getClearClientTarget(int32_t hwcId) const;
+    void setCompositionType(int32_t displayId, HWC2::Composition type, bool callIntoHwc = true);
+    HWC2::Composition getCompositionType(int32_t displayId) const;
+    void setClearClientTarget(int32_t displayId, bool clear);
+    bool getClearClientTarget(int32_t displayId) const;
     void updateCursorPosition(const sp<const DisplayDevice>& hw);
 
     /*
@@ -443,27 +443,17 @@ public:
 
     // -----------------------------------------------------------------------
 
-    bool createHwcLayer(HWComposer* hwc, int32_t hwcId);
-    bool destroyHwcLayer(int32_t hwcId);
+    bool createHwcLayer(HWComposer* hwc, int32_t displayId);
+    bool destroyHwcLayer(int32_t displayId);
     void destroyAllHwcLayers();
 
-    bool hasHwcLayer(int32_t hwcId) {
-        return getBE().mHwcLayers.count(hwcId) > 0;
-    }
+    bool hasHwcLayer(int32_t displayId) { return getBE().mHwcLayers.count(displayId) > 0; }
 
-    HWC2::Layer* getHwcLayer(int32_t hwcId) {
-        if (getBE().mHwcLayers.count(hwcId) == 0) {
+    HWC2::Layer* getHwcLayer(int32_t displayId) {
+        if (getBE().mHwcLayers.count(displayId) == 0) {
             return nullptr;
         }
-        return *(getBE().mHwcLayers[hwcId].layer.get());
-    }
-
-    bool setHwcLayer(int32_t hwcId) {
-        if (getBE().mHwcLayers.count(hwcId) == 0) {
-            return false;
-        }
-        getBE().compositionInfo.hwc.hwcLayer = getBE().mHwcLayers[hwcId].layer;
-        return true;
+        return getBE().mHwcLayers[displayId].layer;
     }
 
     // -----------------------------------------------------------------------
@@ -481,7 +471,7 @@ public:
 
     /* always call base class first */
     static void miniDumpHeader(String8& result);
-    void miniDump(String8& result, int32_t hwcId) const;
+    void miniDump(String8& result, int32_t displayId) const;
     void dumpFrameStats(String8& result) const;
     void dumpFrameEvents(String8& result);
     void clearFrameStats();

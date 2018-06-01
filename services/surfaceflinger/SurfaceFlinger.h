@@ -408,7 +408,7 @@ private:
     virtual sp<ISurfaceComposerClient> createConnection();
     virtual sp<ISurfaceComposerClient> createScopedConnection(const sp<IGraphicBufferProducer>& gbp);
     virtual sp<IBinder> createDisplay(const String8& displayName, bool secure);
-    virtual void destroyDisplay(const sp<IBinder>& display);
+    virtual void destroyDisplay(const sp<IBinder>& displayToken);
     virtual sp<IBinder> getBuiltInDisplay(int32_t id);
     virtual void setTransactionState(const Vector<ComposerState>& state,
             const Vector<DisplayState>& displays, uint32_t flags);
@@ -419,27 +419,26 @@ private:
             std::vector<FrameEvent>* outSupported) const;
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
-    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+    virtual status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
                                    Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
                                    int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
                                    ISurfaceComposer::Rotation rotation);
     virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
                                    const Rect& sourceCrop, float frameScale, bool childrenOnly);
-    virtual status_t getDisplayStats(const sp<IBinder>& display,
-            DisplayStatInfo* stats);
-    virtual status_t getDisplayConfigs(const sp<IBinder>& display,
-            Vector<DisplayInfo>* configs);
-    virtual int getActiveConfig(const sp<IBinder>& display);
-    virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<ui::ColorMode>* configs);
-    virtual ui::ColorMode getActiveColorMode(const sp<IBinder>& display);
-    virtual status_t setActiveColorMode(const sp<IBinder>& display, ui::ColorMode colorMode);
-    virtual void setPowerMode(const sp<IBinder>& display, int mode);
-    virtual status_t setActiveConfig(const sp<IBinder>& display, int id);
+    virtual status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
+    virtual status_t getDisplayConfigs(const sp<IBinder>& displayToken,
+                                       Vector<DisplayInfo>* configs);
+    virtual int getActiveConfig(const sp<IBinder>& displayToken);
+    virtual status_t getDisplayColorModes(const sp<IBinder>& displayToken,
+                                          Vector<ui::ColorMode>* configs);
+    virtual ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken);
+    virtual status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode);
+    virtual void setPowerMode(const sp<IBinder>& displayToken, int mode);
+    virtual status_t setActiveConfig(const sp<IBinder>& displayToken, int id);
     virtual status_t clearAnimationFrameStats();
     virtual status_t getAnimationFrameStats(FrameStats* outStats) const;
-    virtual status_t getHdrCapabilities(const sp<IBinder>& display,
-            HdrCapabilities* outCapabilities) const;
+    virtual status_t getHdrCapabilities(const sp<IBinder>& displayToken,
+                                        HdrCapabilities* outCapabilities) const;
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
@@ -477,16 +476,13 @@ private:
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays();
     // called on the main thread in response to setActiveConfig()
-    void setActiveConfigInternal(const sp<DisplayDevice>& hw, int mode);
+    void setActiveConfigInternal(const sp<DisplayDevice>& display, int mode);
     // called on the main thread in response to setPowerMode()
-    void setPowerModeInternal(const sp<DisplayDevice>& hw, int mode,
-                              bool stateLockHeld);
+    void setPowerModeInternal(const sp<DisplayDevice>& display, int mode, bool stateLockHeld);
 
     // Called on the main thread in response to setActiveColorMode()
-    void setActiveColorModeInternal(const sp<DisplayDevice>& hw,
-                                    ui::ColorMode colorMode,
-                                    ui::Dataspace dataSpace,
-                                    ui::RenderIntent renderIntent);
+    void setActiveColorModeInternal(const sp<DisplayDevice>& display, ui::ColorMode colorMode,
+                                    ui::Dataspace dataSpace, ui::RenderIntent renderIntent);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -597,38 +593,33 @@ private:
     // called when starting, or restarting after system_server death
     void initializeDisplays();
 
-    sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) const {
-      Mutex::Autolock _l(mStateLock);
-      return getDisplayDeviceLocked(dpy);
+    sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& displayToken) const {
+        Mutex::Autolock _l(mStateLock);
+        return getDisplayDeviceLocked(displayToken);
     }
 
-    sp<DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) {
-      Mutex::Autolock _l(mStateLock);
-      return getDisplayDeviceLocked(dpy);
-    }
-
-    // NOTE: can only be called from the main thread or with mStateLock held
-    sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& dpy) const {
-        return mDisplays.valueFor(dpy);
+    sp<DisplayDevice> getDisplayDevice(const wp<IBinder>& displayToken) {
+        Mutex::Autolock _l(mStateLock);
+        return getDisplayDeviceLocked(displayToken);
     }
 
     // NOTE: can only be called from the main thread or with mStateLock held
-    sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& dpy) {
-        return mDisplays.valueFor(dpy);
+    sp<const DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) const {
+        return const_cast<SurfaceFlinger*>(this)->getDisplayDeviceLocked(displayToken);
+    }
+
+    // NOTE: can only be called from the main thread or with mStateLock held
+    sp<DisplayDevice> getDisplayDeviceLocked(const wp<IBinder>& displayToken) {
+        const auto it = mDisplays.find(displayToken);
+        return it == mDisplays.end() ? nullptr : it->second;
     }
 
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
-        return getDisplayDeviceLocked(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
+        return const_cast<SurfaceFlinger*>(this)->getDefaultDisplayDeviceLocked();
     }
 
-    int32_t getDisplayType(const sp<IBinder>& display) {
-        if (!display.get()) return NAME_NOT_FOUND;
-        for (int i = 0; i < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES; ++i) {
-            if (display == mBuiltinDisplays[i]) {
-                return i;
-            }
-        }
-        return NAME_NOT_FOUND;
+    sp<DisplayDevice> getDefaultDisplayDeviceLocked() {
+        return getDisplayDeviceLocked(mDisplayTokens[DisplayDevice::DISPLAY_PRIMARY]);
     }
 
     // mark a region of a layer stack dirty. this updates the dirty
@@ -645,8 +636,8 @@ private:
      * Compositing
      */
     void invalidateHwcGeometry();
-    void computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
-            Region& dirtyRegion, Region& opaqueRegion);
+    void computeVisibleRegions(const sp<const DisplayDevice>& display, Region& dirtyRegion,
+                               Region& opaqueRegion);
 
     void preComposition(nsecs_t refreshStartTime);
     void postComposition(nsecs_t refreshStartTime);
@@ -658,37 +649,36 @@ private:
             nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
-    ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& displayDevice,
+    ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& display,
                                    ui::Dataspace* outHdrDataSpace) const;
 
     // Returns the appropriate ColorMode, Dataspace and RenderIntent for the
     // DisplayDevice. The function only returns the supported ColorMode,
     // Dataspace and RenderIntent.
-    void pickColorMode(const sp<DisplayDevice>& displayDevice,
-                       ui::ColorMode* outMode,
-                       ui::Dataspace* outDataSpace,
-                       ui::RenderIntent* outRenderIntent) const;
+    void pickColorMode(const sp<DisplayDevice>& display, ui::ColorMode* outMode,
+                       ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
     void setUpHWComposer();
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
     void logLayerStats();
-    void doDisplayComposition(const sp<const DisplayDevice>& displayDevice, const Region& dirtyRegion);
+    void doDisplayComposition(const sp<const DisplayDevice>& display, const Region& dirtyRegion);
 
     // compose surfaces for display hw. this fails if using GL and the surface
     // has been destroyed and is no longer valid.
-    bool doComposeSurfaces(const sp<const DisplayDevice>& displayDevice);
+    bool doComposeSurfaces(const sp<const DisplayDevice>& display);
 
     void postFramebuffer();
-    void drawWormhole(const sp<const DisplayDevice>& displayDevice, const Region& region) const;
+    void drawWormhole(const sp<const DisplayDevice>& display, const Region& region) const;
 
     /* ------------------------------------------------------------------------
      * Display management
      */
     DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
             HWC2::Connection connection) const;
-    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& display, int hwcId,
+    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
+                                                    int32_t displayId,
                                                     const DisplayDeviceState& state,
                                                     const sp<DisplaySurface>& dispSurface,
                                                     const sp<IGraphicBufferProducer>& producer);
@@ -741,7 +731,7 @@ private:
     void dumpDisplayIdentificationData(String8& result) const;
     void dumpWideColorInfo(String8& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
-    LayersProto dumpVisibleLayersProtoInfo(int32_t hwcId) const;
+    LayersProto dumpVisibleLayersProtoInfo(const DisplayDevice& display) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -797,7 +787,7 @@ private:
     std::unique_ptr<VSyncSource> mSfEventThreadSource;
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
-    sp<IBinder> mBuiltinDisplays[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
+    sp<IBinder> mDisplayTokens[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
 
     VSyncModulator mVsyncModulator;
 
@@ -820,7 +810,7 @@ private:
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
-    DefaultKeyedVector< wp<IBinder>, sp<DisplayDevice> > mDisplays;
+    std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays;
 
     // don't use a lock for these, we don't care
     int mDebugRegion;

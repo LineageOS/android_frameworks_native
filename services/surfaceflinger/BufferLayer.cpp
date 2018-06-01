@@ -606,23 +606,23 @@ void BufferLayer::setDefaultBufferSize(uint32_t w, uint32_t h) {
     mConsumer->setDefaultBufferSize(w, h);
 }
 
-void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
+void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
-    const Transform& tr = displayDevice->getTransform();
-    const auto& viewport = displayDevice->getViewport();
+    const Transform& tr = display->getTransform();
+    const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
-    auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
+    const auto displayId = display->getId();
+    auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
-    auto error = (*hwcLayer)->setVisibleRegion(visible);
+    auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
 
-    error = (*hwcLayer)->setSurfaceDamage(surfaceDamageRegion);
+    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
@@ -631,9 +631,9 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 
     // Sideband layers
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
-        setCompositionType(hwcId, HWC2::Composition::Sideband);
+        setCompositionType(displayId, HWC2::Composition::Sideband);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = (*hwcLayer)->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
+        error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
                   getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
@@ -645,21 +645,21 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
     // Device or Cursor layers
     if (mPotentialCursor) {
         ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(hwcId, HWC2::Composition::Cursor);
+        setCompositionType(displayId, HWC2::Composition::Cursor);
     } else {
         ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(hwcId, HWC2::Composition::Device);
+        setCompositionType(displayId, HWC2::Composition::Device);
     }
 
     ALOGV("setPerFrameData: dataspace = %d", mCurrentDataSpace);
-    error = (*hwcLayer)->setDataspace(mCurrentDataSpace);
+    error = hwcLayer->setDataspace(mCurrentDataSpace);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     const HdrMetadata& metadata = mConsumer->getCurrentHdrMetadata();
-    error = (*hwcLayer)->setPerFrameMetadata(displayDevice->getSupportedPerFrameMetadata(), metadata);
+    error = hwcLayer->setPerFrameMetadata(display->getSupportedPerFrameMetadata(), metadata);
     if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
         ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
@@ -667,11 +667,11 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) 
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    getBE().mHwcLayers[hwcId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot,
-                                                       &hwcBuffer);
+    getBE().mHwcLayers[displayId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
+                                                           &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
-    error = (*hwcLayer)->setBuffer(hwcSlot, hwcBuffer, acquireFence);
+    error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
               getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),

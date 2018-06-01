@@ -81,7 +81,7 @@ public:
     DisplayDevice(
             const sp<SurfaceFlinger>& flinger,
             DisplayType type,
-            int32_t hwcId,
+            int32_t id,
             bool isSecure,
             const wp<IBinder>& displayToken,
             const sp<ANativeWindow>& nativeWindow,
@@ -136,7 +136,7 @@ public:
     int32_t                 getDisplayType() const { return mType; }
     bool                    isPrimary() const { return mType == DISPLAY_PRIMARY; }
     bool                    isVirtual() const { return mType == DISPLAY_VIRTUAL; }
-    int32_t                 getHwcDisplayId() const { return mHwcDisplayId; }
+    int32_t                 getId() const { return mId; }
     const wp<IBinder>&      getDisplayToken() const { return mDisplayToken; }
 
     int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
@@ -194,7 +194,7 @@ public:
      */
     int getPowerMode() const;
     void setPowerMode(int mode);
-    bool isDisplayOn() const;
+    bool isPoweredOn() const;
 
     ui::ColorMode getActiveColorMode() const;
     void setActiveColorMode(ui::ColorMode mode);
@@ -226,7 +226,7 @@ private:
      */
     sp<SurfaceFlinger> mFlinger;
     DisplayType mType;
-    int32_t mHwcDisplayId;
+    int32_t mId;
     wp<IBinder> mDisplayToken;
 
     // ANativeWindow this display is rendering into

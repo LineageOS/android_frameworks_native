@@ -61,30 +61,30 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && s.color.a;
 }
 
-void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
-    const Transform& tr = displayDevice->getTransform();
-    const auto& viewport = displayDevice->getViewport();
+void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
+    const Transform& tr = display->getTransform();
+    const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
-    auto hwcId = displayDevice->getHwcDisplayId();
-    auto& hwcInfo = getBE().mHwcLayers[hwcId];
+    const auto displayId = display->getId();
+    auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
-    auto error = (*hwcLayer)->setVisibleRegion(visible);
+    auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
 
-    setCompositionType(hwcId, HWC2::Composition::SolidColor);
+    setCompositionType(displayId, HWC2::Composition::SolidColor);
 
-    error = (*hwcLayer)->setDataspace(mCurrentDataSpace);
+    error = hwcLayer->setDataspace(mCurrentDataSpace);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
     half4 color = getColor();
-    error = (*hwcLayer)->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
+    error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
                                 static_cast<uint8_t>(std::round(255.0f * color.g)),
                                 static_cast<uint8_t>(std::round(255.0f * color.b)), 255});
     if (error != HWC2::Error::None) {
@@ -93,7 +93,7 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice) {
     }
 
     // Clear out the transform, because it doesn't make sense absent a source buffer
-    error = (*hwcLayer)->setTransform(HWC2::Transform::None);
+    error = hwcLayer->setTransform(HWC2::Transform::None);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to clear transform: %s (%d)", mName.string(), to_string(error).c_str(),
               static_cast<int32_t>(error));

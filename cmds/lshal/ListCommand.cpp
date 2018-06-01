@@ -126,6 +126,67 @@ Partition ListCommand::resolvePartition(Partition process, const FqInstance& fqI
     return process;
 }
 
+bool match(const vintf::ManifestInstance& instance, const FqInstance& fqInstance,
+           vintf::TransportArch ta) {
+    // For hwbinder libs, allow missing arch in manifest.
+    // For passthrough libs, allow missing interface/instance in table.
+    return (ta.transport == instance.transport()) &&
+            (ta.transport == vintf::Transport::HWBINDER ||
+             vintf::contains(instance.arch(), ta.arch)) &&
+            (!fqInstance.hasInterface() || fqInstance.getInterface() == instance.interface()) &&
+            (!fqInstance.hasInstance() || fqInstance.getInstance() == instance.instance());
+}
+
+bool match(const vintf::MatrixInstance& instance, const FqInstance& fqInstance,
+           vintf::TransportArch /* ta */) {
+    return (!fqInstance.hasInterface() || fqInstance.getInterface() == instance.interface()) &&
+            (!fqInstance.hasInstance() || instance.matchInstance(fqInstance.getInstance()));
+}
+
+template <typename ObjectType>
+VintfInfo getVintfInfo(const std::shared_ptr<const ObjectType>& object,
+                       const FqInstance& fqInstance, vintf::TransportArch ta, VintfInfo value) {
+    bool found = false;
+    (void)object->forEachInstanceOfVersion(fqInstance.getPackage(), fqInstance.getVersion(),
+                                           [&](const auto& instance) {
+                                               found = match(instance, fqInstance, ta);
+                                               return !found; // continue if not found
+                                           });
+    return found ? value : VINTF_INFO_EMPTY;
+}
+
+std::shared_ptr<const vintf::HalManifest> ListCommand::getDeviceManifest() const {
+    return vintf::VintfObject::GetDeviceHalManifest();
+}
+
+std::shared_ptr<const vintf::CompatibilityMatrix> ListCommand::getDeviceMatrix() const {
+    return vintf::VintfObject::GetDeviceCompatibilityMatrix();
+}
+
+std::shared_ptr<const vintf::HalManifest> ListCommand::getFrameworkManifest() const {
+    return vintf::VintfObject::GetFrameworkHalManifest();
+}
+
+std::shared_ptr<const vintf::CompatibilityMatrix> ListCommand::getFrameworkMatrix() const {
+    return vintf::VintfObject::GetFrameworkCompatibilityMatrix();
+}
+
+VintfInfo ListCommand::getVintfInfo(const std::string& fqInstanceName,
+                                    vintf::TransportArch ta) const {
+    FqInstance fqInstance;
+    if (!fqInstance.setTo(fqInstanceName) &&
+        // Ignore interface / instance for passthrough libs
+        !fqInstance.setTo(splitFirst(fqInstanceName, ':').first)) {
+        err() << "Warning: Cannot parse '" << fqInstanceName << "'; no VINTF info." << std::endl;
+        return VINTF_INFO_EMPTY;
+    }
+
+    return lshal::getVintfInfo(getDeviceManifest(), fqInstance, ta, DEVICE_MANIFEST) |
+            lshal::getVintfInfo(getFrameworkManifest(), fqInstance, ta, FRAMEWORK_MANIFEST) |
+            lshal::getVintfInfo(getDeviceMatrix(), fqInstance, ta, DEVICE_MATRIX) |
+            lshal::getVintfInfo(getFrameworkMatrix(), fqInstance, ta, FRAMEWORK_MATRIX);
+}
+
 static bool scanBinderContext(pid_t pid,
         const std::string &contextName,
         std::function<void(const std::string&)> eachLine) {
@@ -269,6 +330,7 @@ void ListCommand::postprocess() {
         }
         for (TableEntry& entry : table) {
             entry.partition = getPartition(entry.serverPid);
+            entry.vintfInfo = getVintfInfo(entry.interfaceName, {entry.transport, entry.arch});
         }
     });
     // use a double for loop here because lshal doesn't care about efficiency.
@@ -279,7 +341,7 @@ void ListCommand::postprocess() {
             continue;
         }
         for (TableEntry &interfaceEntry : mPassthroughRefTable) {
-            if (interfaceEntry.arch != ARCH_UNKNOWN) {
+            if (interfaceEntry.arch != vintf::Arch::ARCH_EMPTY) {
                 continue;
             }
             FQName interfaceName;
@@ -330,35 +392,22 @@ bool ListCommand::addEntryWithInstance(const TableEntry& entry,
         return true; // strip out instances that is in a different partition.
     }
 
-    vintf::Transport transport;
     vintf::Arch arch;
-    if (entry.transport == "hwbinder") {
-        transport = vintf::Transport::HWBINDER;
-        arch = vintf::Arch::ARCH_EMPTY;
-    } else if (entry.transport == "passthrough") {
-        transport = vintf::Transport::PASSTHROUGH;
-        switch (entry.arch) {
-            case lshal::ARCH32:
-                arch = vintf::Arch::ARCH_32;
-                break;
-            case lshal::ARCH64:
-                arch = vintf::Arch::ARCH_64;
-                break;
-            case lshal::ARCH_BOTH:
-                arch = vintf::Arch::ARCH_32_64;
-                break;
-            case lshal::ARCH_UNKNOWN: // fallthrough
-            default:
-                err() << "Warning: '" << entry.interfaceName << "' doesn't have bitness info.";
-                return false;
+    if (entry.transport == vintf::Transport::HWBINDER) {
+        arch = vintf::Arch::ARCH_EMPTY; // no need to specify arch in manifest
+    } else if (entry.transport == vintf::Transport::PASSTHROUGH) {
+        if (entry.arch == vintf::Arch::ARCH_EMPTY) {
+            err() << "Warning: '" << entry.interfaceName << "' doesn't have bitness info.";
+            return false;
         }
+        arch = entry.arch;
     } else {
         err() << "Warning: '" << entry.transport << "' is not a valid transport." << std::endl;
         return false;
     }
 
     std::string e;
-    if (!manifest->insertInstance(fqInstance, transport, arch, vintf::HalFormat::HIDL, &e)) {
+    if (!manifest->insertInstance(fqInstance, entry.transport, arch, vintf::HalFormat::HIDL, &e)) {
         err() << "Warning: Cannot insert '" << fqInstance.string() << ": " << e << std::endl;
         return false;
     }
@@ -440,15 +489,15 @@ std::string ListCommand::INIT_VINTF_NOTES{
     "       until they are updated.\n"
 };
 
-static Architecture fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
+static vintf::Arch fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::Architecture a) {
     switch (a) {
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_64BIT:
-            return ARCH64;
+            return vintf::Arch::ARCH_64;
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::IS_32BIT:
-            return ARCH32;
+            return vintf::Arch::ARCH_32;
         case ::android::hidl::base::V1_0::DebugInfo::Architecture::UNKNOWN: // fallthrough
         default:
-            return ARCH_UNKNOWN;
+            return vintf::Arch::ARCH_EMPTY;
     }
 }
 
@@ -534,7 +583,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
                     std::string{info.instanceName.c_str()};
             entries.emplace(interfaceName, TableEntry{
                 .interfaceName = interfaceName,
-                .transport = "passthrough",
+                .transport = vintf::Transport::PASSTHROUGH,
                 .clientPids = info.clientPids,
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
@@ -566,7 +615,7 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
                 .interfaceName =
                         std::string{info.interfaceName.c_str()} + "/" +
                         std::string{info.instanceName.c_str()},
-                .transport = "passthrough",
+                .transport = vintf::Transport::PASSTHROUGH,
                 .serverPid = info.clientPids.size() == 1 ? info.clientPids[0] : NO_PID,
                 .clientPids = info.clientPids,
                 .arch = fromBaseArchitecture(info.arch)
@@ -582,9 +631,11 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
 }
 
 Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
+    using vintf::operator<<;
+
     if (!shouldReportHalType(HalType::BINDERIZED_SERVICES)) { return OK; }
 
-    const std::string mode = "hwbinder";
+    const vintf::Transport mode = vintf::Transport::HWBINDER;
     hidl_vec<hidl_string> fqInstanceNames;
     // copying out for timeoutIPC
     auto listRet = timeoutIPC(manager, &IServiceManager::list, [&] (const auto &names) {
@@ -748,7 +799,7 @@ void ListCommand::registerAllOptions() {
     mOptions.push_back({'l', "released", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::RELEASED);
         return OK;
-    }, "print the 'is released?' column\n(Y=released, empty=unreleased or unknown)"});
+    }, "print the 'is released?' column\n(Y=released, N=unreleased, ?=unknown)"});
     mOptions.push_back({'t', "transport", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::TRANSPORT);
         return OK;
@@ -787,6 +838,15 @@ void ListCommand::registerAllOptions() {
         return OK;
     }, "Emit debug info from\nIBase::debug with empty options. Cannot be used with --neat.\n"
         "Writes to specified file if 'arg' is provided, otherwise stdout."});
+
+    mOptions.push_back({'V', "vintf", no_argument, v++, [](ListCommand* thiz, const char*) {
+        thiz->mSelectedColumns.push_back(TableColumnType::VINTF);
+        return OK;
+    }, "print VINTF info. This column contains a comma-separated list of:\n"
+       "    - DM: device manifest\n"
+       "    - DC: device compatibility matrix\n"
+       "    - FM: framework manifest\n"
+       "    - FC: framework compatibility matrix"});
 
     // long options without short alternatives
     mOptions.push_back({'\0', "init-vintf", no_argument, v++, [](ListCommand* thiz, const char* arg) {
