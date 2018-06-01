@@ -915,10 +915,7 @@ void Layer::pushPendingState() {
 }
 
 void Layer::popPendingState(State* stateToCommit) {
-    auto oldFlags = stateToCommit->flags;
     *stateToCommit = mPendingStates[0];
-    stateToCommit->flags =
-            (oldFlags & ~stateToCommit->mask) | (stateToCommit->flags & stateToCommit->mask);
 
     mPendingStates.removeAt(0);
     ATRACE_INT(mTransactionName.string(), mPendingStates.size());
@@ -1265,7 +1262,6 @@ bool Layer::setFlags(uint8_t flags, uint8_t mask) {
     if (mCurrentState.flags == newFlags) return false;
     mCurrentState.sequence++;
     mCurrentState.flags = newFlags;
-    mCurrentState.mask = mask;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
