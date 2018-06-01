@@ -96,17 +96,16 @@ void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
     mHwcDevice->registerCallback(callback, sequenceId);
 }
 
-bool HWComposer::getDisplayIdentificationData(hwc2_display_t displayId, uint8_t* outPort,
+bool HWComposer::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const {
-    HWC2::Display* display = mHwcDevice->getDisplayById(displayId);
+    HWC2::Display* display = mHwcDevice->getDisplayById(hwcDisplayId);
     if (!display) {
-        ALOGE("getDisplayIdentificationData: Attempted to access invalid display %" PRIu64,
-              displayId);
+        ALOGE("%s: Attempted to access invalid display %" PRIu64, __FUNCTION__, hwcDisplayId);
         return false;
     }
     const auto error = display->getIdentificationData(outPort, outData);
     if (error != HWC2::Error::None) {
-        ALOGE("getDisplayIdentificationData failed for display %" PRIu64, displayId);
+        ALOGE("%s failed for display %" PRIu64, __FUNCTION__, hwcDisplayId);
         return false;
     }
     return true;
@@ -147,49 +146,47 @@ void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
     }
 }
 
-std::optional<DisplayId> HWComposer::onHotplug(hwc2_display_t displayId, int32_t displayType,
+std::optional<DisplayId> HWComposer::onHotplug(hwc2_display_t hwcDisplayId, int32_t displayType,
                                                HWC2::Connection connection) {
     if (displayType >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
         ALOGE("Invalid display type of %d", displayType);
         return {};
     }
 
-    ALOGV("hotplug: %" PRIu64 ", %s %s", displayId,
-            displayType == DisplayDevice::DISPLAY_PRIMARY ? "primary" : "external",
-            to_string(connection).c_str());
-    mHwcDevice->onHotplug(displayId, connection);
+    ALOGV("hotplug: %" PRIu64 ", %s %s", hwcDisplayId,
+          displayType == DisplayDevice::DISPLAY_PRIMARY ? "primary" : "external",
+          to_string(connection).c_str());
+    mHwcDevice->onHotplug(hwcDisplayId, connection);
 
-    std::optional<DisplayId> stableId;
+    std::optional<DisplayId> displayId;
 
     uint8_t port;
     DisplayIdentificationData data;
-    if (getDisplayIdentificationData(displayId, &port, &data)) {
-        stableId = generateDisplayId(port, data);
-        ALOGE_IF(!stableId, "Failed to generate stable ID for display %" PRIu64, displayId);
+    if (getDisplayIdentificationData(hwcDisplayId, &port, &data)) {
+        displayId = generateDisplayId(port, data);
+        ALOGE_IF(!displayId, "Failed to generate stable ID for display %" PRIu64, hwcDisplayId);
     }
 
     // Disconnect is handled through HWComposer::disconnectDisplay via
     // SurfaceFlinger's onHotplugReceived callback handling
     if (connection == HWC2::Connection::Connected) {
-        mDisplayData[displayType].hwcDisplay = mHwcDevice->getDisplayById(displayId);
-        mHwcDisplaySlots[displayId] = displayType;
+        mDisplayData[displayType].hwcDisplay = mHwcDevice->getDisplayById(hwcDisplayId);
+        mHwcDisplaySlots[hwcDisplayId] = displayType;
     }
 
-    return stableId;
+    return displayId;
 }
 
-bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,
-                         int32_t* outDisplay) {
-    auto display = mHwcDevice->getDisplayById(displayId);
+bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp, int32_t* outDisplay) {
+    auto display = mHwcDevice->getDisplayById(hwcDisplayId);
     if (!display) {
-        ALOGE("onVsync Failed to find display %" PRIu64, displayId);
+        ALOGE("%s: Failed to find display %" PRIu64, __FUNCTION__, hwcDisplayId);
         return false;
     }
     auto displayType = HWC2::DisplayType::Invalid;
     auto error = display->getType(&displayType);
     if (error != HWC2::Error::None) {
-        ALOGE("onVsync: Failed to determine type of display %" PRIu64,
-                display->getId());
+        ALOGE("%s: Failed to determine type of display %" PRIu64, __FUNCTION__, display->getId());
         return false;
     }
 

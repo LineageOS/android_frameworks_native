@@ -328,7 +328,7 @@ public:
     HWC2::Composition getCompositionType(int32_t displayId) const;
     void setClearClientTarget(int32_t displayId, bool clear);
     bool getClearClientTarget(int32_t displayId) const;
-    void updateCursorPosition(const sp<const DisplayDevice>& hw);
+    void updateCursorPosition(const sp<const DisplayDevice>& display);
 
     /*
      * called after page-flip
@@ -425,7 +425,7 @@ public:
 
     // Updates the transform hint in our SurfaceFlingerConsumer to match
     // the current orientation of the display device.
-    void updateTransformHint(const sp<const DisplayDevice>& hw) const;
+    void updateTransformHint(const sp<const DisplayDevice>& display) const;
 
     /*
      * returns the rectangle that crops the content of the layer and scales it
@@ -556,12 +556,12 @@ protected:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    FloatRect computeCrop(const sp<const DisplayDevice>& hw) const;
+    FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
     // Compute the initial crop as specified by parent layers and the
     // SurfaceControl for this layer. Does not include buffer crop from the
     // IGraphicBufferProducer client, as that should not affect child clipping.
     // Returns in screen space.
-    Rect computeInitialCrop(const sp<const DisplayDevice>& hw) const;
+    Rect computeInitialCrop(const sp<const DisplayDevice>& display) const;
 
     // drawing
     void clearWithOpenGL(const RenderArea& renderArea, float r, float g, float b,

@@ -696,8 +696,8 @@ using InvalidDisplayCase = Case<InvalidDisplayVariant, WideColorSupportNotConfig
 
 TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     constexpr int currentSequenceId = 123;
-    constexpr hwc2_display_t displayId1 = 456;
-    constexpr hwc2_display_t displayId2 = 654;
+    constexpr hwc2_display_t hwcDisplayId1 = 456;
+    constexpr hwc2_display_t hwcDisplayId2 = 654;
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -720,8 +720,8 @@ TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     // Invocation
 
     // Simulate two hotplug events (a connect and a disconnect)
-    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Connected);
-    mFlinger.onHotplugReceived(currentSequenceId, displayId2, HWC2::Connection::Disconnected);
+    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId1, HWC2::Connection::Connected);
+    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId2, HWC2::Connection::Disconnected);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -732,9 +732,9 @@ TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     // All events should be in the pending event queue.
     const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
     ASSERT_EQ(2u, pendingEvents.size());
-    EXPECT_EQ(displayId1, pendingEvents[0].display);
+    EXPECT_EQ(hwcDisplayId1, pendingEvents[0].hwcDisplayId);
     EXPECT_EQ(HWC2::Connection::Connected, pendingEvents[0].connection);
-    EXPECT_EQ(displayId2, pendingEvents[1].display);
+    EXPECT_EQ(hwcDisplayId2, pendingEvents[1].hwcDisplayId);
     EXPECT_EQ(HWC2::Connection::Disconnected, pendingEvents[1].connection);
 }
 
@@ -2684,7 +2684,7 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfNoChange) {
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // The diplay is already set to HWC_POWER_MODE_NORMAL
+    // The display is already set to HWC_POWER_MODE_NORMAL
     display.mutableDisplayDevice()->setPowerMode(HWC_POWER_MODE_NORMAL);
 
     // --------------------------------------------------------------------

@@ -706,8 +706,7 @@ void BufferLayer::onFirstRef() {
         mProducer->setMaxDequeuedBufferCount(2);
     }
 
-    const sp<const DisplayDevice> hw(mFlinger->getDefaultDisplayDevice());
-    updateTransformHint(hw);
+    updateTransformHint(mFlinger->getDefaultDisplayDevice());
 }
 
 // ---------------------------------------------------------------------------

@@ -76,7 +76,7 @@ public:
     void registerCallback(HWC2::ComposerCallback* callback,
                           int32_t sequenceId);
 
-    bool getDisplayIdentificationData(hwc2_display_t displayId, uint8_t* outPort,
+    bool getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
                                       DisplayIdentificationData* outData) const;
 
     bool hasCapability(HWC2::Capability capability) const;
@@ -152,9 +152,8 @@ public:
 
     // Returns true if successful, false otherwise. The
     // DisplayDevice::DisplayType of the display is returned as an output param.
-    bool onVsync(hwc2_display_t displayId, int64_t timestamp,
-                 int32_t* outDisplay);
-    std::optional<DisplayId> onHotplug(hwc2_display_t displayId, int32_t displayType,
+    bool onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp, int32_t* outDisplay);
+    std::optional<DisplayId> onHotplug(hwc2_display_t hwcDisplayId, int32_t displayType,
                                        HWC2::Connection connection);
 
     void setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled);

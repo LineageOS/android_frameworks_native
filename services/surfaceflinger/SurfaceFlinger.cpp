@@ -1263,8 +1263,8 @@ void SurfaceFlinger::resyncWithRateLimit() {
     sLastResyncAttempted = now;
 }
 
-void SurfaceFlinger::onVsyncReceived(int32_t sequenceId,
-        hwc2_display_t displayId, int64_t timestamp) {
+void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
+                                     int64_t timestamp) {
     Mutex::Autolock lock(mStateLock);
     // Ignore any vsyncs from a previous hardware composer.
     if (sequenceId != getBE().mComposerSequenceId) {
@@ -1272,7 +1272,7 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId,
     }
 
     int32_t type;
-    if (!getBE().mHwc->onVsync(displayId, timestamp, &type)) {
+    if (!getBE().mHwc->onVsync(hwcDisplayId, timestamp, &type)) {
         return;
     }
 
@@ -1297,9 +1297,9 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
+void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                                        HWC2::Connection connection) {
-    ALOGV("onHotplugReceived(%d, %" PRIu64 ", %s)", sequenceId, display,
+    ALOGV("%s(%d, %" PRIu64 ", %s)", __FUNCTION__, sequenceId, hwcDisplayId,
           connection == HWC2::Connection::Connected ? "connected" : "disconnected");
 
     // Ignore events that do not have the right sequenceId.
@@ -1313,7 +1313,7 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t displa
     // acquire it here.
     ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
-    mPendingHotplugEvents.emplace_back(HotplugEvent{display, connection});
+    mPendingHotplugEvents.emplace_back(HotplugEvent{hwcDisplayId, connection});
 
     if (std::this_thread::get_id() == mMainThreadId) {
         // Process all pending hot plug events immediately if we are on the main thread.
@@ -1323,8 +1323,7 @@ void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t displa
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
-void SurfaceFlinger::onRefreshReceived(int sequenceId,
-                                       hwc2_display_t /*display*/) {
+void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDisplayId*/) {
     Mutex::Autolock lock(mStateLock);
     if (sequenceId != getBE().mComposerSequenceId) {
         return;
@@ -2135,9 +2134,9 @@ DisplayDevice::DisplayType SurfaceFlinger::determineDisplayType(hwc2_display_t h
 
 void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     for (const auto& event : mPendingHotplugEvents) {
-        auto displayType = determineDisplayType(event.display, event.connection);
+        auto displayType = determineDisplayType(event.hwcDisplayId, event.connection);
         if (displayType == DisplayDevice::DISPLAY_ID_INVALID) {
-            ALOGW("Unable to determine the display type for display %" PRIu64, event.display);
+            ALOGW("Unable to determine the display type for display %" PRIu64, event.hwcDisplayId);
             continue;
         }
 
@@ -2147,9 +2146,9 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
         }
 
         const auto displayId =
-                getBE().mHwc->onHotplug(event.display, displayType, event.connection);
+                getBE().mHwc->onHotplug(event.hwcDisplayId, displayType, event.connection);
         if (displayId) {
-            ALOGV("Display %" PRIu64 " has stable ID %" PRIu64, event.display, *displayId);
+            ALOGV("Display %" PRIu64 " has stable ID %" PRIu64, event.hwcDisplayId, *displayId);
         }
 
         if (event.connection == HWC2::Connection::Connected) {
