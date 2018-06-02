@@ -94,6 +94,8 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mLastFrameNumberReceived(0),
         mAutoRefresh(false),
         mFreezeGeometryUpdates(false),
+        mCurrentChildren(LayerVector::StateSet::Current),
+        mDrawingChildren(LayerVector::StateSet::Drawing),
         mBE{this, name.string()} {
 
     mCurrentCrop.makeInvalid();
@@ -133,7 +135,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     CompositorTiming compositorTiming;
     flinger->getCompositorTiming(&compositorTiming);
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
-
 }
 
 void Layer::onFirstRef() {}
@@ -915,10 +916,7 @@ void Layer::pushPendingState() {
 }
 
 void Layer::popPendingState(State* stateToCommit) {
-    auto oldFlags = stateToCommit->flags;
     *stateToCommit = mPendingStates[0];
-    stateToCommit->flags =
-            (oldFlags & ~stateToCommit->mask) | (stateToCommit->flags & stateToCommit->mask);
 
     mPendingStates.removeAt(0);
     ATRACE_INT(mTransactionName.string(), mPendingStates.size());
@@ -1265,7 +1263,6 @@ bool Layer::setFlags(uint8_t flags, uint8_t mask) {
     if (mCurrentState.flags == newFlags) return false;
     mCurrentState.sequence++;
     mCurrentState.flags = newFlags;
-    mCurrentState.mask = mask;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -1676,7 +1673,7 @@ __attribute__((no_sanitize("unsigned-integer-overflow"))) LayerVector Layer::mak
         return children;
     }
 
-    LayerVector traverse;
+    LayerVector traverse(stateSet);
     for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         if (strongRelative != nullptr) {
@@ -1774,7 +1771,7 @@ LayerVector Layer::makeChildrenTraversalList(LayerVector::StateSet stateSet,
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    LayerVector traverse;
+    LayerVector traverse(stateSet);
     for (const wp<Layer>& weakRelative : state.zOrderRelatives) {
         sp<Layer> strongRelative = weakRelative.promote();
         // Only add relative layers that are also descendents of the top most parent of the tree.

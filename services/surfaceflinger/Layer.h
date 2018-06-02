@@ -123,7 +123,6 @@ public:
         uint32_t layerStack;
 
         uint8_t flags;
-        uint8_t mask;
         uint8_t reserved[2];
         int32_t sequence; // changes when visible regions can change
         bool modified;
@@ -523,6 +522,7 @@ public:
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
     int32_t getZ() const;
+    void pushPendingState();
 
 protected:
     // constant
@@ -605,7 +605,6 @@ protected:
     // Returns false if the relevant frame has already been latched
     bool addSyncPoint(const std::shared_ptr<SyncPoint>& point);
 
-    void pushPendingState();
     void popPendingState(State* stateToCommit);
     bool applyPendingStates(State* stateToCommit);
 
