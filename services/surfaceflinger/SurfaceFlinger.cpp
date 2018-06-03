@@ -1549,7 +1549,7 @@ void SurfaceFlinger::handleMessageRefresh() {
         mHadClientComposition = mHadClientComposition ||
                 getBE().mHwc->hasClientComposition(displayDevice->getHwcDisplayId());
     }
-    mVsyncModulator.setLastFrameUsedRenderEngine(mHadClientComposition);
+    mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
 }
@@ -3345,6 +3345,13 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     const uint32_t what = s.what;
     bool geometryAppliesWithResize =
             what & layer_state_t::eGeometryAppliesWithResize;
+
+    // If we are deferring transaction, make sure to push the pending state, as otherwise the
+    // pending state will also be deferred.
+    if (what & layer_state_t::eDeferTransaction) {
+        layer->pushPendingState();
+    }
+
     if (what & layer_state_t::ePositionChanged) {
         if (layer->setPosition(s.x, s.y, !geometryAppliesWithResize)) {
             flags |= eTraversalNeeded;

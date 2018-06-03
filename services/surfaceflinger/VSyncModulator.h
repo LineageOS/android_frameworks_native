@@ -28,6 +28,12 @@ namespace android {
  * Modulates the vsync-offsets depending on current SurfaceFlinger state.
  */
 class VSyncModulator {
+private:
+
+    // Number of frames we'll keep the early phase offsets once they are activated. This acts as a
+    // low-pass filter in case the client isn't quick enough in sending new transactions.
+    const int MIN_EARLY_FRAME_COUNT = 2;
+
 public:
 
     enum TransactionStart {
@@ -55,6 +61,11 @@ public:
     }
 
     void setTransactionStart(TransactionStart transactionStart) {
+
+        if (transactionStart == TransactionStart::EARLY) {
+            mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT;
+        }
+
         // An early transaction stays an early transaction.
         if (transactionStart == mTransactionStart || mTransactionStart == TransactionStart::EARLY) {
             return;
@@ -69,10 +80,19 @@ public:
         updatePhaseOffsets();
     }
 
-    void setLastFrameUsedRenderEngine(bool re) {
-        if (re == mLastFrameUsedRenderEngine) return;
-        mLastFrameUsedRenderEngine = re;
-        updatePhaseOffsets();
+    void onRefreshed(bool usedRenderEngine) {
+        bool updatePhaseOffsetsNeeded = false;
+        if (mRemainingEarlyFrameCount > 0) {
+            mRemainingEarlyFrameCount--;
+            updatePhaseOffsetsNeeded = true;
+        }
+        if (usedRenderEngine != mLastFrameUsedRenderEngine) {
+            mLastFrameUsedRenderEngine = usedRenderEngine;
+            updatePhaseOffsetsNeeded = true;
+        }
+        if (updatePhaseOffsetsNeeded) {
+            updatePhaseOffsets();
+        }
     }
 
 private:
@@ -82,7 +102,7 @@ private:
         // Do not change phase offsets if disabled.
         if (mEarlyPhaseOffset == mLatePhaseOffset) return;
 
-        if (mTransactionStart == TransactionStart::EARLY || mLastFrameUsedRenderEngine) {
+        if (shouldUseEarlyOffset()) {
             if (mPhaseOffset != mEarlyPhaseOffset) {
                 if (mEventThread) {
                     mEventThread->setPhaseOffset(mEarlyPhaseOffset);
@@ -99,12 +119,18 @@ private:
         }
     }
 
+    bool shouldUseEarlyOffset() {
+        return mTransactionStart == TransactionStart::EARLY || mLastFrameUsedRenderEngine
+                || mRemainingEarlyFrameCount > 0;
+    }
+
     nsecs_t mLatePhaseOffset = 0;
     nsecs_t mEarlyPhaseOffset = 0;
     EventThread* mEventThread = nullptr;
     std::atomic<nsecs_t> mPhaseOffset = 0;
     std::atomic<TransactionStart> mTransactionStart = TransactionStart::NORMAL;
     std::atomic<bool> mLastFrameUsedRenderEngine = false;
+    std::atomic<int> mRemainingEarlyFrameCount = 0;
 };
 
 } // namespace android
