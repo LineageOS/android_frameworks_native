@@ -309,6 +309,9 @@ void SurfaceFlinger::createBuiltinDisplayLocked(DisplayDevice::DisplayType type)
     mBuiltinDisplays[type] = new BBinder();
     // All non-virtual displays are currently considered secure.
     DisplayDeviceState info(type, true);
+    info.displayName =
+            type== DisplayDevice::DISPLAY_PRIMARY ? "Built-in Screen" : "External Screen";
+
     mCurrentState.displays.add(mBuiltinDisplays[type], info);
     mInterceptor.saveDisplayCreation(info);
 }
