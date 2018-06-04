@@ -483,9 +483,9 @@ private:
     // called when starting, or restarting after system_server death
     void initializeDisplays();
 
-    // Create an IBinder for a builtin display and add it to current state
+#ifndef USE_HWC2
     void createBuiltinDisplayLocked(DisplayDevice::DisplayType type);
-
+#endif
 
     sp<const DisplayDevice> getDisplayDevice(const wp<IBinder>& dpy) const {
       Mutex::Autolock _l(mStateLock);
@@ -510,8 +510,6 @@ private:
     sp<const DisplayDevice> getDefaultDisplayDeviceLocked() const {
         return getDisplayDeviceLocked(mBuiltinDisplays[DisplayDevice::DISPLAY_PRIMARY]);
     }
-
-    void createDefaultDisplayDevice();
 
     int32_t getDisplayType(const sp<IBinder>& display) {
         if (!display.get()) return NAME_NOT_FOUND;
@@ -576,6 +574,8 @@ private:
     /* ------------------------------------------------------------------------
      * Display management
      */
+    void processDisplayChangesLocked();
+    void processDisplayHotplugEventsLocked();
 
     /* ------------------------------------------------------------------------
      * VSync
@@ -704,6 +704,17 @@ private:
 #endif
     FenceTimeline mGlCompositionDoneTimeline;
     FenceTimeline mDisplayTimeline;
+
+#ifdef USE_HWC2
+    struct HotplugEvent {
+        hwc2_display_t display;
+        HWC2::Connection connection = HWC2::Connection::Invalid;
+        bool isPrimaryDisplay;
+    };
+    // protected by mStateLock
+    std::vector<HotplugEvent> mPendingHotplugEvents;
+#endif
+
 
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
