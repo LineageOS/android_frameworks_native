@@ -1857,9 +1857,9 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     Dataspace hdrDataSpace;
     Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace);
 
-    // respect hdrDataSpace only when there is modern HDR support
+    // respect hdrDataSpace only when there is no legacy HDR support
     const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
-        display->hasModernHdrSupport(hdrDataSpace);
+        !display->hasLegacyHdrSupport(hdrDataSpace);
     if (isHdr) {
         bestDataSpace = hdrDataSpace;
     }

@@ -152,9 +152,9 @@ public:
     bool hasHLGSupport() const { return mHasHLG; }
     bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
 
-    // Return true if the corresponding color mode for the HDR dataspace is
-    // supported.
-    bool hasModernHdrSupport(ui::Dataspace dataspace) const;
+    // Return true if the HDR dataspace is supported but
+    // there is no corresponding color mode.
+    bool hasLegacyHdrSupport(ui::Dataspace dataspace) const;
 
     // The returned HdrCapabilities is the combination of HDR capabilities from
     // hardware composer and RenderEngine. When the DisplayDevice supports wide
