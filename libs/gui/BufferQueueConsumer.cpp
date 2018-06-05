@@ -253,7 +253,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         // mGraphicBuffer to NULL to avoid unnecessarily remapping this buffer
         // on the consumer side
         if (outBuffer->mAcquireCalled) {
-            outBuffer->mGraphicBuffer = NULL;
+            outBuffer->mGraphicBuffer = nullptr;
         }
 
         mCore->mQueue.erase(front);
@@ -270,7 +270,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         VALIDATE_CONSISTENCY();
     }
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         for (int i = 0; i < numDroppedBuffers; ++i) {
             listener->onBufferReleased();
         }
@@ -319,10 +319,10 @@ status_t BufferQueueConsumer::attachBuffer(int* outSlot,
         const sp<android::GraphicBuffer>& buffer) {
     ATRACE_CALL();
 
-    if (outSlot == NULL) {
+    if (outSlot == nullptr) {
         BQ_LOGE("attachBuffer: outSlot must not be NULL");
         return BAD_VALUE;
-    } else if (buffer == NULL) {
+    } else if (buffer == nullptr) {
         BQ_LOGE("attachBuffer: cannot attach NULL buffer");
         return BAD_VALUE;
     }
@@ -411,7 +411,7 @@ status_t BufferQueueConsumer::releaseBuffer(int slot, uint64_t frameNumber,
     ATRACE_BUFFER_INDEX(slot);
 
     if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS ||
-            releaseFence == NULL) {
+            releaseFence == nullptr) {
         BQ_LOGE("releaseBuffer: slot %d out of range or fence %p NULL", slot,
                 releaseFence.get());
         return BAD_VALUE;
@@ -463,7 +463,7 @@ status_t BufferQueueConsumer::releaseBuffer(int slot, uint64_t frameNumber,
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBufferReleased();
     }
 
@@ -474,7 +474,7 @@ status_t BufferQueueConsumer::connect(
         const sp<IConsumerListener>& consumerListener, bool controlledByApp) {
     ATRACE_CALL();
 
-    if (consumerListener == NULL) {
+    if (consumerListener == nullptr) {
         BQ_LOGE("connect: consumerListener may not be NULL");
         return BAD_VALUE;
     }
@@ -502,13 +502,13 @@ status_t BufferQueueConsumer::disconnect() {
 
     Mutex::Autolock lock(mCore->mMutex);
 
-    if (mCore->mConsumerListener == NULL) {
+    if (mCore->mConsumerListener == nullptr) {
         BQ_LOGE("disconnect: no consumer is connected");
         return BAD_VALUE;
     }
 
     mCore->mIsAbandoned = true;
-    mCore->mConsumerListener = NULL;
+    mCore->mConsumerListener = nullptr;
     mCore->mQueue.clear();
     mCore->freeAllBuffersLocked();
     mCore->mSharedBufferSlot = BufferQueueCore::INVALID_BUFFER_SLOT;
@@ -519,7 +519,7 @@ status_t BufferQueueConsumer::disconnect() {
 status_t BufferQueueConsumer::getReleasedBuffers(uint64_t *outSlotMask) {
     ATRACE_CALL();
 
-    if (outSlotMask == NULL) {
+    if (outSlotMask == nullptr) {
         BQ_LOGE("getReleasedBuffers: outSlotMask may not be NULL");
         return BAD_VALUE;
     }
@@ -671,7 +671,7 @@ status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
         }
     }
     // Call back without lock held
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
     }
 
@@ -764,7 +764,7 @@ status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResul
         outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
                 "from pid=%d, uid=%d\n", pid, uid);
         android_errorWriteWithInfoLog(0x534e4554, "27046057",
-                static_cast<int32_t>(uid), NULL, 0);
+                static_cast<int32_t>(uid), nullptr, 0);
         return PERMISSION_DENIED;
     }
 
