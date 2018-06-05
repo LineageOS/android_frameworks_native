@@ -1950,14 +1950,15 @@ void SurfaceFlinger::setUpHWComposer() {
                      displayId, result);
         }
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
-                 layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                !display->hasHDR10Support()) {
+            if (layer->isHdrY410()) {
                 layer->forceClientComposition(displayId);
-            }
-            if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
-                 layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                !display->hasHLGSupport()) {
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
+                    !display->hasHDR10Support()) {
+                layer->forceClientComposition(displayId);
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
+                    !display->hasHLGSupport()) {
                 layer->forceClientComposition(displayId);
             }
 

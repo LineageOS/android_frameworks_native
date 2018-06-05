@@ -129,6 +129,8 @@ public:
     bool isBufferLatched() const override { return mRefreshPending; }
     void setDefaultBufferSize(uint32_t w, uint32_t h) override;
 
+    bool isHdrY410() const override;
+
     void setPerFrameData(const sp<const DisplayDevice>& display) override;
 
     bool isOpaque(const Layer::State& s) const override;
