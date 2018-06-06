@@ -725,7 +725,7 @@ void HWComposer::disconnectDisplay(int displayId) {
 
     const auto hwcDisplayId = displayData.hwcDisplay->getId();
     mHwcDisplaySlots.erase(hwcDisplayId);
-    displayData.reset();
+    displayData = DisplayData();
 
     mHwcDevice->destroyDisplay(hwcDisplayId);
 }
@@ -833,26 +833,4 @@ HWComposer::getHwcDisplayId(int32_t displayId) const {
     return mDisplayData[displayId].hwcDisplay->getId();
 }
 
-// ---------------------------------------------------------------------------
-
-HWComposer::DisplayData::DisplayData()
-  : hasClientComposition(false),
-    hasDeviceComposition(false),
-    hwcDisplay(nullptr),
-    lastPresentFence(Fence::NO_FENCE),
-    outbufHandle(nullptr),
-    outbufAcquireFence(Fence::NO_FENCE),
-    vsyncEnabled(HWC2::Vsync::Disable) {
-    ALOGV("Created new DisplayData");
-}
-
-HWComposer::DisplayData::~DisplayData() {
-}
-
-void HWComposer::DisplayData::reset() {
-    ALOGV("DisplayData reset");
-    *this = DisplayData();
-}
-
-// ---------------------------------------------------------------------------
-}; // namespace android
+} // namespace android

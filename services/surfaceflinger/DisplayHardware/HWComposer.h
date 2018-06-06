@@ -197,23 +197,19 @@ private:
     struct cb_context;
 
     struct DisplayData {
-        DisplayData();
-        ~DisplayData();
-        void reset();
-
-        bool hasClientComposition;
-        bool hasDeviceComposition;
-        HWC2::Display* hwcDisplay;
+        bool hasClientComposition = false;
+        bool hasDeviceComposition = false;
+        HWC2::Display* hwcDisplay = nullptr;
         HWC2::DisplayRequest displayRequests;
-        sp<Fence> lastPresentFence;  // signals when the last set op retires
+        sp<Fence> lastPresentFence = Fence::NO_FENCE; // signals when the last set op retires
         std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
-        buffer_handle_t outbufHandle;
-        sp<Fence> outbufAcquireFence;
+        buffer_handle_t outbufHandle = nullptr;
+        sp<Fence> outbufAcquireFence = Fence::NO_FENCE;
         mutable std::unordered_map<int32_t,
                 std::shared_ptr<const HWC2::Display::Config>> configMap;
 
         // protected by mVsyncLock
-        HWC2::Vsync vsyncEnabled;
+        HWC2::Vsync vsyncEnabled = HWC2::Vsync::Disable;
 
         bool validateWasSkipped;
         HWC2::Error presentError;

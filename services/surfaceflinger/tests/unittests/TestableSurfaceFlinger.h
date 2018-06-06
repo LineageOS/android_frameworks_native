@@ -232,7 +232,7 @@ public:
             display->mutableIsConnected() = true;
 
             ASSERT_TRUE(flinger->mutableHwcDisplayData().size() > static_cast<size_t>(mType));
-            flinger->mutableHwcDisplayData()[mType].reset();
+            flinger->mutableHwcDisplayData()[mType] = HWComposer::DisplayData();
             flinger->mutableHwcDisplayData()[mType].hwcDisplay = display.get();
             flinger->mutableHwcDisplaySlots().emplace(mHwcDisplayId, mType);
 
