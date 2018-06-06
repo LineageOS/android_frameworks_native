@@ -4619,6 +4619,12 @@ status_t SurfaceFlinger::onTransact(
                 }
                 return NO_ERROR;
             }
+            // Is VrFlinger active?
+            case 1028: {
+                Mutex::Autolock _l(mStateLock);
+                reply->writeBool(getBE().mHwc->isUsingVrComposer());
+                return NO_ERROR;
+            }
         }
     }
     return err;
