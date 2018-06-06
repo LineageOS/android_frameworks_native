@@ -761,12 +761,12 @@ bool DisplayDevice::hasRenderIntent(RenderIntent intent) const {
     return iter != mColorModes.end() && iter->second.renderIntent == intent;
 }
 
-bool DisplayDevice::hasModernHdrSupport(Dataspace dataspace) const {
+bool DisplayDevice::hasLegacyHdrSupport(Dataspace dataspace) const {
     if ((dataspace == Dataspace::BT2020_PQ && hasHDR10Support()) ||
         (dataspace == Dataspace::BT2020_HLG && hasHLGSupport())) {
         auto iter =
                 mColorModes.find(getColorModeKey(dataspace, RenderIntent::TONE_MAP_COLORIMETRIC));
-        return iter != mColorModes.end() && iter->second.dataspace == dataspace;
+        return iter == mColorModes.end() || iter->second.dataspace != dataspace;
     }
 
     return false;
