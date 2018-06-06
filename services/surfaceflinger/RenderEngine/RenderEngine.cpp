@@ -427,6 +427,12 @@ void RenderEngine::unbindNativeBufferAsFrameBuffer(RE::BindNativeBufferAsFramebu
     // back to main framebuffer
     unbindFramebuffer(bindHelper->mTexName, bindHelper->mFbName);
     eglDestroyImageKHR(mEGLDisplay, bindHelper->mImage);
+
+    // Workaround for b/77935566 to force the EGL driver to release the
+    // screenshot buffer
+    setScissor(0, 0, 0, 0);
+    clearWithColor(0.0, 0.0, 0.0, 0.0);
+    disableScissor();
 }
 
 // ---------------------------------------------------------------------------
