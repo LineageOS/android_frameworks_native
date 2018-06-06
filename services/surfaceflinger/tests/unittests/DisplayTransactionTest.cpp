@@ -1165,13 +1165,23 @@ void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessin
     Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
 
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
-    EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::TYPE, true)).Times(1);
+    EXPECT_CALL(*mEventThread,
+                onHotplugReceived(Case::Display::TYPE == DisplayDevice::DISPLAY_PRIMARY
+                                          ? EventThread::DisplayType::Primary
+                                          : EventThread::DisplayType::External,
+                                  true))
+            .Times(1);
 }
 
 template <typename Case>
 void HandleTransactionLockedTest::setupCommonCallExpectationsForDisconnectProcessing() {
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
-    EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::TYPE, false)).Times(1);
+    EXPECT_CALL(*mEventThread,
+                onHotplugReceived(Case::Display::TYPE == DisplayDevice::DISPLAY_PRIMARY
+                                          ? EventThread::DisplayType::Primary
+                                          : EventThread::DisplayType::External,
+                                  false))
+            .Times(1);
 }
 
 template <typename Case>

@@ -2293,8 +2293,11 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 if (const auto display = getDisplayDeviceLocked(draw.keyAt(i))) {
                     display->disconnect(getHwComposer());
                 }
-                if (draw[i].type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES)
-                    mEventThread->onHotplugReceived(draw[i].type, false);
+                if (draw[i].type == DisplayDevice::DISPLAY_PRIMARY) {
+                    mEventThread->onHotplugReceived(EventThread::DisplayType::Primary, false);
+                } else if (draw[i].type == DisplayDevice::DISPLAY_EXTERNAL) {
+                    mEventThread->onHotplugReceived(EventThread::DisplayType::External, false);
+                }
                 mDisplays.erase(draw.keyAt(i));
             } else {
                 // this display is in both lists. see if something changed.
@@ -2395,7 +2398,13 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                                       setupNewDisplayDeviceInternal(displayToken, displayId, state,
                                                                     dispSurface, producer));
                     if (!state.isVirtual()) {
-                        mEventThread->onHotplugReceived(state.type, true);
+                        if (state.type == DisplayDevice::DISPLAY_PRIMARY) {
+                            mEventThread->onHotplugReceived(EventThread::DisplayType::Primary,
+                                                            true);
+                        } else if (state.type == DisplayDevice::DISPLAY_EXTERNAL) {
+                            mEventThread->onHotplugReceived(EventThread::DisplayType::External,
+                                                            true);
+                        }
                     }
                 }
             }

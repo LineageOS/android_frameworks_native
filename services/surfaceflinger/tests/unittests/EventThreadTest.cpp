@@ -71,7 +71,8 @@ protected:
                                               ConnectionEventRecorder& connectionEventRecorder,
                                               nsecs_t expectedTimestamp, unsigned expectedCount);
     void expectVsyncEventReceivedByConnection(nsecs_t expectedTimestamp, unsigned expectedCount);
-    void expectHotplugEventReceivedByConnection(int expectedDisplayType, bool expectedConnected);
+    void expectHotplugEventReceivedByConnection(EventThread::DisplayType expectedDisplayType,
+                                                bool expectedConnected);
 
     AsyncCallRecorder<void (*)(bool)> mVSyncSetEnabledCallRecorder;
     AsyncCallRecorder<void (*)(VSyncSource::Callback*)> mVSyncSetCallbackCallRecorder;
@@ -169,13 +170,16 @@ void EventThreadTest::expectVsyncEventReceivedByConnection(nsecs_t expectedTimes
                                          expectedCount);
 }
 
-void EventThreadTest::expectHotplugEventReceivedByConnection(int expectedDisplayType,
-                                                             bool expectedConnected) {
+void EventThreadTest::expectHotplugEventReceivedByConnection(
+        EventThread::DisplayType expectedDisplayType, bool expectedConnected) {
+    const uint32_t expectedDisplayId =
+            expectedDisplayType == EventThread::DisplayType::Primary ? 0 : 1;
+
     auto args = mConnectionEventCallRecorder.waitForCall();
     ASSERT_TRUE(args.has_value());
     const auto& event = std::get<0>(args.value());
     EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG, event.header.type);
-    EXPECT_EQ(static_cast<unsigned>(expectedDisplayType), event.header.id);
+    EXPECT_EQ(expectedDisplayId, event.header.id);
     EXPECT_EQ(expectedConnected, event.hotplug.connected);
 }
 
@@ -394,28 +398,23 @@ TEST_F(EventThreadTest, setPhaseOffsetForwardsToVSyncSource) {
 }
 
 TEST_F(EventThreadTest, postHotplugPrimaryDisconnect) {
-    mThread->onHotplugReceived(DisplayDevice::DISPLAY_PRIMARY, false);
-    expectHotplugEventReceivedByConnection(DisplayDevice::DISPLAY_PRIMARY, false);
+    mThread->onHotplugReceived(EventThread::DisplayType::Primary, false);
+    expectHotplugEventReceivedByConnection(EventThread::DisplayType::Primary, false);
 }
 
 TEST_F(EventThreadTest, postHotplugPrimaryConnect) {
-    mThread->onHotplugReceived(DisplayDevice::DISPLAY_PRIMARY, true);
-    expectHotplugEventReceivedByConnection(DisplayDevice::DISPLAY_PRIMARY, true);
+    mThread->onHotplugReceived(EventThread::DisplayType::Primary, true);
+    expectHotplugEventReceivedByConnection(EventThread::DisplayType::Primary, true);
 }
 
 TEST_F(EventThreadTest, postHotplugExternalDisconnect) {
-    mThread->onHotplugReceived(DisplayDevice::DISPLAY_EXTERNAL, false);
-    expectHotplugEventReceivedByConnection(DisplayDevice::DISPLAY_EXTERNAL, false);
+    mThread->onHotplugReceived(EventThread::DisplayType::External, false);
+    expectHotplugEventReceivedByConnection(EventThread::DisplayType::External, false);
 }
 
 TEST_F(EventThreadTest, postHotplugExternalConnect) {
-    mThread->onHotplugReceived(DisplayDevice::DISPLAY_EXTERNAL, true);
-    expectHotplugEventReceivedByConnection(DisplayDevice::DISPLAY_EXTERNAL, true);
-}
-
-TEST_F(EventThreadTest, postHotplugVirtualDisconnectIsFilteredOut) {
-    mThread->onHotplugReceived(DisplayDevice::DISPLAY_VIRTUAL, false);
-    EXPECT_FALSE(mConnectionEventCallRecorder.waitForUnexpectedCall().has_value());
+    mThread->onHotplugReceived(EventThread::DisplayType::External, true);
+    expectHotplugEventReceivedByConnection(EventThread::DisplayType::External, true);
 }
 
 } // namespace
