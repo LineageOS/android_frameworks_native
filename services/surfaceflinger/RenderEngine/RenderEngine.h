@@ -172,7 +172,9 @@ class RenderEngine : public RE::RenderEngine {
     static bool overrideUseContextPriorityFromConfig(bool useContextPriority);
 
 protected:
-    RenderEngine();
+    RenderEngine(uint32_t featureFlags);
+
+    const uint32_t mFeatureFlags;
 
 public:
     virtual ~RenderEngine() = 0;
