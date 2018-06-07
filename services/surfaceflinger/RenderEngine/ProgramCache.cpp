@@ -14,10 +14,13 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 
 #include <utils/String8.h>
+#include <utils/Trace.h>
 
 #include "Description.h"
 #include "Program.h"
@@ -75,15 +78,11 @@ Formatter& dedent(Formatter& f) {
 
 ANDROID_SINGLETON_STATIC_INSTANCE(ProgramCache)
 
-ProgramCache::ProgramCache() {
-    // Until surfaceflinger has a dependable blob cache on the filesystem,
-    // generate shaders on initialization so as to avoid jank.
-    primeCache();
-}
+ProgramCache::ProgramCache() {}
 
 ProgramCache::~ProgramCache() {}
 
-void ProgramCache::primeCache() {
+void ProgramCache::primeCache(bool hasWideColor) {
     uint32_t shaderCount = 0;
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK;
     // Prime the cache for all combinations of the above masks,
@@ -104,6 +103,27 @@ void ProgramCache::primeCache() {
             shaderCount++;
         }
     }
+
+    // Prime for sRGB->P3 conversion
+    if (hasWideColor) {
+        Key shaderKey;
+        shaderKey.set(Key::BLEND_MASK | Key::TEXTURE_MASK | Key::OUTPUT_TRANSFORM_MATRIX_MASK |
+                              Key::INPUT_TF_MASK | Key::OUTPUT_TF_MASK,
+                      Key::BLEND_PREMULT | Key::TEXTURE_EXT | Key::OUTPUT_TRANSFORM_MATRIX_ON |
+                              Key::INPUT_TF_SRGB | Key::OUTPUT_TF_SRGB);
+        for (int i = 0; i < 4; i++) {
+            shaderKey.set(Key::OPACITY_MASK,
+                          (i & 1) ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT);
+            shaderKey.set(Key::ALPHA_MASK, (i & 2) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE);
+            Program* program = mCache.valueFor(shaderKey);
+            if (program == nullptr) {
+                program = generateProgram(shaderKey);
+                mCache.add(shaderKey, program);
+                shaderCount++;
+            }
+        }
+    }
+
     nsecs_t timeAfter = systemTime();
     float compileTimeMs = static_cast<float>(timeAfter - timeBefore) / 1.0E6;
     ALOGD("shader cache generated - %u shaders in %f ms\n", shaderCount, compileTimeMs);
@@ -631,6 +651,8 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
 }
 
 Program* ProgramCache::generateProgram(const Key& needs) {
+    ATRACE_CALL();
+
     // vertex shader
     String8 vs = generateVertexShader(needs);
 
@@ -654,8 +676,8 @@ void ProgramCache::useProgram(const Description& description) {
         mCache.add(needs, program);
         time += systemTime();
 
-        // ALOGD(">>> generated new program: needs=%08X, time=%u ms (%d programs)",
-        //        needs.mNeeds, uint32_t(ns2ms(time)), mCache.size());
+        ALOGV(">>> generated new program: needs=%08X, time=%u ms (%zu programs)", needs.mKey,
+              uint32_t(ns2ms(time)), mCache.size());
     }
 
     // here we have a suitable program for this description

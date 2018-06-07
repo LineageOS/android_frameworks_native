@@ -112,7 +112,10 @@ namespace impl {
 using ui::Dataspace;
 
 GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
-      : mVpWidth(0), mVpHeight(0), mPlatformHasWideColor((featureFlags & WIDE_COLOR_SUPPORT) != 0) {
+      : RenderEngine(featureFlags),
+        mVpWidth(0),
+        mVpHeight(0),
+        mPlatformHasWideColor((featureFlags & WIDE_COLOR_SUPPORT) != 0) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
 
