@@ -815,6 +815,13 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
     return true;
 }
 
+bool BufferLayer::isHdrY410() const {
+    // pixel format is HDR Y410 masquerading as RGBA_1010102
+    return (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
+            mConsumer->getCurrentApi() == NATIVE_WINDOW_API_MEDIA &&
+            getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+}
+
 void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
     ATRACE_CALL();
     const State& s(getDrawingState());
@@ -868,9 +875,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
                               getColor());
     engine.setSourceDataSpace(mCurrentDataSpace);
 
-    if (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
-        mConsumer->getCurrentApi() == NATIVE_WINDOW_API_MEDIA &&
-        getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102) {
+    if (isHdrY410()) {
         engine.setSourceY410BT2020(true);
     }
 
