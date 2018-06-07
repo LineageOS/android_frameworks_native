@@ -160,13 +160,14 @@ public:
     ProgramCache();
     ~ProgramCache();
 
+    // Generate shaders to populate the cache
+    void primeCache(bool hasWideColor);
+
     // useProgram lookup a suitable program in the cache or generates one
     // if none can be found.
     void useProgram(const Description& description);
 
 private:
-    // Generate shaders to populate the cache
-    void primeCache();
     // compute a cache Key from a Description
     static Key computeKey(const Description& description);
     // Generate EOTF based from Key.
