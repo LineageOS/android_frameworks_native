@@ -59,7 +59,10 @@ void dvrTrackingCameraDestroy(DvrTrackingCamera* camera);
 //     populate the buffer into. The queue must be empty and the camera stack
 //     will request buffer allocation with proper buffer dimension, format, and
 //     usage. Note that the write queue must be created with user_metadata_size
-//     set to sizeof(DvrTrackingBufferMetadata).
+//     set to sizeof(DvrTrackingBufferMetadata). On success, the write_queue
+//     handle will become invalid and the ownership of the queue handle will be
+//     transferred into the camera; otherwise, the write_queue handle will keep
+//     untouched and the caller still has the ownership.
 // @return Zero on success, or negative error code.
 int dvrTrackingCameraStart(DvrTrackingCamera* camera,
                            DvrWriteBufferQueue* write_queue);
