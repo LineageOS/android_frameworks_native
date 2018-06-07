@@ -80,7 +80,7 @@ void ComposerService::connectLocked() {
 /*static*/ sp<ISurfaceComposer> ComposerService::getComposerService() {
     ComposerService& instance = ComposerService::getInstance();
     Mutex::Autolock _l(instance.mLock);
-    if (instance.mComposerService == NULL) {
+    if (instance.mComposerService == nullptr) {
         ComposerService::getInstance().connectLocked();
         assert(instance.mComposerService != NULL);
         ALOGD("ComposerService reconnected");
@@ -91,8 +91,8 @@ void ComposerService::connectLocked() {
 void ComposerService::composerServiceDied()
 {
     Mutex::Autolock _l(mLock);
-    mComposerService = NULL;
-    mDeathObserver = NULL;
+    mComposerService = nullptr;
+    mDeathObserver = nullptr;
 }
 
 // ---------------------------------------------------------------------------
@@ -621,12 +621,12 @@ SurfaceComposerClient::SurfaceComposerClient(const sp<IGraphicBufferProducer>& r
 
 void SurfaceComposerClient::onFirstRef() {
     sp<ISurfaceComposer> sm(ComposerService::getComposerService());
-    if (sm != 0) {
+    if (sm != nullptr) {
         auto rootProducer = mParent.promote();
         sp<ISurfaceComposerClient> conn;
         conn = (rootProducer != nullptr) ? sm->createScopedConnection(rootProducer) :
                 sm->createConnection();
-        if (conn != 0) {
+        if (conn != nullptr) {
             mClient = conn;
             mStatus = NO_ERROR;
         }
@@ -656,7 +656,7 @@ void SurfaceComposerClient::dispose() {
     // this can be called more than once.
     sp<ISurfaceComposerClient> client;
     Mutex::Autolock _lm(mLock);
-    if (mClient != 0) {
+    if (mClient != nullptr) {
         client = mClient; // hold ref while lock is held
         mClient.clear();
     }
@@ -946,7 +946,7 @@ status_t ScreenshotClient::capture(
         Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
         int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
-    if (s == NULL) return NO_INIT;
+    if (s == nullptr) return NO_INIT;
     return s->captureScreen(display, producer, sourceCrop,
             reqWidth, reqHeight, minLayerZ, maxLayerZ, useIdentityTransform);
 }
@@ -957,7 +957,7 @@ status_t ScreenshotClient::captureToBuffer(const sp<IBinder>& display,
         uint32_t rotation,
         sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
-    if (s == NULL) return NO_INIT;
+    if (s == nullptr) return NO_INIT;
 
     sp<IGraphicBufferConsumer> gbpConsumer;
     sp<IGraphicBufferProducer> producer;
@@ -988,7 +988,7 @@ ScreenshotClient::~ScreenshotClient() {
 }
 
 sp<CpuConsumer> ScreenshotClient::getCpuConsumer() const {
-    if (mCpuConsumer == NULL) {
+    if (mCpuConsumer == nullptr) {
         sp<IGraphicBufferConsumer> consumer;
         BufferQueue::createBufferQueue(&mProducer, &consumer);
         mCpuConsumer = new CpuConsumer(consumer, 1);
@@ -1002,7 +1002,7 @@ status_t ScreenshotClient::update(const sp<IBinder>& display,
         int32_t minLayerZ, int32_t maxLayerZ,
         bool useIdentityTransform, uint32_t rotation) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
-    if (s == NULL) return NO_INIT;
+    if (s == nullptr) return NO_INIT;
     sp<CpuConsumer> cpuConsumer = getCpuConsumer();
 
     if (mHaveBuffer) {

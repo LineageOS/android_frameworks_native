@@ -33,7 +33,7 @@ BufferQueue::ProxyConsumerListener::~ProxyConsumerListener() {}
 
 void BufferQueue::ProxyConsumerListener::onDisconnect() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onDisconnect();
     }
 }
@@ -41,7 +41,7 @@ void BufferQueue::ProxyConsumerListener::onDisconnect() {
 void BufferQueue::ProxyConsumerListener::onFrameAvailable(
         const BufferItem& item) {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onFrameAvailable(item);
     }
 }
@@ -49,21 +49,21 @@ void BufferQueue::ProxyConsumerListener::onFrameAvailable(
 void BufferQueue::ProxyConsumerListener::onFrameReplaced(
         const BufferItem& item) {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onFrameReplaced(item);
     }
 }
 
 void BufferQueue::ProxyConsumerListener::onBuffersReleased() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
     }
 }
 
 void BufferQueue::ProxyConsumerListener::onSidebandStreamChanged() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onSidebandStreamChanged();
     }
 }
@@ -80,21 +80,21 @@ void BufferQueue::ProxyConsumerListener::addAndGetFrameTimestamps(
 void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
         sp<IGraphicBufferConsumer>* outConsumer,
         bool consumerIsSurfaceFlinger) {
-    LOG_ALWAYS_FATAL_IF(outProducer == NULL,
+    LOG_ALWAYS_FATAL_IF(outProducer == nullptr,
             "BufferQueue: outProducer must not be NULL");
-    LOG_ALWAYS_FATAL_IF(outConsumer == NULL,
+    LOG_ALWAYS_FATAL_IF(outConsumer == nullptr,
             "BufferQueue: outConsumer must not be NULL");
 
     sp<BufferQueueCore> core(new BufferQueueCore());
-    LOG_ALWAYS_FATAL_IF(core == NULL,
+    LOG_ALWAYS_FATAL_IF(core == nullptr,
             "BufferQueue: failed to create BufferQueueCore");
 
     sp<IGraphicBufferProducer> producer(new BufferQueueProducer(core, consumerIsSurfaceFlinger));
-    LOG_ALWAYS_FATAL_IF(producer == NULL,
+    LOG_ALWAYS_FATAL_IF(producer == nullptr,
             "BufferQueue: failed to create BufferQueueProducer");
 
     sp<IGraphicBufferConsumer> consumer(new BufferQueueConsumer(core));
-    LOG_ALWAYS_FATAL_IF(consumer == NULL,
+    LOG_ALWAYS_FATAL_IF(consumer == nullptr,
             "BufferQueue: failed to create BufferQueueConsumer");
 
     *outProducer = producer;

@@ -114,7 +114,7 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
 
     int slot = b.mSlot;
 
-    void *bufferPointer = NULL;
+    void *bufferPointer = nullptr;
     android_ycbcr ycbcr = android_ycbcr();
 
     PixelFormat format = mSlots[slot].mGraphicBuffer->getPixelFormat();
@@ -145,7 +145,7 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
         }
     }
 
-    if (bufferPointer == NULL) { // not flexible YUV
+    if (bufferPointer == nullptr) { // not flexible YUV
         if (b.mFence.get()) {
             err = mSlots[slot].mGraphicBuffer->lockAsync(
                 GraphicBuffer::USAGE_SW_READ_OFTEN,
@@ -185,7 +185,7 @@ status_t CpuConsumer::lockNextBuffer(LockedBuffer *nativeBuffer) {
     nativeBuffer->height = mSlots[slot].mGraphicBuffer->getHeight();
     nativeBuffer->format = format;
     nativeBuffer->flexFormat = flexFormat;
-    nativeBuffer->stride = (ycbcr.y != NULL) ?
+    nativeBuffer->stride = (ycbcr.y != nullptr) ?
             static_cast<uint32_t>(ycbcr.ystride) :
             mSlots[slot].mGraphicBuffer->getStride();
 
@@ -253,7 +253,7 @@ status_t CpuConsumer::releaseAcquiredBufferLocked(size_t lockedIdx) {
 
     AcquiredBuffer &ab = mAcquiredBuffers.editItemAt(lockedIdx);
     ab.mSlot = BufferQueue::INVALID_BUFFER_SLOT;
-    ab.mBufferPointer = NULL;
+    ab.mBufferPointer = nullptr;
     ab.mGraphicBuffer.clear();
 
     mCurrentLockedBuffers--;
