@@ -3327,6 +3327,18 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s)
     return flags;
 }
 
+bool callingThreadHasUnscopedSurfaceFlingerAccess() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+
+    if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
+            !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
+        return false;
+    }
+    return true;
+}
+
 uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState) {
     const layer_state_t& s = composerState.state;
     sp<Client> client(static_cast<Client*>(composerState.client.get()));
@@ -3408,7 +3420,22 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eMatrixChanged) {
-        if (layer->setMatrix(s.matrix))
+        // TODO: b/109894387
+        //
+        // SurfaceFlinger's renderer is not prepared to handle cropping in the face of arbitrary
+        // rotation. To see the problem observe that if we have a square parent, and a child
+        // of the same size, then we rotate the child 45 degrees around it's center, the child
+        // must now be cropped to a non rectangular 8 sided region.
+        //
+        // Of course we can fix this in the future. For now, we are lucky, SurfaceControl is
+        // private API, and the WindowManager only uses rotation in one case, which is on a top
+        // level layer in which cropping is not an issue.
+        //
+        // However given that abuse of rotation matrices could lead to surfaces extending outside
+        // of cropped areas, we need to prevent non-root clients without permission ACCESS_SURFACE_FLINGER
+        // (a.k.a. everyone except WindowManager and tests) from setting non rectangle preserving
+        // transformations.
+        if (layer->setMatrix(s.matrix, callingThreadHasUnscopedSurfaceFlingerAccess()))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTransparentRegionChanged) {
@@ -4412,12 +4439,10 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case INJECT_VSYNC:
         {
             // codes that require permission check
-            IPCThreadState* ipc = IPCThreadState::self();
-            const int pid = ipc->getCallingPid();
-            const int uid = ipc->getCallingUid();
-            if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
-                    !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
-                ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
+            if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
+                IPCThreadState* ipc = IPCThreadState::self();
+                ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
+                        ipc->getCallingPid(), ipc->getCallingUid());
                 return PERMISSION_DENIED;
             }
             break;
