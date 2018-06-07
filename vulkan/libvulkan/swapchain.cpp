@@ -575,15 +575,10 @@ VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
             break;
     }
 
-    // USAGE_CPU_READ_MASK 0xFUL
-    // USAGE_CPU_WRITE_MASK (0xFUL << 4)
-    // The currently used bits are as below:
-    // USAGE_CPU_READ_RARELY = 2UL
-    // USAGE_CPU_READ_OFTEN = 3UL
-    // USAGE_CPU_WRITE_RARELY = (2UL << 4)
-    // USAGE_CPU_WRITE_OFTEN = (3UL << 4)
-    *supported = static_cast<VkBool32>(format_supported ||
-                                       (surface->consumer_usage & 0xFFUL) == 0);
+    *supported = static_cast<VkBool32>(
+        format_supported || (surface->consumer_usage &
+                             (AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
+                              AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) == 0);
 
     return VK_SUCCESS;
 }
