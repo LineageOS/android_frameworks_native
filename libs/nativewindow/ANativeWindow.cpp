@@ -126,12 +126,12 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
 }
 
 int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpace) {
-    static_assert(ADATASPACE_UNKNOWN == HAL_DATASPACE_UNKNOWN);
-    static_assert(ADATASPACE_SCRGB_LINEAR == HAL_DATASPACE_V0_SCRGB_LINEAR);
-    static_assert(ADATASPACE_SRGB == HAL_DATASPACE_V0_SRGB);
-    static_assert(ADATASPACE_SCRGB == HAL_DATASPACE_V0_SCRGB);
-    static_assert(ADATASPACE_DISPLAY_P3 == HAL_DATASPACE_DISPLAY_P3);
-    static_assert(ADATASPACE_BT2020_PQ == HAL_DATASPACE_BT2020_PQ);
+    static_assert(static_cast<int>(ADATASPACE_UNKNOWN) == static_cast<int>(HAL_DATASPACE_UNKNOWN));
+    static_assert(static_cast<int>(ADATASPACE_SCRGB_LINEAR) == static_cast<int>(HAL_DATASPACE_V0_SCRGB_LINEAR));
+    static_assert(static_cast<int>(ADATASPACE_SRGB) == static_cast<int>(HAL_DATASPACE_V0_SRGB));
+    static_assert(static_cast<int>(ADATASPACE_SCRGB) == static_cast<int>(HAL_DATASPACE_V0_SCRGB));
+    static_assert(static_cast<int>(ADATASPACE_DISPLAY_P3) == static_cast<int>(HAL_DATASPACE_DISPLAY_P3));
+    static_assert(static_cast<int>(ADATASPACE_BT2020_PQ) == static_cast<int>(HAL_DATASPACE_BT2020_PQ));
 
     if (!window || !query(window, NATIVE_WINDOW_IS_VALID) ||
             !isDataSpaceValid(window, dataSpace)) {
