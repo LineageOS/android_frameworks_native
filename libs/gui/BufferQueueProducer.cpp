@@ -166,7 +166,7 @@ status_t BufferQueueProducer::setMaxDequeuedBufferCount(
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
     }
 
@@ -221,7 +221,7 @@ status_t BufferQueueProducer::setAsyncMode(bool async) {
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
     }
     return NO_ERROR;
@@ -450,11 +450,11 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
 
         mSlots[found].mBufferState.dequeue();
 
-        if ((buffer == NULL) ||
+        if ((buffer == nullptr) ||
                 buffer->needsReallocation(width, height, format, BQ_LAYER_COUNT, usage))
         {
             mSlots[found].mAcquireCalled = false;
-            mSlots[found].mGraphicBuffer = NULL;
+            mSlots[found].mGraphicBuffer = nullptr;
             mSlots[found].mRequestBufferCalled = false;
             mSlots[found].mEglDisplay = EGL_NO_DISPLAY;
             mSlots[found].mEglFence = EGL_NO_SYNC_KHR;
@@ -472,7 +472,7 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         BQ_LOGV("dequeueBuffer: setting buffer age to %" PRIu64,
                 mCore->mBufferAge);
 
-        if (CC_UNLIKELY(mSlots[found].mFence == NULL)) {
+        if (CC_UNLIKELY(mSlots[found].mFence == nullptr)) {
             BQ_LOGE("dequeueBuffer: about to return a NULL fence - "
                     "slot=%d w=%d h=%d format=%u",
                     found, buffer->width, buffer->height, buffer->format);
@@ -613,7 +613,7 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
         listener = mCore->mConsumerListener;
     }
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
     }
 
@@ -624,10 +624,10 @@ status_t BufferQueueProducer::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         sp<Fence>* outFence) {
     ATRACE_CALL();
 
-    if (outBuffer == NULL) {
+    if (outBuffer == nullptr) {
         BQ_LOGE("detachNextBuffer: outBuffer must not be NULL");
         return BAD_VALUE;
-    } else if (outFence == NULL) {
+    } else if (outFence == nullptr) {
         BQ_LOGE("detachNextBuffer: outFence must not be NULL");
         return BAD_VALUE;
     }
@@ -671,7 +671,7 @@ status_t BufferQueueProducer::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         listener = mCore->mConsumerListener;
     }
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
     }
 
@@ -682,10 +682,10 @@ status_t BufferQueueProducer::attachBuffer(int* outSlot,
         const sp<android::GraphicBuffer>& buffer) {
     ATRACE_CALL();
 
-    if (outSlot == NULL) {
+    if (outSlot == nullptr) {
         BQ_LOGE("attachBuffer: outSlot must not be NULL");
         return BAD_VALUE;
-    } else if (buffer == NULL) {
+    } else if (buffer == nullptr) {
         BQ_LOGE("attachBuffer: cannot attach NULL buffer");
         return BAD_VALUE;
     }
@@ -766,7 +766,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             &getFrameTimestamps);
     const Region& surfaceDamage = input.getSurfaceDamage();
 
-    if (acquireFence == NULL) {
+    if (acquireFence == nullptr) {
         BQ_LOGE("queueBuffer: fence is NULL");
         return BAD_VALUE;
     }
@@ -970,9 +970,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             mCallbackCondition.wait(mCallbackMutex);
         }
 
-        if (frameAvailableListener != NULL) {
+        if (frameAvailableListener != nullptr) {
             frameAvailableListener->onFrameAvailable(item);
-        } else if (frameReplacedListener != NULL) {
+        } else if (frameReplacedListener != nullptr) {
             frameReplacedListener->onFrameReplaced(item);
         }
 
@@ -1037,7 +1037,7 @@ status_t BufferQueueProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
         BQ_LOGE("cancelBuffer: slot %d is not owned by the producer "
                 "(state = %s)", slot, mSlots[slot].mBufferState.string());
         return BAD_VALUE;
-    } else if (fence == NULL) {
+    } else if (fence == nullptr) {
         BQ_LOGE("cancelBuffer: fence is NULL");
         return BAD_VALUE;
     }
@@ -1067,7 +1067,7 @@ int BufferQueueProducer::query(int what, int *outValue) {
     ATRACE_CALL();
     Mutex::Autolock lock(mCore->mMutex);
 
-    if (outValue == NULL) {
+    if (outValue == nullptr) {
         BQ_LOGE("query: outValue was NULL");
         return BAD_VALUE;
     }
@@ -1140,12 +1140,12 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
         return NO_INIT;
     }
 
-    if (mCore->mConsumerListener == NULL) {
+    if (mCore->mConsumerListener == nullptr) {
         BQ_LOGE("connect: BufferQueue has no consumer");
         return NO_INIT;
     }
 
-    if (output == NULL) {
+    if (output == nullptr) {
         BQ_LOGE("connect: output was NULL");
         return BAD_VALUE;
     }
@@ -1183,10 +1183,10 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
             output->nextFrameNumber = mCore->mFrameCounter + 1;
             output->bufferReplaced = false;
 
-            if (listener != NULL) {
+            if (listener != nullptr) {
                 // Set up a death notification so that we can disconnect
                 // automatically if the remote producer dies
-                if (IInterface::asBinder(listener)->remoteBinder() != NULL) {
+                if (IInterface::asBinder(listener)->remoteBinder() != nullptr) {
                     status = IInterface::asBinder(listener)->linkToDeath(
                             static_cast<IBinder::DeathRecipient*>(this));
                     if (status != NO_ERROR) {
@@ -1263,7 +1263,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                     mCore->freeAllBuffersLocked();
 
                     // Remove our death notification callback if we have one
-                    if (mCore->mLinkedToDeath != NULL) {
+                    if (mCore->mLinkedToDeath != nullptr) {
                         sp<IBinder> token =
                                 IInterface::asBinder(mCore->mLinkedToDeath);
                         // This can fail if we're here because of the death
@@ -1273,8 +1273,8 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                     }
                     mCore->mSharedBufferSlot =
                             BufferQueueCore::INVALID_BUFFER_SLOT;
-                    mCore->mLinkedToDeath = NULL;
-                    mCore->mConnectedProducerListener = NULL;
+                    mCore->mLinkedToDeath = nullptr;
+                    mCore->mConnectedProducerListener = nullptr;
                     mCore->mConnectedApi = BufferQueueCore::NO_CONNECTED_API;
                     mCore->mConnectedPid = -1;
                     mCore->mSidebandStream.clear();
@@ -1297,7 +1297,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onBuffersReleased();
         listener->onDisconnect();
     }
@@ -1313,7 +1313,7 @@ status_t BufferQueueProducer::setSidebandStream(const sp<NativeHandle>& stream) 
         listener = mCore->mConsumerListener;
     } // Autolock scope
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->onSidebandStreamChanged();
     }
     return NO_ERROR;
@@ -1527,7 +1527,7 @@ void BufferQueueProducer::addAndGetFrameTimestamps(
         Mutex::Autolock lock(mCore->mMutex);
         listener = mCore->mConsumerListener;
     }
-    if (listener != NULL) {
+    if (listener != nullptr) {
         listener->addAndGetFrameTimestamps(newTimestamps, outDelta);
     }
 }

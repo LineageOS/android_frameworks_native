@@ -114,7 +114,7 @@ status_t BufferItemConsumer::releaseBuffer(const BufferItem &item,
 
 void BufferItemConsumer::freeBufferLocked(int slotIndex) {
     sp<BufferFreedListener> listener = mBufferFreedListener.promote();
-    if (listener != NULL && mSlots[slotIndex].mGraphicBuffer != NULL) {
+    if (listener != nullptr && mSlots[slotIndex].mGraphicBuffer != nullptr) {
         // Fire callback if we have a listener registered and the buffer being freed is valid.
         BI_LOGV("actually calling onBufferFreed");
         listener->onBufferFreed(mSlots[slotIndex].mGraphicBuffer);

@@ -96,7 +96,7 @@ void ConsumerBase::onLastStrongRef(const void* id __attribute__((unused))) {
 
 void ConsumerBase::freeBufferLocked(int slotIndex) {
     CB_LOGV("freeBufferLocked: slotIndex=%d", slotIndex);
-    mSlots[slotIndex].mGraphicBuffer = 0;
+    mSlots[slotIndex].mGraphicBuffer = nullptr;
     mSlots[slotIndex].mFence = Fence::NO_FENCE;
     mSlots[slotIndex].mFrameNumber = 0;
 }
@@ -110,7 +110,7 @@ void ConsumerBase::onFrameAvailable(const BufferItem& item) {
         listener = mFrameAvailableListener.promote();
     }
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         CB_LOGV("actually calling onFrameAvailable");
         listener->onFrameAvailable(item);
     }
@@ -125,7 +125,7 @@ void ConsumerBase::onFrameReplaced(const BufferItem &item) {
         listener = mFrameAvailableListener.promote();
     }
 
-    if (listener != NULL) {
+    if (listener != nullptr) {
         CB_LOGV("actually calling onFrameReplaced");
         listener->onFrameReplaced(item);
     }
@@ -298,8 +298,8 @@ status_t ConsumerBase::acquireBufferLocked(BufferItem *item,
         return err;
     }
 
-    if (item->mGraphicBuffer != NULL) {
-        if (mSlots[item->mSlot].mGraphicBuffer != NULL) {
+    if (item->mGraphicBuffer != nullptr) {
+        if (mSlots[item->mSlot].mGraphicBuffer != nullptr) {
             freeBufferLocked(item->mSlot);
         }
         mSlots[item->mSlot].mGraphicBuffer = item->mGraphicBuffer;
@@ -414,7 +414,7 @@ bool ConsumerBase::stillTracking(int slot,
     if (slot < 0 || slot >= BufferQueue::NUM_BUFFER_SLOTS) {
         return false;
     }
-    return (mSlots[slot].mGraphicBuffer != NULL &&
+    return (mSlots[slot].mGraphicBuffer != nullptr &&
             mSlots[slot].mGraphicBuffer->handle == graphicBuffer->handle);
 }
 
