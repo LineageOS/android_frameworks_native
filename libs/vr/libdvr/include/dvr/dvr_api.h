@@ -10,7 +10,7 @@
 #include <dvr/dvr_display_types.h>
 #include <dvr/dvr_hardware_composer_types.h>
 #include <dvr/dvr_pose.h>
-#include <dvr/dvr_tracking.h>
+#include <dvr/dvr_tracking_types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -50,6 +50,12 @@ typedef int32_t DvrGlobalBufferKey;
 
 typedef struct DvrSurfaceAttributeValue DvrSurfaceAttributeValue;
 typedef struct DvrSurfaceAttribute DvrSurfaceAttribute;
+
+typedef struct DvrReadBuffer DvrReadBuffer;
+typedef struct DvrTrackingCamera DvrTrackingCamera;
+typedef struct DvrTrackingFeatureExtractor DvrTrackingFeatureExtractor;
+typedef struct DvrTrackingSensors DvrTrackingSensors;
+typedef struct DvrWriteBufferQueue DvrWriteBufferQueue;
 
 // Note: To avoid breaking others during active development, only modify this
 // struct by appending elements to the end.
@@ -379,6 +385,8 @@ typedef int (*DvrTrackingFeatureExtractorCreatePtr)(
     DvrTrackingFeatureExtractor** out_extractor);
 typedef void (*DvrTrackingFeatureExtractorDestroyPtr)(
     DvrTrackingFeatureExtractor* extractor);
+typedef void (*DvrTrackingFeatureCallback)(void* context,
+                                           const DvrTrackingFeatures* event);
 typedef int (*DvrTrackingFeatureExtractorStartPtr)(
     DvrTrackingFeatureExtractor* extractor,
     DvrTrackingFeatureCallback callback, void* context);
@@ -388,6 +396,8 @@ typedef int (*DvrTrackingFeatureExtractorProcessBufferPtr)(
     DvrTrackingFeatureExtractor* extractor, DvrReadBuffer* buffer,
     const DvrTrackingBufferMetadata* metadata, bool* out_skipped);
 
+typedef void (*DvrTrackingSensorEventCallback)(void* context,
+                                               DvrTrackingSensorEvent* event);
 typedef int (*DvrTrackingSensorsCreatePtr)(DvrTrackingSensors** out_sensors,
                                            const char* mode);
 typedef void (*DvrTrackingSensorsDestroyPtr)(DvrTrackingSensors* sensors);
