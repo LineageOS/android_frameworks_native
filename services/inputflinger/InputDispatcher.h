@@ -24,7 +24,6 @@
 #include <utils/threads.h>
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 #include <utils/Looper.h>
 #include <utils/BitSet.h>
 #include <cutils/atomic.h>
@@ -209,7 +208,7 @@ public:
      * Returns a new timeout to continue waiting, or 0 to abort dispatch. */
     virtual nsecs_t notifyANR(const sp<InputApplicationHandle>& inputApplicationHandle,
             const sp<InputWindowHandle>& inputWindowHandle,
-            const String8& reason) = 0;
+            const std::string& reason) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<InputWindowHandle>& inputWindowHandle) = 0;
@@ -281,7 +280,7 @@ public:
     /* Dumps the state of the input dispatcher.
      *
      * This method may be called on any thread (usually by the input manager). */
-    virtual void dump(String8& dump) = 0;
+    virtual void dump(std::string& dump) = 0;
 
     /* Called by the heatbeat to ensures that the dispatcher has not deadlocked. */
     virtual void monitor() = 0;
@@ -373,7 +372,7 @@ protected:
 public:
     explicit InputDispatcher(const sp<InputDispatcherPolicyInterface>& policy);
 
-    virtual void dump(String8& dump);
+    virtual void dump(std::string& dump);
     virtual void monitor();
 
     virtual void dispatchOnce();
@@ -446,7 +445,7 @@ private:
 
         void release();
 
-        virtual void appendDescription(String8& msg) const = 0;
+        virtual void appendDescription(std::string& msg) const = 0;
 
     protected:
         EventEntry(int32_t type, nsecs_t eventTime, uint32_t policyFlags);
@@ -456,7 +455,7 @@ private:
 
     struct ConfigurationChangedEntry : EventEntry {
         explicit ConfigurationChangedEntry(nsecs_t eventTime);
-        virtual void appendDescription(String8& msg) const;
+        virtual void appendDescription(std::string& msg) const;
 
     protected:
         virtual ~ConfigurationChangedEntry();
@@ -466,7 +465,7 @@ private:
         int32_t deviceId;
 
         DeviceResetEntry(nsecs_t eventTime, int32_t deviceId);
-        virtual void appendDescription(String8& msg) const;
+        virtual void appendDescription(std::string& msg) const;
 
     protected:
         virtual ~DeviceResetEntry();
@@ -498,7 +497,7 @@ private:
                 int32_t deviceId, uint32_t source, uint32_t policyFlags, int32_t action,
                 int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
                 int32_t repeatCount, nsecs_t downTime);
-        virtual void appendDescription(String8& msg) const;
+        virtual void appendDescription(std::string& msg) const;
         void recycle();
 
     protected:
@@ -531,7 +530,7 @@ private:
                 int32_t displayId, uint32_t pointerCount,
                 const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
                 float xOffset, float yOffset);
-        virtual void appendDescription(String8& msg) const;
+        virtual void appendDescription(std::string& msg) const;
 
     protected:
         virtual ~MotionEntry();
@@ -602,7 +601,7 @@ private:
         KeyEntry* keyEntry;
         sp<InputApplicationHandle> inputApplicationHandle;
         sp<InputWindowHandle> inputWindowHandle;
-        String8 reason;
+        std::string reason;
         int32_t userActivityEventType;
         uint32_t seq;
         bool handled;
@@ -832,9 +831,9 @@ private:
         explicit Connection(const sp<InputChannel>& inputChannel,
                 const sp<InputWindowHandle>& inputWindowHandle, bool monitor);
 
-        inline const char* getInputChannelName() const { return inputChannel->getName().string(); }
+        inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 
-        const char* getWindowName() const;
+        const std::string getWindowName() const;
         const char* getStatusLabel() const;
 
         DispatchEntry* findWaitQueueEntry(uint32_t seq);
@@ -994,7 +993,7 @@ private:
     sp<InputApplicationHandle> mFocusedApplicationHandle;
 
     // Dispatcher state at time of last ANR.
-    String8 mLastANRState;
+    std::string mLastANRState;
 
     // Dispatch inbound events.
     bool dispatchConfigurationChangedLocked(
@@ -1055,10 +1054,10 @@ private:
     bool isWindowObscuredAtPointLocked(const sp<InputWindowHandle>& windowHandle,
             int32_t x, int32_t y) const;
     bool isWindowObscuredLocked(const sp<InputWindowHandle>& windowHandle) const;
-    String8 getApplicationWindowLabelLocked(const sp<InputApplicationHandle>& applicationHandle,
+    std::string getApplicationWindowLabelLocked(const sp<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle);
 
-    String8 checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
+    std::string checkWindowReadyForMoreInputLocked(nsecs_t currentTime,
             const sp<InputWindowHandle>& windowHandle, const EventEntry* eventEntry,
             const char* targetType);
 
@@ -1096,7 +1095,7 @@ private:
     void resetAndDropEverythingLocked(const char* reason);
 
     // Dump state.
-    void dumpDispatchStateLocked(String8& dump);
+    void dumpDispatchStateLocked(std::string& dump);
     void logDispatchStateLocked();
 
     // Registration.

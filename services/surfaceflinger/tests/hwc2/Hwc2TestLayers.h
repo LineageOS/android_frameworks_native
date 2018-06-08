@@ -63,7 +63,7 @@ public:
     hwc_color_t            getColor(hwc2_layer_t layer) const;
     hwc2_composition_t     getComposition(hwc2_layer_t layer) const;
     hwc_rect_t             getCursorPosition(hwc2_layer_t layer) const;
-    android_dataspace_t    getDataspace(hwc2_layer_t layer) const;
+    android::ui::Dataspace     getDataspace(hwc2_layer_t layer) const;
     hwc_rect_t             getDisplayFrame(hwc2_layer_t layer) const;
     android_pixel_format_t getFormat(hwc2_layer_t layer) const;
     float                  getPlaneAlpha(hwc2_layer_t layer) const;

@@ -35,6 +35,13 @@
 using namespace android;
 
 static status_t startGraphicsAllocatorService() {
+    using android::hardware::configstore::getBool;
+    using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
+    if (!getBool<ISurfaceFlingerConfigs,
+            &ISurfaceFlingerConfigs::startGraphicsAllocatorService>(false)) {
+        return OK;
+    }
+
     using android::hardware::graphics::allocator::V2_0::IAllocator;
 
     status_t result =
@@ -47,27 +54,12 @@ static status_t startGraphicsAllocatorService() {
     return OK;
 }
 
-static status_t startHidlServices() {
+static status_t startDisplayService() {
     using android::frameworks::displayservice::V1_0::implementation::DisplayService;
     using android::frameworks::displayservice::V1_0::IDisplayService;
-    using android::hardware::configstore::getBool;
-    using android::hardware::configstore::getBool;
-    using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
-    hardware::configureRpcThreadpool(1 /* maxThreads */,
-            false /* callerWillJoin */);
-
-    status_t err;
-
-    if (getBool<ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::startGraphicsAllocatorService>(false)) {
-        err = startGraphicsAllocatorService();
-        if (err != OK) {
-           return err;
-        }
-    }
 
     sp<IDisplayService> displayservice = new DisplayService();
-    err = displayservice->registerAsService();
+    status_t err = displayservice->registerAsService();
 
     if (err != OK) {
         ALOGE("Could not register IDisplayService service.");
@@ -77,9 +69,13 @@ static status_t startHidlServices() {
 }
 
 int main(int, char**) {
-    startHidlServices();
-
     signal(SIGPIPE, SIG_IGN);
+
+    hardware::configureRpcThreadpool(1 /* maxThreads */,
+            false /* callerWillJoin */);
+
+    startGraphicsAllocatorService();
+
     // When SF is launched in its own process, limit the number of
     // binder threads to 4.
     ProcessState::self()->setThreadPoolMaxThreadCount(4);
@@ -105,11 +101,14 @@ int main(int, char**) {
 
     // publish surface flinger
     sp<IServiceManager> sm(defaultServiceManager());
-    sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false);
+    sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false,
+                   IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL);
 
     // publish GpuService
     sp<GpuService> gpuservice = new GpuService();
     sm->addService(String16(GpuService::SERVICE_NAME), gpuservice, false);
+
+    startDisplayService(); // dependency on SF getting registered above
 
     struct sched_param param = {0};
     param.sched_priority = 2;

@@ -20,8 +20,8 @@
 #include <utils/String8.h>
 #include <ui/Region.h>
 
-#include "clz.h"
 #include "Transform.h"
+#include "clz.h"
 
 // ---------------------------------------------------------------------------
 
@@ -407,6 +407,23 @@ void Transform::dump(const char* name) const
     ALOGD("%.4f  %.4f  %.4f", m[0][0], m[1][0], m[2][0]);
     ALOGD("%.4f  %.4f  %.4f", m[0][1], m[1][1], m[2][1]);
     ALOGD("%.4f  %.4f  %.4f", m[0][2], m[1][2], m[2][2]);
+}
+
+Transform::orientation_flags Transform::fromRotation(ISurfaceComposer::Rotation rotation) {
+    // Convert to surfaceflinger's internal rotation type.
+    switch (rotation) {
+        case ISurfaceComposer::eRotateNone:
+            return Transform::ROT_0;
+        case ISurfaceComposer::eRotate90:
+            return Transform::ROT_90;
+        case ISurfaceComposer::eRotate180:
+            return Transform::ROT_180;
+        case ISurfaceComposer::eRotate270:
+            return Transform::ROT_270;
+        default:
+            ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
+            return Transform::ROT_0;
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -26,24 +26,6 @@
 
 namespace android {
 
-Description::Description() {
-    mPlaneAlpha = 1.0f;
-    mPremultipliedAlpha = false;
-    mOpaque = true;
-    mTextureEnabled = false;
-    mColorMatrixEnabled = false;
-    mIsWideGamut = false;
-
-    memset(mColor, 0, sizeof(mColor));
-}
-
-Description::~Description() {
-}
-
-void Description::setPlaneAlpha(GLclampf planeAlpha) {
-    mPlaneAlpha = planeAlpha;
-}
-
 void Description::setPremultipliedAlpha(bool premultipliedAlpha) {
     mPremultipliedAlpha = premultipliedAlpha;
 }
@@ -61,29 +43,68 @@ void Description::disableTexture() {
     mTextureEnabled = false;
 }
 
-void Description::setColor(GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha) {
-    mColor[0] = red;
-    mColor[1] = green;
-    mColor[2] = blue;
-    mColor[3] = alpha;
+void Description::setColor(const half4& color) {
+    mColor = color;
 }
 
 void Description::setProjectionMatrix(const mat4& mtx) {
     mProjectionMatrix = mtx;
 }
 
+void Description::setSaturationMatrix(const mat4& mtx) {
+    mSaturationMatrix = mtx;
+}
+
 void Description::setColorMatrix(const mat4& mtx) {
-    const mat4 identity;
     mColorMatrix = mtx;
-    mColorMatrixEnabled = (mtx != identity);
+}
+
+void Description::setInputTransformMatrix(const mat3& matrix) {
+    mInputTransformMatrix = matrix;
+}
+
+void Description::setOutputTransformMatrix(const mat4& matrix) {
+    mOutputTransformMatrix = matrix;
+}
+
+bool Description::hasInputTransformMatrix() const {
+    const mat3 identity;
+    return mInputTransformMatrix != identity;
+}
+
+bool Description::hasOutputTransformMatrix() const {
+    const mat4 identity;
+    return mOutputTransformMatrix != identity;
+}
+
+bool Description::hasColorMatrix() const {
+    const mat4 identity;
+    return mColorMatrix != identity;
+}
+
+bool Description::hasSaturationMatrix() const {
+    const mat4 identity;
+    return mSaturationMatrix != identity;
 }
 
 const mat4& Description::getColorMatrix() const {
     return mColorMatrix;
 }
 
-void Description::setWideGamut(bool wideGamut) {
-    mIsWideGamut = wideGamut;
+void Description::setY410BT2020(bool enable) {
+    mY410BT2020 = enable;
+}
+
+void Description::setInputTransferFunction(TransferFunction transferFunction) {
+    mInputTransferFunction = transferFunction;
+}
+
+void Description::setOutputTransferFunction(TransferFunction transferFunction) {
+    mOutputTransferFunction = transferFunction;
+}
+
+void Description::setDisplayMaxLuminance(const float maxLuminance) {
+    mDisplayMaxLuminance = maxLuminance;
 }
 
 } /* namespace android */

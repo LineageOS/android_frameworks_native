@@ -102,10 +102,20 @@ int DisplayEventReceiver::AttachedEvent::handleEvent(int fd, int events, void* /
 
             switch(buf[i].header.type) {
                 case FwkReceiver::DISPLAY_EVENT_VSYNC: {
-                    mCallback->onVsync(timestamp, event.vsync.count);
+                    auto ret = mCallback->onVsync(timestamp, event.vsync.count);
+                    if (!ret.isOk()) {
+                        LOG(ERROR) << "AttachedEvent handleEvent fails on onVsync callback"
+                                   << " because of " << ret.description();
+                        return 0;  // remove the callback
+                    }
                 } break;
                 case FwkReceiver::DISPLAY_EVENT_HOTPLUG: {
-                    mCallback->onHotplug(timestamp, event.hotplug.connected);
+                    auto ret = mCallback->onHotplug(timestamp, event.hotplug.connected);
+                    if (!ret.isOk()) {
+                        LOG(ERROR) << "AttachedEvent handleEvent fails on onHotplug callback"
+                                   << " because of " << ret.description();
+                        return 0;  // remove the callback
+                    }
                 } break;
                 default: {
                     LOG(ERROR) << "AttachedEvent handleEvent unknown type: " << type;

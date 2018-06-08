@@ -27,13 +27,12 @@ HdrCapabilities::~HdrCapabilities() = default;
 HdrCapabilities::HdrCapabilities(HdrCapabilities&& other) = default;
 HdrCapabilities& HdrCapabilities::operator=(HdrCapabilities&& other) = default;
 
-
 size_t HdrCapabilities::getFlattenedSize() const {
     return  sizeof(mMaxLuminance) +
             sizeof(mMaxAverageLuminance) +
             sizeof(mMinLuminance) +
             sizeof(int32_t) +
-            mSupportedHdrTypes.size() * sizeof(int32_t);
+            mSupportedHdrTypes.size() * sizeof(ui::Hdr);
 }
 
 status_t HdrCapabilities::flatten(void* buffer, size_t size) const {
@@ -48,7 +47,7 @@ status_t HdrCapabilities::flatten(void* buffer, size_t size) const {
     reinterpret_cast<float&>(buf[2]) = mMinLuminance;
     buf[3] = static_cast<int32_t>(mSupportedHdrTypes.size());
     for (size_t i = 0, c = mSupportedHdrTypes.size(); i < c; ++i) {
-        buf[4 + i] = mSupportedHdrTypes[i];
+        buf[4 + i] = static_cast<int32_t>(mSupportedHdrTypes[i]);
     }
     return NO_ERROR;
 }
@@ -78,7 +77,7 @@ status_t HdrCapabilities::unflatten(void const* buffer, size_t size) {
     if (itemCount) {
         mSupportedHdrTypes.resize(itemCount);
         for (size_t i = 0; i < itemCount; ++i) {
-            mSupportedHdrTypes[i] = buf[4 + i];
+            mSupportedHdrTypes[i] = static_cast<ui::Hdr>(buf[4 + i]);
         }
     }
     return NO_ERROR;

@@ -27,6 +27,9 @@
 #include <binder/Parcel.h>
 #include <binder/IInterface.h>
 
+#ifndef NO_BUFFERHUB
+#include <gui/BufferHubProducer.h>
+#endif
 #include <gui/BufferQueueDefs.h>
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/IProducerListener.h>
@@ -187,10 +190,10 @@ public:
 
     virtual status_t detachNextBuffer(sp<GraphicBuffer>* outBuffer,
             sp<Fence>* outFence) {
-        if (outBuffer == nullptr) {
+        if (outBuffer == NULL) {
             ALOGE("detachNextBuffer: outBuffer must not be NULL");
             return BAD_VALUE;
-        } else if (outFence == nullptr) {
+        } else if (outFence == NULL) {
             ALOGE("detachNextBuffer: outFence must not be NULL");
             return BAD_VALUE;
         }
@@ -298,7 +301,7 @@ public:
             int api, bool producerControlledByApp, QueueBufferOutput* output) {
         Parcel data, reply;
         data.writeInterfaceToken(IGraphicBufferProducer::getInterfaceDescriptor());
-        if (listener != nullptr) {
+        if (listener != NULL) {
             data.writeInt32(1);
             data.writeStrongBinder(IInterface::asBinder(listener));
         } else {
@@ -653,6 +656,79 @@ IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer,
 
 // ----------------------------------------------------------------------
 
+status_t IGraphicBufferProducer::exportToParcel(Parcel* parcel) {
+    status_t res = OK;
+    res = parcel->writeUint32(USE_BUFFER_QUEUE);
+    if (res != NO_ERROR) {
+        ALOGE("exportToParcel: Cannot write magic, res=%d.", res);
+        return res;
+    }
+
+    return parcel->writeStrongBinder(IInterface::asBinder(this));
+}
+
+/* static */
+status_t IGraphicBufferProducer::exportToParcel(const sp<IGraphicBufferProducer>& producer,
+                                                Parcel* parcel) {
+    if (parcel == nullptr) {
+        ALOGE("exportToParcel: Invalid parcel object.");
+        return BAD_VALUE;
+    }
+
+    if (producer == nullptr) {
+        status_t res = OK;
+        res = parcel->writeUint32(IGraphicBufferProducer::USE_BUFFER_QUEUE);
+        if (res != NO_ERROR) return res;
+        return parcel->writeStrongBinder(nullptr);
+    } else {
+        return producer->exportToParcel(parcel);
+    }
+}
+
+/* static */
+sp<IGraphicBufferProducer> IGraphicBufferProducer::createFromParcel(const Parcel* parcel) {
+    uint32_t outMagic = 0;
+    status_t res = NO_ERROR;
+
+    res = parcel->readUint32(&outMagic);
+    if (res != NO_ERROR) {
+        ALOGE("createFromParcel: Failed to read magic, error=%d.", res);
+        return nullptr;
+    }
+
+    switch (outMagic) {
+        case USE_BUFFER_QUEUE: {
+            sp<IBinder> binder;
+            res = parcel->readNullableStrongBinder(&binder);
+            if (res != NO_ERROR) {
+                ALOGE("createFromParcel: Can't read strong binder.");
+                return nullptr;
+            }
+            return interface_cast<IGraphicBufferProducer>(binder);
+        }
+        case USE_BUFFER_HUB: {
+            ALOGE("createFromParcel: BufferHub not implemented.");
+#ifndef NO_BUFFERHUB
+            dvr::ProducerQueueParcelable producerParcelable;
+            res = producerParcelable.readFromParcel(parcel);
+            if (res != NO_ERROR) {
+                ALOGE("createFromParcel: Failed to read from parcel, error=%d", res);
+                return nullptr;
+            }
+            return BufferHubProducer::Create(std::move(producerParcelable));
+#else
+            return nullptr;
+#endif
+        }
+        default: {
+            ALOGE("createFromParcel: Unexpected mgaic: 0x%x.", outMagic);
+            return nullptr;
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+
 status_t BnGraphicBufferProducer::onTransact(
     uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
 {
@@ -662,8 +738,8 @@ status_t BnGraphicBufferProducer::onTransact(
             int bufferIdx   = data.readInt32();
             sp<GraphicBuffer> buffer;
             int result = requestBuffer(bufferIdx, &buffer);
-            reply->writeInt32(buffer != nullptr);
-            if (buffer != nullptr) {
+            reply->writeInt32(buffer != 0);
+            if (buffer != 0) {
                 reply->write(*buffer);
             }
             reply->writeInt32(result);
@@ -721,12 +797,12 @@ status_t BnGraphicBufferProducer::onTransact(
             int32_t result = detachNextBuffer(&buffer, &fence);
             reply->writeInt32(result);
             if (result == NO_ERROR) {
-                reply->writeInt32(buffer != nullptr);
-                if (buffer != nullptr) {
+                reply->writeInt32(buffer != NULL);
+                if (buffer != NULL) {
                     reply->write(*buffer);
                 }
-                reply->writeInt32(fence != nullptr);
-                if (fence != nullptr) {
+                reply->writeInt32(fence != NULL);
+                if (fence != NULL) {
                     reply->write(*fence);
                 }
             }
@@ -951,7 +1027,8 @@ constexpr size_t IGraphicBufferProducer::QueueBufferInput::minFlattenedSize() {
 size_t IGraphicBufferProducer::QueueBufferInput::getFlattenedSize() const {
     return minFlattenedSize() +
             fence->getFlattenedSize() +
-            surfaceDamage.getFlattenedSize();
+            surfaceDamage.getFlattenedSize() +
+            hdrMetadata.getFlattenedSize();
 }
 
 size_t IGraphicBufferProducer::QueueBufferInput::getFdCount() const {
@@ -978,7 +1055,12 @@ status_t IGraphicBufferProducer::QueueBufferInput::flatten(
     if (result != NO_ERROR) {
         return result;
     }
-    return surfaceDamage.flatten(buffer, size);
+    result = surfaceDamage.flatten(buffer, size);
+    if (result != NO_ERROR) {
+        return result;
+    }
+    FlattenableUtils::advance(buffer, size, surfaceDamage.getFlattenedSize());
+    return hdrMetadata.flatten(buffer, size);
 }
 
 status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
@@ -1002,7 +1084,12 @@ status_t IGraphicBufferProducer::QueueBufferInput::unflatten(
     if (result != NO_ERROR) {
         return result;
     }
-    return surfaceDamage.unflatten(buffer, size);
+    result = surfaceDamage.unflatten(buffer, size);
+    if (result != NO_ERROR) {
+        return result;
+    }
+    FlattenableUtils::advance(buffer, size, surfaceDamage.getFlattenedSize());
+    return hdrMetadata.unflatten(buffer, size);
 }
 
 // ----------------------------------------------------------------------------

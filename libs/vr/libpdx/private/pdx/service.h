@@ -589,6 +589,14 @@ class Service : public std::enable_shared_from_this<Service> {
   }
 
   /*
+   * Return true if a channel with the given ID exists in the Channel map.
+   */
+  bool HasChannelId(int channel_id) const {
+    std::lock_guard<std::mutex> autolock(channels_mutex_);
+    return channels_.find(channel_id) != channels_.end();
+  }
+
+  /*
    * Subclasses of Service may override this method to provide a text string
    * describing the state of the service. This method is called by
    * HandleSystemMessage in response to the standard

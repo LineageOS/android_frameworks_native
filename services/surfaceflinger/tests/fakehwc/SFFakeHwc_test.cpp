@@ -22,25 +22,22 @@
 #include "FakeComposerService.h"
 #include "FakeComposerUtils.h"
 
+#include <gui/DisplayEventReceiver.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/LayerDebugInfo.h>
+#include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 
-#include <private/gui/ComposerService.h>
-#include <private/gui/LayerState.h>
-
-#include <ui/DisplayInfo.h>
-
-#include <android/native_window.h>
-
 #include <android/hidl/manager/1.0/IServiceManager.h>
-
-#include <hwbinder/ProcessState.h>
-
+#include <android/looper.h>
+#include <android/native_window.h>
 #include <binder/ProcessState.h>
-
+#include <hwbinder/ProcessState.h>
 #include <log/log.h>
+#include <private/gui/ComposerService.h>
+#include <ui/DisplayInfo.h>
+#include <utils/Looper.h>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -61,6 +58,8 @@ using ::testing::Invoke;
 using ::testing::Return;
 using ::testing::SetArgPointee;
 using ::testing::_;
+
+using Transaction = SurfaceComposerClient::Transaction;
 
 ///////////////////////////////////////////////
 
@@ -140,13 +139,22 @@ public:
     };
 
 protected:
+    static int processDisplayEvents(int fd, int events, void* data);
+
     void SetUp() override;
     void TearDown() override;
+
+    void waitForDisplayTransaction();
+    bool waitForHotplugEvent(uint32_t id, bool connected);
 
     sp<IComposer> mFakeService;
     sp<SurfaceComposerClient> mComposerClient;
 
     MockComposerClient* mMockComposer;
+
+    std::unique_ptr<DisplayEventReceiver> mReceiver;
+    sp<Looper> mLooper;;
+    std::deque<DisplayEventReceiver::Event> mReceivedDisplayEvents;
 };
 
 void DisplayTest::SetUp() {
@@ -160,25 +168,22 @@ void DisplayTest::SetUp() {
     // interface instead of the current Composer interface might also
     // change the situation.
     mMockComposer = new MockComposerClient;
-    sp<ComposerClient> client = new ComposerClient(*mMockComposer);
-    mMockComposer->setClient(client.get());
+    sp<ComposerClient> client = new ComposerClient(mMockComposer);
     mFakeService = new FakeComposerService(client);
     (void)mFakeService->registerAsService("mock");
 
     android::hardware::ProcessState::self()->startThreadPool();
     android::ProcessState::self()->startThreadPool();
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(1, _))
+    EXPECT_CALL(*mMockComposer, getDisplayType(PRIMARY_DISPLAY, _))
             .WillOnce(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
                             Return(Error::NONE)));
-    // Seems to be doubled right now, once for display ID 1 and once for 0. This sounds fishy
-    // but encoding that here exactly.
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(1, 1, _, _))
-            .Times(5)
-            .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
-    // TODO: Find out what code is generating the ID 0.
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(0, 1, _, _))
-            .Times(5)
+    // Primary display will be queried twice for all 5 attributes. One
+    // set of queries comes from the SurfaceFlinger proper an the
+    // other set from the VR composer.
+    // TODO: Is VR composer always present? Change to atLeast(5)?
+    EXPECT_CALL(*mMockComposer, getDisplayAttribute(PRIMARY_DISPLAY, 1, _, _))
+            .Times(2 * 5)
             .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
 
     startSurfaceFlinger();
@@ -188,9 +193,16 @@ void DisplayTest::SetUp() {
 
     mComposerClient = new SurfaceComposerClient;
     ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
+
+    mReceiver.reset(new DisplayEventReceiver());
+    mLooper = new Looper(false);
+    mLooper->addFd(mReceiver->getFd(), 0, ALOOPER_EVENT_INPUT, processDisplayEvents, this);
 }
 
 void DisplayTest::TearDown() {
+    mLooper = nullptr;
+    mReceiver = nullptr;
+
     mComposerClient->dispose();
     mComposerClient = nullptr;
 
@@ -204,34 +216,85 @@ void DisplayTest::TearDown() {
     mMockComposer = nullptr;
 }
 
+
+int DisplayTest::processDisplayEvents(int /*fd*/, int /*events*/, void* data) {
+    auto self = static_cast<DisplayTest*>(data);
+
+    ssize_t n;
+    DisplayEventReceiver::Event buffer[1];
+
+    while ((n = self->mReceiver->getEvents(buffer, 1)) > 0) {
+        for (int i=0 ; i<n ; i++) {
+            self->mReceivedDisplayEvents.push_back(buffer[i]);
+        }
+    }
+    ALOGD_IF(n < 0, "Error reading events (%s)\n", strerror(-n));
+    return 1;
+}
+
+void DisplayTest::waitForDisplayTransaction() {
+    // Both a refresh and a vsync event are needed to apply pending display
+    // transactions.
+    mMockComposer->refreshDisplay(EXTERNAL_DISPLAY);
+    mMockComposer->runVSyncAndWait();
+
+    // Extra vsync and wait to avoid a 10% flake due to a race.
+    mMockComposer->runVSyncAndWait();
+}
+
+bool DisplayTest::waitForHotplugEvent(uint32_t id, bool connected) {
+    int waitCount = 20;
+    while (waitCount--) {
+        while (!mReceivedDisplayEvents.empty()) {
+            auto event = mReceivedDisplayEvents.front();
+            mReceivedDisplayEvents.pop_front();
+
+            ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG,
+                    "event hotplug: id %d, connected %d\t", event.header.id,
+                    event.hotplug.connected);
+
+            if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG &&
+                event.header.id == id && event.hotplug.connected == connected) {
+                return true;
+            }
+        }
+
+        mLooper->pollOnce(1);
+    }
+
+    return false;
+}
+
 TEST_F(DisplayTest, Hotplug) {
     ALOGD("DisplayTest::Hotplug");
 
-    EXPECT_CALL(*mMockComposer, getDisplayType(2, _))
+    EXPECT_CALL(*mMockComposer, getDisplayType(EXTERNAL_DISPLAY, _))
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
                                   Return(Error::NONE)));
     // The attribute queries will get done twice. This is for defaults
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(2, 1, _, _))
+    EXPECT_CALL(*mMockComposer, getDisplayAttribute(EXTERNAL_DISPLAY, 1, _, _))
             .Times(2 * 3)
             .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
-    // ... and then special handling for dimensions. Specifying this
+    // ... and then special handling for dimensions. Specifying these
     // rules later means that gmock will try them first, i.e.,
     // ordering of width/height vs. the default implementation for
     // other queries is significant.
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(2, 1, IComposerClient::Attribute::WIDTH, _))
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(EXTERNAL_DISPLAY, 1, IComposerClient::Attribute::WIDTH, _))
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<3>(400), Return(Error::NONE)));
 
-    EXPECT_CALL(*mMockComposer, getDisplayAttribute(2, 1, IComposerClient::Attribute::HEIGHT, _))
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(EXTERNAL_DISPLAY, 1, IComposerClient::Attribute::HEIGHT, _))
             .Times(2)
             .WillRepeatedly(DoAll(SetArgPointee<3>(200), Return(Error::NONE)));
 
-    // TODO: Width and height queries are not actually called. Display
-    // info returns dimensions 0x0 in display info. Why?
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::CONNECTED);
 
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::CONNECTED);
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
 
     {
         sp<android::IBinder> display(
@@ -249,21 +312,24 @@ TEST_F(DisplayTest, Hotplug) {
         fillSurfaceRGBA8(surfaceControl, BLUE);
 
         {
-            GlobalTransactionScope gts(*mMockComposer);
-            mComposerClient->setDisplayLayerStack(display, 0);
+            TransactionScope ts(*mMockComposer);
+            ts.setDisplayLayerStack(display, 0);
 
-            ASSERT_EQ(NO_ERROR, surfaceControl->setLayer(INT32_MAX - 2));
-            ASSERT_EQ(NO_ERROR, surfaceControl->show());
+            ts.setLayer(surfaceControl, INT32_MAX - 2)
+                .show(surfaceControl);
         }
     }
 
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::DISCONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
 
     mMockComposer->clearFrames();
 
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::CONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::CONNECTED);
+
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, false));
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
 
     {
         sp<android::IBinder> display(
@@ -281,15 +347,72 @@ TEST_F(DisplayTest, Hotplug) {
         fillSurfaceRGBA8(surfaceControl, BLUE);
 
         {
-            GlobalTransactionScope gts(*mMockComposer);
-            mComposerClient->setDisplayLayerStack(display, 0);
+            TransactionScope ts(*mMockComposer);
+            ts.setDisplayLayerStack(display, 0);
 
-            ASSERT_EQ(NO_ERROR, surfaceControl->setLayer(INT32_MAX - 2));
-            ASSERT_EQ(NO_ERROR, surfaceControl->show());
+            ts.setLayer(surfaceControl, INT32_MAX - 2)
+                .show(surfaceControl);
         }
     }
-    mMockComposer->hotplugDisplay(static_cast<Display>(2),
-                                  IComposerCallback::Connection::DISCONNECTED);
+    mMockComposer->hotplugDisplay(EXTERNAL_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
+}
+
+TEST_F(DisplayTest, HotplugPrimaryDisplay) {
+    ALOGD("DisplayTest::HotplugPrimaryDisplay");
+
+    mMockComposer->hotplugDisplay(PRIMARY_DISPLAY, IComposerCallback::Connection::DISCONNECTED);
+
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, false));
+
+    {
+        sp<android::IBinder> display(
+                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        DisplayInfo info;
+        auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
+        EXPECT_NE(NO_ERROR, result);
+    }
+
+    mMockComposer->clearFrames();
+
+    EXPECT_CALL(*mMockComposer, getDisplayType(PRIMARY_DISPLAY, _))
+            .Times(2)
+            .WillRepeatedly(DoAll(SetArgPointee<1>(IComposerClient::DisplayType::PHYSICAL),
+                                  Return(Error::NONE)));
+    // The attribute queries will get done twice. This is for defaults
+    EXPECT_CALL(*mMockComposer, getDisplayAttribute(PRIMARY_DISPLAY, 1, _, _))
+            .Times(2 * 3)
+            .WillRepeatedly(Invoke(mMockComposer, &MockComposerClient::getDisplayAttributeFake));
+    // ... and then special handling for dimensions. Specifying these
+    // rules later means that gmock will try them first, i.e.,
+    // ordering of width/height vs. the default implementation for
+    // other queries is significant.
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(PRIMARY_DISPLAY, 1, IComposerClient::Attribute::WIDTH, _))
+            .Times(2)
+            .WillRepeatedly(DoAll(SetArgPointee<3>(400), Return(Error::NONE)));
+
+    EXPECT_CALL(*mMockComposer,
+                getDisplayAttribute(PRIMARY_DISPLAY, 1, IComposerClient::Attribute::HEIGHT, _))
+            .Times(2)
+            .WillRepeatedly(DoAll(SetArgPointee<3>(200), Return(Error::NONE)));
+
+    mMockComposer->hotplugDisplay(PRIMARY_DISPLAY, IComposerCallback::Connection::CONNECTED);
+
+    waitForDisplayTransaction();
+
+    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, true));
+
+    {
+        sp<android::IBinder> display(
+                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        DisplayInfo info;
+        auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
+        EXPECT_EQ(NO_ERROR, result);
+        ASSERT_EQ(400u, info.w);
+        ASSERT_EQ(200u, info.h);
+    }
 }
 
 ////////////////////////////////////////////////
@@ -322,8 +445,7 @@ void TransactionTest::SetUpTestCase() {
     // TODO: See TODO comment at DisplayTest::SetUp for background on
     // the lifetime of the FakeComposerClient.
     sFakeComposer = new FakeComposerClient;
-    sp<ComposerClient> client = new ComposerClient(*sFakeComposer);
-    sFakeComposer->setClient(client.get());
+    sp<ComposerClient> client = new ComposerClient(sFakeComposer);
     sp<IComposer> fakeService = new FakeComposerService(client);
     (void)fakeService->registerAsService("mock");
 
@@ -374,25 +496,24 @@ void TransactionTest::SetUp() {
 
     fillSurfaceRGBA8(mFGSurfaceControl, RED);
 
-    SurfaceComposerClient::openGlobalTransaction();
+    Transaction t;
+    t.setDisplayLayerStack(display, 0);
 
-    mComposerClient->setDisplayLayerStack(display, 0);
+    t.setLayer(mBGSurfaceControl, INT32_MAX - 2);
+    t.show(mBGSurfaceControl);
 
-    ASSERT_EQ(NO_ERROR, mBGSurfaceControl->setLayer(INT32_MAX - 2));
-    ASSERT_EQ(NO_ERROR, mBGSurfaceControl->show());
-
-    ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setLayer(INT32_MAX - 1));
-    ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setPosition(64, 64));
-    ASSERT_EQ(NO_ERROR, mFGSurfaceControl->show());
+    t.setLayer(mFGSurfaceControl, INT32_MAX - 1);
+    t.setPosition(mFGSurfaceControl, 64, 64);
+    t.show(mFGSurfaceControl);
 
     // Synchronous transaction will stop this thread, so we set up a
     // delayed, off-thread vsync request before closing the
     // transaction. In the test code this is usually done with
-    // GlobalTransactionScope. Leaving here in the 'vanilla' form for
+    // TransactionScope. Leaving here in the 'vanilla' form for
     // reference.
     ASSERT_EQ(0, sFakeComposer->getFrameCount());
     sFakeComposer->runVSyncAfter(1ms);
-    SurfaceComposerClient::closeGlobalTransaction(true);
+    t.apply();
     sFakeComposer->waitUntilFrame(1);
 
     // Reference data. This is what the HWC should see.
@@ -449,8 +570,8 @@ TEST_F(TransactionTest, LayerMove) {
     // should be available in the latest frame stored by the fake
     // composer.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setPosition(128, 128));
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 128, 128);
         // NOTE: No changes yet, so vsync will do nothing, HWC does not get any calls.
         // (How to verify that? Throw in vsync and wait a 2x frame time? Separate test?)
         //
@@ -477,8 +598,8 @@ TEST_F(TransactionTest, LayerMove) {
 TEST_F(TransactionTest, LayerResize) {
     ALOGD("TransactionTest::LayerResize");
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setSize(128, 128));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
     }
 
     fillSurfaceRGBA8(mFGSurfaceControl, GREEN);
@@ -501,9 +622,9 @@ TEST_F(TransactionTest, LayerResize) {
 TEST_F(TransactionTest, LayerCrop) {
     // TODO: Add scaling to confirm that crop happens in buffer space?
     {
-        GlobalTransactionScope gts(*sFakeComposer);
+        TransactionScope ts(*sFakeComposer);
         Rect cropRect(16, 16, 32, 32);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setCrop(cropRect));
+        ts.setCrop(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -516,9 +637,9 @@ TEST_F(TransactionTest, LayerCrop) {
 TEST_F(TransactionTest, LayerFinalCrop) {
     // TODO: Add scaling to confirm that crop happens in display space?
     {
-        GlobalTransactionScope gts(*sFakeComposer);
+        TransactionScope ts(*sFakeComposer);
         Rect cropRect(32, 32, 32 + 64, 32 + 64);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setFinalCrop(cropRect));
+        ts.setFinalCrop(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -534,9 +655,9 @@ TEST_F(TransactionTest, LayerFinalCrop) {
 TEST_F(TransactionTest, LayerFinalCropEmpty) {
     // TODO: Add scaling to confirm that crop happens in display space?
     {
-        GlobalTransactionScope gts(*sFakeComposer);
+        TransactionScope ts(*sFakeComposer);
         Rect cropRect(16, 16, 32, 32);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setFinalCrop(cropRect));
+        ts.setFinalCrop(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -549,8 +670,8 @@ TEST_F(TransactionTest, LayerFinalCropEmpty) {
 
 TEST_F(TransactionTest, LayerSetLayer) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setLayer(INT_MAX - 3));
+        TransactionScope ts(*sFakeComposer);
+        ts.setLayer(mFGSurfaceControl, INT_MAX - 3);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -564,11 +685,10 @@ TEST_F(TransactionTest, LayerSetLayer) {
 
 TEST_F(TransactionTest, LayerSetLayerOpaque) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setLayer(INT_MAX - 3));
-        ASSERT_EQ(NO_ERROR,
-                  mBGSurfaceControl->setFlags(layer_state_t::eLayerOpaque,
-                                              layer_state_t::eLayerOpaque));
+        TransactionScope ts(*sFakeComposer);
+        ts.setLayer(mFGSurfaceControl, INT_MAX - 3);
+        ts.setFlags(mBGSurfaceControl, layer_state_t::eLayerOpaque,
+                layer_state_t::eLayerOpaque);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -581,8 +701,8 @@ TEST_F(TransactionTest, LayerSetLayerOpaque) {
 TEST_F(TransactionTest, SetLayerStack) {
     ALOGD("TransactionTest::SetLayerStack");
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setLayerStack(1));
+        TransactionScope ts(*sFakeComposer);
+        ts.setLayerStack(mFGSurfaceControl, 1);
     }
 
     // Foreground layer should have disappeared.
@@ -595,8 +715,8 @@ TEST_F(TransactionTest, SetLayerStack) {
 TEST_F(TransactionTest, LayerShowHide) {
     ALOGD("TransactionTest::LayerShowHide");
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->hide());
+        TransactionScope ts(*sFakeComposer);
+        ts.hide(mFGSurfaceControl);
     }
 
     // Foreground layer should have disappeared.
@@ -606,8 +726,8 @@ TEST_F(TransactionTest, LayerShowHide) {
     EXPECT_TRUE(framesAreSame(refFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->show());
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mFGSurfaceControl);
     }
 
     // Foreground layer should be back
@@ -617,8 +737,8 @@ TEST_F(TransactionTest, LayerShowHide) {
 
 TEST_F(TransactionTest, LayerSetAlpha) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setAlpha(0.75f));
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.75f);
     }
 
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
@@ -629,10 +749,9 @@ TEST_F(TransactionTest, LayerSetAlpha) {
 
 TEST_F(TransactionTest, LayerSetFlags) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR,
-                  mFGSurfaceControl->setFlags(layer_state_t::eLayerHidden,
-                                              layer_state_t::eLayerHidden));
+        TransactionScope ts(*sFakeComposer);
+        ts.setFlags(mFGSurfaceControl, layer_state_t::eLayerHidden,
+                layer_state_t::eLayerHidden);
     }
 
     // Foreground layer should have disappeared.
@@ -664,17 +783,16 @@ TEST_F(TransactionTest, LayerSetMatrix) {
              {{0.f, 1.f, 1.f, 0.f},     HWC_TRANSFORM_FLIP_H_ROT_90,    {64, 64, 128, 128}},
              {{0.f, 1.f, 1.f, 0.f},     HWC_TRANSFORM_FLIP_V_ROT_90,    {64, 64, 128, 128}}};
     // clang-format on
-    constexpr int TEST_COUNT = sizeof(MATRIX_TESTS)/sizeof(matrixTestData);
+    constexpr int TEST_COUNT = sizeof(MATRIX_TESTS) / sizeof(matrixTestData);
 
     for (int i = 0; i < TEST_COUNT; i++) {
         // TODO: How to leverage the HWC2 stringifiers?
         const matrixTestData& xform = MATRIX_TESTS[i];
         SCOPED_TRACE(i);
         {
-            GlobalTransactionScope gts(*sFakeComposer);
-            ASSERT_EQ(NO_ERROR,
-                      mFGSurfaceControl->setMatrix(xform.matrix[0], xform.matrix[1],
-                                                   xform.matrix[2], xform.matrix[3]));
+            TransactionScope ts(*sFakeComposer);
+            ts.setMatrix(mFGSurfaceControl, xform.matrix[0], xform.matrix[1],
+                    xform.matrix[2], xform.matrix[3]);
         }
 
         auto referenceFrame = mBaseFrame;
@@ -688,10 +806,10 @@ TEST_F(TransactionTest, LayerSetMatrix) {
 #if 0
 TEST_F(TransactionTest, LayerSetMatrix2) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
+        TransactionScope ts(*sFakeComposer);
         // TODO: PLEASE SPEC THE FUNCTION!
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setMatrix(0.11f, 0.123f,
-                                                         -2.33f, 0.22f));
+        ts.setMatrix(mFGSurfaceControl, 0.11f, 0.123f,
+                -2.33f, 0.22f);
     }
     auto referenceFrame = mBaseFrame;
     // TODO: Is this correct for sure?
@@ -712,10 +830,10 @@ TEST_F(TransactionTest, DeferredTransaction) {
     fillSurfaceRGBA8(syncSurfaceControl, DARK_GRAY);
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, syncSurfaceControl->setLayer(INT32_MAX - 1));
-        ASSERT_EQ(NO_ERROR, syncSurfaceControl->setPosition(mDisplayWidth - 2, mDisplayHeight - 2));
-        ASSERT_EQ(NO_ERROR, syncSurfaceControl->show());
+        TransactionScope ts(*sFakeComposer);
+        ts.setLayer(syncSurfaceControl, INT32_MAX - 1);
+        ts.setPosition(syncSurfaceControl, mDisplayWidth - 2, mDisplayHeight - 2);
+        ts.show(syncSurfaceControl);
     }
     auto referenceFrame = mBaseFrame;
     referenceFrame.push_back(makeSimpleRect(mDisplayWidth - 2, mDisplayHeight - 2,
@@ -727,20 +845,20 @@ TEST_F(TransactionTest, DeferredTransaction) {
     // set up two deferred transactions on different frames - these should not yield composited
     // frames
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setAlpha(0.75));
-        mFGSurfaceControl
-                ->deferTransactionUntil(syncSurfaceControl->getHandle(),
-                                        syncSurfaceControl->getSurface()->getNextFrameNumber());
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.75);
+        ts.deferTransactionUntil(mFGSurfaceControl, 
+                syncSurfaceControl->getHandle(),
+                syncSurfaceControl->getSurface()->getNextFrameNumber());
     }
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setPosition(128, 128));
-        mFGSurfaceControl
-                ->deferTransactionUntil(syncSurfaceControl->getHandle(),
-                                        syncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 128, 128);
+        ts.deferTransactionUntil(mFGSurfaceControl,
+                syncSurfaceControl->getHandle(),
+                syncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
     }
     EXPECT_EQ(4, sFakeComposer->getFrameCount());
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
@@ -756,8 +874,8 @@ TEST_F(TransactionTest, DeferredTransaction) {
 
     // should show up immediately since it's not deferred
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setAlpha(1.0));
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 1.0);
     }
     referenceFrame[FG_LAYER].mPlaneAlpha = 1.f;
     EXPECT_EQ(6, sFakeComposer->getFrameCount());
@@ -781,10 +899,10 @@ TEST_F(TransactionTest, SetRelativeLayer) {
 
     // Now we stack the surface above the foreground surface and make sure it is visible.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        relativeSurfaceControl->setPosition(64, 64);
-        relativeSurfaceControl->show();
-        relativeSurfaceControl->setRelativeLayer(mFGSurfaceControl->getHandle(), 1);
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(relativeSurfaceControl, 64, 64);
+        ts.show(relativeSurfaceControl);
+        ts.setRelativeLayer(relativeSurfaceControl, mFGSurfaceControl->getHandle(), 1);
     }
     auto referenceFrame = mBaseFrame;
     // NOTE: All three layers will be visible as the surfaces are
@@ -795,8 +913,8 @@ TEST_F(TransactionTest, SetRelativeLayer) {
 
     // A call to setLayer will override a call to setRelativeLayer
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        relativeSurfaceControl->setLayer(0);
+        TransactionScope ts(*sFakeComposer);
+        ts.setLayer(relativeSurfaceControl, 0);
     }
 
     // Previous top layer will now appear at the bottom.
@@ -832,11 +950,11 @@ protected:
 
 TEST_F(ChildLayerTest, Positioning) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(10, 10);
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 10, 10);
         // Move to the same position as in the original setup.
-        mFGSurfaceControl->setPosition(64, 64);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
     }
 
     auto referenceFrame = mBaseFrame;
@@ -846,8 +964,8 @@ TEST_F(ChildLayerTest, Positioning) {
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setPosition(0, 0));
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
     }
 
     auto referenceFrame2 = mBaseFrame;
@@ -859,11 +977,11 @@ TEST_F(ChildLayerTest, Positioning) {
 
 TEST_F(ChildLayerTest, Cropping) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(0, 0);
-        mFGSurfaceControl->setPosition(0, 0);
-        mFGSurfaceControl->setCrop(Rect(0, 0, 5, 5));
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
     }
     // NOTE: The foreground surface would be occluded by the child
     // now, but is included in the stack because the child is
@@ -878,11 +996,11 @@ TEST_F(ChildLayerTest, Cropping) {
 
 TEST_F(ChildLayerTest, FinalCropping) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(0, 0);
-        mFGSurfaceControl->setPosition(0, 0);
-        mFGSurfaceControl->setFinalCrop(Rect(0, 0, 5, 5));
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
     }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
@@ -894,10 +1012,10 @@ TEST_F(ChildLayerTest, FinalCropping) {
 
 TEST_F(ChildLayerTest, Constraints) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mFGSurfaceControl->setPosition(0, 0);
-        mChild->setPosition(63, 63);
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setPosition(mChild, 63, 63);
     }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 64, 64};
@@ -908,8 +1026,8 @@ TEST_F(ChildLayerTest, Constraints) {
 
 TEST_F(ChildLayerTest, Scaling) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setPosition(0, 0);
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
     }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 64, 64};
@@ -917,8 +1035,8 @@ TEST_F(ChildLayerTest, Scaling) {
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setMatrix(2.0, 0, 0, 2.0);
+        TransactionScope ts(*sFakeComposer);
+        ts.setMatrix(mFGSurfaceControl, 2.0, 0, 0, 2.0);
     }
 
     auto referenceFrame2 = mBaseFrame;
@@ -929,11 +1047,11 @@ TEST_F(ChildLayerTest, Scaling) {
 
 TEST_F(ChildLayerTest, LayerAlpha) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(0, 0);
-        mFGSurfaceControl->setPosition(0, 0);
-        ASSERT_EQ(NO_ERROR, mChild->setAlpha(0.5));
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setAlpha(mChild, 0.5);
     }
 
     auto referenceFrame = mBaseFrame;
@@ -943,8 +1061,8 @@ TEST_F(ChildLayerTest, LayerAlpha) {
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        ASSERT_EQ(NO_ERROR, mFGSurfaceControl->setAlpha(0.5));
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.5);
     }
 
     auto referenceFrame2 = referenceFrame;
@@ -955,10 +1073,10 @@ TEST_F(ChildLayerTest, LayerAlpha) {
 
 TEST_F(ChildLayerTest, ReparentChildren) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(10, 10);
-        mFGSurfaceControl->setPosition(64, 64);
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 10, 10);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
     }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
@@ -967,8 +1085,8 @@ TEST_F(ChildLayerTest, ReparentChildren) {
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->reparentChildren(mBGSurfaceControl->getHandle());
+        TransactionScope ts(*sFakeComposer);
+        ts.reparentChildren(mFGSurfaceControl, mBGSurfaceControl->getHandle());
     }
 
     auto referenceFrame2 = referenceFrame;
@@ -979,10 +1097,10 @@ TEST_F(ChildLayerTest, ReparentChildren) {
 
 TEST_F(ChildLayerTest, DetachChildren) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(10, 10);
-        mFGSurfaceControl->setPosition(64, 64);
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 10, 10);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
     }
 
     auto referenceFrame = mBaseFrame;
@@ -992,13 +1110,13 @@ TEST_F(ChildLayerTest, DetachChildren) {
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->detachChildren();
+        TransactionScope ts(*sFakeComposer);
+        ts.detachChildren(mFGSurfaceControl);
     }
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->hide();
+        TransactionScope ts(*sFakeComposer);
+        ts.hide(mChild);
     }
 
     // Nothing should have changed. The child control becomes a no-op
@@ -1009,17 +1127,17 @@ TEST_F(ChildLayerTest, DetachChildren) {
 
 TEST_F(ChildLayerTest, InheritNonTransformScalingFromParent) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(0, 0);
-        mFGSurfaceControl->setPosition(0, 0);
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
     }
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setOverrideScalingMode(NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
+        TransactionScope ts(*sFakeComposer);
+        ts.setOverrideScalingMode(mFGSurfaceControl, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW);
         // We cause scaling by 2.
-        mFGSurfaceControl->setSize(128, 128);
+        ts.setSize(mFGSurfaceControl, 128, 128);
     }
 
     auto referenceFrame = mBaseFrame;
@@ -1033,17 +1151,17 @@ TEST_F(ChildLayerTest, InheritNonTransformScalingFromParent) {
 // Regression test for b/37673612
 TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->show();
-        mChild->setPosition(0, 0);
-        mFGSurfaceControl->setPosition(0, 0);
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
     }
 
     // We set things up as in b/37673612 so that there is a mismatch between the buffer size and
     // the WM specified state size.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 64);
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 64);
     }
 
     sp<Surface> s = mFGSurfaceControl->getSurface();
@@ -1074,10 +1192,10 @@ TEST_F(ChildLayerTest, Bug36858924) {
 
     // Show the child layer in a deferred transaction
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mChild->deferTransactionUntil(mFGSurfaceControl->getHandle(),
+        TransactionScope ts(*sFakeComposer);
+        ts.deferTransactionUntil(mChild, mFGSurfaceControl->getHandle(), 
                                       mFGSurfaceControl->getSurface()->getNextFrameNumber());
-        mChild->show();
+        ts.show(mChild);
     }
 
     // Render the foreground surface a few times
@@ -1114,11 +1232,11 @@ protected:
         sFakeComposer->runVSyncAndWait();
     }
     void restoreInitialState() {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(64, 64);
-        mFGSurfaceControl->setPosition(64, 64);
-        mFGSurfaceControl->setCrop(Rect(0, 0, 64, 64));
-        mFGSurfaceControl->setFinalCrop(Rect(0, 0, -1, -1));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 64, 64);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
+        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 64, 64));
+        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
     }
 };
 
@@ -1126,9 +1244,9 @@ TEST_F(LatchingTest, SurfacePositionLatching) {
     // By default position can be updated even while
     // a resize is pending.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(32, 32);
-        mFGSurfaceControl->setPosition(100, 100);
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 32, 32);
+        ts.setPosition(mFGSurfaceControl, 100, 100);
     }
 
     // The size should not have updated as we have not provided a new buffer.
@@ -1141,10 +1259,10 @@ TEST_F(LatchingTest, SurfacePositionLatching) {
     // Now we repeat with setGeometryAppliesWithResize
     // and verify the position DOESN'T latch.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setGeometryAppliesWithResize();
-        mFGSurfaceControl->setSize(32, 32);
-        mFGSurfaceControl->setPosition(100, 100);
+        TransactionScope ts(*sFakeComposer);
+        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
+        ts.setSize(mFGSurfaceControl, 32, 32);
+        ts.setPosition(mFGSurfaceControl, 100, 100);
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1160,9 +1278,9 @@ TEST_F(LatchingTest, SurfacePositionLatching) {
 TEST_F(LatchingTest, CropLatching) {
     // Normally the crop applies immediately even while a resize is pending.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setCrop(Rect(0, 0, 63, 63));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 63, 63));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1173,10 +1291,10 @@ TEST_F(LatchingTest, CropLatching) {
     restoreInitialState();
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setGeometryAppliesWithResize();
-        mFGSurfaceControl->setCrop(Rect(0, 0, 63, 63));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
+        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 63, 63));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1192,9 +1310,9 @@ TEST_F(LatchingTest, CropLatching) {
 TEST_F(LatchingTest, FinalCropLatching) {
     // Normally the crop applies immediately even while a resize is pending.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1206,10 +1324,10 @@ TEST_F(LatchingTest, FinalCropLatching) {
     restoreInitialState();
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setGeometryAppliesWithResize();
-        mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1228,9 +1346,9 @@ TEST_F(LatchingTest, FinalCropLatching) {
 TEST_F(LatchingTest, FinalCropLatchingBufferOldSize) {
     // Normally the crop applies immediately even while a resize is pending.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1246,10 +1364,10 @@ TEST_F(LatchingTest, FinalCropLatchingBufferOldSize) {
     lockAndFillFGBuffer();
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setGeometryAppliesWithResize();
-        mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1275,15 +1393,15 @@ TEST_F(LatchingTest, FinalCropLatchingRegressionForb37531386) {
     // is still pending, and ensure we are successful. Success meaning the second crop
     // is the one which eventually latches and not the first.
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setSize(128, 128);
-        mFGSurfaceControl->setGeometryAppliesWithResize();
-        mFGSurfaceControl->setFinalCrop(Rect(64, 64, 127, 127));
+        TransactionScope ts(*sFakeComposer);
+        ts.setSize(mFGSurfaceControl, 128, 128);
+        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
 
     {
-        GlobalTransactionScope gts(*sFakeComposer);
-        mFGSurfaceControl->setFinalCrop(Rect(0, 0, -1, -1));
+        TransactionScope ts(*sFakeComposer);
+        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 

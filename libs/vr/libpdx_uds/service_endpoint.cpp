@@ -594,9 +594,10 @@ Status<void> Endpoint::MessageReceive(Message* message) {
 
   if (socket_fd_ && event.data.fd == socket_fd_.Get()) {
     auto status = AcceptConnection(message);
-    if (!status)
-      return status;
-    return ReenableEpollEvent(socket_fd_.Borrow());
+    auto reenable_status = ReenableEpollEvent(socket_fd_.Borrow());
+    if (!reenable_status)
+      return reenable_status;
+    return status;
   }
 
   BorrowedHandle channel_fd{event.data.fd};

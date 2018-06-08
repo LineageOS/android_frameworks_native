@@ -23,9 +23,10 @@
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
 
-#include <ui/HdrCapabilities.h>
+#include <gui/HdrMetadata.h>
 #include <math/mat4.h>
-
+#include <ui/GraphicTypes.h>
+#include <ui/HdrCapabilities.h>
 #include <utils/Log.h>
 #include <utils/StrongPointer.h>
 #include <utils/Timers.h>
@@ -35,7 +36,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-#include <map>
 
 namespace android {
     class Fence;
@@ -46,6 +46,8 @@ namespace android {
     namespace Hwc2 {
         class Composer;
     }
+
+    class TestableSurfaceFlinger;
 }
 
 namespace HWC2 {
@@ -65,8 +67,7 @@ class Layer;
 class ComposerCallback {
  public:
     virtual void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
-                                   Connection connection,
-                                   bool primaryDisplay) = 0;
+                                   Connection connection) = 0;
     virtual void onRefreshReceived(int32_t sequenceId,
                                    hwc2_display_t display) = 0;
     virtual void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
@@ -79,9 +80,7 @@ class ComposerCallback {
 class Device
 {
 public:
-    // Service name is expected to be 'default' or 'vr' for normal use.
-    // 'vr' will slightly modify the behavior of the mComposer.
-    Device(const std::string& serviceName);
+    explicit Device(std::unique_ptr<android::Hwc2::Composer> composer);
 
     void registerCallback(ComposerCallback* callback, int32_t sequenceId);
 
@@ -95,7 +94,7 @@ public:
 
     uint32_t getMaxVirtualDisplayCount() const;
     Error createVirtualDisplay(uint32_t width, uint32_t height,
-            android_pixel_format_t* format, Display** outDisplay);
+            android::ui::PixelFormat* format, Display** outDisplay);
     void destroyDisplay(hwc2_display_t displayId);
 
     void onHotplug(hwc2_display_t displayId, Connection connection);
@@ -106,6 +105,11 @@ public:
 
     android::Hwc2::Composer* getComposer() { return mComposer.get(); }
 
+    // We buffer most state changes and flush them implicitly with
+    // Display::validate, Display::present, and Display::presentOrValidate.
+    // This method provides an explicit way to flush state changes to HWC.
+    Error flushCommands();
+
 private:
     // Initialization methods
 
@@ -115,15 +119,14 @@ private:
     std::unique_ptr<android::Hwc2::Composer> mComposer;
     std::unordered_set<Capability> mCapabilities;
     std::unordered_map<hwc2_display_t, std::unique_ptr<Display>> mDisplays;
-    bool mRegisteredCallback;
+    bool mRegisteredCallback = false;
 };
 
 // Convenience C++ class to access hwc2_device_t Display functions directly.
 class Display
 {
 public:
-    Display(android::Hwc2::Composer& composer,
-            const std::unordered_set<Capability>& capabilities,
+    Display(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
             hwc2_display_t id, DisplayType type);
     ~Display();
 
@@ -203,10 +206,20 @@ public:
     [[clang::warn_unused_result]] Error destroyLayer(Layer* layer);
     [[clang::warn_unused_result]] Error getActiveConfig(
             std::shared_ptr<const Config>* outConfig) const;
+    [[clang::warn_unused_result]] Error getActiveConfigIndex(int* outIndex) const;
     [[clang::warn_unused_result]] Error getChangedCompositionTypes(
             std::unordered_map<Layer*, Composition>* outTypes);
     [[clang::warn_unused_result]] Error getColorModes(
-            std::vector<android_color_mode_t>* outModes) const;
+            std::vector<android::ui::ColorMode>* outModes) const;
+    // outSupportedPerFrameMetadata is an opaque bitmask to the callers
+    // but contains HdrMetadata::Type::*.
+    [[clang::warn_unused_result]] Error getSupportedPerFrameMetadata(
+            int32_t* outSupportedPerFrameMetadata) const;
+    [[clang::warn_unused_result]] Error getRenderIntents(
+            android::ui::ColorMode colorMode,
+            std::vector<android::ui::RenderIntent>* outRenderIntents) const;
+    [[clang::warn_unused_result]] Error getDataspaceSaturationMatrix(
+            android::ui::Dataspace dataspace, android::mat4* outMatrix);
 
     // Doesn't call into the HWC2 device, so no errors are possible
     std::vector<std::shared_ptr<const Config>> getConfigs() const;
@@ -218,7 +231,7 @@ public:
     [[clang::warn_unused_result]] Error getType(DisplayType* outType) const;
     [[clang::warn_unused_result]] Error supportsDoze(bool* outSupport) const;
     [[clang::warn_unused_result]] Error getHdrCapabilities(
-            std::unique_ptr<android::HdrCapabilities>* outCapabilities) const;
+            android::HdrCapabilities* outCapabilities) const;
     [[clang::warn_unused_result]] Error getReleaseFences(
             std::unordered_map<Layer*,
                     android::sp<android::Fence>>* outFences) const;
@@ -229,8 +242,10 @@ public:
     [[clang::warn_unused_result]] Error setClientTarget(
             uint32_t slot, const android::sp<android::GraphicBuffer>& target,
             const android::sp<android::Fence>& acquireFence,
-            android_dataspace_t dataspace);
-    [[clang::warn_unused_result]] Error setColorMode(android_color_mode_t mode);
+            android::ui::Dataspace dataspace);
+    [[clang::warn_unused_result]] Error setColorMode(
+            android::ui::ColorMode mode,
+            android::ui::RenderIntent renderIntent);
     [[clang::warn_unused_result]] Error setColorTransform(
             const android::mat4& matrix, android_color_transform_t hint);
     [[clang::warn_unused_result]] Error setOutputBuffer(
@@ -241,14 +256,8 @@ public:
     [[clang::warn_unused_result]] Error validate(uint32_t* outNumTypes,
             uint32_t* outNumRequests);
     [[clang::warn_unused_result]] Error presentOrValidate(uint32_t* outNumTypes,
-                                                 uint32_t* outNumRequests,
-                                                          android::sp<android::Fence>* outPresentFence, uint32_t* state);
-
-    // Most methods in this class write a command to a command buffer.  The
-    // command buffer is implicitly submitted in validate, present, and
-    // presentOrValidate.  This method provides a way to discard the commands,
-    // which can be used to discard stale commands.
-    void discardCommands();
+            uint32_t* outNumRequests,
+            android::sp<android::Fence>* outPresentFence, uint32_t* state);
 
     // Other Display methods
 
@@ -265,6 +274,8 @@ private:
     // on this display
     Layer* getLayerById(hwc2_layer_t id) const;
 
+    friend android::TestableSurfaceFlinger;
+
     // Member variables
 
     // These are references to data owned by HWC2::Device, which will outlive
@@ -277,9 +288,7 @@ private:
     bool mIsConnected;
     DisplayType mType;
     std::unordered_map<hwc2_layer_t, std::unique_ptr<Layer>> mLayers;
-    // The ordering in this map matters, for getConfigs(), when it is
-    // converted to a vector
-    std::map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
+    std::unordered_map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
 };
 
 // Convenience C++ class to access hwc2_device_t Layer functions directly.
@@ -309,7 +318,10 @@ public:
     [[clang::warn_unused_result]] Error setColor(hwc_color_t color);
     [[clang::warn_unused_result]] Error setCompositionType(Composition type);
     [[clang::warn_unused_result]] Error setDataspace(
-            android_dataspace_t dataspace);
+            android::ui::Dataspace dataspace);
+    [[clang::warn_unused_result]] Error setPerFrameMetadata(
+            const int32_t supportedPerFrameMetadata,
+            const android::HdrMetadata& metadata);
     [[clang::warn_unused_result]] Error setDisplayFrame(
             const android::Rect& frame);
     [[clang::warn_unused_result]] Error setPlaneAlpha(float alpha);
@@ -332,7 +344,8 @@ private:
 
     hwc2_display_t mDisplayId;
     hwc2_layer_t mId;
-    android_dataspace mDataSpace = HAL_DATASPACE_UNKNOWN;
+    android::ui::Dataspace mDataSpace = android::ui::Dataspace::UNKNOWN;
+    android::HdrMetadata mHdrMetadata;
     std::function<void(Layer*)> mLayerDestroyedListener;
 };
 

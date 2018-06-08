@@ -48,7 +48,7 @@ cc_library_shared {
     ],
 
     sanitize: {
-        //misc_undefined: ["integer"],
+        integer_overflow: true,
     },
 
     srcs: [
@@ -74,7 +74,9 @@ cc_library_shared {
 
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
+        "android.hardware.graphics.common@1.1",
         "android.hardware.graphics.mapper@2.0",
+        "android.hardware.graphics.mapper@2.1",
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
         "libbase",
@@ -89,6 +91,10 @@ cc_library_shared {
         "liblog",
     ],
 
+    export_shared_lib_headers: [
+        "android.hardware.graphics.common@1.1",
+    ],
+
     static_libs: [
         "libarect",
         "libgrallocusage",
@@ -96,11 +102,12 @@ cc_library_shared {
     ],
 
     header_libs: [
+        "libbase_headers",
         "libnativebase_headers",
         "libhardware_headers",
+        "libui_headers",
+        "libpdx_headers",
     ],
-
-    export_include_dirs: ["include"],
 
     export_static_lib_headers: [
         "libarect",
@@ -108,8 +115,10 @@ cc_library_shared {
     ],
 
     export_header_lib_headers: [
+        "libbase_headers",
         "libnativebase_headers",
         "libhardware_headers",
+        "libui_headers",
     ],
 }
 
@@ -117,6 +126,11 @@ cc_library_headers {
     name: "libui_headers",
     export_include_dirs: ["include"],
     vendor_available: true,
+    target: {
+        vendor: {
+            override_export_include_dirs: ["include_vndk"],
+        },
+    },
 }
 
 subdirs = [

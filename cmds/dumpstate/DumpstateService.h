@@ -38,6 +38,7 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
 
     status_t dump(int fd, const Vector<String16>& args) override;
     binder::Status setListener(const std::string& name, const sp<IDumpstateListener>& listener,
+                               bool getSectionDetails,
                                sp<IDumpstateToken>* returned_token) override;
 
   private:

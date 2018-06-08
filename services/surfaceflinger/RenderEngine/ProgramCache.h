@@ -19,8 +19,8 @@
 
 #include <GLES2/gl2.h>
 
-#include <utils/Singleton.h>
 #include <utils/KeyedVector.h>
+#include <utils/Singleton.h>
 #include <utils/TypeHelpers.h>
 
 #include "Description.h"
@@ -28,6 +28,7 @@
 namespace android {
 
 class Description;
+class Formatter;
 class Program;
 class String8;
 
@@ -47,63 +48,108 @@ public:
         friend class ProgramCache;
         typedef uint32_t key_t;
         key_t mKey;
+
     public:
         enum {
-            BLEND_PREMULT           =       0x00000001,
-            BLEND_NORMAL            =       0x00000000,
-            BLEND_MASK              =       0x00000001,
+            BLEND_SHIFT = 0,
+            BLEND_MASK = 1 << BLEND_SHIFT,
+            BLEND_PREMULT = 1 << BLEND_SHIFT,
+            BLEND_NORMAL = 0 << BLEND_SHIFT,
 
-            OPACITY_OPAQUE          =       0x00000002,
-            OPACITY_TRANSLUCENT     =       0x00000000,
-            OPACITY_MASK            =       0x00000002,
+            OPACITY_SHIFT = 1,
+            OPACITY_MASK = 1 << OPACITY_SHIFT,
+            OPACITY_OPAQUE = 1 << OPACITY_SHIFT,
+            OPACITY_TRANSLUCENT = 0 << OPACITY_SHIFT,
 
-            PLANE_ALPHA_LT_ONE      =       0x00000004,
-            PLANE_ALPHA_EQ_ONE      =       0x00000000,
-            PLANE_ALPHA_MASK        =       0x00000004,
+            ALPHA_SHIFT = 2,
+            ALPHA_MASK = 1 << ALPHA_SHIFT,
+            ALPHA_LT_ONE = 1 << ALPHA_SHIFT,
+            ALPHA_EQ_ONE = 0 << ALPHA_SHIFT,
 
-            TEXTURE_OFF             =       0x00000000,
-            TEXTURE_EXT             =       0x00000008,
-            TEXTURE_2D              =       0x00000010,
-            TEXTURE_MASK            =       0x00000018,
+            TEXTURE_SHIFT = 3,
+            TEXTURE_MASK = 3 << TEXTURE_SHIFT,
+            TEXTURE_OFF = 0 << TEXTURE_SHIFT,
+            TEXTURE_EXT = 1 << TEXTURE_SHIFT,
+            TEXTURE_2D = 2 << TEXTURE_SHIFT,
 
-            COLOR_MATRIX_OFF        =       0x00000000,
-            COLOR_MATRIX_ON         =       0x00000020,
-            COLOR_MATRIX_MASK       =       0x00000020,
+            INPUT_TRANSFORM_MATRIX_SHIFT = 5,
+            INPUT_TRANSFORM_MATRIX_MASK = 1 << INPUT_TRANSFORM_MATRIX_SHIFT,
+            INPUT_TRANSFORM_MATRIX_OFF = 0 << INPUT_TRANSFORM_MATRIX_SHIFT,
+            INPUT_TRANSFORM_MATRIX_ON = 1 << INPUT_TRANSFORM_MATRIX_SHIFT,
 
-            WIDE_GAMUT_OFF          =       0x00000000,
-            WIDE_GAMUT_ON           =       0x00000040,
-            WIDE_GAMUT_MASK         =       0x00000040,
+            OUTPUT_TRANSFORM_MATRIX_SHIFT = 6,
+            OUTPUT_TRANSFORM_MATRIX_MASK = 1 << OUTPUT_TRANSFORM_MATRIX_SHIFT,
+            OUTPUT_TRANSFORM_MATRIX_OFF = 0 << OUTPUT_TRANSFORM_MATRIX_SHIFT,
+            OUTPUT_TRANSFORM_MATRIX_ON = 1 << OUTPUT_TRANSFORM_MATRIX_SHIFT,
+
+            INPUT_TF_SHIFT = 7,
+            INPUT_TF_MASK = 3 << INPUT_TF_SHIFT,
+            INPUT_TF_LINEAR = 0 << INPUT_TF_SHIFT,
+            INPUT_TF_SRGB = 1 << INPUT_TF_SHIFT,
+            INPUT_TF_ST2084 = 2 << INPUT_TF_SHIFT,
+            INPUT_TF_HLG = 3 << INPUT_TF_SHIFT,
+
+            OUTPUT_TF_SHIFT = 9,
+            OUTPUT_TF_MASK = 3 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_LINEAR = 0 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_SRGB = 1 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_ST2084 = 2 << OUTPUT_TF_SHIFT,
+            OUTPUT_TF_HLG = 3 << OUTPUT_TF_SHIFT,
+
+            Y410_BT2020_SHIFT = 11,
+            Y410_BT2020_MASK = 1 << Y410_BT2020_SHIFT,
+            Y410_BT2020_OFF = 0 << Y410_BT2020_SHIFT,
+            Y410_BT2020_ON = 1 << Y410_BT2020_SHIFT,
         };
 
-        inline Key() : mKey(0) { }
-        inline Key(const Key& rhs) : mKey(rhs.mKey) { }
+        inline Key() : mKey(0) {}
+        inline Key(const Key& rhs) : mKey(rhs.mKey) {}
 
         inline Key& set(key_t mask, key_t value) {
             mKey = (mKey & ~mask) | value;
             return *this;
         }
 
-        inline bool isTexturing() const {
-            return (mKey & TEXTURE_MASK) != TEXTURE_OFF;
+        inline bool isTexturing() const { return (mKey & TEXTURE_MASK) != TEXTURE_OFF; }
+        inline int getTextureTarget() const { return (mKey & TEXTURE_MASK); }
+        inline bool isPremultiplied() const { return (mKey & BLEND_MASK) == BLEND_PREMULT; }
+        inline bool isOpaque() const { return (mKey & OPACITY_MASK) == OPACITY_OPAQUE; }
+        inline bool hasAlpha() const { return (mKey & ALPHA_MASK) == ALPHA_LT_ONE; }
+        inline bool hasInputTransformMatrix() const {
+            return (mKey & INPUT_TRANSFORM_MATRIX_MASK) == INPUT_TRANSFORM_MATRIX_ON;
         }
-        inline int getTextureTarget() const {
-            return (mKey & TEXTURE_MASK);
+        inline bool hasOutputTransformMatrix() const {
+            return (mKey & OUTPUT_TRANSFORM_MATRIX_MASK) == OUTPUT_TRANSFORM_MATRIX_ON;
         }
-        inline bool isPremultiplied() const {
-            return (mKey & BLEND_MASK) == BLEND_PREMULT;
+        inline bool hasTransformMatrix() const {
+            return hasInputTransformMatrix() || hasOutputTransformMatrix();
         }
-        inline bool isOpaque() const {
-            return (mKey & OPACITY_MASK) == OPACITY_OPAQUE;
+        inline int getInputTF() const { return (mKey & INPUT_TF_MASK); }
+        inline int getOutputTF() const { return (mKey & OUTPUT_TF_MASK); }
+
+        // When HDR and non-HDR contents are mixed, or different types of HDR contents are
+        // mixed, we will do a tone mapping process to tone map the input content to output
+        // content. Currently, the following conversions handled, they are:
+        // * SDR -> HLG
+        // * SDR -> PQ
+        // * HLG -> PQ
+        inline bool needsToneMapping() const {
+            int inputTF = getInputTF();
+            int outputTF = getOutputTF();
+
+            // Return false when converting from SDR to SDR.
+            if (inputTF == Key::INPUT_TF_SRGB && outputTF == Key::OUTPUT_TF_LINEAR) {
+                return false;
+            }
+            if (inputTF == Key::INPUT_TF_LINEAR && outputTF == Key::OUTPUT_TF_SRGB) {
+                return false;
+            }
+
+            inputTF >>= Key::INPUT_TF_SHIFT;
+            outputTF >>= Key::OUTPUT_TF_SHIFT;
+            return inputTF != outputTF;
         }
-        inline bool hasPlaneAlpha() const {
-            return (mKey & PLANE_ALPHA_MASK) == PLANE_ALPHA_LT_ONE;
-        }
-        inline bool hasColorMatrix() const {
-            return (mKey & COLOR_MATRIX_MASK) == COLOR_MATRIX_ON;
-        }
-        inline bool isWideGamut() const {
-            return (mKey & WIDE_GAMUT_MASK) == WIDE_GAMUT_ON;
-        }
+        inline bool isY410BT2020() const { return (mKey & Y410_BT2020_MASK) == Y410_BT2020_ON; }
 
         // this is the definition of a friend function -- not a method of class Needs
         friend inline int strictly_order_type(const Key& lhs, const Key& rhs) {
@@ -114,15 +160,24 @@ public:
     ProgramCache();
     ~ProgramCache();
 
+    // Generate shaders to populate the cache
+    void primeCache(bool hasWideColor);
+
     // useProgram lookup a suitable program in the cache or generates one
     // if none can be found.
     void useProgram(const Description& description);
 
 private:
-    // Generate shaders to populate the cache
-    void primeCache();
     // compute a cache Key from a Description
     static Key computeKey(const Description& description);
+    // Generate EOTF based from Key.
+    static void generateEOTF(Formatter& fs, const Key& needs);
+    // Generate necessary tone mapping methods for OOTF.
+    static void generateToneMappingProcess(Formatter& fs, const Key& needs);
+    // Generate OOTF based from Key.
+    static void generateOOTF(Formatter& fs, const Key& needs);
+    // Generate OETF based from Key.
+    static void generateOETF(Formatter& fs, const Key& needs);
     // generates a program from the Key
     static Program* generateProgram(const Key& needs);
     // generates the vertex shader from the Key
@@ -134,7 +189,6 @@ private:
     // is never shrunk.
     DefaultKeyedVector<Key, Program*> mCache;
 };
-
 
 ANDROID_BASIC_TYPES_TRAITS(ProgramCache::Key)
 

@@ -48,8 +48,9 @@ namespace android {
 SurfaceControl::SurfaceControl(
         const sp<SurfaceComposerClient>& client,
         const sp<IBinder>& handle,
-        const sp<IGraphicBufferProducer>& gbp)
-    : mClient(client), mHandle(handle), mGraphicBufferProducer(gbp)
+        const sp<IGraphicBufferProducer>& gbp,
+        bool owned)
+    : mClient(client), mHandle(handle), mGraphicBufferProducer(gbp), mOwned(owned)
 {
 }
 
@@ -60,7 +61,9 @@ SurfaceControl::~SurfaceControl()
 
 void SurfaceControl::destroy()
 {
-    if (isValid()) {
+    // Avoid destroying the server-side surface if we are not the owner of it, meaning that we
+    // retrieved it from another process.
+    if (isValid() && mOwned) {
         mClient->destroySurface(mHandle);
     }
     // clear all references and trigger an IPC now, to make sure things
@@ -83,7 +86,7 @@ void SurfaceControl::clear()
 }
 
 void SurfaceControl::disconnect() {
-    if (mGraphicBufferProducer != nullptr) {
+    if (mGraphicBufferProducer != NULL) {
         mGraphicBufferProducer->disconnect(
                 BufferQueueCore::CURRENTLY_CONNECTED_API);
     }
@@ -92,115 +95,9 @@ void SurfaceControl::disconnect() {
 bool SurfaceControl::isSameSurface(
         const sp<SurfaceControl>& lhs, const sp<SurfaceControl>& rhs)
 {
-    if (lhs == nullptr || rhs == nullptr)
+    if (lhs == 0 || rhs == 0)
         return false;
     return lhs->mHandle == rhs->mHandle;
-}
-
-status_t SurfaceControl::setLayerStack(uint32_t layerStack) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setLayerStack(mHandle, layerStack);
-}
-
-status_t SurfaceControl::setLayer(int32_t layer) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setLayer(mHandle, layer);
-}
-
-status_t SurfaceControl::setRelativeLayer(const sp<IBinder>& relativeTo, int32_t layer) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setRelativeLayer(mHandle, relativeTo, layer);
-}
-
-status_t SurfaceControl::setPosition(float x, float y) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setPosition(mHandle, x, y);
-}
-status_t SurfaceControl::setGeometryAppliesWithResize() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setGeometryAppliesWithResize(mHandle);
-}
-status_t SurfaceControl::setSize(uint32_t w, uint32_t h) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setSize(mHandle, w, h);
-}
-status_t SurfaceControl::hide() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->hide(mHandle);
-}
-status_t SurfaceControl::show() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->show(mHandle);
-}
-status_t SurfaceControl::setFlags(uint32_t flags, uint32_t mask) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setFlags(mHandle, flags, mask);
-}
-status_t SurfaceControl::setTransparentRegionHint(const Region& transparent) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setTransparentRegionHint(mHandle, transparent);
-}
-status_t SurfaceControl::setAlpha(float alpha) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setAlpha(mHandle, alpha);
-}
-status_t SurfaceControl::setMatrix(float dsdx, float dtdx, float dtdy, float dsdy) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setMatrix(mHandle, dsdx, dtdx, dtdy, dsdy);
-}
-status_t SurfaceControl::setCrop(const Rect& crop) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setCrop(mHandle, crop);
-}
-status_t SurfaceControl::setFinalCrop(const Rect& crop) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setFinalCrop(mHandle, crop);
-}
-
-status_t SurfaceControl::deferTransactionUntil(const sp<IBinder>& handle,
-        uint64_t frameNumber) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->deferTransactionUntil(mHandle, handle, frameNumber);
-}
-
-status_t SurfaceControl::deferTransactionUntil(const sp<Surface>& handle,
-        uint64_t frameNumber) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->deferTransactionUntil(mHandle, handle, frameNumber);
-}
-
-status_t SurfaceControl::reparentChildren(const sp<IBinder>& newParentHandle) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->reparentChildren(mHandle, newParentHandle);
-}
-
-status_t SurfaceControl::detachChildren() {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->detachChildren(mHandle);
-}
-
-status_t SurfaceControl::setOverrideScalingMode(int32_t overrideScalingMode) {
-    status_t err = validate();
-    if (err < 0) return err;
-    return mClient->setOverrideScalingMode(mHandle, overrideScalingMode);
 }
 
 status_t SurfaceControl::clearLayerFrameStats() const {
@@ -219,7 +116,7 @@ status_t SurfaceControl::getLayerFrameStats(FrameStats* outStats) const {
 
 status_t SurfaceControl::validate() const
 {
-    if (mHandle==nullptr || mClient==nullptr) {
+    if (mHandle==0 || mClient==0) {
         ALOGE("invalid handle (%p) or client (%p)",
                 mHandle.get(), mClient.get());
         return NO_INIT;
@@ -231,7 +128,7 @@ status_t SurfaceControl::writeSurfaceToParcel(
         const sp<SurfaceControl>& control, Parcel* parcel)
 {
     sp<IGraphicBufferProducer> bp;
-    if (control != nullptr) {
+    if (control != NULL) {
         bp = control->mGraphicBufferProducer;
     }
     return parcel->writeStrongBinder(IInterface::asBinder(bp));
@@ -249,7 +146,7 @@ sp<Surface> SurfaceControl::generateSurfaceLocked() const
 sp<Surface> SurfaceControl::getSurface() const
 {
     Mutex::Autolock _l(mLock);
-    if (mSurfaceData == nullptr) {
+    if (mSurfaceData == 0) {
         return generateSurfaceLocked();
     }
     return mSurfaceData;
@@ -265,6 +162,36 @@ sp<IBinder> SurfaceControl::getHandle() const
 {
     Mutex::Autolock lock(mLock);
     return mHandle;
+}
+
+sp<SurfaceComposerClient> SurfaceControl::getClient() const
+{
+    return mClient;
+}
+
+void SurfaceControl::writeToParcel(Parcel* parcel)
+{
+    parcel->writeStrongBinder(ISurfaceComposerClient::asBinder(mClient->getClient()));
+    parcel->writeStrongBinder(mHandle);
+    parcel->writeStrongBinder(IGraphicBufferProducer::asBinder(mGraphicBufferProducer));
+}
+
+sp<SurfaceControl> SurfaceControl::readFromParcel(Parcel* parcel)
+{
+    sp<IBinder> client = parcel->readStrongBinder();
+    sp<IBinder> handle = parcel->readStrongBinder();
+    if (client == nullptr || handle == nullptr)
+    {
+        ALOGE("Invalid parcel");
+        return nullptr;
+    }
+    sp<IBinder> gbp;
+    parcel->readNullableStrongBinder(&gbp);
+
+    // We aren't the original owner of the surface.
+    return new SurfaceControl(new SurfaceComposerClient(
+                    interface_cast<ISurfaceComposerClient>(client)),
+            handle.get(), interface_cast<IGraphicBufferProducer>(gbp), false /* owned */);
 }
 
 // ----------------------------------------------------------------------------

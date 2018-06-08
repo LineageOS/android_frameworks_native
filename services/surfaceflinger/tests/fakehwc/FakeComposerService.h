@@ -16,10 +16,10 @@
 
 #pragma once
 
-#include "ComposerClient.h"
+#include <composer-hal/2.1/ComposerClient.h>
 
 using namespace android::hardware::graphics::composer::V2_1;
-using namespace android::hardware::graphics::composer::V2_1::implementation;
+using namespace android::hardware::graphics::composer::V2_1::hal;
 using android::hardware::Return;
 
 namespace sftest {

@@ -1,14 +1,26 @@
 #ifndef ANDROID_DVR_BUFFER_HUB_QUEUE_CLIENT_H_
 #define ANDROID_DVR_BUFFER_HUB_QUEUE_CLIENT_H_
 
-#include <gui/BufferQueueDefs.h>
+#include <ui/BufferQueueDefs.h>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Weverything"
+#endif
+
+// The following headers are included without checking every warning.
+// TODO(b/72172820): Remove the workaround once we have enforced -Weverything
+// in these headers and their dependencies.
 #include <pdx/client.h>
 #include <pdx/status.h>
 #include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/buffer_hub_queue_parcelable.h>
 #include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/epoll_file_descriptor.h>
-#include <private/dvr/ring_buffer.h>
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 #include <memory>
 #include <queue>
@@ -45,13 +57,18 @@ class BufferHubQueue : public pdx::Client {
   uint32_t default_width() const { return default_width_; }
 
   // Returns the default buffer height of this buffer queue.
-  uint32_t default_height() const { return default_height_; }
+  uint32_t default_height() const { return static_cast<uint32_t>(default_height_); }
 
   // Returns the default buffer format of this buffer queue.
-  uint32_t default_format() const { return default_format_; }
+  uint32_t default_format() const { return static_cast<uint32_t>(default_format_); }
 
   // Creates a new consumer in handle form for immediate transport over RPC.
   pdx::Status<pdx::LocalChannelHandle> CreateConsumerQueueHandle(
+      bool silent = false);
+
+  // Creates a new consumer in parcelable form for immediate transport over
+  // Binder.
+  pdx::Status<ConsumerQueueParcelable> CreateConsumerQueueParcelable(
       bool silent = false);
 
   // Returns the number of buffers avaiable for dequeue.
@@ -68,7 +85,8 @@ class BufferHubQueue : public pdx::Client {
     return available_buffers_.size() >= kMaxQueueCapacity;
   }
 
-  explicit operator bool() const { return epoll_fd_.IsValid(); }
+  // Returns whether the buffer queue is connected to bufferhubd.
+  bool is_connected() const { return !!GetChannel(); }
 
   int GetBufferId(size_t slot) const {
     return (slot < buffers_.size() && buffers_[slot]) ? buffers_[slot]->id()
@@ -150,20 +168,20 @@ class BufferHubQueue : public pdx::Client {
                                       int poll_events);
   pdx::Status<void> HandleQueueEvent(int poll_events);
 
-  // Entry in the ring buffer of available buffers that stores related
+  // Entry in the priority queue of available buffers that stores related
   // per-buffer data.
   struct Entry {
     Entry() : slot(0) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& buffer, size_t slot,
-          uint64_t index)
-        : buffer(buffer), slot(slot), index(index) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& buffer,
-          std::unique_ptr<uint8_t[]> metadata, pdx::LocalHandle fence,
-          size_t slot)
-        : buffer(buffer),
-          metadata(std::move(metadata)),
-          fence(std::move(fence)),
-          slot(slot) {}
+    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer, size_t in_slot,
+          uint64_t in_index)
+        : buffer(in_buffer), slot(in_slot), index(in_index) {}
+    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer,
+          std::unique_ptr<uint8_t[]> in_metadata, pdx::LocalHandle in_fence,
+          size_t in_slot)
+        : buffer(in_buffer),
+          metadata(std::move(in_metadata)),
+          fence(std::move(in_fence)),
+          slot(in_slot) {}
     Entry(Entry&&) = default;
     Entry& operator=(Entry&&) = default;
 
@@ -221,13 +239,13 @@ class BufferHubQueue : public pdx::Client {
   bool is_async_{false};
 
   // Default buffer width that is set during ProducerQueue's creation.
-  size_t default_width_{1};
+  uint32_t default_width_{1};
 
   // Default buffer height that is set during ProducerQueue's creation.
-  size_t default_height_{1};
+  uint32_t default_height_{1};
 
   // Default buffer format that is set during ProducerQueue's creation.
-  int32_t default_format_{1};  // PIXEL_FORMAT_RGBA_8888
+  uint32_t default_format_{1};  // PIXEL_FORMAT_RGBA_8888
 
   // Tracks the buffers belonging to this queue. Buffers are stored according to
   // "slot" in this vector. Each slot is a logical id of the buffer within this
@@ -235,7 +253,6 @@ class BufferHubQueue : public pdx::Client {
   std::array<std::shared_ptr<BufferHubBuffer>, kMaxQueueCapacity> buffers_;
 
   // Buffers and related data that are available for dequeue.
-  // RingBuffer<Entry> available_buffers_{kMaxQueueCapacity};
   std::priority_queue<Entry, std::vector<Entry>, EntryComparator>
       available_buffers_;
 
@@ -337,6 +354,11 @@ class ProducerQueue : public pdx::ClientBase<ProducerQueue, BufferHubQueue> {
     return BufferHubQueue::Enqueue({buffer, slot, index});
   }
 
+  // Takes out the current producer queue as a binder parcelable object. Note
+  // that the queue must be empty to be exportable. After successful export, the
+  // producer queue client should no longer be used.
+  pdx::Status<ProducerQueueParcelable> TakeAsParcelable();
+
  private:
   friend BASE;
 
@@ -363,10 +385,7 @@ class ConsumerQueue : public BufferHubQueue {
   // used to avoid participation in the buffer lifecycle by a consumer queue
   // that is only used to spawn other consumer queues, such as in an
   // intermediate service.
-  static std::unique_ptr<ConsumerQueue> Import(pdx::LocalChannelHandle handle) {
-    return std::unique_ptr<ConsumerQueue>(
-        new ConsumerQueue(std::move(handle)));
-  }
+  static std::unique_ptr<ConsumerQueue> Import(pdx::LocalChannelHandle handle);
 
   // Import newly created buffers from the service side.
   // Returns number of buffers successfully imported or an error.

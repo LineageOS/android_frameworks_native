@@ -34,7 +34,7 @@ class String8;
 class Program {
 public:
     // known locations for position and texture coordinates
-    enum { position=0, texCoords=1 };
+    enum { position = 0, texCoords = 1 };
 
     Program(const ProgramCache::Key& needs, const char* vertex, const char* fragment);
     ~Program();
@@ -54,7 +54,6 @@ public:
     /* set-up uniforms from the description */
     void setUniforms(const Description& desc);
 
-
 private:
     GLuint buildShader(const char* source, GLenum type);
     String8& dumpShader(String8& result, GLenum type);
@@ -70,22 +69,22 @@ private:
     /* location of the projection matrix uniform */
     GLint mProjectionMatrixLoc;
 
-    /* location of the color matrix uniform */
-    GLint mColorMatrixLoc;
-
     /* location of the texture matrix uniform */
     GLint mTextureMatrixLoc;
 
     /* location of the sampler uniform */
     GLint mSamplerLoc;
 
-    /* location of the alpha plane uniform */
-    GLint mAlphaPlaneLoc;
-
     /* location of the color uniform */
     GLint mColorLoc;
-};
 
+    /* location of display luminance uniform */
+    GLint mDisplayMaxLuminanceLoc;
+
+    /* location of transform matrix */
+    GLint mInputTransformMatrixLoc;
+    GLint mOutputTransformMatrixLoc;
+};
 
 } /* namespace android */
 

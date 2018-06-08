@@ -14,55 +14,62 @@
  * limitations under the License.
  */
 
+#include <pthread.h>
+#include <sched.h>
+#include <sys/resource.h>
+
+#include <cutils/sched_policy.h>
+#include <log/log.h>
+#include <system/thread_defs.h>
+
 #include "EventControlThread.h"
-#include "SurfaceFlinger.h"
 
 namespace android {
 
-EventControlThread::EventControlThread(const sp<SurfaceFlinger>& flinger):
-        mFlinger(flinger),
-        mVsyncEnabled(false) {
+EventControlThread::~EventControlThread() = default;
+
+namespace impl {
+
+EventControlThread::EventControlThread(EventControlThread::SetVSyncEnabledFunction function)
+      : mSetVSyncEnabled(function) {
+    pthread_setname_np(mThread.native_handle(), "EventControlThread");
+
+    pid_t tid = pthread_gettid_np(mThread.native_handle());
+    setpriority(PRIO_PROCESS, tid, ANDROID_PRIORITY_URGENT_DISPLAY);
+    set_sched_policy(tid, SP_FOREGROUND);
+}
+
+EventControlThread::~EventControlThread() {
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mKeepRunning = false;
+        mCondition.notify_all();
+    }
+    mThread.join();
 }
 
 void EventControlThread::setVsyncEnabled(bool enabled) {
-    Mutex::Autolock lock(mMutex);
+    std::lock_guard<std::mutex> lock(mMutex);
     mVsyncEnabled = enabled;
-    mCond.signal();
+    mCondition.notify_all();
 }
 
-bool EventControlThread::threadLoop() {
-    enum class VsyncState {Unset, On, Off};
-    auto currentVsyncState = VsyncState::Unset;
+// Unfortunately std::unique_lock gives warnings with -Wthread-safety
+void EventControlThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
+    auto keepRunning = true;
+    auto currentVsyncEnabled = false;
 
-    while (true) {
-        auto requestedVsyncState = VsyncState::On;
-        {
-            Mutex::Autolock lock(mMutex);
-            requestedVsyncState =
-                    mVsyncEnabled ? VsyncState::On : VsyncState::Off;
-            while (currentVsyncState == requestedVsyncState) {
-                status_t err = mCond.wait(mMutex);
-                if (err != NO_ERROR) {
-                    ALOGE("error waiting for new events: %s (%d)",
-                          strerror(-err), err);
-                    return false;
-                }
-                requestedVsyncState =
-                        mVsyncEnabled ? VsyncState::On : VsyncState::Off;
-            }
-        }
+    while (keepRunning) {
+        mSetVSyncEnabled(currentVsyncEnabled);
 
-        bool enable = requestedVsyncState == VsyncState::On;
-#ifdef USE_HWC2
-        mFlinger->setVsyncEnabled(HWC_DISPLAY_PRIMARY, enable);
-#else
-        mFlinger->eventControl(HWC_DISPLAY_PRIMARY,
-                SurfaceFlinger::EVENT_VSYNC, enable);
-#endif
-        currentVsyncState = requestedVsyncState;
+        std::unique_lock<std::mutex> lock(mMutex);
+        mCondition.wait(lock, [this, currentVsyncEnabled, keepRunning]() NO_THREAD_SAFETY_ANALYSIS {
+            return currentVsyncEnabled != mVsyncEnabled || keepRunning != mKeepRunning;
+        });
+        currentVsyncEnabled = mVsyncEnabled;
+        keepRunning = mKeepRunning;
     }
-
-    return false;
 }
 
+} // namespace impl
 } // namespace android

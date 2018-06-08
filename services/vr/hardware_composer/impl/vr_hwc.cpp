@@ -15,6 +15,7 @@
  */
 #include "impl/vr_hwc.h"
 
+#include "android-base/stringprintf.h"
 #include <cutils/properties.h>
 #include <private/dvr/display_client.h>
 #include <ui/Fence.h>
@@ -26,6 +27,7 @@
 using namespace android::hardware::graphics::common::V1_0;
 using namespace android::hardware::graphics::composer::V2_1;
 
+using android::base::StringPrintf;
 using android::hardware::hidl_handle;
 using android::hardware::hidl_string;
 using android::hardware::hidl_vec;
@@ -225,6 +227,20 @@ void HwcDisplay::SetColorTransform(const float* matrix, int32_t hint) {
     memcpy(color_transform_, matrix, sizeof(color_transform_));
 }
 
+void HwcDisplay::dumpDebugInfo(std::string* result) const {
+  if (!result) {
+    return;
+  }
+  *result += StringPrintf("HwcDisplay: width: %d, height: %d, layers size: %zu, colormode: %d\
+      , config: %d\n", width_, height_, layers_.size(), color_mode_, active_config_);
+  *result += StringPrintf("HwcDisplay buffer metadata: width: %d, height: %d, stride: %d,\
+      layerCount: %d, pixelFormat: %d\n", buffer_metadata_.width, buffer_metadata_.height,
+      buffer_metadata_.stride, buffer_metadata_.layerCount, buffer_metadata_.format);
+  for (const auto& layer : layers_) {
+    layer.dumpDebugInfo(result);
+  }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // VrHwcClient
 
@@ -234,24 +250,23 @@ VrHwc::~VrHwc() {}
 
 bool VrHwc::hasCapability(hwc2_capability_t /* capability */) { return false; }
 
-void VrHwc::removeClient() {
-  std::lock_guard<std::mutex> guard(mutex_);
-  client_ = nullptr;
+void VrHwc::registerEventCallback(EventCallback* callback) {
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    event_callback_ = callback;
+    int32_t width, height;
+    GetPrimaryDisplaySize(&width, &height);
+    // Create the primary display late to avoid initialization issues between
+    // VR HWC and SurfaceFlinger.
+    displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
+  }
+  event_callback_->onHotplug(kDefaultDisplayId,
+                             IComposerCallback::Connection::CONNECTED);
 }
 
-void VrHwc::enableCallback(bool enable) {
-  if (enable && client_ != nullptr) {
-    {
-      int32_t width, height;
-      GetPrimaryDisplaySize(&width, &height);
-      std::lock_guard<std::mutex> guard(mutex_);
-      // Create the primary display late to avoid initialization issues between
-      // VR HWC and SurfaceFlinger.
-      displays_[kDefaultDisplayId].reset(new HwcDisplay(width, height));
-    }
-    client_.promote()->onHotplug(kDefaultDisplayId,
-                                 IComposerCallback::Connection::CONNECTED);
-  }
+void VrHwc::unregisterEventCallback() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  event_callback_ = nullptr;
 }
 
 uint32_t VrHwc::getMaxVirtualDisplayCount() { return 1; }
@@ -834,7 +849,19 @@ Return<void> VrHwc::getCapabilities(getCapabilities_cb hidl_cb) {
 }
 
 Return<void> VrHwc::dumpDebugInfo(dumpDebugInfo_cb hidl_cb) {
-  hidl_cb(hidl_string());
+  std::string result;
+
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    result = "\nVrHwc states:\n";
+    for (const auto& pair : displays_) {
+      result += StringPrintf("Display id: %lu\n", (unsigned long)pair.first);
+      pair.second->dumpDebugInfo(&result);
+    }
+    result += "\n";
+  }
+
+  hidl_cb(hidl_string(result));
   return Void();
 }
 
@@ -843,7 +870,7 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
 
   Error status = Error::NONE;
   sp<VrComposerClient> client;
-  if (client_ == nullptr) {
+  if (!client_.promote().get()) {
     client = new VrComposerClient(*this);
   } else {
     ALOGE("Already have a client");
@@ -857,9 +884,9 @@ Return<void> VrHwc::createClient(createClient_cb hidl_cb) {
 
 void VrHwc::ForceDisplaysRefresh() {
   std::lock_guard<std::mutex> guard(mutex_);
-  if (client_ != nullptr) {
+  if (event_callback_ != nullptr) {
     for (const auto& pair : displays_)
-      client_.promote()->onRefresh(pair.first);
+      event_callback_->onRefresh(pair.first);
   }
 }
 
@@ -882,6 +909,23 @@ void VrHwc::UnregisterObserver(Observer* observer) {
 HwcDisplay* VrHwc::FindDisplay(Display display) {
   auto iter = displays_.find(display);
   return iter == displays_.end() ? nullptr : iter->second.get();
+}
+
+void HwcLayer::dumpDebugInfo(std::string* result) const {
+  if (!result) {
+    return;
+  }
+  *result += StringPrintf("Layer: composition_type: %d, type: %d, app_id: %d, z_order: %d,\
+      cursor_x: %d, cursor_y: %d, color(rgba): (%d,%d,%d,%d), dataspace: %d, transform: %d,\
+      display_frame(LTRB): (%d,%d,%d,%d), crop(LTRB): (%.1f,%.1f,%.1f,%.1f), blend_mode: %d\n",
+      composition_type, info.type, info.app_id, info.z_order, info.cursor_x, info.cursor_y,
+      info.color.r, info.color.g, info.color.b, info.color.a, info.dataspace, info.transform,
+      info.display_frame.left, info.display_frame.top, info.display_frame.right,
+      info.display_frame.bottom, info.crop.left, info.crop.top, info.crop.right,
+      info.crop.bottom, info.blend_mode);
+  *result += StringPrintf("Layer buffer metadata: width: %d, height: %d, stride: %d, layerCount: %d\
+      , pixelFormat: %d\n", buffer_metadata.width, buffer_metadata.height, buffer_metadata.stride,
+      buffer_metadata.layerCount, buffer_metadata.format);
 }
 
 }  // namespace dvr

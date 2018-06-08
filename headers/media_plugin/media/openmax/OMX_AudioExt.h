@@ -82,6 +82,7 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_OPUSTYPE {
                                    limit the audio signal. Use 0 to let encoder decide */
 } OMX_AUDIO_PARAM_ANDROID_OPUSTYPE;
 
+/** deprecated. use OMX_AUDIO_PARAM_ANDROID_AACDRCPRESENTATIONTYPE */
 typedef struct OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE {
     OMX_U32 nSize;            /**< size of the structure in bytes */
     OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
@@ -93,6 +94,19 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE {
     OMX_S32 nEncodedTargetLevel;   /**< Target reference level assumed at the encoder, between 0 and 127, -1 if unspecified */
     OMX_S32 nPCMLimiterEnable;     /**< Signal level limiting, 0 for disable, 1 for enable, -1 if unspecified */
 } OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE;
+
+typedef struct OMX_AUDIO_PARAM_ANDROID_AACDRCPRESENTATIONTYPE {
+    OMX_U32 nSize;            /**< size of the structure in bytes */
+    OMX_VERSIONTYPE nVersion; /**< OMX specification version information */
+    OMX_S32 nMaxOutputChannels;    /**< Maximum channel count to be output, -1 if unspecified, 0 if downmixing disabled */
+    OMX_S32 nDrcCut;               /**< The DRC attenuation factor, between 0 and 127, -1 if unspecified */
+    OMX_S32 nDrcBoost;             /**< The DRC amplification factor, between 0 and 127, -1 if unspecified */
+    OMX_S32 nHeavyCompression;     /**< 0 for light compression, 1 for heavy compression, -1 if unspecified */
+    OMX_S32 nTargetReferenceLevel; /**< Target reference level, between 0 and 127, -1 if unspecified */
+    OMX_S32 nEncodedTargetLevel;   /**< Target reference level assumed at the encoder, between 0 and 127, -1 if unspecified */
+    OMX_S32 nPCMLimiterEnable;     /**< Signal level limiting, 0 for disable, 1 for enable, -1 if unspecified */
+    OMX_S32 nDrcEffectType;        /**< MPEG-D DRC effect type, between -1 and 6, -2 if unspecified */
+} OMX_AUDIO_PARAM_ANDROID_AACDRCPRESENTATIONTYPE;
 
 typedef struct OMX_AUDIO_PARAM_ANDROID_PROFILETYPE {
    OMX_U32 nSize;

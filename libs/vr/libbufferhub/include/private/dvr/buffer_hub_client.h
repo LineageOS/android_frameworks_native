@@ -16,6 +16,21 @@
 namespace android {
 namespace dvr {
 
+class BufferHubClient : public pdx::Client {
+ public:
+  BufferHubClient();
+  explicit BufferHubClient(pdx::LocalChannelHandle channel_handle);
+
+  bool IsValid() const;
+  pdx::LocalChannelHandle TakeChannelHandle();
+
+  using pdx::Client::Close;
+  using pdx::Client::GetChannel;
+  using pdx::Client::InvokeRemoteMethod;
+  using pdx::Client::IsConnected;
+  using pdx::Client::event_fd;
+};
+
 class BufferHubBuffer : public pdx::Client {
  public:
   using LocalHandle = pdx::LocalHandle;
@@ -94,6 +109,9 @@ class BufferHubBuffer : public pdx::Client {
 
   int id() const { return id_; }
 
+  // Returns the buffer buffer state.
+  uint64_t buffer_state() { return buffer_state_->load(); };
+
   // A state mask which is unique to a buffer hub client among all its siblings
   // sharing the same concrete graphic buffer.
   uint64_t buffer_state_bit() const { return buffer_state_bit_; }
@@ -107,10 +125,6 @@ class BufferHubBuffer : public pdx::Client {
   uint32_t format() const { return buffer_.format(); }
   uint32_t usage() const { return buffer_.usage(); }
   uint32_t layer_count() const { return buffer_.layer_count(); }
-
-  // TODO(b/37881101) Clean up producer/consumer usage.
-  uint64_t producer_usage() const { return buffer_.usage(); }
-  uint64_t consumer_usage() const { return buffer_.usage(); }
 
   uint64_t GetQueueIndex() const { return metadata_header_->queue_index; }
   void SetQueueIndex(uint64_t index) { metadata_header_->queue_index = index; }
@@ -218,18 +232,13 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   // succeeded, or a negative errno code if local error check fails.
   int GainAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
 
-  // Attaches the producer to |name| so that it becomes a persistent buffer that
-  // may be retrieved by name at a later time. This may be used in cases where a
-  // shared memory buffer should persist across the life of the producer process
-  // (i.e. the buffer may be held by clients across a service restart). The
-  // buffer may be associated with a user and/or group id to restrict access to
-  // the buffer. If user_id or group_id is -1 then checks for the respective id
-  // are disabled. If user_id or group_id is 0 then the respective id of the
-  // calling process is used instead.
-  int MakePersistent(const std::string& name, int user_id, int group_id);
-
-  // Removes the persistence of the producer.
-  int RemovePersistence();
+  // Detaches a ProducerBuffer from an existing producer/consumer set. Can only
+  // be called when a producer buffer has exclusive access to the buffer (i.e.
+  // in the gain'ed state). On the successful return of the IPC call, a new
+  // LocalChannelHandle representing a detached buffer will be returned and all
+  // existing producer and consumer channels will be closed. Further IPCs
+  // towards those channels will return error.
+  Status<LocalChannelHandle> Detach();
 
  private:
   friend BASE;
@@ -240,44 +249,10 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
 
   // Constructs a buffer with the given geometry and parameters.
   BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                 uint32_t usage, size_t metadata_size = 0);
-  BufferProducer(uint32_t width, uint32_t height, uint32_t format,
-                 uint64_t producer_usage, uint64_t consumer_usage,
-                 size_t metadata_size);
-
-  // Constructs a persistent buffer with the given geometry and parameters and
-  // binds it to |name| in one shot. If a persistent buffer with the same name
-  // and settings already exists and matches the given geometry and parameters,
-  // that buffer is connected to this client instead of creating a new buffer.
-  // If the name matches but the geometry or settings do not match then
-  // construction fails and BufferProducer::Create() returns nullptr.
-  //
-  // Access to the persistent buffer may be restricted by |user_id| and/or
-  // |group_id|; these settings are established only when the buffer is first
-  // created and cannot be changed. A user or group id of -1 disables checks for
-  // that respective id. A user or group id of 0 is substituted with the
-  // effective user or group id of the calling process.
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint32_t width, uint32_t height, uint32_t format,
-                 uint32_t usage, size_t metadata_size = 0);
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint32_t width, uint32_t height, uint32_t format,
-                 uint64_t producer_usage, uint64_t consumer_usage,
-                 size_t user_metadata_size);
+                 uint64_t usage, size_t metadata_size = 0);
 
   // Constructs a blob (flat) buffer with the given usage flags.
-  BufferProducer(uint32_t usage, size_t size);
-  BufferProducer(uint64_t producer_usage, uint64_t consumer_usage, size_t size);
-
-  // Constructs a persistent blob (flat) buffer and binds it to |name|.
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint32_t usage, size_t size);
-  BufferProducer(const std::string& name, int user_id, int group_id,
-                 uint64_t producer_usage, uint64_t consumer_usage, size_t size);
-
-  // Constructs a channel to persistent buffer by name only. The buffer must
-  // have been previously created or made persistent.
-  explicit BufferProducer(const std::string& name);
+  BufferProducer(uint64_t usage, size_t size);
 
   // Imports the given file handle to a producer channel, taking ownership.
   explicit BufferProducer(LocalChannelHandle channel);

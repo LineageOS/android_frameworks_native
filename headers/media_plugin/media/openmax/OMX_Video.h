@@ -89,6 +89,7 @@ typedef enum OMX_VIDEO_CODINGTYPE {
     OMX_VIDEO_CodingVP9,        /**< Google VP9 */
     OMX_VIDEO_CodingHEVC,       /**< ITU H.265/HEVC */
     OMX_VIDEO_CodingDolbyVision,/**< Dolby Vision */
+    OMX_VIDEO_CodingImageHEIC,  /**< HEIF image encoded with HEVC */
     OMX_VIDEO_CodingKhronosExtensions = 0x6F000000, /**< Reserved region for introducing Khronos Standard Extensions */
     OMX_VIDEO_CodingVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_VIDEO_CodingMax = 0x7FFFFFFF
@@ -240,6 +241,7 @@ typedef enum OMX_VIDEO_CONTROLRATETYPE {
     OMX_Video_ControlRateConstant,
     OMX_Video_ControlRateVariableSkipFrames,
     OMX_Video_ControlRateConstantSkipFrames,
+    OMX_Video_ControlRateConstantQuality,
     OMX_Video_ControlRateKhronosExtensions = 0x6F000000, /**< Reserved region for introducing Khronos Standard Extensions */
     OMX_Video_ControlRateVendorStartUnused = 0x7F000000, /**< Reserved region for introducing Vendor Extensions */
     OMX_Video_ControlRateMax = 0x7FFFFFFF
@@ -254,14 +256,20 @@ typedef enum OMX_VIDEO_CONTROLRATETYPE {
  *  nVersion       : OMX spec version info
  *  nPortIndex     : Port that this struct applies to
  *  eControlRate   : Control rate type enum
- *  nTargetBitrate : Target bitrate to encode with
+ *  nTargetBitrate : Target bitrate to encode with (used when eControlRate is
+ *                   not OMX_Video_ControlRateConstantQuality)
+ *  nQualityFactor : Quality to encode with (used when eControlRate is
+ *                   OMX_Video_ControlRateConstantQuality only)
  */
 typedef struct OMX_VIDEO_PARAM_BITRATETYPE {
     OMX_U32 nSize;
     OMX_VERSIONTYPE nVersion;
     OMX_U32 nPortIndex;
     OMX_VIDEO_CONTROLRATETYPE eControlRate;
-    OMX_U32 nTargetBitrate;
+    union {
+        OMX_U32 nTargetBitrate;
+        OMX_U32 nQualityFactor;
+    };
 } OMX_VIDEO_PARAM_BITRATETYPE;
 
 

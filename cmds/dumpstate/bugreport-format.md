@@ -56,8 +56,37 @@ files upon the end user’s request:
 - `description.txt`: whose value is a multi-line, detailed description of the problem.
 
 ## Android O versions
-On _Android O (OhMightyAndroidWhatsYourNextReleaseName?)_, the following changes were made:
-- The ANR traces are added to the `FS` folder, typically under `FS/data/anr` (version `2.0-dev-1`).
+On _Android O (Oreo)_, the following changes were made:
+- The ANR traces are added to the `FS` folder, typically under `FS/data/anr` (version `2.0-dev-split-anr`).
+
+## Version 2.0 (Android P)
+On _Android P_, the following changes were made:
+- Framework services are dumped by priority. Supported priorities can be specified
+  when registering the service. If a service does not specify its priority, its
+  assumed to be NORMAL.
+  Supported priorities:
+    - CRITICAL - services that must dump first, and fast (under 100ms). Ex: cpuinfo.
+    - HIGH - services that also must dump first, but can take longer (under 250ms)
+      to dump. Ex: meminfo.
+    - NORMAL - services that have no rush to dump and can take a long time (under 10s).
+
+  Format changes:
+    - Two additional dumpsys sections are generated. The two new sections can be
+      identified by their HEADER `DUMPSYS CRITICAL` and `DUMPSYS HIGH`.
+    - Services in the new sections will have a new header containing the
+      priority.
+      `DUMP OF SERVICE CRITICAL <servicename>` and
+      `DUMP OF SERVICE HIGH <servicename>`.
+    For example, cpuinfo will now move to `DUMPSYS CRITICAL` and will have a
+    header `DUMP OF SERVICE CRITICAL CPUINFO`.
+
+- Bug report will contain proto dumps from all supporting services. Support can be
+  specified when registering framework services.
+  Format changes:
+    - All protos will be generated into separate files per service, per priority. The files
+      will be stored in `proto/<servicename>(_CRITICAL|_HIGH|).proto`
+
+- ANR trace feature has been pushed to version `3.0-dev-split-anr`
 
 ## Intermediate versions
 During development, the versions will be suffixed with _-devX_ or

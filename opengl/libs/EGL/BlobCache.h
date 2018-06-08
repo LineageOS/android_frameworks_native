@@ -97,6 +97,14 @@ public:
     //
     int unflatten(void const* buffer, size_t size);
 
+protected:
+    // mMaxTotalSize is the maximum size that all cache entries can occupy. This
+    // includes space for both keys and values. When a call to BlobCache::set
+    // would otherwise cause this limit to be exceeded, either the key/value
+    // pair passed to BlobCache::set will not be cached or other cache entries
+    // will be evicted from the cache to make room for the new entry.
+    const size_t mMaxTotalSize;
+
 private:
     // Copying is disallowed.
     BlobCache(const BlobCache&);
@@ -219,13 +227,6 @@ private:
     // BlobCache::set with a valueSize parameter larger than mMaxValueSize will
     // simply not add the key/value pair to the cache.
     const size_t mMaxValueSize;
-
-    // mMaxTotalSize is the maximum size that all cache entries can occupy. This
-    // includes space for both keys and values. When a call to BlobCache::set
-    // would otherwise cause this limit to be exceeded, either the key/value
-    // pair passed to BlobCache::set will not be cached or other cache entries
-    // will be evicted from the cache to make room for the new entry.
-    const size_t mMaxTotalSize;
 
     // mTotalSize is the total combined size of all keys and values currently in
     // the cache.

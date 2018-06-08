@@ -52,17 +52,43 @@ GraphicBufferMapper::GraphicBufferMapper()
 }
 
 status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
+        uint32_t width, uint32_t height, uint32_t layerCount,
+        PixelFormat format, uint64_t usage, uint32_t stride,
         buffer_handle_t* outHandle)
 {
     ATRACE_CALL();
 
+    buffer_handle_t bufferHandle;
     Gralloc2::Error error = mMapper->importBuffer(
-            hardware::hidl_handle(rawHandle), outHandle);
+            hardware::hidl_handle(rawHandle), &bufferHandle);
+    if (error != Gralloc2::Error::NONE) {
+        ALOGW("importBuffer(%p) failed: %d", rawHandle, error);
+        return static_cast<status_t>(error);
+    }
 
-    ALOGW_IF(error != Gralloc2::Error::NONE, "importBuffer(%p) failed: %d",
-            rawHandle, error);
+    Gralloc2::IMapper::BufferDescriptorInfo info = {};
+    info.width = width;
+    info.height = height;
+    info.layerCount = layerCount;
+    info.format = static_cast<Gralloc2::PixelFormat>(format);
+    info.usage = usage;
 
-    return static_cast<status_t>(error);
+    error = mMapper->validateBufferSize(bufferHandle, info, stride);
+    if (error != Gralloc2::Error::NONE) {
+        ALOGE("validateBufferSize(%p) failed: %d", rawHandle, error);
+        freeBuffer(bufferHandle);
+        return static_cast<status_t>(error);
+    }
+
+    *outHandle = bufferHandle;
+
+    return NO_ERROR;
+}
+
+void GraphicBufferMapper::getTransportSize(buffer_handle_t handle,
+            uint32_t* outTransportNumFds, uint32_t* outTransportNumInts)
+{
+    mMapper->getTransportSize(handle, outTransportNumFds, outTransportNumInts);
 }
 
 status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)

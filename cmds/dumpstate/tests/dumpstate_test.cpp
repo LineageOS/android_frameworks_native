@@ -58,6 +58,8 @@ class DumpstateListenerMock : public IDumpstateListener {
   public:
     MOCK_METHOD1(onProgressUpdated, binder::Status(int32_t progress));
     MOCK_METHOD1(onMaxProgressUpdated, binder::Status(int32_t max_progress));
+    MOCK_METHOD4(onSectionComplete, binder::Status(const ::std::string& name, int32_t status,
+                                                   int32_t size, int32_t durationMs));
 
   protected:
     MOCK_METHOD0(onAsBinder, IBinder*());
@@ -601,27 +603,43 @@ class DumpstateServiceTest : public DumpstateBaseTest {
 TEST_F(DumpstateServiceTest, SetListenerNoName) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("", listener, &token).isOk());
+    EXPECT_TRUE(dss.setListener("", listener, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, IsNull());
 }
 
 TEST_F(DumpstateServiceTest, SetListenerNoPointer) {
     sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("whatever", nullptr, &token).isOk());
+    EXPECT_TRUE(
+        dss.setListener("whatever", nullptr, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, IsNull());
 }
 
 TEST_F(DumpstateServiceTest, SetListenerTwice) {
     sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
     sp<IDumpstateToken> token;
-    EXPECT_TRUE(dss.setListener("whatever", listener, &token).isOk());
+    EXPECT_TRUE(
+        dss.setListener("whatever", listener, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, NotNull());
     EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
+    EXPECT_FALSE(Dumpstate::GetInstance().report_section_);
 
     token.clear();
-    EXPECT_TRUE(dss.setListener("whatsoever", listener, &token).isOk());
+    EXPECT_TRUE(
+        dss.setListener("whatsoever", listener, /* getSectionDetails = */ false, &token).isOk());
     ASSERT_THAT(token, IsNull());
     EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
+    EXPECT_FALSE(Dumpstate::GetInstance().report_section_);
+}
+
+TEST_F(DumpstateServiceTest, SetListenerWithSectionDetails) {
+    sp<DumpstateListenerMock> listener(new DumpstateListenerMock());
+    sp<IDumpstateToken> token;
+    Dumpstate::GetInstance().listener_ = nullptr;
+    EXPECT_TRUE(
+        dss.setListener("whatever", listener, /* getSectionDetails = */ true, &token).isOk());
+    ASSERT_THAT(token, NotNull());
+    EXPECT_THAT(Dumpstate::GetInstance().listener_name_, StrEq("whatever"));
+    EXPECT_TRUE(Dumpstate::GetInstance().report_section_);
 }
 
 class ProgressTest : public DumpstateBaseTest {
@@ -1001,7 +1019,7 @@ TEST_F(DumpstateUtilTest, RunCommandCrashes) {
         err, StartsWith("stderr\n*** command '" + kSimpleCommand + " --crash' failed: exit code"));
 }
 
-TEST_F(DumpstateUtilTest, RunCommandTimesout) {
+TEST_F(DumpstateUtilTest, RunCommandTimesoutWithSec) {
     CreateFd("RunCommandTimesout.txt");
     EXPECT_EQ(-1, RunCommand("", {kSimpleCommand, "--sleep", "2"},
                              CommandOptions::WithTimeout(1).Build()));
@@ -1010,6 +1028,17 @@ TEST_F(DumpstateUtilTest, RunCommandTimesout) {
     EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + kSimpleCommand +
                                 " --sleep 2' timed out after 1"));
 }
+
+TEST_F(DumpstateUtilTest, RunCommandTimesoutWithMsec) {
+    CreateFd("RunCommandTimesout.txt");
+    EXPECT_EQ(-1, RunCommand("", {kSimpleCommand, "--sleep", "2"},
+                             CommandOptions::WithTimeoutInMs(1000).Build()));
+    EXPECT_THAT(out, StartsWith("stdout line1\n*** command '" + kSimpleCommand +
+                                " --sleep 2' timed out after 1"));
+    EXPECT_THAT(err, StartsWith("sleeping for 2s\n*** command '" + kSimpleCommand +
+                                " --sleep 2' timed out after 1"));
+}
+
 
 TEST_F(DumpstateUtilTest, RunCommandIsKilled) {
     CreateFd("RunCommandIsKilled.txt");
