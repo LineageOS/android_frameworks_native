@@ -86,7 +86,7 @@ void SurfaceControl::clear()
 }
 
 void SurfaceControl::disconnect() {
-    if (mGraphicBufferProducer != NULL) {
+    if (mGraphicBufferProducer != nullptr) {
         mGraphicBufferProducer->disconnect(
                 BufferQueueCore::CURRENTLY_CONNECTED_API);
     }
@@ -95,7 +95,7 @@ void SurfaceControl::disconnect() {
 bool SurfaceControl::isSameSurface(
         const sp<SurfaceControl>& lhs, const sp<SurfaceControl>& rhs)
 {
-    if (lhs == 0 || rhs == 0)
+    if (lhs == nullptr || rhs == nullptr)
         return false;
     return lhs->mHandle == rhs->mHandle;
 }
@@ -116,7 +116,7 @@ status_t SurfaceControl::getLayerFrameStats(FrameStats* outStats) const {
 
 status_t SurfaceControl::validate() const
 {
-    if (mHandle==0 || mClient==0) {
+    if (mHandle==nullptr || mClient==nullptr) {
         ALOGE("invalid handle (%p) or client (%p)",
                 mHandle.get(), mClient.get());
         return NO_INIT;
@@ -128,7 +128,7 @@ status_t SurfaceControl::writeSurfaceToParcel(
         const sp<SurfaceControl>& control, Parcel* parcel)
 {
     sp<IGraphicBufferProducer> bp;
-    if (control != NULL) {
+    if (control != nullptr) {
         bp = control->mGraphicBufferProducer;
     }
     return parcel->writeStrongBinder(IInterface::asBinder(bp));
@@ -146,7 +146,7 @@ sp<Surface> SurfaceControl::generateSurfaceLocked() const
 sp<Surface> SurfaceControl::getSurface() const
 {
     Mutex::Autolock _l(mLock);
-    if (mSurfaceData == 0) {
+    if (mSurfaceData == nullptr) {
         return generateSurfaceLocked();
     }
     return mSurfaceData;

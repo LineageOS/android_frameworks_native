@@ -150,8 +150,11 @@ bool RenderEngine::overrideUseContextPriorityFromConfig(bool useContextPriority)
     }
 }
 
-RenderEngine::RenderEngine()
-      : mEGLDisplay(EGL_NO_DISPLAY), mEGLConfig(nullptr), mEGLContext(EGL_NO_CONTEXT) {}
+RenderEngine::RenderEngine(uint32_t featureFlags)
+      : mEGLDisplay(EGL_NO_DISPLAY),
+        mEGLConfig(nullptr),
+        mEGLContext(EGL_NO_CONTEXT),
+        mFeatureFlags(featureFlags) {}
 
 RenderEngine::~RenderEngine() {
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
@@ -427,6 +430,12 @@ void RenderEngine::unbindNativeBufferAsFrameBuffer(RE::BindNativeBufferAsFramebu
     // back to main framebuffer
     unbindFramebuffer(bindHelper->mTexName, bindHelper->mFbName);
     eglDestroyImageKHR(mEGLDisplay, bindHelper->mImage);
+
+    // Workaround for b/77935566 to force the EGL driver to release the
+    // screenshot buffer
+    setScissor(0, 0, 0, 0);
+    clearWithColor(0.0, 0.0, 0.0, 0.0);
+    disableScissor();
 }
 
 // ---------------------------------------------------------------------------
@@ -582,9 +591,7 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format, bool log
 }
 
 void RenderEngine::primeCache() const {
-    // Getting the ProgramCache instance causes it to prime its shader cache,
-    // which is performed in its constructor
-    ProgramCache::getInstance();
+    ProgramCache::getInstance().primeCache(mFeatureFlags & WIDE_COLOR_SUPPORT);
 }
 
 // ---------------------------------------------------------------------------

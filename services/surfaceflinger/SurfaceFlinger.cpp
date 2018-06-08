@@ -1857,9 +1857,9 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     Dataspace hdrDataSpace;
     Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace);
 
-    // respect hdrDataSpace only when there is modern HDR support
+    // respect hdrDataSpace only when there is no legacy HDR support
     const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
-        display->hasModernHdrSupport(hdrDataSpace);
+        !display->hasLegacyHdrSupport(hdrDataSpace);
     if (isHdr) {
         bestDataSpace = hdrDataSpace;
     }
@@ -1950,14 +1950,15 @@ void SurfaceFlinger::setUpHWComposer() {
                      displayId, result);
         }
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
-                 layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                !display->hasHDR10Support()) {
+            if (layer->isHdrY410()) {
                 layer->forceClientComposition(displayId);
-            }
-            if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
-                 layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                !display->hasHLGSupport()) {
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
+                    !display->hasHDR10Support()) {
+                layer->forceClientComposition(displayId);
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
+                    !display->hasHLGSupport()) {
                 layer->forceClientComposition(displayId);
             }
 
@@ -4617,6 +4618,12 @@ status_t SurfaceFlinger::onTransact(
                                 display->hasRenderIntent(static_cast<RenderIntent>(setting)));
                         break;
                 }
+                return NO_ERROR;
+            }
+            // Is VrFlinger active?
+            case 1028: {
+                Mutex::Autolock _l(mStateLock);
+                reply->writeBool(getBE().mHwc->isUsingVrComposer());
                 return NO_ERROR;
             }
         }

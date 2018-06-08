@@ -315,6 +315,8 @@ protected:
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
+    virtual bool isHdrY410() const { return false; }
+
     void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
     void forceClientComposition(int32_t displayId);
     bool getForceClientComposition(int32_t displayId);

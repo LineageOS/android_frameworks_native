@@ -291,7 +291,7 @@ status_t GLConsumer::releaseTexImage() {
             return err;
         }
 
-        if (mReleasedTexImage == NULL) {
+        if (mReleasedTexImage == nullptr) {
             mReleasedTexImage = new EglImage(getDebugTexImageBuffer());
         }
 
@@ -321,7 +321,7 @@ status_t GLConsumer::releaseTexImage() {
 
 sp<GraphicBuffer> GLConsumer::getDebugTexImageBuffer() {
     Mutex::Autolock _l(sStaticInitLock);
-    if (CC_UNLIKELY(sReleasedTexImageBuffer == NULL)) {
+    if (CC_UNLIKELY(sReleasedTexImageBuffer == nullptr)) {
         // The first time, create the debug texture in case the application
         // continues to use it.
         sp<GraphicBuffer> buffer = new GraphicBuffer(
@@ -357,7 +357,7 @@ status_t GLConsumer::acquireBufferLocked(BufferItem *item,
     // If item->mGraphicBuffer is not null, this buffer has not been acquired
     // before, so any prior EglImage created is using a stale buffer. This
     // replaces any old EglImage with a new one (using the new buffer).
-    if (item->mGraphicBuffer != NULL) {
+    if (item->mGraphicBuffer != nullptr) {
         int slot = item->mSlot;
         mEglSlots[slot].mEglImage = new EglImage(item->mGraphicBuffer);
     }
@@ -431,7 +431,7 @@ status_t GLConsumer::updateAndReleaseLocked(const BufferItem& item,
 
     GLC_LOGV("updateAndRelease: (slot=%d buf=%p) -> (slot=%d buf=%p)",
             mCurrentTexture, mCurrentTextureImage != NULL ?
-                    mCurrentTextureImage->graphicBufferHandle() : 0,
+                    mCurrentTextureImage->graphicBufferHandle() : nullptr,
             slot, mSlots[slot].mGraphicBuffer->handle);
 
     // Hang onto the pointer so that it isn't freed in the call to
@@ -491,7 +491,7 @@ status_t GLConsumer::bindTextureImageLocked() {
 
     glBindTexture(mTexTarget, mTexName);
     if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT &&
-            mCurrentTextureImage == NULL) {
+            mCurrentTextureImage == nullptr) {
         GLC_LOGE("bindTextureImage: no currently-bound texture");
         return NO_INIT;
     }
@@ -655,7 +655,7 @@ status_t GLConsumer::attachToContext(uint32_t tex) {
     mTexName = tex;
     mAttached = true;
 
-    if (mCurrentTextureImage != NULL) {
+    if (mCurrentTextureImage != nullptr) {
         // This may wait for a buffer a second time. This is likely required if
         // this is a different context, since otherwise the wait could be skipped
         // by bouncing through another context. For the same context the extra
@@ -676,7 +676,7 @@ status_t GLConsumer::syncForReleaseLocked(EGLDisplay dpy) {
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
         if (SyncFeatures::getInstance().useNativeFenceSync()) {
             EGLSyncKHR sync = eglCreateSyncKHR(dpy,
-                    EGL_SYNC_NATIVE_FENCE_ANDROID, NULL);
+                    EGL_SYNC_NATIVE_FENCE_ANDROID, nullptr);
             if (sync == EGL_NO_SYNC_KHR) {
                 GLC_LOGE("syncForReleaseLocked: error creating EGL fence: %#x",
                         eglGetError());
@@ -720,7 +720,7 @@ status_t GLConsumer::syncForReleaseLocked(EGLDisplay dpy) {
 
             // Create a fence for the outstanding accesses in the current
             // OpenGL ES context.
-            fence = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
+            fence = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, nullptr);
             if (fence == EGL_NO_SYNC_KHR) {
                 GLC_LOGE("syncForReleaseLocked: error creating fence: %#x",
                         eglGetError());
@@ -752,11 +752,11 @@ void GLConsumer::setFilteringEnabled(bool enabled) {
     bool needsRecompute = mFilteringEnabled != enabled;
     mFilteringEnabled = enabled;
 
-    if (needsRecompute && mCurrentTextureImage==NULL) {
+    if (needsRecompute && mCurrentTextureImage==nullptr) {
         GLC_LOGD("setFilteringEnabled called with mCurrentTextureImage == NULL");
     }
 
-    if (needsRecompute && mCurrentTextureImage != NULL) {
+    if (needsRecompute && mCurrentTextureImage != nullptr) {
         computeCurrentTransformMatrixLocked();
     }
 }
@@ -938,7 +938,7 @@ sp<GraphicBuffer> GLConsumer::getCurrentBuffer(int* outSlot) const {
     }
 
     return (mCurrentTextureImage == nullptr) ?
-            NULL : mCurrentTextureImage->graphicBuffer();
+            nullptr : mCurrentTextureImage->graphicBuffer();
 }
 
 Rect GLConsumer::getCurrentCrop() const {
@@ -1150,7 +1150,7 @@ EGLImageKHR GLConsumer::EglImage::createImage(EGLDisplay dpy,
         attrs[3] = attrs[11];
         attrs[4] = EGL_NONE;
     }
-    eglInitialize(dpy, 0, 0);
+    eglInitialize(dpy, nullptr, nullptr);
     EGLImageKHR image = eglCreateImageKHR(dpy, EGL_NO_CONTEXT,
             EGL_NATIVE_BUFFER_ANDROID, cbuf, attrs);
     if (image == EGL_NO_IMAGE_KHR) {
