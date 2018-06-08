@@ -70,19 +70,20 @@ TEST_F(InputPublisherAndConsumerTest, GetChannel_ReturnsTheChannel) {
 void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     status_t status;
 
-    const uint32_t seq = 15;
-    const int32_t deviceId = 1;
-    const int32_t source = AINPUT_SOURCE_KEYBOARD;
-    const int32_t action = AKEY_EVENT_ACTION_DOWN;
-    const int32_t flags = AKEY_EVENT_FLAG_FROM_SYSTEM;
-    const int32_t keyCode = AKEYCODE_ENTER;
-    const int32_t scanCode = 13;
-    const int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
-    const int32_t repeatCount = 1;
-    const nsecs_t downTime = 3;
-    const nsecs_t eventTime = 4;
+    constexpr uint32_t seq = 15;
+    constexpr int32_t deviceId = 1;
+    constexpr int32_t source = AINPUT_SOURCE_KEYBOARD;
+    constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
+    constexpr int32_t action = AKEY_EVENT_ACTION_DOWN;
+    constexpr int32_t flags = AKEY_EVENT_FLAG_FROM_SYSTEM;
+    constexpr int32_t keyCode = AKEYCODE_ENTER;
+    constexpr int32_t scanCode = 13;
+    constexpr int32_t metaState = AMETA_ALT_LEFT_ON | AMETA_ALT_ON;
+    constexpr int32_t repeatCount = 1;
+    constexpr nsecs_t downTime = 3;
+    constexpr nsecs_t eventTime = 4;
 
-    status = mPublisher->publishKeyEvent(seq, deviceId, source, action, flags,
+    status = mPublisher->publishKeyEvent(seq, deviceId, source, displayId, action, flags,
             keyCode, scanCode, metaState, repeatCount, downTime, eventTime);
     ASSERT_EQ(OK, status)
             << "publisher publishKeyEvent should return OK";
@@ -102,6 +103,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     EXPECT_EQ(seq, consumeSeq);
     EXPECT_EQ(deviceId, keyEvent->getDeviceId());
     EXPECT_EQ(source, keyEvent->getSource());
+    EXPECT_EQ(displayId, keyEvent->getDisplayId());
     EXPECT_EQ(action, keyEvent->getAction());
     EXPECT_EQ(flags, keyEvent->getFlags());
     EXPECT_EQ(keyCode, keyEvent->getKeyCode());
@@ -132,7 +134,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     constexpr uint32_t seq = 15;
     constexpr int32_t deviceId = 1;
     constexpr int32_t source = AINPUT_SOURCE_TOUCHSCREEN;
-    constexpr int32_t displayId = 0;
+    constexpr int32_t displayId = ADISPLAY_ID_DEFAULT;
     constexpr int32_t action = AMOTION_EVENT_ACTION_MOVE;
     constexpr int32_t actionButton = 0;
     constexpr int32_t flags = AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED;

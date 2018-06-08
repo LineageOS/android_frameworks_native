@@ -181,13 +181,14 @@ TEST_F(KeyEventTest, Properties) {
     // Initialize and get properties.
     const nsecs_t ARBITRARY_DOWN_TIME = 1;
     const nsecs_t ARBITRARY_EVENT_TIME = 2;
-    event.initialize(2, AINPUT_SOURCE_GAMEPAD, AKEY_EVENT_ACTION_DOWN,
+    event.initialize(2, AINPUT_SOURCE_GAMEPAD, DISPLAY_ID, AKEY_EVENT_ACTION_DOWN,
             AKEY_EVENT_FLAG_FROM_SYSTEM, AKEYCODE_BUTTON_X, 121,
             AMETA_ALT_ON, 1, ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME);
 
     ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event.getType());
     ASSERT_EQ(2, event.getDeviceId());
     ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_GAMEPAD), event.getSource());
+    ASSERT_EQ(DISPLAY_ID, event.getDisplayId());
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, event.getAction());
     ASSERT_EQ(AKEY_EVENT_FLAG_FROM_SYSTEM, event.getFlags());
     ASSERT_EQ(AKEYCODE_BUTTON_X, event.getKeyCode());
@@ -200,6 +201,11 @@ TEST_F(KeyEventTest, Properties) {
     // Set source.
     event.setSource(AINPUT_SOURCE_JOYSTICK);
     ASSERT_EQ(static_cast<int>(AINPUT_SOURCE_JOYSTICK), event.getSource());
+
+    // Set display id.
+    constexpr int32_t newDisplayId = 2;
+    event.setDisplayId(newDisplayId);
+    ASSERT_EQ(newDisplayId, event.getDisplayId());
 }
 
 

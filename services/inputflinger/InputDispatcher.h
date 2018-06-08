@@ -474,6 +474,7 @@ private:
     struct KeyEntry : EventEntry {
         int32_t deviceId;
         uint32_t source;
+        int32_t displayId;
         int32_t action;
         int32_t flags;
         int32_t keyCode;
@@ -494,8 +495,8 @@ private:
         nsecs_t interceptKeyWakeupTime; // used with INTERCEPT_KEY_RESULT_TRY_AGAIN_LATER
 
         KeyEntry(nsecs_t eventTime,
-                int32_t deviceId, uint32_t source, uint32_t policyFlags, int32_t action,
-                int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
+                int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags,
+                int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
                 int32_t repeatCount, nsecs_t downTime);
         virtual void appendDescription(std::string& msg) const;
         void recycle();
@@ -753,6 +754,7 @@ private:
         struct KeyMemento {
             int32_t deviceId;
             uint32_t source;
+            int32_t displayId;
             int32_t keyCode;
             int32_t scanCode;
             int32_t metaState;

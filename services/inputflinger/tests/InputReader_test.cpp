@@ -1996,6 +1996,64 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     ASSERT_EQ(AKEYCODE_DPAD_RIGHT, args.keyCode);
 }
 
+TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_NotOrientationAware) {
+    // If the keyboard is not orientation aware,
+    // key events should not be associated with a specific display id
+    mFakeEventHub->addKey(DEVICE_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
+
+    KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice,
+            AINPUT_SOURCE_KEYBOARD, AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    addMapperAndConfigure(mapper);
+    NotifyKeyArgs args;
+
+    // Display id should be ADISPLAY_ID_NONE without any display configuration.
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(ADISPLAY_ID_NONE, args.displayId);
+
+    setDisplayInfoAndReconfigure(DISPLAY_ID,
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(ADISPLAY_ID_NONE, args.displayId);
+}
+
+TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
+    // If the keyboard is orientation aware,
+    // key events should be associated with the internal viewport
+    mFakeEventHub->addKey(DEVICE_ID, KEY_UP, 0, AKEYCODE_DPAD_UP, 0);
+
+    KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice,
+            AINPUT_SOURCE_KEYBOARD, AINPUT_KEYBOARD_TYPE_ALPHABETIC);
+    addConfigurationProperty("keyboard.orientationAware", "1");
+    addMapperAndConfigure(mapper);
+    NotifyKeyArgs args;
+
+    // Display id should be ADISPLAY_ID_NONE without any display configuration.
+    // ^--- already checked by the previous test
+
+    setDisplayInfoAndReconfigure(DISPLAY_ID,
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(DISPLAY_ID, args.displayId);
+
+    constexpr int32_t newDisplayId = 2;
+    setDisplayInfoAndReconfigure(newDisplayId,
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
+    ASSERT_EQ(newDisplayId, args.displayId);
+}
+
 TEST_F(KeyboardInputMapperTest, GetKeyCodeState) {
     KeyboardInputMapper* mapper = new KeyboardInputMapper(mDevice,
             AINPUT_SOURCE_KEYBOARD, AINPUT_KEYBOARD_TYPE_ALPHABETIC);

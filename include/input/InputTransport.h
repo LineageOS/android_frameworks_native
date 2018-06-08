@@ -64,6 +64,7 @@ struct InputMessage {
             nsecs_t eventTime __attribute__((aligned(8)));
             int32_t deviceId;
             int32_t source;
+            int32_t displayId;
             int32_t action;
             int32_t flags;
             int32_t keyCode;
@@ -211,6 +212,7 @@ public:
             uint32_t seq,
             int32_t deviceId,
             int32_t source,
+            int32_t displayId,
             int32_t action,
             int32_t flags,
             int32_t keyCode,
