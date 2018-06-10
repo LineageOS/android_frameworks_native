@@ -1,7 +1,6 @@
 // Build the unit tests.
 cc_test {
     name: "libinput_tests",
-    test_per_src: true,
     srcs: [
         "InputChannel_test.cpp",
         "InputEvent_test.cpp",
