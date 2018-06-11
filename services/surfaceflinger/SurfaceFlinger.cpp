@@ -3198,53 +3198,51 @@ void SurfaceFlinger::setTransactionState(
     }
 }
 
-uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s)
-{
-    ssize_t dpyIdx = mCurrentState.displays.indexOfKey(s.token);
-    if (dpyIdx < 0)
-        return 0;
+uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s) {
+    const ssize_t index = mCurrentState.displays.indexOfKey(s.token);
+    if (index < 0) return 0;
 
     uint32_t flags = 0;
-    DisplayDeviceState& disp(mCurrentState.displays.editValueAt(dpyIdx));
-    if (disp.isValid()) {
-        const uint32_t what = s.what;
-        if (what & DisplayState::eSurfaceChanged) {
-            if (IInterface::asBinder(disp.surface) != IInterface::asBinder(s.surface)) {
-                disp.surface = s.surface;
-                flags |= eDisplayTransactionNeeded;
-            }
-        }
-        if (what & DisplayState::eLayerStackChanged) {
-            if (disp.layerStack != s.layerStack) {
-                disp.layerStack = s.layerStack;
-                flags |= eDisplayTransactionNeeded;
-            }
-        }
-        if (what & DisplayState::eDisplayProjectionChanged) {
-            if (disp.orientation != s.orientation) {
-                disp.orientation = s.orientation;
-                flags |= eDisplayTransactionNeeded;
-            }
-            if (disp.frame != s.frame) {
-                disp.frame = s.frame;
-                flags |= eDisplayTransactionNeeded;
-            }
-            if (disp.viewport != s.viewport) {
-                disp.viewport = s.viewport;
-                flags |= eDisplayTransactionNeeded;
-            }
-        }
-        if (what & DisplayState::eDisplaySizeChanged) {
-            if (disp.width != s.width) {
-                disp.width = s.width;
-                flags |= eDisplayTransactionNeeded;
-            }
-            if (disp.height != s.height) {
-                disp.height = s.height;
-                flags |= eDisplayTransactionNeeded;
-            }
+    DisplayDeviceState& state = mCurrentState.displays.editValueAt(index);
+
+    const uint32_t what = s.what;
+    if (what & DisplayState::eSurfaceChanged) {
+        if (IInterface::asBinder(state.surface) != IInterface::asBinder(s.surface)) {
+            state.surface = s.surface;
+            flags |= eDisplayTransactionNeeded;
         }
     }
+    if (what & DisplayState::eLayerStackChanged) {
+        if (state.layerStack != s.layerStack) {
+            state.layerStack = s.layerStack;
+            flags |= eDisplayTransactionNeeded;
+        }
+    }
+    if (what & DisplayState::eDisplayProjectionChanged) {
+        if (state.orientation != s.orientation) {
+            state.orientation = s.orientation;
+            flags |= eDisplayTransactionNeeded;
+        }
+        if (state.frame != s.frame) {
+            state.frame = s.frame;
+            flags |= eDisplayTransactionNeeded;
+        }
+        if (state.viewport != s.viewport) {
+            state.viewport = s.viewport;
+            flags |= eDisplayTransactionNeeded;
+        }
+    }
+    if (what & DisplayState::eDisplaySizeChanged) {
+        if (state.width != s.width) {
+            state.width = s.width;
+            flags |= eDisplayTransactionNeeded;
+        }
+        if (state.height != s.height) {
+            state.height = s.height;
+            flags |= eDisplayTransactionNeeded;
+        }
+    }
+
     return flags;
 }
 

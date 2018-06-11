@@ -245,6 +245,8 @@ struct DisplayVariant {
 
     // The type for this display
     static constexpr DisplayDevice::DisplayType TYPE = type;
+    static_assert(TYPE != DisplayDevice::DISPLAY_ID_INVALID);
+
     static constexpr DisplayDevice::DisplayType DISPLAY_ID = displayId;
 
     // When creating native window surfaces for the framebuffer, whether those should be critical
@@ -384,11 +386,6 @@ struct PhysicalDisplayVariant
         public HwcDisplayVariant<hwcDisplayId, HWC2::DisplayType::Physical,
                                  DisplayVariant<type, type, width, height, critical, Async::FALSE,
                                                 Secure::TRUE, GRALLOC_USAGE_PHYSICAL_DISPLAY>> {};
-
-// An invalid display
-using InvalidDisplayVariant =
-        DisplayVariant<DisplayDevice::DISPLAY_ID_INVALID, DisplayDevice::DISPLAY_ID_INVALID, 0, 0,
-                       Critical::FALSE, Async::FALSE, Secure::FALSE, 0>;
 
 // A primary display is a physical display that is critical
 using PrimaryDisplayVariant =
@@ -686,9 +683,7 @@ using HdrCta861_3_DisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
              HdrNotSupportedVariant<PrimaryDisplayVariant>,
              Cta861_3_PerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
-using InvalidDisplayCase = Case<InvalidDisplayVariant, WideColorSupportNotConfiguredVariant,
-                                NonHwcDisplayHdrSupportVariant,
-                                NoPerFrameMetadataSupportVariant<InvalidDisplayVariant>>;
+
 /* ------------------------------------------------------------------------
  *
  * SurfaceFlinger::onHotplugReceived
@@ -1832,40 +1827,6 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWithUnknownDispla
 
     // The display token still doesn't match anything known.
     EXPECT_FALSE(hasCurrentDisplayState(displayToken));
-}
-
-TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWithInvalidDisplay) {
-    using Case = InvalidDisplayCase;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // An invalid display is set up
-    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
-    display.inject();
-
-    // The invalid display has some state
-    display.mutableCurrentDisplayState().layerStack = 654u;
-
-    // The requested display state tries to change the display state.
-    DisplayState state;
-    state.what = DisplayState::eLayerStackChanged;
-    state.token = display.token();
-    state.layerStack = 456;
-
-    // --------------------------------------------------------------------
-    // Invocation
-
-    uint32_t flags = mFlinger.setDisplayStateLocked(state);
-
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // The returned flags are empty
-    EXPECT_EQ(0u, flags);
-
-    // The current display layer stack value is unchanged.
-    EXPECT_EQ(654u, getCurrentDisplayState(display.token()).layerStack);
 }
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWhenNoChanges) {
