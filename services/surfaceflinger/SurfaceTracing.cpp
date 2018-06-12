@@ -58,7 +58,9 @@ bool SurfaceTracing::isEnabled() {
 
 void SurfaceTracing::traceLayers(const char* where, LayersProto layers) {
     std::lock_guard<std::mutex> protoGuard(mTraceMutex);
-
+    if (!mEnabled) {
+        return;
+    }
     LayersTraceProto* entry = mTrace.add_entry();
     entry->set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry->set_where(where);
