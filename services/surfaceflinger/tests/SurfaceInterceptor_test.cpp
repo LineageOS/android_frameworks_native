@@ -48,7 +48,10 @@ constexpr float POSITION_UPDATE = 121;
 const Rect CROP_UPDATE(16, 16, 32, 32);
 
 const String8 DISPLAY_NAME("SurfaceInterceptor Display Test");
+constexpr auto TEST_SURFACE_NAME = "BG Interceptor Test Surface";
+constexpr auto UNIQUE_TEST_SURFACE_NAME = "BG Interceptor Test Surface#0";
 constexpr auto LAYER_NAME = "Layer Create and Delete Test";
+constexpr auto UNIQUE_LAYER_NAME = "Layer Create and Delete Test#0";
 
 constexpr auto DEFAULT_FILENAME = "/data/SurfaceTrace.dat";
 
@@ -146,11 +149,11 @@ protected:
 
         // Background surface
         mBGSurfaceControl = mComposerClient->createSurface(
-                String8("BG Interceptor Test Surface"), displayWidth, displayHeight,
+                String8(TEST_SURFACE_NAME), displayWidth, displayHeight,
                 PIXEL_FORMAT_RGBA_8888, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
-        mBGLayerId = getSurfaceId("BG Interceptor Test Surface");
+        mBGLayerId = getSurfaceId(UNIQUE_TEST_SURFACE_NAME);
 
         Transaction t;
         t.setDisplayLayerStack(display, 0);
@@ -338,8 +341,8 @@ void SurfaceInterceptorTest::displayCreation(Transaction&) {
 
 void SurfaceInterceptorTest::displayDeletion(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
-    mTargetId = getDisplayId(DISPLAY_NAME.string());
     SurfaceComposerClient::destroyDisplay(testDisplay);
+    mTargetId = getDisplayId(DISPLAY_NAME.string());
 }
 
 void SurfaceInterceptorTest::runAllUpdates() {
@@ -455,8 +458,8 @@ bool SurfaceInterceptorTest::finalCropUpdateFound(const SurfaceChange& change,
 bool SurfaceInterceptorTest::matrixUpdateFound(const SurfaceChange& change, bool foundMatrix) {
     bool hasSx((float)change.matrix().dsdx() == (float)M_SQRT1_2);
     bool hasTx((float)change.matrix().dtdx() == (float)M_SQRT1_2);
-    bool hasSy((float)change.matrix().dsdy() == (float)-M_SQRT1_2);
-    bool hasTy((float)change.matrix().dtdy() == (float)M_SQRT1_2);
+    bool hasSy((float)change.matrix().dsdy() == (float)M_SQRT1_2);
+    bool hasTy((float)change.matrix().dtdy() == (float)-M_SQRT1_2);
     if (hasSx && hasTx && hasSy && hasTy && !foundMatrix) {
         foundMatrix = true;
     }
@@ -642,7 +645,7 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(Trace* trace) {
 }
 
 bool SurfaceInterceptorTest::surfaceCreationFound(const Increment& increment, bool foundSurface) {
-    bool isMatch(increment.surface_creation().name() == LAYER_NAME &&
+    bool isMatch(increment.surface_creation().name() == UNIQUE_LAYER_NAME &&
             increment.surface_creation().w() == SIZE_UPDATE &&
             increment.surface_creation().h() == SIZE_UPDATE);
     if (isMatch && !foundSurface) {
@@ -810,7 +813,7 @@ TEST_F(SurfaceInterceptorTest, InterceptSurfaceCreationWorks) {
 TEST_F(SurfaceInterceptorTest, InterceptSurfaceDeletionWorks) {
     sp<SurfaceControl> layerToDelete = mComposerClient->createSurface(String8(LAYER_NAME),
             SIZE_UPDATE, SIZE_UPDATE, PIXEL_FORMAT_RGBA_8888, 0);
-    this->mTargetId = getSurfaceId(LAYER_NAME);
+    this->mTargetId = getSurfaceId(UNIQUE_LAYER_NAME);
     enableInterceptor();
     mComposerClient->destroySurface(layerToDelete->getHandle());
     disableInterceptor();
@@ -831,7 +834,9 @@ TEST_F(SurfaceInterceptorTest, InterceptDisplayDeletionWorks) {
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptBufferUpdateWorks) {
+    enableInterceptor();
     nBufferUpdates();
+    disableInterceptor();
     Trace capturedTrace;
     ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
     ASSERT_TRUE(bufferUpdatesFound(&capturedTrace));
