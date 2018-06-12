@@ -17,13 +17,8 @@ cc_library_headers {
     export_include_dirs: ["include"],
 }
 
-cc_library_shared {
-    name: "libgui",
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
-
+cc_defaults {
+    name: "libgui_defaults",
     clang: true,
     cflags: [
         "-Wall",
@@ -181,6 +176,21 @@ cc_library_shared {
     export_include_dirs: [
         "include",
     ],
+}
+
+cc_library_shared {
+    name: "libgui",
+    vendor_available: false,
+    vndk: {
+        enabled: true,
+    },
+    defaults: ["libgui_defaults"]
+}
+
+cc_library_shared {
+    name: "libgui_vendor",
+    vendor: true,
+    defaults: ["libgui_defaults"]
 }
 
 subdirs = ["tests"]
