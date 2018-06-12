@@ -30,12 +30,9 @@ cc_library_headers {
     min_sdk_version: "29",
 }
 
-cc_library_shared {
-    name: "libgui",
-    vendor_available: false,
-    vndk: {
-        enabled: true,
-    },
+cc_defaults {
+    name: "libgui_defaults",
+
     double_loadable: true,
 
     defaults: ["libgui_bufferqueue-defaults"],
@@ -262,6 +259,22 @@ cc_library_static {
         "mock/GraphicBufferConsumer.cpp",
         "mock/GraphicBufferProducer.cpp",
     ],
+}
+
+cc_library_shared {
+    name: "libgui",
+    vendor_available: false,
+    vndk: {
+        enabled: true,
+    },
+    double_loadable: true,
+    defaults: ["libgui_defaults"]
+}
+
+cc_library_shared {
+    name: "libgui_vendor",
+    vendor: true,
+    defaults: ["libgui_defaults"]
 }
 
 subdirs = ["tests"]
