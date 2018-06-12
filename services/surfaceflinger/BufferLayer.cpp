@@ -326,7 +326,7 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     if (presentFence->isValid()) {
         mTimeStats.setPresentFence(layerName, mCurrentFrameNumber, presentFence);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
-    } else {
+    } else if (mFlinger->getHwComposer().isConnected(HWC_DISPLAY_PRIMARY)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime =
@@ -706,7 +706,9 @@ void BufferLayer::onFirstRef() {
         mProducer->setMaxDequeuedBufferCount(2);
     }
 
-    updateTransformHint(mFlinger->getDefaultDisplayDevice());
+    if (const auto display = mFlinger->getDefaultDisplayDevice()) {
+        updateTransformHint(display);
+    }
 }
 
 // ---------------------------------------------------------------------------

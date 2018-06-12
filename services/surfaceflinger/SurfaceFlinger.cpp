@@ -668,12 +668,14 @@ void SurfaceFlinger::init() {
     getBE().mHwc->registerCallback(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
-    LOG_ALWAYS_FATAL_IF(!getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY),
-            "Registered composer callback but didn't create the default primary display");
+    const auto display = getDefaultDisplayDeviceLocked();
+    LOG_ALWAYS_FATAL_IF(!display, "Missing internal display after registering composer callback.");
+    LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(display->getId()),
+                        "Internal display is disconnected.");
 
     // make the default display GLContext current so that we can create textures
     // when creating Layers (which may happens before we render something)
-    getDefaultDisplayDeviceLocked()->makeCurrent();
+    display->makeCurrent();
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this](bool requestDisplay) {
@@ -689,9 +691,11 @@ void SurfaceFlinger::init() {
                 signalTransaction();
             }));
         };
-        mVrFlinger = dvr::VrFlinger::Create(getBE().mHwc->getComposer(),
-                getBE().mHwc->getHwcDisplayId(HWC_DISPLAY_PRIMARY).value_or(0),
-                vrFlingerRequestDisplayCallback);
+        mVrFlinger = dvr::VrFlinger::Create(getHwComposer().getComposer(),
+                                            getHwComposer()
+                                                    .getHwcDisplayId(display->getId())
+                                                    .value_or(0),
+                                            vrFlingerRequestDisplayCallback);
         if (!mVrFlinger) {
             ALOGE("Failed to start vrflinger");
         }
@@ -720,8 +724,8 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    mLegacySrgbSaturationMatrix = getBE().mHwc->getDataspaceSaturationMatrix(HWC_DISPLAY_PRIMARY,
-            Dataspace::SRGB_LINEAR);
+    mLegacySrgbSaturationMatrix =
+            getHwComposer().getDataspaceSaturationMatrix(display->getId(), Dataspace::SRGB_LINEAR);
 
     ALOGV("Done initializing");
 }
@@ -1207,7 +1211,6 @@ void SurfaceFlinger::enableHardwareVsync() {
     Mutex::Autolock _l(mHWVsyncLock);
     if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
         mPrimaryDispSync.beginResync();
-        //eventControl(HWC_DISPLAY_PRIMARY, SurfaceFlinger::EVENT_VSYNC, true);
         mEventControlThread->setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
@@ -1224,7 +1227,12 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable) {
         return;
     }
 
-    const auto& activeConfig = getBE().mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+    const auto displayId = DisplayDevice::DISPLAY_PRIMARY;
+    if (!getHwComposer().isConnected(displayId)) {
+        return;
+    }
+
+    const auto activeConfig = getHwComposer().getActiveConfig(displayId);
     const nsecs_t period = activeConfig->getVsyncPeriod();
 
     mPrimaryDispSync.reset();
@@ -1232,7 +1240,6 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable) {
 
     if (!mPrimaryHWVsyncEnabled) {
         mPrimaryDispSync.beginResync();
-        //eventControl(HWC_DISPLAY_PRIMARY, SurfaceFlinger::EVENT_VSYNC, true);
         mEventControlThread->setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
@@ -1241,7 +1248,6 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable) {
 void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
     Mutex::Autolock _l(mHWVsyncLock);
     if (mPrimaryHWVsyncEnabled) {
-        //eventControl(HWC_DISPLAY_PRIMARY, SurfaceFlinger::EVENT_VSYNC, false);
         mEventControlThread->setVsyncEnabled(false);
         mPrimaryDispSync.endResync();
         mPrimaryHWVsyncEnabled = false;
@@ -1368,7 +1374,9 @@ void SurfaceFlinger::updateVrFlinger() {
 
     Mutex::Autolock _l(mStateLock);
 
-    int currentDisplayPowerMode = getDefaultDisplayDeviceLocked()->getPowerMode();
+    const auto display = getDefaultDisplayDeviceLocked();
+    LOG_ALWAYS_FATAL_IF(!display);
+    const int currentDisplayPowerMode = display->getPowerMode();
 
     if (!vrFlingerRequestsDisplay) {
         mVrFlinger->SeizeDisplayOwnership();
@@ -1393,11 +1401,10 @@ void SurfaceFlinger::updateVrFlinger() {
     invalidateHwcGeometry();
 
     // Re-enable default display.
-    setPowerModeInternal(getDefaultDisplayDeviceLocked(), currentDisplayPowerMode,
-                         /*stateLockHeld*/ true);
+    setPowerModeInternal(display, currentDisplayPowerMode, /*stateLockHeld*/ true);
 
     // Reset the timing values to account for the period of the swapped in HWC
-    const auto& activeConfig = getBE().mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+    const auto activeConfig = getHwComposer().getActiveConfig(display->getId());
     const nsecs_t period = activeConfig->getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(period);
 
@@ -1479,8 +1486,6 @@ void SurfaceFlinger::handleMessageRefresh() {
     logLayerStats();
     doComposition();
     postComposition(refreshStartTime);
-
-    mPreviousPresentFence = getBE().mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
 
     mHadClientComposition = false;
     for (const auto& [token, display] : mDisplays) {
@@ -1648,7 +1653,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
-    if (display && getBE().mHwc->hasClientComposition(HWC_DISPLAY_PRIMARY)) {
+    if (display && getHwComposer().hasClientComposition(display->getId())) {
         glCompositionDoneFenceTime =
                 std::make_shared<FenceTime>(display->getClientTargetAcquireFence());
         getBE().mGlCompositionDoneTimeline.push(glCompositionDoneFenceTime);
@@ -1657,8 +1662,9 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     }
 
     getBE().mDisplayTimeline.updateSignalTimes();
-    sp<Fence> presentFence = getBE().mHwc->getPresentFence(HWC_DISPLAY_PRIMARY);
-    auto presentFenceTime = std::make_shared<FenceTime>(presentFence);
+    mPreviousPresentFence =
+            display ? getHwComposer().getPresentFence(display->getId()) : Fence::NO_FENCE;
+    auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFence);
     getBE().mDisplayTimeline.push(presentFenceTime);
 
     nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
@@ -1693,7 +1699,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     }
 
     if (!hasSyncFramework) {
-        if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) && display->isPoweredOn()) {
+        if (display && getHwComposer().isConnected(display->getId()) && display->isPoweredOn()) {
             enableHardwareVsync();
         }
     }
@@ -1704,11 +1710,10 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         if (presentFenceTime->isValid()) {
             mAnimFrameTracker.setActualPresentFence(
                     std::move(presentFenceTime));
-        } else if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY)) {
+        } else if (display && getHwComposer().isConnected(display->getId())) {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.
-            nsecs_t presentTime =
-                    getBE().mHwc->getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
+            const nsecs_t presentTime = getHwComposer().getRefreshTimestamp(display->getId());
             mAnimFrameTracker.setActualPresentTime(presentTime);
         }
         mAnimFrameTracker.advanceFrame();
@@ -1719,7 +1724,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         mTimeStats.incrementClientCompositionFrames();
     }
 
-    if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY) &&
+    if (display && getHwComposer().isConnected(display->getId()) &&
         display->getPowerMode() == HWC_POWER_MODE_OFF) {
         return;
     }
@@ -2069,8 +2074,9 @@ void SurfaceFlinger::postFramebuffer()
     mDebugInSwapBuffers = 0;
 
     // |mStateLock| not needed as we are on the main thread
-    if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY)) {
-        uint32_t flipCount = getDefaultDisplayDeviceLocked()->getPageFlipCount();
+    const auto display = getDefaultDisplayDeviceLocked();
+    if (display && getHwComposer().isConnected(display->getId())) {
+        const uint32_t flipCount = display->getPageFlipCount();
         if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
             logFrameStats();
         }
@@ -2853,8 +2859,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
             getRenderEngine().resetCurrentSurface();
 
             // |mStateLock| not needed as we are on the main thread
-            if(!getDefaultDisplayDeviceLocked()->makeCurrent()) {
-              ALOGE("DisplayDevice::makeCurrent on default display failed. Aborting.");
+            const auto defaultDisplay = getDefaultDisplayDeviceLocked();
+            if (!defaultDisplay || !defaultDisplay->makeCurrent()) {
+                ALOGE("DisplayDevice::makeCurrent on default display failed. Aborting.");
             }
             return false;
         }
@@ -3576,13 +3583,16 @@ status_t SurfaceFlinger::onLayerDestroyed(const wp<Layer>& layer)
 // ---------------------------------------------------------------------------
 
 void SurfaceFlinger::onInitializeDisplays() {
+    const auto displayToken = mDisplayTokens[DisplayDevice::DISPLAY_PRIMARY];
+    if (!displayToken) return;
+
     // reset screen orientation and use primary layer stack
     Vector<ComposerState> state;
     Vector<DisplayState> displays;
     DisplayState d;
     d.what = DisplayState::eDisplayProjectionChanged |
              DisplayState::eLayerStackChanged;
-    d.token = mDisplayTokens[DisplayDevice::DISPLAY_PRIMARY];
+    d.token = displayToken;
     d.layerStack = 0;
     d.orientation = DisplayState::eOrientationDefault;
     d.frame.makeInvalid();
@@ -3591,10 +3601,13 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.height = 0;
     displays.add(d);
     setTransactionState(state, displays, 0);
-    setPowerModeInternal(getDisplayDevice(d.token), HWC_POWER_MODE_NORMAL,
-                         /*stateLockHeld*/ false);
 
-    const auto& activeConfig = getBE().mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
+    const auto display = getDisplayDevice(displayToken);
+    if (!display) return;
+
+    setPowerModeInternal(display, HWC_POWER_MODE_NORMAL, /*stateLockHeld*/ false);
+
+    const auto activeConfig = getHwComposer().getActiveConfig(display->getId());
     const nsecs_t period = activeConfig->getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(period);
 
@@ -3865,9 +3878,12 @@ void SurfaceFlinger::dumpStatsLocked(const Vector<String16>& args, size_t& index
         index++;
     }
 
-    const auto& activeConfig = getBE().mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
-    const nsecs_t period = activeConfig->getVsyncPeriod();
-    result.appendFormat("%" PRId64 "\n", period);
+    if (const auto displayId = DisplayDevice::DISPLAY_PRIMARY;
+        getHwComposer().isConnected(displayId)) {
+        const auto activeConfig = getBE().mHwc->getActiveConfig(displayId);
+        const nsecs_t period = activeConfig->getVsyncPeriod();
+        result.appendFormat("%" PRId64 "\n", period);
+    }
 
     if (name.isEmpty()) {
         mAnimFrameTracker.dumpStats(result);
@@ -4148,15 +4164,20 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append(SyncFeatures::getInstance().toString());
     result.append("\n");
 
-    const auto& activeConfig = getBE().mHwc->getActiveConfig(HWC_DISPLAY_PRIMARY);
-
     colorizer.bold(result);
-    result.append("DispSync configuration: ");
+    result.append("DispSync configuration:\n");
     colorizer.reset(result);
-    result.appendFormat("app phase %" PRId64 " ns, sf phase %" PRId64 " ns, early sf phase %" PRId64
-        " ns, present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
-        vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, mVsyncModulator.getEarlyPhaseOffset(),
-        dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
+
+    if (const auto displayId = DisplayDevice::DISPLAY_PRIMARY;
+        getHwComposer().isConnected(displayId)) {
+        const auto activeConfig = getHwComposer().getActiveConfig(displayId);
+        result.appendFormat("Display %d: app phase %" PRId64 " ns, sf phase %" PRId64
+                            " ns, early sf phase %" PRId64 " ns, present offset %" PRId64
+                            " ns (refresh %" PRId64 " ns)",
+                            displayId, vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
+                            mVsyncModulator.getEarlyPhaseOffset(), dispSyncPresentTimeOffset,
+                            activeConfig->getVsyncPeriod());
+    }
     result.append("\n");
 
     // Dump static screen stats
@@ -4212,22 +4233,21 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
         result.appendFormat("  orientation=%d, isPoweredOn=%d\n", display->getOrientation(),
                             display->isPoweredOn());
     }
-    result.appendFormat(
-            "  last eglSwapBuffers() time: %f us\n"
-            "  last transaction time     : %f us\n"
-            "  transaction-flags         : %08x\n"
-            "  refresh-rate              : %f fps\n"
-            "  x-dpi                     : %f\n"
-            "  y-dpi                     : %f\n"
-            "  gpu_to_cpu_unsupported    : %d\n"
-            ,
-            mLastSwapBufferTime/1000.0,
-            mLastTransactionTime/1000.0,
-            mTransactionFlags,
-            1e9 / activeConfig->getVsyncPeriod(),
-            activeConfig->getDpiX(),
-            activeConfig->getDpiY(),
-            !mGpuToCpuSupported);
+    result.appendFormat("  last eglSwapBuffers() time: %f us\n"
+                        "  last transaction time     : %f us\n"
+                        "  transaction-flags         : %08x\n"
+                        "  gpu_to_cpu_unsupported    : %d\n",
+                        mLastSwapBufferTime / 1000.0, mLastTransactionTime / 1000.0,
+                        mTransactionFlags, !mGpuToCpuSupported);
+
+    if (display) {
+        const auto activeConfig = getHwComposer().getActiveConfig(display->getId());
+        result.appendFormat("  refresh-rate              : %f fps\n"
+                            "  x-dpi                     : %f\n"
+                            "  y-dpi                     : %f\n",
+                            1e9 / activeConfig->getVsyncPeriod(), activeConfig->getDpiX(),
+                            activeConfig->getDpiY());
+    }
 
     result.appendFormat("  eglSwapBuffers time: %f us\n",
             inSwapBuffersDuration/1000.0);
@@ -4285,19 +4305,15 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
 const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(int32_t displayId) {
     // Note: mStateLock is held here
-    wp<IBinder> displayToken;
     for (const auto& [token, display] : mDisplays) {
         if (display->getId() == displayId) {
-            displayToken = token;
-            break;
+            return getDisplayDeviceLocked(token)->getVisibleLayersSortedByZ();
         }
     }
-    if (displayToken == nullptr) {
-        ALOGE("getLayerSortedByZForHwcDisplay: Invalid display %d", displayId);
-        // Just use the primary display so we have something to return
-        displayToken = getBuiltInDisplay(DisplayDevice::DISPLAY_PRIMARY);
-    }
-    return getDisplayDeviceLocked(displayToken)->getVisibleLayersSortedByZ();
+
+    ALOGE("%s: Invalid display %d", __FUNCTION__, displayId);
+    static const Vector<sp<Layer>> empty;
+    return empty;
 }
 
 bool SurfaceFlinger::startDdmConnection()
@@ -4472,6 +4488,10 @@ status_t SurfaceFlinger::onTransact(
                 return NO_ERROR;
             case 1013: {
                 const auto display = getDefaultDisplayDevice();
+                if (!display) {
+                    return NAME_NOT_FOUND;
+                }
+
                 reply->writeInt32(display->getPageFlipCount());
                 return NO_ERROR;
             }
