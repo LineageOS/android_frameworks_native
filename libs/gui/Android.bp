@@ -308,10 +308,8 @@ cc_defaults {
     ],
 }
 
-cc_library_shared {
-    name: "libgui",
-    vendor_available: true,
-    double_loadable: true,
+cc_defaults {
+    name: "libgui_defaults",
 
     defaults: [
         "libgui-defaults",
@@ -504,6 +502,19 @@ cc_library_static {
         "mock/GraphicBufferConsumer.cpp",
         "mock/GraphicBufferProducer.cpp",
     ],
+}
+
+cc_library_shared {
+    name: "libgui",
+    double_loadable: true,
+    vendor_available: true,
+    defaults: ["libgui_defaults"]
+}
+
+cc_library_shared {
+    name: "libgui_vendor",
+    vendor: true,
+    defaults: ["libgui_defaults"]
 }
 
 subdirs = ["tests"]
