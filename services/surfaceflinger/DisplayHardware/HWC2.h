@@ -93,6 +93,9 @@ public:
     };
 
     uint32_t getMaxVirtualDisplayCount() const;
+    Error getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
+                                       std::vector<uint8_t>* outData) const;
+
     Error createVirtualDisplay(uint32_t width, uint32_t height,
             android::ui::PixelFormat* format, Display** outDisplay);
     void destroyDisplay(hwc2_display_t displayId);
@@ -224,8 +227,6 @@ public:
     // Doesn't call into the HWC2 device, so no errors are possible
     std::vector<std::shared_ptr<const Config>> getConfigs() const;
 
-    [[clang::warn_unused_result]] Error getIdentificationData(uint8_t* outPort,
-                                                              std::vector<uint8_t>* outData) const;
     [[clang::warn_unused_result]] Error getName(std::string* outName) const;
     [[clang::warn_unused_result]] Error getRequests(
             DisplayRequest* outDisplayRequests,

@@ -98,12 +98,7 @@ void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
 
 bool HWComposer::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const {
-    HWC2::Display* display = mHwcDevice->getDisplayById(hwcDisplayId);
-    if (!display) {
-        ALOGE("%s: Attempted to access invalid display %" PRIu64, __FUNCTION__, hwcDisplayId);
-        return false;
-    }
-    const auto error = display->getIdentificationData(outPort, outData);
+    const auto error = mHwcDevice->getDisplayIdentificationData(hwcDisplayId, outPort, outData);
     if (error != HWC2::Error::None) {
         ALOGE("%s failed for display %" PRIu64, __FUNCTION__, hwcDisplayId);
         return false;

@@ -124,6 +124,12 @@ uint32_t Device::getMaxVirtualDisplayCount() const
     return mComposer->getMaxVirtualDisplayCount();
 }
 
+Error Device::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
+                                           std::vector<uint8_t>* outData) const {
+    auto intError = mComposer->getDisplayIdentificationData(hwcDisplayId, outPort, outData);
+    return static_cast<Error>(intError);
+}
+
 Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
         PixelFormat* format, Display** outDisplay)
 {
@@ -458,11 +464,6 @@ std::vector<std::shared_ptr<const Display::Config>> Display::getConfigs() const
         configs.emplace_back(element.second);
     }
     return configs;
-}
-
-Error Display::getIdentificationData(uint8_t* outPort, std::vector<uint8_t>* outData) const {
-    auto intError = mComposer.getDisplayIdentificationData(mId, outPort, outData);
-    return static_cast<Error>(intError);
 }
 
 Error Display::getName(std::string* outName) const
