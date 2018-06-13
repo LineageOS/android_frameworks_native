@@ -103,7 +103,7 @@ bool HWComposer::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8
                                               DisplayIdentificationData* outData) const {
     const auto error = mHwcDevice->getDisplayIdentificationData(hwcDisplayId, outPort, outData);
     if (error != HWC2::Error::None) {
-        ALOGE("%s failed for display %" PRIu64, __FUNCTION__, hwcDisplayId);
+        LOG_HWC_DISPLAY_ERROR(hwcDisplayId, to_string(error).c_str());
         return false;
     }
     return true;
@@ -221,16 +221,15 @@ bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp, int32_t
 status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
         ui::PixelFormat* format, int32_t *outId) {
     if (mRemainingHwcVirtualDisplays == 0) {
-        ALOGE("allocateVirtualDisplay: No remaining virtual displays");
+        ALOGE("%s: No remaining virtual displays", __FUNCTION__);
         return NO_MEMORY;
     }
 
     if (SurfaceFlinger::maxVirtualDisplaySize != 0 &&
         (width > SurfaceFlinger::maxVirtualDisplaySize ||
          height > SurfaceFlinger::maxVirtualDisplaySize)) {
-        ALOGE("createVirtualDisplay: Can't create a virtual display with"
-                      " a dimension > %" PRIu64 " (tried %u x %u)",
-              SurfaceFlinger::maxVirtualDisplaySize, width, height);
+        ALOGE("%s: Display size %ux%u exceeds maximum dimension of %" PRIu64, __FUNCTION__, width,
+              height, SurfaceFlinger::maxVirtualDisplaySize);
         return INVALID_OPERATION;
     }
 
@@ -238,7 +237,7 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
     auto error = mHwcDevice->createVirtualDisplay(width, height, format,
             &display);
     if (error != HWC2::Error::None) {
-        ALOGE("allocateVirtualDisplay: Failed to create HWC virtual display");
+        ALOGE("%s: Failed to create HWC virtual display", __FUNCTION__);
         return NO_MEMORY;
     }
 
@@ -251,7 +250,7 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
         displaySlot = mDisplayData.size();
         mDisplayData.resize(displaySlot + 1);
     } else {
-        ALOGE("allocateVirtualDisplay: Unable to allocate a display slot");
+        ALOGE("%s: Unable to allocate a display slot", __FUNCTION__);
         return NO_MEMORY;
     }
 
@@ -334,21 +333,19 @@ std::shared_ptr<const HWC2::Display::Config>
 }
 
 int HWComposer::getActiveConfigIndex(int32_t displayId) const {
-    if (!isValidDisplay(displayId)) {
-        ALOGV("getActiveConfigIndex: Attempted to access invalid display %d", displayId);
-        return -1;
-    }
+    RETURN_IF_INVALID_DISPLAY(displayId, -1);
+
     int index;
     auto error = mDisplayData[displayId].hwcDisplay->getActiveConfigIndex(&index);
     if (error == HWC2::Error::BadConfig) {
-        ALOGE("getActiveConfigIndex: No config active, returning -1");
+        LOG_DISPLAY_ERROR(displayId, "No active config");
         return -1;
-    } else if (error != HWC2::Error::None) {
-        ALOGE("getActiveConfigIndex failed for display %d: %s (%d)", displayId,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        return -1;
-    } else if (index < 0) {
-        ALOGE("getActiveConfigIndex returned an unknown config for display %d", displayId);
+    }
+
+    RETURN_IF_HWC_ERROR(error, displayId, -1);
+
+    if (index < 0) {
+        LOG_DISPLAY_ERROR(displayId, "Unknown config");
         return -1;
     }
 
