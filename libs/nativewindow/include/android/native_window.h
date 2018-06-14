@@ -108,33 +108,33 @@ typedef struct ANativeWindow_Buffer {
  * Acquire a reference on the given {@link ANativeWindow} object. This prevents the object
  * from being deleted until the reference is removed.
  */
-void ANativeWindow_acquire(ANativeWindow* window);
+void ANativeWindow_acquire(ANativeWindow* window) __INTRODUCED_IN(26);
 
 /**
  * Remove a reference that was previously acquired with {@link ANativeWindow_acquire()}.
  */
-void ANativeWindow_release(ANativeWindow* window);
+void ANativeWindow_release(ANativeWindow* window) __INTRODUCED_IN(26);
 
 /**
  * Return the current width in pixels of the window surface.
  *
  * \return negative value on error.
  */
-int32_t ANativeWindow_getWidth(ANativeWindow* window);
+int32_t ANativeWindow_getWidth(ANativeWindow* window) __INTRODUCED_IN(26);
 
 /**
  * Return the current height in pixels of the window surface.
  *
  * \return a negative value on error.
  */
-int32_t ANativeWindow_getHeight(ANativeWindow* window);
+int32_t ANativeWindow_getHeight(ANativeWindow* window) __INTRODUCED_IN(26);
 
 /**
  * Return the current pixel format (AHARDWAREBUFFER_FORMAT_*) of the window surface.
  *
  * \return a negative value on error.
  */
-int32_t ANativeWindow_getFormat(ANativeWindow* window);
+int32_t ANativeWindow_getFormat(ANativeWindow* window) __INTRODUCED_IN(26);
 
 /**
  * Change the format and size of the window buffers.
@@ -154,7 +154,7 @@ int32_t ANativeWindow_getFormat(ANativeWindow* window);
  * \return 0 for success, or a negative value on error.
  */
 int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window,
-        int32_t width, int32_t height, int32_t format);
+        int32_t width, int32_t height, int32_t format) __INTRODUCED_IN(26);
 
 /**
  * Lock the window's next drawing surface for writing.
@@ -167,7 +167,7 @@ int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window,
  * \return 0 for success, or a negative value on error.
  */
 int32_t ANativeWindow_lock(ANativeWindow* window, ANativeWindow_Buffer* outBuffer,
-        ARect* inOutDirtyBounds);
+        ARect* inOutDirtyBounds) __INTRODUCED_IN(26);
 
 /**
  * Unlock the window's drawing surface after previously locking it,
@@ -175,9 +175,7 @@ int32_t ANativeWindow_lock(ANativeWindow* window, ANativeWindow_Buffer* outBuffe
  *
  * \return 0 for success, or a negative value on error.
  */
-int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
-
-#if __ANDROID_API__ >= __ANDROID_API_O__
+int32_t ANativeWindow_unlockAndPost(ANativeWindow* window) __INTRODUCED_IN(26);
 
 /**
  * Set a transform that will be applied to future buffers posted to the window.
@@ -185,9 +183,7 @@ int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
  * \param transform combination of {@link ANativeWindowTransform} flags
  * \return 0 for success, or -EINVAL if \p transform is invalid
  */
-int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transform);
-
-#endif // __ANDROID_API__ >= __ANDROID_API_O__
+int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transform) __INTRODUCED_IN(26);
 
 #ifdef __cplusplus
 };
