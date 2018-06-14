@@ -162,25 +162,25 @@ typedef struct AHardwareBuffer AHardwareBuffer;
  * any reason.
  */
 int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc,
-        AHardwareBuffer** outBuffer);
+        AHardwareBuffer** outBuffer) __INTRODUCED_IN(26);
 /**
  * Acquire a reference on the given AHardwareBuffer object.  This prevents the
  * object from being deleted until the last reference is removed.
  */
-void AHardwareBuffer_acquire(AHardwareBuffer* buffer);
+void AHardwareBuffer_acquire(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
 /**
  * Remove a reference that was previously acquired with
  * AHardwareBuffer_acquire().
  */
-void AHardwareBuffer_release(AHardwareBuffer* buffer);
+void AHardwareBuffer_release(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
 /**
  * Return a description of the AHardwareBuffer in the passed
  * AHardwareBuffer_Desc struct.
  */
 void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
-        AHardwareBuffer_Desc* outDesc);
+        AHardwareBuffer_Desc* outDesc) __INTRODUCED_IN(26);
 
 /*
  * Lock the AHardwareBuffer for reading or writing, depending on the usage flags
@@ -216,7 +216,7 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
  * number of the lock fails for any reason.
  */
 int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
-        int32_t fence, const ARect* rect, void** outVirtualAddress);
+        int32_t fence, const ARect* rect, void** outVirtualAddress) __INTRODUCED_IN(26);
 
 /*
  * Unlock the AHardwareBuffer; must be called after all changes to the buffer
@@ -228,7 +228,7 @@ int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
  * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL, or an error
  * number of the lock fails for any reason.
  */
-int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence);
+int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) __INTRODUCED_IN(26);
 
 /*
  * Send the AHardwareBuffer to an AF_UNIX socket.
@@ -236,7 +236,7 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence);
  * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL, or an error
  * number of the lock fails for any reason.
  */
-int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd);
+int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd) __INTRODUCED_IN(26);
 
 /*
  * Receive the AHardwareBuffer from an AF_UNIX socket.
@@ -244,7 +244,7 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
  * Returns NO_ERROR on success, BAD_VALUE if the buffer is NULL, or an error
  * number of the lock fails for any reason.
  */
-int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer);
+int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer) __INTRODUCED_IN(26);
 
 __END_DECLS
 
