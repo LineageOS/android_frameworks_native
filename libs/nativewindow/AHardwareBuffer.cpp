@@ -286,6 +286,35 @@ const native_handle_t* AHardwareBuffer_getNativeHandle(
     return gbuffer->handle;
 }
 
+int AHardwareBuffer_createFromHandle(const AHardwareBuffer_Desc* desc,
+                                     const native_handle_t* handle, int32_t method,
+                                     AHardwareBuffer** outBuffer) {
+    static_assert(static_cast<int32_t>(AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_REGISTER) ==
+                  static_cast<int32_t>(GraphicBuffer::TAKE_UNREGISTERED_HANDLE));
+    static_assert(static_cast<int32_t>(AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE) ==
+                  static_cast<int32_t>(GraphicBuffer::CLONE_HANDLE));
+
+    if (!desc || !handle || !outBuffer) return BAD_VALUE;
+    if (!(method == AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_REGISTER ||
+          method == AHARDWAREBUFFER_CREATE_FROM_HANDLE_METHOD_CLONE))
+        return BAD_VALUE;
+    if (desc->rfu0 != 0 || desc->rfu1 != 0) return BAD_VALUE;
+    if (desc->format == AHARDWAREBUFFER_FORMAT_BLOB && desc->height != 1) return BAD_VALUE;
+
+    const int format = AHardwareBuffer_convertToPixelFormat(desc->format);
+    const uint64_t usage = AHardwareBuffer_convertToGrallocUsageBits(desc->usage);
+    const auto wrapMethod = static_cast<GraphicBuffer::HandleWrapMethod>(method);
+    sp<GraphicBuffer> gbuffer(new GraphicBuffer(handle, wrapMethod, desc->width, desc->height,
+                                                format, desc->layers, usage, desc->stride));
+    status_t err = gbuffer->initCheck();
+    if (err != 0 || gbuffer->handle == 0) return err;
+
+    *outBuffer = AHardwareBuffer_from_GraphicBuffer(gbuffer.get());
+    // Ensure the buffer doesn't get destroyed when the sp<> goes away.
+    AHardwareBuffer_acquire(*outBuffer);
+
+    return NO_ERROR;
+}
 
 // ----------------------------------------------------------------------------
 // Helpers implementation
