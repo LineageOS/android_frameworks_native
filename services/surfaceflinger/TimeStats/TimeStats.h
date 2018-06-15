@@ -40,14 +40,18 @@ class TimeStats {
     // static const size_t MAX_NUM_LAYER_RECORDS = 200;
     static const size_t MAX_NUM_TIME_RECORDS = 64;
 
-    struct TimeRecord {
-        bool ready = false;
+    struct FrameTime {
         uint64_t frameNumber = 0;
         nsecs_t postTime = 0;
         nsecs_t latchTime = 0;
         nsecs_t acquireTime = 0;
         nsecs_t desiredTime = 0;
         nsecs_t presentTime = 0;
+    };
+
+    struct TimeRecord {
+        bool ready = false;
+        FrameTime frameTime;
         std::shared_ptr<FenceTime> acquireFence;
         std::shared_ptr<FenceTime> presentFence;
     };

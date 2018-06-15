@@ -50,9 +50,12 @@ cc_test {
     ],
 }
 
-// Build a separate binary for each source file to $(TARGET_OUT_DATA_NATIVE_TESTS)/$(LOCAL_MODULE)
+// Build a separate binary to $(TARGET_OUT_DATA_NATIVE_TESTS)/$(LOCAL_MODULE)
+// This test has a main method, and requires a separate binary to be built.
+// To add move tests like this, just add additional cc_test statements,
+// as opposed to adding more source files to this one.
 cc_test {
-    name: "libgui_separate_binary_test",
+    name: "SurfaceParcelable_test",
     test_suites: ["device-tests"],
 
     clang: true,
@@ -61,7 +64,6 @@ cc_test {
         "-Werror",
     ],
 
-    test_per_src: true,
     srcs: [
         "SurfaceParcelable_test.cpp",
     ],
