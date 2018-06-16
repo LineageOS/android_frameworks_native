@@ -2,6 +2,7 @@ LIBNATIVEWINDOW {
   global:
     AHardwareBuffer_acquire;
     AHardwareBuffer_allocate;
+    AHardwareBuffer_createFromHandle; # vndk
     AHardwareBuffer_describe;
     AHardwareBuffer_getNativeHandle; # vndk
     AHardwareBuffer_lock;

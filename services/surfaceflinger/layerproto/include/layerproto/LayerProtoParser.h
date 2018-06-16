@@ -105,6 +105,7 @@ public:
         Layer* parent = 0;
         Layer* zOrderRelativeOf = 0;
         LayerProtoParser::ActiveBuffer activeBuffer;
+        Transform bufferTransform;
         int32_t queuedFrames;
         bool refreshPending;
         LayerProtoParser::Rect hwcFrame;

@@ -80,6 +80,8 @@ message LayerProto {
   optional int32 hwc_composition_type = 35;
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
+  // If active_buffer is not null, record its transform
+  optional TransformProto buffer_transform = 37;
 }
 
 message PositionProto {
