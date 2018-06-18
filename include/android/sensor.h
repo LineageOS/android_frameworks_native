@@ -478,7 +478,6 @@ __attribute__ ((deprecated)) ASensorManager* ASensorManager_getInstance();
 ASensorManager* ASensorManager_getInstance();
 #endif
 
-#if __ANDROID_API__ >= __ANDROID_API_O__
 /**
  * Get a reference to the sensor manager. ASensorManager is a singleton
  * per package as different packages may have access to different sensors.
@@ -488,8 +487,7 @@ ASensorManager* ASensorManager_getInstance();
  *     ASensorManager* sensorManager = ASensorManager_getInstanceForPackage("foo.bar.baz");
  *
  */
-ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName);
-#endif
+ASensorManager* ASensorManager_getInstanceForPackage(const char* packageName) __INTRODUCED_IN(26);
 
 /**
  * Returns the list of available sensors.
@@ -502,13 +500,11 @@ int ASensorManager_getSensorList(ASensorManager* manager, ASensorList* list);
  */
 ASensor const* ASensorManager_getDefaultSensor(ASensorManager* manager, int type);
 
-#if __ANDROID_API__ >= 21
 /**
  * Returns the default sensor with the given type and wakeUp properties or NULL if no sensor
  * of this type and wakeUp properties exists.
  */
-ASensor const* ASensorManager_getDefaultSensorEx(ASensorManager* manager, int type, bool wakeUp);
-#endif
+ASensor const* ASensorManager_getDefaultSensorEx(ASensorManager* manager, int type, bool wakeUp) __INTRODUCED_IN(21);
 
 /**
  * Creates a new sensor event queue and associate it with a looper.
@@ -525,7 +521,6 @@ ASensorEventQueue* ASensorManager_createEventQueue(ASensorManager* manager,
  */
 int ASensorManager_destroyEventQueue(ASensorManager* manager, ASensorEventQueue* queue);
 
-#if __ANDROID_API__ >= __ANDROID_API_O__
 /**
  * Create direct channel based on shared memory
  *
@@ -542,7 +537,7 @@ int ASensorManager_destroyEventQueue(ASensorManager* manager, ASensorEventQueue*
  *         {@link ASensorManager_destroyDirectChannel} and
  *         {@link ASensorManager_configureDirectReport}, or value less or equal to 0 for failures.
  */
-int ASensorManager_createSharedMemoryDirectChannel(ASensorManager* manager, int fd, size_t size);
+int ASensorManager_createSharedMemoryDirectChannel(ASensorManager* manager, int fd, size_t size) __INTRODUCED_IN(26);
 
 /**
  * Create direct channel based on AHardwareBuffer
@@ -560,7 +555,7 @@ int ASensorManager_createSharedMemoryDirectChannel(ASensorManager* manager, int 
  *         {@link ASensorManager_configureDirectReport}, or value less or equal to 0 for failures.
  */
 int ASensorManager_createHardwareBufferDirectChannel(
-        ASensorManager* manager, AHardwareBuffer const * buffer, size_t size);
+        ASensorManager* manager, AHardwareBuffer const * buffer, size_t size) __INTRODUCED_IN(26);
 
 /**
  * Destroy a direct channel
@@ -575,7 +570,7 @@ int ASensorManager_createHardwareBufferDirectChannel(
  *                  {@link ASensorManager_createSharedMemoryDirectChannel} or
  *                  {@link ASensorManager_createHardwareBufferDirectChannel}.
  */
-void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId);
+void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId) __INTRODUCED_IN(26);
 
 /**
  * Configure direct report on channel
@@ -612,9 +607,8 @@ void ASensorManager_destroyDirectChannel(ASensorManager* manager, int channelId)
  *
  * \return positive token for success or negative error code.
  */
-int ASensorManager_configureDirectReport(
-        ASensorManager* manager, ASensor const* sensor, int channelId, int rate);
-#endif
+int ASensorManager_configureDirectReport(ASensorManager* manager,
+        ASensor const* sensor, int channelId, int rate) __INTRODUCED_IN(26);
 
 /*****************************************************************************/
 
@@ -733,35 +727,32 @@ float ASensor_getResolution(ASensor const* sensor);
  */
 int ASensor_getMinDelay(ASensor const* sensor);
 
-#if __ANDROID_API__ >= 21
 /**
  * Returns the maximum size of batches for this sensor. Batches will often be
  * smaller, as the hardware fifo might be used for other sensors.
  */
-int ASensor_getFifoMaxEventCount(ASensor const* sensor);
+int ASensor_getFifoMaxEventCount(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns the hardware batch fifo size reserved to this sensor.
  */
-int ASensor_getFifoReservedEventCount(ASensor const* sensor);
+int ASensor_getFifoReservedEventCount(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns this sensor's string type.
  */
-const char* ASensor_getStringType(ASensor const* sensor);
+const char* ASensor_getStringType(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns the reporting mode for this sensor. One of AREPORTING_MODE_* constants.
  */
-int ASensor_getReportingMode(ASensor const* sensor);
+int ASensor_getReportingMode(ASensor const* sensor) __INTRODUCED_IN(21);
 
 /**
  * Returns true if this is a wake up sensor, false otherwise.
  */
-bool ASensor_isWakeUpSensor(ASensor const* sensor);
-#endif /* __ANDROID_API__ >= 21 */
+bool ASensor_isWakeUpSensor(ASensor const* sensor) __INTRODUCED_IN(21);
 
-#if __ANDROID_API__ >= __ANDROID_API_O__
 /**
  * Test if sensor supports a certain type of direct channel.
  *
@@ -771,7 +762,8 @@ bool ASensor_isWakeUpSensor(ASensor const* sensor);
  *                     or {@link ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER}.
  * \returns true if sensor supports the specified direct channel type.
  */
-bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType);
+bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType) __INTRODUCED_IN(26);
+
 /**
  * Get the highest direct rate level that a sensor support.
  *
@@ -781,8 +773,7 @@ bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType
  *         If return value is {@link ASENSOR_DIRECT_RATE_STOP}, it means the sensor
  *         does not support direct report.
  */
-int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor);
-#endif
+int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor) __INTRODUCED_IN(26);
 
 #ifdef __cplusplus
 };
