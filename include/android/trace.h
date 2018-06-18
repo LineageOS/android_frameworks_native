@@ -39,15 +39,13 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= 23
-
 /**
  * Returns true if tracing is enabled. Use this to avoid expensive computation only necessary
  * when tracing is enabled.
  *
  * Available since API level 23.
  */
-bool ATrace_isEnabled();
+bool ATrace_isEnabled() __INTRODUCED_IN(23);
 
 /**
  * Writes a tracing message to indicate that the given section of code has begun. This call must be
@@ -59,7 +57,7 @@ bool ATrace_isEnabled();
  *
  * Available since API level 23.
  */
-void ATrace_beginSection(const char* sectionName);
+void ATrace_beginSection(const char* sectionName) __INTRODUCED_IN(23);
 
 /**
  * Writes a tracing message to indicate that a given section of code has ended. This call must be
@@ -69,9 +67,7 @@ void ATrace_beginSection(const char* sectionName);
  *
  * Available since API level 23.
  */
-void ATrace_endSection();
-
-#endif /* __ANDROID_API__ >= 23 */
+void ATrace_endSection() __INTRODUCED_IN(23);
 
 #ifdef __cplusplus
 };
