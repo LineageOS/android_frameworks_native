@@ -91,8 +91,9 @@ public:
 
     auto onInitializeDisplays() { return mFlinger->onInitializeDisplays(); }
 
-    auto setPowerModeInternal(const sp<DisplayDevice>& hw, int mode, bool stateLockHeld = false) {
-        return mFlinger->setPowerModeInternal(hw, mode, stateLockHeld);
+    auto setPowerModeInternal(const sp<DisplayDevice>& display, int mode,
+                              bool stateLockHeld = false) {
+        return mFlinger->setPowerModeInternal(display, mode, stateLockHeld);
     }
 
     /* ------------------------------------------------------------------------
@@ -232,7 +233,7 @@ public:
             display->mutableIsConnected() = true;
 
             ASSERT_TRUE(flinger->mutableHwcDisplayData().size() > static_cast<size_t>(mType));
-            flinger->mutableHwcDisplayData()[mType].reset();
+            flinger->mutableHwcDisplayData()[mType] = HWComposer::DisplayData();
             flinger->mutableHwcDisplayData()[mType].hwcDisplay = display.get();
             flinger->mutableHwcDisplaySlots().emplace(mHwcDisplayId, mType);
 

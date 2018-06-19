@@ -457,11 +457,11 @@ private:
     /* ------------------------------------------------------------------------
      * HWC2::ComposerCallback / HWComposer::EventHandler interface
      */
-    void onVsyncReceived(int32_t sequenceId, hwc2_display_t display,
+    void onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                          int64_t timestamp) override;
-    void onHotplugReceived(int32_t sequenceId, hwc2_display_t display,
+    void onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                            HWC2::Connection connection) override;
-    void onRefreshReceived(int32_t sequenceId, hwc2_display_t display) override;
+    void onRefreshReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId) override;
 
     /* ------------------------------------------------------------------------
      * Message handling
@@ -665,8 +665,7 @@ private:
     void logLayerStats();
     void doDisplayComposition(const sp<const DisplayDevice>& display, const Region& dirtyRegion);
 
-    // compose surfaces for display hw. this fails if using GL and the surface
-    // has been destroyed and is no longer valid.
+    // This fails if using GL and the surface has been destroyed.
     bool doComposeSurfaces(const sp<const DisplayDevice>& display);
 
     void postFramebuffer();
@@ -675,8 +674,8 @@ private:
     /* ------------------------------------------------------------------------
      * Display management
      */
-    DisplayDevice::DisplayType determineDisplayType(hwc2_display_t display,
-            HWC2::Connection connection) const;
+    DisplayDevice::DisplayType determineDisplayType(hwc2_display_t hwcDisplayId,
+                                                    HWC2::Connection connection) const;
     sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
                                                     int32_t displayId,
                                                     const DisplayDeviceState& state,
@@ -802,7 +801,7 @@ private:
     bool mHadClientComposition = false;
 
     struct HotplugEvent {
-        hwc2_display_t display;
+        hwc2_display_t hwcDisplayId;
         HWC2::Connection connection = HWC2::Connection::Invalid;
     };
     // protected by mStateLock

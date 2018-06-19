@@ -16,9 +16,11 @@
 
 #pragma once
 
-#include <stdint.h>
 #include <sys/types.h>
+
+#include <array>
 #include <condition_variable>
+#include <cstdint>
 #include <mutex>
 #include <thread>
 
@@ -30,8 +32,6 @@
 
 #include <utils/Errors.h>
 #include <utils/SortedVector.h>
-
-#include "DisplayDevice.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -59,6 +59,9 @@ public:
 
 class EventThread {
 public:
+    // TODO: Remove once stable display IDs are plumbed through SF/WM interface.
+    enum class DisplayType { Primary, External };
+
     virtual ~EventThread();
 
     virtual sp<BnDisplayEventConnection> createEventConnection() const = 0;
@@ -70,7 +73,7 @@ public:
     virtual void onScreenAcquired() = 0;
 
     // called when receiving a hotplug event
-    virtual void onHotplugReceived(int type, bool connected) = 0;
+    virtual void onHotplugReceived(DisplayType displayType, bool connected) = 0;
 
     virtual void dump(String8& result) const = 0;
 
@@ -122,7 +125,7 @@ public:
     void onScreenAcquired() override;
 
     // called when receiving a hotplug event
-    void onHotplugReceived(int type, bool connected) override;
+    void onHotplugReceived(DisplayType displayType, bool connected) override;
 
     void dump(String8& result) const override;
 
@@ -155,8 +158,7 @@ private:
     // protected by mLock
     SortedVector<wp<Connection>> mDisplayEventConnections GUARDED_BY(mMutex);
     Vector<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
-    DisplayEventReceiver::Event mVSyncEvent[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES] GUARDED_BY(
-            mMutex);
+    std::array<DisplayEventReceiver::Event, 2> mVSyncEvent GUARDED_BY(mMutex);
     bool mUseSoftwareVSync GUARDED_BY(mMutex) = false;
     bool mVsyncEnabled GUARDED_BY(mMutex) = false;
     bool mKeepRunning GUARDED_BY(mMutex) = true;

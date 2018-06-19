@@ -54,6 +54,9 @@
 #include "../Layer.h"           // needed only for debugging
 #include "../SurfaceFlinger.h"
 
+#define LOG_HWC_DISPLAY_ERROR(hwcDisplayId, msg) \
+    ALOGE("%s failed for HWC display %" PRIu64 ": %s", __FUNCTION__, hwcDisplayId, msg)
+
 #define LOG_DISPLAY_ERROR(displayId, msg) \
     ALOGE("%s failed for display %d: %s", __FUNCTION__, displayId, msg)
 
@@ -96,17 +99,11 @@ void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
     mHwcDevice->registerCallback(callback, sequenceId);
 }
 
-bool HWComposer::getDisplayIdentificationData(hwc2_display_t displayId, uint8_t* outPort,
+bool HWComposer::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8_t* outPort,
                                               DisplayIdentificationData* outData) const {
-    HWC2::Display* display = mHwcDevice->getDisplayById(displayId);
-    if (!display) {
-        ALOGE("getDisplayIdentificationData: Attempted to access invalid display %" PRIu64,
-              displayId);
-        return false;
-    }
-    const auto error = display->getIdentificationData(outPort, outData);
+    const auto error = mHwcDevice->getDisplayIdentificationData(hwcDisplayId, outPort, outData);
     if (error != HWC2::Error::None) {
-        ALOGE("getDisplayIdentificationData failed for display %" PRIu64, displayId);
+        LOG_HWC_DISPLAY_ERROR(hwcDisplayId, to_string(error).c_str());
         return false;
     }
     return true;
@@ -147,65 +144,53 @@ void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
     }
 }
 
-std::optional<DisplayId> HWComposer::onHotplug(hwc2_display_t displayId, int32_t displayType,
+std::optional<DisplayId> HWComposer::onHotplug(hwc2_display_t hwcDisplayId, int32_t displayType,
                                                HWC2::Connection connection) {
     if (displayType >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
         ALOGE("Invalid display type of %d", displayType);
         return {};
     }
 
-    ALOGV("hotplug: %" PRIu64 ", %s %s", displayId,
-            displayType == DisplayDevice::DISPLAY_PRIMARY ? "primary" : "external",
-            to_string(connection).c_str());
-    mHwcDevice->onHotplug(displayId, connection);
+    ALOGV("hotplug: %" PRIu64 ", %s %s", hwcDisplayId,
+          displayType == DisplayDevice::DISPLAY_PRIMARY ? "primary" : "external",
+          to_string(connection).c_str());
+    mHwcDevice->onHotplug(hwcDisplayId, connection);
 
-    std::optional<DisplayId> stableId;
+    std::optional<DisplayId> displayId;
 
     uint8_t port;
     DisplayIdentificationData data;
-    if (getDisplayIdentificationData(displayId, &port, &data)) {
-        stableId = generateDisplayId(port, data);
-        ALOGE_IF(!stableId, "Failed to generate stable ID for display %" PRIu64, displayId);
+    if (getDisplayIdentificationData(hwcDisplayId, &port, &data)) {
+        displayId = generateDisplayId(port, data);
+        ALOGE_IF(!displayId, "Failed to generate stable ID for display %" PRIu64, hwcDisplayId);
     }
 
     // Disconnect is handled through HWComposer::disconnectDisplay via
     // SurfaceFlinger's onHotplugReceived callback handling
     if (connection == HWC2::Connection::Connected) {
-        mDisplayData[displayType].hwcDisplay = mHwcDevice->getDisplayById(displayId);
-        mHwcDisplaySlots[displayId] = displayType;
+        mDisplayData[displayType].hwcDisplay = mHwcDevice->getDisplayById(hwcDisplayId);
+        mHwcDisplaySlots[hwcDisplayId] = displayType;
     }
 
-    return stableId;
+    return displayId;
 }
 
-bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,
-                         int32_t* outDisplay) {
-    auto display = mHwcDevice->getDisplayById(displayId);
-    if (!display) {
-        ALOGE("onVsync Failed to find display %" PRIu64, displayId);
-        return false;
-    }
-    auto displayType = HWC2::DisplayType::Invalid;
-    auto error = display->getType(&displayType);
-    if (error != HWC2::Error::None) {
-        ALOGE("onVsync: Failed to determine type of display %" PRIu64,
-                display->getId());
+bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp, int32_t* outDisplayId) {
+    const auto it = mHwcDisplaySlots.find(hwcDisplayId);
+    if (it == mHwcDisplaySlots.end()) {
+        LOG_HWC_DISPLAY_ERROR(hwcDisplayId, "Invalid display");
         return false;
     }
 
-    if (displayType == HWC2::DisplayType::Virtual) {
-        ALOGE("Virtual display %" PRIu64 " passed to vsync callback",
-                display->getId());
+    const int32_t displayId = it->second;
+    RETURN_IF_INVALID_DISPLAY(displayId, false);
+
+    const auto& displayData = mDisplayData[displayId];
+    if (displayData.isVirtual) {
+        LOG_DISPLAY_ERROR(displayId, "Invalid operation on virtual display");
         return false;
     }
 
-    if (mHwcDisplaySlots.count(display->getId()) == 0) {
-        ALOGE("Unknown physical display %" PRIu64 " passed to vsync callback",
-                display->getId());
-        return false;
-    }
-
-    int32_t disp = mHwcDisplaySlots[display->getId()];
     {
         Mutex::Autolock _l(mLock);
 
@@ -213,22 +198,22 @@ bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,
         // with the same timestamp when turning the display off and on. This
         // is a bug in the HWC implementation, but filter the extra events
         // out here so they don't cause havoc downstream.
-        if (timestamp == mLastHwVSync[disp]) {
+        if (timestamp == mLastHwVSync[displayId]) {
             ALOGW("Ignoring duplicate VSYNC event from HWC (t=%" PRId64 ")",
                     timestamp);
             return false;
         }
 
-        mLastHwVSync[disp] = timestamp;
+        mLastHwVSync[displayId] = timestamp;
     }
 
-    if (outDisplay) {
-        *outDisplay = disp;
+    if (outDisplayId) {
+        *outDisplayId = displayId;
     }
 
     char tag[16];
-    snprintf(tag, sizeof(tag), "HW_VSYNC_%1u", disp);
-    ATRACE_INT(tag, ++mVSyncCounts[disp] & 1);
+    snprintf(tag, sizeof(tag), "HW_VSYNC_%1u", displayId);
+    ATRACE_INT(tag, ++mVSyncCounts[displayId] & 1);
 
     return true;
 }
@@ -236,16 +221,15 @@ bool HWComposer::onVsync(hwc2_display_t displayId, int64_t timestamp,
 status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
         ui::PixelFormat* format, int32_t *outId) {
     if (mRemainingHwcVirtualDisplays == 0) {
-        ALOGE("allocateVirtualDisplay: No remaining virtual displays");
+        ALOGE("%s: No remaining virtual displays", __FUNCTION__);
         return NO_MEMORY;
     }
 
     if (SurfaceFlinger::maxVirtualDisplaySize != 0 &&
         (width > SurfaceFlinger::maxVirtualDisplaySize ||
          height > SurfaceFlinger::maxVirtualDisplaySize)) {
-        ALOGE("createVirtualDisplay: Can't create a virtual display with"
-                      " a dimension > %" PRIu64 " (tried %u x %u)",
-              SurfaceFlinger::maxVirtualDisplaySize, width, height);
+        ALOGE("%s: Display size %ux%u exceeds maximum dimension of %" PRIu64, __FUNCTION__, width,
+              height, SurfaceFlinger::maxVirtualDisplaySize);
         return INVALID_OPERATION;
     }
 
@@ -253,7 +237,7 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
     auto error = mHwcDevice->createVirtualDisplay(width, height, format,
             &display);
     if (error != HWC2::Error::None) {
-        ALOGE("allocateVirtualDisplay: Failed to create HWC virtual display");
+        ALOGE("%s: Failed to create HWC virtual display", __FUNCTION__);
         return NO_MEMORY;
     }
 
@@ -266,11 +250,13 @@ status_t HWComposer::allocateVirtualDisplay(uint32_t width, uint32_t height,
         displaySlot = mDisplayData.size();
         mDisplayData.resize(displaySlot + 1);
     } else {
-        ALOGE("allocateVirtualDisplay: Unable to allocate a display slot");
+        ALOGE("%s: Unable to allocate a display slot", __FUNCTION__);
         return NO_MEMORY;
     }
 
-    mDisplayData[displaySlot].hwcDisplay = display;
+    auto& displayData = mDisplayData[displaySlot];
+    displayData.hwcDisplay = display;
+    displayData.isVirtual = true;
 
     --mRemainingHwcVirtualDisplays;
     *outId = static_cast<int32_t>(displaySlot);
@@ -347,21 +333,19 @@ std::shared_ptr<const HWC2::Display::Config>
 }
 
 int HWComposer::getActiveConfigIndex(int32_t displayId) const {
-    if (!isValidDisplay(displayId)) {
-        ALOGV("getActiveConfigIndex: Attempted to access invalid display %d", displayId);
-        return -1;
-    }
+    RETURN_IF_INVALID_DISPLAY(displayId, -1);
+
     int index;
     auto error = mDisplayData[displayId].hwcDisplay->getActiveConfigIndex(&index);
     if (error == HWC2::Error::BadConfig) {
-        ALOGE("getActiveConfigIndex: No config active, returning -1");
+        LOG_DISPLAY_ERROR(displayId, "No active config");
         return -1;
-    } else if (error != HWC2::Error::None) {
-        ALOGE("getActiveConfigIndex failed for display %d: %s (%d)", displayId,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        return -1;
-    } else if (index < 0) {
-        ALOGE("getActiveConfigIndex returned an unknown config for display %d", displayId);
+    }
+
+    RETURN_IF_HWC_ERROR(error, displayId, -1);
+
+    if (index < 0) {
+        LOG_DISPLAY_ERROR(displayId, "Unknown config");
         return -1;
     }
 
@@ -393,19 +377,19 @@ status_t HWComposer::setActiveColorMode(int32_t displayId, ui::ColorMode mode,
 
 
 void HWComposer::setVsyncEnabled(int32_t displayId, HWC2::Vsync enabled) {
-    if (displayId < 0 || displayId >= HWC_DISPLAY_VIRTUAL) {
-        ALOGD("setVsyncEnabled: Ignoring for virtual display %d", displayId);
+    RETURN_IF_INVALID_DISPLAY(displayId);
+    auto& displayData = mDisplayData[displayId];
+
+    if (displayData.isVirtual) {
+        LOG_DISPLAY_ERROR(displayId, "Invalid operation on virtual display");
         return;
     }
-
-    RETURN_IF_INVALID_DISPLAY(displayId);
 
     // NOTE: we use our own internal lock here because we have to call
     // into the HWC with the lock held, and we want to make sure
     // that even if HWC blocks (which it shouldn't), it won't
     // affect other threads.
     Mutex::Autolock _l(mVsyncLock);
-    auto& displayData = mDisplayData[displayId];
     if (enabled != displayData.vsyncEnabled) {
         ATRACE_CALL();
         auto error = displayData.hwcDisplay->setVsyncEnabled(enabled);
@@ -629,7 +613,8 @@ status_t HWComposer::setPowerMode(int32_t displayId, int32_t intMode) {
     ALOGV("setPowerMode(%d, %d)", displayId, intMode);
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
-    if (displayId >= VIRTUAL_DISPLAY_ID_BASE) {
+    const auto& displayData = mDisplayData[displayId];
+    if (displayData.isVirtual) {
         LOG_DISPLAY_ERROR(displayId, "Invalid operation on virtual display");
         return INVALID_OPERATION;
     }
@@ -639,7 +624,7 @@ status_t HWComposer::setPowerMode(int32_t displayId, int32_t intMode) {
         setVsyncEnabled(displayId, HWC2::Vsync::Disable);
     }
 
-    auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
+    auto& hwcDisplay = displayData.hwcDisplay;
     switch (mode) {
         case HWC2::PowerMode::Off:
         case HWC2::PowerMode::On:
@@ -708,24 +693,20 @@ status_t HWComposer::setColorTransform(int32_t displayId,
     return NO_ERROR;
 }
 
-void HWComposer::disconnectDisplay(int displayId) {
-    LOG_ALWAYS_FATAL_IF(displayId < 0);
+void HWComposer::disconnectDisplay(int32_t displayId) {
+    RETURN_IF_INVALID_DISPLAY(displayId);
     auto& displayData = mDisplayData[displayId];
-
-    auto displayType = HWC2::DisplayType::Invalid;
-    auto error = displayData.hwcDisplay->getType(&displayType);
-    RETURN_IF_HWC_ERROR_FOR("getType", error, displayId);
 
     // If this was a virtual display, add its slot back for reuse by future
     // virtual displays
-    if (displayType == HWC2::DisplayType::Virtual) {
+    if (displayData.isVirtual) {
         mFreeDisplaySlots.insert(displayId);
         ++mRemainingHwcVirtualDisplays;
     }
 
     const auto hwcDisplayId = displayData.hwcDisplay->getId();
     mHwcDisplaySlots.erase(hwcDisplayId);
-    displayData.reset();
+    displayData = DisplayData();
 
     mHwcDevice->destroyDisplay(hwcDisplayId);
 }
@@ -733,18 +714,14 @@ void HWComposer::disconnectDisplay(int displayId) {
 status_t HWComposer::setOutputBuffer(int32_t displayId,
         const sp<Fence>& acquireFence, const sp<GraphicBuffer>& buffer) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto& displayData = mDisplayData[displayId];
 
-    auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
-    auto displayType = HWC2::DisplayType::Invalid;
-    auto error = hwcDisplay->getType(&displayType);
-    RETURN_IF_HWC_ERROR_FOR("getType", error, displayId, NAME_NOT_FOUND);
-
-    if (displayType != HWC2::DisplayType::Virtual) {
+    if (!displayData.isVirtual) {
         LOG_DISPLAY_ERROR(displayId, "Invalid operation on physical display");
         return INVALID_OPERATION;
     }
 
-    error = hwcDisplay->setOutputBuffer(buffer, acquireFence);
+    auto error = displayData.hwcDisplay->setOutputBuffer(buffer, acquireFence);
     RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
     return NO_ERROR;
 }
@@ -833,26 +810,4 @@ HWComposer::getHwcDisplayId(int32_t displayId) const {
     return mDisplayData[displayId].hwcDisplay->getId();
 }
 
-// ---------------------------------------------------------------------------
-
-HWComposer::DisplayData::DisplayData()
-  : hasClientComposition(false),
-    hasDeviceComposition(false),
-    hwcDisplay(nullptr),
-    lastPresentFence(Fence::NO_FENCE),
-    outbufHandle(nullptr),
-    outbufAcquireFence(Fence::NO_FENCE),
-    vsyncEnabled(HWC2::Vsync::Disable) {
-    ALOGV("Created new DisplayData");
-}
-
-HWComposer::DisplayData::~DisplayData() {
-}
-
-void HWComposer::DisplayData::reset() {
-    ALOGV("DisplayData reset");
-    *this = DisplayData();
-}
-
-// ---------------------------------------------------------------------------
-}; // namespace android
+} // namespace android

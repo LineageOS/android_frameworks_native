@@ -31,7 +31,7 @@ public:
     MOCK_CONST_METHOD0(createEventConnection, sp<BnDisplayEventConnection>());
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
-    MOCK_METHOD2(onHotplugReceived, void(int, bool));
+    MOCK_METHOD2(onHotplugReceived, void(DisplayType, bool));
     MOCK_CONST_METHOD1(dump, void(String8&));
     MOCK_METHOD1(setPhaseOffset, void(nsecs_t phaseOffset));
 };
