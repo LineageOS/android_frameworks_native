@@ -482,6 +482,11 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 
 void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     const auto displayId = display->getId();
+    if (!hasHwcLayer(displayId)) {
+        ALOGE("[%s] failed to setGeometry: no HWC layer found (%d)",
+              mName.string(), displayId);
+        return;
+    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
 
     // enable this layer
@@ -1980,6 +1985,10 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, int32_t displayId) {
+    if (!hasHwcLayer(displayId)) {
+        return;
+    }
+
     writeToProto(layerInfo, LayerVector::StateSet::Drawing);
 
     const auto& hwcInfo = getBE().mHwcLayers.at(displayId);
