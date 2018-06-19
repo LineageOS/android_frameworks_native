@@ -332,11 +332,26 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
-    property_get("debug.sf.early_phase_offset_ns", value, "0");
-    const int earlyWakeupOffsetOffsetNs = atoi(value);
-    ALOGI_IF(earlyWakeupOffsetOffsetNs != 0, "Enabling separate early offset");
-    mVsyncModulator.setPhaseOffsets(sfVsyncPhaseOffsetNs - earlyWakeupOffsetOffsetNs,
-            sfVsyncPhaseOffsetNs);
+    property_get("debug.sf.early_phase_offset_ns", value, "-1");
+    const int earlySfOffsetNs = atoi(value);
+
+    property_get("debug.sf.early_gl_phase_offset_ns", value, "-1");
+    const int earlyGlSfOffsetNs = atoi(value);
+
+    property_get("debug.sf.early_app_phase_offset_ns", value, "-1");
+    const int earlyAppOffsetNs = atoi(value);
+
+    property_get("debug.sf.early_gl_app_phase_offset_ns", value, "-1");
+    const int earlyGlAppOffsetNs = atoi(value);
+
+    const VSyncModulator::Offsets earlyOffsets =
+            {earlySfOffsetNs != -1 ? earlySfOffsetNs : sfVsyncPhaseOffsetNs,
+            earlyAppOffsetNs != -1 ? earlyAppOffsetNs : vsyncPhaseOffsetNs};
+    const VSyncModulator::Offsets earlyGlOffsets =
+            {earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs : sfVsyncPhaseOffsetNs,
+            earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs : vsyncPhaseOffsetNs};
+    mVsyncModulator.setPhaseOffsets(earlyOffsets, earlyGlOffsets,
+            {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs});
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -651,7 +666,7 @@ void SurfaceFlinger::init() {
                                                 },
                                                 "sfEventThread");
     mEventQueue->setEventThread(mSFEventThread.get());
-    mVsyncModulator.setEventThread(mSFEventThread.get());
+    mVsyncModulator.setEventThreads(mSFEventThread.get(), mEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
     getBE().mRenderEngine =
@@ -4168,15 +4183,27 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("DispSync configuration:\n");
     colorizer.reset(result);
 
+    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
+    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
     if (const auto displayId = DisplayDevice::DISPLAY_PRIMARY;
         getHwComposer().isConnected(displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(displayId);
-        result.appendFormat("Display %d: app phase %" PRId64 " ns, sf phase %" PRId64
-                            " ns, early sf phase %" PRId64 " ns, present offset %" PRId64
-                            " ns (refresh %" PRId64 " ns)",
-                            displayId, vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
-                            mVsyncModulator.getEarlyPhaseOffset(), dispSyncPresentTimeOffset,
-                            activeConfig->getVsyncPeriod());
+        result.appendFormat("Display %d: "
+                "app phase %" PRId64 " ns, "
+                "sf phase %" PRId64 " ns, "
+                "early app phase %" PRId64 " ns, "
+                "early sf phase %" PRId64 " ns, "
+                "early app gl phase %" PRId64 " ns, "
+                "early sf gl phase %" PRId64 " ns, "
+                "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
+                displayId,
+                vsyncPhaseOffsetNs,
+                sfVsyncPhaseOffsetNs,
+                appEarlyOffset,
+                sfEarlyOffset,
+                appEarlyGlOffset,
+                sfEarlyOffset,
+                dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     }
     result.append("\n");
 
