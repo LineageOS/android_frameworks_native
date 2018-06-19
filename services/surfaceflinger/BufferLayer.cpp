@@ -613,6 +613,11 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     const auto displayId = display->getId();
+    if (!hasHwcLayer(displayId)) {
+        ALOGE("[%s] failed to setPerFrameData: no HWC layer found (%d)",
+              mName.string(), displayId);
+        return;
+    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
@@ -667,8 +672,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    getBE().mHwcLayers[displayId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
-                                                           &hwcSlot, &hwcBuffer);
+    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
