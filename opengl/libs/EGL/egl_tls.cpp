@@ -55,11 +55,36 @@ const char *egl_tls_t::egl_strerror(EGLint err) {
 void egl_tls_t::validateTLSKey()
 {
     struct TlsKeyInitializer {
-        static void create() {
-            pthread_key_create(&sKey, (void (*)(void*))&eglReleaseThread);
-        }
+        static void create() { pthread_key_create(&sKey, destructTLSData); }
     };
     pthread_once(&sOnceKey, TlsKeyInitializer::create);
+}
+
+void egl_tls_t::destructTLSData(void* data) {
+    egl_tls_t* tls = static_cast<egl_tls_t*>(data);
+    if (!tls) return;
+
+    // Several things in the call tree of eglReleaseThread expect to be able to get the current
+    // thread state directly from TLS. That's a problem because Bionic has already cleared our
+    // TLS pointer before calling this function (pthread_getspecific(sKey) will return nullptr).
+    // Instead the data is passed as our parameter.
+    //
+    // Ideally we'd refactor this so we have thin wrappers that retrieve thread state from TLS and
+    // then pass it as a parameter (or 'this' pointer) to functions that do the real work without
+    // touching TLS. Then from here we could just call those implementation functions with the the
+    // TLS data we just received as a parameter.
+    //
+    // But that's a fairly invasive refactoring, so to do this robustly in the short term we just
+    // put the data *back* in TLS and call the top-level eglReleaseThread. It and it's call tree
+    // will retrieve the value from TLS, and then finally clear the TLS data. Bionic explicitly
+    // tolerates re-setting the value that it's currently trying to destruct (see
+    // pthread_key_clean_all()). Even if we forgot to clear the restored TLS data, bionic would
+    // call the destructor again, but eventually gives up and just leaks the data rather than
+    // enter an infinite loop.
+    pthread_setspecific(sKey, tls);
+    eglReleaseThread();
+    ALOGE_IF(pthread_getspecific(sKey) != nullptr,
+             "EGL TLS data still exists after eglReleaseThread");
 }
 
 void egl_tls_t::setErrorEtcImpl(
