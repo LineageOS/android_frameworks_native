@@ -103,7 +103,9 @@ bool HWComposer::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8
                                               DisplayIdentificationData* outData) const {
     const auto error = mHwcDevice->getDisplayIdentificationData(hwcDisplayId, outPort, outData);
     if (error != HWC2::Error::None) {
-        LOG_HWC_DISPLAY_ERROR(hwcDisplayId, to_string(error).c_str());
+        if (error != HWC2::Error::Unsupported) {
+            LOG_HWC_DISPLAY_ERROR(hwcDisplayId, to_string(error).c_str());
+        }
         return false;
     }
     return true;
