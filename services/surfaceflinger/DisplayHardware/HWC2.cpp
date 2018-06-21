@@ -138,7 +138,7 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
     }
 
     auto display = std::make_unique<Display>(
-            *mComposer.get(), mCapabilities, displayId, DisplayType::Virtual);
+            *mComposer.get(), mPowerAdvisor, mCapabilities, displayId, DisplayType::Virtual);
     display->setConnected(true);
     *outDisplay = display.get();
     mDisplays.emplace(displayId, std::move(display));
@@ -177,7 +177,7 @@ void Device::onHotplug(hwc2_display_t displayId, Connection connection) {
         }
 
         auto newDisplay = std::make_unique<Display>(
-                *mComposer.get(), mCapabilities, displayId, displayType);
+                *mComposer.get(), mPowerAdvisor, mCapabilities, displayId, displayType);
         newDisplay->setConnected(true);
         mDisplays.emplace(displayId, std::move(newDisplay));
     } else if (connection == Connection::Disconnected) {
@@ -219,10 +219,11 @@ Error Device::flushCommands()
 
 // Display methods
 
-Display::Display(android::Hwc2::Composer& composer,
+Display::Display(android::Hwc2::Composer& composer, android::Hwc2::PowerAdvisor& advisor,
                  const std::unordered_set<Capability>& capabilities, hwc2_display_t id,
                  DisplayType type)
       : mComposer(composer),
+        mPowerAdvisor(advisor),
         mCapabilities(capabilities),
         mId(id),
         mIsConnected(false),
@@ -605,6 +606,12 @@ Error Display::setClientTarget(uint32_t slot, const sp<GraphicBuffer>& target,
 
 Error Display::setColorMode(ColorMode mode, RenderIntent renderIntent)
 {
+    // When the color mode is switched to DISPLAY_P3, we want to boost the GPU frequency
+    // so that GPU composition can finish in time. When color mode is switched from
+    // DISPLAY_P3, we want to reset GPU frequency.
+    const bool expensiveRenderingExpected = (mode == ColorMode::DISPLAY_P3);
+    mPowerAdvisor.setExpensiveRenderingExpected(mId, expensiveRenderingExpected);
+
     auto intError = mComposer.setColorMode(mId, mode, renderIntent);
     return static_cast<Error>(intError);
 }
