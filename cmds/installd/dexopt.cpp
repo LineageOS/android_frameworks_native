@@ -771,7 +771,8 @@ static void run_profman(const std::vector<unique_fd>& profile_fds,
     }
 
     // program name, reference profile fd, the final NULL and the profile fds
-    const char* argv[3 + profile_args.size() + apk_args.size() + (copy_and_update ? 1 : 0)];
+    const char* argv[3 + profile_args.size() + apk_args.size()
+            + dex_location_args.size() + (copy_and_update ? 1 : 0)];
     int i = 0;
     argv[i++] = profman_bin;
     argv[i++] = reference_profile_arg.c_str();
