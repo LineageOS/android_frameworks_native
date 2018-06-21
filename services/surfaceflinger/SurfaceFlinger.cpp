@@ -351,7 +351,7 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
 
     property_get("debug.sf.enable_hwc_vds", value, "0");
     mUseHwcVirtualDisplays = atoi(value);
-    ALOGI_IF(!mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
+    ALOGI_IF(mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
 
     property_get("ro.sf.disable_triple_buffer", value, "1");
     mLayerTripleBufferingDisabled = atoi(value);
