@@ -2325,11 +2325,15 @@ void SurfaceFlinger::postFramebuffer()
         display->onSwapBuffersCompleted();
         display->makeCurrent();
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
+            sp<Fence> releaseFence = Fence::NO_FENCE;
+
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
             auto hwcLayer = layer->getHwcLayer(displayId);
-            sp<Fence> releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer);
+            if (displayId >= 0) {
+                releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer);
+            }
 
             // If the layer was client composited in the previous frame, we
             // need to merge with the previous client target acquire fence.
@@ -2481,8 +2485,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
     bool hasWideColorGamut = false;
     std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
+    HdrCapabilities hdrCapabilities;
+    int32_t supportedPerFrameMetadata = 0;
 
-    if (hasWideColorDisplay) {
+    if (hasWideColorDisplay && displayId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (ColorMode colorMode : modes) {
             if (isWideColorMode(colorMode)) {
@@ -2493,10 +2499,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                     getHwComposer().getRenderIntents(displayId, colorMode);
             hwcColorModes.emplace(colorMode, renderIntents);
         }
-    }
 
-    HdrCapabilities hdrCapabilities;
-    getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
+        getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
+        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(displayId);
+    }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
@@ -2529,8 +2535,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
             new DisplayDevice(this, state.type, displayId, state.isSecure, displayToken,
                               nativeWindow, dispSurface, std::move(renderSurface), displayWidth,
                               displayHeight, hasWideColorGamut, hdrCapabilities,
-                              getHwComposer().getSupportedPerFrameMetadata(displayId),
-                              hwcColorModes, initialPowerMode);
+                              supportedPerFrameMetadata, hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
