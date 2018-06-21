@@ -853,7 +853,7 @@ private:
     // these are thread safe
     mutable std::unique_ptr<MessageQueue> mEventQueue{std::make_unique<impl::MessageQueue>()};
     FrameTracker mAnimFrameTracker;
-    DispSync mPrimaryDispSync;
+    std::unique_ptr<DispSync> mPrimaryDispSync;
     int mPrimaryDisplayOrientation = DisplayState::eOrientationDefault;
 
     // protected by mDestroyedLayerLock;
