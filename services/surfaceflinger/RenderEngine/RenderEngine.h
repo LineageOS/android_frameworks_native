@@ -69,6 +69,9 @@ public:
     // dump the extension strings. always call the base class.
     virtual void dump(String8& result) = 0;
 
+    virtual bool useNativeFenceSync() const = 0;
+    virtual bool useWaitSync() const = 0;
+
     virtual bool isCurrent() const = 0;
     virtual bool setCurrentSurface(const RE::Surface& surface) = 0;
     virtual void resetCurrentSurface() = 0;
@@ -189,6 +192,9 @@ public:
 
     // dump the extension strings. always call the base class.
     void dump(String8& result) override;
+
+    bool useNativeFenceSync() const override;
+    bool useWaitSync() const override;
 
     bool isCurrent() const;
     bool setCurrentSurface(const RE::Surface& surface) override;
