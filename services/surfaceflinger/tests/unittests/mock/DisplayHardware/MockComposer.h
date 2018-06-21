@@ -74,8 +74,8 @@ public:
     MOCK_METHOD2(getDisplayType, Error(Display, IComposerClient::DisplayType*));
     MOCK_METHOD2(getDozeSupport, Error(Display, bool*));
     MOCK_METHOD5(getHdrCapabilities, Error(Display, std::vector<Hdr>*, float*, float*, float*));
-    MOCK_METHOD2(getPerFrameMetadataKeys,
-                 Error(Display, std::vector<IComposerClient::PerFrameMetadataKey>*));
+    MOCK_METHOD1(getPerFrameMetadataKeys,
+                 std::vector<IComposerClient::PerFrameMetadataKey>(Display));
     MOCK_METHOD2(getDataspaceSaturationMatrix, Error(Dataspace, mat4*));
     MOCK_METHOD3(getDisplayIdentificationData, Error(Display, uint8_t*, std::vector<uint8_t>*));
     MOCK_METHOD3(getReleaseFences, Error(Display, std::vector<Layer>*, std::vector<int>*));

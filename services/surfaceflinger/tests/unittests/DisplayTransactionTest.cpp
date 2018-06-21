@@ -577,7 +577,7 @@ struct HdrNotSupportedVariant {
 struct NonHwcPerFrameMetadataSupportVariant {
     static constexpr int PER_FRAME_METADATA_KEYS = 0;
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(_, _)).Times(0);
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(_)).Times(0);
     }
 };
 
@@ -585,9 +585,8 @@ template <typename Display>
 struct NoPerFrameMetadataSupportVariant {
     static constexpr int PER_FRAME_METADATA_KEYS = 0;
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<PerFrameMetadataKey>()),
-                                Return(Error::NONE)));
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID))
+                .WillOnce(Return(std::vector<PerFrameMetadataKey>()));
     }
 };
 
@@ -595,8 +594,8 @@ template <typename Display>
 struct Smpte2086PerFrameMetadataSupportVariant {
     static constexpr int PER_FRAME_METADATA_KEYS = HdrMetadata::Type::SMPTE2086;
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<PerFrameMetadataKey>({
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID))
+                .WillOnce(Return(std::vector<PerFrameMetadataKey>({
                                         PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X,
                                         PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
                                         PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
@@ -607,8 +606,7 @@ struct Smpte2086PerFrameMetadataSupportVariant {
                                         PerFrameMetadataKey::WHITE_POINT_Y,
                                         PerFrameMetadataKey::MAX_LUMINANCE,
                                         PerFrameMetadataKey::MIN_LUMINANCE,
-                                })),
-                                Return(Error::NONE)));
+                                })));
     }
 };
 
@@ -616,12 +614,11 @@ template <typename Display>
 struct Cta861_3_PerFrameMetadataSupportVariant {
     static constexpr int PER_FRAME_METADATA_KEYS = HdrMetadata::Type::CTA861_3;
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
-        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID, _))
-                .WillOnce(DoAll(SetArgPointee<1>(std::vector<PerFrameMetadataKey>({
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID))
+                .WillOnce(Return(std::vector<PerFrameMetadataKey>({
                                         PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL,
                                         PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
-                                })),
-                                Return(Error::NONE)));
+                                })));
     }
 };
 

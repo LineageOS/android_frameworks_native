@@ -182,8 +182,8 @@ public:
     virtual Error setLayerPerFrameMetadata(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) = 0;
-    virtual Error getPerFrameMetadataKeys(
-            Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) = 0;
+    virtual std::vector<IComposerClient::PerFrameMetadataKey> getPerFrameMetadataKeys(
+            Display display) = 0;
     virtual Error getRenderIntents(Display display, ColorMode colorMode,
             std::vector<RenderIntent>* outRenderIntents) = 0;
     virtual Error getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix) = 0;
@@ -380,8 +380,8 @@ public:
     Error setLayerPerFrameMetadata(
             Display display, Layer layer,
             const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) override;
-    Error getPerFrameMetadataKeys(
-            Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) override;
+    std::vector<IComposerClient::PerFrameMetadataKey> getPerFrameMetadataKeys(
+            Display display) override;
     Error getRenderIntents(Display display, ColorMode colorMode,
             std::vector<RenderIntent>* outRenderIntents) override;
     Error getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix) override;

@@ -409,21 +409,17 @@ Error Display::getColorModes(std::vector<ColorMode>* outModes) const
     return static_cast<Error>(intError);
 }
 
-Error Display::getSupportedPerFrameMetadata(int32_t* outSupportedPerFrameMetadata) const
+int32_t Display::getSupportedPerFrameMetadata() const
 {
-    *outSupportedPerFrameMetadata = 0;
-    std::vector<Hwc2::PerFrameMetadataKey> tmpKeys;
-    auto intError = mComposer.getPerFrameMetadataKeys(mId, &tmpKeys);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
+    int32_t supportedPerFrameMetadata = 0;
+
+    std::vector<Hwc2::PerFrameMetadataKey> tmpKeys = mComposer.getPerFrameMetadataKeys(mId);
+    std::set<Hwc2::PerFrameMetadataKey> keys(tmpKeys.begin(), tmpKeys.end());
 
     // Check whether a specific metadata type is supported. A metadata type is considered
     // supported if and only if all required fields are supported.
 
     // SMPTE2086
-    std::set<Hwc2::PerFrameMetadataKey> keys(tmpKeys.begin(), tmpKeys.end());
     if (hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X) &&
         hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y) &&
         hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X) &&
@@ -434,15 +430,15 @@ Error Display::getSupportedPerFrameMetadata(int32_t* outSupportedPerFrameMetadat
         hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::WHITE_POINT_Y) &&
         hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::MAX_LUMINANCE) &&
         hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::MIN_LUMINANCE)) {
-        *outSupportedPerFrameMetadata |= HdrMetadata::Type::SMPTE2086;
+        supportedPerFrameMetadata |= HdrMetadata::Type::SMPTE2086;
     }
     // CTA861_3
     if (hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL) &&
         hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL)) {
-        *outSupportedPerFrameMetadata |= HdrMetadata::Type::CTA861_3;
+        supportedPerFrameMetadata |= HdrMetadata::Type::CTA861_3;
     }
 
-    return Error::None;
+    return supportedPerFrameMetadata;
 }
 
 Error Display::getRenderIntents(ColorMode colorMode,

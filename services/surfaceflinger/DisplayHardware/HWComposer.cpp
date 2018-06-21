@@ -745,12 +745,7 @@ status_t HWComposer::getHdrCapabilities(
 
 int32_t HWComposer::getSupportedPerFrameMetadata(int32_t displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, 0);
-
-    int32_t supportedMetadata;
-    auto error = mDisplayData[displayId].hwcDisplay->getSupportedPerFrameMetadata(
-            &supportedMetadata);
-    RETURN_IF_HWC_ERROR(error, displayId, 0);
-    return supportedMetadata;
+    return mDisplayData[displayId].hwcDisplay->getSupportedPerFrameMetadata();
 }
 
 std::vector<ui::RenderIntent> HWComposer::getRenderIntents(int32_t displayId,
