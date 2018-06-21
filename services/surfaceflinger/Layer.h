@@ -362,6 +362,11 @@ public:
      */
     virtual bool isFixedSize() const { return true; }
 
+    // Most layers aren't created from the main thread, and therefore need to
+    // grab the SF state lock to access HWC, but ContainerLayer does, so we need
+    // to avoid grabbing the lock again to avoid deadlock
+    virtual bool isCreatedFromMainThread() const { return false; }
+
 
     bool isPendingRemoval() const { return mPendingRemoval; }
 
