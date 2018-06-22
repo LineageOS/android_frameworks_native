@@ -155,20 +155,17 @@ void EventThread::onVSyncEvent(nsecs_t timestamp) {
     mCondition.notify_all();
 }
 
-void EventThread::onHotplugReceived(int type, bool connected) {
-    ALOGE_IF(type >= DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES,
-             "received hotplug event for an invalid display (id=%d)", type);
-
+void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (type < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES) {
-        DisplayEventReceiver::Event event;
-        event.header.type = DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG;
-        event.header.id = type;
-        event.header.timestamp = systemTime();
-        event.hotplug.connected = connected;
-        mPendingEvents.add(event);
-        mCondition.notify_all();
-    }
+
+    DisplayEventReceiver::Event event;
+    event.header.type = DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG;
+    event.header.id = displayType == DisplayType::Primary ? 0 : 1;
+    event.header.timestamp = systemTime();
+    event.hotplug.connected = connected;
+
+    mPendingEvents.add(event);
+    mCondition.notify_all();
 }
 
 void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
@@ -205,7 +202,7 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 // This will return when (1) a vsync event has been received, and (2) there was
 // at least one connection interested in receiving it when we started waiting.
 Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
-        std::unique_lock<std::mutex>* lock, DisplayEventReceiver::Event* event) {
+        std::unique_lock<std::mutex>* lock, DisplayEventReceiver::Event* outEvent) {
     Vector<sp<EventThread::Connection> > signalConnections;
 
     while (signalConnections.isEmpty() && mKeepRunning) {
@@ -214,16 +211,16 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
 
         size_t vsyncCount = 0;
         nsecs_t timestamp = 0;
-        for (int32_t i = 0; i < DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES; i++) {
-            timestamp = mVSyncEvent[i].header.timestamp;
+        for (auto& event : mVSyncEvent) {
+            timestamp = event.header.timestamp;
             if (timestamp) {
                 // we have a vsync event to dispatch
                 if (mInterceptVSyncsCallback) {
                     mInterceptVSyncsCallback(timestamp);
                 }
-                *event = mVSyncEvent[i];
-                mVSyncEvent[i].header.timestamp = 0;
-                vsyncCount = mVSyncEvent[i].vsync.count;
+                *outEvent = event;
+                event.header.timestamp = 0;
+                vsyncCount = event.vsync.count;
                 break;
             }
         }
@@ -233,7 +230,7 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
             eventPending = !mPendingEvents.isEmpty();
             if (eventPending) {
                 // we have some other event to dispatch
-                *event = mPendingEvents[0];
+                *outEvent = mPendingEvents[0];
                 mPendingEvents.removeAt(0);
             }
         }
@@ -319,7 +316,7 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
                     // FIXME: how do we decide which display id the fake
                     // vsync came from ?
                     mVSyncEvent[0].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
-                    mVSyncEvent[0].header.id = DisplayDevice::DISPLAY_PRIMARY;
+                    mVSyncEvent[0].header.id = 0;
                     mVSyncEvent[0].header.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
                     mVSyncEvent[0].vsync.count++;
                 }
@@ -364,8 +361,7 @@ void EventThread::dump(String8& result) const {
     result.appendFormat("VSYNC state: %s\n", mDebugVsyncEnabled ? "enabled" : "disabled");
     result.appendFormat("  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
     result.appendFormat("  numListeners=%zu,\n  events-delivered: %u\n",
-                        mDisplayEventConnections.size(),
-                        mVSyncEvent[DisplayDevice::DISPLAY_PRIMARY].vsync.count);
+                        mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
     for (size_t i = 0; i < mDisplayEventConnections.size(); i++) {
         sp<Connection> connection = mDisplayEventConnections.itemAt(i).promote();
         result.appendFormat("    %p: count=%d\n", connection.get(),

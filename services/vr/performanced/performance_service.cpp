@@ -124,9 +124,6 @@ PerformanceService::PerformanceService()
   // TODO(eieio): Replace this witha device-specific config file. This is just a
   // hack for now to put some form of permission logic in place while a longer
   // term solution is developed.
-  using AllowRootSystem =
-      CheckAnd<SameProcess,
-               CheckOr<UserId<AID_ROOT, AID_SYSTEM>, GroupId<AID_SYSTEM>>>;
   using AllowRootSystemGraphics =
       CheckAnd<SameProcess, CheckOr<UserId<AID_ROOT, AID_SYSTEM, AID_GRAPHICS>,
                                     GroupId<AID_SYSTEM, AID_GRAPHICS>>>;
@@ -170,17 +167,17 @@ PerformanceService::PerformanceService()
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_low,
-        .permission_check = AllowRootSystem::Check}},
+        .permission_check = AllowRootSystemTrusted::Check}},
       {"sensors:low",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_low,
-        .permission_check = AllowRootSystem::Check}},
+        .permission_check = AllowRootSystemTrusted::Check}},
       {"sensors:high",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,
         .priority = fifo_low + 1,
-        .permission_check = AllowRootSystem::Check}},
+        .permission_check = AllowRootSystemTrusted::Check}},
       {"vr:system:arp",
        {.timer_slack = kTimerSlackForegroundNs,
         .scheduler_policy = SCHED_FIFO | SCHED_RESET_ON_FORK,

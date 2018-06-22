@@ -66,6 +66,11 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     const auto displayId = display->getId();
+    if (!hasHwcLayer(displayId)) {
+        ALOGE("[%s] failed to setPerFrameData: no HWC layer found (%d)",
+              mName.string(), displayId);
+        return;
+    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);

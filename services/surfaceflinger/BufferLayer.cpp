@@ -326,7 +326,7 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     if (presentFence->isValid()) {
         mTimeStats.setPresentFence(layerName, mCurrentFrameNumber, presentFence);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
-    } else {
+    } else if (mFlinger->getHwComposer().isConnected(HWC_DISPLAY_PRIMARY)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime =
@@ -613,6 +613,11 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     const auto displayId = display->getId();
+    if (!hasHwcLayer(displayId)) {
+        ALOGE("[%s] failed to setPerFrameData: no HWC layer found (%d)",
+              mName.string(), displayId);
+        return;
+    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
@@ -667,8 +672,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    getBE().mHwcLayers[displayId].bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer,
-                                                           &hwcSlot, &hwcBuffer);
+    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
@@ -706,8 +710,9 @@ void BufferLayer::onFirstRef() {
         mProducer->setMaxDequeuedBufferCount(2);
     }
 
-    const sp<const DisplayDevice> hw(mFlinger->getDefaultDisplayDevice());
-    updateTransformHint(hw);
+    if (const auto display = mFlinger->getDefaultDisplayDevice()) {
+        updateTransformHint(display);
+    }
 }
 
 // ---------------------------------------------------------------------------

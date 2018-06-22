@@ -245,6 +245,8 @@ struct DisplayVariant {
 
     // The type for this display
     static constexpr DisplayDevice::DisplayType TYPE = type;
+    static_assert(TYPE != DisplayDevice::DISPLAY_ID_INVALID);
+
     static constexpr DisplayDevice::DisplayType DISPLAY_ID = displayId;
 
     // When creating native window surfaces for the framebuffer, whether those should be critical
@@ -384,11 +386,6 @@ struct PhysicalDisplayVariant
         public HwcDisplayVariant<hwcDisplayId, HWC2::DisplayType::Physical,
                                  DisplayVariant<type, type, width, height, critical, Async::FALSE,
                                                 Secure::TRUE, GRALLOC_USAGE_PHYSICAL_DISPLAY>> {};
-
-// An invalid display
-using InvalidDisplayVariant =
-        DisplayVariant<DisplayDevice::DISPLAY_ID_INVALID, DisplayDevice::DISPLAY_ID_INVALID, 0, 0,
-                       Critical::FALSE, Async::FALSE, Secure::FALSE, 0>;
 
 // A primary display is a physical display that is critical
 using PrimaryDisplayVariant =
@@ -686,9 +683,7 @@ using HdrCta861_3_DisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
              HdrNotSupportedVariant<PrimaryDisplayVariant>,
              Cta861_3_PerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
-using InvalidDisplayCase = Case<InvalidDisplayVariant, WideColorSupportNotConfiguredVariant,
-                                NonHwcDisplayHdrSupportVariant,
-                                NoPerFrameMetadataSupportVariant<InvalidDisplayVariant>>;
+
 /* ------------------------------------------------------------------------
  *
  * SurfaceFlinger::onHotplugReceived
@@ -696,8 +691,8 @@ using InvalidDisplayCase = Case<InvalidDisplayVariant, WideColorSupportNotConfig
 
 TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     constexpr int currentSequenceId = 123;
-    constexpr hwc2_display_t displayId1 = 456;
-    constexpr hwc2_display_t displayId2 = 654;
+    constexpr hwc2_display_t hwcDisplayId1 = 456;
+    constexpr hwc2_display_t hwcDisplayId2 = 654;
 
     // --------------------------------------------------------------------
     // Preconditions
@@ -720,8 +715,8 @@ TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     // Invocation
 
     // Simulate two hotplug events (a connect and a disconnect)
-    mFlinger.onHotplugReceived(currentSequenceId, displayId1, HWC2::Connection::Connected);
-    mFlinger.onHotplugReceived(currentSequenceId, displayId2, HWC2::Connection::Disconnected);
+    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId1, HWC2::Connection::Connected);
+    mFlinger.onHotplugReceived(currentSequenceId, hwcDisplayId2, HWC2::Connection::Disconnected);
 
     // --------------------------------------------------------------------
     // Postconditions
@@ -732,9 +727,9 @@ TEST_F(DisplayTransactionTest, hotplugEnqueuesEventsForDisplayTransaction) {
     // All events should be in the pending event queue.
     const auto& pendingEvents = mFlinger.mutablePendingHotplugEvents();
     ASSERT_EQ(2u, pendingEvents.size());
-    EXPECT_EQ(displayId1, pendingEvents[0].display);
+    EXPECT_EQ(hwcDisplayId1, pendingEvents[0].hwcDisplayId);
     EXPECT_EQ(HWC2::Connection::Connected, pendingEvents[0].connection);
-    EXPECT_EQ(displayId2, pendingEvents[1].display);
+    EXPECT_EQ(hwcDisplayId2, pendingEvents[1].hwcDisplayId);
     EXPECT_EQ(HWC2::Connection::Disconnected, pendingEvents[1].connection);
 }
 
@@ -1165,13 +1160,23 @@ void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessin
     Case::PerFrameMetadataSupport::setupComposerCallExpectations(this);
 
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
-    EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::TYPE, true)).Times(1);
+    EXPECT_CALL(*mEventThread,
+                onHotplugReceived(Case::Display::TYPE == DisplayDevice::DISPLAY_PRIMARY
+                                          ? EventThread::DisplayType::Primary
+                                          : EventThread::DisplayType::External,
+                                  true))
+            .Times(1);
 }
 
 template <typename Case>
 void HandleTransactionLockedTest::setupCommonCallExpectationsForDisconnectProcessing() {
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
-    EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::TYPE, false)).Times(1);
+    EXPECT_CALL(*mEventThread,
+                onHotplugReceived(Case::Display::TYPE == DisplayDevice::DISPLAY_PRIMARY
+                                          ? EventThread::DisplayType::Primary
+                                          : EventThread::DisplayType::External,
+                                  false))
+            .Times(1);
 }
 
 template <typename Case>
@@ -1822,40 +1827,6 @@ TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWithUnknownDispla
 
     // The display token still doesn't match anything known.
     EXPECT_FALSE(hasCurrentDisplayState(displayToken));
-}
-
-TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWithInvalidDisplay) {
-    using Case = InvalidDisplayCase;
-
-    // --------------------------------------------------------------------
-    // Preconditions
-
-    // An invalid display is set up
-    auto display = Case::Display::makeFakeExistingDisplayInjector(this);
-    display.inject();
-
-    // The invalid display has some state
-    display.mutableCurrentDisplayState().layerStack = 654u;
-
-    // The requested display state tries to change the display state.
-    DisplayState state;
-    state.what = DisplayState::eLayerStackChanged;
-    state.token = display.token();
-    state.layerStack = 456;
-
-    // --------------------------------------------------------------------
-    // Invocation
-
-    uint32_t flags = mFlinger.setDisplayStateLocked(state);
-
-    // --------------------------------------------------------------------
-    // Postconditions
-
-    // The returned flags are empty
-    EXPECT_EQ(0u, flags);
-
-    // The current display layer stack value is unchanged.
-    EXPECT_EQ(654u, getCurrentDisplayState(display.token()).layerStack);
 }
 
 TEST_F(DisplayTransactionTest, setDisplayStateLockedDoesNothingWhenNoChanges) {
@@ -2684,7 +2655,7 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfNoChange) {
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.inject();
 
-    // The diplay is already set to HWC_POWER_MODE_NORMAL
+    // The display is already set to HWC_POWER_MODE_NORMAL
     display.mutableDisplayDevice()->setPowerMode(HWC_POWER_MODE_NORMAL);
 
     // --------------------------------------------------------------------

@@ -17,7 +17,7 @@
 #ifndef ANDROID_IARC_VIDEO_BRIDGE_H
 #define ANDROID_IARC_VIDEO_BRIDGE_H
 
-#include <arc/IArcBridgeService.h>
+#include <arc/MojoBootstrapResult.h>
 #include <binder/IInterface.h>
 #include <utils/Errors.h>
 

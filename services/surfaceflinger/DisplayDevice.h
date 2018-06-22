@@ -315,7 +315,6 @@ private:
 };
 
 struct DisplayDeviceState {
-    bool isValid() const { return type >= 0; }
     bool isVirtual() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
 
     int32_t sequenceId = sNextSequenceId++;

@@ -363,7 +363,7 @@ FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
     return reduce(floatWin, activeTransparentRegion);
 }
 
-Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& hw) const {
+Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     // the crop is the area of the window that gets cropped, but not
     // scaled in any ways.
     const State& s(getDrawingState());
@@ -382,7 +382,7 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& hw) const {
 
     Transform t = getTransform();
     activeCrop = t.transform(activeCrop);
-    if (!activeCrop.intersect(hw->getViewport(), &activeCrop)) {
+    if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
         activeCrop.clear();
     }
     if (!s.finalCrop.isEmpty()) {
@@ -393,14 +393,14 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& hw) const {
 
     const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
-        auto parentCrop = p->computeInitialCrop(hw);
+        auto parentCrop = p->computeInitialCrop(display);
         activeCrop.intersect(parentCrop, &activeCrop);
     }
 
     return activeCrop;
 }
 
-FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
+FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
     // the content crop is the area of the content that gets scaled to the
     // layer's size. This is in buffer space.
     FloatRect crop = getContentCrop().toFloatRect();
@@ -409,7 +409,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
     const State& s(getDrawingState());
 
     // Screen space to make reduction to parent crop clearer.
-    Rect activeCrop = computeInitialCrop(hw);
+    Rect activeCrop = computeInitialCrop(display);
     Transform t = getTransform();
     // Back to layer space to work with the content crop.
     activeCrop = t.inverse().transform(activeCrop);
@@ -482,6 +482,11 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 
 void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     const auto displayId = display->getId();
+    if (!hasHwcLayer(displayId)) {
+        ALOGE("[%s] failed to setGeometry: no HWC layer found (%d)",
+              mName.string(), displayId);
+        return;
+    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
 
     // enable this layer
@@ -1371,13 +1376,13 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
     return usage;
 }
 
-void Layer::updateTransformHint(const sp<const DisplayDevice>& hw) const {
+void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
     uint32_t orientation = 0;
     if (!mFlinger->mDebugDisableTransformHint) {
         // The transform hint is used to improve performance, but we can
         // only have a single transform hint, it cannot
         // apply to all displays.
-        const Transform& planeTransform(hw->getTransform());
+        const Transform& planeTransform = display->getTransform();
         orientation = planeTransform.getOrientation();
         if (orientation & Transform::ROT_INVALID) {
             orientation = 0;
@@ -1980,6 +1985,10 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, int32_t displayId) {
+    if (!hasHwcLayer(displayId)) {
+        return;
+    }
+
     writeToProto(layerInfo, LayerVector::StateSet::Drawing);
 
     const auto& hwcInfo = getBE().mHwcLayers.at(displayId);
