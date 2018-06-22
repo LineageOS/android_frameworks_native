@@ -115,6 +115,7 @@ cc_library_static {
 
 cc_binary {
   name: "vr_hwc",
+  vintf_fragments: ["manifest_vr_hwc.xml"],
   srcs: [
     "vr_hardware_composer_service.cpp"
   ],
