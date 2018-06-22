@@ -556,7 +556,7 @@ protected:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
+    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
     // Compute the initial crop as specified by parent layers and the
     // SurfaceControl for this layer. Does not include buffer crop from the
     // IGraphicBufferProducer client, as that should not affect child clipping.
