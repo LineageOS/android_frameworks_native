@@ -1262,6 +1262,81 @@ TEST_F(ChildLayerTest, Bug36858924) {
     sFakeComposer->runVSyncAndWait();
 }
 
+class ChildColorLayerTest : public ChildLayerTest {
+protected:
+    void SetUp() override {
+        TransactionTest::SetUp();
+        mChild = mComposerClient->createSurface(String8("Child surface"), 10, 10,
+                                                PIXEL_FORMAT_RGBA_8888,
+                                                ISurfaceComposerClient::eFXSurfaceColor,
+                                                mFGSurfaceControl.get());
+        {
+            TransactionScope ts(*sFakeComposer);
+            ts.setColor(mChild,
+                        {LIGHT_GRAY.r / 255.0f, LIGHT_GRAY.g / 255.0f, LIGHT_GRAY.b / 255.0f});
+        }
+
+        sFakeComposer->runVSyncAndWait();
+        mBaseFrame.push_back(makeSimpleRect(64, 64, 64 + 10, 64 + 10));
+        mBaseFrame[CHILD_LAYER].mSourceCrop = hwc_frect_t{0.0f, 0.0f, 0.0f, 0.0f};
+        mBaseFrame[CHILD_LAYER].mSwapCount = 0;
+        ASSERT_EQ(2, sFakeComposer->getFrameCount());
+        ASSERT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
+    }
+};
+
+TEST_F(ChildColorLayerTest, LayerAlpha) {
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setAlpha(mChild, 0.5);
+    }
+
+    auto referenceFrame = mBaseFrame;
+    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 64, 64};
+    referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 10, 10};
+    referenceFrame[CHILD_LAYER].mPlaneAlpha = 0.5f;
+    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.5);
+    }
+
+    auto referenceFrame2 = referenceFrame;
+    referenceFrame2[FG_LAYER].mPlaneAlpha = 0.5f;
+    referenceFrame2[CHILD_LAYER].mPlaneAlpha = 0.25f;
+    EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
+}
+
+TEST_F(ChildColorLayerTest, LayerZeroAlpha) {
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.show(mChild);
+        ts.setPosition(mChild, 0, 0);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+        ts.setAlpha(mChild, 0.5);
+    }
+
+    auto referenceFrame = mBaseFrame;
+    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 64, 64};
+    referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 10, 10};
+    referenceFrame[CHILD_LAYER].mPlaneAlpha = 0.5f;
+    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.setAlpha(mFGSurfaceControl, 0.0f);
+    }
+
+    std::vector<RenderState> refFrame(1);
+    refFrame[BG_LAYER] = mBaseFrame[BG_LAYER];
+
+    EXPECT_TRUE(framesAreSame(refFrame, sFakeComposer->getLatestFrame()));
+}
+
 class LatchingTest : public TransactionTest {
 protected:
     void lockAndFillFGBuffer() { fillSurfaceRGBA8(mFGSurfaceControl, RED, false); }
