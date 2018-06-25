@@ -287,32 +287,31 @@ bool ListCommand::shouldReportHalType(const HalType &type) const {
     return (std::find(mListTypes.begin(), mListTypes.end(), type) != mListTypes.end());
 }
 
+Table* ListCommand::tableForType(HalType type) {
+    switch (type) {
+        case HalType::BINDERIZED_SERVICES:
+            return &mServicesTable;
+        case HalType::PASSTHROUGH_CLIENTS:
+            return &mPassthroughRefTable;
+        case HalType::PASSTHROUGH_LIBRARIES:
+            return &mImplementationsTable;
+        default:
+            LOG(FATAL) << "Unknown HAL type " << static_cast<int64_t>(type);
+            return nullptr;
+    }
+}
+const Table* ListCommand::tableForType(HalType type) const {
+    return const_cast<ListCommand*>(this)->tableForType(type);
+}
+
 void ListCommand::forEachTable(const std::function<void(Table &)> &f) {
     for (const auto& type : mListTypes) {
-        switch (type) {
-            case HalType::BINDERIZED_SERVICES:
-                f(mServicesTable); break;
-            case HalType::PASSTHROUGH_CLIENTS:
-                f(mPassthroughRefTable); break;
-            case HalType::PASSTHROUGH_LIBRARIES:
-                f(mImplementationsTable); break;
-            default:
-                LOG(FATAL) << __func__ << "Unknown HAL type.";
-        }
+        f(*tableForType(type));
     }
 }
 void ListCommand::forEachTable(const std::function<void(const Table &)> &f) const {
     for (const auto& type : mListTypes) {
-        switch (type) {
-            case HalType::BINDERIZED_SERVICES:
-                f(mServicesTable); break;
-            case HalType::PASSTHROUGH_CLIENTS:
-                f(mPassthroughRefTable); break;
-            case HalType::PASSTHROUGH_LIBRARIES:
-                f(mImplementationsTable); break;
-            default:
-                LOG(FATAL) << __func__ << "Unknown HAL type.";
-        }
+        f(*tableForType(type));
     }
 }
 
@@ -553,20 +552,7 @@ Status ListCommand::dump() {
 }
 
 void ListCommand::putEntry(HalType type, TableEntry &&entry) {
-    Table *table = nullptr;
-    switch (type) {
-        case HalType::BINDERIZED_SERVICES :
-            table = &mServicesTable; break;
-        case HalType::PASSTHROUGH_CLIENTS :
-            table = &mPassthroughRefTable; break;
-        case HalType::PASSTHROUGH_LIBRARIES :
-            table = &mImplementationsTable; break;
-        default:
-            err() << "Error: Unknown type of entry " << static_cast<int64_t>(type) << std::endl;
-    }
-    if (table) {
-        table->add(std::forward<TableEntry>(entry));
-    }
+    tableForType(type)->add(std::forward<TableEntry>(entry));
 }
 
 Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {

@@ -134,6 +134,8 @@ protected:
 
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
+    Table* tableForType(HalType type);
+    const Table* tableForType(HalType type) const;
 
     NullableOStream<std::ostream> err() const;
     NullableOStream<std::ostream> out() const;
