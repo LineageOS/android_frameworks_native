@@ -62,6 +62,7 @@ static std::string getTitle(TableColumnType type) {
         case TableColumnType::RELEASED:         return "R";
         case TableColumnType::HASH:             return "Hash";
         case TableColumnType::VINTF:            return "VINTF";
+        case TableColumnType::SERVICE_STATUS:   return "Status";
         default:
             LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
@@ -94,6 +95,8 @@ std::string TableEntry::getField(TableColumnType type) const {
             return hash;
         case TableColumnType::VINTF:
             return getVintfInfo();
+        case TableColumnType::SERVICE_STATUS:
+            return lshal::to_string(serviceStatus);
         default:
             LOG(FATAL) << __func__ << "Should not reach here. " << static_cast<int>(type);
             return "";
@@ -127,6 +130,18 @@ std::string TableEntry::getVintfInfo() const {
     }
     auto joined = base::Join(ret, ',');
     return joined.empty() ? "X" : joined;
+}
+
+std::string to_string(ServiceStatus s) {
+    switch (s) {
+        case ServiceStatus::ALIVE: return "alive";
+        case ServiceStatus::NON_RESPONSIVE: return "non-responsive";
+        case ServiceStatus::DECLARED: return "declared";
+        case ServiceStatus::UNKNOWN: return "N/A";
+    }
+
+    LOG(FATAL) << __func__ << "Should not reach here." << static_cast<int>(s);
+    return "";
 }
 
 TextTable Table::createTextTable(bool neat,
