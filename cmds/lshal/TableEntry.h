@@ -35,13 +35,6 @@ namespace lshal {
 using android::procpartition::Partition;
 using Pids = std::vector<int32_t>;
 
-enum : unsigned int {
-    HWSERVICEMANAGER_LIST, // through defaultServiceManager()->list()
-    PTSERVICEMANAGER_REG_CLIENT, // through registerPassthroughClient
-    LIST_DLLIB, // through listing dynamic libraries
-};
-using TableEntrySource = unsigned int;
-
 enum class TableColumnType : unsigned int {
     INTERFACE_NAME,
     TRANSPORT,

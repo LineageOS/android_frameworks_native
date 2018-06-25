@@ -552,17 +552,17 @@ Status ListCommand::dump() {
     return OK;
 }
 
-void ListCommand::putEntry(TableEntrySource source, TableEntry &&entry) {
+void ListCommand::putEntry(HalType type, TableEntry &&entry) {
     Table *table = nullptr;
-    switch (source) {
-        case HWSERVICEMANAGER_LIST :
+    switch (type) {
+        case HalType::BINDERIZED_SERVICES :
             table = &mServicesTable; break;
-        case PTSERVICEMANAGER_REG_CLIENT :
+        case HalType::PASSTHROUGH_CLIENTS :
             table = &mPassthroughRefTable; break;
-        case LIST_DLLIB :
+        case HalType::PASSTHROUGH_LIBRARIES :
             table = &mImplementationsTable; break;
         default:
-            err() << "Error: Unknown source of entry " << source << std::endl;
+            err() << "Error: Unknown type of entry " << static_cast<int64_t>(type) << std::endl;
     }
     if (table) {
         table->add(std::forward<TableEntry>(entry));
@@ -588,7 +588,7 @@ Status ListCommand::fetchAllLibraries(const sp<IServiceManager> &manager) {
             }).first->second.arch |= fromBaseArchitecture(info.arch);
         }
         for (auto &&pair : entries) {
-            putEntry(LIST_DLLIB, std::move(pair.second));
+            putEntry(HalType::PASSTHROUGH_LIBRARIES, std::move(pair.second));
         }
     });
     if (!ret.isOk()) {
@@ -611,7 +611,7 @@ Status ListCommand::fetchPassthrough(const sp<IServiceManager> &manager) {
             if (info.clientPids.size() <= 0) {
                 continue;
             }
-            putEntry(PTSERVICEMANAGER_REG_CLIENT, {
+            putEntry(HalType::PASSTHROUGH_CLIENTS, {
                 .interfaceName =
                         std::string{info.interfaceName.c_str()} + "/" +
                         std::string{info.instanceName.c_str()},
@@ -659,7 +659,7 @@ Status ListCommand::fetchBinderized(const sp<IServiceManager> &manager) {
     }
 
     for (auto& pair : allTableEntries) {
-        putEntry(HWSERVICEMANAGER_LIST, std::move(pair.second));
+        putEntry(HalType::BINDERIZED_SERVICES, std::move(pair.second));
     }
     return status;
 }

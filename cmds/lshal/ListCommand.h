@@ -93,7 +93,7 @@ protected:
     // Retrieve derived information base on existing table
     virtual void postprocess();
     Status dump();
-    void putEntry(TableEntrySource source, TableEntry &&entry);
+    void putEntry(HalType type, TableEntry &&entry);
     Status fetchPassthrough(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
