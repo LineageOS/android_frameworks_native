@@ -561,7 +561,7 @@ static int dump_stat_from_fd(const char *title __unused, const char *path, int f
     bool z;
     char *cp, *buffer = NULL;
     size_t i = 0;
-    FILE *fp = fdopen(fd, "rb");
+    FILE *fp = fdopen(dup(fd), "rb");
     getline(&buffer, &i, fp);
     fclose(fp);
     if (!buffer) {
