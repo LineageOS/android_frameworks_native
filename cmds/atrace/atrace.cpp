@@ -205,6 +205,7 @@ static const TracingCategory k_categories[] = {
     { "binder_driver", "Binder Kernel driver", 0, {
         { REQ,      "events/binder/binder_transaction/enable" },
         { REQ,      "events/binder/binder_transaction_received/enable" },
+        { REQ,      "events/binder/binder_transaction_alloc_buf/enable" },
         { OPT,      "events/binder/binder_set_priority/enable" },
     } },
     { "binder_lock", "Binder global lock trace", 0, {
