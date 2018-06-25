@@ -1095,7 +1095,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
     EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
 }
 
-TEST_F(ChildLayerTest, DetachChildren) {
+TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.show(mChild);
@@ -1111,12 +1111,57 @@ TEST_F(ChildLayerTest, DetachChildren) {
 
     {
         TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
         ts.detachChildren(mFGSurfaceControl);
     }
 
     {
         TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
         ts.hide(mChild);
+    }
+
+    std::vector<RenderState> refFrame(2);
+    refFrame[BG_LAYER] = mBaseFrame[BG_LAYER];
+    refFrame[FG_LAYER] = mBaseFrame[FG_LAYER];
+
+    EXPECT_TRUE(framesAreSame(refFrame, sFakeComposer->getLatestFrame()));
+}
+
+TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
+    sp<SurfaceComposerClient> newComposerClient = new SurfaceComposerClient;
+    sp<SurfaceControl> childNewClient =
+            newComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    ASSERT_TRUE(childNewClient != nullptr);
+    ASSERT_TRUE(childNewClient->isValid());
+    fillSurfaceRGBA8(childNewClient, LIGHT_GRAY);
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.hide(mChild);
+        ts.show(childNewClient);
+        ts.setPosition(childNewClient, 10, 10);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
+    }
+
+    auto referenceFrame = mBaseFrame;
+    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 64, 64 + 64};
+    referenceFrame[CHILD_LAYER].mDisplayFrame =
+            hwc_rect_t{64 + 10, 64 + 10, 64 + 10 + 10, 64 + 10 + 10};
+    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.detachChildren(mFGSurfaceControl);
+        ts.setPosition(mFGSurfaceControl, 0, 0);
+    }
+
+    {
+        TransactionScope ts(*sFakeComposer);
+        ts.setPosition(mFGSurfaceControl, 64, 64);
+        ts.setPosition(childNewClient, 0, 0);
+        ts.hide(childNewClient);
     }
 
     // Nothing should have changed. The child control becomes a no-op
