@@ -804,6 +804,13 @@ private:
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
 
+    enum class BootStage {
+        BOOTLOADER,
+        BOOTANIMATION,
+        FINISHED,
+    };
+    BootStage mBootStage;
+
     struct HotplugEvent {
         hwc2_display_t hwcDisplayId;
         HWC2::Connection connection = HWC2::Connection::Invalid;
@@ -824,7 +831,6 @@ private:
     nsecs_t mLastSwapBufferTime;
     volatile nsecs_t mDebugInTransaction;
     nsecs_t mLastTransactionTime;
-    bool mBootFinished;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
     std::unique_ptr<SurfaceInterceptor> mInterceptor =

@@ -223,6 +223,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mVisibleRegionsDirty(false),
         mGeometryInvalid(false),
         mAnimCompositionPending(false),
+        mBootStage(BootStage::BOOTLOADER),
         mDebugRegion(0),
         mDebugDDMS(0),
         mDebugDisableHWC(0),
@@ -231,7 +232,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mLastSwapBufferTime(0),
         mDebugInTransaction(0),
         mLastTransactionTime(0),
-        mBootFinished(false),
         mForceFullDamage(false),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
@@ -498,7 +498,10 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    postMessageAsync(new LambdaMessage([this] { readPersistentProperties(); }));
+    postMessageAsync(new LambdaMessage([this] {
+        readPersistentProperties();
+        mBootStage = BootStage::FINISHED;
+    }));
 }
 
 uint32_t SurfaceFlinger::getNewTexture() {
@@ -1478,7 +1481,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
             bool refreshNeeded = handleMessageTransaction();
             refreshNeeded |= handleMessageInvalidate();
             refreshNeeded |= mRepaintEverything;
-            if (refreshNeeded) {
+            if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
                 // Signal a refresh if a transaction modified the window state,
                 // a new buffer was latched, or if HWC has requested a full
                 // repaint
@@ -2833,6 +2836,12 @@ bool SurfaceFlinger::handlePageFlip()
     // up during the next vsync period to check again.
     if (frameQueued && (mLayersWithQueuedFrames.empty() || !newDataLatched)) {
         signalLayerUpdate();
+    }
+
+    // enter boot animation on first buffer latch
+    if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
+        ALOGI("Enter boot animation");
+        mBootStage = BootStage::BOOTANIMATION;
     }
 
     // Only continue with the refresh if there is actually new work to do
