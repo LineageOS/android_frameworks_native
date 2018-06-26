@@ -35,6 +35,9 @@ public:
     bool isVisible() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display) override;
+
+protected:
+    FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
 };
 
 } // namespace android
