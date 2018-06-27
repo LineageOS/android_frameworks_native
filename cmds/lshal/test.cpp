@@ -226,12 +226,13 @@ public:
     void SetUp() override {
         mockLshal = std::make_unique<NiceMock<MockLshal>>();
         mockList = std::make_unique<MockListCommand>(mockLshal.get());
+        ON_CALL(*mockLshal, err()).WillByDefault(Return(NullableOStream<std::ostream>(err)));
         // ListCommand::parseArgs should parse arguments from the second element
         optind = 1;
     }
     std::unique_ptr<MockLshal> mockLshal;
     std::unique_ptr<MockListCommand> mockList;
-    std::stringstream output;
+    std::stringstream err;
 };
 
 TEST_F(ListParseArgsTest, Args) {
@@ -241,6 +242,7 @@ TEST_F(ListParseArgsTest, Args) {
                                    TableColumnType::SERVER_ADDR, TableColumnType::CLIENT_PIDS}),
                   table.getSelectedColumns());
     });
+    EXPECT_EQ("", err.str());
 }
 
 TEST_F(ListParseArgsTest, Cmds) {
@@ -255,12 +257,12 @@ TEST_F(ListParseArgsTest, Cmds) {
         EXPECT_THAT(table.getSelectedColumns(), Contains(TableColumnType::CLIENT_CMDS))
                 << "should print client cmds with -m";
     });
+    EXPECT_EQ("", err.str());
 }
 
 TEST_F(ListParseArgsTest, DebugAndNeat) {
-    ON_CALL(*mockLshal, err()).WillByDefault(Return(NullableOStream<std::ostream>(output)));
     EXPECT_NE(0u, mockList->parseArgs(createArg({"lshal", "--neat", "-d"})));
-    EXPECT_THAT(output.str(), StrNe(""));
+    EXPECT_THAT(err.str(), HasSubstr("--neat should not be used with --debug."));
 }
 
 /// Fetch Test
