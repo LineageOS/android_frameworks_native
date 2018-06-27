@@ -502,8 +502,11 @@ static vintf::Arch fromBaseArchitecture(::android::hidl::base::V1_0::DebugInfo::
 
 void ListCommand::dumpTable(const NullableOStream<std::ostream>& out) const {
     if (mNeat) {
-        MergedTable({&mServicesTable, &mPassthroughRefTable, &mImplementationsTable})
-            .createTextTable().dump(out.buf());
+        std::vector<const Table*> tables;
+        forEachTable([&tables](const Table &table) {
+            tables.push_back(&table);
+        });
+        MergedTable(std::move(tables)).createTextTable().dump(out.buf());
         return;
     }
 
