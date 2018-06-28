@@ -805,6 +805,21 @@ TEST_F(ListVintfTest, ManifestHals) {
     EXPECT_EQ("", err.str());
 }
 
+TEST_F(ListVintfTest, Lazy) {
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-iStr", "--types=z", "--neat"})));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.bar1@1.0::IBar/1 declared hwbinder    ?"));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.bar2@2.0::IBar/2 declared passthrough 32+64"));
+    EXPECT_EQ("", err.str());
+}
+
+TEST_F(ListVintfTest, NoLazy) {
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-iStr", "--types=b,c,l", "--neat"})));
+    EXPECT_THAT(out.str(), Not(HasSubstr("IBar")));
+    EXPECT_EQ("", err.str());
+}
+
 class HelpTest : public ::testing::Test {
 public:
     void SetUp() override {

@@ -52,6 +52,7 @@ enum class HalType {
     PASSTHROUGH_CLIENTS,
     PASSTHROUGH_LIBRARIES,
     VINTF_MANIFEST,
+    LAZY_HALS,
 };
 
 class ListCommand : public Command {
@@ -99,6 +100,7 @@ protected:
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchManifestHals();
+    Status fetchLazyHals();
 
     Status fetchBinderizedEntry(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager,
                                 TableEntry *entry);
@@ -153,10 +155,15 @@ protected:
 
     void initFetchTypes();
 
+    // Helper functions ti add HALs that are listed in VINTF manifest to LAZY_HALS table.
+    bool hasHwbinderEntry(const TableEntry& entry) const;
+    bool hasPassthroughEntry(const TableEntry& entry) const;
+
     Table mServicesTable{};
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
     Table mManifestHalsTable{};
+    Table mLazyHalsTable{};
 
     std::string mFileOutputPath;
     TableEntryCompare mSortColumn = nullptr;

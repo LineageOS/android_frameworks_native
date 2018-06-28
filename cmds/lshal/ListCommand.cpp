@@ -313,6 +313,8 @@ Table* ListCommand::tableForType(HalType type) {
             return &mImplementationsTable;
         case HalType::VINTF_MANIFEST:
             return &mManifestHalsTable;
+        case HalType::LAZY_HALS:
+            return &mLazyHalsTable;
         default:
             LOG(FATAL) << "Unknown HAL type " << static_cast<int64_t>(type);
             return nullptr;
@@ -387,6 +389,10 @@ void ListCommand::postprocess() {
             "These may return subclasses through their respective HIDL_FETCH_I* functions.");
     mManifestHalsTable.setDescription(
             "All HALs that are in VINTF manifest.");
+    mLazyHalsTable.setDescription(
+            "All HALs that are declared in VINTF manifest:\n"
+            "   - as hwbinder HALs but are not registered to hwservicemanager, and\n"
+            "   - as hwbinder/passthrough HALs with no implementation.");
 }
 
 bool ListCommand::addEntryWithInstance(const TableEntry& entry,
@@ -810,6 +816,63 @@ Status ListCommand::fetchManifestHals() {
     return status;
 }
 
+Status ListCommand::fetchLazyHals() {
+    using vintf::operator<<;
+
+    if (!shouldFetchHalType(HalType::LAZY_HALS)) { return OK; }
+    Status status = OK;
+
+    for (const TableEntry& manifestEntry : mManifestHalsTable) {
+        if (manifestEntry.transport == vintf::Transport::HWBINDER) {
+            if (!hasHwbinderEntry(manifestEntry)) {
+                mLazyHalsTable.add(TableEntry(manifestEntry));
+            }
+            continue;
+        }
+        if (manifestEntry.transport == vintf::Transport::PASSTHROUGH) {
+            if (!hasPassthroughEntry(manifestEntry)) {
+                mLazyHalsTable.add(TableEntry(manifestEntry));
+            }
+            continue;
+        }
+        err() << "Warning: unrecognized transport in VINTF manifest: "
+              << manifestEntry.transport;
+        status |= VINTF_ERROR;
+    }
+    return status;
+}
+
+bool ListCommand::hasHwbinderEntry(const TableEntry& entry) const {
+    for (const TableEntry& existing : mServicesTable) {
+        if (existing.interfaceName == entry.interfaceName) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool ListCommand::hasPassthroughEntry(const TableEntry& entry) const {
+    FqInstance entryFqInstance;
+    if (!entryFqInstance.setTo(entry.interfaceName)) {
+        return false; // cannot parse, so add it anyway.
+    }
+    for (const TableEntry& existing : mImplementationsTable) {
+        FqInstance existingFqInstance;
+        if (!existingFqInstance.setTo(getPackageAndVersion(existing.interfaceName))) {
+            continue;
+        }
+
+        // For example, manifest may say graphics.mapper@2.1 but passthroughServiceManager
+        // can only list graphics.mapper@2.0.
+        if (entryFqInstance.getPackage() == existingFqInstance.getPackage() &&
+            vintf::Version{entryFqInstance.getVersion()}
+                .minorAtLeast(vintf::Version{existingFqInstance.getVersion()})) {
+            return true;
+        }
+    }
+    return false;
+}
+
 Status ListCommand::fetch() {
     Status status = OK;
     auto bManager = mLshal.serviceManager();
@@ -830,11 +893,24 @@ Status ListCommand::fetch() {
         status |= fetchAllLibraries(pManager);
     }
     status |= fetchManifestHals();
+    status |= fetchLazyHals();
     return status;
 }
 
 void ListCommand::initFetchTypes() {
+    // TODO: refactor to do polymorphism on each table (so that dependency graph is not hardcoded).
+    static const std::map<HalType, std::set<HalType>> kDependencyGraph{
+        {HalType::LAZY_HALS, {HalType::BINDERIZED_SERVICES,
+                              HalType::PASSTHROUGH_LIBRARIES,
+                              HalType::VINTF_MANIFEST}},
+    };
     mFetchTypes.insert(mListTypes.begin(), mListTypes.end());
+    for (HalType listType : mListTypes) {
+        auto it = kDependencyGraph.find(listType);
+        if (it != kDependencyGraph.end()) {
+            mFetchTypes.insert(it->second.begin(), it->second.end());
+        }
+    }
 }
 
 void ListCommand::registerAllOptions() {
@@ -951,6 +1027,8 @@ void ListCommand::registerAllOptions() {
             {"l", HalType::PASSTHROUGH_LIBRARIES},
             {"vintf", HalType::VINTF_MANIFEST},
             {"v", HalType::VINTF_MANIFEST},
+            {"lazy", HalType::LAZY_HALS},
+            {"z", HalType::LAZY_HALS},
         };
 
         std::vector<std::string> halTypesArgs = split(std::string(arg), ',');
