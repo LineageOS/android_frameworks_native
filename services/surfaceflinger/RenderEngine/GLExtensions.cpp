@@ -99,10 +99,6 @@ void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExt
     if (hasEGLExtension("EGL_KHR_wait_sync")) {
         mHasWaitSync = true;
     }
-
-    if (hasEGLExtension("EGL_ANDROID_image_crop")) {
-        mHasImageCrop = true;
-    }
     if (hasEGLExtension("EGL_EXT_protected_content")) {
         mHasProtectedContent = true;
     }

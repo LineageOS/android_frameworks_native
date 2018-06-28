@@ -175,10 +175,6 @@ EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
 }
 
-bool RenderEngine::supportsImageCrop() const {
-    return GLExtensions::getInstance().hasImageCrop();
-}
-
 bool RenderEngine::isCurrent() const {
     return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
 }

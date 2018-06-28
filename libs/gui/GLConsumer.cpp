@@ -46,7 +46,6 @@
 #include <utils/Trace.h>
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
-#define CROP_EXT_STR "EGL_ANDROID_image_crop"
 #define PROT_CONTENT_EXT_STR "EGL_EXT_protected_content"
 #define EGL_PROTECTED_CONTENT_EXT 0x32C0
 
@@ -82,26 +81,6 @@ static const mat4 mtxIdentity;
 Mutex GLConsumer::sStaticInitLock;
 sp<GraphicBuffer> GLConsumer::sReleasedTexImageBuffer;
 
-static bool hasEglAndroidImageCropImpl() {
-    EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    const char* exts = eglQueryStringImplementationANDROID(dpy, EGL_EXTENSIONS);
-    size_t cropExtLen = strlen(CROP_EXT_STR);
-    size_t extsLen = strlen(exts);
-    bool equal = !strcmp(CROP_EXT_STR, exts);
-    bool atStart = !strncmp(CROP_EXT_STR " ", exts, cropExtLen+1);
-    bool atEnd = (cropExtLen+1) < extsLen &&
-            !strcmp(" " CROP_EXT_STR, exts + extsLen - (cropExtLen+1));
-    bool inMiddle = strstr(exts, " " CROP_EXT_STR " ");
-    return equal || atStart || atEnd || inMiddle;
-}
-
-static bool hasEglAndroidImageCrop() {
-    // Only compute whether the extension is present once the first time this
-    // function is called.
-    static bool hasIt = hasEglAndroidImageCropImpl();
-    return hasIt;
-}
-
 static bool hasEglProtectedContentImpl() {
     EGLDisplay dpy = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     const char* exts = eglQueryString(dpy, EGL_EXTENSIONS);
@@ -120,10 +99,6 @@ static bool hasEglProtectedContent() {
     // function is called.
     static bool hasIt = hasEglProtectedContentImpl();
     return hasIt;
-}
-
-static bool isEglImageCroppable(const Rect& crop) {
-    return hasEglAndroidImageCrop() && (crop.left == 0 && crop.top == 0);
 }
 
 GLConsumer::GLConsumer(const sp<IGraphicBufferConsumer>& bq, uint32_t tex,
@@ -406,7 +381,7 @@ status_t GLConsumer::updateAndReleaseLocked(const BufferItem& item,
     // ConsumerBase.
     // We may have to do this even when item.mGraphicBuffer == NULL (which
     // means the buffer was previously acquired).
-    err = mEglSlots[slot].mEglImage->createIfNeeded(mEglDisplay, item.mCrop);
+    err = mEglSlots[slot].mEglImage->createIfNeeded(mEglDisplay);
     if (err != NO_ERROR) {
         GLC_LOGW("updateAndRelease: unable to createImage on display=%p slot=%d",
                 mEglDisplay, slot);
@@ -496,8 +471,7 @@ status_t GLConsumer::bindTextureImageLocked() {
         return NO_INIT;
     }
 
-    status_t err = mCurrentTextureImage->createIfNeeded(mEglDisplay,
-                                                        mCurrentCrop);
+    status_t err = mCurrentTextureImage->createIfNeeded(mEglDisplay);
     if (err != NO_ERROR) {
         GLC_LOGW("bindTextureImage: can't create image on display=%p slot=%d",
                 mEglDisplay, mCurrentTexture);
@@ -511,9 +485,7 @@ status_t GLConsumer::bindTextureImageLocked() {
     // forcing the creation of a new image.
     if ((error = glGetError()) != GL_NO_ERROR) {
         glBindTexture(mTexTarget, mTexName);
-        status_t result = mCurrentTextureImage->createIfNeeded(mEglDisplay,
-                                                               mCurrentCrop,
-                                                               true);
+        status_t result = mCurrentTextureImage->createIfNeeded(mEglDisplay, true);
         if (result != NO_ERROR) {
             GLC_LOGW("bindTextureImage: can't create image on display=%p slot=%d",
                     mEglDisplay, mCurrentTexture);
@@ -769,8 +741,7 @@ void GLConsumer::computeCurrentTransformMatrixLocked() {
         GLC_LOGD("computeCurrentTransformMatrixLocked: "
                 "mCurrentTextureImage is NULL");
     }
-    computeTransformMatrix(mCurrentTransformMatrix, buf,
-        isEglImageCroppable(mCurrentCrop) ? Rect::EMPTY_RECT : mCurrentCrop,
+    computeTransformMatrix(mCurrentTransformMatrix, buf, mCurrentCrop,
         mCurrentTransform, mFilteringEnabled);
 }
 
@@ -1063,8 +1034,7 @@ void GLConsumer::dumpLocked(String8& result, const char* prefix) const
 GLConsumer::EglImage::EglImage(sp<GraphicBuffer> graphicBuffer) :
     mGraphicBuffer(graphicBuffer),
     mEglImage(EGL_NO_IMAGE_KHR),
-    mEglDisplay(EGL_NO_DISPLAY),
-    mCropRect(Rect::EMPTY_RECT) {
+    mEglDisplay(EGL_NO_DISPLAY) {
 }
 
 GLConsumer::EglImage::~EglImage() {
@@ -1077,13 +1047,11 @@ GLConsumer::EglImage::~EglImage() {
 }
 
 status_t GLConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay,
-                                              const Rect& cropRect,
                                               bool forceCreation) {
     // If there's an image and it's no longer valid, destroy it.
     bool haveImage = mEglImage != EGL_NO_IMAGE_KHR;
     bool displayInvalid = mEglDisplay != eglDisplay;
-    bool cropInvalid = hasEglAndroidImageCrop() && mCropRect != cropRect;
-    if (haveImage && (displayInvalid || cropInvalid || forceCreation)) {
+    if (haveImage && (displayInvalid || forceCreation)) {
         if (!eglDestroyImageKHR(mEglDisplay, mEglImage)) {
            ALOGE("createIfNeeded: eglDestroyImageKHR failed");
         }
@@ -1095,14 +1063,12 @@ status_t GLConsumer::EglImage::createIfNeeded(EGLDisplay eglDisplay,
     // If there's no image, create one.
     if (mEglImage == EGL_NO_IMAGE_KHR) {
         mEglDisplay = eglDisplay;
-        mCropRect = cropRect;
-        mEglImage = createImage(mEglDisplay, mGraphicBuffer, mCropRect);
+        mEglImage = createImage(mEglDisplay, mGraphicBuffer);
     }
 
     // Fail if we can't create a valid image.
     if (mEglImage == EGL_NO_IMAGE_KHR) {
         mEglDisplay = EGL_NO_DISPLAY;
-        mCropRect.makeInvalid();
         const sp<GraphicBuffer>& buffer = mGraphicBuffer;
         ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
             buffer->getWidth(), buffer->getHeight(), buffer->getStride(),
@@ -1119,37 +1085,18 @@ void GLConsumer::EglImage::bindToTextureTarget(uint32_t texTarget) {
 }
 
 EGLImageKHR GLConsumer::EglImage::createImage(EGLDisplay dpy,
-        const sp<GraphicBuffer>& graphicBuffer, const Rect& crop) {
+        const sp<GraphicBuffer>& graphicBuffer) {
     EGLClientBuffer cbuf =
             static_cast<EGLClientBuffer>(graphicBuffer->getNativeBuffer());
     const bool createProtectedImage =
             (graphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED) &&
             hasEglProtectedContent();
     EGLint attrs[] = {
-        EGL_IMAGE_PRESERVED_KHR,        EGL_TRUE,
-        EGL_IMAGE_CROP_LEFT_ANDROID,    crop.left,
-        EGL_IMAGE_CROP_TOP_ANDROID,     crop.top,
-        EGL_IMAGE_CROP_RIGHT_ANDROID,   crop.right,
-        EGL_IMAGE_CROP_BOTTOM_ANDROID,  crop.bottom,
+        EGL_IMAGE_PRESERVED_KHR, EGL_TRUE,
         createProtectedImage ? EGL_PROTECTED_CONTENT_EXT : EGL_NONE,
         createProtectedImage ? EGL_TRUE : EGL_NONE,
         EGL_NONE,
     };
-    if (!crop.isValid()) {
-        // No crop rect to set, so leave the crop out of the attrib array. Make
-        // sure to propagate the protected content attrs if they are set.
-        attrs[2] = attrs[10];
-        attrs[3] = attrs[11];
-        attrs[4] = EGL_NONE;
-    } else if (!isEglImageCroppable(crop)) {
-        // The crop rect is not at the origin, so we can't set the crop on the
-        // EGLImage because that's not allowed by the EGL_ANDROID_image_crop
-        // extension.  In the future we can add a layered extension that
-        // removes this restriction if there is hardware that can support it.
-        attrs[2] = attrs[10];
-        attrs[3] = attrs[11];
-        attrs[4] = EGL_NONE;
-    }
     eglInitialize(dpy, nullptr, nullptr);
     EGLImageKHR image = eglCreateImageKHR(dpy, EGL_NO_CONTEXT,
             EGL_NATIVE_BUFFER_ANDROID, cbuf, attrs);
