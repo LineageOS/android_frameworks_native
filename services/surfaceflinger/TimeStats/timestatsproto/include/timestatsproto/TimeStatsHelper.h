@@ -42,9 +42,8 @@ public:
     public:
         std::string layerName;
         std::string packageName;
-        int64_t statsStart = 0;
-        int64_t statsEnd = 0;
         int32_t totalFrames = 0;
+        int32_t droppedFrames = 0;
         std::unordered_map<std::string, Histogram> deltas;
 
         std::string toString() const;
