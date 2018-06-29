@@ -1239,10 +1239,12 @@ static void dumpstate() {
     RunCommand("LIBRANK", {"librank"}, CommandOptions::AS_ROOT);
 
     if (ds.IsZipping()) {
-        RunCommand("HARDWARE HALS", {"lshal"}, CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
+                   CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
         DumpHals();
     } else {
-        RunCommand("HARDWARE HALS", {"lshal", "--debug"}, CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
+                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
     }
 
     RunCommand("PRINTENV", {"printenv"});
