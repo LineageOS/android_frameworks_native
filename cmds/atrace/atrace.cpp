@@ -523,6 +523,9 @@ static bool setClock()
 
 static bool setPrintTgidEnableIfPresent(bool enable)
 {
+    // Pre-4.13 this was options/print-tgid as an android-specific option.
+    // In 4.13+ this is an upstream option called options/record-tgid
+    // Both options produce the same ftrace format change
     if (fileExists(k_printTgidPath)) {
         return setKernelOptionEnable(k_printTgidPath, enable);
     }
