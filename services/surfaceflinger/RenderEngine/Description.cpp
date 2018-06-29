@@ -51,10 +51,6 @@ void Description::setProjectionMatrix(const mat4& mtx) {
     mProjectionMatrix = mtx;
 }
 
-void Description::setSaturationMatrix(const mat4& mtx) {
-    mSaturationMatrix = mtx;
-}
-
 void Description::setColorMatrix(const mat4& mtx) {
     mColorMatrix = mtx;
 }
@@ -80,11 +76,6 @@ bool Description::hasOutputTransformMatrix() const {
 bool Description::hasColorMatrix() const {
     const mat4 identity;
     return mColorMatrix != identity;
-}
-
-bool Description::hasSaturationMatrix() const {
-    const mat4 identity;
-    return mSaturationMatrix != identity;
 }
 
 const mat4& Description::getColorMatrix() const {
