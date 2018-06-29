@@ -258,6 +258,9 @@ static const char* k_currentTracerPath =
 static const char* k_printTgidPath =
     "options/print-tgid";
 
+static const char* k_recordTgidPath =
+    "options/record-tgid";
+
 static const char* k_funcgraphAbsTimePath =
     "options/funcgraph-abstime";
 
@@ -522,6 +525,9 @@ static bool setPrintTgidEnableIfPresent(bool enable)
 {
     if (fileExists(k_printTgidPath)) {
         return setKernelOptionEnable(k_printTgidPath, enable);
+    }
+    if (fileExists(k_recordTgidPath)) {
+        return setKernelOptionEnable(k_recordTgidPath, enable);
     }
     return true;
 }
