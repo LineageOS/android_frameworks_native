@@ -35,13 +35,6 @@ namespace lshal {
 using android::procpartition::Partition;
 using Pids = std::vector<int32_t>;
 
-enum : unsigned int {
-    HWSERVICEMANAGER_LIST, // through defaultServiceManager()->list()
-    PTSERVICEMANAGER_REG_CLIENT, // through registerPassthroughClient
-    LIST_DLLIB, // through listing dynamic libraries
-};
-using TableEntrySource = unsigned int;
-
 enum class TableColumnType : unsigned int {
     INTERFACE_NAME,
     TRANSPORT,
@@ -55,6 +48,7 @@ enum class TableColumnType : unsigned int {
     RELEASED,
     HASH,
     VINTF,
+    SERVICE_STATUS,
 };
 
 enum : unsigned int {
@@ -71,6 +65,14 @@ enum {
     NO_PTR = 0
 };
 
+enum class ServiceStatus {
+    UNKNOWN, // For passthrough
+    ALIVE,
+    NON_RESPONSIVE, // registered but not respond to calls
+    DECLARED, // in VINTF manifest
+};
+std::string to_string(ServiceStatus s);
+
 struct TableEntry {
     std::string interfaceName{};
     vintf::Transport transport{vintf::Transport::EMPTY};
@@ -86,6 +88,8 @@ struct TableEntry {
     std::string hash{};
     Partition partition{Partition::UNKNOWN};
     VintfInfo vintfInfo{VINTF_INFO_EMPTY};
+    // true iff hwbinder and service started
+    ServiceStatus serviceStatus{ServiceStatus::UNKNOWN};
 
     static bool sortByInterfaceName(const TableEntry &a, const TableEntry &b) {
         return a.interfaceName < b.interfaceName;

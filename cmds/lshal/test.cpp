@@ -226,12 +226,13 @@ public:
     void SetUp() override {
         mockLshal = std::make_unique<NiceMock<MockLshal>>();
         mockList = std::make_unique<MockListCommand>(mockLshal.get());
+        ON_CALL(*mockLshal, err()).WillByDefault(Return(NullableOStream<std::ostream>(err)));
         // ListCommand::parseArgs should parse arguments from the second element
         optind = 1;
     }
     std::unique_ptr<MockLshal> mockLshal;
     std::unique_ptr<MockListCommand> mockList;
-    std::stringstream output;
+    std::stringstream err;
 };
 
 TEST_F(ListParseArgsTest, Args) {
@@ -241,6 +242,7 @@ TEST_F(ListParseArgsTest, Args) {
                                    TableColumnType::SERVER_ADDR, TableColumnType::CLIENT_PIDS}),
                   table.getSelectedColumns());
     });
+    EXPECT_EQ("", err.str());
 }
 
 TEST_F(ListParseArgsTest, Cmds) {
@@ -255,12 +257,12 @@ TEST_F(ListParseArgsTest, Cmds) {
         EXPECT_THAT(table.getSelectedColumns(), Contains(TableColumnType::CLIENT_CMDS))
                 << "should print client cmds with -m";
     });
+    EXPECT_EQ("", err.str());
 }
 
 TEST_F(ListParseArgsTest, DebugAndNeat) {
-    ON_CALL(*mockLshal, err()).WillByDefault(Return(NullableOStream<std::ostream>(output)));
     EXPECT_NE(0u, mockList->parseArgs(createArg({"lshal", "--neat", "-d"})));
-    EXPECT_THAT(output.str(), StrNe(""));
+    EXPECT_THAT(err.str(), HasSubstr("--neat should not be used with --debug."));
 }
 
 /// Fetch Test
@@ -325,7 +327,7 @@ private:
 
 class ListTest : public ::testing::Test {
 public:
-    void SetUp() override {
+    virtual void SetUp() override {
         initMockServiceManager();
         lshal = std::make_unique<Lshal>(out, err, serviceManager, passthruManager);
         initMockList();
@@ -349,13 +351,13 @@ public:
         ON_CALL(*mockList, getPartition(_)).WillByDefault(Return(Partition::VENDOR));
 
         ON_CALL(*mockList, getDeviceManifest())
-                .WillByDefault(Return(VintfObject::GetDeviceHalManifest()));
+                .WillByDefault(Return(std::make_shared<HalManifest>()));
         ON_CALL(*mockList, getDeviceMatrix())
-                .WillByDefault(Return(VintfObject::GetDeviceCompatibilityMatrix()));
+                .WillByDefault(Return(std::make_shared<CompatibilityMatrix>()));
         ON_CALL(*mockList, getFrameworkManifest())
-                .WillByDefault(Return(VintfObject::GetFrameworkHalManifest()));
+                .WillByDefault(Return(std::make_shared<HalManifest>()));
         ON_CALL(*mockList, getFrameworkMatrix())
-                .WillByDefault(Return(VintfObject::GetFrameworkCompatibilityMatrix()));
+                .WillByDefault(Return(std::make_shared<CompatibilityMatrix>()));
     }
 
     void initMockServiceManager() {
@@ -409,16 +411,22 @@ TEST_F(ListTest, GetPidInfoCached) {
 }
 
 TEST_F(ListTest, Fetch) {
-    EXPECT_EQ(0u, mockList->fetch());
+    optind = 1; // mimic Lshal::parseArg()
+    ASSERT_EQ(0u, mockList->parseArgs(createArg({"lshal"})));
+    ASSERT_EQ(0u, mockList->fetch());
     vintf::TransportArch hwbinder{Transport::HWBINDER, Arch::ARCH_64};
     vintf::TransportArch passthrough{Transport::PASSTHROUGH, Arch::ARCH_32};
     std::array<vintf::TransportArch, 6> transportArchs{{hwbinder, hwbinder, passthrough,
                                                         passthrough, passthrough, passthrough}};
-    int id = 1;
+    int i = 0;
     mockList->forEachTable([&](const Table& table) {
-        ASSERT_EQ(2u, table.size());
         for (const auto& entry : table) {
-            auto transport = transportArchs.at(id - 1).transport;
+            if (i >= transportArchs.size()) {
+                break;
+            }
+
+            int id = i + 1;
+            auto transport = transportArchs.at(i).transport;
             TableEntry expected{
                 .interfaceName = getFqInstanceName(id),
                 .transport = transport,
@@ -431,13 +439,15 @@ TEST_F(ListTest, Fetch) {
                 .serverObjectAddress = transport == Transport::HWBINDER ? getPtr(id) : NO_PTR,
                 .clientPids = getClients(id),
                 .clientCmdlines = {},
-                .arch = transportArchs.at(id - 1).arch,
+                .arch = transportArchs.at(i).arch,
             };
             EXPECT_EQ(expected, entry) << expected.to_string() << " vs. " << entry.to_string();
 
-            ++id;
+            ++i;
         }
     });
+
+    EXPECT_EQ(transportArchs.size(), i) << "Not all entries are tested.";
 
 }
 
@@ -753,6 +763,60 @@ TEST_F(ListTest, Vintf) {
     optind = 1; // mimic Lshal::parseArg()
     EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-Vi", "--neat"})));
     EXPECT_THAT(out.str(), HasSubstr(expected));
+    EXPECT_EQ("", err.str());
+}
+
+class ListVintfTest : public ListTest {
+public:
+    virtual void SetUp() override {
+        ListTest::SetUp();
+        const std::string mockManifestXml =
+                "<manifest version=\"1.0\" type=\"device\">\n"
+                "    <hal format=\"hidl\">\n"
+                "        <name>a.h.foo1</name>\n"
+                "        <transport>hwbinder</transport>\n"
+                "        <fqname>@1.0::IFoo/1</fqname>\n"
+                "    </hal>\n"
+                "    <hal format=\"hidl\">\n"
+                "        <name>a.h.bar1</name>\n"
+                "        <transport>hwbinder</transport>\n"
+                "        <fqname>@1.0::IBar/1</fqname>\n"
+                "    </hal>\n"
+                "    <hal format=\"hidl\">\n"
+                "        <name>a.h.bar2</name>\n"
+                "        <transport arch=\"32+64\">passthrough</transport>\n"
+                "        <fqname>@2.0::IBar/2</fqname>\n"
+                "    </hal>\n"
+                "</manifest>";
+        auto manifest = std::make_shared<HalManifest>();
+        EXPECT_TRUE(gHalManifestConverter(manifest.get(), mockManifestXml));
+        EXPECT_CALL(*mockList, getDeviceManifest())
+            .Times(AnyNumber())
+            .WillRepeatedly(Return(manifest));
+    }
+};
+
+TEST_F(ListVintfTest, ManifestHals) {
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-iStr", "--types=v", "--neat"})));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.bar1@1.0::IBar/1 declared hwbinder    ?"));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.bar2@2.0::IBar/2 declared passthrough 32+64"));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.foo1@1.0::IFoo/1 declared hwbinder    ?"));
+    EXPECT_EQ("", err.str());
+}
+
+TEST_F(ListVintfTest, Lazy) {
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-iStr", "--types=z", "--neat"})));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.bar1@1.0::IBar/1 declared hwbinder    ?"));
+    EXPECT_THAT(out.str(), HasSubstr("a.h.bar2@2.0::IBar/2 declared passthrough 32+64"));
+    EXPECT_EQ("", err.str());
+}
+
+TEST_F(ListVintfTest, NoLazy) {
+    optind = 1; // mimic Lshal::parseArg()
+    EXPECT_EQ(0u, mockList->main(createArg({"lshal", "-iStr", "--types=b,c,l", "--neat"})));
+    EXPECT_THAT(out.str(), Not(HasSubstr("IBar")));
     EXPECT_EQ("", err.str());
 }
 
