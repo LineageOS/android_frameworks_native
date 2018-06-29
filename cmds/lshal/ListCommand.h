@@ -50,7 +50,9 @@ struct PidInfo {
 enum class HalType {
     BINDERIZED_SERVICES = 0,
     PASSTHROUGH_CLIENTS,
-    PASSTHROUGH_LIBRARIES
+    PASSTHROUGH_LIBRARIES,
+    VINTF_MANIFEST,
+    LAZY_HALS,
 };
 
 class ListCommand : public Command {
@@ -93,10 +95,12 @@ protected:
     // Retrieve derived information base on existing table
     virtual void postprocess();
     Status dump();
-    void putEntry(TableEntrySource source, TableEntry &&entry);
+    void putEntry(HalType type, TableEntry &&entry);
     Status fetchPassthrough(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchBinderized(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
     Status fetchAllLibraries(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager);
+    Status fetchManifestHals();
+    Status fetchLazyHals();
 
     Status fetchBinderizedEntry(const sp<::android::hidl::manager::V1_0::IServiceManager> &manager,
                                 TableEntry *entry);
@@ -134,6 +138,8 @@ protected:
 
     void forEachTable(const std::function<void(Table &)> &f);
     void forEachTable(const std::function<void(const Table &)> &f) const;
+    Table* tableForType(HalType type);
+    const Table* tableForType(HalType type) const;
 
     NullableOStream<std::ostream> err() const;
     NullableOStream<std::ostream> out() const;
@@ -144,12 +150,20 @@ protected:
     bool addEntryWithInstance(const TableEntry &entry, vintf::HalManifest *manifest) const;
     bool addEntryWithoutInstance(const TableEntry &entry, const vintf::HalManifest *manifest) const;
 
-    // Helper function. Whether to list entries corresponding to a given HAL type.
-    bool shouldReportHalType(const HalType &type) const;
+    // Helper function. Whether to fetch entries corresponding to a given HAL type.
+    bool shouldFetchHalType(const HalType &type) const;
+
+    void initFetchTypes();
+
+    // Helper functions ti add HALs that are listed in VINTF manifest to LAZY_HALS table.
+    bool hasHwbinderEntry(const TableEntry& entry) const;
+    bool hasPassthroughEntry(const TableEntry& entry) const;
 
     Table mServicesTable{};
     Table mPassthroughRefTable{};
     Table mImplementationsTable{};
+    Table mManifestHalsTable{};
+    Table mLazyHalsTable{};
 
     std::string mFileOutputPath;
     TableEntryCompare mSortColumn = nullptr;
@@ -163,9 +177,10 @@ protected:
     // If true, explanatory text are not emitted.
     bool mNeat = false;
 
-    // Type(s) of HAL associations to list. By default, report all.
-    std::vector<HalType> mListTypes{HalType::BINDERIZED_SERVICES, HalType::PASSTHROUGH_CLIENTS,
-                                    HalType::PASSTHROUGH_LIBRARIES};
+    // Type(s) of HAL associations to list.
+    std::vector<HalType> mListTypes{};
+    // Type(s) of HAL associations to fetch.
+    std::set<HalType> mFetchTypes{};
 
     // If an entry does not exist, need to ask /proc/{pid}/cmdline to get it.
     // If an entry exist but is an empty string, process might have died.
