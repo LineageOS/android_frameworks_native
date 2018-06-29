@@ -223,6 +223,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mVisibleRegionsDirty(false),
         mGeometryInvalid(false),
         mAnimCompositionPending(false),
+        mBootStage(BootStage::BOOTLOADER),
         mDebugRegion(0),
         mDebugDDMS(0),
         mDebugDisableHWC(0),
@@ -231,7 +232,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mLastSwapBufferTime(0),
         mDebugInTransaction(0),
         mLastTransactionTime(0),
-        mBootFinished(false),
         mForceFullDamage(false),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
@@ -498,7 +498,31 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    postMessageAsync(new LambdaMessage([this] { readPersistentProperties(); }));
+    postMessageAsync(new LambdaMessage([this] {
+        readPersistentProperties();
+        mBootStage = BootStage::FINISHED;
+    }));
+}
+
+uint32_t SurfaceFlinger::getNewTexture() {
+    {
+        std::lock_guard lock(mTexturePoolMutex);
+        if (!mTexturePool.empty()) {
+            uint32_t name = mTexturePool.back();
+            mTexturePool.pop_back();
+            ATRACE_INT("TexturePoolSize", mTexturePool.size());
+            return name;
+        }
+
+        // The pool was too small, so increase it for the future
+        ++mTexturePoolSize;
+    }
+
+    // The pool was empty, so we need to get a new texture name directly using a
+    // blocking call to the main thread
+    uint32_t name = 0;
+    postMessageSync(new LambdaMessage([&]() { getRenderEngine().genTextures(1, &name); }));
+    return name;
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -1457,7 +1481,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
             bool refreshNeeded = handleMessageTransaction();
             refreshNeeded |= handleMessageInvalidate();
             refreshNeeded |= mRepaintEverything;
-            if (refreshNeeded) {
+            if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
                 // Signal a refresh if a transaction modified the window state,
                 // a new buffer was latched, or if HWC has requested a full
                 // repaint
@@ -1758,6 +1782,17 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         getBE().mTotalTime += elapsedTime;
     }
     getBE().mLastSwapTime = currentTime;
+
+    {
+        std::lock_guard lock(mTexturePoolMutex);
+        const size_t refillCount = mTexturePoolSize - mTexturePool.size();
+        if (refillCount > 0) {
+            const size_t offset = mTexturePool.size();
+            mTexturePool.resize(mTexturePoolSize);
+            getRenderEngine().genTextures(refillCount, mTexturePool.data() + offset);
+            ATRACE_INT("TexturePoolSize", mTexturePool.size());
+        }
+    }
 }
 
 void SurfaceFlinger::rebuildLayerStacks() {
@@ -2803,6 +2838,12 @@ bool SurfaceFlinger::handlePageFlip()
         signalLayerUpdate();
     }
 
+    // enter boot animation on first buffer latch
+    if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
+        ALOGI("Enter boot animation");
+        mBootStage = BootStage::BOOTANIMATION;
+    }
+
     // Only continue with the refresh if there is actually new work to do
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
@@ -3542,10 +3583,13 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
     // Tack on our counter whether there is a hit or not, so everyone gets a tag
     String8 uniqueName = name + "#" + String8(std::to_string(dupeCounter).c_str());
 
+    // Grab the state lock since we're accessing mCurrentState
+    Mutex::Autolock lock(mStateLock);
+
     // Loop over layers until we're sure there is no matching name
     while (matchFound) {
         matchFound = false;
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
+        mCurrentState.traverseInZOrder([&](Layer* layer) {
             if (layer->getName() == uniqueName) {
                 matchFound = true;
                 uniqueName = name + "#" + String8(std::to_string(++dupeCounter).c_str());

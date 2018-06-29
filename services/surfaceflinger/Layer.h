@@ -297,6 +297,11 @@ public:
      */
     virtual bool isFixedSize() const { return true; }
 
+    // Most layers aren't created from the main thread, and therefore need to
+    // grab the SF state lock to access HWC, but ContainerLayer does, so we need
+    // to avoid grabbing the lock again to avoid deadlock
+    virtual bool isCreatedFromMainThread() const { return false; }
+
 
     bool isPendingRemoval() const { return mPendingRemoval; }
 
@@ -556,7 +561,7 @@ protected:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
+    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
     // Compute the initial crop as specified by parent layers and the
     // SurfaceControl for this layer. Does not include buffer crop from the
     // IGraphicBufferProducer client, as that should not affect child clipping.
