@@ -140,7 +140,8 @@ public:
 
     // Scale the crop down horizontally or vertically such that it has the
     // same aspect ratio as the buffer does.
-    static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth, uint32_t bufferHeight);
+    static Rect scaleDownCrop(const Rect& crop, uint32_t bufferWidth,
+            uint32_t bufferHeight);
 
     // getTimestamp retrieves the timestamp associated with the texture image
     // set by the most recent call to updateTexImage.
@@ -305,7 +306,6 @@ private:
         // createIfNeeded creates an EGLImage if required (we haven't created
         // one yet, or the EGLDisplay or crop-rect has changed).
         status_t createIfNeeded(EGLDisplay display,
-                                const Rect& cropRect,
                                 bool forceCreate = false);
 
         // This calls glEGLImageTargetTexture2DOES to bind the image to the
@@ -324,7 +324,7 @@ private:
 
         // createImage creates a new EGLImage from a GraphicBuffer.
         EGLImageKHR createImage(EGLDisplay dpy,
-                const sp<GraphicBuffer>& graphicBuffer, const Rect& crop);
+                const sp<GraphicBuffer>& graphicBuffer);
 
         // Disallow copying
         EglImage(const EglImage& rhs);

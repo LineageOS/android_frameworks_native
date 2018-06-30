@@ -1285,17 +1285,6 @@ EGLAPI EGLuint64NV EGLAPIENTRY eglGetSystemTimeNV (void);
 #define EGL_NATIVE_SURFACE_TIZEN          0x32A1
 #endif /* EGL_TIZEN_image_native_surface */
 
-/* This is a private Android extension that does not exist in the EGL registry,
- * formerly used to work around a hardware issue on Nexus 4. It is deprecated
- * and unimplemented. It has been added to this header manually. */
-#ifndef EGL_ANDROID_image_crop
-#define EGL_ANDROID_image_crop 1
-#define EGL_IMAGE_CROP_LEFT_ANDROID       0x3148
-#define EGL_IMAGE_CROP_TOP_ANDROID        0x3149
-#define EGL_IMAGE_CROP_RIGHT_ANDROID      0x314A
-#define EGL_IMAGE_CROP_BOTTOM_ANDROID     0x314B
-#endif
-
 #ifdef __cplusplus
 }
 #endif

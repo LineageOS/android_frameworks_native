@@ -39,7 +39,6 @@ class GLExtensions : public Singleton<GLExtensions> {
     bool mHasNativeFenceSync = false;
     bool mHasFenceSync = false;
     bool mHasWaitSync = false;
-    bool mHasImageCrop = false;
     bool mHasProtectedContent = false;
     bool mHasContextPriority = false;
 
@@ -66,7 +65,6 @@ public:
     bool hasNativeFenceSync() const { return mHasNativeFenceSync; }
     bool hasFenceSync() const { return mHasFenceSync; }
     bool hasWaitSync() const { return mHasWaitSync; }
-    bool hasImageCrop() const { return mHasImageCrop; }
     bool hasProtectedContent() const { return mHasProtectedContent; }
     bool hasContextPriority() const { return mHasContextPriority; }
 

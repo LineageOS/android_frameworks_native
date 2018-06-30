@@ -280,14 +280,6 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
     return NO_ERROR;
 }
 
-bool BufferLayerConsumer::canUseImageCrop(const Rect& crop) const {
-    // If the crop rect is not at the origin, we can't set the crop on the
-    // EGLImage because that's not allowed by the EGL_ANDROID_image_crop
-    // extension.  In the future we can add a layered extension that
-    // removes this restriction if there is hardware that can support it.
-    return mRE.supportsImageCrop() && crop.left == 0 && crop.top == 0;
-}
-
 status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
                                                      PendingRelease* pendingRelease) {
     status_t err = NO_ERROR;
@@ -365,8 +357,7 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
         return NO_INIT;
     }
 
-    const Rect& imageCrop = canUseImageCrop(mCurrentCrop) ? mCurrentCrop : Rect::EMPTY_RECT;
-    status_t err = mCurrentTextureImage->createIfNeeded(imageCrop);
+    status_t err = mCurrentTextureImage->createIfNeeded();
     if (err != NO_ERROR) {
         BLC_LOGW("bindTextureImage: can't create image on slot=%d", mCurrentTexture);
         mRE.bindExternalTextureImage(mTexName, *mRE.createImage());
@@ -435,9 +426,8 @@ void BufferLayerConsumer::computeCurrentTransformMatrixLocked() {
         BLC_LOGD("computeCurrentTransformMatrixLocked: "
                  "mCurrentTextureImage is nullptr");
     }
-    const Rect& cropRect = canUseImageCrop(mCurrentCrop) ? Rect::EMPTY_RECT : mCurrentCrop;
-    GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf, cropRect, mCurrentTransform,
-                                       mFilteringEnabled);
+    GLConsumer::computeTransformMatrix(mCurrentTransformMatrix, buf, mCurrentCrop,
+                                       mCurrentTransform, mFilteringEnabled);
 }
 
 nsecs_t BufferLayerConsumer::getTimestamp() {
@@ -615,23 +605,12 @@ BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEng
 
 BufferLayerConsumer::Image::~Image() = default;
 
-status_t BufferLayerConsumer::Image::createIfNeeded(const Rect& imageCrop) {
-    const int32_t cropWidth = imageCrop.width();
-    const int32_t cropHeight = imageCrop.height();
-    if (mCreated && mCropWidth == cropWidth && mCropHeight == cropHeight) {
-        return OK;
-    }
+status_t BufferLayerConsumer::Image::createIfNeeded() {
+    if (mCreated) return OK;
 
     mCreated = mImage->setNativeWindowBuffer(mGraphicBuffer->getNativeBuffer(),
-                                             mGraphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED,
-                                             cropWidth, cropHeight);
-    if (mCreated) {
-        mCropWidth = cropWidth;
-        mCropHeight = cropHeight;
-    } else {
-        mCropWidth = 0;
-        mCropHeight = 0;
-
+                                             mGraphicBuffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+    if (!mCreated) {
         const sp<GraphicBuffer>& buffer = mGraphicBuffer;
         ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
               buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
