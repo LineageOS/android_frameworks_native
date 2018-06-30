@@ -42,6 +42,9 @@ constexpr auto kVrFlingerSwitchMaxTime = std::chrono::seconds(1);
 // completed.
 constexpr auto kVrFlingerSwitchPollInterval = std::chrono::milliseconds(50);
 
+// How long to wait for a device that boots to VR to have vr flinger ready.
+constexpr auto kBootVrFlingerWaitTimeout = std::chrono::seconds(30);
+
 // A Binder connection to surface flinger.
 class SurfaceFlingerConnection {
  public:
@@ -94,9 +97,16 @@ class SurfaceFlingerConnection {
 
   // Wait for vr flinger to become active or inactive.
   VrFlingerSwitchResult WaitForVrFlinger(bool wait_active) {
+    return WaitForVrFlingerTimed(wait_active, kVrFlingerSwitchPollInterval,
+        kVrFlingerSwitchMaxTime);
+  }
+
+  // Wait for vr flinger to become active or inactive, specifying custom timeouts.
+  VrFlingerSwitchResult WaitForVrFlingerTimed(bool wait_active,
+      std::chrono::milliseconds pollInterval, std::chrono::seconds timeout) {
     auto start_time = std::chrono::steady_clock::now();
     while (1) {
-      std::this_thread::sleep_for(kVrFlingerSwitchPollInterval);
+      std::this_thread::sleep_for(pollInterval);
       if (!IsAlive()) {
         return VrFlingerSwitchResult::kSurfaceFlingerDied;
       }
@@ -106,8 +116,7 @@ class SurfaceFlingerConnection {
       }
       if (vr_flinger_active.value() == wait_active) {
         return VrFlingerSwitchResult::kSuccess;
-      } else if (std::chrono::steady_clock::now() - start_time >
-                 kVrFlingerSwitchMaxTime) {
+      } else if (std::chrono::steady_clock::now() - start_time > timeout) {
         return VrFlingerSwitchResult::kTimedOut;
       }
     }
@@ -223,6 +232,32 @@ TEST(VrFlingerTest, ActivateDeactivate) {
   ASSERT_EQ(
       surface_flinger_connection->WaitForVrFlinger(/*wait_active=*/false),
       SurfaceFlingerConnection::VrFlingerSwitchResult::kSuccess);
+}
+
+// This test runs only on devices that boot to vr. Such a device should boot to
+// a state where vr flinger is running, and the test verifies this after a
+// delay.
+TEST(BootVrFlingerTest, BootsToVrFlinger) {
+  // Exit if we are not running on a device that boots to vr.
+  if (!property_get_bool("ro.boot.vr", false)) {
+    return;
+  }
+
+  auto surface_flinger_connection = SurfaceFlingerConnection::Create();
+  ASSERT_NE(surface_flinger_connection, nullptr);
+
+  // Verify that vr flinger is enabled.
+  ASSERT_TRUE(surface_flinger_connection->IsAlive());
+  auto vr_flinger_active = surface_flinger_connection->IsVrFlingerActive();
+  ASSERT_TRUE(vr_flinger_active.has_value());
+
+  bool active_value = vr_flinger_active.value();
+  if (!active_value) {
+    // Try again, but delay up to 30 seconds.
+    ASSERT_EQ(surface_flinger_connection->WaitForVrFlingerTimed(true,
+        kVrFlingerSwitchPollInterval, kBootVrFlingerWaitTimeout),
+        SurfaceFlingerConnection::VrFlingerSwitchResult::kSuccess);
+  }
 }
 
 }  // namespace dvr

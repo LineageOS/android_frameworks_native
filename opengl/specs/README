@@ -19,10 +19,7 @@ Khronos.
 0x3145               EGL_SYNC_NATIVE_FENCE_FD_ANDROID (EGL_ANDROID_native_fence_sync)
 0x3146               EGL_SYNC_NATIVE_FENCE_SIGNALED_ANDROID (EGL_ANDROID_native_fence_sync)
 0x3147               EGL_FRAMEBUFFER_TARGET_ANDROID (EGL_ANDROID_framebuffer_target)
-0x3148               EGL_IMAGE_CROP_LEFT_ANDROID (EGL_ANDROID_image_crop)
-0x3149               EGL_IMAGE_CROP_TOP_ANDROID (EGL_ANDROID_image_crop)
-0x314A               EGL_IMAGE_CROP_RIGHT_ANDROID (EGL_ANDROID_image_crop)
-0x314B               EGL_IMAGE_CROP_BOTTOM_ANDROID (EGL_ANDROID_image_crop)
+0x3148 - 0x314B      previously used by the undocumented, deprecated extension EGL_ANDROID_image_crop
 0x314C               EGL_FRONT_BUFFER_AUTO_REFRESH_ANDROID (EGL_ANDROID_front_buffer_auto_refresh)
 0x314D               EGL_GL_COLORSPACE_DEFAULT_EXT (EGL_EXT_image_gl_colorspace)
 0x314E - 0x314F      (unused)

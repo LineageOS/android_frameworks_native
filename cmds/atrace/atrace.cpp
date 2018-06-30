@@ -262,6 +262,9 @@ static const char* k_currentTracerPath =
 static const char* k_printTgidPath =
     "options/print-tgid";
 
+static const char* k_recordTgidPath =
+    "options/record-tgid";
+
 static const char* k_funcgraphAbsTimePath =
     "options/funcgraph-abstime";
 
@@ -524,8 +527,14 @@ static bool setClock()
 
 static bool setPrintTgidEnableIfPresent(bool enable)
 {
+    // Pre-4.13 this was options/print-tgid as an android-specific option.
+    // In 4.13+ this is an upstream option called options/record-tgid
+    // Both options produce the same ftrace format change
     if (fileExists(k_printTgidPath)) {
         return setKernelOptionEnable(k_printTgidPath, enable);
+    }
+    if (fileExists(k_recordTgidPath)) {
+        return setKernelOptionEnable(k_recordTgidPath, enable);
     }
     return true;
 }

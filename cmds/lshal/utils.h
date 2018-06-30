@@ -46,6 +46,8 @@ enum : unsigned int {
     TRANSACTION_ERROR                       = 1 << 8,
     // No transaction error, but return value is unexpected.
     BAD_IMPL                                = 1 << 9,
+    // Cannot fetch VINTF data.
+    VINTF_ERROR                             = 1 << 10,
 };
 using Status = unsigned int;
 

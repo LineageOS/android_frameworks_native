@@ -37,7 +37,6 @@ public:
     MOCK_METHOD0(createImage, std::unique_ptr<RE::Image>());
     MOCK_CONST_METHOD0(primeCache, void());
     MOCK_METHOD1(dump, void(String8&));
-    MOCK_CONST_METHOD0(supportsImageCrop, bool());
     MOCK_CONST_METHOD0(isCurrent, bool());
     MOCK_METHOD1(setCurrentSurface, bool(const RE::Surface&));
     MOCK_METHOD0(resetCurrentSurface, void());
@@ -98,9 +97,8 @@ public:
     Image();
     ~Image() override;
 
-    MOCK_METHOD4(setNativeWindowBuffer,
-                 bool(ANativeWindowBuffer* buffer, bool isProtected, int32_t cropWidth,
-                      int32_t cropHeight));
+    MOCK_METHOD2(setNativeWindowBuffer,
+                 bool(ANativeWindowBuffer* buffer, bool isProtected));
 };
 
 } // namespace mock

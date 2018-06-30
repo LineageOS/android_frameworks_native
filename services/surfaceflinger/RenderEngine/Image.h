@@ -29,8 +29,7 @@ namespace RE {
 class Image {
 public:
     virtual ~Image() = 0;
-    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected,
-                                       int32_t cropWidth, int32_t cropHeight) = 0;
+    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) = 0;
 };
 
 namespace impl {
@@ -45,8 +44,7 @@ public:
     Image(const Image&) = delete;
     Image& operator=(const Image&) = delete;
 
-    bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected, int32_t cropWidth,
-                               int32_t cropHeight) override;
+    bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) override;
 
 private:
     // methods internal to RenderEngine

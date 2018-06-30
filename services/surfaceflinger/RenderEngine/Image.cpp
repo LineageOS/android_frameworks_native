@@ -33,11 +33,10 @@ namespace impl {
 Image::Image(const RenderEngine& engine) : mEGLDisplay(engine.getEGLDisplay()) {}
 
 Image::~Image() {
-    setNativeWindowBuffer(nullptr, false, 0, 0);
+    setNativeWindowBuffer(nullptr, false);
 }
 
-static std::vector<EGLint> buildAttributeList(bool isProtected, int32_t cropWidth,
-                                              int32_t cropHeight) {
+static std::vector<EGLint> buildAttributeList(bool isProtected) {
     std::vector<EGLint> attrs;
     attrs.reserve(16);
 
@@ -49,24 +48,12 @@ static std::vector<EGLint> buildAttributeList(bool isProtected, int32_t cropWidt
         attrs.push_back(EGL_TRUE);
     }
 
-    if (cropWidth > 0 && cropHeight > 0) {
-        attrs.push_back(EGL_IMAGE_CROP_LEFT_ANDROID);
-        attrs.push_back(0);
-        attrs.push_back(EGL_IMAGE_CROP_TOP_ANDROID);
-        attrs.push_back(0);
-        attrs.push_back(EGL_IMAGE_CROP_RIGHT_ANDROID);
-        attrs.push_back(cropWidth);
-        attrs.push_back(EGL_IMAGE_CROP_BOTTOM_ANDROID);
-        attrs.push_back(cropHeight);
-    }
-
     attrs.push_back(EGL_NONE);
 
     return attrs;
 }
 
-bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected, int32_t cropWidth,
-                                  int32_t cropHeight) {
+bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) {
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
         if (!eglDestroyImageKHR(mEGLDisplay, mEGLImage)) {
             ALOGE("failed to destroy image: %#x", eglGetError());
@@ -75,7 +62,7 @@ bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected,
     }
 
     if (buffer) {
-        std::vector<EGLint> attrs = buildAttributeList(isProtected, cropWidth, cropHeight);
+        std::vector<EGLint> attrs = buildAttributeList(isProtected);
         mEGLImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
                                       static_cast<EGLClientBuffer>(buffer), attrs.data());
         if (mEGLImage == EGL_NO_IMAGE_KHR) {

@@ -228,9 +228,8 @@ private:
         Image(const Image& rhs) = delete;
         Image& operator=(const Image& rhs) = delete;
 
-        // createIfNeeded creates an RE::Image if required (we haven't created
-        // one yet, or the crop-rect has changed).
-        status_t createIfNeeded(const Rect& imageCrop);
+        // createIfNeeded creates an RE::Image if we haven't created one yet.
+        status_t createIfNeeded();
 
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
         const native_handle* graphicBufferHandle() {
