@@ -4371,8 +4371,14 @@ void SurfaceFlinger::renderScreenImplLocked(
     // get screen geometry
     const int32_t hw_w = hw->getWidth();
     const int32_t hw_h = hw->getHeight();
-    const bool filtering = static_cast<int32_t>(reqWidth) != hw_w ||
-                           static_cast<int32_t>(reqHeight) != hw_h;
+    bool filtering = false;
+    if (mHwOrientation & DisplayState::eOrientationSwapMask) {
+        filtering = static_cast<int32_t>(reqWidth) != hw_h ||
+                static_cast<int32_t>(reqHeight) != hw_w;
+    } else {
+        filtering = static_cast<int32_t>(reqWidth) != hw_w ||
+                static_cast<int32_t>(reqHeight) != hw_h;
+    }
 
     // if a default or invalid sourceCrop is passed in, set reasonable values
     if (sourceCrop.width() == 0 || sourceCrop.height() == 0 ||
