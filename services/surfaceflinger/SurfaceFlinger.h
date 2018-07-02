@@ -884,7 +884,7 @@ private:
     static bool useVrFlinger;
     std::thread::id mMainThreadId;
 
-    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
+    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
     // Applied on Display P3 layers when the render intent is non-colorimetric.
     mat4 mEnhancedSaturationMatrix;
 
