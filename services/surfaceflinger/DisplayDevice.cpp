@@ -489,9 +489,7 @@ status_t DisplayDevice::orientationToTransfrom(
     uint32_t flags = 0;
 
     if (mHardwareRotation && mType == DisplayType::DISPLAY_PRIMARY) {
-        // Rotate such that accounting for hardware rotation puts the
-        // buffer's rotation at 0 relative to the user.
-        orientation += (4 - mHardwareRotation);
+        orientation += mHardwareRotation;
         orientation %= 4;
     }
 
@@ -550,7 +548,7 @@ void DisplayDevice::setProjection(int orientation,
     if (!frame.isValid()) {
         // the destination frame can be invalid if it has never been set,
         // in that case we assume the whole display frame.
-        if (mHardwareRotation & DisplayState::eOrientationSwapMask) {
+        if (mHardwareRotation == 1 || mHardwareRotation == 3) {
             frame = Rect(h, w);
         } else {
             frame = Rect(w, h);
