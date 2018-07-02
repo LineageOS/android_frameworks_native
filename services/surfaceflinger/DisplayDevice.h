@@ -245,7 +245,7 @@ private:
     /*
      * Transaction state
      */
-    status_t orientationToTransfrom(int orientation,
+    static status_t orientationToTransfrom(int orientation,
             int w, int h, Transform* tr);
 
     // The identifier of the active layer stack for this display. Several displays
@@ -267,8 +267,6 @@ private:
     int mPowerMode;
     // Current active config
     int mActiveConfig;
-    // Panel hardware rotation
-    int32_t mHardwareRotation;
 #ifdef USE_HWC2
     // current active color mode
     android_color_mode_t mActiveColorMode;
