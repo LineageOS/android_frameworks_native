@@ -1,0 +1,96 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "3f24f3d5_19a15003",
+        "filename": "services/surfaceflinger/DisplayDevice.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 580,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-03T05:23:10Z",
+      "side": 1,
+      "message": "nit: hw_orient",
+      "range": {
+        "startLine": 580,
+        "startChar": 12,
+        "endLine": 580,
+        "endChar": 20
+      },
+      "revId": "1ff6b31b7b109e84e93dc117329187eff5af37ea",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d5850df0_99989223",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 4421,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-03T05:23:10Z",
+      "side": 1,
+      "message": "Should just default to rotation of 0",
+      "range": {
+        "startLine": 4421,
+        "startChar": 25,
+        "endLine": 4421,
+        "endChar": 29
+      },
+      "revId": "1ff6b31b7b109e84e93dc117329187eff5af37ea",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "7781282a_f2bc3cb7",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 4434,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-03T05:23:10Z",
+      "side": 1,
+      "message": "I think this is the magic we missed",
+      "range": {
+        "startLine": 4434,
+        "startChar": 8,
+        "endLine": 4434,
+        "endChar": 46
+      },
+      "revId": "1ff6b31b7b109e84e93dc117329187eff5af37ea",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "c3fcbd1c_fecc2e65",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 4485,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-03T05:23:10Z",
+      "side": 1,
+      "message": "I think this whole block ended up being functionally equivalent to the code I had before.",
+      "range": {
+        "startLine": 4465,
+        "startChar": 8,
+        "endLine": 4485,
+        "endChar": 9
+      },
+      "revId": "1ff6b31b7b109e84e93dc117329187eff5af37ea",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
