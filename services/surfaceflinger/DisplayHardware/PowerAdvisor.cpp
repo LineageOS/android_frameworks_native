@@ -45,13 +45,12 @@ void PowerAdvisor::setExpensiveRenderingExpected(hwc2_display_t displayId, bool 
         mExpensiveDisplays.erase(displayId);
     }
 
-    const sp<V1_3::IPower> powerHal = getPowerHal();
-    if (powerHal == nullptr) {
-        return;
-    }
-
     const bool expectsExpensiveRendering = !mExpensiveDisplays.empty();
     if (mNotifiedExpensiveRendering != expectsExpensiveRendering) {
+        const sp<V1_3::IPower> powerHal = getPowerHal();
+        if (powerHal == nullptr) {
+            return;
+        }
         auto ret = powerHal->powerHintAsync_1_3(PowerHint::EXPENSIVE_RENDERING,
                                                 expectsExpensiveRendering);
         // If Power HAL 1.3 was available previously but now fails,
