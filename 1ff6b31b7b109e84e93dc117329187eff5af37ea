@@ -25,6 +25,52 @@
     },
     {
       "key": {
+        "uuid": "542b5519_b28b4df0",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 247,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-03T05:25:31Z",
+      "side": 1,
+      "message": "property_get_int32",
+      "range": {
+        "startLine": 247,
+        "startChar": 4,
+        "endLine": 247,
+        "endChar": 16
+      },
+      "revId": "1ff6b31b7b109e84e93dc117329187eff5af37ea",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "300d8925_a7d32660",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 252,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-03T05:25:31Z",
+      "side": 1,
+      "message": "can be removed, default will take care of this.\n\nAlso, this whole block can probably be done with a hwrotation / 90 cast to the enum.",
+      "range": {
+        "startLine": 250,
+        "startChar": 0,
+        "endLine": 252,
+        "endChar": 18
+      },
+      "revId": "1ff6b31b7b109e84e93dc117329187eff5af37ea",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "d5850df0_99989223",
         "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
         "patchSetId": 1
