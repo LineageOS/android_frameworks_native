@@ -1370,7 +1370,7 @@ static void dumpstate() {
     printf("== Running Application Services (platform)\n");
     printf("========================================================\n");
 
-    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform"},
+    RunDumpsys("APP SERVICES PLATFORM", {"activity", "service", "all-platform-non-critical"},
             DUMPSYS_COMPONENTS_OPTIONS);
 
     printf("========================================================\n");
