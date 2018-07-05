@@ -38,13 +38,14 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Key, eventTime, 8);
   CHECK_OFFSET(InputMessage::Body::Key, deviceId, 16);
   CHECK_OFFSET(InputMessage::Body::Key, source, 20);
-  CHECK_OFFSET(InputMessage::Body::Key, action, 24);
-  CHECK_OFFSET(InputMessage::Body::Key, flags, 28);
-  CHECK_OFFSET(InputMessage::Body::Key, keyCode, 32);
-  CHECK_OFFSET(InputMessage::Body::Key, scanCode, 36);
-  CHECK_OFFSET(InputMessage::Body::Key, metaState, 40);
-  CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 44);
-  CHECK_OFFSET(InputMessage::Body::Key, downTime, 48);
+  CHECK_OFFSET(InputMessage::Body::Key, displayId, 24);
+  CHECK_OFFSET(InputMessage::Body::Key, action, 28);
+  CHECK_OFFSET(InputMessage::Body::Key, flags, 32);
+  CHECK_OFFSET(InputMessage::Body::Key, keyCode, 36);
+  CHECK_OFFSET(InputMessage::Body::Key, scanCode, 40);
+  CHECK_OFFSET(InputMessage::Body::Key, metaState, 44);
+  CHECK_OFFSET(InputMessage::Body::Key, repeatCount, 48);
+  CHECK_OFFSET(InputMessage::Body::Key, downTime, 56);
 
   CHECK_OFFSET(InputMessage::Body::Motion, seq, 0);
   CHECK_OFFSET(InputMessage::Body::Motion, eventTime, 8);

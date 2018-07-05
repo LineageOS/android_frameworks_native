@@ -43,17 +43,18 @@ void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& li
 // --- NotifyKeyArgs ---
 
 NotifyKeyArgs::NotifyKeyArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source,
-        uint32_t policyFlags,
+        int32_t displayId, uint32_t policyFlags,
         int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
         int32_t metaState, nsecs_t downTime) :
-        eventTime(eventTime), deviceId(deviceId), source(source), policyFlags(policyFlags),
+        eventTime(eventTime), deviceId(deviceId), source(source), displayId(displayId),
+        policyFlags(policyFlags),
         action(action), flags(flags), keyCode(keyCode), scanCode(scanCode),
         metaState(metaState), downTime(downTime) {
 }
 
 NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other) :
         eventTime(other.eventTime), deviceId(other.deviceId), source(other.source),
-        policyFlags(other.policyFlags),
+        displayId(other.displayId), policyFlags(other.policyFlags),
         action(other.action), flags(other.flags),
         keyCode(other.keyCode), scanCode(other.scanCode),
         metaState(other.metaState), downTime(other.downTime) {

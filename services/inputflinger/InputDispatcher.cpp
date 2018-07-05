@@ -702,7 +702,7 @@ InputDispatcher::KeyEntry* InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t cu
         entry->repeatCount += 1;
     } else {
         KeyEntry* newEntry = new KeyEntry(currentTime,
-                entry->deviceId, entry->source, policyFlags,
+                entry->deviceId, entry->source, entry->displayId, policyFlags,
                 entry->action, entry->flags, entry->keyCode, entry->scanCode,
                 entry->metaState, entry->repeatCount + 1, entry->downTime);
 
@@ -851,11 +851,11 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
 
 void InputDispatcher::logOutboundKeyDetailsLocked(const char* prefix, const KeyEntry* entry) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-    ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, policyFlags=0x%x, "
-            "action=0x%x, flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, "
-            "repeatCount=%d, downTime=%" PRId64,
+    ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32 ", "
+            "policyFlags=0x%x, action=0x%x, flags=0x%x, keyCode=0x%x, scanCode=0x%x, "
+            "metaState=0x%x, repeatCount=%d, downTime=%" PRId64,
             prefix,
-            entry->eventTime, entry->deviceId, entry->source, entry->policyFlags,
+            entry->eventTime, entry->deviceId, entry->source, entry->displayId, entry->policyFlags,
             entry->action, entry->flags, entry->keyCode, entry->scanCode, entry->metaState,
             entry->repeatCount, entry->downTime);
 #endif
@@ -2018,7 +2018,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
 
             // Publish the key event.
             status = connection->inputPublisher.publishKeyEvent(dispatchEntry->seq,
-                    keyEntry->deviceId, keyEntry->source,
+                    keyEntry->deviceId, keyEntry->source, keyEntry->displayId,
                     dispatchEntry->resolvedAction, dispatchEntry->resolvedFlags,
                     keyEntry->keyCode, keyEntry->scanCode,
                     keyEntry->metaState, keyEntry->repeatCount, keyEntry->downTime,
@@ -2464,9 +2464,9 @@ void InputDispatcher::accelerateMetaShortcuts(const int32_t deviceId, const int3
 void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("notifyKey - eventTime=%" PRId64
-            ", deviceId=%d, source=0x%x, policyFlags=0x%x, action=0x%x, "
+            ", deviceId=%d, source=0x%x, displayId=%" PRId32 "policyFlags=0x%x, action=0x%x, "
             "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64,
-            args->eventTime, args->deviceId, args->source, args->policyFlags,
+            args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
             args->action, args->flags, args->keyCode, args->scanCode,
             args->metaState, args->downTime);
 #endif
@@ -2491,7 +2491,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     accelerateMetaShortcuts(args->deviceId, args->action, keyCode, metaState);
 
     KeyEvent event;
-    event.initialize(args->deviceId, args->source, args->action,
+    event.initialize(args->deviceId, args->source, args->displayId, args->action,
             flags, keyCode, args->scanCode, metaState, 0,
             args->downTime, args->eventTime);
 
@@ -2519,7 +2519,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 
         int32_t repeatCount = 0;
         KeyEntry* newEntry = new KeyEntry(args->eventTime,
-                args->deviceId, args->source, policyFlags,
+                args->deviceId, args->source, args->displayId, policyFlags,
                 args->action, flags, keyCode, args->scanCode,
                 metaState, repeatCount, args->downTime);
 
@@ -2687,8 +2687,8 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         int32_t metaState = keyEvent.getMetaState();
         accelerateMetaShortcuts(keyEvent.getDeviceId(), action,
                 /*byref*/ keyCode, /*byref*/ metaState);
-        keyEvent.initialize(keyEvent.getDeviceId(), keyEvent.getSource(), action,
-            flags, keyCode, keyEvent.getScanCode(), metaState, 0,
+        keyEvent.initialize(keyEvent.getDeviceId(), keyEvent.getSource(), keyEvent.getDisplayId(),
+            action, flags, keyCode, keyEvent.getScanCode(), metaState, 0,
             keyEvent.getDownTime(), keyEvent.getEventTime());
 
         if (flags & AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY) {
@@ -2706,7 +2706,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
 
         mLock.lock();
         firstInjectedEntry = new KeyEntry(keyEvent.getEventTime(),
-                keyEvent.getDeviceId(), keyEvent.getSource(),
+                keyEvent.getDeviceId(), keyEvent.getSource(), keyEvent.getDisplayId(),
                 policyFlags, action, flags,
                 keyEvent.getKeyCode(), keyEvent.getScanCode(), keyEvent.getMetaState(),
                 keyEvent.getRepeatCount(), keyEvent.getDownTime());
@@ -3840,6 +3840,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
                 keyEntry->eventTime = event.getEventTime();
                 keyEntry->deviceId = event.getDeviceId();
                 keyEntry->source = event.getSource();
+                keyEntry->displayId = event.getDisplayId();
                 keyEntry->flags = event.getFlags() | AKEY_EVENT_FLAG_FALLBACK;
                 keyEntry->keyCode = fallbackKeyCode;
                 keyEntry->scanCode = event.getScanCode();
@@ -3878,7 +3879,7 @@ void InputDispatcher::doPokeUserActivityLockedInterruptible(CommandEntry* comman
 }
 
 void InputDispatcher::initializeKeyEvent(KeyEvent* event, const KeyEntry* entry) {
-    event->initialize(entry->deviceId, entry->source, entry->action, entry->flags,
+    event->initialize(entry->deviceId, entry->source, entry->displayId, entry->action, entry->flags,
             entry->keyCode, entry->scanCode, entry->metaState, entry->repeatCount,
             entry->downTime, entry->eventTime);
 }
@@ -4014,11 +4015,11 @@ void InputDispatcher::DeviceResetEntry::appendDescription(std::string& msg) cons
 // --- InputDispatcher::KeyEntry ---
 
 InputDispatcher::KeyEntry::KeyEntry(nsecs_t eventTime,
-        int32_t deviceId, uint32_t source, uint32_t policyFlags, int32_t action,
+        int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
         int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
         int32_t repeatCount, nsecs_t downTime) :
         EventEntry(TYPE_KEY, eventTime, policyFlags),
-        deviceId(deviceId), source(source), action(action), flags(flags),
+        deviceId(deviceId), source(source), displayId(displayId), action(action), flags(flags),
         keyCode(keyCode), scanCode(scanCode), metaState(metaState),
         repeatCount(repeatCount), downTime(downTime),
         syntheticRepeat(false), interceptKeyResult(KeyEntry::INTERCEPT_KEY_RESULT_UNKNOWN),
@@ -4029,10 +4030,10 @@ InputDispatcher::KeyEntry::~KeyEntry() {
 }
 
 void InputDispatcher::KeyEntry::appendDescription(std::string& msg) const {
-    msg += StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, action=%s, "
+    msg += StringPrintf("KeyEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32 ", action=%s, "
             "flags=0x%08x, keyCode=%d, scanCode=%d, metaState=0x%08x, "
             "repeatCount=%d), policyFlags=0x%08x",
-            deviceId, source, keyActionToString(action).c_str(), flags, keyCode,
+            deviceId, source, displayId, keyActionToString(action).c_str(), flags, keyCode,
             scanCode, metaState, repeatCount, policyFlags);
 }
 
@@ -4302,6 +4303,7 @@ ssize_t InputDispatcher::InputState::findKeyMemento(const KeyEntry* entry) const
         const KeyMemento& memento = mKeyMementos.itemAt(i);
         if (memento.deviceId == entry->deviceId
                 && memento.source == entry->source
+                && memento.displayId == entry->displayId
                 && memento.keyCode == entry->keyCode
                 && memento.scanCode == entry->scanCode) {
             return i;
@@ -4329,6 +4331,7 @@ void InputDispatcher::InputState::addKeyMemento(const KeyEntry* entry, int32_t f
     KeyMemento& memento = mKeyMementos.editTop();
     memento.deviceId = entry->deviceId;
     memento.source = entry->source;
+    memento.displayId = entry->displayId;
     memento.keyCode = entry->keyCode;
     memento.scanCode = entry->scanCode;
     memento.metaState = entry->metaState;
@@ -4367,7 +4370,7 @@ void InputDispatcher::InputState::synthesizeCancelationEvents(nsecs_t currentTim
         const KeyMemento& memento = mKeyMementos.itemAt(i);
         if (shouldCancelKey(memento, options)) {
             outEvents.push(new KeyEntry(currentTime,
-                    memento.deviceId, memento.source, memento.policyFlags,
+                    memento.deviceId, memento.source, memento.displayId, memento.policyFlags,
                     AKEY_EVENT_ACTION_UP, memento.flags | AKEY_EVENT_FLAG_CANCELED,
                     memento.keyCode, memento.scanCode, memento.metaState, 0, memento.downTime));
         }
@@ -4535,7 +4538,7 @@ InputDispatcher::CommandEntry::~CommandEntry() {
 // --- InputDispatcher::TouchState ---
 
 InputDispatcher::TouchState::TouchState() :
-    down(false), split(false), deviceId(-1), source(0), displayId(-1) {
+    down(false), split(false), deviceId(-1), source(0), displayId(ADISPLAY_ID_NONE) {
 }
 
 InputDispatcher::TouchState::~TouchState() {
@@ -4546,7 +4549,7 @@ void InputDispatcher::TouchState::reset() {
     split = false;
     deviceId = -1;
     source = 0;
-    displayId = -1;
+    displayId = ADISPLAY_ID_NONE;
     windows.clear();
 }
 
