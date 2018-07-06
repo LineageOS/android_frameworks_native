@@ -101,6 +101,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.dataspace = ui::Dataspace::UNKNOWN;
     mCurrentState.hdrMetadata.validTypes = 0;
     mCurrentState.surfaceDamageRegion.clear();
+    mCurrentState.cornerRadius = 0.0f;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
 
@@ -398,6 +399,23 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
         activeCrop.clear();
     }
     return activeCrop;
+}
+
+void Layer::setupRoundedCornersCropCoordinates(Rect win,
+                                               const FloatRect& roundedCornersCrop) const {
+    // Translate win by the rounded corners rect coordinates, to have all values in
+    // layer coordinate space.
+    win.left -= roundedCornersCrop.left;
+    win.right -= roundedCornersCrop.left;
+    win.top -= roundedCornersCrop.top;
+    win.bottom -= roundedCornersCrop.top;
+
+    renderengine::Mesh::VertexArray<vec2> cropCoords(getBE().mMesh.getCropCoordArray<vec2>());
+    cropCoords[0] = vec2(win.left, win.top);
+    cropCoords[1] = vec2(win.left, win.top + win.getHeight());
+    cropCoords[2] = vec2(win.right, win.top + win.getHeight());
+    cropCoords[3] = vec2(win.right, win.top);
+    cropCoords[3] = vec2(win.right, win.top);
 }
 
 FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
@@ -1220,6 +1238,17 @@ bool Layer::setColor(const half3& color) {
     return true;
 }
 
+bool Layer::setCornerRadius(float cornerRadius) {
+    if (mCurrentState.cornerRadius == cornerRadius)
+        return false;
+
+    mCurrentState.sequence++;
+    mCurrentState.cornerRadius = cornerRadius;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
         bool allowNonRectPreservingTransforms) {
     ui::Transform t;
@@ -1918,6 +1947,26 @@ half4 Layer::getColor() const {
     return half4(color.r, color.g, color.b, getAlpha());
 }
 
+Layer::RoundedCornerState Layer::getRoundedCornerState() const {
+    const auto& p = mDrawingParent.promote();
+    if (p != nullptr) {
+        RoundedCornerState parentState = p->getRoundedCornerState();
+        if (parentState.radius > 0) {
+            ui::Transform t = getActiveTransform(getDrawingState());
+            t = t.inverse();
+            parentState.cropRect = t.transform(parentState.cropRect);
+            // The rounded corners shader only accepts 1 corner radius for performance reasons,
+            // but a transform matrix can define horizontal and vertical scales.
+            // Let's take the average between both of them and pass into the shader, practically we
+            // never do this type of transformation on windows anyway.
+            parentState.radius *= (t[0][0] + t[1][1]) / 2.0f;
+            return parentState;
+        }
+    }
+    const float radius = getDrawingState().cornerRadius;
+    return radius > 0 ? RoundedCornerState(computeBounds(), radius) : RoundedCornerState();
+}
+
 void Layer::commitChildList() {
     for (size_t i = 0; i < mCurrentChildren.size(); i++) {
         const auto& child = mCurrentChildren[i];
@@ -1978,6 +2027,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     size->set_h(state.active_legacy.h);
 
     LayerProtoHelper::writeToProto(state.crop_legacy, layerInfo->mutable_crop());
+    layerInfo->set_corner_radius(getRoundedCornerState().radius);
 
     layerInfo->set_is_opaque(isOpaque(state));
     layerInfo->set_invalidate(contentDirty);

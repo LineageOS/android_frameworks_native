@@ -50,6 +50,12 @@ struct Description {
     // whether this layer is marked as opaque
     bool isOpaque = true;
 
+    // corner radius of the layer
+    float cornerRadius = 0;
+
+    // Size of the rounded rectangle we are cropping to
+    half2 cropSize;
+
     // Texture this layer uses
     Texture texture;
     bool textureEnabled = false;

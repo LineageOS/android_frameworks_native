@@ -626,16 +626,18 @@ void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect s
 }
 
 void GLES20RenderEngine::setupLayerBlending(bool premultipliedAlpha, bool opaque,
-                                            bool disableTexture, const half4& color) {
+                                            bool disableTexture, const half4& color,
+                                            float cornerRadius) {
     mState.isPremultipliedAlpha = premultipliedAlpha;
     mState.isOpaque = opaque;
     mState.color = color;
+    mState.cornerRadius = cornerRadius;
 
     if (disableTexture) {
         mState.textureEnabled = false;
     }
 
-    if (color.a < 1.0f || !opaque) {
+    if (color.a < 1.0f || !opaque || cornerRadius > 0.0f) {
         glEnable(GL_BLEND);
         glBlendFunc(premultipliedAlpha ? GL_ONE : GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     } else {
@@ -703,6 +705,10 @@ void GLES20RenderEngine::setupFillWithColor(float r, float g, float b, float a) 
     glDisable(GL_BLEND);
 }
 
+void GLES20RenderEngine::setupCornerRadiusCropSize(float width, float height) {
+    mState.cropSize = half2(width, height);
+}
+
 void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     ATRACE_CALL();
     if (mesh.getTexCoordsSize()) {
@@ -713,6 +719,12 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
     glVertexAttribPointer(Program::position, mesh.getVertexSize(), GL_FLOAT, GL_FALSE,
                           mesh.getByteStride(), mesh.getPositions());
+
+    if (mState.cornerRadius > 0.0f) {
+        glEnableVertexAttribArray(Program::cropCoords);
+        glVertexAttribPointer(Program::cropCoords, mesh.getVertexSize(), GL_FLOAT, GL_FALSE,
+                              mesh.getByteStride(), mesh.getCropCoords());
+    }
 
     // By default, DISPLAY_P3 is the only supported wide color output. However,
     // when HDR content is present, hardware composer may be able to handle
@@ -830,6 +842,10 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
     if (mesh.getTexCoordsSize()) {
         glDisableVertexAttribArray(Program::texCoords);
+    }
+
+    if (mState.cornerRadius > 0.0f) {
+        glDisableVertexAttribArray(Program::cropCoords);
     }
 }
 

@@ -36,7 +36,16 @@ namespace gl {
 class Program {
 public:
     // known locations for position and texture coordinates
-    enum { position = 0, texCoords = 1 };
+    enum {
+        /* position of each vertex for vertex shader */
+        position = 0,
+
+        /* UV coordinates for texture mapping */
+        texCoords = 1,
+
+        /* Crop coordinates, in pixels */
+        cropCoords = 2
+    };
 
     Program(const ProgramCache::Key& needs, const char* vertex, const char* fragment);
     ~Program() = default;
@@ -85,6 +94,12 @@ private:
     /* location of transform matrix */
     GLint mInputTransformMatrixLoc;
     GLint mOutputTransformMatrixLoc;
+
+    /* location of corner radius uniform */
+    GLint mCornerRadiusLoc;
+
+    /* location of surface crop origin uniform, for rounded corner clipping */
+    GLint mCropCenterLoc;
 };
 
 } // namespace gl

@@ -33,13 +33,15 @@ Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t te
         return;
     }
 
-    size_t stride = vertexSize + texCoordSize;
+    const size_t CROP_COORD_SIZE = 2;
+    size_t stride = vertexSize + texCoordSize + CROP_COORD_SIZE;
     size_t remainder = (stride * vertexCount) / vertexCount;
     // Since all of the input parameters are unsigned, if stride is less than
     // either vertexSize or texCoordSize, it must have overflowed. remainder
     // will be equal to stride as long as stride * vertexCount doesn't overflow.
     if ((stride < vertexSize) || (remainder != stride)) {
-        ALOGE("Overflow in Mesh(..., %zu, %zu, %zu)", vertexCount, vertexSize, texCoordSize);
+        ALOGE("Overflow in Mesh(..., %zu, %zu, %zu, %zu)", vertexCount, vertexSize, texCoordSize,
+              CROP_COORD_SIZE);
         mVertices.resize(1);
         mVertices[0] = 0.0f;
         mVertexCount = 0;
@@ -69,6 +71,13 @@ float const* Mesh::getTexCoords() const {
 }
 float* Mesh::getTexCoords() {
     return mVertices.data() + mVertexSize;
+}
+
+float const* Mesh::getCropCoords() const {
+    return mVertices.data() + mVertexSize + mTexCoordsSize;
+}
+float* Mesh::getCropCoords() {
+    return mVertices.data() + mVertexSize + mTexCoordsSize;
 }
 
 size_t Mesh::getVertexCount() const {

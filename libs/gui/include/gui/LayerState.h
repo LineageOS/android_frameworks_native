@@ -82,6 +82,7 @@ struct layer_state_t {
         eColorTransformChanged = 0x10000000,
         eListenerCallbacksChanged = 0x20000000,
         eInputInfoChanged = 0x40000000,
+        eCornerRadiusChanged = 0x80000000,
     };
 
     layer_state_t()
@@ -97,6 +98,7 @@ struct layer_state_t {
             mask(0),
             reserved(0),
             crop_legacy(Rect::INVALID_RECT),
+            cornerRadius(0.0f),
             frameNumber_legacy(0),
             overrideScalingMode(-1),
             transform(0),
@@ -135,6 +137,7 @@ struct layer_state_t {
     uint8_t reserved;
     matrix22_t matrix;
     Rect crop_legacy;
+    float cornerRadius;
     sp<IBinder> barrierHandle_legacy;
     sp<IBinder> reparentHandle;
     uint64_t frameNumber_legacy;

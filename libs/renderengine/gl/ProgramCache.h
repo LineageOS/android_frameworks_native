@@ -78,31 +78,36 @@ public:
             TEXTURE_EXT = 1 << TEXTURE_SHIFT,
             TEXTURE_2D = 2 << TEXTURE_SHIFT,
 
-            INPUT_TRANSFORM_MATRIX_SHIFT = 5,
+            ROUNDED_CORNERS_SHIFT = 5,
+            ROUNDED_CORNERS_MASK = 1 << ROUNDED_CORNERS_SHIFT,
+            ROUNDED_CORNERS_OFF = 0 << ROUNDED_CORNERS_SHIFT,
+            ROUNDED_CORNERS_ON = 1 << ROUNDED_CORNERS_SHIFT,
+
+            INPUT_TRANSFORM_MATRIX_SHIFT = 6,
             INPUT_TRANSFORM_MATRIX_MASK = 1 << INPUT_TRANSFORM_MATRIX_SHIFT,
             INPUT_TRANSFORM_MATRIX_OFF = 0 << INPUT_TRANSFORM_MATRIX_SHIFT,
             INPUT_TRANSFORM_MATRIX_ON = 1 << INPUT_TRANSFORM_MATRIX_SHIFT,
 
-            OUTPUT_TRANSFORM_MATRIX_SHIFT = 6,
+            OUTPUT_TRANSFORM_MATRIX_SHIFT = 7,
             OUTPUT_TRANSFORM_MATRIX_MASK = 1 << OUTPUT_TRANSFORM_MATRIX_SHIFT,
             OUTPUT_TRANSFORM_MATRIX_OFF = 0 << OUTPUT_TRANSFORM_MATRIX_SHIFT,
             OUTPUT_TRANSFORM_MATRIX_ON = 1 << OUTPUT_TRANSFORM_MATRIX_SHIFT,
 
-            INPUT_TF_SHIFT = 7,
+            INPUT_TF_SHIFT = 8,
             INPUT_TF_MASK = 3 << INPUT_TF_SHIFT,
             INPUT_TF_LINEAR = 0 << INPUT_TF_SHIFT,
             INPUT_TF_SRGB = 1 << INPUT_TF_SHIFT,
             INPUT_TF_ST2084 = 2 << INPUT_TF_SHIFT,
             INPUT_TF_HLG = 3 << INPUT_TF_SHIFT,
 
-            OUTPUT_TF_SHIFT = 9,
+            OUTPUT_TF_SHIFT = 10,
             OUTPUT_TF_MASK = 3 << OUTPUT_TF_SHIFT,
             OUTPUT_TF_LINEAR = 0 << OUTPUT_TF_SHIFT,
             OUTPUT_TF_SRGB = 1 << OUTPUT_TF_SHIFT,
             OUTPUT_TF_ST2084 = 2 << OUTPUT_TF_SHIFT,
             OUTPUT_TF_HLG = 3 << OUTPUT_TF_SHIFT,
 
-            Y410_BT2020_SHIFT = 11,
+            Y410_BT2020_SHIFT = 12,
             Y410_BT2020_MASK = 1 << Y410_BT2020_SHIFT,
             Y410_BT2020_OFF = 0 << Y410_BT2020_SHIFT,
             Y410_BT2020_ON = 1 << Y410_BT2020_SHIFT,
@@ -121,6 +126,9 @@ public:
         inline bool isPremultiplied() const { return (mKey & BLEND_MASK) == BLEND_PREMULT; }
         inline bool isOpaque() const { return (mKey & OPACITY_MASK) == OPACITY_OPAQUE; }
         inline bool hasAlpha() const { return (mKey & ALPHA_MASK) == ALPHA_LT_ONE; }
+        inline bool hasRoundedCorners() const {
+            return (mKey & ROUNDED_CORNERS_MASK) == ROUNDED_CORNERS_ON;
+        }
         inline bool hasInputTransformMatrix() const {
             return (mKey & INPUT_TRANSFORM_MATRIX_MASK) == INPUT_TRANSFORM_MATRIX_ON;
         }

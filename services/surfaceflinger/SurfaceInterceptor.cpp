@@ -109,6 +109,7 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
                                layer->mCurrentState.activeTransparentRegion_legacy);
     addLayerStackLocked(transaction, layerId, layer->mCurrentState.layerStack);
     addCropLocked(transaction, layerId, layer->mCurrentState.crop_legacy);
+    addCornerRadiusLocked(transaction, layerId, layer->mCurrentState.cornerRadius);
     if (layer->mCurrentState.barrierLayer_legacy != nullptr) {
         addDeferTransactionLocked(transaction, layerId,
                                   layer->mCurrentState.barrierLayer_legacy.promote(),
@@ -289,6 +290,14 @@ void SurfaceInterceptor::addCropLocked(Transaction* transaction, int32_t layerId
     setProtoRectLocked(protoRect, rect);
 }
 
+void SurfaceInterceptor::addCornerRadiusLocked(Transaction* transaction, int32_t layerId,
+                                       float cornerRadius)
+{
+    SurfaceChange* change(createSurfaceChangeLocked(transaction, layerId));
+    CornerRadiusChange* cornerRadiusChange(change->mutable_corner_radius());
+    cornerRadiusChange->set_corner_radius(cornerRadius);
+}
+
 void SurfaceInterceptor::addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
         const sp<const Layer>& layer, uint64_t frameNumber)
 {
@@ -349,6 +358,9 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     }
     if (state.what & layer_state_t::eCropChanged_legacy) {
         addCropLocked(transaction, layerId, state.crop_legacy);
+    }
+    if (state.what & layer_state_t::eCornerRadiusChanged) {
+        addCornerRadiusLocked(transaction, layerId, state.cornerRadius);
     }
     if (state.what & layer_state_t::eDeferTransaction_legacy) {
         sp<Layer> otherLayer = nullptr;

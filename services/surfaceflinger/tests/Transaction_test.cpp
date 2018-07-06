@@ -1225,6 +1225,28 @@ TEST_P(LayerTypeTransactionTest, SetAlphaClamped) {
     }
 }
 
+TEST_P(LayerTypeTransactionTest, SetCornerRadius) {
+    sp<SurfaceControl> layer;
+    const uint8_t size = 64;
+    const uint8_t testArea = 4;
+    const float cornerRadius = 16.0f;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, size, size));
+
+    Transaction()
+            .setCornerRadius(layer, cornerRadius)
+            .apply();
+    {
+        auto shot = screenshot();
+        // Transparent corners
+        shot->expectColor(Rect(0, 0, testArea, testArea), Color::BLACK);
+        shot->expectColor(Rect(0, size - testArea, testArea, testArea), Color::BLACK);
+        shot->expectColor(Rect(size - testArea, 0, testArea, testArea), Color::BLACK);
+        shot->expectColor(Rect(size - testArea, size - testArea, testArea, testArea),
+            Color::BLACK);
+    }
+}
+
 TEST_F(LayerTransactionTest, SetColorBasic) {
     sp<SurfaceControl> bufferLayer;
     sp<SurfaceControl> colorLayer;

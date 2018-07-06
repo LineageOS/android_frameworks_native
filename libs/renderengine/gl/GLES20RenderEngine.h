@@ -83,13 +83,14 @@ protected:
     void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                   ui::Transform::orientation_flags rotation) override;
     void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
-                            const half4& color) override;
+                            const half4& color, float cornerRadius) override;
     void setupLayerTexturing(const Texture& texture) override;
     void setupLayerBlackedOut() override;
     void setupFillWithColor(float r, float g, float b, float a) override;
     void setColorTransform(const mat4& colorTransform) override;
     void disableTexturing() override;
     void disableBlending() override;
+    void setupCornerRadiusCropSize(float width, float height) override;
 
     // HDR and color management related functions and state
     void setSourceY410BT2020(bool enable) override;

@@ -1687,6 +1687,10 @@ void SurfaceFlinger::calculateWorkingSet() {
                 layer->forceClientComposition(*displayId);
             }
 
+            if (layer->getRoundedCornerState().radius > 0.0f) {
+                layer->forceClientComposition(*displayId);
+            }
+
             if (layer->getForceClientComposition(*displayId)) {
                 ALOGV("[%s] Requesting Client composition", layer->getName().string());
                 layer->setCompositionType(*displayId, HWC2::Composition::Client);
@@ -2876,6 +2880,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
                 if (layer->getAlpha() == 1.0f && !translucent &&
+                        layer->getRoundedCornerState().radius == 0.0f &&
                         ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
@@ -3166,7 +3171,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
                     const Layer::State& state(layer->getDrawingState());
                     if (layer->getClearClientTarget(*displayId) && !firstLayer &&
                         layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
-                        hasClientComposition) {
+                        layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
                         layer->clearWithOpenGL(renderArea);
@@ -3584,6 +3589,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     }
     if (what & layer_state_t::eCropChanged_legacy) {
         if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eCornerRadiusChanged) {
+        if (layer->setCornerRadius(s.cornerRadius))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {

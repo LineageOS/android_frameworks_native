@@ -45,9 +45,18 @@ void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
         renderengine::Mesh mesh(renderengine::Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(renderArea, mesh, useIdentityTransform);
         auto& engine(mFlinger->getRenderEngine());
+
+        Rect win{computeBounds()};
+
+        const auto roundedCornerState = getRoundedCornerState();
+        const auto cropRect = roundedCornerState.cropRect;
+        setupRoundedCornersCropCoordinates(win, cropRect);
+
         engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
-                                  true /* disableTexture */, color);
+                                  true /* disableTexture */, color, roundedCornerState.radius);
+
         engine.setSourceDataSpace(mCurrentDataSpace);
+        engine.setupCornerRadiusCropSize(cropRect.getWidth(), cropRect.getHeight());
         engine.drawMesh(mesh);
         engine.disableBlending();
     }
