@@ -18,6 +18,8 @@
 #ifndef _RUNTIME_EVENT_HUB_H
 #define _RUNTIME_EVENT_HUB_H
 
+#include <vector>
+
 #include <input/Input.h>
 #include <input/InputDevice.h>
 #include <input/Keyboard.h>
@@ -29,7 +31,6 @@
 #include <utils/List.h>
 #include <utils/Errors.h>
 #include <utils/PropertyMap.h>
-#include <utils/Vector.h>
 #include <utils/KeyedVector.h>
 #include <utils/BitSet.h>
 
@@ -207,7 +208,7 @@ public:
 
     // Sets devices that are excluded from opening.
     // This can be used to ignore input devices for sensors.
-    virtual void setExcludedDevices(const Vector<String8>& devices) = 0;
+    virtual void setExcludedDevices(const std::vector<std::string>& devices) = 0;
 
     /*
      * Wait for events to become available and returns them.
@@ -303,7 +304,7 @@ public:
     virtual status_t mapAxis(int32_t deviceId, int32_t scanCode,
             AxisInfo* outAxisInfo) const;
 
-    virtual void setExcludedDevices(const Vector<String8>& devices);
+    virtual void setExcludedDevices(const std::vector<std::string>& devices);
 
     virtual int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const;
     virtual int32_t getKeyCodeState(int32_t deviceId, int32_t keyCode) const;
@@ -344,7 +345,7 @@ private:
 
         int fd; // may be -1 if device is closed
         const int32_t id;
-        const String8 path;
+        const std::string path;
         const InputDeviceIdentifier identifier;
 
         uint32_t classes;
@@ -357,7 +358,7 @@ private:
         uint8_t ffBitmask[(FF_MAX + 1) / 8];
         uint8_t propBitmask[(INPUT_PROP_MAX + 1) / 8];
 
-        String8 configurationFile;
+        std::string configurationFile;
         PropertyMap* configuration;
         VirtualKeyMap* virtualKeyMap;
         KeyMap keyMap;
@@ -373,7 +374,8 @@ private:
         int32_t timestampOverrideSec;
         int32_t timestampOverrideUsec;
 
-        Device(int fd, int32_t id, const String8& path, const InputDeviceIdentifier& identifier);
+        Device(int fd, int32_t id, const std::string& path,
+                const InputDeviceIdentifier& identifier);
         ~Device();
 
         void close();
@@ -413,7 +415,7 @@ private:
     void scanDevicesLocked();
     status_t readNotifyLocked();
 
-    Device* getDeviceByDescriptorLocked(String8& descriptor) const;
+    Device* getDeviceByDescriptorLocked(const std::string& descriptor) const;
     Device* getDeviceLocked(int32_t deviceId) const;
     Device* getDeviceByPathLocked(const char* devicePath) const;
 
@@ -457,7 +459,7 @@ private:
     bool mNeedToSendFinishedDeviceScan;
     bool mNeedToReopenDevices;
     bool mNeedToScanDevices;
-    Vector<String8> mExcludedDevices;
+    std::vector<std::string> mExcludedDevices;
 
     int mEpollFd;
     int mINotifyFd;

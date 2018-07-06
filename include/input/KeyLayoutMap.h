@@ -62,7 +62,7 @@ struct AxisInfo {
  */
 class KeyLayoutMap : public RefBase {
 public:
-    static status_t load(const String8& filename, sp<KeyLayoutMap>* outMap);
+    static status_t load(const std::string& filename, sp<KeyLayoutMap>* outMap);
 
     status_t mapKey(int32_t scanCode, int32_t usageCode,
             int32_t* outKeyCode, uint32_t* outFlags) const;

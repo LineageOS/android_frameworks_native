@@ -49,13 +49,13 @@ KeyLayoutMap::KeyLayoutMap() {
 KeyLayoutMap::~KeyLayoutMap() {
 }
 
-status_t KeyLayoutMap::load(const String8& filename, sp<KeyLayoutMap>* outMap) {
+status_t KeyLayoutMap::load(const std::string& filename, sp<KeyLayoutMap>* outMap) {
     outMap->clear();
 
     Tokenizer* tokenizer;
-    status_t status = Tokenizer::open(filename, &tokenizer);
+    status_t status = Tokenizer::open(String8(filename.c_str()), &tokenizer);
     if (status) {
-        ALOGE("Error %d opening key layout map file %s.", status, filename.string());
+        ALOGE("Error %d opening key layout map file %s.", status, filename.c_str());
     } else {
         sp<KeyLayoutMap> map = new KeyLayoutMap();
         if (!map.get()) {

@@ -23,7 +23,6 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Tokenizer.h>
-#include <utils/String8.h>
 #include <utils/Unicode.h>
 
 namespace android {
@@ -50,7 +49,7 @@ class VirtualKeyMap {
 public:
     ~VirtualKeyMap();
 
-    static status_t load(const String8& filename, VirtualKeyMap** outMap);
+    static status_t load(const std::string& filename, VirtualKeyMap** outMap);
 
     inline const Vector<VirtualKeyDefinition>& getVirtualKeys() const {
         return mVirtualKeys;

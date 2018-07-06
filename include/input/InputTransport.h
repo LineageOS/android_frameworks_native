@@ -27,6 +27,8 @@
  * The InputConsumer is used by the application to receive events from the input dispatcher.
  */
 
+#include <string>
+
 #include <input/Input.h>
 #include <utils/Errors.h>
 #include <utils/Timers.h>

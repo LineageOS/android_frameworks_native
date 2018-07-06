@@ -25,7 +25,6 @@
 #include <utils/BitSet.h>
 #include <utils/KeyedVector.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Vector.h>
 #include <stdint.h>

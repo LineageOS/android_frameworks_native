@@ -46,13 +46,13 @@ VirtualKeyMap::VirtualKeyMap() {
 VirtualKeyMap::~VirtualKeyMap() {
 }
 
-status_t VirtualKeyMap::load(const String8& filename, VirtualKeyMap** outMap) {
+status_t VirtualKeyMap::load(const std::string& filename, VirtualKeyMap** outMap) {
     *outMap = nullptr;
 
     Tokenizer* tokenizer;
-    status_t status = Tokenizer::open(filename, &tokenizer);
+    status_t status = Tokenizer::open(String8(filename.c_str()), &tokenizer);
     if (status) {
-        ALOGE("Error %d opening virtual key map file %s.", status, filename.string());
+        ALOGE("Error %d opening virtual key map file %s.", status, filename.c_str());
     } else {
         VirtualKeyMap* map = new VirtualKeyMap();
         if (!map) {

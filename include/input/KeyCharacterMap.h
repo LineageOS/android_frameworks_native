@@ -27,7 +27,6 @@
 #include <utils/Errors.h>
 #include <utils/KeyedVector.h>
 #include <utils/Tokenizer.h>
-#include <utils/String8.h>
 #include <utils/Unicode.h>
 #include <utils/RefBase.h>
 
@@ -75,10 +74,10 @@ public:
     };
 
     /* Loads a key character map from a file. */
-    static status_t load(const String8& filename, Format format, sp<KeyCharacterMap>* outMap);
+    static status_t load(const std::string& filename, Format format, sp<KeyCharacterMap>* outMap);
 
     /* Loads a key character map from its string contents. */
-    static status_t loadContents(const String8& filename,
+    static status_t loadContents(const std::string& filename,
             const char* contents, Format format, sp<KeyCharacterMap>* outMap);
 
     /* Combines a base key character map and an overlay. */
@@ -221,7 +220,7 @@ private:
         status_t parseKey();
         status_t parseKeyProperty();
         status_t finishKey(Key* key);
-        status_t parseModifier(const String8& token, int32_t* outMetaState);
+        status_t parseModifier(const std::string& token, int32_t* outMetaState);
         status_t parseCharacterLiteral(char16_t* outCharacter);
     };
 

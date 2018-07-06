@@ -31,9 +31,9 @@ struct InputDeviceIdentifier {
     }
 
     // Information provided by the kernel.
-    String8 name;
-    String8 location;
-    String8 uniqueId;
+    std::string name;
+    std::string location;
+    std::string uniqueId;
     uint16_t bus;
     uint16_t vendor;
     uint16_t product;
@@ -45,7 +45,7 @@ struct InputDeviceIdentifier {
     // It is hashed from whatever kernel provided information is available.
     // Ideally, the way this value is computed should not change between Android releases
     // because that would invalidate persistent settings that rely on it.
-    String8 descriptor;
+    std::string descriptor;
 
     // A value added to uniquely identify a device in the absence of a unique id. This
     // is intended to be a minimum way to distinguish from other active devices and may
@@ -73,16 +73,16 @@ public:
     };
 
     void initialize(int32_t id, int32_t generation, int32_t controllerNumber,
-            const InputDeviceIdentifier& identifier, const String8& alias, bool isExternal,
+            const InputDeviceIdentifier& identifier, const std::string& alias, bool isExternal,
             bool hasMic);
 
     inline int32_t getId() const { return mId; }
     inline int32_t getControllerNumber() const { return mControllerNumber; }
     inline int32_t getGeneration() const { return mGeneration; }
     inline const InputDeviceIdentifier& getIdentifier() const { return mIdentifier; }
-    inline const String8& getAlias() const { return mAlias; }
-    inline const String8& getDisplayName() const {
-        return mAlias.isEmpty() ? mIdentifier.name : mAlias;
+    inline const std::string& getAlias() const { return mAlias; }
+    inline const std::string& getDisplayName() const {
+        return mAlias.empty() ? mIdentifier.name : mAlias;
     }
     inline bool isExternal() const { return mIsExternal; }
     inline bool hasMic() const { return mHasMic; }
@@ -121,7 +121,7 @@ private:
     int32_t mGeneration;
     int32_t mControllerNumber;
     InputDeviceIdentifier mIdentifier;
-    String8 mAlias;
+    std::string mAlias;
     bool mIsExternal;
     bool mHasMic;
     uint32_t mSources;
@@ -149,7 +149,7 @@ enum InputDeviceConfigurationFileType {
  *
  * Returns an empty string if not found.
  */
-extern String8 getInputDeviceConfigurationFilePathByDeviceIdentifier(
+extern std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
         const InputDeviceIdentifier& deviceIdentifier,
         InputDeviceConfigurationFileType type);
 
@@ -162,8 +162,8 @@ extern String8 getInputDeviceConfigurationFilePathByDeviceIdentifier(
  *
  * Returns an empty string if not found.
  */
-extern String8 getInputDeviceConfigurationFilePathByName(
-        const String8& name, InputDeviceConfigurationFileType type);
+extern std::string getInputDeviceConfigurationFilePathByName(
+        const std::string& name, InputDeviceConfigurationFileType type);
 
 } // namespace android
 
