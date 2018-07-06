@@ -243,6 +243,7 @@ status_t InputPublisher::publishKeyEvent(
         uint32_t seq,
         int32_t deviceId,
         int32_t source,
+        int32_t displayId,
         int32_t action,
         int32_t flags,
         int32_t keyCode,
@@ -270,6 +271,7 @@ status_t InputPublisher::publishKeyEvent(
     msg.body.key.seq = seq;
     msg.body.key.deviceId = deviceId;
     msg.body.key.source = source;
+    msg.body.key.displayId = displayId;
     msg.body.key.action = action;
     msg.body.key.flags = flags;
     msg.body.key.keyCode = keyCode;
@@ -926,6 +928,7 @@ void InputConsumer::initializeKeyEvent(KeyEvent* event, const InputMessage* msg)
     event->initialize(
             msg->body.key.deviceId,
             msg->body.key.source,
+            msg->body.key.displayId,
             msg->body.key.action,
             msg->body.key.flags,
             msg->body.key.keyCode,

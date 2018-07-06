@@ -31,14 +31,16 @@ namespace android {
 
 // --- InputEvent ---
 
-void InputEvent::initialize(int32_t deviceId, int32_t source) {
+void InputEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId) {
     mDeviceId = deviceId;
     mSource = source;
+    mDisplayId = displayId;
 }
 
 void InputEvent::initialize(const InputEvent& from) {
     mDeviceId = from.mDeviceId;
     mSource = from.mSource;
+    mDisplayId = from.mDisplayId;
 }
 
 // --- KeyEvent ---
@@ -54,6 +56,7 @@ int32_t KeyEvent::getKeyCodeFromLabel(const char* label) {
 void KeyEvent::initialize(
         int32_t deviceId,
         int32_t source,
+        int32_t displayId,
         int32_t action,
         int32_t flags,
         int32_t keyCode,
@@ -62,7 +65,7 @@ void KeyEvent::initialize(
         int32_t repeatCount,
         nsecs_t downTime,
         nsecs_t eventTime) {
-    InputEvent::initialize(deviceId, source);
+    InputEvent::initialize(deviceId, source, displayId);
     mAction = action;
     mFlags = flags;
     mKeyCode = keyCode;
@@ -231,8 +234,7 @@ void MotionEvent::initialize(
         size_t pointerCount,
         const PointerProperties* pointerProperties,
         const PointerCoords* pointerCoords) {
-    InputEvent::initialize(deviceId, source);
-    mDisplayId = displayId;
+    InputEvent::initialize(deviceId, source, displayId);
     mAction = action;
     mActionButton = actionButton;
     mFlags = flags;
@@ -252,8 +254,7 @@ void MotionEvent::initialize(
 }
 
 void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
-    InputEvent::initialize(other->mDeviceId, other->mSource);
-    mDisplayId = other->mDisplayId;
+    InputEvent::initialize(other->mDeviceId, other->mSource, other->mDisplayId);
     mAction = other->mAction;
     mActionButton = other->mActionButton;
     mFlags = other->mFlags;

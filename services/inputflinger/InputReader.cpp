@@ -226,7 +226,7 @@ static float calculateCommonVector(float a, float b) {
 }
 
 static void synthesizeButtonKey(InputReaderContext* context, int32_t action,
-        nsecs_t when, int32_t deviceId, uint32_t source,
+        nsecs_t when, int32_t deviceId, uint32_t source, int32_t displayId,
         uint32_t policyFlags, int32_t lastButtonState, int32_t currentButtonState,
         int32_t buttonState, int32_t keyCode) {
     if (
@@ -236,19 +236,19 @@ static void synthesizeButtonKey(InputReaderContext* context, int32_t action,
             || (action == AKEY_EVENT_ACTION_UP
                     && (lastButtonState & buttonState)
                     && !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(when, deviceId, source, policyFlags,
+        NotifyKeyArgs args(when, deviceId, source, displayId, policyFlags,
                 action, 0, keyCode, 0, context->getGlobalMetaState(), when);
         context->getListener()->notifyKey(&args);
     }
 }
 
 static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
-        nsecs_t when, int32_t deviceId, uint32_t source,
+        nsecs_t when, int32_t deviceId, uint32_t source, int32_t displayId,
         uint32_t policyFlags, int32_t lastButtonState, int32_t currentButtonState) {
-    synthesizeButtonKey(context, action, when, deviceId, source, policyFlags,
+    synthesizeButtonKey(context, action, when, deviceId, source, displayId, policyFlags,
             lastButtonState, currentButtonState,
             AMOTION_EVENT_BUTTON_BACK, AKEYCODE_BACK);
-    synthesizeButtonKey(context, action, when, deviceId, source, policyFlags,
+    synthesizeButtonKey(context, action, when, deviceId, source, displayId, policyFlags,
             lastButtonState, currentButtonState,
             AMOTION_EVENT_BUTTON_FORWARD, AKEYCODE_FORWARD);
 }
@@ -2240,8 +2240,7 @@ void VibratorInputMapper::dump(std::string& dump) {
 
 KeyboardInputMapper::KeyboardInputMapper(InputDevice* device,
         uint32_t source, int32_t keyboardType) :
-        InputMapper(device), mSource(source),
-        mKeyboardType(keyboardType) {
+        InputMapper(device), mSource(source), mKeyboardType(keyboardType) {
 }
 
 KeyboardInputMapper::~KeyboardInputMapper() {
@@ -2249,6 +2248,20 @@ KeyboardInputMapper::~KeyboardInputMapper() {
 
 uint32_t KeyboardInputMapper::getSources() {
     return mSource;
+}
+
+int32_t KeyboardInputMapper::getOrientation() {
+    if (mViewport) {
+        return mViewport->orientation;
+    }
+    return DISPLAY_ORIENTATION_0;
+}
+
+int32_t KeyboardInputMapper::getDisplayId() {
+    if (mViewport) {
+        return mViewport->displayId;
+    }
+    return ADISPLAY_ID_NONE;
 }
 
 void KeyboardInputMapper::populateDeviceInfo(InputDeviceInfo* info) {
@@ -2262,7 +2275,7 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += INDENT2 "Keyboard Input Mapper:\n";
     dumpParameters(dump);
     dump += StringPrintf(INDENT3 "KeyboardType: %d\n", mKeyboardType);
-    dump += StringPrintf(INDENT3 "Orientation: %d\n", mOrientation);
+    dump += StringPrintf(INDENT3 "Orientation: %d\n", getOrientation());
     dump += StringPrintf(INDENT3 "KeyDowns: %zu keys currently down\n", mKeyDowns.size());
     dump += StringPrintf(INDENT3 "MetaState: 0x%0x\n", mMetaState);
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
@@ -2279,12 +2292,10 @@ void KeyboardInputMapper::configure(nsecs_t when,
     }
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        mOrientation = DISPLAY_ORIENTATION_0;
-        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            DisplayViewport v;
-            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
-                mOrientation = v.orientation;
-            }
+        if (mParameters.orientationAware) {
+            DisplayViewport dvp;
+            config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &dvp);
+            mViewport = dvp;
         }
     }
 }
@@ -2307,10 +2318,7 @@ void KeyboardInputMapper::configureParameters() {
     config.tryGetProperty(String8("keyboard.orientationAware"),
             mParameters.orientationAware);
 
-    mParameters.hasAssociatedDisplay = false;
     if (mParameters.orientationAware) {
-        mParameters.hasAssociatedDisplay = true;
-
         mapStemKey(AKEYCODE_STEM_PRIMARY, config, "keyboard.rotated.stem_primary");
         mapStemKey(AKEYCODE_STEM_1, config, "keyboard.rotated.stem_1");
         mapStemKey(AKEYCODE_STEM_2, config, "keyboard.rotated.stem_2");
@@ -2324,8 +2332,6 @@ void KeyboardInputMapper::configureParameters() {
 
 void KeyboardInputMapper::dumpParameters(std::string& dump) {
     dump += INDENT3 "Parameters:\n";
-    dump += StringPrintf(INDENT4 "HasAssociatedDisplay: %s\n",
-            toString(mParameters.hasAssociatedDisplay));
     dump += StringPrintf(INDENT4 "OrientationAware: %s\n",
             toString(mParameters.orientationAware));
     dump += StringPrintf(INDENT4 "HandlesKeyRepeat: %s\n",
@@ -2420,8 +2426,8 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
 
     if (down) {
         // Rotate key codes according to orientation if needed.
-        if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            keyCode = rotateKeyCode(keyCode, mOrientation);
+        if (mParameters.orientationAware) {
+            keyCode = rotateKeyCode(keyCode, getOrientation());
         }
 
         // Add key down.
@@ -2486,7 +2492,7 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(when, getDeviceId(), mSource, policyFlags,
+    NotifyKeyArgs args(when, getDeviceId(), mSource, getDisplayId(), policyFlags,
             down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
             AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
@@ -2868,7 +2874,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
     // Synthesize key down from buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, getDeviceId(), mSource,
-            policyFlags, lastButtonState, currentButtonState);
+            displayId, policyFlags, lastButtonState, currentButtonState);
 
     // Send motion event.
     if (downChanged || moved || scrolled || buttonsChanged) {
@@ -2947,7 +2953,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
     // Synthesize key up from buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, getDeviceId(), mSource,
-            policyFlags, lastButtonState, currentButtonState);
+            displayId, policyFlags, lastButtonState, currentButtonState);
 
     mCursorMotionAccumulator.finishSync();
     mCursorScrollAccumulator.finishSync();
@@ -4427,7 +4433,8 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
 
     // Synthesize key down from raw buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_DOWN, when, getDeviceId(), mSource,
-            policyFlags, mLastCookedState.buttonState, mCurrentCookedState.buttonState);
+            mViewport.displayId, policyFlags,
+            mLastCookedState.buttonState, mCurrentCookedState.buttonState);
 
     // Dispatch the touches either directly or by translation through a pointer on screen.
     if (mDeviceMode == DEVICE_MODE_POINTER) {
@@ -4499,7 +4506,8 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
 
     // Synthesize key up from raw buttons if needed.
     synthesizeButtonKeys(getContext(), AKEY_EVENT_ACTION_UP, when, getDeviceId(), mSource,
-            policyFlags, mLastCookedState.buttonState, mCurrentCookedState.buttonState);
+            mViewport.displayId, policyFlags,
+            mLastCookedState.buttonState, mCurrentCookedState.buttonState);
 
     // Clear some transient state.
     mCurrentRawState.rawVScroll = 0;
@@ -4714,8 +4722,8 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, uint32_t policyFlags,
     int32_t metaState = mContext->getGlobalMetaState();
     policyFlags |= POLICY_FLAG_VIRTUAL;
 
-    NotifyKeyArgs args(when, getDeviceId(), AINPUT_SOURCE_KEYBOARD, policyFlags,
-            keyEventAction, keyEventFlags, keyCode, scanCode, metaState, downTime);
+    NotifyKeyArgs args(when, getDeviceId(), AINPUT_SOURCE_KEYBOARD, mViewport.displayId,
+            policyFlags, keyEventAction, keyEventFlags, keyCode, scanCode, metaState, downTime);
     getListener()->notifyKey(&args);
 }
 

@@ -35,6 +35,7 @@
 #include <utils/BitSet.h>
 #include <utils/SortedVector.h>
 
+#include <optional>
 #include <stddef.h>
 #include <unistd.h>
 
@@ -1094,6 +1095,9 @@ public:
     virtual void updateMetaState(int32_t keyCode);
 
 private:
+    // The current viewport.
+    std::optional<DisplayViewport> mViewport;
+
     struct KeyDown {
         int32_t keyCode;
         int32_t scanCode;
@@ -1101,8 +1105,6 @@ private:
 
     uint32_t mSource;
     int32_t mKeyboardType;
-
-    int32_t mOrientation; // orientation for dpad keys
 
     Vector<KeyDown> mKeyDowns; // keys that are down
     int32_t mMetaState;
@@ -1120,13 +1122,15 @@ private:
 
     // Immutable configuration parameters.
     struct Parameters {
-        bool hasAssociatedDisplay;
         bool orientationAware;
         bool handlesKeyRepeat;
     } mParameters;
 
     void configureParameters();
     void dumpParameters(std::string& dump);
+
+    int32_t getOrientation();
+    int32_t getDisplayId();
 
     bool isKeyboardOrGamepadKey(int32_t scanCode);
     bool isMediaKey(int32_t keyCode);

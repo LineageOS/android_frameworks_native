@@ -487,7 +487,7 @@ void KeyCharacterMap::addKey(Vector<KeyEvent>& outEvents,
         int32_t deviceId, int32_t keyCode, int32_t metaState, bool down, nsecs_t time) {
     outEvents.push();
     KeyEvent& event = outEvents.editTop();
-    event.initialize(deviceId, AINPUT_SOURCE_KEYBOARD,
+    event.initialize(deviceId, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
             down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
             0, keyCode, 0, metaState, 0, time, time);
 }
