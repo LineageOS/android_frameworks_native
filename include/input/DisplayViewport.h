@@ -17,10 +17,36 @@
 #ifndef _LIBINPUT_DISPLAY_VIEWPORT_H
 #define _LIBINPUT_DISPLAY_VIEWPORT_H
 
+#include <android-base/stringprintf.h>
 #include <ui/DisplayInfo.h>
 #include <input/Input.h>
 
+using android::base::StringPrintf;
+
 namespace android {
+
+/**
+ * Describes the different type of viewports supported by input flinger.
+ * Keep in sync with values in InputManagerService.java.
+ */
+enum class ViewportType : int32_t {
+    VIEWPORT_INTERNAL = 1,
+    VIEWPORT_EXTERNAL = 2,
+    VIEWPORT_VIRTUAL = 3,
+};
+
+static const char* viewportTypeToString(ViewportType type) {
+    switch(type) {
+        case ViewportType::VIEWPORT_INTERNAL:
+            return "INTERNAL";
+        case ViewportType::VIEWPORT_EXTERNAL:
+            return "EXTERNAL";
+        case ViewportType::VIEWPORT_VIRTUAL:
+            return "VIRTUAL";
+        default:
+            return "UNKNOWN";
+    }
+}
 
 /*
  * Describes how coordinates are mapped on a physical display.
@@ -40,12 +66,13 @@ struct DisplayViewport {
     int32_t deviceWidth;
     int32_t deviceHeight;
     std::string uniqueId;
+    ViewportType type;
 
     DisplayViewport() :
             displayId(ADISPLAY_ID_NONE), orientation(DISPLAY_ORIENTATION_0),
             logicalLeft(0), logicalTop(0), logicalRight(0), logicalBottom(0),
             physicalLeft(0), physicalTop(0), physicalRight(0), physicalBottom(0),
-            deviceWidth(0), deviceHeight(0), uniqueId() {
+            deviceWidth(0), deviceHeight(0), uniqueId(), type(ViewportType::VIEWPORT_INTERNAL) {
     }
 
     bool operator==(const DisplayViewport& other) const {
@@ -61,7 +88,8 @@ struct DisplayViewport {
                 && physicalBottom == other.physicalBottom
                 && deviceWidth == other.deviceWidth
                 && deviceHeight == other.deviceHeight
-                && uniqueId == other.uniqueId;
+                && uniqueId == other.uniqueId
+                && type == other.type;
     }
 
     bool operator!=(const DisplayViewport& other) const {
@@ -86,17 +114,22 @@ struct DisplayViewport {
         deviceWidth = width;
         deviceHeight = height;
         uniqueId.clear();
+        type = ViewportType::VIEWPORT_INTERNAL;
     }
-};
 
-/**
- * Describes the different type of viewports supported by input flinger.
- * Keep in sync with values in InputManagerService.java.
- */
-enum class ViewportType : int32_t {
-    VIEWPORT_INTERNAL = 1,
-    VIEWPORT_EXTERNAL = 2,
-    VIEWPORT_VIRTUAL = 3,
+    std::string toString() const {
+        return StringPrintf("Viewport %s: displayId=%d, orientation=%d, "
+            "logicalFrame=[%d, %d, %d, %d], "
+            "physicalFrame=[%d, %d, %d, %d], "
+            "deviceSize=[%d, %d]",
+            viewportTypeToString(type),
+            displayId, orientation,
+            logicalLeft, logicalTop,
+            logicalRight, logicalBottom,
+            physicalLeft, physicalTop,
+            physicalRight, physicalBottom,
+            deviceWidth, deviceHeight);
+    }
 };
 
 } // namespace android
