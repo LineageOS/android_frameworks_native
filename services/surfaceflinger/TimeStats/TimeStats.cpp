@@ -178,10 +178,17 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
             if (!timeStats.stats.count(layerName)) {
                 timeStats.stats[layerName].layerName = layerName;
                 timeStats.stats[layerName].packageName = getPackageName(layerName);
-                timeStats.stats[layerName].statsStart = static_cast<int64_t>(std::time(0));
             }
             TimeStatsHelper::TimeStatsLayer& timeStatsLayer = timeStats.stats[layerName];
             timeStatsLayer.totalFrames++;
+            timeStatsLayer.droppedFrames += layerRecord.droppedFrames;
+            layerRecord.droppedFrames = 0;
+
+            const int32_t postToAcquireMs = msBetween(timeRecords[0].frameTime.postTime,
+                                                      timeRecords[0].frameTime.acquireTime);
+            ALOGV("[%s]-[%" PRIu64 "]-post2acquire[%d]", layerName.c_str(),
+                  timeRecords[0].frameTime.frameNumber, postToAcquireMs);
+            timeStatsLayer.deltas["post2acquire"].insert(postToAcquireMs);
 
             const int32_t postToPresentMs = msBetween(timeRecords[0].frameTime.postTime,
                                                       timeRecords[0].frameTime.presentTime);
@@ -212,8 +219,6 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
             ALOGV("[%s]-[%" PRIu64 "]-present2present[%d]", layerName.c_str(),
                   timeRecords[0].frameTime.frameNumber, presentToPresentMs);
             timeStatsLayer.deltas["present2present"].insert(presentToPresentMs);
-
-            timeStats.stats[layerName].statsEnd = static_cast<int64_t>(std::time(0));
         }
         prevTimeRecord = timeRecords[0];
         timeRecords.pop_front();
@@ -403,6 +408,7 @@ void TimeStats::clearLayerRecord(const std::string& layerName) {
     layerRecord.timeRecords.clear();
     layerRecord.prevTimeRecord.ready = false;
     layerRecord.waitData = -1;
+    layerRecord.droppedFrames = 0;
 }
 
 void TimeStats::removeTimeRecord(const std::string& layerName, uint64_t frameNumber) {
@@ -422,8 +428,9 @@ void TimeStats::removeTimeRecord(const std::string& layerName, uint64_t frameNum
     if (removeAt == layerRecord.timeRecords.size()) return;
     layerRecord.timeRecords.erase(layerRecord.timeRecords.begin() + removeAt);
     if (layerRecord.waitData > static_cast<int32_t>(removeAt)) {
-        --layerRecord.waitData;
+        layerRecord.waitData--;
     }
+    layerRecord.droppedFrames++;
 }
 
 void TimeStats::enable() {
