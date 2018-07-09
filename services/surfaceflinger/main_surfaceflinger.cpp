@@ -102,7 +102,7 @@ int main(int, char**) {
     // publish surface flinger
     sp<IServiceManager> sm(defaultServiceManager());
     sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false,
-                   IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL);
+                   IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
 
     // publish GpuService
     sp<GpuService> gpuservice = new GpuService();
