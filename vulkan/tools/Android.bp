@@ -29,7 +29,6 @@ cc_binary {
         "-Wno-switch-enum",
     ],
     cppflags: [
-        "-std=c++1y",
         "-Wno-c++98-compat-pedantic",
         "-Wno-c99-extensions",
         "-Wno-old-style-cast",
