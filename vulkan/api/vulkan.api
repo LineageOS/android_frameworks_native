@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 76
+define VERSION_PATCH 80
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -269,6 +269,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_push_descriptor") define VK_KHR_PUSH_DESCRIPTOR_SPEC_VERSION 2
 @extension("VK_KHR_push_descriptor") define VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME "VK_KHR_push_descriptor"
 
+// 82
+@extension("VK_EXT_conditional_rendering") define VK_EXT_CONDITIONAL_RENDERING_SPEC_VERSION 1
+@extension("VK_EXT_conditional_rendering") define VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME "VK_EXT_conditional_rendering"
+
 // 84
 @extension("VK_KHR_16bit_storage") define VK_KHR_16BIT_STORAGE_SPEC_VERSION 1
 @extension("VK_KHR_16bit_storage") define VK_KHR_16BIT_STORAGE_EXTENSION_NAME "VK_KHR_16bit_storage"
@@ -344,6 +348,10 @@ define NULL_HANDLE 0
 // 106
 @extension("VK_EXT_hdr_metadata") define VK_EXT_HDR_METADATA_SPEC_VERSION 1
 @extension("VK_EXT_hdr_metadata") define VK_EXT_HDR_METADATA_EXTENSION_NAME "VK_EXT_hdr_metadata"
+
+// 110
+@extension("VK_KHR_create_renderpass2") define VK_KHR_CREATE_RENDERPASS2_SPEC_VERSION 1
+@extension("VK_KHR_create_renderpass2") define VK_KHR_CREATE_RENDERPASS2_EXTENSION_NAME "VK_KHR_create_renderpass2"
 
 // 112
 @extension("VK_KHR_shared_presentable_image") define VK_KHR_SHARED_PRESENTABLE_IMAGE_SPEC_VERSION 1
@@ -500,6 +508,10 @@ define NULL_HANDLE 0
 // 175
 @extension("VK_EXT_global_priority") define VK_EXT_GLOBAL_PRIORITY_SPEC_VERSION 1
 @extension("VK_EXT_global_priority") define VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME "VK_EXT_global_priority"
+
+// 178
+@extension("VK_KHR_8bit_storage") define VK_KHR_8BIT_STORAGE_SPEC_VERSION 1
+@extension("VK_KHR_8bit_storage") define VK_KHR_8BIT_STORAGE_EXTENSION_NAME "VK_KHR_8bit_storage"
 
 // 179
 @extension("VK_EXT_external_memory_host") define VK_EXT_EXTERNAL_MEMORY_HOST_SPEC_VERSION 1
@@ -1453,6 +1465,11 @@ enum VkStructureType {
     //@extension("VK_KHR_incremental_present") // 85
     VK_STRUCTURE_TYPE_PRESENT_REGIONS_KHR                       = 1000084000,
 
+    //@extension("VK_EXT_conditional_rendering") // 82
+    VK_STRUCTURE_TYPE_COMMAND_BUFFER_INHERITANCE_CONDITIONAL_RENDERING_INFO_EXT = 1000081000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT        = 1000081001,
+    VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT                      = 1000081002,
+
     //@extension("VK_KHR_descriptor_update_template") // 86
     VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR    = 1000085000,
 
@@ -1492,6 +1509,15 @@ enum VkStructureType {
     //@extension("VK_EXT_conservative_rasterization") // 102
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONSERVATIVE_RASTERIZATION_PROPERTIES_EXT = 1000101000,
     VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_CONSERVATIVE_STATE_CREATE_INFO_EXT = 1000101001,
+
+    //@extension("VK_KHR_create_renderpass2") // 110
+    VK_STRUCTURE_TYPE_ATTACHMENT_DESCRIPTION_2_KHR              = 1000109000,
+    VK_STRUCTURE_TYPE_ATTACHMENT_REFERENCE_2_KHR                = 1000109001,
+    VK_STRUCTURE_TYPE_SUBPASS_DESCRIPTION_2_KHR                 = 1000109002,
+    VK_STRUCTURE_TYPE_SUBPASS_DEPENDENCY_2_KHR                  = 1000109003,
+    VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO_2_KHR             = 1000109004,
+    VK_STRUCTURE_TYPE_SUBPASS_BEGIN_INFO_KHR                    = 1000109005,
+    VK_STRUCTURE_TYPE_SUBPASS_END_INFO_KHR                      = 1000109006,
 
     //@extension("VK_EXT_hdr_metadata") // 106
     VK_STRUCTURE_TYPE_HDR_METADATA_EXT                          = 1000105000,
@@ -1622,6 +1648,9 @@ enum VkStructureType {
 
     //@extension("VK_EXT_global_priority") // 175
     VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_EXT      = 1000174000,
+
+    //@extension("VK_KHR_8bit_storage") // 178
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_8BIT_STORAGE_FEATURES_KHR         = 1000177000,
 
     //@extension("VK_EXT_external_memory_host") // 179
     VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT                   = 1000178000,
@@ -1823,6 +1852,12 @@ enum VkChromaLocation {
 enum VkDescriptorUpdateTemplateType {
     VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_DESCRIPTOR_SET = 0,
     VK_DESCRIPTOR_UPDATE_TEMPLATE_TYPE_PUSH_DESCRIPTORS_KHR = 1,
+}
+
+enum VkVendorId {
+    VK_VENDOR_ID_VIV                                        = 0x10001,
+    VK_VENDOR_ID_VSI                                        = 0x10002,
+    VK_VENDOR_ID_KAZAN                                      = 0x10003,
 }
 
 @extension("VK_KHR_surface") // 1
@@ -2128,6 +2163,9 @@ bitfield VkAccessFlagBits {
 
     //@extension("VK_EXT_blend_operation_advanced") // 149
     VK_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT     = 0x00080000,
+
+    //@extension("VK_EXT_conditional_rendering") // 82
+    VK_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT            = 0x00100000,
 }
 
 /// Buffer usage flags
@@ -2142,6 +2180,9 @@ bitfield VkBufferUsageFlagBits {
     VK_BUFFER_USAGE_INDEX_BUFFER_BIT                        = 0x00000040,    /// Can be used as source of fixed function index fetch (index buffer)
     VK_BUFFER_USAGE_VERTEX_BUFFER_BIT                       = 0x00000080,    /// Can be used as source of fixed function vertex fetch (VBO)
     VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT                     = 0x00000100,    /// Can be the source of indirect parameters (e.g. indirect buffer, parameter buffer)
+
+    //@extension("VK_EXT_conditional_rendering") // 82
+    VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT           = 0x00000200,
 }
 
 /// Buffer creation flags
@@ -2434,6 +2475,9 @@ bitfield VkPipelineStageFlagBits {
 
     //@extension("VK_NVX_device_generated_commands") // 87
     VK_PIPELINE_STAGE_COMMAND_PROCESS_BIT_NVX               = 0x00020000,
+
+    //@extension("VK_EXT_conditional_rendering") // 82
+    VK_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT         = 0x00040000,
 }
 
 /// Render pass attachment description flags
@@ -2958,6 +3002,13 @@ type VkFlags VkSemaphoreImportFlagsKHR
 @extension("VK_KHR_external_semaphore") // 78
 bitfield VkSemaphoreImportFlagBitsKHR {
     VK_SEMAPHORE_IMPORT_TEMPORARY_BIT_KHR                       = 0x00000001,
+}
+
+@extension("VK_EXT_conditional_rendering") // 82
+type VkFlags VkConditionalRenderingFlagsEXT
+@extension("VK_EXT_conditional_rendering") // 82
+bitfield VkConditionalRenderingFlagBitsEXT {
+    VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT                   = 0x00000001,
 }
 
 @extension("VK_KHR_descriptor_update_template") // 86
@@ -5536,6 +5587,30 @@ class VkPhysicalDevicePushDescriptorPropertiesKHR {
     u32                                         maxPushDescriptors
 }
 
+@extension("VK_EXT_conditional_rendering") // 82
+class VkConditionalRenderingBeginInfoEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkBuffer                                    buffer
+    VkDeviceSize                                offset
+    VkConditionalRenderingFlagsEXT              flags
+}
+
+@extension("VK_EXT_conditional_rendering") // 82
+class VkPhysicalDeviceConditionalRenderingFeaturesEXT {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkBool32                                    conditionalRendering
+    VkBool32                                    inheritedConditionalRendering
+}
+
+@extension("VK_EXT_conditional_rendering") // 82
+class VkCommandBufferInheritanceConditionalRenderingInfoEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkBool32                                    conditionalRenderingEnable
+}
+
 @extension("VK_KHR_16bit_storage") // 84
 class VkPhysicalDevice16BitStorageFeaturesKHR {
     VkStructureType                             sType
@@ -5889,6 +5964,89 @@ class VkHdrMetadataEXT {
     f32                                             minLuminance
     f32                                             maxContentLightLevel
     f32                                             maxFrameAverageLightLevel
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkAttachmentDescription2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkAttachmentDescriptionFlags                    flags
+    VkFormat                                        format
+    VkSampleCountFlagBits                           samples
+    VkAttachmentLoadOp                              loadOp
+    VkAttachmentStoreOp                             storeOp
+    VkAttachmentLoadOp                              stencilLoadOp
+    VkAttachmentStoreOp                             stencilStoreOp
+    VkImageLayout                                   initialLayout
+    VkImageLayout                                   finalLayout
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkAttachmentReference2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             attachment
+    VkImageLayout                                   layout
+    VkImageAspectFlags                              aspectMask
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkSubpassDescription2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkSubpassDescriptionFlags                       flags
+    VkPipelineBindPoint                             pipelineBindPoint
+    u32                                             viewMask
+    u32                                             inputAttachmentCount
+    const VkAttachmentReference2KHR*                pInputAttachments
+    u32                                             colorAttachmentCount
+    const VkAttachmentReference2KHR*                pColorAttachments
+    const VkAttachmentReference2KHR*                pResolveAttachments
+    const VkAttachmentReference2KHR*                pDepthStencilAttachment
+    u32                                             preserveAttachmentCount
+    const u32*                                      pPreserveAttachments
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkSubpassDependency2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             srcSubpass
+    u32                                             dstSubpass
+    VkPipelineStageFlags                            srcStageMask
+    VkPipelineStageFlags                            dstStageMask
+    VkAccessFlags                                   srcAccessMask
+    VkAccessFlags                                   dstAccessMask
+    VkDependencyFlags                               dependencyFlags
+    s32                                             viewOffset
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkRenderPassCreateInfo2KHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkRenderPassCreateFlags                         flags
+    u32                                             attachmentCount
+    const VkAttachmentDescription2KHR*              pAttachments
+    u32                                             subpassCount
+    const VkSubpassDescription2KHR*                 pSubpasses
+    u32                                             dependencyCount
+    const VkSubpassDependency2KHR*                  pDependencies
+    u32                                             correlatedViewMaskCount
+    const u32*                                      pCorrelatedViewMasks
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkSubpassBeginInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkSubpassContents                               contents
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+class VkSubpassEndInfoKHR {
+    VkStructureType                                 sType
+    const void*                                     pNext
 }
 
 @extension("VK_KHR_shared_presentable_image") // 112
@@ -6556,6 +6714,15 @@ class VkDeviceQueueGlobalPriorityCreateInfoEXT {
     VkStructureType                                 sType
     const void*                                     pNext
     VkQueueGlobalPriorityEXT                        globalPriority
+}
+
+@extension("VK_KHR_8bit_storage") // 178
+class VkPhysicalDevice8BitStorageFeaturesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        storageBuffer8BitAccess
+    VkBool32                                        uniformAndStorageBuffer8BitAccess
+    VkBool32                                        storagePushConstant8
 }
 
 @extension("VK_EXT_external_memory_host") // 179
@@ -9799,6 +9966,17 @@ cmd void vkCmdPushDescriptorSetKHR(
         const VkWriteDescriptorSet*                 pDescriptorWrites) {
 }
 
+@extension("VK_EXT_conditional_rendering") // 82
+cmd void vkCmdBeginConditionalRenderingEXT(
+        VkCommandBuffer                             commandBuffer,
+        const VkConditionalRenderingBeginInfoEXT*   pConditionalRenderingBegin) {
+}
+
+@extension("VK_EXT_conditional_rendering") // 82
+cmd void vkCmdEndConditionalRenderingEXT(
+        VkCommandBuffer                             commandBuffer) {
+}
+
 @extension("VK_KHR_descriptor_update_template") // 86
 cmd VkResult vkCreateDescriptorUpdateTemplateKHR(
         VkDevice                                    device,
@@ -10016,6 +10194,35 @@ cmd void vkSetHdrMetadataEXT(
         u32                                         swapchainCount,
         const VkSwapchainKHR*                       pSwapchains,
         const VkHdrMetadataEXT*                     pMetadata) {
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+cmd VkResult vkCreateRenderPass2KHR(
+        VkDevice                                    device,
+        const VkRenderPassCreateInfo2KHR*           pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkRenderPass*                               pRenderPass) {
+    return ?
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+cmd void vkCmdBeginRenderPass2KHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkRenderPassBeginInfo*                pRenderPassBegin,
+        const VkSubpassBeginInfoKHR*                pSubpassBeginInfo) {
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+cmd void vkCmdNextSubpass2KHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkSubpassBeginInfoKHR*                pSubpassBeginInfo,
+        const VkSubpassEndInfoKHR*                  pSubpassEndInfo) {
+}
+
+@extension("VK_KHR_create_renderpass2") // 110
+cmd void vkCmdEndRenderPass2KHR(
+        VkCommandBuffer                             commandBuffer,
+        const VkSubpassEndInfoKHR*                  pSubpassEndInfo) {
 }
 
 @extension("VK_KHR_shared_presentable_image") // 112
