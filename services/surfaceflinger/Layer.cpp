@@ -1987,6 +1987,16 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     layerInfo->set_refresh_pending(isBufferLatched());
     layerInfo->set_window_type(state.type);
     layerInfo->set_app_id(state.appId);
+    layerInfo->set_curr_frame(mCurrentFrameNumber);
+
+    for (const auto& pendingState : mPendingStates) {
+        auto barrierLayer = pendingState.barrierLayer.promote();
+        if (barrierLayer != nullptr) {
+            BarrierLayerProto* barrierLayerProto = layerInfo->add_barrier_layer();
+            barrierLayerProto->set_id(barrierLayer->sequence);
+            barrierLayerProto->set_frame_number(pendingState.frameNumber);
+        }
+    }
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
