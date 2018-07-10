@@ -88,6 +88,12 @@ static_assert(DEXOPT_MASK           == (0x1dfe | DEXOPT_IDLE_BACKGROUND_JOB),
               "DEXOPT_MASK unexpected.");
 
 
+template<typename T>
+static constexpr bool IsPowerOfTwo(T x) {
+  static_assert(std::is_integral<T>::value, "T must be integral");
+  // TODO: assert unsigned. There is currently many uses with signed values.
+  return (x & (x - 1)) == 0;
+}
 
 template<typename T>
 static constexpr T RoundDown(T x, typename std::decay<T>::type n) {
