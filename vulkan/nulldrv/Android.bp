@@ -32,7 +32,6 @@ cc_library_shared {
         "-DLOG_NDEBUG=0",
     ],
     cppflags: [
-        "-std=c++1y",
         "-Wno-c++98-compat-pedantic",
         "-Wno-c99-extensions",
     ],

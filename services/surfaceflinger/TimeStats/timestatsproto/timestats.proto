@@ -20,46 +20,59 @@ package android.surfaceflinger;
 
 option optimize_for = LITE_RUNTIME;
 
+// //depot/google3/java/com/google/android/apps/graphics/proto/timestats.proto
+// is based on this proto. Please only make valid protobuf changes to these
+// messages, and keep the other file in sync per Android release. Please also
+// do not include "option optimize_for = LITE_RUNTIME;" on google3 side.
+
+// Next tag: 7
 message SFTimeStatsGlobalProto {
-  // The start & end timestamps in UTC as
-  // milliseconds since January 1, 1970
+  // The stats start time in UTC as seconds since January 1, 1970
   optional int64 stats_start = 1;
+  // The stats end time in UTC as seconds since January 1, 1970
   optional int64 stats_end = 2;
-  // Total frames
+  // Total number of frames presented during tracing period.
   optional int32 total_frames = 3;
   // Total missed frames of SurfaceFlinger.
   optional int32 missed_frames = 4;
   // Total frames fallback to client composition.
   optional int32 client_composition_frames = 5;
-
+  // Stats per layer. Apps could have multiple layers.
   repeated SFTimeStatsLayerProto stats = 6;
 }
 
+// Next tag: 8
 message SFTimeStatsLayerProto {
-  // The layer name
+  // The name of the visible view layer.
   optional string layer_name = 1;
-  // The package name
+  // The package name of the application owning this layer.
   optional string package_name = 2;
-  // The start & end timestamps in UTC as
-  // milliseconds since January 1, 1970
+  // The stats start time in UTC as seconds since January 1, 1970
   optional int64 stats_start = 3;
+  // The stats end time in UTC as seconds since January 1, 1970
   optional int64 stats_end = 4;
-  // Distinct frame count.
+  // Total number of frames presented during tracing period.
   optional int32 total_frames = 5;
-
+  // Total number of frames dropped by SurfaceFlinger.
+  optional int32 dropped_frames = 7;
+  // There are multiple timestamps tracked in SurfaceFlinger, and these are the
+  // histograms of deltas between different combinations of those timestamps.
   repeated SFTimeStatsDeltaProto deltas = 6;
 }
 
+// Next tag: 3
 message SFTimeStatsDeltaProto {
   // Name of the time interval
   optional string delta_name = 1;
-  // Histogram of the delta time
+  // Histogram of the delta time. There should be at most 85 buckets ranging
+  // from [0ms, 1ms) to [1000ms, infinity)
   repeated SFTimeStatsHistogramBucketProto histograms = 2;
 }
 
+// Next tag: 3
 message SFTimeStatsHistogramBucketProto {
-  // Lower bound of render time in milliseconds.
-  optional int32 render_millis = 1;
+  // Lower bound of time interval in milliseconds.
+  optional int32 time_millis = 1;
   // Number of frames in the bucket.
   optional int32 frame_count = 2;
 }

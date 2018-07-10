@@ -61,6 +61,7 @@ class TimeStats {
         // specific frame are still not fully received. This is not waiting for
         // fences to signal, but rather waiting to receive those fences/timestamps.
         int32_t waitData = -1;
+        uint32_t droppedFrames = 0;
         TimeRecord prevTimeRecord;
         std::deque<TimeRecord> timeRecords;
     };
@@ -81,8 +82,11 @@ public:
     void setPresentTime(const std::string& layerName, uint64_t frameNumber, nsecs_t presentTime);
     void setPresentFence(const std::string& layerName, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& presentFence);
+    // On producer disconnect with BufferQueue.
     void onDisconnect(const std::string& layerName);
+    // When SF is cleaning up the queue, clear the LayerRecord as well.
     void clearLayerRecord(const std::string& layerName);
+    // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
     void removeTimeRecord(const std::string& layerName, uint64_t frameNumber);
 
 private:

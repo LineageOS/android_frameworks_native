@@ -68,12 +68,11 @@ std::string TimeStatsHelper::Histogram::toString() const {
 }
 
 std::string TimeStatsHelper::TimeStatsLayer::toString() const {
-    std::string result = "";
+    std::string result = "\n";
     StringAppendF(&result, "layerName = %s\n", layerName.c_str());
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
-    StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
-    StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
-    StringAppendF(&result, "totalFrames= %d\n", totalFrames);
+    StringAppendF(&result, "totalFrames = %d\n", totalFrames);
+    StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
     auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
         StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
@@ -90,10 +89,9 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     std::string result = "SurfaceFlinger TimeStats:\n";
     StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
     StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
-    StringAppendF(&result, "totalFrames= %d\n", totalFrames);
-    StringAppendF(&result, "missedFrames= %d\n", missedFrames);
-    StringAppendF(&result, "clientCompositionFrames= %d\n", clientCompositionFrames);
-    StringAppendF(&result, "TimeStats for each layer is as below:\n");
+    StringAppendF(&result, "totalFrames = %d\n", totalFrames);
+    StringAppendF(&result, "missedFrames = %d\n", missedFrames);
+    StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
     const auto dumpStats = generateDumpStats(maxLayers);
     for (auto& ele : dumpStats) {
         StringAppendF(&result, "%s", ele->toString().c_str());
@@ -106,15 +104,14 @@ SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() const {
     SFTimeStatsLayerProto layerProto;
     layerProto.set_layer_name(layerName);
     layerProto.set_package_name(packageName);
-    layerProto.set_stats_start(statsStart);
-    layerProto.set_stats_end(statsEnd);
     layerProto.set_total_frames(totalFrames);
+    layerProto.set_dropped_frames(droppedFrames);
     for (auto& ele : deltas) {
         SFTimeStatsDeltaProto* deltaProto = layerProto.add_deltas();
         deltaProto->set_delta_name(ele.first);
         for (auto& histEle : ele.second.hist) {
             SFTimeStatsHistogramBucketProto* histProto = deltaProto->add_histograms();
-            histProto->set_render_millis(histEle.first);
+            histProto->set_time_millis(histEle.first);
             histProto->set_frame_count(histEle.second);
         }
     }

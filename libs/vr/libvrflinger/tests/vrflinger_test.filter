@@ -1,5 +1,5 @@
 {
         "presubmit": {
-            "filter": "VrFlingerTest.*"
+            "filter": "BootVrFlingerTest.*"
         }
 }
