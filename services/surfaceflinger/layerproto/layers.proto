@@ -82,6 +82,10 @@ message LayerProto {
   optional bool is_protected = 36;
   // If active_buffer is not null, record its transform
   optional TransformProto buffer_transform = 37;
+  // Current frame number being rendered.
+  optional uint64 curr_frame = 38;
+  // A list of barriers that the layer is waiting to update state.
+  repeated BarrierLayerProto barrier_layer = 39;
 }
 
 message PositionProto {
@@ -132,4 +136,11 @@ message ColorProto {
   optional float g = 2;
   optional float b = 3;
   optional float a = 4;
+}
+
+message BarrierLayerProto {
+  // layer id the barrier is waiting on.
+  optional int32 id = 1;
+  // frame number the barrier is waiting on.
+  optional uint64 frame_number = 2;
 }
