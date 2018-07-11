@@ -73,7 +73,7 @@ class WriteOnFdAction : public ActionInterface<WriteOnFdFunction> {
     explicit WriteOnFdAction(const std::string& output) : output_(output) {
     }
     virtual Result Perform(const ArgumentTuple& args) {
-        int fd = ::std::tr1::get<0>(args);
+        int fd = ::testing::get<0>(args);
         android::base::WriteStringToFd(output_, fd);
     }
 
