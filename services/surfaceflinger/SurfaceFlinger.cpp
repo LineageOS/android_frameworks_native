@@ -1429,9 +1429,13 @@ void SurfaceFlinger::updateVrFlinger() {
 
     Mutex::Autolock _l(mStateLock);
 
-    const auto display = getDefaultDisplayDeviceLocked();
+    sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
     LOG_ALWAYS_FATAL_IF(!display);
     const int currentDisplayPowerMode = display->getPowerMode();
+    // This DisplayDevice will no longer be relevant once resetDisplayState() is
+    // called below. Clear the reference now so we don't accidentally use it
+    // later.
+    display.clear();
 
     if (!vrFlingerRequestsDisplay) {
         mVrFlinger->SeizeDisplayOwnership();
@@ -1456,6 +1460,8 @@ void SurfaceFlinger::updateVrFlinger() {
     invalidateHwcGeometry();
 
     // Re-enable default display.
+    display = getDefaultDisplayDeviceLocked();
+    LOG_ALWAYS_FATAL_IF(!display);
     setPowerModeInternal(display, currentDisplayPowerMode, /*stateLockHeld*/ true);
 
     // Reset the timing values to account for the period of the swapped in HWC
