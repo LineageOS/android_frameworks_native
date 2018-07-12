@@ -1,6 +1,5 @@
 cc_library_shared {
     name: "libsurfacereplayer",
-    clang: true,
     srcs: [
         "BufferQueueScheduler.cpp",
         "Event.cpp",
@@ -16,7 +15,6 @@ cc_library_shared {
 	"-Wno-float-equal",
 	"-Wno-sign-conversion",
 	"-Wno-padded",
-	"-std=c++14",
     ],
     static_libs: [
         "libtrace_proto",
@@ -41,7 +39,6 @@ cc_library_shared {
 
 cc_binary {
     name: "surfacereplayer",
-    clang: true,
     srcs: [
         "Main.cpp",
     ],
@@ -61,6 +58,5 @@ cc_binary {
 	"-Wno-float-conversion",
 	"-Wno-disabled-macro-expansion",
 	"-Wno-float-equal",
-	"-std=c++14",
     ],
 }
