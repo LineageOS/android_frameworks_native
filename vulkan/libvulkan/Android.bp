@@ -43,7 +43,6 @@ cc_library_shared {
     ],
 
     cppflags: [
-        "-std=c++14",
         "-Wno-c99-extensions",
         "-Wno-c++98-compat-pedantic",
         "-Wno-exit-time-destructors",
