@@ -32,6 +32,7 @@ public:
     const char* getTypeId() const override { return "ContainerLayer"; }
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) const override;
+    void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const override;
     bool isVisible() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display) override;
