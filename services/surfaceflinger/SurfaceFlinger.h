@@ -225,6 +225,8 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
+
+    std::vector<CompositionInfo> mCompositionInfo;
 };
 
 
@@ -643,8 +645,8 @@ private:
     void computeVisibleRegions(const sp<const DisplayDevice>& display, Region& dirtyRegion,
                                Region& opaqueRegion);
 
-    void preComposition(nsecs_t refreshStartTime);
-    void postComposition(nsecs_t refreshStartTime);
+    void preComposition();
+    void postComposition();
     void updateCompositorTiming(
             nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
             std::shared_ptr<FenceTime>& presentFenceTime);
@@ -662,7 +664,19 @@ private:
     void pickColorMode(const sp<DisplayDevice>& display, ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
-    void setUpHWComposer();
+    void calculateWorkingSet();
+    /*
+     * beginFrame - This function handles any pre-frame processing that needs to be
+     * prior to any CompositionInfo handling and is not dependent on data in
+     * CompositionInfo
+     */
+    void beginFrame();
+    /* prepareFrame - This function will call into the DisplayDevice to prepare a
+     * frame after CompositionInfo has been programmed.   This provides a mechanism
+     * to prepare the hardware composer
+     */
+    void prepareFrame();
+    void setUpHWComposer(const CompositionInfo& compositionInfo);
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
@@ -780,6 +794,11 @@ private:
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
 
+    // helper methods
+    void configureHwcCommonData(const CompositionInfo& compositionInfo) const;
+    void configureDeviceComposition(const CompositionInfo& compositionInfo) const;
+    void configureSidebandComposition(const CompositionInfo& compositionInfo) const;
+
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
@@ -858,6 +877,7 @@ private:
     Mutex mHWVsyncLock;
     bool mPrimaryHWVsyncEnabled;
     bool mHWVsyncAvailable;
+    nsecs_t mRefreshStartTime;
 
     std::atomic<bool> mRefreshPending{false};
 
