@@ -28,7 +28,6 @@
 #include <utils/String8.h>
 #include <utils/Thread.h>
 #include <utils/Trace.h>
-#include <utils/Vector.h>
 
 #include <ui/FenceTime.h>
 
@@ -94,7 +93,7 @@ public:
         nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
 
         while (true) {
-            Vector<CallbackInvocation> callbackInvocations;
+            std::vector<CallbackInvocation> callbackInvocations;
 
             nsecs_t targetTime = 0;
 
@@ -187,7 +186,7 @@ public:
         // allowing any past events to fire
         listener.mLastEventTime = systemTime() - mPeriod / 2 + mPhase - mWakeupLatency;
 
-        mEventListeners.push(listener);
+        mEventListeners.push_back(listener);
 
         mCond.signal();
 
@@ -198,9 +197,10 @@ public:
         if (kTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
-        for (size_t i = 0; i < mEventListeners.size(); i++) {
-            if (mEventListeners[i].mCallback == callback) {
-                mEventListeners.removeAt(i);
+        for (std::vector<EventListener>::iterator it = mEventListeners.begin();
+             it != mEventListeners.end(); ++it) {
+            if (it->mCallback == callback) {
+                mEventListeners.erase(it);
                 mCond.signal();
                 return NO_ERROR;
             }
@@ -213,11 +213,10 @@ public:
         if (kTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
-        for (size_t i = 0; i < mEventListeners.size(); i++) {
-            if (mEventListeners[i].mCallback == callback) {
-                EventListener& listener = mEventListeners.editItemAt(i);
-                const nsecs_t oldPhase = listener.mPhase;
-                listener.mPhase = phase;
+        for (auto& eventListener : mEventListeners) {
+            if (eventListener.mCallback == callback) {
+                const nsecs_t oldPhase = eventListener.mPhase;
+                eventListener.mPhase = phase;
 
                 // Pretend that the last time this event was handled at the same frame but with the
                 // new offset to allow for a seamless offset change without double-firing or
@@ -228,7 +227,7 @@ public:
                 } else if (diff < -mPeriod / 2) {
                     diff += mPeriod;
                 }
-                listener.mLastEventTime -= diff;
+                eventListener.mLastEventTime -= diff;
                 mCond.signal();
                 return NO_ERROR;
             }
@@ -274,23 +273,23 @@ private:
         return nextEventTime;
     }
 
-    Vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
+    std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
         if (kTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName, ns2us(now));
 
-        Vector<CallbackInvocation> callbackInvocations;
+        std::vector<CallbackInvocation> callbackInvocations;
         nsecs_t onePeriodAgo = now - mPeriod;
 
-        for (size_t i = 0; i < mEventListeners.size(); i++) {
-            nsecs_t t = computeListenerNextEventTimeLocked(mEventListeners[i], onePeriodAgo);
+        for (auto& eventListener : mEventListeners) {
+            nsecs_t t = computeListenerNextEventTimeLocked(eventListener, onePeriodAgo);
 
             if (t < now) {
                 CallbackInvocation ci;
-                ci.mCallback = mEventListeners[i].mCallback;
+                ci.mCallback = eventListener.mCallback;
                 ci.mEventTime = t;
-                ALOGV("[%s] [%s] Preparing to fire", mName, mEventListeners[i].mName);
-                callbackInvocations.push(ci);
-                mEventListeners.editItemAt(i).mLastEventTime = t;
+                ALOGV("[%s] [%s] Preparing to fire", mName, eventListener.mName);
+                callbackInvocations.push_back(ci);
+                eventListener.mLastEventTime = t;
             }
         }
 
@@ -348,7 +347,7 @@ private:
         return t;
     }
 
-    void fireCallbackInvocations(const Vector<CallbackInvocation>& callbacks) {
+    void fireCallbackInvocations(const std::vector<CallbackInvocation>& callbacks) {
         if (kTraceDetailedInfo) ATRACE_CALL();
         for (size_t i = 0; i < callbacks.size(); i++) {
             callbacks[i].mCallback->onDispSyncEvent(callbacks[i].mEventTime);
@@ -366,7 +365,7 @@ private:
 
     int64_t mFrameNumber;
 
-    Vector<EventListener> mEventListeners;
+    std::vector<EventListener> mEventListeners;
 
     Mutex mMutex;
     Condition mCond;

@@ -43,7 +43,6 @@ cc_library_shared {
     ],
 
     cppflags: [
-        "-std=c++14",
         "-Wno-c99-extensions",
         "-Wno-c++98-compat-pedantic",
         "-Wno-exit-time-destructors",
@@ -82,6 +81,8 @@ cc_library_shared {
         "libutils",
         "libcutils",
         "libz",
+        "libnativebridge",
+        "libnativeloader",
         "libnativewindow",
         "android.hardware.graphics.common@1.0",
     ],

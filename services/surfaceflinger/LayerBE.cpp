@@ -57,7 +57,8 @@ void CompositionInfo::dumpRe(const char* tag) const {
     ALOGV("[%s]\tblackoutLayer=%d", tag, re.blackoutLayer);
     ALOGV("[%s]\tclearArea=%d", tag, re.clearArea);
     ALOGV("[%s]\tpreMultipliedAlpha=%d", tag, re.preMultipliedAlpha);
-    ALOGV("[%s]\topaque=%d\n", tag, re.opaque);
+    ALOGV("[%s]\topaque=%d", tag, re.opaque);
+    ALOGV("[%s]\tdisableTexture=%d", tag, re.disableTexture);
     ALOGV("[%s]\ttexture:name(%d), target(%d), size(%d/%d)", tag, re.texture.getTextureName(), re.texture.getTextureTarget(), (unsigned int)re.texture.getWidth(), (unsigned int)re.texture.getHeight());
     ALOGV("[%s]\tuseIdentityTransform=%d\n", tag, re.useIdentityTransform);
 }

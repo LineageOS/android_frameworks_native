@@ -101,6 +101,7 @@ public:
      */
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) const override;
+    void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const;
 
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
 
