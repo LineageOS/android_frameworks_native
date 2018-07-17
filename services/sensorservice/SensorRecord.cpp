@@ -71,7 +71,7 @@ wp<const SensorService::SensorEventConnection>
     if (mPendingFlushConnections.size() > 0) {
         return mPendingFlushConnections[0];
     }
-    return NULL;
+    return nullptr;
 }
 
 void SensorService::SensorRecord::clearAllPendingFlushConnections() {

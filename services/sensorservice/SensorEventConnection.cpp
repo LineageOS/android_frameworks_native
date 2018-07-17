@@ -31,7 +31,7 @@ SensorService::SensorEventConnection::SensorEventConnection(
         const sp<SensorService>& service, uid_t uid, String8 packageName, bool isDataInjectionMode,
         const String16& opPackageName, bool hasSensorAccess)
     : mService(service), mUid(uid), mWakeLockRefCount(0), mHasLooperCallbacks(false),
-      mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(NULL),
+      mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(nullptr),
       mCacheSize(0), mMaxCacheSize(0), mPackageName(packageName), mOpPackageName(opPackageName),
       mDestroyed(false), mHasSensorAccess(hasSensorAccess) {
     mChannel = new BitTube(mService->mSocketBufferSize);
@@ -55,7 +55,7 @@ void SensorService::SensorEventConnection::destroy() {
     }
 
     mService->cleanupConnection(this);
-    if (mEventCache != NULL) {
+    if (mEventCache != nullptr) {
         delete[] mEventCache;
     }
     mDestroyed = true;
@@ -200,7 +200,7 @@ void SensorService::SensorEventConnection::updateLooperRegistrationLocked(
 
     // Add the file descriptor to the Looper for receiving acknowledegments if the app has
     // registered for wake-up sensors OR for sending events in the cache.
-    int ret = looper->addFd(mChannel->getSendFd(), 0, looper_flags, this, NULL);
+    int ret = looper->addFd(mChannel->getSendFd(), 0, looper_flags, this, nullptr);
     if (ret == 1) {
         ALOGD_IF(DEBUG_CONNECTIONS, "%p addFd fd=%d", this, mChannel->getSendFd());
         mHasLooperCallbacks = true;
@@ -371,7 +371,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
             --mTotalAcksNeeded;
 #endif
         }
-        if (mEventCache == NULL) {
+        if (mEventCache == nullptr) {
             mMaxCacheSize = computeMaxCacheSizeLocked();
             mEventCache = new sensors_event_t[mMaxCacheSize];
             mCacheSize = 0;
