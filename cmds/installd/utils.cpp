@@ -310,7 +310,7 @@ std::vector<userid_t> get_known_users(const char* volume_uuid) {
 
     std::string path(create_data_path(volume_uuid) + "/" + SECONDARY_USER_PREFIX);
     DIR* dir = opendir(path.c_str());
-    if (dir == NULL) {
+    if (dir == nullptr) {
         // Unable to discover other users, but at least return owner
         PLOG(ERROR) << "Failed to opendir " << path;
         return users;
@@ -340,13 +340,13 @@ int calculate_tree_size(const std::string& path, int64_t* size,
     FTSENT *p;
     int64_t matchedSize = 0;
     char *argv[] = { (char*) path.c_str(), nullptr };
-    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
         if (errno != ENOENT) {
             PLOG(ERROR) << "Failed to fts_open " << path;
         }
         return -1;
     }
-    while ((p = fts_read(fts)) != NULL) {
+    while ((p = fts_read(fts)) != nullptr) {
         switch (p->fts_info) {
         case FTS_D:
         case FTS_DEFAULT:
@@ -469,7 +469,7 @@ static int _delete_dir_contents(DIR *d,
                 continue;
             }
             subdir = fdopendir(subfd);
-            if (subdir == NULL) {
+            if (subdir == nullptr) {
                 ALOGE("Couldn't fdopendir %s: %s\n", name, strerror(errno));
                 close(subfd);
                 result = -1;
@@ -495,11 +495,11 @@ static int _delete_dir_contents(DIR *d,
 }
 
 int delete_dir_contents(const std::string& pathname, bool ignore_if_missing) {
-    return delete_dir_contents(pathname.c_str(), 0, NULL, ignore_if_missing);
+    return delete_dir_contents(pathname.c_str(), 0, nullptr, ignore_if_missing);
 }
 
 int delete_dir_contents_and_dir(const std::string& pathname, bool ignore_if_missing) {
-    return delete_dir_contents(pathname.c_str(), 1, NULL, ignore_if_missing);
+    return delete_dir_contents(pathname.c_str(), 1, nullptr, ignore_if_missing);
 }
 
 int delete_dir_contents(const char *pathname,
@@ -511,7 +511,7 @@ int delete_dir_contents(const char *pathname,
     DIR *d;
 
     d = opendir(pathname);
-    if (d == NULL) {
+    if (d == nullptr) {
         if (ignore_if_missing && (errno == ENOENT)) {
             return 0;
         }
@@ -540,12 +540,12 @@ int delete_dir_contents_fd(int dfd, const char *name)
         return -1;
     }
     d = fdopendir(fd);
-    if (d == NULL) {
+    if (d == nullptr) {
         ALOGE("Couldn't fdopendir %s: %s\n", name, strerror(errno));
         close(fd);
         return -1;
     }
-    res = _delete_dir_contents(d, 0);
+    res = _delete_dir_contents(d, nullptr);
     closedir(d);
     return res;
 }
@@ -573,7 +573,7 @@ static int _copy_dir_files(int sdfd, int ddfd, uid_t owner, gid_t group)
     }
 
     DIR *ds = fdopendir(sdfd);
-    if (ds == NULL) {
+    if (ds == nullptr) {
         ALOGE("Couldn't fdopendir: %s\n", strerror(errno));
         return -1;
     }
@@ -619,18 +619,18 @@ int copy_dir_files(const char *srcname,
                    uid_t group)
 {
     int res = 0;
-    DIR *ds = NULL;
-    DIR *dd = NULL;
+    DIR *ds = nullptr;
+    DIR *dd = nullptr;
 
     ds = opendir(srcname);
-    if (ds == NULL) {
+    if (ds == nullptr) {
         ALOGE("Couldn't opendir %s: %s\n", srcname, strerror(errno));
         return -errno;
     }
 
     mkdir(dstname, 0600);
     dd = opendir(dstname);
-    if (dd == NULL) {
+    if (dd == nullptr) {
         ALOGE("Couldn't opendir %s: %s\n", dstname, strerror(errno));
         closedir(ds);
         return -errno;
@@ -964,11 +964,11 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
     FTS *fts;
     FTSENT *p;
     char *argv[] = { (char*) path.c_str(), nullptr };
-    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
         PLOG(ERROR) << "Failed to fts_open " << path;
         return -1;
     }
-    while ((p = fts_read(fts)) != NULL) {
+    while ((p = fts_read(fts)) != nullptr) {
         switch (p->fts_info) {
         case FTS_DP:
             if (chmod(p->fts_path, target_mode) != 0) {
@@ -1037,7 +1037,7 @@ static bool collect_profiles(DIR* d,
             }
 
             DIR* subdir = fdopendir(subdir_fd);
-            if (subdir == NULL) {
+            if (subdir == nullptr) {
                 PLOG(WARNING) << "Could not open dir path " << local_path;
                 result = false;
                 continue;
@@ -1055,7 +1055,7 @@ static bool collect_profiles(DIR* d,
 
 bool collect_profiles(std::vector<std::string>* profiles_paths) {
     DIR* d = opendir(android_profiles_dir.c_str());
-    if (d == NULL) {
+    if (d == nullptr) {
         return false;
     } else {
         return collect_profiles(d, android_profiles_dir, profiles_paths);
