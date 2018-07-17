@@ -12,25 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-exported_include_dirs = [ "include" ]
-
-include_dirs = ["frameworks/native/include/vr/vr_manager"]
-
-src_files = [
-    "vr_manager.cpp",
-    "trusted_uids.cpp",
-]
-
-static_libs = [
-    "libutils",
-    "libbinder",
-]
-
 cc_library_static {
-    srcs: src_files,
-    include_dirs: include_dirs,
-    export_include_dirs: exported_include_dirs,
-    cflags: ["-Wall", "-Werror", "-Wunused", "-Wunreachable-code"],
-    static_libs: static_libs,
     name: "libvr_manager",
+    srcs: [
+        "vr_manager.cpp",
+        "trusted_uids.cpp",
+    ],
+    include_dirs: ["frameworks/native/include/vr/vr_manager"],
+    export_include_dirs: [ "include" ],
+    cflags: ["-Wall", "-Werror", "-Wunused", "-Wunreachable-code"],
+    shared_libs: [
+        "libutils",
+        "libbinder",
+    ],
 }
