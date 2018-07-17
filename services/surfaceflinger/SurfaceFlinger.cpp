@@ -3214,7 +3214,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
                 case HWC2::Composition::SolidColor: {
                     const Layer::State& state(layer->getDrawingState());
                     if (layer->getClearClientTarget(displayId) && !firstLayer &&
-                        layer->isOpaque(state) && (state.color.a == 1.0f) && hasClientComposition) {
+                        layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
+                        hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
                         layer->clearWithOpenGL(renderArea);
