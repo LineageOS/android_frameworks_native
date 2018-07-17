@@ -318,7 +318,7 @@ Sensor::Sensor(struct sensor_t const& hwSensor, const uuid_t& uuid, int halVersi
         // If the sensor is protected by a permission we need to know if it is
         // a runtime one to determine whether we can use the permission cache.
         sp<IBinder> binder = defaultServiceManager()->getService(String16("permission"));
-        if (binder != 0) {
+        if (binder != nullptr) {
             sp<IPermissionController> permCtrl = interface_cast<IPermissionController>(binder);
             mRequiredPermissionRuntime = permCtrl->isRuntimePermission(
                     String16(mRequiredPermission));
