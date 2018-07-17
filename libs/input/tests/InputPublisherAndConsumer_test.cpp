@@ -46,12 +46,12 @@ protected:
     virtual void TearDown() {
         if (mPublisher) {
             delete mPublisher;
-            mPublisher = NULL;
+            mPublisher = nullptr;
         }
 
         if (mConsumer) {
             delete mConsumer;
-            mConsumer = NULL;
+            mConsumer = nullptr;
         }
 
         serverChannel.clear();
@@ -94,7 +94,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeKeyEvent() {
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
-    ASSERT_TRUE(event != NULL)
+    ASSERT_TRUE(event != nullptr)
             << "consumer should have returned non-NULL event";
     ASSERT_EQ(AINPUT_EVENT_TYPE_KEY, event->getType())
             << "consumer should have returned a key event";
@@ -180,7 +180,7 @@ void InputPublisherAndConsumerTest::PublishAndConsumeMotionEvent() {
     ASSERT_EQ(OK, status)
             << "consumer consume should return OK";
 
-    ASSERT_TRUE(event != NULL)
+    ASSERT_TRUE(event != nullptr)
             << "consumer should have returned non-NULL event";
     ASSERT_EQ(AINPUT_EVENT_TYPE_MOTION, event->getType())
             << "consumer should have returned a motion event";

@@ -175,7 +175,7 @@ const InputDeviceInfo::MotionRange* InputDeviceInfo::getMotionRange(
             return &range;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 void InputDeviceInfo::addSource(uint32_t source) {

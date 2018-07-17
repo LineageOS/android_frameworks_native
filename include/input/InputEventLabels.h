@@ -326,7 +326,7 @@ static const InputEventLabel KEYCODES[] = {
     DEFINE_KEYCODE(ALL_APPS),
     DEFINE_KEYCODE(REFRESH),
 
-    { NULL, 0 }
+    { nullptr, 0 }
 };
 
 static const InputEventLabel AXES[] = {
@@ -375,7 +375,7 @@ static const InputEventLabel AXES[] = {
 
     // NOTE: If you add a new axis here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/MotionEvent.java for the full list.
-    { NULL, 0 }
+    { nullptr, 0 }
 };
 
 static const InputEventLabel LEDS[] = {
@@ -396,7 +396,7 @@ static const InputEventLabel LEDS[] = {
     DEFINE_LED(CONTROLLER_4),
 
     // NOTE: If you add new LEDs here, you must also add them to Input.h
-    { NULL, 0 }
+    { nullptr, 0 }
 };
 
 static const InputEventLabel FLAGS[] = {
@@ -404,7 +404,7 @@ static const InputEventLabel FLAGS[] = {
     DEFINE_FLAG(FUNCTION),
     DEFINE_FLAG(GESTURE),
 
-    { NULL, 0 }
+    { nullptr, 0 }
 };
 
 static int lookupValueByLabel(const char* literal, const InputEventLabel *list) {
@@ -424,7 +424,7 @@ static const char* lookupLabelByValue(int value, const InputEventLabel* list) {
         }
         list++;
     }
-    return NULL;
+    return nullptr;
 }
 
 static inline int32_t getKeyCodeByLabel(const char* label) {
@@ -435,7 +435,7 @@ static inline const char* getLabelByKeyCode(int32_t keyCode) {
     if (keyCode >= 0 && keyCode < static_cast<int32_t>(size(KEYCODES))) {
         return KEYCODES[keyCode].literal;
     }
-    return NULL;
+    return nullptr;
 }
 
 static inline uint32_t getKeyFlagByLabel(const char* label) {

@@ -47,7 +47,7 @@ VirtualKeyMap::~VirtualKeyMap() {
 }
 
 status_t VirtualKeyMap::load(const String8& filename, VirtualKeyMap** outMap) {
-    *outMap = NULL;
+    *outMap = nullptr;
 
     Tokenizer* tokenizer;
     status_t status = Tokenizer::open(filename, &tokenizer);

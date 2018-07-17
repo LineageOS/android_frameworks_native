@@ -115,7 +115,7 @@ VelocityTracker::VelocityTracker(const char* strategy) :
 
     // Allow the default strategy to be overridden using a system property for debugging.
     if (!strategy) {
-        int length = property_get("persist.input.velocitytracker.strategy", value, NULL);
+        int length = property_get("persist.input.velocitytracker.strategy", value, nullptr);
         if (length > 0) {
             strategy = value;
         } else {
@@ -139,7 +139,7 @@ VelocityTracker::~VelocityTracker() {
 
 bool VelocityTracker::configureStrategy(const char* strategy) {
     mStrategy = createStrategy(strategy);
-    return mStrategy != NULL;
+    return mStrategy != nullptr;
 }
 
 VelocityTrackerStrategy* VelocityTracker::createStrategy(const char* strategy) {
@@ -204,7 +204,7 @@ VelocityTrackerStrategy* VelocityTracker::createStrategy(const char* strategy) {
         // time to adjust to changes in direction.
         return new LegacyVelocityTrackerStrategy();
     }
-    return NULL;
+    return nullptr;
 }
 
 void VelocityTracker::clear() {
