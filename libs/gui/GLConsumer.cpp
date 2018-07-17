@@ -405,7 +405,7 @@ status_t GLConsumer::updateAndReleaseLocked(const BufferItem& item,
     }
 
     GLC_LOGV("updateAndRelease: (slot=%d buf=%p) -> (slot=%d buf=%p)",
-            mCurrentTexture, mCurrentTextureImage != NULL ?
+            mCurrentTexture, mCurrentTextureImage != nullptr ?
                     mCurrentTextureImage->graphicBufferHandle() : nullptr,
             slot, mSlots[slot].mGraphicBuffer->handle);
 

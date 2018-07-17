@@ -69,7 +69,7 @@ public:
 
     // callback when the composer is dies
     status_t linkToComposerDeath(const sp<IBinder::DeathRecipient>& recipient,
-            void* cookie = NULL, uint32_t flags = 0);
+            void* cookie = nullptr, uint32_t flags = 0);
 
     // Get a list of supported configurations for a given display
     static status_t getDisplayConfigs(const sp<IBinder>& display,

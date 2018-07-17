@@ -61,7 +61,7 @@ protected:
     }
 
     void GetMinUndequeuedBufferCount(int* bufferCount) {
-        ASSERT_TRUE(bufferCount != NULL);
+        ASSERT_TRUE(bufferCount != nullptr);
         ASSERT_EQ(OK, mProducer->query(NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS,
                     bufferCount));
         ASSERT_GE(*bufferCount, 0);
@@ -82,7 +82,7 @@ protected:
         sp<Fence> fence;
 
         input.deflate(&timestamp, &isAutoTimestamp, &dataSpace, &crop,
-                &scalingMode, &transform, &fence, NULL);
+                &scalingMode, &transform, &fence, nullptr);
         ASSERT_EQ(timestamp, item.mTimestamp);
         ASSERT_EQ(isAutoTimestamp, item.mIsAutoTimestamp);
         ASSERT_EQ(dataSpace, item.mDataSpace);
@@ -128,17 +128,17 @@ TEST_F(BufferQueueTest, DISABLED_BufferQueueInAnotherProcess) {
     sp<IBinder> binderProducer =
         serviceManager->getService(PRODUCER_NAME);
     mProducer = interface_cast<IGraphicBufferProducer>(binderProducer);
-    EXPECT_TRUE(mProducer != NULL);
+    EXPECT_TRUE(mProducer != nullptr);
     sp<IBinder> binderConsumer =
         serviceManager->getService(CONSUMER_NAME);
     mConsumer = interface_cast<IGraphicBufferConsumer>(binderConsumer);
-    EXPECT_TRUE(mConsumer != NULL);
+    EXPECT_TRUE(mConsumer != nullptr);
 
     sp<DummyConsumer> dc(new DummyConsumer);
     ASSERT_EQ(OK, mConsumer->consumerConnect(dc, false));
     IGraphicBufferProducer::QueueBufferOutput output;
     ASSERT_EQ(OK,
-            mProducer->connect(NULL, NATIVE_WINDOW_API_CPU, false, &output));
+            mProducer->connect(nullptr, NATIVE_WINDOW_API_CPU, false, &output));
 
     int slot;
     sp<Fence> fence;
@@ -353,8 +353,8 @@ TEST_F(BufferQueueTest, DetachAndReattachOnProducerSide) {
     ASSERT_EQ(OK, buffer->unlock());
 
     int newSlot;
-    ASSERT_EQ(BAD_VALUE, mProducer->attachBuffer(NULL, safeToClobberBuffer));
-    ASSERT_EQ(BAD_VALUE, mProducer->attachBuffer(&newSlot, NULL));
+    ASSERT_EQ(BAD_VALUE, mProducer->attachBuffer(nullptr, safeToClobberBuffer));
+    ASSERT_EQ(BAD_VALUE, mProducer->attachBuffer(&newSlot, nullptr));
 
     ASSERT_EQ(OK, mProducer->attachBuffer(&newSlot, buffer));
     IGraphicBufferProducer::QueueBufferInput input(0, false,
@@ -412,8 +412,8 @@ TEST_F(BufferQueueTest, DetachAndReattachOnConsumerSide) {
 
     int newSlot;
     sp<GraphicBuffer> safeToClobberBuffer;
-    ASSERT_EQ(BAD_VALUE, mConsumer->attachBuffer(NULL, safeToClobberBuffer));
-    ASSERT_EQ(BAD_VALUE, mConsumer->attachBuffer(&newSlot, NULL));
+    ASSERT_EQ(BAD_VALUE, mConsumer->attachBuffer(nullptr, safeToClobberBuffer));
+    ASSERT_EQ(BAD_VALUE, mConsumer->attachBuffer(&newSlot, nullptr));
     ASSERT_EQ(OK, mConsumer->attachBuffer(&newSlot, item.mGraphicBuffer));
 
     ASSERT_EQ(OK, mConsumer->releaseBuffer(newSlot, 0, EGL_NO_DISPLAY,

@@ -38,7 +38,7 @@ protected:
             mEglDisplay(EGL_NO_DISPLAY),
             mEglSurface(EGL_NO_SURFACE),
             mEglContext(EGL_NO_CONTEXT),
-            mEglConfig(NULL) {
+            mEglConfig(nullptr) {
     }
 
     virtual void SetUp() {
@@ -81,7 +81,7 @@ protected:
         ASSERT_EQ(EGL_SUCCESS, eglGetError());
         ASSERT_NE(EGL_NO_SURFACE, mEglSurface);
 
-        mEglContext = eglCreateContext(mEglDisplay, myConfig, EGL_NO_CONTEXT, 0);
+        mEglContext = eglCreateContext(mEglDisplay, myConfig, EGL_NO_CONTEXT, nullptr);
         ASSERT_EQ(EGL_SUCCESS, eglGetError());
         ASSERT_NE(EGL_NO_CONTEXT, mEglContext);
 
@@ -126,7 +126,7 @@ protected:
 
 TEST_F(SurfaceTextureClientTest, GetISurfaceTextureIsNotNull) {
     sp<IGraphicBufferProducer> ist(mSTC->getIGraphicBufferProducer());
-    ASSERT_TRUE(ist != NULL);
+    ASSERT_TRUE(ist != nullptr);
 }
 
 TEST_F(SurfaceTextureClientTest, QueuesToWindowCompositorIsFalse) {
@@ -154,7 +154,7 @@ TEST_F(SurfaceTextureClientTest, EglCreateWindowSurfaceSucceeds) {
     EXPECT_TRUE(eglInitialize(dpy, &majorVersion, &minorVersion));
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
 
-    EGLConfig myConfig = {0};
+    EGLConfig myConfig = {nullptr};
     EGLint numConfigs = 0;
     EGLint configAttribs[] = {
         EGL_SURFACE_TYPE, EGL_WINDOW_BIT,
@@ -171,7 +171,7 @@ TEST_F(SurfaceTextureClientTest, EglCreateWindowSurfaceSucceeds) {
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
 
     EGLSurface eglSurface = eglCreateWindowSurface(dpy, myConfig, mANW.get(),
-            NULL);
+            nullptr);
     EXPECT_NE(EGL_NO_SURFACE, eglSurface);
     EXPECT_EQ(EGL_SUCCESS, eglGetError());
 
@@ -184,7 +184,7 @@ TEST_F(SurfaceTextureClientTest, EglCreateWindowSurfaceSucceeds) {
 
 TEST_F(SurfaceTextureClientTest, EglSwapBuffersAbandonErrorIsEglBadSurface) {
 
-    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, mEglConfig, mANW.get(), NULL);
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, mEglConfig, mANW.get(), nullptr);
     EXPECT_NE(EGL_NO_SURFACE, eglSurface);
     EXPECT_EQ(EGL_SUCCESS, eglGetError());
 
@@ -738,7 +738,7 @@ protected:
         ASSERT_EQ(EGL_SUCCESS, eglGetError());
 
         mEglContext = eglCreateContext(mEglDisplay, myConfig, EGL_NO_CONTEXT,
-                0);
+                nullptr);
         ASSERT_EQ(EGL_SUCCESS, eglGetError());
         ASSERT_NE(EGL_NO_CONTEXT, mEglContext);
 
@@ -750,7 +750,7 @@ protected:
                     GLConsumer::TEXTURE_EXTERNAL, true, false));
             sp<Surface> stc(new Surface(producer));
             mEglSurfaces[i] = eglCreateWindowSurface(mEglDisplay, myConfig,
-                    static_cast<ANativeWindow*>(stc.get()), NULL);
+                    static_cast<ANativeWindow*>(stc.get()), nullptr);
             ASSERT_EQ(EGL_SUCCESS, eglGetError());
             ASSERT_NE(EGL_NO_SURFACE, mEglSurfaces[i]);
         }

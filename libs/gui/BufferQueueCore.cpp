@@ -349,7 +349,7 @@ void BufferQueueCore::validateConsistencyLocked() const {
                 BQ_LOGE("Slot %d is in mUnusedSlots but is not FREE", slot);
                 usleep(PAUSE_TIME);
             }
-            if (mSlots[slot].mGraphicBuffer != NULL) {
+            if (mSlots[slot].mGraphicBuffer != nullptr) {
                 BQ_LOGE("Slot %d is in mUnusedSluts but has an active buffer",
                         slot);
                 usleep(PAUSE_TIME);
@@ -371,7 +371,7 @@ void BufferQueueCore::validateConsistencyLocked() const {
                 BQ_LOGE("Slot %d is in mFreeSlots but is not FREE", slot);
                 usleep(PAUSE_TIME);
             }
-            if (mSlots[slot].mGraphicBuffer != NULL) {
+            if (mSlots[slot].mGraphicBuffer != nullptr) {
                 BQ_LOGE("Slot %d is in mFreeSlots but has a buffer",
                         slot);
                 usleep(PAUSE_TIME);
@@ -394,7 +394,7 @@ void BufferQueueCore::validateConsistencyLocked() const {
                 BQ_LOGE("Slot %d is in mFreeBuffers but is not FREE", slot);
                 usleep(PAUSE_TIME);
             }
-            if (mSlots[slot].mGraphicBuffer == NULL) {
+            if (mSlots[slot].mGraphicBuffer == nullptr) {
                 BQ_LOGE("Slot %d is in mFreeBuffers but has no buffer", slot);
                 usleep(PAUSE_TIME);
             }
@@ -418,7 +418,7 @@ void BufferQueueCore::validateConsistencyLocked() const {
                 BQ_LOGE("Slot %d is in mActiveBuffers but is FREE", slot);
                 usleep(PAUSE_TIME);
             }
-            if (mSlots[slot].mGraphicBuffer == NULL && !mIsAllocating) {
+            if (mSlots[slot].mGraphicBuffer == nullptr && !mIsAllocating) {
                 BQ_LOGE("Slot %d is in mActiveBuffers but has no buffer", slot);
                 usleep(PAUSE_TIME);
             }
