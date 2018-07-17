@@ -66,7 +66,7 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
 // --- InputWindowHandle ---
 
 InputWindowHandle::InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle) :
-    inputApplicationHandle(inputApplicationHandle), mInfo(NULL) {
+    inputApplicationHandle(inputApplicationHandle), mInfo(nullptr) {
 }
 
 InputWindowHandle::~InputWindowHandle() {
@@ -76,7 +76,7 @@ InputWindowHandle::~InputWindowHandle() {
 void InputWindowHandle::releaseInfo() {
     if (mInfo) {
         delete mInfo;
-        mInfo = NULL;
+        mInfo = nullptr;
     }
 }
 

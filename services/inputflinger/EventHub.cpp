@@ -143,9 +143,9 @@ uint32_t getAbsAxisUsage(int32_t axis, uint32_t deviceClasses) {
 
 EventHub::Device::Device(int fd, int32_t id, const String8& path,
         const InputDeviceIdentifier& identifier) :
-        next(NULL),
+        next(nullptr),
         fd(fd), id(id), path(path), identifier(identifier),
-        classes(0), configuration(NULL), virtualKeyMap(NULL),
+        classes(0), configuration(nullptr), virtualKeyMap(nullptr),
         ffEffectPlaying(false), ffEffectId(-1), controllerNumber(0),
         timestampOverrideSec(0), timestampOverrideUsec(0), enabled(true),
         isVirtual(fd < 0) {
@@ -200,7 +200,7 @@ const int EventHub::EPOLL_MAX_EVENTS;
 
 EventHub::EventHub(void) :
         mBuiltInKeyboardId(NO_BUILT_IN_KEYBOARD), mNextDeviceId(1), mControllerNumbers(),
-        mOpeningDevices(0), mClosingDevices(0),
+        mOpeningDevices(nullptr), mClosingDevices(nullptr),
         mNeedToSendFinishedDeviceScan(false),
         mNeedToReopenDevices(false), mNeedToScanDevices(true),
         mPendingEventCount(0), mPendingEventIndex(0), mPendingINotify(false) {
@@ -267,21 +267,21 @@ EventHub::~EventHub(void) {
 InputDeviceIdentifier EventHub::getDeviceIdentifier(int32_t deviceId) const {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == NULL) return InputDeviceIdentifier();
+    if (device == nullptr) return InputDeviceIdentifier();
     return device->identifier;
 }
 
 uint32_t EventHub::getDeviceClasses(int32_t deviceId) const {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == NULL) return 0;
+    if (device == nullptr) return 0;
     return device->classes;
 }
 
 int32_t EventHub::getDeviceControllerNumber(int32_t deviceId) const {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == NULL) return 0;
+    if (device == nullptr) return 0;
     return device->controllerNumber;
 }
 
@@ -465,7 +465,7 @@ status_t EventHub::mapKey(int32_t deviceId,
     if (device) {
         // Check the key character map first.
         sp<KeyCharacterMap> kcm = device->getKeyCharacterMap();
-        if (kcm != NULL) {
+        if (kcm != nullptr) {
             if (!kcm->mapKey(scanCode, usageCode, outKeycode)) {
                 *outFlags = 0;
                 status = NO_ERROR;
@@ -481,7 +481,7 @@ status_t EventHub::mapKey(int32_t deviceId,
         }
 
         if (status == NO_ERROR) {
-            if (kcm != NULL) {
+            if (kcm != nullptr) {
                 kcm->tryRemapKey(*outKeycode, metaState, outKeycode, outMetaState);
             } else {
                 *outMetaState = metaState;
@@ -581,7 +581,7 @@ sp<KeyCharacterMap> EventHub::getKeyCharacterMap(int32_t deviceId) const {
     if (device) {
         return device->getKeyCharacterMap();
     }
-    return NULL;
+    return nullptr;
 }
 
 bool EventHub::setKeyboardLayoutOverlay(int32_t deviceId,
@@ -641,7 +641,7 @@ void EventHub::assignDescriptorLocked(InputDeviceIdentifier& identifier) {
     if (identifier.uniqueId.isEmpty()) {
         // If it didn't have a unique id check for conflicts and enforce
         // uniqueness if necessary.
-        while(getDeviceByDescriptorLocked(identifier.descriptor) != NULL) {
+        while(getDeviceByDescriptorLocked(identifier.descriptor) != nullptr) {
             identifier.nonce++;
             rawDescriptor = generateDescriptor(identifier);
         }
@@ -714,7 +714,7 @@ EventHub::Device* EventHub::getDeviceByDescriptorLocked(String8& descriptor) con
             return device;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 EventHub::Device* EventHub::getDeviceLocked(int32_t deviceId) const {
@@ -732,7 +732,7 @@ EventHub::Device* EventHub::getDeviceByPathLocked(const char* devicePath) const 
             return device;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) {
@@ -782,7 +782,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             mNeedToSendFinishedDeviceScan = true;
         }
 
-        while (mOpeningDevices != NULL) {
+        while (mOpeningDevices != nullptr) {
             Device* device = mOpeningDevices;
             ALOGV("Reporting device opened: id=%d, name=%s\n",
                  device->id, device->path.string());
@@ -1099,7 +1099,7 @@ status_t EventHub::registerDeviceForEpollLocked(Device* device) {
 
 status_t EventHub::unregisterDeviceFromEpollLocked(Device* device) {
     if (device->hasValidFd()) {
-        if (epoll_ctl(mEpollFd, EPOLL_CTL_DEL, device->fd, NULL)) {
+        if (epoll_ctl(mEpollFd, EPOLL_CTL_DEL, device->fd, nullptr)) {
             ALOGW("Could not remove device fd from epoll instance.  errno=%d", errno);
             return -errno;
         }
@@ -1423,7 +1423,7 @@ void EventHub::configureFd(Device* device) {
 bool EventHub::isDeviceEnabled(int32_t deviceId) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == NULL) {
+    if (device == nullptr) {
         ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
         return false;
     }
@@ -1433,7 +1433,7 @@ bool EventHub::isDeviceEnabled(int32_t deviceId) {
 status_t EventHub::enableDevice(int32_t deviceId) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == NULL) {
+    if (device == nullptr) {
         ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
         return BAD_VALUE;
     }
@@ -1455,7 +1455,7 @@ status_t EventHub::enableDevice(int32_t deviceId) {
 status_t EventHub::disableDevice(int32_t deviceId) {
     AutoMutex _l(mLock);
     Device* device = getDeviceLocked(deviceId);
-    if (device == NULL) {
+    if (device == nullptr) {
         ALOGE("Invalid device id=%" PRId32 " provided to %s", deviceId, __func__);
         return BAD_VALUE;
     }
@@ -1634,9 +1634,9 @@ void EventHub::closeDeviceLocked(Device* device) {
     device->close();
 
     // Unlink for opening devices list if it is present.
-    Device* pred = NULL;
+    Device* pred = nullptr;
     bool found = false;
-    for (Device* entry = mOpeningDevices; entry != NULL; ) {
+    for (Device* entry = mOpeningDevices; entry != nullptr; ) {
         if (entry == device) {
             found = true;
             break;
@@ -1712,7 +1712,7 @@ status_t EventHub::scanDirLocked(const char *dirname)
     DIR *dir;
     struct dirent *de;
     dir = opendir(dirname);
-    if(dir == NULL)
+    if(dir == nullptr)
         return -1;
     strcpy(devname, dirname);
     filename = devname + strlen(devname);
@@ -1773,7 +1773,7 @@ void EventHub::dump(std::string& dump) {
             dump += StringPrintf(INDENT3 "ConfigurationFile: %s\n",
                     device->configurationFile.string());
             dump += StringPrintf(INDENT3 "HaveKeyboardLayoutOverlay: %s\n",
-                    toString(device->overlayKeyMap != NULL));
+                    toString(device->overlayKeyMap != nullptr));
         }
     } // release lock
 }

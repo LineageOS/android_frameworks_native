@@ -385,7 +385,7 @@ private:
         const bool isVirtual; // set if fd < 0 is passed to constructor
 
         const sp<KeyCharacterMap>& getKeyCharacterMap() const {
-            if (combinedKeyMap != NULL) {
+            if (combinedKeyMap != nullptr) {
                 return combinedKeyMap;
             }
             return keyMap.keyCharacterMap;
