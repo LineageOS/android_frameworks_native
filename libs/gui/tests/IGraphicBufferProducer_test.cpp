@@ -228,9 +228,9 @@ protected:
     void setupDequeueRequestBuffer(int *slot, sp<Fence> *fence,
             sp<GraphicBuffer> *buffer)
     {
-        ASSERT_TRUE(slot != NULL);
-        ASSERT_TRUE(fence != NULL);
-        ASSERT_TRUE(buffer != NULL);
+        ASSERT_TRUE(slot != nullptr);
+        ASSERT_TRUE(fence != nullptr);
+        ASSERT_TRUE(buffer != nullptr);
 
         ASSERT_NO_FATAL_FAILURE(ConnectProducer());
 
@@ -263,7 +263,7 @@ TEST_P(IGraphicBufferProducerTest, ConnectFirst_ReturnsError) {
     EXPECT_EQ(BAD_VALUE, mProducer->connect(TEST_TOKEN,
                                             TEST_API,
                                             TEST_CONTROLLED_BY_APP,
-                                            /*output*/NULL));
+                                            /*output*/nullptr));
 
     // Invalid API returns bad value
     EXPECT_EQ(BAD_VALUE, mProducer->connect(TEST_TOKEN,
@@ -359,7 +359,7 @@ TEST_P(IGraphicBufferProducerTest, Query_ReturnsError) {
     // TODO: Consider documented the above enums as unsupported or make a new enum for IGBP
 
     // Value was NULL
-    EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_FORMAT, /*value*/NULL));
+    EXPECT_EQ(BAD_VALUE, mProducer->query(NATIVE_WINDOW_FORMAT, /*value*/nullptr));
 
     ASSERT_OK(mConsumer->consumerDisconnect());
 
@@ -465,7 +465,7 @@ TEST_P(IGraphicBufferProducerTest, Queue_ReturnsError) {
 
     // Fence was NULL
     {
-        sp<Fence> nullFence = NULL;
+        sp<Fence> nullFence = nullptr;
 
         IGraphicBufferProducer::QueueBufferInput input =
                 QueueBufferInputBuilder().setFence(nullFence).build();

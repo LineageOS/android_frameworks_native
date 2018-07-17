@@ -34,7 +34,7 @@ protected:
         glGenTextures(1, &mFboTex);
         glBindTexture(GL_TEXTURE_2D, mFboTex);
         glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, getSurfaceWidth(),
-                getSurfaceHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+                getSurfaceHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
         glBindTexture(GL_TEXTURE_2D, 0);
         ASSERT_EQ(GLenum(GL_NO_ERROR), glGetError());
 
