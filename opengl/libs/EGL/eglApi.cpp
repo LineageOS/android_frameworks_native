@@ -257,7 +257,7 @@ static void(*findProcAddress(const char* name,
             return map[i].address;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 // ----------------------------------------------------------------------------
@@ -340,7 +340,7 @@ EGLBoolean eglGetConfigs(   EGLDisplay dpy,
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
-    if (num_config==0) {
+    if (num_config==nullptr) {
         return setError(EGL_BAD_PARAMETER, (EGLBoolean)EGL_FALSE);
     }
 
@@ -365,7 +365,7 @@ EGLBoolean eglChooseConfig( EGLDisplay dpy, const EGLint *attrib_list,
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
-    if (num_config==0) {
+    if (num_config==nullptr) {
         return setError(EGL_BAD_PARAMETER, (EGLBoolean)EGL_FALSE);
     }
 
@@ -384,8 +384,8 @@ EGLBoolean eglChooseConfig( EGLDisplay dpy, const EGLint *attrib_list,
 
                 // Only enable MSAA if the context is OpenGL ES 2.0 and
                 // if no caveat is requested
-                const EGLint *attribRendererable = NULL;
-                const EGLint *attribCaveat = NULL;
+                const EGLint *attribRendererable = nullptr;
+                const EGLint *attribCaveat = nullptr;
 
                 // Count the number of attributes and look for
                 // EGL_RENDERABLE_TYPE and EGL_CONFIG_CAVEAT
@@ -440,7 +440,7 @@ EGLBoolean eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config,
 {
     clearError();
 
-    egl_connection_t* cnx = NULL;
+    egl_connection_t* cnx = nullptr;
     const egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (!dp) return EGL_FALSE;
 
@@ -698,7 +698,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
     const EGLint *origAttribList = attrib_list;
     clearError();
 
-    egl_connection_t* cnx = NULL;
+    egl_connection_t* cnx = nullptr;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
         if (!window) {
@@ -781,7 +781,7 @@ EGLSurface eglCreatePixmapSurface(  EGLDisplay dpy, EGLConfig config,
 {
     clearError();
 
-    egl_connection_t* cnx = NULL;
+    egl_connection_t* cnx = nullptr;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
         EGLDisplay iDpy = dp->disp.dpy;
@@ -802,7 +802,7 @@ EGLSurface eglCreatePixmapSurface(  EGLDisplay dpy, EGLConfig config,
                 dp->disp.dpy, config, pixmap, attrib_list);
         if (surface != EGL_NO_SURFACE) {
             egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, NULL, surface,
+                    new egl_surface_t(dp.get(), config, nullptr, surface,
                                       getReportedColorSpace(colorSpace), cnx);
             return s;
         }
@@ -815,7 +815,7 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
 {
     clearError();
 
-    egl_connection_t* cnx = NULL;
+    egl_connection_t* cnx = nullptr;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
         EGLDisplay iDpy = dp->disp.dpy;
@@ -836,7 +836,7 @@ EGLSurface eglCreatePbufferSurface( EGLDisplay dpy, EGLConfig config,
                 dp->disp.dpy, config, attrib_list);
         if (surface != EGL_NO_SURFACE) {
             egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, NULL, surface,
+                    new egl_surface_t(dp.get(), config, nullptr, surface,
                                       getReportedColorSpace(colorSpace), cnx);
             return s;
         }
@@ -910,7 +910,7 @@ EGLContext eglCreateContext(EGLDisplay dpy, EGLConfig config,
 {
     clearError();
 
-    egl_connection_t* cnx = NULL;
+    egl_connection_t* cnx = nullptr;
     const egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
         if (share_list != EGL_NO_CONTEXT) {
@@ -999,9 +999,9 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
     EGLSurface impl_read = EGL_NO_SURFACE;
 
     // these are our objects structs passed in
-    egl_context_t       * c = NULL;
-    egl_surface_t const * d = NULL;
-    egl_surface_t const * r = NULL;
+    egl_context_t       * c = nullptr;
+    egl_surface_t const * d = nullptr;
+    egl_surface_t const * r = nullptr;
 
     // these are the current objects structs
     egl_context_t * cur_c = get_context(getContext());
@@ -1015,7 +1015,7 @@ EGLBoolean eglMakeCurrent(  EGLDisplay dpy, EGLSurface draw,
             // calling eglMakeCurrent( ..., !=0, !=0, EGL_NO_CONTEXT);
             return setError(EGL_BAD_MATCH, (EGLBoolean)EGL_FALSE);
         }
-        if (cur_c == NULL) {
+        if (cur_c == nullptr) {
             // no current context
             // not an error, there is just no current context.
             return EGL_TRUE;
@@ -1163,7 +1163,7 @@ EGLint eglGetError(void)
 static __eglMustCastToProperFunctionPointerType findBuiltinWrapper(
         const char* procname) {
     const egl_connection_t* cnx = &gEGLImpl;
-    void* proc = NULL;
+    void* proc = nullptr;
 
     proc = dlsym(cnx->libEgl, procname);
     if (proc) return (__eglMustCastToProperFunctionPointerType)proc;
@@ -1174,7 +1174,7 @@ static __eglMustCastToProperFunctionPointerType findBuiltinWrapper(
     proc = dlsym(cnx->libGles1, procname);
     if (proc) return (__eglMustCastToProperFunctionPointerType)proc;
 
-    return NULL;
+    return nullptr;
 }
 
 __eglMustCastToProperFunctionPointerType eglGetProcAddress(const char *procname)
@@ -1187,11 +1187,11 @@ __eglMustCastToProperFunctionPointerType eglGetProcAddress(const char *procname)
 
     if (egl_init_drivers() == EGL_FALSE) {
         setError(EGL_BAD_PARAMETER, NULL);
-        return  NULL;
+        return  nullptr;
     }
 
     if (FILTER_EXTENSIONS(procname)) {
-        return NULL;
+        return nullptr;
     }
 
     __eglMustCastToProperFunctionPointerType addr;
@@ -1346,7 +1346,7 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
     egl_surface_t* const s = get_surface(draw);
 
     if (CC_UNLIKELY(dp->traceGpuCompletion)) {
-        EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, NULL);
+        EGLSyncKHR sync = eglCreateSyncKHR(dpy, EGL_SYNC_FENCE_KHR, nullptr);
         if (sync != EGL_NO_SYNC_KHR) {
             FrameCompletionThread::queueSync(sync);
         }
@@ -1397,7 +1397,7 @@ EGLBoolean eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface draw,
 
 EGLBoolean eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 {
-    return eglSwapBuffersWithDamageKHR(dpy, surface, NULL, 0);
+    return eglSwapBuffersWithDamageKHR(dpy, surface, nullptr, 0);
 }
 
 EGLBoolean eglCopyBuffers(  EGLDisplay dpy, EGLSurface surface,
@@ -1428,10 +1428,10 @@ const char* eglQueryString(EGLDisplay dpy, EGLint name)
     // If we want to support EGL_EXT_client_extensions later, we can return
     // the client extension string here instead.
     if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS)
-        return setErrorQuiet(EGL_BAD_DISPLAY, (const char*)0);
+        return setErrorQuiet(EGL_BAD_DISPLAY, (const char*)nullptr);
 
     const egl_display_ptr dp = validate_display(dpy);
-    if (!dp) return (const char *) NULL;
+    if (!dp) return (const char *) nullptr;
 
     switch (name) {
         case EGL_VENDOR:
@@ -1445,7 +1445,7 @@ const char* eglQueryString(EGLDisplay dpy, EGLint name)
         default:
             break;
     }
-    return setError(EGL_BAD_PARAMETER, (const char *)0);
+    return setError(EGL_BAD_PARAMETER, (const char *)nullptr);
 }
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name)
@@ -1453,7 +1453,7 @@ extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy
     clearError();
 
     const egl_display_ptr dp = validate_display(dpy);
-    if (!dp) return (const char *) NULL;
+    if (!dp) return (const char *) nullptr;
 
     switch (name) {
         case EGL_VENDOR:
@@ -1467,7 +1467,7 @@ extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy
         default:
             break;
     }
-    return setError(EGL_BAD_PARAMETER, (const char *)0);
+    return setError(EGL_BAD_PARAMETER, (const char *)nullptr);
 }
 
 // ----------------------------------------------------------------------------
@@ -1649,7 +1649,7 @@ EGLSurface eglCreatePbufferFromClientBuffer(
 {
     clearError();
 
-    egl_connection_t* cnx = NULL;
+    egl_connection_t* cnx = nullptr;
     const egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (!dp) return EGL_FALSE;
     if (cnx->egl.eglCreatePbufferFromClientBuffer) {
@@ -1953,7 +1953,7 @@ EGLSurface eglCreateStreamProducerSurfaceKHR(EGLDisplay dpy, EGLConfig config,
         EGLSurface surface = cnx->egl.eglCreateStreamProducerSurfaceKHR(
                 dp->disp.dpy, config, stream, attrib_list);
         if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s = new egl_surface_t(dp.get(), config, NULL, surface,
+            egl_surface_t* s = new egl_surface_t(dp.get(), config, nullptr, surface,
                                                  EGL_GL_COLORSPACE_LINEAR_KHR, cnx);
             return s;
         }
@@ -2109,10 +2109,10 @@ EGLClientBuffer eglGetNativeClientBufferANDROID(const AHardwareBuffer *buffer) {
     // this function cannot be implemented when this libEGL is built for
     // vendors.
 #ifndef __ANDROID_VNDK__
-    if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
+    if (!buffer) return setError(EGL_BAD_PARAMETER, (EGLClientBuffer) nullptr);
     return const_cast<ANativeWindowBuffer *>(AHardwareBuffer_to_ANativeWindowBuffer(buffer));
 #else
-    return setError(EGL_BAD_PARAMETER, (EGLClientBuffer)0);
+    return setError(EGL_BAD_PARAMETER, (EGLClientBuffer) nullptr);
 #endif
 }
 

@@ -129,7 +129,7 @@ Loader::driver_t::driver_t(void* gles)
 {
     dso[0] = gles;
     for (size_t i=1 ; i<NELEM(dso) ; i++)
-        dso[i] = 0;
+        dso[i] = nullptr;
 }
 
 Loader::driver_t::~driver_t()
@@ -137,7 +137,7 @@ Loader::driver_t::~driver_t()
     for (size_t i=0 ; i<NELEM(dso) ; i++) {
         if (dso[i]) {
             dlclose(dso[i]);
-            dso[i] = 0;
+            dso[i] = nullptr;
         }
     }
 }
@@ -163,7 +163,7 @@ int Loader::driver_t::set(void* hnd, int32_t api)
 // ----------------------------------------------------------------------------
 
 Loader::Loader()
-    : getProcAddress(NULL)
+    : getProcAddress(nullptr)
 {
 }
 
@@ -221,7 +221,7 @@ void* Loader::open(egl_connection_t* cnx)
     ATRACE_CALL();
 
     void* dso;
-    driver_t* hnd = 0;
+    driver_t* hnd = nullptr;
 
     setEmulatorGlesValue();
 
@@ -272,11 +272,11 @@ void Loader::init_api(void* dso,
         char const * name = *api;
         __eglMustCastToProperFunctionPointerType f =
             (__eglMustCastToProperFunctionPointerType)dlsym(dso, name);
-        if (f == NULL) {
+        if (f == nullptr) {
             // couldn't find the entry-point, use eglGetProcAddress()
             f = getProcAddress(name);
         }
-        if (f == NULL) {
+        if (f == nullptr) {
             // Try without the OES postfix
             ssize_t index = ssize_t(strlen(name)) - 3;
             if ((index>0 && (index<SIZE-1)) && (!strcmp(name+index, "OES"))) {
@@ -286,7 +286,7 @@ void Loader::init_api(void* dso,
                 //ALOGD_IF(f, "found <%s> instead", scrap);
             }
         }
-        if (f == NULL) {
+        if (f == nullptr) {
             // Try with the OES postfix
             ssize_t index = ssize_t(strlen(name)) - 3;
             if (index>0 && strcmp(name+index, "OES")) {
@@ -295,7 +295,7 @@ void Loader::init_api(void* dso,
                 //ALOGD_IF(f, "found <%s> instead", scrap);
             }
         }
-        if (f == NULL) {
+        if (f == nullptr) {
             //ALOGD("%s", name);
             f = (__eglMustCastToProperFunctionPointerType)gl_unimplemented;
 
@@ -406,9 +406,9 @@ static void* load_system_driver(const char* kind) {
             }
 
             DIR* d = opendir(search);
-            if (d != NULL) {
+            if (d != nullptr) {
                 struct dirent* e;
-                while ((e = readdir(d)) != NULL) {
+                while ((e = readdir(d)) != nullptr) {
                     if (e->d_type == DT_DIR) {
                         continue;
                     }
@@ -434,7 +434,7 @@ static void* load_system_driver(const char* kind) {
     std::string absolutePath = MatchFile::find(kind);
     if (absolutePath.empty()) {
         // this happens often, we don't want to log an error
-        return 0;
+        return nullptr;
     }
     const char* const driver_absolute_path = absolutePath.c_str();
 
@@ -444,10 +444,10 @@ static void* load_system_driver(const char* kind) {
     // sphal namespace.
     void* dso = do_android_load_sphal_library(driver_absolute_path,
                                               RTLD_NOW | RTLD_LOCAL);
-    if (dso == 0) {
+    if (dso == nullptr) {
         const char* err = dlerror();
         ALOGE("load_driver(%s): %s", driver_absolute_path, err ? err : "unknown");
-        return 0;
+        return nullptr;
     }
 
     ALOGD("loaded %s", driver_absolute_path);
@@ -495,7 +495,7 @@ void *Loader::load_driver(const char* kind,
     if (!dso) {
         dso = load_system_driver(kind);
         if (!dso)
-            return NULL;
+            return nullptr;
     }
 
     if (mask & EGL) {
@@ -512,11 +512,11 @@ void *Loader::load_driver(const char* kind,
             char const * name = *api;
             __eglMustCastToProperFunctionPointerType f =
                 (__eglMustCastToProperFunctionPointerType)dlsym(dso, name);
-            if (f == NULL) {
+            if (f == nullptr) {
                 // couldn't find the entry-point, use eglGetProcAddress()
                 f = getProcAddress(name);
-                if (f == NULL) {
-                    f = (__eglMustCastToProperFunctionPointerType)0;
+                if (f == nullptr) {
+                    f = (__eglMustCastToProperFunctionPointerType)nullptr;
                 }
             }
             *curr++ = f;

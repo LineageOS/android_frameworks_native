@@ -116,7 +116,7 @@ bool egl_display_t::getObject(egl_object_t* object) const {
 
 EGLDisplay egl_display_t::getFromNativeDisplay(EGLNativeDisplayType disp) {
     if (uintptr_t(disp) >= NUM_DISPLAYS)
-        return NULL;
+        return nullptr;
 
     return sDisplay[uintptr_t(disp)].getDisplay(disp);
 }
@@ -135,7 +135,7 @@ EGLDisplay egl_display_t::getDisplay(EGLNativeDisplayType display) {
         disp.dpy = dpy;
         if (dpy == EGL_NO_DISPLAY) {
             loader.close(cnx->dso);
-            cnx->dso = NULL;
+            cnx->dso = nullptr;
         }
     }
 
@@ -148,9 +148,9 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
         std::unique_lock<std::mutex> _l(refLock);
         refs++;
         if (refs > 1) {
-            if (major != NULL)
+            if (major != nullptr)
                 *major = VERSION_MAJOR;
-            if (minor != NULL)
+            if (minor != nullptr)
                 *minor = VERSION_MINOR;
             while(!eglIsInitialized) {
                 refCond.wait(_l);
@@ -268,9 +268,9 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             traceGpuCompletion = true;
         }
 
-        if (major != NULL)
+        if (major != nullptr)
             *major = VERSION_MAJOR;
-        if (minor != NULL)
+        if (minor != nullptr)
             *minor = VERSION_MINOR;
     }
 
@@ -361,8 +361,8 @@ void egl_display_t::loseCurrentImpl(egl_context_t * cur_c)
     // by construction, these are either 0 or valid (possibly terminated)
     // it should be impossible for these to be invalid
     ContextRef _cur_c(cur_c);
-    SurfaceRef _cur_r(cur_c ? get_surface(cur_c->read) : NULL);
-    SurfaceRef _cur_d(cur_c ? get_surface(cur_c->draw) : NULL);
+    SurfaceRef _cur_r(cur_c ? get_surface(cur_c->read) : nullptr);
+    SurfaceRef _cur_d(cur_c ? get_surface(cur_c->draw) : nullptr);
 
     { // scope for the lock
         std::lock_guard<std::mutex> _l(lock);
@@ -387,8 +387,8 @@ EGLBoolean egl_display_t::makeCurrent(egl_context_t* c, egl_context_t* cur_c,
     // by construction, these are either 0 or valid (possibly terminated)
     // it should be impossible for these to be invalid
     ContextRef _cur_c(cur_c);
-    SurfaceRef _cur_r(cur_c ? get_surface(cur_c->read) : NULL);
-    SurfaceRef _cur_d(cur_c ? get_surface(cur_c->draw) : NULL);
+    SurfaceRef _cur_r(cur_c ? get_surface(cur_c->read) : nullptr);
+    SurfaceRef _cur_d(cur_c ? get_surface(cur_c->draw) : nullptr);
 
     { // scope for the lock
         std::lock_guard<std::mutex> _l(lock);
