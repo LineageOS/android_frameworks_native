@@ -143,6 +143,7 @@ cc_library_shared {
         "EGL/egl.cpp",
         "EGL/eglApi.cpp",
         "EGL/Loader.cpp",
+        "EGL/egl_angle_platform.cpp",
     ],
     shared_libs: [
         "libvndksupport",
