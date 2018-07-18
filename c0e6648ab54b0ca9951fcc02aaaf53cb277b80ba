@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "6a24cb5b_82035906",
+        "filename": "libs/binder/Parcel.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 971,
+      "author": {
+        "id": 12604
+      },
+      "writtenOn": "2018-07-18T00:48:58Z",
+      "side": 1,
+      "message": "PAD_SIZE",
+      "range": {
+        "startLine": 971,
+        "startChar": 28,
+        "endLine": 971,
+        "endChar": 36
+      },
+      "revId": "c0e6648ab54b0ca9951fcc02aaaf53cb277b80ba",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "88e3c8d1_c72b0896",
+        "filename": "libs/binder/Parcel.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 992,
+      "author": {
+        "id": 12604
+      },
+      "writtenOn": "2018-07-18T00:48:58Z",
+      "side": 1,
+      "message": "PAD_SIZE",
+      "range": {
+        "startLine": 992,
+        "startChar": 28,
+        "endLine": 992,
+        "endChar": 36
+      },
+      "revId": "c0e6648ab54b0ca9951fcc02aaaf53cb277b80ba",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
