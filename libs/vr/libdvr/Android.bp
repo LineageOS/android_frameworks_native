@@ -44,7 +44,6 @@ srcs = [
     "dvr_pose.cpp",
     "dvr_surface.cpp",
     "dvr_tracking.cpp",
-    "dvr_vsync.cpp",
 ]
 
 static_libs = [

@@ -1355,6 +1355,8 @@ void SurfaceFlinger::resyncWithRateLimit() {
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                                      int64_t timestamp) {
+    ATRACE_NAME("SF onVsync");
+
     Mutex::Autolock lock(mStateLock);
     // Ignore any vsyncs from a previous hardware composer.
     if (sequenceId != getBE().mComposerSequenceId) {
@@ -1366,11 +1368,16 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
         return;
     }
 
+    if (type != DisplayDevice::DISPLAY_PRIMARY) {
+        // For now, we don't do anything with external display vsyncs.
+        return;
+    }
+
     bool needsHwVsync = false;
 
     { // Scope for the lock
         Mutex::Autolock _l(mHWVsyncLock);
-        if (type == DisplayDevice::DISPLAY_PRIMARY && mPrimaryHWVsyncEnabled) {
+        if (mPrimaryHWVsyncEnabled) {
             needsHwVsync = mPrimaryDispSync.addResyncSample(timestamp);
         }
     }
@@ -1481,8 +1488,6 @@ void SurfaceFlinger::updateVrFlinger() {
 
     if (vrFlingerRequestsDisplay) {
         mVrFlinger->GrantDisplayOwnership();
-    } else {
-        enableHardwareVsync();
     }
 
     mVisibleRegionsDirty = true;
@@ -1498,9 +1503,16 @@ void SurfaceFlinger::updateVrFlinger() {
     const nsecs_t period = activeConfig->getVsyncPeriod();
     mAnimFrameTracker.setDisplayRefreshPeriod(period);
 
+    // The present fences returned from vr_hwc are not an accurate
+    // representation of vsync times.
+    mPrimaryDispSync.setIgnorePresentFences(
+            getBE().mHwc->isUsingVrComposer() || !hasSyncFramework);
+
     // Use phase of 0 since phase is not known.
     // Use latency of 0, which will snap to the ideal latency.
     setCompositorTimingSnapped(0, period, 0);
+
+    resyncToHardwareVsync(false);
 
     android_atomic_or(1, &mRepaintEverything);
     setTransactionFlags(eDisplayTransactionNeeded);
