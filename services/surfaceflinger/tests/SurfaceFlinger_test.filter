@@ -1,5 +1,5 @@
 {
         "presubmit": {
-            "filter": "LayerTransactionTest.*:LayerUpdateTest.*:ChildLayerTest.*:SurfaceFlingerStress.*:CropLatchingTest.*:GeometryLatchingTest.*:ScreenCaptureTest.*:DereferenceSurfaceControlTest.*:SurfaceInterceptorTest.*"
+            "filter": "LayerTransactionTest.*:LayerUpdateTest.*:ChildLayerTest.*:SurfaceFlingerStress.*:CropLatchingTest.*:GeometryLatchingTest.*:ScreenCaptureTest.*:DereferenceSurfaceControlTest.*:SurfaceInterceptorTest.*:-CropLatchingTest.FinalCropLatchingBufferOldSize"
         }
 }
