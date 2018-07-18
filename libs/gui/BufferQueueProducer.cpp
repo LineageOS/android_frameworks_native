@@ -381,7 +381,6 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
 
     { // Autolock scope
         Mutex::Autolock lock(mCore->mMutex);
-        mCore->waitWhileAllocatingLocked();
 
         if (format == 0) {
             format = mCore->mDefaultBufferFormat;
@@ -1345,7 +1344,9 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
                 return;
             }
 
-            newBufferCount = mCore->mFreeSlots.size();
+            // Only allocate one buffer at a time to reduce risks of overlapping an allocation from
+            // both allocateBuffers and dequeueBuffer.
+            newBufferCount = mCore->mFreeSlots.empty() ? 0 : 1;
             if (newBufferCount == 0) {
                 return;
             }
@@ -1360,7 +1361,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
         } // Autolock scope
 
         Vector<sp<GraphicBuffer>> buffers;
-        for (size_t i = 0; i <  newBufferCount; ++i) {
+        for (size_t i = 0; i < newBufferCount; ++i) {
             sp<GraphicBuffer> graphicBuffer = new GraphicBuffer(
                     allocWidth, allocHeight, allocFormat, BQ_LAYER_COUNT,
                     allocUsage, allocName);
