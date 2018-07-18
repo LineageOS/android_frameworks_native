@@ -37,7 +37,7 @@ struct egl_connection_t {
         GLESv2_INDEX = 1
     };
 
-    inline egl_connection_t() : dso(0) { }
+    inline egl_connection_t() : dso(nullptr) { }
     void *              dso;
     gl_hooks_t *        hooks[2];
     EGLint              major;
