@@ -68,7 +68,7 @@ private:
     nsecs_t getDesiredPresentTime() override;
     std::shared_ptr<FenceTime> getCurrentFenceTime() const override;
 
-    void getDrawingTransformMatrix(float matrix[16]) const override;
+    void getDrawingTransformMatrix(float *matrix) override;
     uint32_t getDrawingTransform() const override;
     ui::Dataspace getDrawingDataSpace() const override;
     Rect getDrawingCrop() const override;
@@ -87,7 +87,7 @@ private:
 
     bool hasDrawingBuffer() const override;
 
-    void setFilteringEnabled(bool enabled) const override;
+    void setFilteringEnabled(bool enabled) override;
 
     status_t bindTextureImage() const override;
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) override;

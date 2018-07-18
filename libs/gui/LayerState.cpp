@@ -50,6 +50,32 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeFloat(color.g);
     output.writeFloat(color.b);
     output.write(transparentRegion);
+    output.writeUint32(transform);
+    output.writeBool(transformToDisplayInverse);
+    output.write(crop);
+    if (buffer) {
+        output.writeBool(true);
+        output.write(*buffer);
+    } else {
+        output.writeBool(false);
+    }
+    if (acquireFence) {
+        output.writeBool(true);
+        output.write(*acquireFence);
+    } else {
+        output.writeBool(false);
+    }
+    output.writeUint32(static_cast<uint32_t>(dataspace));
+    output.write(hdrMetadata);
+    output.write(surfaceDamageRegion);
+    output.writeInt32(api);
+    if (sidebandStream) {
+        output.writeBool(true);
+        output.writeNativeHandle(sidebandStream->handle());
+    } else {
+        output.writeBool(false);
+    }
+
     return NO_ERROR;
 }
 
@@ -85,6 +111,25 @@ status_t layer_state_t::read(const Parcel& input)
     color.g = input.readFloat();
     color.b = input.readFloat();
     input.read(transparentRegion);
+    transform = input.readUint32();
+    transformToDisplayInverse = input.readBool();
+    input.read(crop);
+    buffer = new GraphicBuffer();
+    if (input.readBool()) {
+        input.read(*buffer);
+    }
+    acquireFence = new Fence();
+    if (input.readBool()) {
+        input.read(*acquireFence);
+    }
+    dataspace = static_cast<ui::Dataspace>(input.readUint32());
+    input.read(hdrMetadata);
+    input.read(surfaceDamageRegion);
+    api = input.readInt32();
+    if (input.readBool()) {
+        sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
+    }
+
     return NO_ERROR;
 }
 
@@ -232,6 +277,46 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eDestroySurface) {
         what |= eDestroySurface;
+    }
+    if (other.what & eTransformChanged) {
+        what |= eTransformChanged;
+        transform = other.transform;
+    }
+    if (other.what & eTransformToDisplayInverseChanged) {
+        what |= eTransformToDisplayInverseChanged;
+        transformToDisplayInverse = other.transformToDisplayInverse;
+    }
+    if (other.what & eCropChanged) {
+        what |= eCropChanged;
+        crop = other.crop;
+    }
+    if (other.what & eBufferChanged) {
+        what |= eBufferChanged;
+        buffer = other.buffer;
+    }
+    if (other.what & eAcquireFenceChanged) {
+        what |= eAcquireFenceChanged;
+        acquireFence = other.acquireFence;
+    }
+    if (other.what & eDataspaceChanged) {
+        what |= eDataspaceChanged;
+        dataspace = other.dataspace;
+    }
+    if (other.what & eHdrMetadataChanged) {
+        what |= eHdrMetadataChanged;
+        hdrMetadata = other.hdrMetadata;
+    }
+    if (other.what & eSurfaceDamageRegionChanged) {
+        what |= eSurfaceDamageRegionChanged;
+        surfaceDamageRegion = other.surfaceDamageRegion;
+    }
+    if (other.what & eApiChanged) {
+        what |= eApiChanged;
+        api = other.api;
+    }
+    if (other.what & eSidebandStreamChanged) {
+        what |= eSidebandStreamChanged;
+        sidebandStream = other.sidebandStream;
     }
 }
 

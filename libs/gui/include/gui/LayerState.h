@@ -24,6 +24,7 @@
 
 #include <gui/IGraphicBufferProducer.h>
 #include <math/vec3.h>
+#include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
@@ -61,7 +62,17 @@ struct layer_state_t {
         eRelativeLayerChanged = 0x00008000,
         eReparent = 0x00010000,
         eColorChanged = 0x00020000,
-        eDestroySurface = 0x00040000
+        eDestroySurface = 0x00040000,
+        eTransformChanged = 0x00100000,
+        eTransformToDisplayInverseChanged = 0x00200000,
+        eCropChanged = 0x00400000,
+        eBufferChanged = 0x00800000,
+        eAcquireFenceChanged = 0x01000000,
+        eDataspaceChanged = 0x02000000,
+        eHdrMetadataChanged = 0x04000000,
+        eSurfaceDamageRegionChanged = 0x08000000,
+        eApiChanged = 0x10000000,
+        eSidebandStreamChanged = 0x20000000,
     };
 
     layer_state_t()
@@ -79,9 +90,16 @@ struct layer_state_t {
             crop_legacy(Rect::INVALID_RECT),
             finalCrop_legacy(Rect::INVALID_RECT),
             frameNumber_legacy(0),
-            overrideScalingMode(-1) {
+            overrideScalingMode(-1),
+            transform(0),
+            transformToDisplayInverse(false),
+            crop(Rect::INVALID_RECT),
+            dataspace(ui::Dataspace::UNKNOWN),
+            surfaceDamageRegion(),
+            api(-1) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
+        hdrMetadata.validTypes = 0;
     }
 
     void merge(const layer_state_t& other);
@@ -124,6 +142,17 @@ struct layer_state_t {
 
     // non POD must be last. see write/read
     Region transparentRegion;
+
+    uint32_t transform;
+    bool transformToDisplayInverse;
+    Rect crop;
+    sp<GraphicBuffer> buffer;
+    sp<Fence> acquireFence;
+    ui::Dataspace dataspace;
+    HdrMetadata hdrMetadata;
+    Region surfaceDamageRegion;
+    int32_t api;
+    sp<NativeHandle> sidebandStream;
 };
 
 struct ComposerState {

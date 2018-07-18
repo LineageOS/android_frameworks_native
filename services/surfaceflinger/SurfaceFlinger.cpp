@@ -64,6 +64,7 @@
 
 #include "BufferLayer.h"
 #include "BufferQueueLayer.h"
+#include "BufferStateLayer.h"
 #include "Client.h"
 #include "ColorLayer.h"
 #include "Colorizer.h"
@@ -2766,7 +2767,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
                 if (translucent) {
                     if (tr.preserveRects()) {
                         // transform the transparent region
-                        transparentRegion = tr.transform(s.activeTransparentRegion_legacy);
+                        transparentRegion = tr.transform(layer->getActiveTransparentRegion(s));
                     } else {
                         // transformation too complex, can't do the
                         // transparent region optimization.
@@ -3551,6 +3552,37 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         // We don't trigger a traversal here because if no other state is
         // changed, we don't want this to cause any more work
     }
+    if (what & layer_state_t::eTransformChanged) {
+        if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eTransformToDisplayInverseChanged) {
+        if (layer->setTransformToDisplayInverse(s.transformToDisplayInverse))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eCropChanged) {
+        if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eBufferChanged) {
+        if (layer->setBuffer(s.buffer)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eAcquireFenceChanged) {
+        if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eDataspaceChanged) {
+        if (layer->setDataspace(s.dataspace)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eHdrMetadataChanged) {
+        if (layer->setHdrMetadata(s.hdrMetadata)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eSurfaceDamageRegionChanged) {
+        if (layer->setSurfaceDamageRegion(s.surfaceDamageRegion)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eApiChanged) {
+        if (layer->setApi(s.api)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eSidebandStreamChanged) {
+        if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
+    }
     return flags;
 }
 
@@ -3593,10 +3625,13 @@ status_t SurfaceFlinger::createLayer(
     String8 uniqueName = getUniqueLayerName(name);
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
-        case ISurfaceComposerClient::eFXSurfaceNormal:
+        case ISurfaceComposerClient::eFXSurfaceBufferQueue:
             result = createBufferQueueLayer(client, uniqueName, w, h, flags, format, handle, gbp,
                                             &layer);
 
+            break;
+        case ISurfaceComposerClient::eFXSurfaceBufferState:
+            result = createBufferStateLayer(client, uniqueName, w, h, flags, handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             result = createColorLayer(client,
@@ -3685,6 +3720,16 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
 
     ALOGE_IF(err, "createBufferQueueLayer() failed (%s)", strerror(-err));
     return err;
+}
+
+status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
+                                                uint32_t w, uint32_t h, uint32_t flags,
+                                                sp<IBinder>* handle, sp<Layer>* outLayer) {
+    sp<BufferStateLayer> layer = new BufferStateLayer(this, client, name, w, h, flags);
+    *handle = layer->getHandle();
+    *outLayer = layer;
+
+    return NO_ERROR;
 }
 
 status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
@@ -4864,10 +4909,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         const Transform& getTransform() const override { return mTransform; }
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
-            return Rect(layerState.active_legacy.w, layerState.active_legacy.h);
+            return Rect(mLayer->getActiveWidth(layerState), mLayer->getActiveHeight(layerState));
         }
-        int getHeight() const override { return mLayer->getDrawingState().active_legacy.h; }
-        int getWidth() const override { return mLayer->getDrawingState().active_legacy.w; }
+        int getHeight() const override {
+            return mLayer->getActiveHeight(mLayer->getDrawingState());
+        }
+        int getWidth() const override { return mLayer->getActiveWidth(mLayer->getDrawingState()); }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return false; }
         Rect getSourceCrop() const override {
@@ -4935,12 +4982,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     Rect crop(sourceCrop);
     if (sourceCrop.width() <= 0) {
         crop.left = 0;
-        crop.right = parent->getCurrentState().active_legacy.w;
+        crop.right = parent->getActiveWidth(parent->getCurrentState());
     }
 
     if (sourceCrop.height() <= 0) {
         crop.top = 0;
-        crop.bottom = parent->getCurrentState().active_legacy.h;
+        crop.bottom = parent->getActiveHeight(parent->getCurrentState());
     }
 
     int32_t reqWidth = crop.width() * frameScale;

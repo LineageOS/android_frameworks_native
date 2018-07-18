@@ -30,6 +30,7 @@
 namespace android {
 
 // ----------------------------------------------------------------------------
+// TODO(marissaw): add new layer state values to SurfaceInterceptor
 
 SurfaceInterceptor::~SurfaceInterceptor() = default;
 

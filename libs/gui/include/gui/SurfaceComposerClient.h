@@ -227,6 +227,20 @@ public:
 
         Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);
 
+        Transaction& setTransform(const sp<SurfaceControl>& sc, uint32_t transform);
+        Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
+                                                  bool transformToDisplayInverse);
+        Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
+        Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
+        Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
+        Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
+        Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
+                                            const Region& surfaceDamageRegion);
+        Transaction& setApi(const sp<SurfaceControl>& sc, int32_t api);
+        Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
+                                       const sp<NativeHandle>& sidebandStream);
+
         // Detaches all child surfaces (and their children recursively)
         // from their SurfaceControl.
         // The child SurfaceControls will not throw exceptions or return errors,

@@ -356,6 +356,7 @@ private:
     friend class Layer;
     friend class BufferLayer;
     friend class BufferQueueLayer;
+    friend class BufferStateLayer;
     friend class MonitoredProducer;
 
     // For unit tests
@@ -533,6 +534,10 @@ private:
     status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
                                     uint32_t h, uint32_t flags, PixelFormat& format,
                                     sp<IBinder>* outHandle, sp<IGraphicBufferProducer>* outGbp,
+                                    sp<Layer>* outLayer);
+
+    status_t createBufferStateLayer(const sp<Client>& client, const String8& name, uint32_t w,
+                                    uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
                                     sp<Layer>* outLayer);
 
     status_t createColorLayer(const sp<Client>& client, const String8& name,

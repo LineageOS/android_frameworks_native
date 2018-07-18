@@ -114,6 +114,17 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     mCurrentState.requested_legacy = mCurrentState.active_legacy;
     mCurrentState.appId = 0;
     mCurrentState.type = 0;
+    mCurrentState.active.w = 0;
+    mCurrentState.active.h = 0;
+    mCurrentState.active.transform.set(0, 0);
+    mCurrentState.transform = 0;
+    mCurrentState.transformToDisplayInverse = false;
+    mCurrentState.crop.makeInvalid();
+    mCurrentState.acquireFence = new Fence(-1);
+    mCurrentState.dataspace = ui::Dataspace::UNKNOWN;
+    mCurrentState.hdrMetadata.validTypes = 0;
+    mCurrentState.surfaceDamageRegion.clear();
+    mCurrentState.api = -1;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -293,17 +304,19 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
 
 Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     const Layer::State& s(getDrawingState());
-    Rect win(s.active_legacy.w, s.active_legacy.h);
+    Rect win(getActiveWidth(s), getActiveHeight(s));
 
-    if (!s.crop_legacy.isEmpty()) {
-        win.intersect(s.crop_legacy, &win);
+    Rect crop = getCrop(s);
+    if (!crop.isEmpty()) {
+        win.intersect(crop, &win);
     }
 
     Transform t = getTransform();
     win = t.transform(win);
 
-    if (!s.finalCrop_legacy.isEmpty()) {
-        win.intersect(s.finalCrop_legacy, &win);
+    Rect finalCrop = getFinalCrop(s);
+    if (!finalCrop.isEmpty()) {
+        win.intersect(finalCrop, &win);
     }
 
     const sp<Layer>& p = mDrawingParent.promote();
@@ -322,7 +335,7 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     }
 
     if (reduceTransparentRegion) {
-        auto const screenTransparentRegion = t.transform(s.activeTransparentRegion_legacy);
+        auto const screenTransparentRegion = t.transform(getActiveTransparentRegion(s));
         win = reduce(win, screenTransparentRegion);
     }
 
@@ -331,15 +344,16 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
 
 FloatRect Layer::computeBounds() const {
     const Layer::State& s(getDrawingState());
-    return computeBounds(s.activeTransparentRegion_legacy);
+    return computeBounds(getActiveTransparentRegion(s));
 }
 
 FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
     const Layer::State& s(getDrawingState());
-    Rect win(s.active_legacy.w, s.active_legacy.h);
+    Rect win(getActiveWidth(s), getActiveHeight(s));
 
-    if (!s.crop_legacy.isEmpty()) {
-        win.intersect(s.crop_legacy, &win);
+    Rect crop = getCrop(s);
+    if (!crop.isEmpty()) {
+        win.intersect(crop, &win);
     }
 
     const auto& p = mDrawingParent.promote();
@@ -379,9 +393,10 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     // FIXME: the 3 lines below can produce slightly incorrect clipping when we have
     // a viewport clipping and a window transform. we should use floating point to fix this.
 
-    Rect activeCrop(s.active_legacy.w, s.active_legacy.h);
-    if (!s.crop_legacy.isEmpty()) {
-        activeCrop.intersect(s.crop_legacy, &activeCrop);
+    Rect activeCrop(getActiveWidth(s), getActiveHeight(s));
+    Rect crop = getCrop(s);
+    if (!crop.isEmpty()) {
+        activeCrop.intersect(crop, &activeCrop);
     }
 
     Transform t = getTransform();
@@ -389,8 +404,9 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
         activeCrop.clear();
     }
-    if (!s.finalCrop_legacy.isEmpty()) {
-        if (!activeCrop.intersect(s.finalCrop_legacy, &activeCrop)) {
+    Rect finalCrop = getFinalCrop(s);
+    if (!finalCrop.isEmpty()) {
+        if (!activeCrop.intersect(finalCrop, &activeCrop)) {
             activeCrop.clear();
         }
     }
@@ -424,12 +440,12 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
     // transform.inverse().transform(transform.transform(Rect)) != Rect
     // in which case we need to make sure the final rect is clipped to the
     // display bounds.
-    if (!activeCrop.intersect(Rect(s.active_legacy.w, s.active_legacy.h), &activeCrop)) {
+    if (!activeCrop.intersect(Rect(getActiveWidth(s), getActiveHeight(s)), &activeCrop)) {
         activeCrop.clear();
     }
 
     // subtract the transparent region and snap to the bounds
-    activeCrop = reduce(activeCrop, s.activeTransparentRegion_legacy);
+    activeCrop = reduce(activeCrop, getActiveTransparentRegion(s));
 
     // Transform the window crop to match the buffer coordinate system,
     // which means using the inverse of the current transform set on the
@@ -449,8 +465,8 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
         invTransform = (Transform(invTransformOrient) * Transform(invTransform)).getOrientation();
     }
 
-    int winWidth = s.active_legacy.w;
-    int winHeight = s.active_legacy.h;
+    int winWidth = getActiveWidth(s);
+    int winHeight = getActiveHeight(s);
     if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
         // If the activeCrop has been rotate the ends are rotated but not
         // the space itself so when transforming ends back we can't rely on
@@ -462,10 +478,10 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
         if (is_h_flipped == is_v_flipped) {
             invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_FLIP_H;
         }
-        winWidth = s.active_legacy.h;
-        winHeight = s.active_legacy.w;
+        winWidth = getActiveHeight(s);
+        winHeight = getActiveWidth(s);
     }
-    const Rect winCrop = activeCrop.transform(invTransform, s.active_legacy.w, s.active_legacy.h);
+    const Rect winCrop = activeCrop.transform(invTransform, getActiveWidth(s), getActiveHeight(s));
 
     // below, crop is intersected with winCrop expressed in crop's coordinate space
     float xScale = crop.getWidth() / float(winWidth);
@@ -518,10 +534,10 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
-    Region activeTransparentRegion(s.activeTransparentRegion_legacy);
+    Region activeTransparentRegion(getActiveTransparentRegion(s));
     Transform t = getTransform();
-    if (!s.crop_legacy.isEmpty()) {
-        Rect activeCrop(s.crop_legacy);
+    Rect activeCrop = getCrop(s);
+    if (!activeCrop.isEmpty()) {
         activeCrop = t.transform(activeCrop);
         if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
             activeCrop.clear();
@@ -533,23 +549,24 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
         // transform.inverse().transform(transform.transform(Rect)) != Rect
         // in which case we need to make sure the final rect is clipped to the
         // display bounds.
-        if (!activeCrop.intersect(Rect(s.active_legacy.w, s.active_legacy.h), &activeCrop)) {
+        if (!activeCrop.intersect(Rect(getActiveWidth(s), getActiveHeight(s)), &activeCrop)) {
             activeCrop.clear();
         }
         // mark regions outside the crop as transparent
-        activeTransparentRegion.orSelf(Rect(0, 0, s.active_legacy.w, activeCrop.top));
+        activeTransparentRegion.orSelf(Rect(0, 0, getActiveWidth(s), activeCrop.top));
         activeTransparentRegion.orSelf(
-                Rect(0, activeCrop.bottom, s.active_legacy.w, s.active_legacy.h));
+                Rect(0, activeCrop.bottom, getActiveWidth(s), getActiveHeight(s)));
         activeTransparentRegion.orSelf(Rect(0, activeCrop.top, activeCrop.left, activeCrop.bottom));
         activeTransparentRegion.orSelf(
-                Rect(activeCrop.right, activeCrop.top, s.active_legacy.w, activeCrop.bottom));
+                Rect(activeCrop.right, activeCrop.top, getActiveWidth(s), activeCrop.bottom));
     }
 
     // computeBounds returns a FloatRect to provide more accuracy during the
     // transformation. We then round upon constructing 'frame'.
     Rect frame{t.transform(computeBounds(activeTransparentRegion))};
-    if (!s.finalCrop_legacy.isEmpty()) {
-        if (!frame.intersect(s.finalCrop_legacy, &frame)) {
+    Rect finalCrop = getFinalCrop(s);
+    if (!finalCrop.isEmpty()) {
+        if (!frame.intersect(finalCrop, &frame)) {
             frame.clear();
         }
     }
@@ -682,16 +699,18 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 
     // Apply the layer's transform, followed by the display's global transform
     // Here we're guaranteed that the layer's transform preserves rects
-    Rect win(s.active_legacy.w, s.active_legacy.h);
-    if (!s.crop_legacy.isEmpty()) {
-        win.intersect(s.crop_legacy, &win);
+    Rect win(getActiveWidth(s), getActiveHeight(s));
+    Rect crop = getCrop(s);
+    if (!crop.isEmpty()) {
+        win.intersect(crop, &win);
     }
     // Subtract the transparent region and snap to the bounds
-    Rect bounds = reduce(win, s.activeTransparentRegion_legacy);
+    Rect bounds = reduce(win, getActiveTransparentRegion(s));
     Rect frame(getTransform().transform(bounds));
     frame.intersect(display->getViewport(), &frame);
-    if (!s.finalCrop_legacy.isEmpty()) {
-        frame.intersect(s.finalCrop_legacy, &frame);
+    Rect finalCrop = getFinalCrop(s);
+    if (!finalCrop.isEmpty()) {
+        frame.intersect(finalCrop, &frame);
     }
     auto& displayTransform = display->getTransform();
     auto position = displayTransform.transform(frame);
@@ -709,15 +728,15 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 // drawing...
 // ---------------------------------------------------------------------------
 
-void Layer::draw(const RenderArea& renderArea, const Region& clip) const {
+void Layer::draw(const RenderArea& renderArea, const Region& clip) {
     onDraw(renderArea, clip, false);
 }
 
-void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) const {
+void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) {
     onDraw(renderArea, Region(renderArea.getBounds()), useIdentityTransform);
 }
 
-void Layer::draw(const RenderArea& renderArea) const {
+void Layer::draw(const RenderArea& renderArea) {
     onDraw(renderArea, Region(renderArea.getBounds()), false);
 }
 
@@ -844,11 +863,12 @@ void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
         rt = layerTransform.transform(rt);
     }
 
-    if (!s.finalCrop_legacy.isEmpty()) {
-        boundPoint(&lt, s.finalCrop_legacy);
-        boundPoint(&lb, s.finalCrop_legacy);
-        boundPoint(&rb, s.finalCrop_legacy);
-        boundPoint(&rt, s.finalCrop_legacy);
+    Rect finalCrop = getFinalCrop(s);
+    if (!finalCrop.isEmpty()) {
+        boundPoint(&lt, finalCrop);
+        boundPoint(&lb, finalCrop);
+        boundPoint(&rb, finalCrop);
+        boundPoint(&rt, finalCrop);
     }
 
     Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
@@ -984,19 +1004,11 @@ bool Layer::applyPendingStates(State* stateToCommit) {
     return stateUpdateAvailable;
 }
 
-uint32_t Layer::doTransaction(uint32_t flags) {
-    ATRACE_CALL();
-
-    pushPendingState();
-    Layer::State c = getCurrentState();
-    if (!applyPendingStates(&c)) {
-        return 0;
-    }
-
+uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
     const Layer::State& s(getDrawingState());
 
-    const bool sizeChanged = (c.requested_legacy.w != s.requested_legacy.w) ||
-            (c.requested_legacy.h != s.requested_legacy.h);
+    const bool sizeChanged = (stateToCommit->requested_legacy.w != s.requested_legacy.w) ||
+            (stateToCommit->requested_legacy.h != s.requested_legacy.h);
 
     if (sizeChanged) {
         // the size changed, we need to ask our client to request a new buffer
@@ -1007,16 +1019,18 @@ uint32_t Layer::doTransaction(uint32_t flags) {
                  "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) }\n"
                  "            requested={ wh={%4u,%4u} }}\n",
                  this, getName().string(), mCurrentTransform, getEffectiveScalingMode(),
-                 c.active_legacy.w, c.active_legacy.h, c.crop_legacy.left, c.crop_legacy.top,
-                 c.crop_legacy.right, c.crop_legacy.bottom, c.crop_legacy.getWidth(),
-                 c.crop_legacy.getHeight(), c.requested_legacy.w, c.requested_legacy.h,
+                 stateToCommit->active_legacy.w, stateToCommit->active_legacy.h,
+                 stateToCommit->crop_legacy.left, stateToCommit->crop_legacy.top,
+                 stateToCommit->crop_legacy.right, stateToCommit->crop_legacy.bottom,
+                 stateToCommit->crop_legacy.getWidth(), stateToCommit->crop_legacy.getHeight(),
+                 stateToCommit->requested_legacy.w, stateToCommit->requested_legacy.h,
                  s.active_legacy.w, s.active_legacy.h, s.crop_legacy.left, s.crop_legacy.top,
                  s.crop_legacy.right, s.crop_legacy.bottom, s.crop_legacy.getWidth(),
                  s.crop_legacy.getHeight(), s.requested_legacy.w, s.requested_legacy.h);
 
         // record the new size, form this point on, when the client request
         // a buffer, it'll get the new size.
-        setDefaultBufferSize(c.requested_legacy.w, c.requested_legacy.h);
+        setDefaultBufferSize(stateToCommit->requested_legacy.w, stateToCommit->requested_legacy.h);
     }
 
     // Don't let Layer::doTransaction update the drawing state
@@ -1037,8 +1051,9 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     // resizePending state is to avoid applying the state of the new buffer
     // to the old buffer. However in the state where we don't have an old buffer
     // there is no such concern but we may still be being used as a parent layer.
-    const bool resizePending = ((c.requested_legacy.w != c.active_legacy.w) ||
-                                (c.requested_legacy.h != c.active_legacy.h)) &&
+    const bool resizePending =
+            ((stateToCommit->requested_legacy.w != stateToCommit->active_legacy.w) ||
+             (stateToCommit->requested_legacy.h != stateToCommit->active_legacy.h)) &&
             (getBE().compositionInfo.mBuffer != nullptr);
     if (!isFixedSize()) {
         if (resizePending && getBE().compositionInfo.hwc.sidebandStream == nullptr) {
@@ -1062,21 +1077,37 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         // being stored in the same data structure while having different latching rules.
         // b/38182305
         //
-        // Careful that "c" and editCurrentState may not begin as equivalent due to
+        // Careful that "stateToCommit" and editCurrentState may not begin as equivalent due to
         // applyPendingStates in the presence of deferred transactions.
         if (mFreezeGeometryUpdates) {
-            float tx = c.active_legacy.transform.tx();
-            float ty = c.active_legacy.transform.ty();
-            c.active_legacy = c.requested_legacy;
-            c.active_legacy.transform.set(tx, ty);
-            editCurrentState.active_legacy = c.active_legacy;
+            float tx = stateToCommit->active_legacy.transform.tx();
+            float ty = stateToCommit->active_legacy.transform.ty();
+            stateToCommit->active_legacy = stateToCommit->requested_legacy;
+            stateToCommit->active_legacy.transform.set(tx, ty);
+            editCurrentState.active_legacy = stateToCommit->active_legacy;
         } else {
             editCurrentState.active_legacy = editCurrentState.requested_legacy;
-            c.active_legacy = c.requested_legacy;
+            stateToCommit->active_legacy = stateToCommit->requested_legacy;
         }
     }
 
-    if (s.active_legacy != c.active_legacy) {
+    return flags;
+}
+
+uint32_t Layer::doTransaction(uint32_t flags) {
+    ATRACE_CALL();
+
+    pushPendingState();
+    Layer::State c = getCurrentState();
+    if (!applyPendingStates(&c)) {
+        return 0;
+    }
+
+    flags = doTransactionResize(flags, &c);
+
+    const Layer::State& s(getDrawingState());
+
+    if (getActiveGeometry(c) != getActiveGeometry(s)) {
         // invalidate and recompute the visible regions if needed
         flags |= Layer::eVisibleRegion;
     }
@@ -1087,9 +1118,8 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         this->contentDirty = true;
 
         // we may use linear filtering, if the matrix scales us
-        const uint8_t type = c.active_legacy.transform.getType();
-        mNeedsFiltering =
-                (!c.active_legacy.transform.preserveRects() || (type >= Transform::SCALE));
+        const uint8_t type = getActiveTransform(c).getType();
+        mNeedsFiltering = (!getActiveTransform(c).preserveRects() || (type >= Transform::SCALE));
     }
 
     // If the layer is hidden, signal and clear out all local sync points so
@@ -1278,6 +1308,7 @@ bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
+
 bool Layer::setTransparentRegionHint(const Region& transparent) {
     mCurrentState.requestedTransparentRegion_legacy = transparent;
     mCurrentState.modified = true;
@@ -1415,6 +1446,7 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
 // debugging
 // ----------------------------------------------------------------------------
 
+// TODO(marissaw): add new layer state info to layer debugging
 LayerDebugInfo Layer::getLayerDebugInfo() const {
     LayerDebugInfo info;
     const Layer::State& ds = getDrawingState();
@@ -1889,14 +1921,14 @@ Transform Layer::getTransform() const {
                 bufferHeight = p->getBE().compositionInfo.mBuffer->getWidth();
                 bufferWidth = p->getBE().compositionInfo.mBuffer->getHeight();
             }
-            float sx = p->getDrawingState().active_legacy.w / static_cast<float>(bufferWidth);
-            float sy = p->getDrawingState().active_legacy.h / static_cast<float>(bufferHeight);
+            float sx = p->getActiveWidth(p->getDrawingState()) / static_cast<float>(bufferWidth);
+            float sy = p->getActiveHeight(p->getDrawingState()) / static_cast<float>(bufferHeight);
             Transform extraParentScaling;
             extraParentScaling.set(sx, 0, 0, sy);
             t = t * extraParentScaling;
         }
     }
-    return t * getDrawingState().active_legacy.transform;
+    return t * getActiveTransform(getDrawingState());
 }
 
 half Layer::getAlpha() const {

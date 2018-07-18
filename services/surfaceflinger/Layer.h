@@ -156,6 +156,24 @@ public:
         SortedVector<wp<Layer>> zOrderRelatives;
 
         half4 color;
+
+        // The fields below this point are only used by BufferStateLayer
+        Geometry active;
+
+        uint32_t transform;
+        bool transformToDisplayInverse;
+
+        Rect crop;
+        Region transparentRegionHint;
+
+        sp<GraphicBuffer> buffer;
+        sp<Fence> acquireFence;
+        ui::Dataspace dataspace;
+        HdrMetadata hdrMetadata;
+        Region surfaceDamageRegion;
+        int32_t api;
+
+        sp<NativeHandle> sidebandStream;
     };
 
     Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
@@ -191,11 +209,12 @@ public:
     // also the rendered size of the layer prior to any transformations. Parent
     // or local matrix transformations will not affect the size of the buffer,
     // but may affect it's on-screen size or clipping.
-    bool setSize(uint32_t w, uint32_t h);
+    virtual bool setSize(uint32_t w, uint32_t h);
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
     // producer specified transform.
-    bool setMatrix(const layer_state_t::matrix22_t& matrix, bool allowNonRectPreservingTransforms);
+    virtual bool setMatrix(const layer_state_t::matrix22_t& matrix,
+                           bool allowNonRectPreservingTransforms);
 
     // This second set of geometry attributes are controlled by
     // setGeometryAppliesWithResize, and their default mode is to be
@@ -205,32 +224,45 @@ public:
 
     // setPosition operates in parent buffer space (pre parent-transform) or display
     // space for top-level layers.
-    bool setPosition(float x, float y, bool immediate);
+    virtual bool setPosition(float x, float y, bool immediate);
     // Buffer space
-    bool setCrop_legacy(const Rect& crop, bool immediate);
+    virtual bool setCrop_legacy(const Rect& crop, bool immediate);
     // Parent buffer space/display space
-    bool setFinalCrop_legacy(const Rect& crop, bool immediate);
+    virtual bool setFinalCrop_legacy(const Rect& crop, bool immediate);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
     // -----------------------------------------------------------------------
-    bool setLayer(int32_t z);
-    bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
+    virtual bool setLayer(int32_t z);
+    virtual bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
-    bool setAlpha(float alpha);
-    bool setColor(const half3& color);
-    bool setTransparentRegionHint(const Region& transparent);
-    bool setFlags(uint8_t flags, uint8_t mask);
-    bool setLayerStack(uint32_t layerStack);
-    uint32_t getLayerStack() const;
-    void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
-    void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
-    bool setOverrideScalingMode(int32_t overrideScalingMode);
-    void setInfo(int32_t type, int32_t appId);
-    bool reparentChildren(const sp<IBinder>& layer);
-    void setChildrenDrawingParent(const sp<Layer>& layer);
-    bool reparent(const sp<IBinder>& newParentHandle);
-    bool detachChildren();
+    virtual bool setAlpha(float alpha);
+    virtual bool setColor(const half3& color);
+    virtual bool setTransparentRegionHint(const Region& transparent);
+    virtual bool setFlags(uint8_t flags, uint8_t mask);
+    virtual bool setLayerStack(uint32_t layerStack);
+    virtual uint32_t getLayerStack() const;
+    virtual void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle,
+                                              uint64_t frameNumber);
+    virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
+    virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
+    virtual void setInfo(int32_t type, int32_t appId);
+    virtual bool reparentChildren(const sp<IBinder>& layer);
+    virtual void setChildrenDrawingParent(const sp<Layer>& layer);
+    virtual bool reparent(const sp<IBinder>& newParentHandle);
+    virtual bool detachChildren();
+
+    // Used only to set BufferStateLayer state
+    virtual bool setTransform(uint32_t /*transform*/) { return false; };
+    virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
+    virtual bool setCrop(const Rect& /*crop*/) { return false; };
+    virtual bool setBuffer(sp<GraphicBuffer> /*buffer*/) { return false; };
+    virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
+    virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
+    virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };
+    virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) { return false; };
+    virtual bool setApi(int32_t /*api*/) { return false; };
+    virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) { return false; };
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 
@@ -310,12 +342,24 @@ public:
 
     void writeToProto(LayerProto* layerInfo, int32_t displayId);
 
+    virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
+    virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
+    virtual uint32_t getActiveHeight(const Layer::State& s) const { return s.active_legacy.h; }
+    virtual Transform getActiveTransform(const Layer::State& s) const {
+        return s.active_legacy.transform;
+    }
+    virtual Region getActiveTransparentRegion(const Layer::State& s) const {
+        return s.activeTransparentRegion_legacy;
+    }
+    virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
+    virtual Rect getFinalCrop(const Layer::State& s) const { return s.finalCrop_legacy; }
+
 protected:
     /*
      * onDraw - draws the surface.
      */
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform) const = 0;
+                        bool useIdentityTransform) = 0;
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
@@ -369,9 +413,9 @@ public:
      * draw - performs some global clipping optimizations
      * and calls onDraw().
      */
-    void draw(const RenderArea& renderArea, const Region& clip) const;
-    void draw(const RenderArea& renderArea, bool useIdentityTransform) const;
-    void draw(const RenderArea& renderArea) const;
+    void draw(const RenderArea& renderArea, const Region& clip);
+    void draw(const RenderArea& renderArea, bool useIdentityTransform);
+    void draw(const RenderArea& renderArea);
 
     /*
      * drawNow uses the renderEngine to draw the layer.  This is different than the
@@ -381,7 +425,7 @@ public:
      * is used for screen captures which happens separately from the frame
      * compositing path.
      */
-    virtual void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const = 0;
+    virtual void drawNow(const RenderArea& renderArea, bool useIdentityTransform) = 0;
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -536,7 +580,7 @@ public:
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
     int32_t getZ() const;
-    void pushPendingState();
+    virtual void pushPendingState();
 
 protected:
     // constant
@@ -620,7 +664,8 @@ protected:
     bool addSyncPoint(const std::shared_ptr<SyncPoint>& point);
 
     void popPendingState(State* stateToCommit);
-    bool applyPendingStates(State* stateToCommit);
+    virtual bool applyPendingStates(State* stateToCommit);
+    virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
 
     void clearSyncPoints();
 

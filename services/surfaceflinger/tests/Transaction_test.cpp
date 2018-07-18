@@ -62,38 +62,28 @@ const Color Color::WHITE{255, 255, 255, 255};
 const Color Color::BLACK{0, 0, 0, 255};
 const Color Color::TRANSPARENT{0, 0, 0, 0};
 
+using android::hardware::graphics::common::V1_1::BufferUsage;
+
 std::ostream& operator<<(std::ostream& os, const Color& color) {
     os << int(color.r) << ", " << int(color.g) << ", " << int(color.b) << ", " << int(color.a);
     return os;
 }
 
 // Fill a region with the specified color.
-void fillBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect, const Color& color) {
-    int32_t x = rect.left;
-    int32_t y = rect.top;
-    int32_t width = rect.right - rect.left;
-    int32_t height = rect.bottom - rect.top;
-
-    if (x < 0) {
-        width += x;
-        x = 0;
-    }
-    if (y < 0) {
-        height += y;
-        y = 0;
-    }
-    if (x + width > buffer.width) {
-        x = std::min(x, buffer.width);
-        width = buffer.width - x;
-    }
-    if (y + height > buffer.height) {
-        y = std::min(y, buffer.height);
-        height = buffer.height - y;
+void fillANativeWindowBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect,
+                                  const Color& color) {
+    Rect r(0, 0, buffer.width, buffer.height);
+    if (!r.intersect(rect, &r)) {
+        return;
     }
 
-    for (int32_t j = 0; j < height; j++) {
-        uint8_t* dst = static_cast<uint8_t*>(buffer.bits) + (buffer.stride * (y + j) + x) * 4;
-        for (int32_t i = 0; i < width; i++) {
+    int32_t width = r.right - r.left;
+    int32_t height = r.bottom - r.top;
+
+    for (int32_t row = 0; row < height; row++) {
+        uint8_t* dst =
+                static_cast<uint8_t*>(buffer.bits) + (buffer.stride * (r.top + row) + r.left) * 4;
+        for (int32_t column = 0; column < width; column++) {
             dst[0] = color.r;
             dst[1] = color.g;
             dst[2] = color.b;
@@ -101,6 +91,33 @@ void fillBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect, const
             dst += 4;
         }
     }
+}
+
+// Fill a region with the specified color.
+void fillGraphicBufferColor(const sp<GraphicBuffer>& buffer, const Rect& rect, const Color& color) {
+    Rect r(0, 0, buffer->width, buffer->height);
+    if (!r.intersect(rect, &r)) {
+        return;
+    }
+
+    int32_t width = r.right - r.left;
+    int32_t height = r.bottom - r.top;
+
+    uint8_t* pixels;
+    buffer->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                 reinterpret_cast<void**>(&pixels));
+
+    for (int32_t row = 0; row < height; row++) {
+        uint8_t* dst = pixels + (buffer->getStride() * (r.top + row) + r.left) * 4;
+        for (int32_t column = 0; column < width; column++) {
+            dst[0] = color.r;
+            dst[1] = color.g;
+            dst[2] = color.b;
+            dst[3] = color.a;
+            dst += 4;
+        }
+    }
+    buffer->unlock();
 }
 
 // Check if a region has the specified color.
@@ -301,8 +318,8 @@ protected:
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
     }
 
-    sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
-                                   uint32_t flags = 0) {
+    virtual sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
+                                           uint32_t flags = 0) {
         auto layer =
                 mClient->createSurface(String8(name), width, height, PIXEL_FORMAT_RGBA_8888, flags);
         EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
@@ -319,7 +336,7 @@ protected:
         return layer;
     }
 
-    ANativeWindow_Buffer getLayerBuffer(const sp<SurfaceControl>& layer) {
+    ANativeWindow_Buffer getBufferQueueLayerBuffer(const sp<SurfaceControl>& layer) {
         // wait for previous transactions (such as setSize) to complete
         Transaction().apply(true);
 
@@ -329,35 +346,103 @@ protected:
         return buffer;
     }
 
-    void postLayerBuffer(const sp<SurfaceControl>& layer) {
+    void postBufferQueueLayerBuffer(const sp<SurfaceControl>& layer) {
         ASSERT_EQ(NO_ERROR, layer->getSurface()->unlockAndPost());
 
         // wait for the newly posted buffer to be latched
         waitForLayerBuffers();
     }
 
-    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color) {
+    virtual void fillBufferQueueLayerColor(const sp<SurfaceControl>& layer, const Color& color,
+                                           int32_t bufferWidth, int32_t bufferHeight) {
         ANativeWindow_Buffer buffer;
-        ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
-        fillBufferColor(buffer, Rect(0, 0, buffer.width, buffer.height), color);
-        postLayerBuffer(layer);
+        ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
+        fillANativeWindowBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight), color);
+        postBufferQueueLayerBuffer(layer);
     }
 
-    void fillLayerQuadrant(const sp<SurfaceControl>& layer, const Color& topLeft,
+    virtual void fillBufferStateLayerColor(const sp<SurfaceControl>& layer, const Color& color,
+                                           int32_t bufferWidth, int32_t bufferHeight) {
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
+                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                          BufferUsage::COMPOSER_OVERLAY,
+                                  "test");
+        fillGraphicBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight), color);
+        Transaction().setBuffer(layer, buffer).setSize(layer, bufferWidth, bufferHeight).apply();
+    }
+
+    void fillLayerColor(uint32_t mLayerType, const sp<SurfaceControl>& layer, const Color& color,
+                        int32_t bufferWidth, int32_t bufferHeight) {
+        switch (mLayerType) {
+            case ISurfaceComposerClient::eFXSurfaceBufferQueue:
+                fillBufferQueueLayerColor(layer, color, bufferWidth, bufferHeight);
+                break;
+            case ISurfaceComposerClient::eFXSurfaceBufferState:
+                fillBufferStateLayerColor(layer, color, bufferWidth, bufferHeight);
+                break;
+            default:
+                ASSERT_TRUE(false) << "unsupported layer type: " << mLayerType;
+        }
+    }
+
+    void fillLayerQuadrant(uint32_t mLayerType, const sp<SurfaceControl>& layer,
+                           int32_t bufferWidth, int32_t bufferHeight, const Color& topLeft,
                            const Color& topRight, const Color& bottomLeft,
                            const Color& bottomRight) {
+        switch (mLayerType) {
+            case ISurfaceComposerClient::eFXSurfaceBufferQueue:
+                fillBufferQueueLayerQuadrant(layer, bufferWidth, bufferHeight, topLeft, topRight,
+                                             bottomLeft, bottomRight);
+                break;
+            case ISurfaceComposerClient::eFXSurfaceBufferState:
+                fillBufferStateLayerQuadrant(layer, bufferWidth, bufferHeight, topLeft, topRight,
+                                             bottomLeft, bottomRight);
+                break;
+            default:
+                ASSERT_TRUE(false) << "unsupported layer type: " << mLayerType;
+        }
+    }
+
+    virtual void fillBufferQueueLayerQuadrant(const sp<SurfaceControl>& layer, int32_t bufferWidth,
+                                              int32_t bufferHeight, const Color& topLeft,
+                                              const Color& topRight, const Color& bottomLeft,
+                                              const Color& bottomRight) {
         ANativeWindow_Buffer buffer;
-        ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
-        ASSERT_TRUE(buffer.width % 2 == 0 && buffer.height % 2 == 0);
+        ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
+        ASSERT_TRUE(bufferWidth % 2 == 0 && bufferHeight % 2 == 0);
 
-        const int32_t halfW = buffer.width / 2;
-        const int32_t halfH = buffer.height / 2;
-        fillBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
-        fillBufferColor(buffer, Rect(halfW, 0, buffer.width, halfH), topRight);
-        fillBufferColor(buffer, Rect(0, halfH, halfW, buffer.height), bottomLeft);
-        fillBufferColor(buffer, Rect(halfW, halfH, buffer.width, buffer.height), bottomRight);
+        const int32_t halfW = bufferWidth / 2;
+        const int32_t halfH = bufferHeight / 2;
+        fillANativeWindowBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
+        fillANativeWindowBufferColor(buffer, Rect(halfW, 0, bufferWidth, halfH), topRight);
+        fillANativeWindowBufferColor(buffer, Rect(0, halfH, halfW, bufferHeight), bottomLeft);
+        fillANativeWindowBufferColor(buffer, Rect(halfW, halfH, bufferWidth, bufferHeight),
+                                     bottomRight);
 
-        postLayerBuffer(layer);
+        postBufferQueueLayerBuffer(layer);
+    }
+
+    virtual void fillBufferStateLayerQuadrant(const sp<SurfaceControl>& layer, int32_t bufferWidth,
+                                              int32_t bufferHeight, const Color& topLeft,
+                                              const Color& topRight, const Color& bottomLeft,
+                                              const Color& bottomRight) {
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(bufferWidth, bufferHeight, PIXEL_FORMAT_RGBA_8888, 1,
+                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                          BufferUsage::COMPOSER_OVERLAY,
+                                  "test");
+
+        ASSERT_TRUE(bufferWidth % 2 == 0 && bufferHeight % 2 == 0);
+
+        const int32_t halfW = bufferWidth / 2;
+        const int32_t halfH = bufferHeight / 2;
+        fillGraphicBufferColor(buffer, Rect(0, 0, halfW, halfH), topLeft);
+        fillGraphicBufferColor(buffer, Rect(halfW, 0, bufferWidth, halfH), topRight);
+        fillGraphicBufferColor(buffer, Rect(0, halfH, halfW, bufferHeight), bottomLeft);
+        fillGraphicBufferColor(buffer, Rect(halfW, halfH, bufferWidth, bufferHeight), bottomRight);
+
+        Transaction().setBuffer(layer, buffer).setSize(layer, bufferWidth, bufferHeight).apply();
     }
 
     sp<ScreenCapture> screenshot() {
@@ -375,6 +460,10 @@ protected:
 
     // leave room for ~256 layers
     const int32_t mLayerZBase = std::numeric_limits<int32_t>::max() - 256;
+
+    void setPositionWithResizeHelper(uint32_t layerType);
+    void setSizeBasicHelper(uint32_t layerType);
+    void setMatrixWithResizeHelper(uint32_t layerType);
 
 private:
     void SetUpDisplay() {
@@ -404,10 +493,48 @@ private:
     int32_t mBufferPostDelay;
 };
 
-TEST_F(LayerTransactionTest, SetPositionBasic) {
+class LayerTypeTransactionTest : public LayerTransactionTest,
+                                 public ::testing::WithParamInterface<uint32_t> {
+public:
+    LayerTypeTransactionTest() { mLayerType = GetParam(); }
+
+    sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
+                                   uint32_t flags = 0) override {
+        // if the flags already have a layer type specified, return an error
+        if (flags & ISurfaceComposerClient::eFXSurfaceMask) {
+            return nullptr;
+        }
+        return LayerTransactionTest::createLayer(name, width, height, flags | mLayerType);
+    }
+
+    void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, int32_t bufferWidth,
+                        int32_t bufferHeight) {
+        ASSERT_NO_FATAL_FAILURE(LayerTransactionTest::fillLayerColor(mLayerType, layer, color,
+                                                                     bufferWidth, bufferHeight));
+    }
+
+    void fillLayerQuadrant(const sp<SurfaceControl>& layer, int32_t bufferWidth,
+                           int32_t bufferHeight, const Color& topLeft, const Color& topRight,
+                           const Color& bottomLeft, const Color& bottomRight) {
+        ASSERT_NO_FATAL_FAILURE(LayerTransactionTest::fillLayerQuadrant(mLayerType, layer,
+                                                                        bufferWidth, bufferHeight,
+                                                                        topLeft, topRight,
+                                                                        bottomLeft, bottomRight));
+    }
+
+protected:
+    uint32_t mLayerType;
+};
+
+INSTANTIATE_TEST_CASE_P(
+        LayerTypeTransactionTests, LayerTypeTransactionTest,
+        ::testing::Values(static_cast<uint32_t>(ISurfaceComposerClient::eFXSurfaceBufferQueue),
+                          static_cast<uint32_t>(ISurfaceComposerClient::eFXSurfaceBufferState)));
+
+TEST_P(LayerTypeTransactionTest, SetPositionBasic) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     {
         SCOPED_TRACE("default position");
@@ -425,10 +552,10 @@ TEST_F(LayerTransactionTest, SetPositionBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetPositionRounding) {
+TEST_P(LayerTypeTransactionTest, SetPositionRounding) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     // GLES requires only 4 bits of subpixel precision during rasterization
     // XXX GLES composition does not match HWC composition due to precision
@@ -447,10 +574,10 @@ TEST_F(LayerTransactionTest, SetPositionRounding) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetPositionOutOfBounds) {
+TEST_P(LayerTypeTransactionTest, SetPositionOutOfBounds) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     Transaction().setPosition(layer, -32, -32).apply();
     {
@@ -465,10 +592,10 @@ TEST_F(LayerTransactionTest, SetPositionOutOfBounds) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetPositionPartiallyOutOfBounds) {
+TEST_P(LayerTypeTransactionTest, SetPositionPartiallyOutOfBounds) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     // partially out of bounds
     Transaction().setPosition(layer, -30, -30).apply();
@@ -486,10 +613,10 @@ TEST_F(LayerTransactionTest, SetPositionPartiallyOutOfBounds) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetPositionWithResize) {
+void LayerTransactionTest::setPositionWithResizeHelper(uint32_t layerType) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32, layerType));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerType, layer, Color::RED, 32, 32));
 
     // setPosition is applied immediately by default, with or without resize
     // pending
@@ -497,21 +624,43 @@ TEST_F(LayerTransactionTest, SetPositionWithResize) {
     {
         SCOPED_TRACE("resize pending");
         auto shot = screenshot();
-        shot->expectColor(Rect(5, 10, 37, 42), Color::RED);
-        shot->expectBorder(Rect(5, 10, 37, 42), Color::BLACK);
+        Rect rect;
+        switch (layerType) {
+            case ISurfaceComposerClient::eFXSurfaceBufferQueue:
+                rect = {5, 10, 37, 42};
+                break;
+            case ISurfaceComposerClient::eFXSurfaceBufferState:
+                rect = {5, 10, 69, 74};
+                break;
+            default:
+                ASSERT_FALSE(true) << "Unsupported layer type";
+        }
+
+        shot->expectColor(rect, Color::RED);
+        shot->expectBorder(rect, Color::BLACK);
     }
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerType, layer, Color::RED, 64, 64));
     {
         SCOPED_TRACE("resize applied");
         screenshot()->expectColor(Rect(5, 10, 69, 74), Color::RED);
     }
 }
 
-TEST_F(LayerTransactionTest, SetPositionWithNextResize) {
+TEST_F(LayerTransactionTest, SetPositionWithResize_BufferQueue) {
+    ASSERT_NO_FATAL_FAILURE(
+            setPositionWithResizeHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue));
+}
+
+TEST_F(LayerTransactionTest, SetPositionWithResize_BufferState) {
+    ASSERT_NO_FATAL_FAILURE(
+            setPositionWithResizeHelper(ISurfaceComposerClient::eFXSurfaceBufferState));
+}
+
+TEST_F(LayerTransactionTest, SetPositionWithNextResize_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // request setPosition to be applied with the next resize
     Transaction().setPosition(layer, 5, 10).setGeometryAppliesWithResize(layer).apply();
@@ -533,17 +682,17 @@ TEST_F(LayerTransactionTest, SetPositionWithNextResize) {
     }
 
     // finally resize and latch the buffer
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
     {
         SCOPED_TRACE("new position applied");
         screenshot()->expectColor(Rect(15, 20, 79, 84), Color::RED);
     }
 }
 
-TEST_F(LayerTransactionTest, SetPositionWithNextResizeScaleToWindow) {
+TEST_F(LayerTransactionTest, SetPositionWithNextResizeScaleToWindow_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // setPosition is not immediate even with SCALE_TO_WINDOW override
     Transaction()
@@ -557,27 +706,38 @@ TEST_F(LayerTransactionTest, SetPositionWithNextResizeScaleToWindow) {
         screenshot()->expectColor(Rect(0, 0, 64, 64), Color::RED);
     }
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 64, 64));
     {
         SCOPED_TRACE("new position applied");
         screenshot()->expectColor(Rect(5, 10, 69, 74), Color::RED);
     }
 }
 
-TEST_F(LayerTransactionTest, SetSizeBasic) {
+void LayerTransactionTest::setSizeBasicHelper(uint32_t layerType) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32, layerType));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerType, layer, Color::RED, 32, 32));
 
     Transaction().setSize(layer, 64, 64).apply();
     {
         SCOPED_TRACE("resize pending");
         auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+        Rect rect;
+        switch (layerType) {
+            case ISurfaceComposerClient::eFXSurfaceBufferQueue:
+                rect = {0, 0, 32, 32};
+                break;
+            case ISurfaceComposerClient::eFXSurfaceBufferState:
+                rect = {0, 0, 64, 64};
+                break;
+            default:
+                ASSERT_FALSE(true) << "Unsupported layer type";
+        }
+        shot->expectColor(rect, Color::RED);
+        shot->expectBorder(rect, Color::BLACK);
     }
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerType, layer, Color::RED, 64, 64));
     {
         SCOPED_TRACE("resize applied");
         auto shot = screenshot();
@@ -586,14 +746,22 @@ TEST_F(LayerTransactionTest, SetSizeBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetSizeInvalid) {
+TEST_F(LayerTransactionTest, SetSizeBasic_BufferQueue) {
+    setSizeBasicHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue);
+}
+
+TEST_F(LayerTransactionTest, SetSizeBasic_BufferState) {
+    setSizeBasicHelper(ISurfaceComposerClient::eFXSurfaceBufferState);
+}
+
+TEST_P(LayerTypeTransactionTest, SetSizeInvalid) {
     // cannot test robustness against invalid sizes (zero or really huge)
 }
 
-TEST_F(LayerTransactionTest, SetSizeWithScaleToWindow) {
+TEST_P(LayerTypeTransactionTest, SetSizeWithScaleToWindow) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     // setSize is immediate with SCALE_TO_WINDOW, unlike setPosition
     Transaction()
@@ -603,13 +771,13 @@ TEST_F(LayerTransactionTest, SetSizeWithScaleToWindow) {
     screenshot()->expectColor(Rect(0, 0, 64, 64), Color::RED);
 }
 
-TEST_F(LayerTransactionTest, SetZBasic) {
+TEST_P(LayerTypeTransactionTest, SetZBasic) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
     Transaction().setLayer(layerR, mLayerZBase + 1).apply();
     {
@@ -624,13 +792,13 @@ TEST_F(LayerTransactionTest, SetZBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetZNegative) {
+TEST_P(LayerTypeTransactionTest, SetZNegative) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
     Transaction().setLayer(layerR, -1).setLayer(layerG, -2).apply();
     {
@@ -649,13 +817,13 @@ TEST_F(LayerTransactionTest, SetZNegative) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetRelativeZBasic) {
+TEST_P(LayerTypeTransactionTest, SetRelativeZBasic) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
     Transaction()
             .setPosition(layerG, 16, 16)
@@ -677,16 +845,16 @@ TEST_F(LayerTransactionTest, SetRelativeZBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetRelativeZNegative) {
+TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     sp<SurfaceControl> layerB;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerB = createLayer("test B", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE, 32, 32));
 
     // layerR = mLayerZBase, layerG = layerR - 1, layerB = -2
     Transaction().setRelativeLayer(layerG, layerR->getHandle(), -1).setLayer(layerB, -2).apply();
@@ -697,16 +865,16 @@ TEST_F(LayerTransactionTest, SetRelativeZNegative) {
     screenshot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
 }
 
-TEST_F(LayerTransactionTest, SetRelativeZGroup) {
+TEST_P(LayerTypeTransactionTest, SetRelativeZGroup) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     sp<SurfaceControl> layerB;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerB = createLayer("test B", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE, 32, 32));
 
     // layerR = 0, layerG = layerR + 3, layerB = 2
     Transaction()
@@ -764,14 +932,14 @@ TEST_F(LayerTransactionTest, SetRelativeZGroup) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetRelativeZBug64572777) {
+TEST_P(LayerTypeTransactionTest, SetRelativeZBug64572777) {
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
 
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
     Transaction()
             .setPosition(layerG, 16, 16)
@@ -783,10 +951,10 @@ TEST_F(LayerTransactionTest, SetRelativeZBug64572777) {
     screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
-TEST_F(LayerTransactionTest, SetFlagsHidden) {
+TEST_P(LayerTypeTransactionTest, SetFlagsHidden) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     Transaction().setFlags(layer, layer_state_t::eLayerHidden, layer_state_t::eLayerHidden).apply();
     {
@@ -801,14 +969,14 @@ TEST_F(LayerTransactionTest, SetFlagsHidden) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFlagsOpaque) {
+TEST_P(LayerTypeTransactionTest, SetFlagsOpaque) {
     const Color translucentRed = {100, 0, 0, 100};
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, translucentRed));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, translucentRed, 32, 32));
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
     Transaction()
             .setLayer(layerR, mLayerZBase + 1)
@@ -827,10 +995,10 @@ TEST_F(LayerTransactionTest, SetFlagsOpaque) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFlagsSecure) {
+TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     sp<ISurfaceComposer> composer = ComposerService::getComposerService();
     sp<GraphicBuffer> outBuffer;
@@ -847,19 +1015,19 @@ TEST_F(LayerTransactionTest, SetFlagsSecure) {
                                       false));
 }
 
-TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic) {
+TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic_BufferQueue) {
     const Rect top(0, 0, 32, 16);
     const Rect bottom(0, 16, 32, 32);
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
 
     ANativeWindow_Buffer buffer;
-    ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
-    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, top, Color::TRANSPARENT));
-    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, bottom, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
+    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, top, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, bottom, Color::RED));
     // setTransparentRegionHint always applies to the following buffer
     Transaction().setTransparentRegionHint(layer, Region(top)).apply();
-    ASSERT_NO_FATAL_FAILURE(postLayerBuffer(layer));
+    ASSERT_NO_FATAL_FAILURE(postBufferQueueLayerBuffer(layer));
     {
         SCOPED_TRACE("top transparent");
         auto shot = screenshot();
@@ -875,10 +1043,10 @@ TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic) {
         shot->expectColor(bottom, Color::RED);
     }
 
-    ASSERT_NO_FATAL_FAILURE(buffer = getLayerBuffer(layer));
-    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, top, Color::RED));
-    ASSERT_NO_FATAL_FAILURE(fillBufferColor(buffer, bottom, Color::TRANSPARENT));
-    ASSERT_NO_FATAL_FAILURE(postLayerBuffer(layer));
+    ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
+    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, top, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillANativeWindowBufferColor(buffer, bottom, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(postBufferQueueLayerBuffer(layer));
     {
         SCOPED_TRACE("bottom transparent");
         auto shot = screenshot();
@@ -887,7 +1055,58 @@ TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetTransparentRegionHintOutOfBounds) {
+TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic_BufferState) {
+    const Rect top(0, 0, 32, 16);
+    const Rect bottom(0, 16, 32, 32);
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, top, Color::TRANSPARENT));
+    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, bottom, Color::RED));
+    Transaction()
+            .setTransparentRegionHint(layer, Region(top))
+            .setBuffer(layer, buffer)
+            .setSize(layer, 32, 32)
+            .apply();
+    {
+        SCOPED_TRACE("top transparent");
+        auto shot = screenshot();
+        shot->expectColor(top, Color::BLACK);
+        shot->expectColor(bottom, Color::RED);
+    }
+
+    Transaction().setTransparentRegionHint(layer, Region(bottom)).apply();
+    {
+        SCOPED_TRACE("transparent region hint intermediate");
+        auto shot = screenshot();
+        shot->expectColor(top, Color::BLACK);
+        shot->expectColor(bottom, Color::BLACK);
+    }
+
+    buffer = new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                               BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                       BufferUsage::COMPOSER_OVERLAY,
+                               "test");
+
+    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, top, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillGraphicBufferColor(buffer, bottom, Color::TRANSPARENT));
+    Transaction().setBuffer(layer, buffer).setSize(layer, 32, 32).apply();
+    {
+        SCOPED_TRACE("bottom transparent");
+        auto shot = screenshot();
+        shot->expectColor(top, Color::RED);
+        shot->expectColor(bottom, Color::BLACK);
+    }
+}
+
+TEST_P(LayerTypeTransactionTest, SetTransparentRegionHintOutOfBounds) {
     sp<SurfaceControl> layerTransparent;
     sp<SurfaceControl> layerR;
     ASSERT_NO_FATAL_FAILURE(layerTransparent = createLayer("test transparent", 32, 32));
@@ -900,18 +1119,18 @@ TEST_F(LayerTransactionTest, SetTransparentRegionHintOutOfBounds) {
             .setPosition(layerR, 16, 16)
             .setLayer(layerR, mLayerZBase + 1)
             .apply();
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerTransparent, Color::TRANSPARENT));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerTransparent, Color::TRANSPARENT, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerR, Color::RED, 32, 32));
     screenshot()->expectColor(Rect(16, 16, 48, 48), Color::RED);
 }
 
-TEST_F(LayerTransactionTest, SetAlphaBasic) {
+TEST_P(LayerTypeTransactionTest, SetAlphaBasic) {
     sp<SurfaceControl> layer1;
     sp<SurfaceControl> layer2;
     ASSERT_NO_FATAL_FAILURE(layer1 = createLayer("test 1", 32, 32));
     ASSERT_NO_FATAL_FAILURE(layer2 = createLayer("test 2", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer1, {64, 0, 0, 255}));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer2, {0, 64, 0, 255}));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer1, {64, 0, 0, 255}, 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer2, {0, 64, 0, 255}, 32, 32));
 
     Transaction()
             .setAlpha(layer1, 0.25f)
@@ -931,11 +1150,11 @@ TEST_F(LayerTransactionTest, SetAlphaBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetAlphaClamped) {
+TEST_P(LayerTypeTransactionTest, SetAlphaClamped) {
     const Color color = {64, 0, 0, 255};
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, color));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, color, 32, 32));
 
     Transaction().setAlpha(layer, 2.0f).apply();
     {
@@ -954,7 +1173,7 @@ TEST_F(LayerTransactionTest, SetColorBasic) {
     sp<SurfaceControl> bufferLayer;
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(
             colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
 
@@ -989,7 +1208,7 @@ TEST_F(LayerTransactionTest, SetColorWithAlpha) {
     sp<SurfaceControl> bufferLayer;
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(
             colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
 
@@ -1014,7 +1233,7 @@ TEST_F(LayerTransactionTest, SetColorWithParentAlpha_Bug74220420) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
     ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parentWithAlpha", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
     ASSERT_NO_FATAL_FAILURE(colorLayer = createLayer(
             "childWithColor", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
 
@@ -1034,20 +1253,20 @@ TEST_F(LayerTransactionTest, SetColorWithParentAlpha_Bug74220420) {
                               tolerance);
 }
 
-TEST_F(LayerTransactionTest, SetColorWithBuffer) {
+TEST_P(LayerTypeTransactionTest, SetColorWithBuffer) {
     sp<SurfaceControl> bufferLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(bufferLayer, Color::RED, 32, 32));
 
     // color is ignored
     Transaction().setColor(bufferLayer, half3(0.0f, 1.0f, 0.0f)).apply();
     screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
-TEST_F(LayerTransactionTest, SetLayerStackBasic) {
+TEST_P(LayerTypeTransactionTest, SetLayerStackBasic) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     Transaction().setLayerStack(layer, mDisplayLayerStack + 1).apply();
     {
@@ -1062,11 +1281,11 @@ TEST_F(LayerTransactionTest, SetLayerStackBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetMatrixBasic) {
+TEST_P(LayerTypeTransactionTest, SetMatrixBasic) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(
-            fillLayerQuadrant(layer, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
+            fillLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
 
     Transaction().setMatrix(layer, 1.0f, 0.0f, 0.0f, 1.0f).setPosition(layer, 0, 0).apply();
     {
@@ -1104,11 +1323,11 @@ TEST_F(LayerTransactionTest, SetMatrixBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetMatrixRot45) {
+TEST_P(LayerTypeTransactionTest, SetMatrixRot45) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(
-            fillLayerQuadrant(layer, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
+            fillLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
 
     const float rot = M_SQRT1_2; // 45 degrees
     const float trans = M_SQRT2 * 16.0f;
@@ -1127,31 +1346,52 @@ TEST_F(LayerTransactionTest, SetMatrixRot45) {
     shot->expectColor(get8x8Rect(2 * unit, 3 * unit), Color::WHITE);
 }
 
-TEST_F(LayerTransactionTest, SetMatrixWithResize) {
+void LayerTransactionTest::setMatrixWithResizeHelper(uint32_t layerType) {
     sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32, layerType));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerType, layer, Color::RED, 32, 32));
 
     // setMatrix is applied after any pending resize, unlike setPosition
     Transaction().setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f).setSize(layer, 64, 64).apply();
     {
         SCOPED_TRACE("resize pending");
         auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+        Rect rect;
+        switch (layerType) {
+            case ISurfaceComposerClient::eFXSurfaceBufferQueue:
+                rect = {0, 0, 32, 32};
+                break;
+            case ISurfaceComposerClient::eFXSurfaceBufferState:
+                rect = {0, 0, 128, 128};
+                break;
+            default:
+                ASSERT_FALSE(true) << "Unsupported layer type";
+        }
+        shot->expectColor(rect, Color::RED);
+        shot->expectBorder(rect, Color::BLACK);
     }
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerType, layer, Color::RED, 64, 64));
     {
         SCOPED_TRACE("resize applied");
         screenshot()->expectColor(Rect(0, 0, 128, 128), Color::RED);
     }
 }
 
-TEST_F(LayerTransactionTest, SetMatrixWithScaleToWindow) {
+TEST_F(LayerTransactionTest, SetMatrixWithResize_BufferQueue) {
+    ASSERT_NO_FATAL_FAILURE(
+            setMatrixWithResizeHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue));
+}
+
+TEST_F(LayerTransactionTest, SetMatrixWithResize_BufferState) {
+    ASSERT_NO_FATAL_FAILURE(
+            setMatrixWithResizeHelper(ISurfaceComposerClient::eFXSurfaceBufferState));
+}
+
+TEST_P(LayerTypeTransactionTest, SetMatrixWithScaleToWindow) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, 32, 32));
 
     // setMatrix is immediate with SCALE_TO_WINDOW, unlike setPosition
     Transaction()
@@ -1162,11 +1402,11 @@ TEST_F(LayerTransactionTest, SetMatrixWithScaleToWindow) {
     screenshot()->expectColor(Rect(0, 0, 128, 128), Color::RED);
 }
 
-TEST_F(LayerTransactionTest, SetOverrideScalingModeBasic) {
+TEST_P(LayerTypeTransactionTest, SetOverrideScalingModeBasic) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(
-            fillLayerQuadrant(layer, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
+            fillLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN, Color::BLUE, Color::WHITE));
 
     // XXX SCALE_CROP is not respected; calling setSize and
     // setOverrideScalingMode in separate transactions does not work
@@ -1182,10 +1422,10 @@ TEST_F(LayerTransactionTest, SetOverrideScalingModeBasic) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetCropBasic) {
+TEST_F(LayerTransactionTest, SetCropBasic_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
     const Rect crop(8, 8, 24, 24);
 
     Transaction().setCrop_legacy(layer, crop).apply();
@@ -1194,10 +1434,23 @@ TEST_F(LayerTransactionTest, SetCropBasic) {
     shot->expectBorder(crop, Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetCropEmpty) {
+TEST_F(LayerTransactionTest, SetCropBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+    const Rect crop(8, 8, 24, 24);
+
+    Transaction().setCrop(layer, crop).apply();
+    auto shot = screenshot();
+    shot->expectColor(crop, Color::RED);
+    shot->expectBorder(crop, Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetCropEmpty_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     {
         SCOPED_TRACE("empty rect");
@@ -1212,10 +1465,29 @@ TEST_F(LayerTransactionTest, SetCropEmpty) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetCropOutOfBounds) {
+TEST_F(LayerTransactionTest, SetCropEmpty_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    {
+        SCOPED_TRACE("empty rect");
+        Transaction().setCrop(layer, Rect(8, 8, 8, 8)).apply();
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    {
+        SCOPED_TRACE("negative rect");
+        Transaction().setCrop(layer, Rect(8, 8, 0, 0)).apply();
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetCropOutOfBounds_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     Transaction().setCrop_legacy(layer, Rect(-128, -64, 128, 64)).apply();
     auto shot = screenshot();
@@ -1223,10 +1495,22 @@ TEST_F(LayerTransactionTest, SetCropOutOfBounds) {
     shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetCropWithTranslation) {
+TEST_F(LayerTransactionTest, SetCropOutOfBounds_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction().setCrop(layer, Rect(-128, -64, 128, 64)).apply();
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetCropWithTranslation_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     const Point position(32, 32);
     const Rect crop(8, 8, 24, 24);
@@ -1236,10 +1520,24 @@ TEST_F(LayerTransactionTest, SetCropWithTranslation) {
     shot->expectBorder(crop + position, Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetCropWithScale) {
+TEST_F(LayerTransactionTest, SetCropWithTranslation_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    const Point position(32, 32);
+    const Rect crop(8, 8, 24, 24);
+    Transaction().setPosition(layer, position.x, position.y).setCrop(layer, crop).apply();
+    auto shot = screenshot();
+    shot->expectColor(crop + position, Color::RED);
+    shot->expectBorder(crop + position, Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetCropWithScale_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // crop is affected by matrix
     Transaction()
@@ -1251,10 +1549,26 @@ TEST_F(LayerTransactionTest, SetCropWithScale) {
     shot->expectBorder(Rect(16, 16, 48, 48), Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetCropWithResize) {
+TEST_F(LayerTransactionTest, SetCropWithScale_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    // crop is affected by matrix
+    Transaction()
+            .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
+            .setCrop(layer, Rect(8, 8, 24, 24))
+            .apply();
+    auto shot = screenshot();
+    shot->expectColor(Rect(16, 16, 48, 48), Color::RED);
+    shot->expectBorder(Rect(16, 16, 48, 48), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetCropWithResize_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // setCrop_legacy is applied immediately by default, with or without resize pending
     Transaction().setCrop_legacy(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
@@ -1265,7 +1579,7 @@ TEST_F(LayerTransactionTest, SetCropWithResize) {
         shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
     }
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
     {
         SCOPED_TRACE("resize applied");
         auto shot = screenshot();
@@ -1274,10 +1588,34 @@ TEST_F(LayerTransactionTest, SetCropWithResize) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetCropWithNextResize) {
+TEST_F(LayerTransactionTest, SetCropWithResize_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    // setCrop_legacy is applied immediately by default, with or without resize pending
+    Transaction().setCrop(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
+    {
+        SCOPED_TRACE("new buffer pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(8, 8, 16, 16), Color::RED);
+        shot->expectBorder(Rect(8, 8, 16, 16), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 16, 16));
+    {
+        SCOPED_TRACE("new buffer");
+        auto shot = screenshot();
+        shot->expectColor(Rect(8, 8, 16, 16), Color::RED);
+        shot->expectBorder(Rect(8, 8, 16, 16), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetCropWithNextResize_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // request setCrop_legacy to be applied with the next resize
     Transaction()
@@ -1302,7 +1640,7 @@ TEST_F(LayerTransactionTest, SetCropWithNextResize) {
     }
 
     // finally resize
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
     {
         SCOPED_TRACE("new crop applied");
         auto shot = screenshot();
@@ -1311,10 +1649,45 @@ TEST_F(LayerTransactionTest, SetCropWithNextResize) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow) {
+TEST_F(LayerTransactionTest, SetCropWithNextResize_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    // request setCrop_legacy to be applied with the next resize
+    Transaction().setCrop(layer, Rect(8, 8, 24, 24)).setGeometryAppliesWithResize(layer).apply();
+    {
+        SCOPED_TRACE("set crop 1");
+        screenshot()->expectColor(Rect(8, 8, 24, 24), Color::RED);
+    }
+
+    Transaction().setCrop(layer, Rect(4, 4, 12, 12)).apply();
+    {
+        SCOPED_TRACE("set crop 2");
+        screenshot()->expectColor(Rect(4, 4, 12, 12), Color::RED);
+    }
+
+    Transaction().setSize(layer, 16, 16).apply();
+    {
+        SCOPED_TRACE("resize");
+        screenshot()->expectColor(Rect(4, 4, 12, 12), Color::RED);
+    }
+
+    // finally resize
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 16, 16));
+    {
+        SCOPED_TRACE("new buffer");
+        auto shot = screenshot();
+        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
+        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // setCrop_legacy is not immediate even with SCALE_TO_WINDOW override
     Transaction()
@@ -1332,7 +1705,7 @@ TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow) {
 
     // XXX crop is never latched without other geometry change (b/69315677)
     Transaction().setPosition(layer, 1, 0).setGeometryAppliesWithResize(layer).apply();
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
     Transaction().setPosition(layer, 0, 0).apply();
     {
         SCOPED_TRACE("new crop applied");
@@ -1342,10 +1715,41 @@ TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropBasic) {
+TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    // all properties are applied immediate so setGeometryAppliesWithResize has no effect
+    Transaction()
+            .setCrop(layer, Rect(4, 4, 12, 12))
+            .setSize(layer, 16, 16)
+            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
+            .setGeometryAppliesWithResize(layer)
+            .apply();
+    {
+        SCOPED_TRACE("new crop pending");
+        auto shot = screenshot();
+        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
+        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
+    }
+
+    Transaction().setPosition(layer, 1, 0).setGeometryAppliesWithResize(layer).apply();
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 16, 16));
+    Transaction().setPosition(layer, 0, 0).apply();
+    {
+        SCOPED_TRACE("new crop applied");
+        auto shot = screenshot();
+        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
+        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetFinalCropBasic_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
     const Rect crop(8, 8, 24, 24);
 
     // same as in SetCropBasic
@@ -1355,10 +1759,10 @@ TEST_F(LayerTransactionTest, SetFinalCropBasic) {
     shot->expectBorder(crop, Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropEmpty) {
+TEST_F(LayerTransactionTest, SetFinalCropEmpty_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // same as in SetCropEmpty
     {
@@ -1374,10 +1778,10 @@ TEST_F(LayerTransactionTest, SetFinalCropEmpty) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropOutOfBounds) {
+TEST_F(LayerTransactionTest, SetFinalCropOutOfBounds_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // same as in SetCropOutOfBounds
     Transaction().setFinalCrop_legacy(layer, Rect(-128, -64, 128, 64)).apply();
@@ -1386,10 +1790,10 @@ TEST_F(LayerTransactionTest, SetFinalCropOutOfBounds) {
     shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropWithTranslation) {
+TEST_F(LayerTransactionTest, SetFinalCropWithTranslation_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // final crop is applied post-translation
     Transaction().setPosition(layer, 16, 16).setFinalCrop_legacy(layer, Rect(8, 8, 24, 24)).apply();
@@ -1398,10 +1802,10 @@ TEST_F(LayerTransactionTest, SetFinalCropWithTranslation) {
     shot->expectBorder(Rect(16, 16, 24, 24), Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropWithScale) {
+TEST_F(LayerTransactionTest, SetFinalCropWithScale_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // final crop is not affected by matrix
     Transaction()
@@ -1413,10 +1817,10 @@ TEST_F(LayerTransactionTest, SetFinalCropWithScale) {
     shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropWithResize) {
+TEST_F(LayerTransactionTest, SetFinalCropWithResize_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // same as in SetCropWithResize
     Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
@@ -1427,7 +1831,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithResize) {
         shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
     }
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
     {
         SCOPED_TRACE("resize applied");
         auto shot = screenshot();
@@ -1436,10 +1840,10 @@ TEST_F(LayerTransactionTest, SetFinalCropWithResize) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropWithNextResize) {
+TEST_F(LayerTransactionTest, SetFinalCropWithNextResize_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // same as in SetCropWithNextResize
     Transaction()
@@ -1464,7 +1868,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResize) {
     }
 
     // finally resize
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
     {
         SCOPED_TRACE("new final crop applied");
         auto shot = screenshot();
@@ -1473,10 +1877,10 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResize) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow) {
+TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
 
     // same as in SetCropWithNextResizeScaleToWindow
     Transaction()
@@ -1494,7 +1898,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow) {
 
     // XXX final crop is never latched without other geometry change (b/69315677)
     Transaction().setPosition(layer, 1, 0).setGeometryAppliesWithResize(layer).apply();
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
     Transaction().setPosition(layer, 0, 0).apply();
     {
         SCOPED_TRACE("new final crop applied");
@@ -1502,6 +1906,282 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow) {
         shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
         shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
     }
+}
+
+TEST_F(LayerTransactionTest, SetBufferBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetBufferMultipleBuffers_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    {
+        SCOPED_TRACE("set buffer 1");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::BLUE, 32, 32));
+
+    {
+        SCOPED_TRACE("set buffer 2");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    {
+        SCOPED_TRACE("set buffer 3");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetBufferMultipleLayers_BufferState) {
+    sp<SurfaceControl> layer1;
+    ASSERT_NO_FATAL_FAILURE(
+            layer1 = createLayer("test", 64, 64, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<SurfaceControl> layer2;
+    ASSERT_NO_FATAL_FAILURE(
+            layer2 = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer1, Color::RED, 64, 64));
+
+    {
+        SCOPED_TRACE("set layer 1 buffer red");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 64, 64), Color::RED);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer2, Color::BLUE, 32, 32));
+
+    {
+        SCOPED_TRACE("set layer 2 buffer blue");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+        shot->expectColor(Rect(0, 32, 64, 64), Color::RED);
+        shot->expectColor(Rect(0, 32, 32, 64), Color::RED);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer1, Color::GREEN, 64, 64));
+    {
+        SCOPED_TRACE("set layer 1 buffer green");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+        shot->expectColor(Rect(0, 32, 64, 64), Color::GREEN);
+        shot->expectColor(Rect(0, 32, 32, 64), Color::GREEN);
+    }
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer2, Color::WHITE, 32, 32));
+
+    {
+        SCOPED_TRACE("set layer 2 buffer white");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::WHITE);
+        shot->expectColor(Rect(0, 32, 64, 64), Color::GREEN);
+        shot->expectColor(Rect(0, 32, 32, 64), Color::GREEN);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetTransformRotate90_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN,
+                                                         Color::BLUE, Color::WHITE));
+
+    Transaction().setTransform(layer, NATIVE_WINDOW_TRANSFORM_ROT_90).apply();
+
+    screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::BLUE, Color::RED, Color::WHITE,
+                                 Color::GREEN, true /* filtered */);
+}
+
+TEST_F(LayerTransactionTest, SetTransformFlipH_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN,
+                                                         Color::BLUE, Color::WHITE));
+
+    Transaction().setTransform(layer, NATIVE_WINDOW_TRANSFORM_FLIP_H).apply();
+
+    screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::GREEN, Color::RED, Color::WHITE,
+                                 Color::BLUE, true /* filtered */);
+}
+
+TEST_F(LayerTransactionTest, SetTransformFlipV_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerQuadrant(layer, 32, 32, Color::RED, Color::GREEN,
+                                                         Color::BLUE, Color::WHITE));
+
+    Transaction().setTransform(layer, NATIVE_WINDOW_TRANSFORM_FLIP_V).apply();
+
+    screenshot()->expectQuadrant(Rect(0, 0, 32, 32), Color::BLUE, Color::WHITE, Color::RED,
+                                 Color::GREEN, true /* filtered */);
+}
+
+TEST_F(LayerTransactionTest, SetTransformToDisplayInverse_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    Transaction().setTransformToDisplayInverse(layer, false).apply();
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::GREEN, 32, 32));
+
+    Transaction().setTransformToDisplayInverse(layer, true).apply();
+}
+
+TEST_F(LayerTransactionTest, SetFenceBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    sp<Fence> fence = new Fence(-1);
+
+    Transaction()
+            .setBuffer(layer, buffer)
+            .setAcquireFence(layer, fence)
+            .setSize(layer, 32, 32)
+            .apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetDataspaceBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    Transaction()
+            .setBuffer(layer, buffer)
+            .setDataspace(layer, ui::Dataspace::UNKNOWN)
+            .setSize(layer, 32, 32)
+            .apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetHdrMetadataBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    HdrMetadata hdrMetadata;
+    hdrMetadata.validTypes = 0;
+    Transaction()
+            .setBuffer(layer, buffer)
+            .setHdrMetadata(layer, hdrMetadata)
+            .setSize(layer, 32, 32)
+            .apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetSurfaceDamageRegionBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    Region region;
+    region.set(32, 32);
+    Transaction()
+            .setBuffer(layer, buffer)
+            .setSurfaceDamageRegion(layer, region)
+            .setSize(layer, 32, 32)
+            .apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetApiBasic_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    Transaction()
+            .setBuffer(layer, buffer)
+            .setApi(layer, NATIVE_WINDOW_API_CPU)
+            .setSize(layer, 32, 32)
+            .apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    // verify this doesn't cause a crash
+    Transaction().setSidebandStream(layer, nullptr).apply();
 }
 
 class LayerUpdateTest : public LayerTransactionTest {
@@ -2569,8 +3249,8 @@ TEST_F(ScreenCaptureTest, CaptureCrop) {
             mComposerClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
                                            0, redLayer.get());
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(redLayer, Color::RED));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(blueLayer, Color::BLUE));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(blueLayer, Color::BLUE, 30, 30));
 
     SurfaceComposerClient::Transaction()
             .setLayer(redLayer, INT32_MAX - 1)
@@ -2603,8 +3283,8 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
             mComposerClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
                                            0, redLayer.get());
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(redLayer, Color::RED));
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(blueLayer, Color::BLUE));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(blueLayer, Color::BLUE, 30, 30));
 
     SurfaceComposerClient::Transaction()
             .setLayer(redLayer, INT32_MAX - 1)
@@ -2636,7 +3316,7 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
                                                                  PIXEL_FORMAT_RGBA_8888, 0);
 
-    ASSERT_NO_FATAL_FAILURE(fillLayerColor(redLayer, Color::RED));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
 
     auto redLayerHandle = redLayer->getHandle();
     mComposerClient->destroySurface(redLayerHandle);
@@ -2655,9 +3335,9 @@ protected:
     void SetUp() override {
         LayerTransactionTest::SetUp();
         bgLayer = createLayer("BG layer", 20, 20);
-        fillLayerColor(bgLayer, Color::RED);
+        fillBufferQueueLayerColor(bgLayer, Color::RED, 20, 20);
         fgLayer = createLayer("FG layer", 20, 20);
-        fillLayerColor(fgLayer, Color::BLUE);
+        fillBufferQueueLayerColor(fgLayer, Color::BLUE, 20, 20);
         Transaction().setLayer(fgLayer, mLayerZBase + 1).apply();
         {
             SCOPED_TRACE("before anything");

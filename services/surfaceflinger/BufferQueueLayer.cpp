@@ -152,7 +152,7 @@ std::shared_ptr<FenceTime> BufferQueueLayer::getCurrentFenceTime() const {
     return mConsumer->getCurrentFenceTime();
 }
 
-void BufferQueueLayer::getDrawingTransformMatrix(float matrix[16]) const {
+void BufferQueueLayer::getDrawingTransformMatrix(float *matrix) {
     return mConsumer->getTransformMatrix(matrix);
 }
 
@@ -228,7 +228,7 @@ bool BufferQueueLayer::hasDrawingBuffer() const {
     return mQueuedFrames > 0;
 }
 
-void BufferQueueLayer::setFilteringEnabled(bool enabled) const {
+void BufferQueueLayer::setFilteringEnabled(bool enabled) {
     return mConsumer->setFilteringEnabled(enabled);
 }
 

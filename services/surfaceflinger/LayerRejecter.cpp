@@ -101,7 +101,8 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 
         ALOGD_IF(DEBUG_RESIZE,
                  "[%s] latchBuffer/reject: buffer (%ux%u, tr=%02x), scalingMode=%d\n"
-                 "  drawing={ active   ={ wh={%4u,%4u} crop={%4d,%4d,%4d,%4d} (%4d,%4d) "
+                 "  drawing={ active_legacy   ={ wh={%4u,%4u} crop_legacy={%4d,%4d,%4d,%4d} "
+                 "(%4d,%4d) "
                  "}\n"
                  "            requested_legacy={ wh={%4u,%4u} }}\n",
                  mName, bufWidth, bufHeight, item.mTransform, item.mScalingMode,

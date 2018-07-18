@@ -78,8 +78,8 @@ public:
 
     // onDraw - draws the surface.
     void onDraw(const RenderArea& renderArea, const Region& clip,
-                bool useIdentityTransform) const override;
-    void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const;
+                bool useIdentityTransform) override;
+    void drawNow(const RenderArea& renderArea, bool useIdentityTransform);
 
     bool isHdrY410() const override;
 
@@ -102,7 +102,6 @@ public:
 
     bool hasReadyFrame() const override;
 
-private:
     // Returns the current scaling mode, unless mOverrideScalingMode
     // is set, in which case, it returns mOverrideScalingMode
     uint32_t getEffectiveScalingMode() const override;
@@ -117,7 +116,7 @@ private:
     virtual nsecs_t getDesiredPresentTime() = 0;
     virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
 
-    virtual void getDrawingTransformMatrix(float matrix[16]) const = 0;
+    virtual void getDrawingTransformMatrix(float *matrix) = 0;
     virtual uint32_t getDrawingTransform() const = 0;
     virtual ui::Dataspace getDrawingDataSpace() const = 0;
     virtual Rect getDrawingCrop() const = 0;
@@ -136,7 +135,7 @@ private:
 
     virtual bool hasDrawingBuffer() const = 0;
 
-    virtual void setFilteringEnabled(bool enabled) const = 0;
+    virtual void setFilteringEnabled(bool enabled) = 0;
 
     virtual status_t bindTextureImage() const = 0;
     virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
