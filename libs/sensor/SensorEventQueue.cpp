@@ -37,7 +37,7 @@ namespace android {
 // ----------------------------------------------------------------------------
 
 SensorEventQueue::SensorEventQueue(const sp<ISensorEventConnection>& connection)
-    : mSensorEventConnection(connection), mRecBuffer(NULL), mAvailable(0), mConsumed(0),
+    : mSensorEventConnection(connection), mRecBuffer(nullptr), mAvailable(0), mConsumed(0),
       mNumAcksToSend(0) {
     mRecBuffer = new ASensorEvent[MAX_RECEIVE_BUFFER_EVENT_COUNT];
 }
@@ -82,9 +82,9 @@ ssize_t SensorEventQueue::read(ASensorEvent* events, size_t numEvents) {
 sp<Looper> SensorEventQueue::getLooper() const
 {
     Mutex::Autolock _l(mLock);
-    if (mLooper == 0) {
+    if (mLooper == nullptr) {
         mLooper = new Looper(true);
-        mLooper->addFd(getFd(), getFd(), ALOOPER_EVENT_INPUT, NULL, NULL);
+        mLooper->addFd(getFd(), getFd(), ALOOPER_EVENT_INPUT, nullptr, nullptr);
     }
     return mLooper;
 }
@@ -97,7 +97,7 @@ status_t SensorEventQueue::waitForEvent() const
     int events;
     int32_t result;
     do {
-        result = looper->pollOnce(-1, NULL, &events, NULL);
+        result = looper->pollOnce(-1, nullptr, &events, nullptr);
         if (result == ALOOPER_POLL_ERROR) {
             ALOGE("SensorEventQueue::waitForEvent error (errno=%d)", errno);
             result = -EPIPE; // unknown error, so we make up one
