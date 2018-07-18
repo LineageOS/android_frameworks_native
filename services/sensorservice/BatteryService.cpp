@@ -94,7 +94,7 @@ void BatteryService::cleanupImpl(uid_t uid) {
 bool BatteryService::checkService() {
     if (mBatteryStatService == nullptr) {
         const sp<IServiceManager> sm(defaultServiceManager());
-        if (sm != NULL) {
+        if (sm != nullptr) {
             const String16 name("batterystats");
             mBatteryStatService = interface_cast<IBatteryStats>(sm->getService(name));
         }

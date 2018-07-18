@@ -53,7 +53,7 @@ public:
                           bool hasSensorAccess);
 
     status_t sendEvents(sensors_event_t const* buffer, size_t count, sensors_event_t* scratch,
-                        wp<const SensorEventConnection> const * mapFlushEventsToConnections = NULL);
+                        wp<const SensorEventConnection> const * mapFlushEventsToConnections = nullptr);
     bool hasSensor(int32_t handle) const;
     bool hasAnySensor() const;
     bool hasOneShotSensors() const;

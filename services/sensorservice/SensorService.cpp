@@ -250,7 +250,7 @@ void SensorService::onFirstRef() {
             // it to maxSystemSocketBufferSize if necessary.
             FILE *fp = fopen("/proc/sys/net/core/wmem_max", "r");
             char line[128];
-            if (fp != NULL && fgets(line, sizeof(line), fp) != NULL) {
+            if (fp != nullptr && fgets(line, sizeof(line), fp) != nullptr) {
                 line[sizeof(line) - 1] = '\0';
                 size_t maxSystemSocketBufferSize;
                 sscanf(line, "%zu", &maxSystemSocketBufferSize);
@@ -295,7 +295,7 @@ void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
     {
         Mutex::Autolock _l(mLock);
         for (size_t i = 0 ; i < activeConnections.size(); i++) {
-            if (activeConnections[i] != 0 && activeConnections[i]->getUid() == uid) {
+            if (activeConnections[i] != nullptr && activeConnections[i]->getUid() == uid) {
                 activeConnections[i]->setSensorAccess(hasAccess);
             }
         }
@@ -475,7 +475,7 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
             result.appendFormat("%zd active connections\n", mActiveConnections.size());
             for (size_t i=0 ; i < mActiveConnections.size() ; i++) {
                 sp<SensorEventConnection> connection(mActiveConnections[i].promote());
-                if (connection != 0) {
+                if (connection != nullptr) {
                     result.appendFormat("Connection Number: %zu \n", i);
                     connection->dump(result);
                 }
@@ -722,11 +722,11 @@ bool SensorService::threadLoop() {
             // on the hardware sensor. mapFlushEventsToConnections[i] will be the
             // SensorEventConnection mapped to the corresponding flush_complete_event in
             // mSensorEventBuffer[i] if such a mapping exists (NULL otherwise).
-            mMapFlushEventsToConnections[i] = NULL;
+            mMapFlushEventsToConnections[i] = nullptr;
             if (mSensorEventBuffer[i].type == SENSOR_TYPE_META_DATA) {
                 const int sensor_handle = mSensorEventBuffer[i].meta_data.sensor;
                 SensorRecord* rec = mActiveSensors.valueFor(sensor_handle);
-                if (rec != NULL) {
+                if (rec != nullptr) {
                     mMapFlushEventsToConnections[i] = rec->getFirstPendingFlushConnection();
                     rec->removeFirstPendingFlushConnection();
                 }
@@ -770,7 +770,7 @@ bool SensorService::threadLoop() {
 
                     size_t numConnections = activeConnections.size();
                     for (size_t i=0 ; i < numConnections; ++i) {
-                        if (activeConnections[i] != NULL) {
+                        if (activeConnections[i] != nullptr) {
                             activeConnections[i]->removeSensor(handle);
                         }
                     }
@@ -783,7 +783,7 @@ bool SensorService::threadLoop() {
         bool needsWakeLock = false;
         size_t numConnections = activeConnections.size();
         for (size_t i=0 ; i < numConnections; ++i) {
-            if (activeConnections[i] != 0) {
+            if (activeConnections[i] != nullptr) {
                 activeConnections[i]->sendEvents(mSensorEventBuffer, count, mSensorEventScratch,
                         mMapFlushEventsToConnections);
                 needsWakeLock |= activeConnections[i]->needsWakeLock();
@@ -816,7 +816,7 @@ void SensorService::resetAllWakeLockRefCounts() {
     {
         Mutex::Autolock _l(mLock);
         for (size_t i=0 ; i < activeConnections.size(); ++i) {
-            if (activeConnections[i] != 0) {
+            if (activeConnections[i] != nullptr) {
                 activeConnections[i]->resetWakeLockRefCount();
             }
         }
@@ -1021,15 +1021,15 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
         int requestedMode, const String16& opPackageName) {
     // Only 2 modes supported for a SensorEventConnection ... NORMAL and DATA_INJECTION.
     if (requestedMode != NORMAL && requestedMode != DATA_INJECTION) {
-        return NULL;
+        return nullptr;
     }
 
     Mutex::Autolock _l(mLock);
     // To create a client in DATA_INJECTION mode to inject data, SensorService should already be
     // operating in DI mode.
     if (requestedMode == DATA_INJECTION) {
-        if (mCurrentOperatingMode != DATA_INJECTION) return NULL;
-        if (!isWhiteListedPackage(packageName)) return NULL;
+        if (mCurrentOperatingMode != DATA_INJECTION) return nullptr;
+        if (!isWhiteListedPackage(packageName)) return nullptr;
     }
 
     uid_t uid = IPCThreadState::self()->getCallingUid();
@@ -1325,7 +1325,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
     }
 
     SensorRecord* rec = mActiveSensors.valueFor(handle);
-    if (rec == 0) {
+    if (rec == nullptr) {
         rec = new SensorRecord(connection);
         mActiveSensors.add(handle, rec);
         if (sensor->isVirtual()) {
@@ -1352,7 +1352,7 @@ status_t SensorService::enable(const sp<SensorEventConnection>& connection,
                             if (isWakeUpSensorEvent(event) && !mWakeLockAcquired) {
                                 setWakeLockAcquiredLocked(true);
                             }
-                            connection->sendEvents(&event, 1, NULL);
+                            connection->sendEvents(&event, 1, nullptr);
                             if (!connection->needsWakeLock() && mWakeLockAcquired) {
                                 checkWakeLockStateLocked();
                             }
@@ -1534,7 +1534,7 @@ status_t SensorService::flushSensor(const sp<SensorEventConnection>& connection,
             status_t err_flush = sensor->flush(connection.get(), handle);
             if (err_flush == NO_ERROR) {
                 SensorRecord* rec = mActiveSensors.valueFor(handle);
-                if (rec != NULL) rec->addPendingFlushConnection(connection);
+                if (rec != nullptr) rec->addPendingFlushConnection(connection);
             }
             err = (err_flush != NO_ERROR) ? err_flush : err;
         }
@@ -1592,7 +1592,7 @@ void SensorService::checkWakeLockStateLocked() {
     bool releaseLock = true;
     for (size_t i=0 ; i<mActiveConnections.size() ; i++) {
         sp<SensorEventConnection> connection(mActiveConnections[i].promote());
-        if (connection != 0) {
+        if (connection != nullptr) {
             if (connection->needsWakeLock()) {
                 releaseLock = false;
                 break;
@@ -1617,7 +1617,7 @@ void SensorService::populateActiveConnections(
     Mutex::Autolock _l(mLock);
     for (size_t i=0 ; i < mActiveConnections.size(); ++i) {
         sp<SensorEventConnection> connection(mActiveConnections[i].promote());
-        if (connection != 0) {
+        if (connection != nullptr) {
             activeConnections->add(connection);
         }
     }

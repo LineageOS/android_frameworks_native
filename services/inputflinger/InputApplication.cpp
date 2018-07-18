@@ -25,7 +25,7 @@ namespace android {
 // --- InputApplicationHandle ---
 
 InputApplicationHandle::InputApplicationHandle() :
-    mInfo(NULL) {
+    mInfo(nullptr) {
 }
 
 InputApplicationHandle::~InputApplicationHandle() {
@@ -35,7 +35,7 @@ InputApplicationHandle::~InputApplicationHandle() {
 void InputApplicationHandle::releaseInfo() {
     if (mInfo) {
         delete mInfo;
-        mInfo = NULL;
+        mInfo = nullptr;
     }
 }
 

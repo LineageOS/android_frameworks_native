@@ -345,7 +345,7 @@ public:
             *outScalingMode = scalingMode;
             *outTransform = transform;
             *outFence = fence;
-            if (outStickyTransform != NULL) {
+            if (outStickyTransform != nullptr) {
                 *outStickyTransform = stickyTransform;
             }
             if (outGetFrameTimestamps) {

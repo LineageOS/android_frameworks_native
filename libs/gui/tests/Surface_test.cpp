@@ -72,7 +72,7 @@ protected:
         mSurfaceControl = mComposerClient->createSurface(
                 String8("Test Surface"), 32, 32, PIXEL_FORMAT_RGBA_8888, 0);
 
-        ASSERT_TRUE(mSurfaceControl != NULL);
+        ASSERT_TRUE(mSurfaceControl != nullptr);
         ASSERT_TRUE(mSurfaceControl->isValid());
 
         Transaction t;
@@ -81,7 +81,7 @@ protected:
                 .apply());
 
         mSurface = mSurfaceControl->getSurface();
-        ASSERT_TRUE(mSurface != NULL);
+        ASSERT_TRUE(mSurface != nullptr);
     }
 
     virtual void TearDown() {
@@ -145,7 +145,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     ASSERT_EQ(NO_ERROR, native_window_set_usage(anw.get(),
             GRALLOC_USAGE_PROTECTED));
     ASSERT_EQ(NO_ERROR, native_window_set_buffer_count(anw.get(), 3));
-    ANativeWindowBuffer* buf = 0;
+    ANativeWindowBuffer* buf = nullptr;
 
     status_t err = native_window_dequeue_buffer_and_wait(anw.get(), &buf);
     if (err) {

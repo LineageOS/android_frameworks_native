@@ -236,7 +236,7 @@ private:
     }
 
     virtual sp<KeyCharacterMap> getKeyboardLayoutOverlay(const InputDeviceIdentifier&) {
-        return NULL;
+        return nullptr;
     }
 
     virtual String8 getDeviceAlias(const InputDeviceIdentifier&) {
@@ -263,7 +263,7 @@ public:
     }
 
     void assertNotifyConfigurationChangedWasCalled(
-            NotifyConfigurationChangedArgs* outEventArgs = NULL) {
+            NotifyConfigurationChangedArgs* outEventArgs = nullptr) {
         ASSERT_FALSE(mNotifyConfigurationChangedArgsQueue.empty())
                 << "Expected notifyConfigurationChanged() to have been called.";
         if (outEventArgs) {
@@ -278,7 +278,7 @@ public:
     }
 
     void assertNotifyDeviceResetWasCalled(
-            NotifyDeviceResetArgs* outEventArgs = NULL) {
+            NotifyDeviceResetArgs* outEventArgs = nullptr) {
         ASSERT_FALSE(mNotifyDeviceResetArgsQueue.empty())
                 << "Expected notifyDeviceReset() to have been called.";
         if (outEventArgs) {
@@ -292,7 +292,7 @@ public:
                 << "Expected notifyDeviceReset() to not have been called.";
     }
 
-    void assertNotifyKeyWasCalled(NotifyKeyArgs* outEventArgs = NULL) {
+    void assertNotifyKeyWasCalled(NotifyKeyArgs* outEventArgs = nullptr) {
         ASSERT_FALSE(mNotifyKeyArgsQueue.empty())
                 << "Expected notifyKey() to have been called.";
         if (outEventArgs) {
@@ -306,7 +306,7 @@ public:
                 << "Expected notifyKey() to not have been called.";
     }
 
-    void assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs = NULL) {
+    void assertNotifyMotionWasCalled(NotifyMotionArgs* outEventArgs = nullptr) {
         ASSERT_FALSE(mNotifyMotionArgsQueue.empty())
                 << "Expected notifyMotion() to have been called.";
         if (outEventArgs) {
@@ -320,7 +320,7 @@ public:
                 << "Expected notifyMotion() to not have been called.";
     }
 
-    void assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs = NULL) {
+    void assertNotifySwitchWasCalled(NotifySwitchArgs* outEventArgs = nullptr) {
         ASSERT_FALSE(mNotifySwitchArgsQueue.empty())
                 << "Expected notifySwitch() to have been called.";
         if (outEventArgs) {
@@ -422,7 +422,7 @@ public:
 
     bool isDeviceEnabled(int32_t deviceId) {
         Device* device = getDevice(deviceId);
-        if (device == NULL) {
+        if (device == nullptr) {
             ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
             return false;
         }
@@ -432,7 +432,7 @@ public:
     status_t enableDevice(int32_t deviceId) {
         status_t result;
         Device* device = getDevice(deviceId);
-        if (device == NULL) {
+        if (device == nullptr) {
             ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
             return BAD_VALUE;
         }
@@ -446,7 +446,7 @@ public:
 
     status_t disableDevice(int32_t deviceId) {
         Device* device = getDevice(deviceId);
-        if (device == NULL) {
+        if (device == nullptr) {
             ALOGE("Incorrect device id=%" PRId32 " provided to %s", deviceId, __func__);
             return BAD_VALUE;
         }
@@ -651,7 +651,7 @@ private:
                 return &device->keysByScanCode.valueAt(index);
             }
         }
-        return NULL;
+        return nullptr;
     }
 
     virtual status_t mapAxis(int32_t, int32_t, AxisInfo*) const {
@@ -781,7 +781,7 @@ private:
     }
 
     virtual sp<KeyCharacterMap> getKeyCharacterMap(int32_t) const {
-        return NULL;
+        return nullptr;
     }
 
     virtual bool setKeyboardLayoutOverlay(int32_t, const sp<KeyCharacterMap>&) {
@@ -940,7 +940,7 @@ public:
         mResetWasCalled = false;
     }
 
-    void assertProcessWasCalled(RawEvent* outLastEvent = NULL) {
+    void assertProcessWasCalled(RawEvent* outLastEvent = nullptr) {
         ASSERT_TRUE(mProcessWasCalled)
                 << "Expected process() to have been called.";
         if (outLastEvent) {
@@ -1039,7 +1039,7 @@ public:
             const sp<InputReaderPolicyInterface>& policy,
             const sp<InputListenerInterface>& listener) :
             InputReader(eventHub, policy, listener),
-            mNextDevice(NULL) {
+            mNextDevice(nullptr) {
     }
 
     virtual ~InstrumentedInputReader() {
@@ -1066,7 +1066,7 @@ protected:
             const InputDeviceIdentifier& identifier, uint32_t classes) {
         if (mNextDevice) {
             InputDevice* device = mNextDevice;
-            mNextDevice = NULL;
+            mNextDevice = nullptr;
             return device;
         }
         return InputReader::createDeviceLocked(deviceId, controllerNumber, identifier, classes);
@@ -1142,9 +1142,9 @@ protected:
 
 TEST_F(InputReaderTest, GetInputDevices) {
     ASSERT_NO_FATAL_FAILURE(addDevice(1, String8("keyboard"),
-            INPUT_DEVICE_CLASS_KEYBOARD, NULL));
+            INPUT_DEVICE_CLASS_KEYBOARD, nullptr));
     ASSERT_NO_FATAL_FAILURE(addDevice(2, String8("ignored"),
-            0, NULL)); // no classes so device will be ignored
+            0, nullptr)); // no classes so device will be ignored
 
     Vector<InputDeviceInfo> inputDevices;
     mReader->getInputDevices(inputDevices);
@@ -1174,9 +1174,9 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
     device->addMapper(mapper);
     mReader->setNextDevice(device);
-    addDevice(deviceId, String8("fake"), deviceClass, NULL);
+    addDevice(deviceId, String8("fake"), deviceClass, nullptr);
 
-    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled(NULL));
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyConfigurationChangedWasCalled(nullptr));
 
     NotifyDeviceResetArgs resetArgs;
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
@@ -1207,9 +1207,9 @@ TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
 }
 
 TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToMappers) {
-    FakeInputMapper* mapper = NULL;
+    FakeInputMapper* mapper = nullptr;
     ASSERT_NO_FATAL_FAILURE(mapper = addDeviceWithFakeInputMapper(1, 0, String8("fake"),
-            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, NULL));
+            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, nullptr));
     mapper->setKeyCodeState(AKEYCODE_A, AKEY_STATE_DOWN);
 
     ASSERT_EQ(AKEY_STATE_UNKNOWN, mReader->getKeyCodeState(0,
@@ -1234,9 +1234,9 @@ TEST_F(InputReaderTest, GetKeyCodeState_ForwardsRequestsToMappers) {
 }
 
 TEST_F(InputReaderTest, GetScanCodeState_ForwardsRequestsToMappers) {
-    FakeInputMapper* mapper = NULL;
+    FakeInputMapper* mapper = nullptr;
     ASSERT_NO_FATAL_FAILURE(mapper = addDeviceWithFakeInputMapper(1, 0, String8("fake"),
-            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, NULL));
+            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, nullptr));
     mapper->setScanCodeState(KEY_A, AKEY_STATE_DOWN);
 
     ASSERT_EQ(AKEY_STATE_UNKNOWN, mReader->getScanCodeState(0,
@@ -1261,9 +1261,9 @@ TEST_F(InputReaderTest, GetScanCodeState_ForwardsRequestsToMappers) {
 }
 
 TEST_F(InputReaderTest, GetSwitchState_ForwardsRequestsToMappers) {
-    FakeInputMapper* mapper = NULL;
+    FakeInputMapper* mapper = nullptr;
     ASSERT_NO_FATAL_FAILURE(mapper = addDeviceWithFakeInputMapper(1, 0, String8("fake"),
-            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, NULL));
+            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, nullptr));
     mapper->setSwitchState(SW_LID, AKEY_STATE_DOWN);
 
     ASSERT_EQ(AKEY_STATE_UNKNOWN, mReader->getSwitchState(0,
@@ -1288,9 +1288,9 @@ TEST_F(InputReaderTest, GetSwitchState_ForwardsRequestsToMappers) {
 }
 
 TEST_F(InputReaderTest, MarkSupportedKeyCodes_ForwardsRequestsToMappers) {
-    FakeInputMapper* mapper = NULL;
+    FakeInputMapper* mapper = nullptr;
     ASSERT_NO_FATAL_FAILURE(mapper = addDeviceWithFakeInputMapper(1, 0, String8("fake"),
-            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, NULL));
+            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, nullptr));
     mapper->addSupportedKeyCode(AKEYCODE_A);
     mapper->addSupportedKeyCode(AKEYCODE_B);
 
@@ -1323,7 +1323,7 @@ TEST_F(InputReaderTest, MarkSupportedKeyCodes_ForwardsRequestsToMappers) {
 }
 
 TEST_F(InputReaderTest, LoopOnce_WhenDeviceScanFinished_SendsConfigurationChanged) {
-    addDevice(1, String8("ignored"), INPUT_DEVICE_CLASS_KEYBOARD, NULL);
+    addDevice(1, String8("ignored"), INPUT_DEVICE_CLASS_KEYBOARD, nullptr);
 
     NotifyConfigurationChangedArgs args;
 
@@ -1332,9 +1332,9 @@ TEST_F(InputReaderTest, LoopOnce_WhenDeviceScanFinished_SendsConfigurationChange
 }
 
 TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
-    FakeInputMapper* mapper = NULL;
+    FakeInputMapper* mapper = nullptr;
     ASSERT_NO_FATAL_FAILURE(mapper = addDeviceWithFakeInputMapper(1, 0, String8("fake"),
-            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, NULL));
+            INPUT_DEVICE_CLASS_KEYBOARD, AINPUT_SOURCE_KEYBOARD, nullptr));
 
     mFakeEventHub->enqueueEvent(0, 1, EV_KEY, KEY_A, 1);
     mReader->loopOnce();
@@ -1621,7 +1621,7 @@ protected:
     static void assertMotionRange(const InputDeviceInfo& info,
             int32_t axis, uint32_t source, float min, float max, float flat, float fuzz) {
         const InputDeviceInfo::MotionRange* range = info.getMotionRange(axis, source);
-        ASSERT_TRUE(range != NULL) << "Axis: " << axis << " Source: " << source;
+        ASSERT_TRUE(range != nullptr) << "Axis: " << axis << " Source: " << source;
         ASSERT_EQ(axis, range->axis) << "Axis: " << axis << " Source: " << source;
         ASSERT_EQ(source, range->source) << "Axis: " << axis << " Source: " << source;
         ASSERT_NEAR(min, range->min, EPSILON) << "Axis: " << axis << " Source: " << source;
@@ -2232,8 +2232,8 @@ TEST_F(CursorInputMapperTest, WhenModeIsPointer_PopulateDeviceInfo_ReturnsRangeF
     mapper->populateDeviceInfo(&info);
 
     // Initially there may not be a valid motion range.
-    ASSERT_EQ(NULL, info.getMotionRange(AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_MOUSE));
-    ASSERT_EQ(NULL, info.getMotionRange(AINPUT_MOTION_RANGE_Y, AINPUT_SOURCE_MOUSE));
+    ASSERT_EQ(nullptr, info.getMotionRange(AINPUT_MOTION_RANGE_X, AINPUT_SOURCE_MOUSE));
+    ASSERT_EQ(nullptr, info.getMotionRange(AINPUT_MOTION_RANGE_Y, AINPUT_SOURCE_MOUSE));
     ASSERT_NO_FATAL_FAILURE(assertMotionRange(info,
             AINPUT_MOTION_RANGE_PRESSURE, AINPUT_SOURCE_MOUSE, 0.0f, 1.0f, 0.0f, 0.0f));
 

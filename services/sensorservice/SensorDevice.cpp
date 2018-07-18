@@ -208,7 +208,7 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
 
     if(numHidlTransportErrors > 0) {
         ALOGE("Saw %d Hidl transport failures", numHidlTransportErrors);
-        HidlTransportErrorLog errLog(time(NULL), numHidlTransportErrors);
+        HidlTransportErrorLog errLog(time(nullptr), numHidlTransportErrors);
         mHidlTransportErrors.add(errLog);
         mTotalHidlTransportErrors++;
     }

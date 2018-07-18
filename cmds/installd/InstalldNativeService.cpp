@@ -715,7 +715,7 @@ binder::Status InstalldNativeService::fixupAppData(const std::unique_ptr<std::st
         auto ce_path = create_data_user_ce_path(uuid_, user);
         auto de_path = create_data_user_de_path(uuid_, user);
         char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(), nullptr };
-        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
             return error("Failed to fts_open");
         }
         while ((p = fts_read(fts)) != nullptr) {
@@ -840,7 +840,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
         };
 
         LOG(DEBUG) << "Copying " << from << " to " << to;
-        int rc = android_fork_execvp(ARRAY_SIZE(argv), argv, NULL, false, true);
+        int rc = android_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, true);
         if (rc != 0) {
             res = error(rc, "Failed copying " + from + " to " + to);
             goto fail;
@@ -886,7 +886,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
             argv[7] = (char*) to.c_str();
 
             LOG(DEBUG) << "Copying " << from << " to " << to;
-            int rc = android_fork_execvp(ARRAY_SIZE(argv), argv, NULL, false, true);
+            int rc = android_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, true);
             if (rc != 0) {
                 res = error(rc, "Failed copying " + from + " to " + to);
                 goto fail;
@@ -899,7 +899,7 @@ binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std:
             argv[7] = (char*) to.c_str();
 
             LOG(DEBUG) << "Copying " << from << " to " << to;
-            int rc = android_fork_execvp(ARRAY_SIZE(argv), argv, NULL, false, true);
+            int rc = android_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, true);
             if (rc != 0) {
                 res = error(rc, "Failed copying " + from + " to " + to);
                 goto fail;
@@ -922,20 +922,20 @@ fail:
     // Nuke everything we might have already copied
     {
         auto to = create_data_app_package_path(to_uuid, data_app_name);
-        if (delete_dir_contents(to.c_str(), 1, NULL) != 0) {
+        if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
             LOG(WARNING) << "Failed to rollback " << to;
         }
     }
     for (auto user : users) {
         {
             auto to = create_data_user_de_package_path(to_uuid, user, package_name);
-            if (delete_dir_contents(to.c_str(), 1, NULL) != 0) {
+            if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to rollback " << to;
             }
         }
         {
             auto to = create_data_user_ce_package_path(to_uuid, user, package_name);
-            if (delete_dir_contents(to.c_str(), 1, NULL) != 0) {
+            if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to rollback " << to;
             }
         }
@@ -1045,10 +1045,10 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
             auto media_path = findDataMediaPath(uuid, user) + "/Android/data/";
             char *argv[] = { (char*) ce_path.c_str(), (char*) de_path.c_str(),
                     (char*) media_path.c_str(), nullptr };
-            if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+            if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
                 return error("Failed to fts_open");
             }
-            while ((p = fts_read(fts)) != NULL) {
+            while ((p = fts_read(fts)) != nullptr) {
                 if (p->fts_info == FTS_D && p->fts_level == 1) {
                     uid_t uid = p->fts_statp->st_uid;
                     if (multiuser_get_app_id(uid) == AID_MEDIA_RW) {
@@ -1398,11 +1398,11 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
     FTS *fts;
     FTSENT *p;
     char *argv[] = { (char*) path.c_str(), nullptr };
-    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+    if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
         PLOG(ERROR) << "Failed to fts_open " << path;
         return;
     }
-    while ((p = fts_read(fts)) != NULL) {
+    while ((p = fts_read(fts)) != nullptr) {
         p->fts_number = p->fts_parent->fts_number;
         switch (p->fts_info) {
         case FTS_D:
@@ -1808,10 +1808,10 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
         FTSENT *p;
         auto path = create_data_media_path(uuid_, userId);
         char *argv[] = { (char*) path.c_str(), nullptr };
-        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
             return error("Failed to fts_open " + path);
         }
-        while ((p = fts_read(fts)) != NULL) {
+        while ((p = fts_read(fts)) != nullptr) {
             char* ext;
             int64_t size = (p->fts_statp->st_blocks * 512);
             switch (p->fts_info) {
@@ -2040,7 +2040,7 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
         }
     } else {
         if (S_ISDIR(libStat.st_mode)) {
-            if (delete_dir_contents(libsymlink, 1, NULL) < 0) {
+            if (delete_dir_contents(libsymlink, 1, nullptr) < 0) {
                 res = error("Failed to delete " + _libsymlink);
                 goto out;
             }
@@ -2082,14 +2082,14 @@ out:
 static void run_idmap(const char *target_apk, const char *overlay_apk, int idmap_fd)
 {
     execl(kIdMapPath, kIdMapPath, "--fd", target_apk, overlay_apk,
-            StringPrintf("%d", idmap_fd).c_str(), (char*)NULL);
+            StringPrintf("%d", idmap_fd).c_str(), (char*)nullptr);
     PLOG(ERROR) << "execl (" << kIdMapPath << ") failed";
 }
 
 static void run_verify_idmap(const char *target_apk, const char *overlay_apk, int idmap_fd)
 {
     execl(kIdMapPath, kIdMapPath, "--verify", target_apk, overlay_apk,
-            StringPrintf("%d", idmap_fd).c_str(), (char*)NULL);
+            StringPrintf("%d", idmap_fd).c_str(), (char*)nullptr);
     PLOG(ERROR) << "execl (" << kIdMapPath << ") failed";
 }
 
@@ -2140,7 +2140,7 @@ static bool delete_stale_idmap(const char* target_apk, const char* overlay_apk,
 static int flatten_path(const char *prefix, const char *suffix,
         const char *overlay_path, char *idmap_path, size_t N)
 {
-    if (overlay_path == NULL || idmap_path == NULL) {
+    if (overlay_path == nullptr || idmap_path == nullptr) {
         return -1;
     }
     const size_t len_overlay_path = strlen(overlay_path);
@@ -2481,7 +2481,7 @@ binder::Status InstalldNativeService::installApkVerity(const std::string& filePa
                      std::to_string(shmSize));
     }
     auto data = std::unique_ptr<void, std::function<void (void *)>>(
-        mmap(NULL, contentSize, PROT_READ, MAP_SHARED, verityInputAshmem.get(), 0),
+        mmap(nullptr, contentSize, PROT_READ, MAP_SHARED, verityInputAshmem.get(), 0),
         [contentSize] (void* ptr) {
           if (ptr != MAP_FAILED) {
             munmap(ptr, contentSize);

@@ -60,7 +60,7 @@ void ComposerService::connectLocked() {
     while (getService(name, &mComposerService) != NO_ERROR) {
         usleep(250000);
     }
-    assert(mComposerService != NULL);
+    assert(mComposerService != nullptr);
 
     // Create the death listener.
     class DeathObserver : public IBinder::DeathRecipient {
@@ -83,7 +83,7 @@ void ComposerService::connectLocked() {
     Mutex::Autolock _l(instance.mLock);
     if (instance.mComposerService == nullptr) {
         ComposerService::getInstance().connectLocked();
-        assert(instance.mComposerService != NULL);
+        assert(instance.mComposerService != nullptr);
         ALOGD("ComposerService reconnected");
     }
     return instance.mComposerService;

@@ -50,7 +50,7 @@ void GLTest::SetUp() {
     ASSERT_EQ(EGL_SUCCESS, eglGetError());
 
     char* displaySecsEnv = getenv("GLTEST_DISPLAY_SECS");
-    if (displaySecsEnv != NULL) {
+    if (displaySecsEnv != nullptr) {
         mDisplaySecs = atoi(displaySecsEnv);
         if (mDisplaySecs < 0) {
             mDisplaySecs = 0;
@@ -67,7 +67,7 @@ void GLTest::SetUp() {
                 String8("Test Surface"), getSurfaceWidth(), getSurfaceHeight(),
                 PIXEL_FORMAT_RGB_888, 0);
 
-        ASSERT_TRUE(mSurfaceControl != NULL);
+        ASSERT_TRUE(mSurfaceControl != nullptr);
         ASSERT_TRUE(mSurfaceControl->isValid());
 
         Transaction t;
@@ -117,7 +117,7 @@ void GLTest::TearDown() {
         sleep(mDisplaySecs);
     }
 
-    if (mComposerClient != NULL) {
+    if (mComposerClient != nullptr) {
         mComposerClient->dispose();
     }
     if (mEglContext != EGL_NO_CONTEXT) {
@@ -171,7 +171,7 @@ EGLint GLTest::getSurfaceHeight() {
 
 EGLSurface GLTest::createWindowSurface(EGLDisplay display, EGLConfig config,
                                        sp<ANativeWindow>& window) const {
-    return eglCreateWindowSurface(display, config, window.get(), NULL);
+    return eglCreateWindowSurface(display, config, window.get(), nullptr);
 }
 
 ::testing::AssertionResult GLTest::checkPixel(int x, int y,
@@ -256,7 +256,7 @@ void GLTest::loadShader(GLenum shaderType, const char* pSource,
     GLuint shader = glCreateShader(shaderType);
     ASSERT_EQ(GLenum(GL_NO_ERROR), glGetError());
     if (shader) {
-        glShaderSource(shader, 1, &pSource, NULL);
+        glShaderSource(shader, 1, &pSource, nullptr);
         ASSERT_EQ(GLenum(GL_NO_ERROR), glGetError());
         glCompileShader(shader);
         ASSERT_EQ(GLenum(GL_NO_ERROR), glGetError());
@@ -270,7 +270,7 @@ void GLTest::loadShader(GLenum shaderType, const char* pSource,
             if (infoLen) {
                 char* buf = (char*) malloc(infoLen);
                 if (buf) {
-                    glGetShaderInfoLog(shader, infoLen, NULL, buf);
+                    glGetShaderInfoLog(shader, infoLen, nullptr, buf);
                     printf("Shader compile log:\n%s\n", buf);
                     free(buf);
                     FAIL();
@@ -278,7 +278,7 @@ void GLTest::loadShader(GLenum shaderType, const char* pSource,
             } else {
                 char* buf = (char*) malloc(0x1000);
                 if (buf) {
-                    glGetShaderInfoLog(shader, 0x1000, NULL, buf);
+                    glGetShaderInfoLog(shader, 0x1000, nullptr, buf);
                     printf("Shader compile log:\n%s\n", buf);
                     free(buf);
                     FAIL();
@@ -322,7 +322,7 @@ void GLTest::createProgram(const char* pVertexSource,
             if (bufLength) {
                 char* buf = (char*) malloc(bufLength);
                 if (buf) {
-                    glGetProgramInfoLog(program, bufLength, NULL, buf);
+                    glGetProgramInfoLog(program, bufLength, nullptr, buf);
                     printf("Program link log:\n%s\n", buf);
                     free(buf);
                     FAIL();

@@ -80,7 +80,7 @@ public:
     /* convenience function to check that the given surface is non NULL as
      * well as its IGraphicBufferProducer */
     static bool isValid(const sp<Surface>& surface) {
-        return surface != NULL && surface->getIGraphicBufferProducer() != NULL;
+        return surface != nullptr && surface->getIGraphicBufferProducer() != nullptr;
     }
 
     /* Attaches a sideband buffer stream to the Surface's IGraphicBufferProducer.

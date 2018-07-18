@@ -48,11 +48,11 @@ public:
     void writeToParcel(Parcel* parcel);
 
     static bool isValid(const sp<SurfaceControl>& surface) {
-        return (surface != 0) && surface->isValid();
+        return (surface != nullptr) && surface->isValid();
     }
 
     bool isValid() {
-        return mHandle!=0 && mClient!=0;
+        return mHandle!=nullptr && mClient!=nullptr;
     }
 
     static bool isSameSurface(

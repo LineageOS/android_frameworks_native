@@ -258,8 +258,8 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 
 bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
         const String8* uniqueDisplayId, DisplayViewport* outViewport) const {
-    const DisplayViewport* viewport = NULL;
-    if (viewportType == ViewportType::VIEWPORT_VIRTUAL && uniqueDisplayId != NULL) {
+    const DisplayViewport* viewport = nullptr;
+    if (viewportType == ViewportType::VIEWPORT_VIRTUAL && uniqueDisplayId != nullptr) {
         for (const DisplayViewport& currentViewport : mVirtualDisplays) {
             if (currentViewport.uniqueId == *uniqueDisplayId) {
                 viewport = &currentViewport;
@@ -272,7 +272,7 @@ bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
         viewport = &mInternalDisplay;
     }
 
-    if (viewport != NULL && viewport->displayId >= 0) {
+    if (viewport != nullptr && viewport->displayId >= 0) {
         *outViewport = *viewport;
         return true;
     }
@@ -488,7 +488,7 @@ void InputReader::addDeviceLocked(nsecs_t when, int32_t deviceId) {
 }
 
 void InputReader::removeDeviceLocked(nsecs_t when, int32_t deviceId) {
-    InputDevice* device = NULL;
+    InputDevice* device = nullptr;
     ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
     if (deviceIndex < 0) {
         ALOGW("Ignoring spurious device removed event for deviceId %d.", deviceId);
@@ -1786,7 +1786,7 @@ void SingleTouchMotionAccumulator::process(const RawEvent* rawEvent) {
 // --- MultiTouchMotionAccumulator ---
 
 MultiTouchMotionAccumulator::MultiTouchMotionAccumulator() :
-        mCurrentSlot(-1), mSlots(NULL), mSlotCount(0), mUsingSlotsProtocol(false),
+        mCurrentSlot(-1), mSlots(nullptr), mSlotCount(0), mUsingSlotsProtocol(false),
         mHaveStylus(false), mDeviceTimestamp(0) {
 }
 
@@ -2294,7 +2294,7 @@ void KeyboardInputMapper::configure(nsecs_t when,
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         if (mParameters.orientationAware) {
             DisplayViewport dvp;
-            config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &dvp);
+            config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, nullptr, &dvp);
             mViewport = dvp;
         }
     }
@@ -2705,7 +2705,7 @@ void CursorInputMapper::configure(nsecs_t when,
         mOrientation = DISPLAY_ORIENTATION_0;
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
             DisplayViewport v;
-            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
+            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, nullptr, &v)) {
                 mOrientation = v.orientation;
             }
         }
@@ -2826,8 +2826,8 @@ void CursorInputMapper::sync(nsecs_t when) {
     float hscroll = mCursorScrollAccumulator.getRelativeHWheel();
     bool scrolled = vscroll != 0 || hscroll != 0;
 
-    mWheelYVelocityControl.move(when, NULL, &vscroll);
-    mWheelXVelocityControl.move(when, &hscroll, NULL);
+    mWheelYVelocityControl.move(when, nullptr, &vscroll);
+    mWheelXVelocityControl.move(when, &hscroll, nullptr);
 
     mPointerVelocityControl.move(when, &deltaX, &deltaY);
 
@@ -2968,7 +2968,7 @@ int32_t CursorInputMapper::getScanCodeState(uint32_t sourceMask, int32_t scanCod
 }
 
 void CursorInputMapper::fadePointer() {
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
     }
 }
@@ -3020,7 +3020,7 @@ void RotaryEncoderInputMapper::configure(nsecs_t when,
     }
     if (!changes || (InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         DisplayViewport v;
-        if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
+        if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, nullptr, &v)) {
             mOrientation = v.orientation;
         } else {
             mOrientation = DISPLAY_ORIENTATION_0;
@@ -3517,7 +3517,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     // Get associated display dimensions.
     DisplayViewport newViewport;
     if (mParameters.hasAssociatedDisplay) {
-        const String8* uniqueDisplayId = NULL;
+        const String8* uniqueDisplayId = nullptr;
         ViewportType viewportTypeToUse;
 
         if (mParameters.associatedDisplayIsExternal) {
@@ -3621,7 +3621,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     // Create pointer controller if needed.
     if (mDeviceMode == DEVICE_MODE_POINTER ||
             (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
-        if (mPointerController == NULL) {
+        if (mPointerController == nullptr) {
             mPointerController = getPolicy()->obtainPointerController(getDeviceId());
         }
     } else {
@@ -4271,7 +4271,7 @@ void TouchInputMapper::reset(nsecs_t when) {
     mPointerSimple.reset();
     resetExternalStylus();
 
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
         mPointerController->clearSpots();
     }
@@ -4481,7 +4481,7 @@ void TouchInputMapper::cookAndDispatch(nsecs_t when) {
         dispatchPointerUsage(when, policyFlags, pointerUsage);
     } else {
         if (mDeviceMode == DEVICE_MODE_DIRECT
-                && mConfig.showTouches && mPointerController != NULL) {
+                && mConfig.showTouches && mPointerController != nullptr) {
             mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_SPOT);
             mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
 
@@ -5460,7 +5460,7 @@ void TouchInputMapper::abortPointerGestures(nsecs_t when, uint32_t policyFlags) 
     mPointerVelocityControl.reset();
 
     // Remove any current spots.
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
         mPointerController->clearSpots();
     }
@@ -6323,7 +6323,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         bool down, bool hovering) {
     int32_t metaState = getContext()->getGlobalMetaState();
 
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         if (down || hovering) {
             mPointerController->setPresentation(PointerControllerInterface::PRESENTATION_POINTER);
             mPointerController->clearSpots();
@@ -6414,8 +6414,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
     if (mCurrentRawState.rawVScroll || mCurrentRawState.rawHScroll) {
         float vscroll = mCurrentRawState.rawVScroll;
         float hscroll = mCurrentRawState.rawHScroll;
-        mWheelYVelocityControl.move(when, NULL, &vscroll);
-        mWheelXVelocityControl.move(when, &hscroll, NULL);
+        mWheelYVelocityControl.move(when, nullptr, &vscroll);
+        mWheelXVelocityControl.move(when, &hscroll, nullptr);
 
         // Send scroll.
         PointerCoords pointerCoords;
@@ -6522,7 +6522,7 @@ bool TouchInputMapper::updateMovedPointers(const PointerProperties* inProperties
 }
 
 void TouchInputMapper::fadePointer() {
-    if (mPointerController != NULL) {
+    if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
     }
 }
@@ -6557,7 +6557,7 @@ const TouchInputMapper::VirtualKey* TouchInputMapper::findVirtualKeyHit(
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void TouchInputMapper::assignPointerIds(const RawState* last, RawState* current) {

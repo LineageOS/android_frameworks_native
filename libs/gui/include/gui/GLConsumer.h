@@ -314,7 +314,7 @@ private:
 
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
         const native_handle* graphicBufferHandle() {
-            return mGraphicBuffer == NULL ? NULL : mGraphicBuffer->handle;
+            return mGraphicBuffer == nullptr ? nullptr : mGraphicBuffer->handle;
         }
 
     private:

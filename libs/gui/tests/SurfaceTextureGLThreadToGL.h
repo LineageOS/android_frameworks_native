@@ -158,7 +158,7 @@ protected:
     }
 
     virtual void TearDown() {
-        if (mProducerThread != NULL) {
+        if (mProducerThread != nullptr) {
             mProducerThread->requestExitAndWait();
         }
         mProducerThread.clear();
@@ -167,7 +167,7 @@ protected:
     }
 
     void runProducerThread(const sp<ProducerThread> producerThread) {
-        ASSERT_TRUE(mProducerThread == NULL);
+        ASSERT_TRUE(mProducerThread == nullptr);
         mProducerThread = producerThread;
         producerThread->setEglObjects(mEglDisplay, mProducerEglSurface,
                 mProducerEglContext);

@@ -406,7 +406,7 @@ private:
         T* prev;
 
     protected:
-        inline Link() : next(NULL), prev(NULL) { }
+        inline Link() : next(nullptr), prev(nullptr) { }
     };
 
     struct InjectionState {
@@ -441,7 +441,7 @@ private:
 
         bool dispatchInProgress; // initially false, set to true while dispatching
 
-        inline bool isInjected() const { return injectionState != NULL; }
+        inline bool isInjected() const { return injectionState != nullptr; }
 
         void release();
 
@@ -614,7 +614,7 @@ private:
         T* tail;
         uint32_t entryCount;
 
-        inline Queue() : head(NULL), tail(NULL), entryCount(0) {
+        inline Queue() : head(nullptr), tail(nullptr), entryCount(0) {
         }
 
         inline bool isEmpty() const {
@@ -629,7 +629,7 @@ private:
             } else {
                 head = entry;
             }
-            entry->next = NULL;
+            entry->next = nullptr;
             tail = entry;
         }
 
@@ -641,7 +641,7 @@ private:
             } else {
                 tail = entry;
             }
-            entry->prev = NULL;
+            entry->prev = nullptr;
             head = entry;
         }
 
@@ -664,9 +664,9 @@ private:
             T* entry = head;
             head = entry->next;
             if (head) {
-                head->prev = NULL;
+                head->prev = nullptr;
             } else {
-                tail = NULL;
+                tail = nullptr;
             }
             return entry;
         }

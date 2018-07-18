@@ -107,7 +107,7 @@ static int initialize_directories() {
         DIR *dir;
         struct dirent *dirent;
         dir = opendir("/data/user");
-        if (dir != NULL) {
+        if (dir != nullptr) {
             while ((dirent = readdir(dir))) {
                 const char *name = dirent->d_name;
 
@@ -146,10 +146,10 @@ static int initialize_directories() {
             closedir(dir);
 
             if (access(keychain_added_dir, F_OK) == 0) {
-                delete_dir_contents(keychain_added_dir, 1, 0);
+                delete_dir_contents(keychain_added_dir, 1, nullptr);
             }
             if (access(keychain_removed_dir, F_OK) == 0) {
-                delete_dir_contents(keychain_removed_dir, 1, 0);
+                delete_dir_contents(keychain_removed_dir, 1, nullptr);
             }
         }
 

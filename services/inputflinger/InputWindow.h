@@ -169,7 +169,7 @@ public:
     }
 
     inline sp<InputChannel> getInputChannel() const {
-        return mInfo ? mInfo->inputChannel : NULL;
+        return mInfo ? mInfo->inputChannel : nullptr;
     }
 
     inline std::string getName() const {

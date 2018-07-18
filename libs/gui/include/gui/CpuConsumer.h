@@ -70,7 +70,7 @@ class CpuConsumer : public ConsumerBase
         uint32_t    chromaStep;
 
         LockedBuffer() :
-            data(NULL),
+            data(nullptr),
             width(0),
             height(0),
             format(PIXEL_FORMAT_NONE),
@@ -82,8 +82,8 @@ class CpuConsumer : public ConsumerBase
             dataSpace(HAL_DATASPACE_UNKNOWN),
             frameNumber(0),
             flexFormat(PIXEL_FORMAT_NONE),
-            dataCb(NULL),
-            dataCr(NULL),
+            dataCb(nullptr),
+            dataCr(nullptr),
             chromaStride(0),
             chromaStep(0)
         {}
