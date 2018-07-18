@@ -164,10 +164,10 @@ status_t KeyCharacterMap::load(Tokenizer* tokenizer,
 
 sp<KeyCharacterMap> KeyCharacterMap::combine(const sp<KeyCharacterMap>& base,
         const sp<KeyCharacterMap>& overlay) {
-    if (overlay == NULL) {
+    if (overlay == nullptr) {
         return base;
     }
-    if (base == NULL) {
+    if (base == nullptr) {
         return overlay;
     }
 
@@ -468,7 +468,7 @@ bool KeyCharacterMap::findKey(char16_t ch, int32_t* outKeyCode, int32_t* outMeta
 
         // Try to find the most general behavior that maps to this character.
         // For example, the base key behavior will usually be last in the list.
-        const Behavior* found = NULL;
+        const Behavior* found = nullptr;
         for (const Behavior* behavior = key->firstBehavior; behavior; behavior = behavior->next) {
             if (behavior->character == ch) {
                 found = behavior;
@@ -605,11 +605,11 @@ sp<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
     map->mType = parcel->readInt32();
     size_t numKeys = parcel->readInt32();
     if (parcel->errorCheck()) {
-        return NULL;
+        return nullptr;
     }
     if (numKeys > MAX_KEYS) {
         ALOGE("Too many keys in KeyCharacterMap (%zu > %d)", numKeys, MAX_KEYS);
-        return NULL;
+        return nullptr;
     }
 
     for (size_t i = 0; i < numKeys; i++) {
@@ -617,7 +617,7 @@ sp<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
         char16_t label = parcel->readInt32();
         char16_t number = parcel->readInt32();
         if (parcel->errorCheck()) {
-            return NULL;
+            return nullptr;
         }
 
         Key* key = new Key();
@@ -625,14 +625,14 @@ sp<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
         key->number = number;
         map->mKeys.add(keyCode, key);
 
-        Behavior* lastBehavior = NULL;
+        Behavior* lastBehavior = nullptr;
         while (parcel->readInt32()) {
             int32_t metaState = parcel->readInt32();
             char16_t character = parcel->readInt32();
             int32_t fallbackKeyCode = parcel->readInt32();
             int32_t replacementKeyCode = parcel->readInt32();
             if (parcel->errorCheck()) {
-                return NULL;
+                return nullptr;
             }
 
             Behavior* behavior = new Behavior();
@@ -649,7 +649,7 @@ sp<KeyCharacterMap> KeyCharacterMap::readFromParcel(Parcel* parcel) {
         }
 
         if (parcel->errorCheck()) {
-            return NULL;
+            return nullptr;
         }
     }
     return map;
@@ -666,7 +666,7 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
         parcel->writeInt32(keyCode);
         parcel->writeInt32(key->label);
         parcel->writeInt32(key->number);
-        for (const Behavior* behavior = key->firstBehavior; behavior != NULL;
+        for (const Behavior* behavior = key->firstBehavior; behavior != nullptr;
                 behavior = behavior->next) {
             parcel->writeInt32(1);
             parcel->writeInt32(behavior->metaState);
@@ -683,12 +683,12 @@ void KeyCharacterMap::writeToParcel(Parcel* parcel) const {
 // --- KeyCharacterMap::Key ---
 
 KeyCharacterMap::Key::Key() :
-        label(0), number(0), firstBehavior(NULL) {
+        label(0), number(0), firstBehavior(nullptr) {
 }
 
 KeyCharacterMap::Key::Key(const Key& other) :
         label(other.label), number(other.number),
-        firstBehavior(other.firstBehavior ? new Behavior(*other.firstBehavior) : NULL) {
+        firstBehavior(other.firstBehavior ? new Behavior(*other.firstBehavior) : nullptr) {
 }
 
 KeyCharacterMap::Key::~Key() {
@@ -704,11 +704,11 @@ KeyCharacterMap::Key::~Key() {
 // --- KeyCharacterMap::Behavior ---
 
 KeyCharacterMap::Behavior::Behavior() :
-        next(NULL), metaState(0), character(0), fallbackKeyCode(0), replacementKeyCode(0) {
+        next(nullptr), metaState(0), character(0), fallbackKeyCode(0), replacementKeyCode(0) {
 }
 
 KeyCharacterMap::Behavior::Behavior(const Behavior& other) :
-        next(other.next ? new Behavior(*other.next) : NULL),
+        next(other.next ? new Behavior(*other.next) : nullptr),
         metaState(other.metaState), character(other.character),
         fallbackKeyCode(other.fallbackKeyCode),
         replacementKeyCode(other.replacementKeyCode) {
