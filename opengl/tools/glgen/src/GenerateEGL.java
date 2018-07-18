@@ -84,7 +84,7 @@ public class GenerateEGL {
         ParameterChecker checker = new ParameterChecker(checksReader);
 
 
-        for(String suffix: new String[] {"EGL14", "EGLExt"}) {
+        for(String suffix: new String[] {"EGL14", "EGL15", "EGLExt"}) {
             BufferedReader specReader = new BufferedReader(new FileReader(
                     "specs/egl/" + suffix + ".spec"));
             String egljFilename = "android/opengl/" + suffix + ".java";
