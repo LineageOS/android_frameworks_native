@@ -97,7 +97,7 @@ TEST_F(BlobCacheTest, GetOnlyWritesIfBufferIsLargeEnough) {
 
 TEST_F(BlobCacheTest, GetDoesntAccessNullBuffer) {
     mBC->set("abcd", 4, "efgh", 4);
-    ASSERT_EQ(size_t(4), mBC->get("abcd", 4, NULL, 0));
+    ASSERT_EQ(size_t(4), mBC->get("abcd", 4, nullptr, 0));
 }
 
 TEST_F(BlobCacheTest, MultipleSetsCacheLatestValue) {
@@ -169,7 +169,7 @@ TEST_F(BlobCacheTest, DoesntCacheIfKeyValuePairIsTooBig) {
     }
 
     mBC->set(key, MAX_KEY_SIZE, buf, MAX_VALUE_SIZE);
-    ASSERT_EQ(size_t(0), mBC->get(key, MAX_KEY_SIZE, NULL, 0));
+    ASSERT_EQ(size_t(0), mBC->get(key, MAX_KEY_SIZE, nullptr, 0));
 }
 
 TEST_F(BlobCacheTest, CacheMaxKeySizeSucceeds) {
@@ -219,7 +219,7 @@ TEST_F(BlobCacheTest, CacheMaxKeyValuePairSizeSucceeds) {
     }
 
     mBC->set(key, MAX_KEY_SIZE, buf, bufSize);
-    ASSERT_EQ(size_t(bufSize), mBC->get(key, MAX_KEY_SIZE, NULL, 0));
+    ASSERT_EQ(size_t(bufSize), mBC->get(key, MAX_KEY_SIZE, nullptr, 0));
 }
 
 TEST_F(BlobCacheTest, CacheMinKeyAndValueSizeSucceeds) {
@@ -237,7 +237,7 @@ TEST_F(BlobCacheTest, CacheSizeDoesntExceedTotalLimit) {
     int numCached = 0;
     for (int i = 0; i < 256; i++) {
         uint8_t k = i;
-        if (mBC->get(&k, 1, NULL, 0) == 1) {
+        if (mBC->get(&k, 1, nullptr, 0) == 1) {
             numCached++;
         }
     }
@@ -260,7 +260,7 @@ TEST_F(BlobCacheTest, ExceedingTotalLimitHalvesCacheSize) {
     int numCached = 0;
     for (int i = 0; i < maxEntries+1; i++) {
         uint8_t k = i;
-        if (mBC->get(&k, 1, NULL, 0) == 1) {
+        if (mBC->get(&k, 1, nullptr, 0) == 1) {
             numCached++;
         }
     }

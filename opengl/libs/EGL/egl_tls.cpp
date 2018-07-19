@@ -28,7 +28,7 @@ pthread_key_t egl_tls_t::sKey = TLS_KEY_NOT_INITIALIZED;
 pthread_once_t egl_tls_t::sOnceKey = PTHREAD_ONCE_INIT;
 
 egl_tls_t::egl_tls_t()
-    : error(EGL_SUCCESS), ctx(0), logCallWithNoContext(true) {
+    : error(EGL_SUCCESS), ctx(nullptr), logCallWithNoContext(true) {
 }
 
 const char *egl_tls_t::egl_strerror(EGLint err) {
@@ -117,7 +117,7 @@ bool egl_tls_t::logNoContextCall() {
 
 egl_tls_t* egl_tls_t::getTLS() {
     egl_tls_t* tls = (egl_tls_t*)pthread_getspecific(sKey);
-    if (tls == 0) {
+    if (tls == nullptr) {
         tls = new egl_tls_t;
         pthread_setspecific(sKey, tls);
     }
@@ -128,7 +128,7 @@ void egl_tls_t::clearTLS() {
     if (sKey != TLS_KEY_NOT_INITIALIZED) {
         egl_tls_t* tls = (egl_tls_t*)pthread_getspecific(sKey);
         if (tls) {
-            pthread_setspecific(sKey, 0);
+            pthread_setspecific(sKey, nullptr);
             delete tls;
         }
     }

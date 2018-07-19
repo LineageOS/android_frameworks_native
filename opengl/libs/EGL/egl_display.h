@@ -160,7 +160,7 @@ public:
     const egl_display_t* get() const { return mDpy; }
           egl_display_t* get()       { return mDpy; }
 
-    operator bool() const { return mDpy != NULL; }
+    operator bool() const { return mDpy != nullptr; }
 
 private:
     egl_display_t* mDpy;

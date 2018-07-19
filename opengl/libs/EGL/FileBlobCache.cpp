@@ -77,7 +77,7 @@ FileBlobCache::FileBlobCache(size_t maxKeySize, size_t maxValueSize, size_t maxT
             return;
         }
 
-        uint8_t* buf = reinterpret_cast<uint8_t*>(mmap(NULL, fileSize,
+        uint8_t* buf = reinterpret_cast<uint8_t*>(mmap(nullptr, fileSize,
                 PROT_READ, MAP_PRIVATE, fd, 0));
         if (buf == MAP_FAILED) {
             ALOGE("error mmaping cache file: %s (%d)", strerror(errno),

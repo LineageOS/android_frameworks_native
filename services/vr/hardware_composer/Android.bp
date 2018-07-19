@@ -39,6 +39,10 @@ cc_library_shared {
     "android.hardware.graphics.composer@2.1-hal",
   ],
 
+  export_static_lib_headers: [
+    "libdisplay",
+  ],
+
   export_shared_lib_headers: [
     "android.frameworks.vr.composer@1.0",
     "android.hardware.graphics.composer@2.1",
@@ -48,6 +52,7 @@ cc_library_shared {
 
   cflags: [
     "-DLOG_TAG=\"vr_hwc\"",
+    "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     "-Wall",
     "-Werror",
     // mVrClient unused in vr_composer_client.cpp

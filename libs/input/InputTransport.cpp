@@ -226,7 +226,7 @@ status_t InputChannel::receiveMessage(InputMessage* msg) {
 
 sp<InputChannel> InputChannel::dup() const {
     int fd = ::dup(getFd());
-    return fd >= 0 ? new InputChannel(getName(), fd) : NULL;
+    return fd >= 0 ? new InputChannel(getName(), fd) : nullptr;
 }
 
 
@@ -388,7 +388,7 @@ InputConsumer::~InputConsumer() {
 
 bool InputConsumer::isTouchResamplingEnabled() {
     char value[PROPERTY_VALUE_MAX];
-    int length = property_get("ro.input.noresample", value, NULL);
+    int length = property_get("ro.input.noresample", value, nullptr);
     if (length > 0) {
         if (!strcmp("1", value)) {
             return false;
@@ -409,7 +409,7 @@ status_t InputConsumer::consume(InputEventFactoryInterface* factory,
 #endif
 
     *outSeq = 0;
-    *outEvent = NULL;
+    *outEvent = nullptr;
 
     // Fetch the next input message.
     // Loop until an event can be returned or no additional events are received.
@@ -544,7 +544,7 @@ status_t InputConsumer::consumeBatch(InputEventFactoryInterface* factory,
         const InputMessage* next;
         if (batch.samples.isEmpty()) {
             mBatches.removeAt(i);
-            next = NULL;
+            next = nullptr;
         } else {
             next = &batch.samples.itemAt(0);
         }

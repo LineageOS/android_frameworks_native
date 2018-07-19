@@ -85,9 +85,9 @@ DVR_V1_API_ENTRY(ReadBufferQueueSetBufferRemovedCallback);
 DVR_V1_API_ENTRY(ReadBufferQueueHandleEvents);
 
 // V-Sync client
-DVR_V1_API_ENTRY(VSyncClientCreate);
-DVR_V1_API_ENTRY(VSyncClientDestroy);
-DVR_V1_API_ENTRY(VSyncClientGetSchedInfo);
+DVR_V1_API_ENTRY_DEPRECATED(VSyncClientCreate);
+DVR_V1_API_ENTRY_DEPRECATED(VSyncClientDestroy);
+DVR_V1_API_ENTRY_DEPRECATED(VSyncClientGetSchedInfo);
 
 // Display surface
 DVR_V1_API_ENTRY(SurfaceCreate);

@@ -57,7 +57,7 @@ WindowSurface::WindowSurface() {
     sp<SurfaceControl> sc = surfaceComposerClient->createSurface(
             String8("Benchmark"), width, height,
             PIXEL_FORMAT_RGBX_8888, ISurfaceComposerClient::eOpaque);
-    if (sc == NULL || !sc->isValid()) {
+    if (sc == nullptr || !sc->isValid()) {
         fprintf(stderr, "Failed to create SurfaceControl\n");
         return;
     }

@@ -117,7 +117,7 @@ const KeyLayoutMap::Key* KeyLayoutMap::getKey(int32_t scanCode, int32_t usageCod
             return &mKeysByScanCode.valueAt(index);
         }
     }
-    return NULL;
+    return nullptr;
 }
 
 status_t KeyLayoutMap::findScanCodesForKey(int32_t keyCode, Vector<int32_t>* outScanCodes) const {

@@ -60,11 +60,6 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   void SetDisplayConfigurationUpdateNotifier(
       DisplayConfigurationUpdateNotifier notifier);
 
-  using VSyncCallback = HardwareComposer::VSyncCallback;
-  void SetVSyncCallback(VSyncCallback callback) {
-    hardware_composer_.SetVSyncCallback(callback);
-  }
-
   void GrantDisplayOwnership() { hardware_composer_.Enable(); }
   void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
   void OnBootFinished() { hardware_composer_.OnBootFinished(); }

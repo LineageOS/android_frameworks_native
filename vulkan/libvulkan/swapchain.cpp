@@ -335,15 +335,15 @@ uint32_t get_num_ready_timings(Swapchain& swapchain) {
             swapchain.surface.window.get(), ti.native_frame_id_,
             &desired_present_time, &render_complete_time,
             &composition_latch_time,
-            NULL,  //&first_composition_start_time,
-            NULL,  //&last_composition_start_time,
-            NULL,  //&composition_finish_time,
+            nullptr,  //&first_composition_start_time,
+            nullptr,  //&last_composition_start_time,
+            nullptr,  //&composition_finish_time,
             // TODO(ianelliott): Maybe ask if this one is
             // supported, at startup time (since it may not be
             // supported):
             &actual_present_time,
-            NULL,  //&dequeue_ready_time,
-            NULL /*&reads_done_time*/);
+            nullptr,  //&dequeue_ready_time,
+            nullptr /*&reads_done_time*/);
 
         if (ret != android::NO_ERROR) {
             continue;

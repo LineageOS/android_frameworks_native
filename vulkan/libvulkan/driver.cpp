@@ -984,7 +984,7 @@ VkResult CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     uint32_t icd_api_version;
     PFN_vkEnumerateInstanceVersion pfn_enumerate_instance_version =
         reinterpret_cast<PFN_vkEnumerateInstanceVersion>(
-            Hal::Device().GetInstanceProcAddr(NULL,
+            Hal::Device().GetInstanceProcAddr(nullptr,
                                               "vkEnumerateInstanceVersion"));
     if (!pfn_enumerate_instance_version) {
         icd_api_version = VK_API_VERSION_1_0;

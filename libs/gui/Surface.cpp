@@ -464,8 +464,12 @@ int Surface::setSwapInterval(int interval) {
     if (interval > maxSwapInterval)
         interval = maxSwapInterval;
 
+    const bool wasSwapIntervalZero = mSwapIntervalZero;
     mSwapIntervalZero = (interval == 0);
-    mGraphicBufferProducer->setAsyncMode(mSwapIntervalZero);
+
+    if (mSwapIntervalZero != wasSwapIntervalZero) {
+        mGraphicBufferProducer->setAsyncMode(mSwapIntervalZero);
+    }
 
     return NO_ERROR;
 }
