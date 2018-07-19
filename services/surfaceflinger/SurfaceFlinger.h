@@ -808,6 +808,13 @@ private:
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
 
+    enum class BootStage {
+        BOOTLOADER,
+        BOOTANIMATION,
+        FINISHED,
+    };
+    BootStage mBootStage;
+
     struct HotplugEvent {
         hwc2_display_t display;
         HWC2::Connection connection = HWC2::Connection::Invalid;
@@ -828,7 +835,6 @@ private:
     nsecs_t mLastSwapBufferTime;
     volatile nsecs_t mDebugInTransaction;
     nsecs_t mLastTransactionTime;
-    bool mBootFinished;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
     std::unique_ptr<SurfaceInterceptor> mInterceptor =
@@ -878,9 +884,9 @@ private:
     static bool useVrFlinger;
     std::thread::id mMainThreadId;
 
-    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
-    // Applied on sRGB layers when the render intent is non-colorimetric.
-    mat4 mLegacySrgbSaturationMatrix;
+    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
+    // Applied on Display P3 layers when the render intent is non-colorimetric.
+    mat4 mEnhancedSaturationMatrix;
 
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
