@@ -598,6 +598,16 @@ static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
     return true;
 }
 
+// Note: This only works for existing GLenum's that are all 32bits.
+// If you have 64bit attributes (e.g. pointers) you shouldn't be calling this.
+void convertAttribs(const EGLAttrib* attribList, std::vector<EGLint>& newList) {
+    for (const EGLAttrib* attr = attribList; attr && attr[0] != EGL_NONE; attr += 2) {
+        newList.push_back(static_cast<EGLint>(attr[0]));
+        newList.push_back(static_cast<EGLint>(attr[1]));
+    }
+    newList.push_back(EGL_NONE);
+}
+
 // Gets the native pixel format corrsponding to the passed EGLConfig.
 void getNativePixelFormat(EGLDisplay dpy, egl_connection_t* cnx, EGLConfig config,
                           android_pixel_format* format) {
@@ -1641,37 +1651,88 @@ EGLBoolean eglUnlockSurfaceKHRImpl(EGLDisplay dpy, EGLSurface surface)
     return setError(EGL_BAD_DISPLAY, (EGLBoolean)EGL_FALSE);
 }
 
-EGLImageKHR eglCreateImageKHRImpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
-        EGLClientBuffer buffer, const EGLint *attrib_list)
-{
+// Note: EGLImageKHR and EGLImage are the same thing so no need
+// to templatize that.
+template <typename AttrType, typename FuncType>
+EGLImageKHR eglCreateImageTmpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                               EGLClientBuffer buffer, const AttrType* attrib_list,
+                               FuncType eglCreateImageFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_NO_IMAGE_KHR;
 
     ContextRef _c(dp.get(), ctx);
-    egl_context_t * const c = _c.get();
+    egl_context_t* const c = _c.get();
 
     EGLImageKHR result = EGL_NO_IMAGE_KHR;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglCreateImageKHR) {
-        result = cnx->egl.eglCreateImageKHR(
-                dp->disp.dpy,
-                c ? c->context : EGL_NO_CONTEXT,
-                target, buffer, attrib_list);
+    if (cnx->dso && eglCreateImageFunc) {
+        result = eglCreateImageFunc(dp->disp.dpy, c ? c->context : EGL_NO_CONTEXT, target, buffer,
+                                    attrib_list);
     }
     return result;
 }
 
-EGLBoolean eglDestroyImageKHRImpl(EGLDisplay dpy, EGLImageKHR img)
-{
+typedef EGLImage(EGLAPIENTRYP PFNEGLCREATEIMAGE)(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                                                 EGLClientBuffer buffer,
+                                                 const EGLAttrib* attrib_list);
+
+EGLImageKHR eglCreateImageKHRImpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                                  EGLClientBuffer buffer, const EGLint* attrib_list) {
+    return eglCreateImageTmpl<EGLint, PFNEGLCREATEIMAGEKHRPROC>(dpy, ctx, target, buffer,
+                                                                attrib_list,
+                                                                gEGLImpl.egl.eglCreateImageKHR);
+}
+
+EGLImage eglCreateImageImpl(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer,
+                            const EGLAttrib* attrib_list) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglCreateImage) {
+            return eglCreateImageTmpl<EGLAttrib, PFNEGLCREATEIMAGE>(dpy, ctx, target, buffer,
+                                                                    attrib_list,
+                                                                    cnx->egl.eglCreateImage);
+        }
+        // driver doesn't support native function, return EGL_BAD_DISPLAY
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglCreateImage");
+        return setError(EGL_BAD_DISPLAY, EGL_NO_IMAGE);
+    }
+
+    std::vector<EGLint> convertedAttribs;
+    convertAttribs(attrib_list, convertedAttribs);
+    return eglCreateImageTmpl<EGLint, PFNEGLCREATEIMAGEKHRPROC>(dpy, ctx, target, buffer,
+                                                                convertedAttribs.data(),
+                                                                gEGLImpl.egl.eglCreateImageKHR);
+}
+
+EGLBoolean eglDestroyImageTmpl(EGLDisplay dpy, EGLImageKHR img,
+                               PFNEGLDESTROYIMAGEKHRPROC destroyImageFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglDestroyImageKHR) {
-        result = cnx->egl.eglDestroyImageKHR(dp->disp.dpy, img);
+    if (cnx->dso && destroyImageFunc) {
+        result = destroyImageFunc(dp->disp.dpy, img);
     }
     return result;
+}
+
+EGLBoolean eglDestroyImageKHRImpl(EGLDisplay dpy, EGLImageKHR img) {
+    return eglDestroyImageTmpl(dpy, img, gEGLImpl.egl.eglDestroyImageKHR);
+}
+
+EGLBoolean eglDestroyImageImpl(EGLDisplay dpy, EGLImageKHR img) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglDestroyImage) {
+            return eglDestroyImageTmpl(dpy, img, gEGLImpl.egl.eglDestroyImage);
+        }
+        // driver doesn't support native function, return EGL_BAD_DISPLAY
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglDestroyImage");
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    return eglDestroyImageTmpl(dpy, img, gEGLImpl.egl.eglDestroyImageKHR);
 }
 
 // ----------------------------------------------------------------------------
@@ -2371,6 +2432,7 @@ struct implementation_map_t {
 };
 
 static const implementation_map_t sPlatformImplMap[] = {
+        // clang-format off
     { "eglGetDisplay", (EGLFuncPointer)&eglGetDisplayImpl },
     { "eglInitialize", (EGLFuncPointer)&eglInitializeImpl },
     { "eglTerminate", (EGLFuncPointer)&eglTerminateImpl },
@@ -2412,6 +2474,8 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglUnlockSurfaceKHR", (EGLFuncPointer)&eglUnlockSurfaceKHRImpl },
     { "eglCreateImageKHR", (EGLFuncPointer)&eglCreateImageKHRImpl },
     { "eglDestroyImageKHR", (EGLFuncPointer)&eglDestroyImageKHRImpl },
+    { "eglCreateImage", (EGLFuncPointer)&eglCreateImageImpl },
+    { "eglDestroyImage", (EGLFuncPointer)&eglDestroyImageImpl },
     { "eglCreateSyncKHR", (EGLFuncPointer)&eglCreateSyncKHRImpl },
     { "eglDestroySyncKHR", (EGLFuncPointer)&eglDestroySyncKHRImpl },
     { "eglSignalSyncKHR", (EGLFuncPointer)&eglSignalSyncKHRImpl },
@@ -2447,6 +2511,7 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "glGetFloatv", (EGLFuncPointer)&glGetFloatvImpl },
     { "glGetIntegerv", (EGLFuncPointer)&glGetIntegervImpl },
     { "glGetInteger64v", (EGLFuncPointer)&glGetInteger64vImpl },
+        // clang-format on
 };
 
 EGLFuncPointer FindPlatformImplAddr(const char* name)

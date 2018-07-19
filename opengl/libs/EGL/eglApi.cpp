@@ -352,12 +352,31 @@ EGLImageKHR eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
     return cnx->platform.eglCreateImageKHR(dpy, ctx, target, buffer, attrib_list);
 }
 
+EGLImage eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer,
+                        const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreateImage(dpy, ctx, target, buffer, attrib_list);
+}
+
 EGLBoolean eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR img) {
     clearError();
 
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglDestroyImageKHR(dpy, img);
 }
+
+EGLBoolean eglDestroyImage(EGLDisplay dpy, EGLImageKHR img) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglDestroyImage(dpy, img);
+}
+
+// ----------------------------------------------------------------------------
+// EGL_EGLEXT_VERSION 5
+// ----------------------------------------------------------------------------
 
 EGLSyncKHR eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint* attrib_list) {
     clearError();
