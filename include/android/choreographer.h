@@ -43,6 +43,8 @@ typedef struct AChoreographer AChoreographer;
  */
 typedef void (*AChoreographer_frameCallback)(long frameTimeNanos, void* data);
 
+#if __ANDROID_API__ >= 24
+
 /**
  * Get the AChoreographer instance for the current thread. This must be called
  * on an ALooper thread.
@@ -64,6 +66,8 @@ void AChoreographer_postFrameCallback(AChoreographer* choreographer,
 void AChoreographer_postFrameCallbackDelayed(AChoreographer* choreographer,
                 AChoreographer_frameCallback callback, void* data,
                 long delayMillis) __INTRODUCED_IN(24);
+
+#endif /* __ANDROID_API__ >= 24 */
 
 __END_DECLS
 

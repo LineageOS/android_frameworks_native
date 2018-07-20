@@ -27,6 +27,7 @@
 #define ANDROID_SHARED_MEMORY_H
 
 #include <stddef.h>
+#include <sys/cdefs.h>
 
 /******************************************************************
  *
@@ -51,6 +52,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if __ANDROID_API__ >= 26
 
 /**
  * Create a shared memory region.
@@ -105,6 +108,8 @@ size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
  * \return 0 for success, error code on failure.
  */
 int ASharedMemory_setProt(int fd, int prot) __INTRODUCED_IN(26);
+
+#endif // __ANDROID_API__ >= 26
 
 #ifdef __cplusplus
 };
