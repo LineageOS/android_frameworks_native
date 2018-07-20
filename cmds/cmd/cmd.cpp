@@ -103,12 +103,12 @@ public:
         }
         if (is_selinux_enabled() && seLinuxContext.size() > 0) {
             String8 seLinuxContext8(seLinuxContext);
-            security_context_t tmp = NULL;
+            security_context_t tmp = nullptr;
             getfilecon(fullPath.string(), &tmp);
             Unique_SecurityContext context(tmp);
             if (checkWrite) {
                 int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
-                        "file", "write", NULL);
+                        "file", "write", nullptr);
                 if (accessGranted != 0) {
 #if DEBUG
                     ALOGD("openFile: failed selinux write check!");
@@ -122,7 +122,7 @@ public:
             }
             if (checkRead) {
                 int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
-                        "file", "read", NULL);
+                        "file", "read", nullptr);
                 if (accessGranted != 0) {
 #if DEBUG
                     ALOGD("openFile: failed selinux read check!");
@@ -174,7 +174,7 @@ int main(int argc, char* const argv[])
 #endif
     sp<IServiceManager> sm = defaultServiceManager();
     fflush(stdout);
-    if (sm == NULL) {
+    if (sm == nullptr) {
         ALOGW("Unable to get default service manager!");
         aerr << "cmd: Unable to get default service manager!" << endl;
         return 20;
@@ -192,7 +192,7 @@ int main(int argc, char* const argv[])
 
         for (size_t i=0; i<services.size(); i++) {
             sp<IBinder> service = sm->checkService(services[i]);
-            if (service != NULL) {
+            if (service != nullptr) {
                 aout << "  " << services[i] << endl;
             }
         }
@@ -205,7 +205,7 @@ int main(int argc, char* const argv[])
     }
     String16 cmd = String16(argv[1]);
     sp<IBinder> service = sm->checkService(cmd);
-    if (service == NULL) {
+    if (service == nullptr) {
         ALOGW("Can't find service %s", argv[1]);
         aerr << "cmd: Can't find service: " << argv[1] << endl;
         return 20;
