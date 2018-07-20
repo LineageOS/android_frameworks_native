@@ -29,7 +29,7 @@ GLHelper::GLHelper() :
     mContext(EGL_NO_CONTEXT),
     mDummySurface(EGL_NO_SURFACE),
     mConfig(0),
-    mShaderPrograms(NULL),
+    mShaderPrograms(nullptr),
     mDitherTexture(0) {
 }
 
@@ -101,12 +101,12 @@ bool GLHelper::setUp(const ShaderDesc* shaderDescs, size_t numShaders) {
 }
 
 void GLHelper::tearDown() {
-    if (mShaderPrograms != NULL) {
+    if (mShaderPrograms != nullptr) {
         delete[] mShaderPrograms;
-        mShaderPrograms = NULL;
+        mShaderPrograms = nullptr;
     }
 
-    if (mSurfaceComposerClient != NULL) {
+    if (mSurfaceComposerClient != nullptr) {
         mSurfaceComposerClient->dispose();
         mSurfaceComposerClient.clear();
     }
@@ -210,7 +210,7 @@ bool GLHelper::createNamedSurfaceTexture(GLuint name, uint32_t w, uint32_t h,
     glc->setConsumerUsageBits(GRALLOC_USAGE_HW_COMPOSER);
 
     sp<ANativeWindow> anw = new Surface(producer);
-    EGLSurface s = eglCreateWindowSurface(mDisplay, mConfig, anw.get(), NULL);
+    EGLSurface s = eglCreateWindowSurface(mDisplay, mConfig, anw.get(), nullptr);
     if (s == EGL_NO_SURFACE) {
         fprintf(stderr, "eglCreateWindowSurface error: %#x\n", eglGetError());
         return false;
@@ -223,7 +223,7 @@ bool GLHelper::createNamedSurfaceTexture(GLuint name, uint32_t w, uint32_t h,
 
 bool GLHelper::computeWindowScale(uint32_t w, uint32_t h, float* scale) {
     sp<IBinder> dpy = mSurfaceComposerClient->getBuiltInDisplay(0);
-    if (dpy == NULL) {
+    if (dpy == nullptr) {
         fprintf(stderr, "SurfaceComposer::getBuiltInDisplay failed.\n");
         return false;
     }
@@ -247,7 +247,7 @@ bool GLHelper::createWindowSurface(uint32_t w, uint32_t h,
     bool result;
     status_t err;
 
-    if (mSurfaceComposerClient == NULL) {
+    if (mSurfaceComposerClient == nullptr) {
         mSurfaceComposerClient = new SurfaceComposerClient;
     }
     err = mSurfaceComposerClient->initCheck();
@@ -258,7 +258,7 @@ bool GLHelper::createWindowSurface(uint32_t w, uint32_t h,
 
     sp<SurfaceControl> sc = mSurfaceComposerClient->createSurface(
             String8("Benchmark"), w, h, PIXEL_FORMAT_RGBA_8888, 0);
-    if (sc == NULL || !sc->isValid()) {
+    if (sc == nullptr || !sc->isValid()) {
         fprintf(stderr, "Failed to create SurfaceControl.\n");
         return false;
     }
@@ -289,7 +289,7 @@ bool GLHelper::createWindowSurface(uint32_t w, uint32_t h,
     SurfaceComposerClient::closeGlobalTransaction();
 
     sp<ANativeWindow> anw = sc->getSurface();
-    EGLSurface s = eglCreateWindowSurface(mDisplay, mConfig, anw.get(), NULL);
+    EGLSurface s = eglCreateWindowSurface(mDisplay, mConfig, anw.get(), nullptr);
     if (s == EGL_NO_SURFACE) {
         fprintf(stderr, "eglCreateWindowSurface error: %#x\n", eglGetError());
         return false;
@@ -308,7 +308,7 @@ static bool compileShader(GLenum shaderType, const char* src,
         return false;
     }
 
-    glShaderSource(shader, 1, &src, NULL);
+    glShaderSource(shader, 1, &src, nullptr);
     glCompileShader(shader);
 
     GLint compiled = 0;
@@ -319,7 +319,7 @@ static bool compileShader(GLenum shaderType, const char* src,
         if (infoLen) {
             char* buf = new char[infoLen];
             if (buf) {
-                glGetShaderInfoLog(shader, infoLen, NULL, buf);
+                glGetShaderInfoLog(shader, infoLen, nullptr, buf);
                 fprintf(stderr, "Shader compile log:\n%s\n", buf);
                 delete[] buf;
             }
@@ -332,21 +332,21 @@ static bool compileShader(GLenum shaderType, const char* src,
 }
 
 static void printShaderSource(const char* const* src) {
-    for (size_t i = 0; i < MAX_SHADER_LINES && src[i] != NULL; i++) {
+    for (size_t i = 0; i < MAX_SHADER_LINES && src[i] != nullptr; i++) {
         fprintf(stderr, "%3zu: %s\n", i+1, src[i]);
     }
 }
 
 static const char* makeShaderString(const char* const* src) {
     size_t len = 0;
-    for (size_t i = 0; i < MAX_SHADER_LINES && src[i] != NULL; i++) {
+    for (size_t i = 0; i < MAX_SHADER_LINES && src[i] != nullptr; i++) {
         // The +1 is for the '\n' that will be added.
         len += strlen(src[i]) + 1;
     }
 
     char* result = new char[len+1];
     char* end = result;
-    for (size_t i = 0; i < MAX_SHADER_LINES && src[i] != NULL; i++) {
+    for (size_t i = 0; i < MAX_SHADER_LINES && src[i] != nullptr; i++) {
         strcpy(end, src[i]);
         end += strlen(src[i]);
         *end = '\n';
@@ -390,7 +390,7 @@ static bool linkShaderProgram(GLuint vs, GLuint fs, GLuint* outPgm) {
         if (bufLength) {
             char* buf = new char[bufLength];
             if (buf) {
-                glGetProgramInfoLog(program, bufLength, NULL, buf);
+                glGetProgramInfoLog(program, bufLength, nullptr, buf);
                 fprintf(stderr, "Program link log:\n%s\n", buf);
                 delete[] buf;
             }

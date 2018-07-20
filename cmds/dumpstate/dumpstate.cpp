@@ -63,7 +63,7 @@ using android::os::dumpstate::GetPidByName;
 
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
-static const char *dump_traces_path = NULL;
+static const char *dump_traces_path = nullptr;
 
 // TODO: variables and functions below should be part of dumpstate object
 
@@ -267,7 +267,7 @@ static void dump_dev_files(const char *title, const char *driverpath, const char
     char path[PATH_MAX];
 
     d = opendir(driverpath);
-    if (d == NULL) {
+    if (d == nullptr) {
         return;
     }
 
@@ -559,7 +559,7 @@ unsigned long worst_write_perf = 20000; /* in KB/s */
 static int dump_stat_from_fd(const char *title __unused, const char *path, int fd) {
     unsigned long long fields[__STAT_NUMBER_FIELD];
     bool z;
-    char *cp, *buffer = NULL;
+    char *cp, *buffer = nullptr;
     size_t i = 0;
     FILE *fp = fdopen(dup(fd), "rb");
     getline(&buffer, &i, fp);
@@ -1362,7 +1362,7 @@ static std::string SHA256_file_hash(const std::string& filepath) {
             | O_CLOEXEC | O_NOFOLLOW)));
     if (fd == -1) {
         MYLOGE("open(%s): %s\n", filepath.c_str(), strerror(errno));
-        return NULL;
+        return nullptr;
     }
 
     SHA256_CTX ctx;
@@ -1375,7 +1375,7 @@ static std::string SHA256_file_hash(const std::string& filepath) {
             break;
         } else if (bytes_read == -1) {
             MYLOGE("read(%s): %s\n", filepath.c_str(), strerror(errno));
-            return NULL;
+            return nullptr;
         }
 
         SHA256_Update(&ctx, buffer.data(), bytes_read);
@@ -1423,7 +1423,7 @@ int main(int argc, char *argv[]) {
     int do_add_date = 0;
     int do_zip_file = 0;
     int do_vibrate = 1;
-    char* use_outfile = 0;
+    char* use_outfile = nullptr;
     int use_socket = 0;
     int use_control_socket = 0;
     int do_fb = 0;

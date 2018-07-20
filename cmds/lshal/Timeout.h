@@ -57,7 +57,7 @@ void *callAndNotify(void *data) {
     BackgroundTaskState &state = *static_cast<BackgroundTaskState *>(data);
     state();
     state.notify();
-    return NULL;
+    return nullptr;
 }
 
 template<class R, class P>
@@ -65,7 +65,7 @@ bool timeout(std::chrono::duration<R, P> delay, std::function<void(void)> &&func
     auto now = std::chrono::system_clock::now();
     BackgroundTaskState state{std::forward<decltype(func)>(func)};
     pthread_t thread;
-    if (pthread_create(&thread, NULL, callAndNotify, &state)) {
+    if (pthread_create(&thread, nullptr, callAndNotify, &state)) {
         std::cerr << "FATAL: could not create background thread." << std::endl;
         return false;
     }
@@ -73,7 +73,7 @@ bool timeout(std::chrono::duration<R, P> delay, std::function<void(void)> &&func
     if (!success) {
         pthread_kill(thread, SIGINT);
     }
-    pthread_join(thread, NULL);
+    pthread_join(thread, nullptr);
     return success;
 }
 
