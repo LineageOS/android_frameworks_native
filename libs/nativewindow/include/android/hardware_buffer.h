@@ -154,6 +154,8 @@ typedef struct AHardwareBuffer_Desc {
 
 typedef struct AHardwareBuffer AHardwareBuffer;
 
+#if __ANDROID_API__ >= 26
+
 /**
  * Allocates a buffer that backs an AHardwareBuffer using the passed
  * AHardwareBuffer_Desc.
@@ -245,6 +247,8 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
  * number of the lock fails for any reason.
  */
 int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer) __INTRODUCED_IN(26);
+
+#endif // __ANDROID_API__ >= 26
 
 __END_DECLS
 
