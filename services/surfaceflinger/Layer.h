@@ -258,7 +258,7 @@ public:
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
     // producer specified transform.
-    bool setMatrix(const layer_state_t::matrix22_t& matrix);
+    bool setMatrix(const layer_state_t::matrix22_t& matrix, bool allowNonRectPreservingTransforms);
 
     // This second set of geometry attributes are controlled by
     // setGeometryAppliesWithResize, and their default mode is to be

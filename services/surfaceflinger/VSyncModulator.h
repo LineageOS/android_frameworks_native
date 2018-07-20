@@ -36,6 +36,11 @@ private:
 
 public:
 
+    struct Offsets {
+        nsecs_t sf;
+        nsecs_t app;
+    };
+
     enum TransactionStart {
         EARLY,
         NORMAL
@@ -43,21 +48,32 @@ public:
 
     // Sets the phase offsets
     //
-    // early: the phase offset when waking up early. May be the same as late, in which case we don't
-    //        shift offsets.
-    // late: the regular sf phase offset.
-    void setPhaseOffsets(nsecs_t early, nsecs_t late) {
-        mEarlyPhaseOffset = early;
-        mLatePhaseOffset = late;
-        mPhaseOffset = late;
+    // sfEarly: The phase offset when waking up SF early, which happens when marking a transaction
+    //          as early. May be the same as late, in which case we don't shift offsets.
+    // sfEarlyGl: Like sfEarly, but only if we used GL composition. If we use both GL composition
+    //            and the transaction was marked as early, we'll use sfEarly.
+    // sfLate: The regular SF vsync phase offset.
+    // appEarly: Like sfEarly, but for the app-vsync
+    // appEarlyGl: Like sfEarlyGl, but for the app-vsync.
+    // appLate: The regular app vsync phase offset.
+    void setPhaseOffsets(Offsets early, Offsets earlyGl, Offsets late) {
+        mEarlyOffsets = early;
+        mEarlyGlOffsets = earlyGl;
+        mLateOffsets = late;
+        mOffsets = late;
     }
 
-    nsecs_t getEarlyPhaseOffset() const {
-        return mEarlyPhaseOffset;
+    Offsets getEarlyOffsets() const {
+        return mEarlyOffsets;
     }
 
-    void setEventThread(EventThread* eventThread) {
-        mEventThread = eventThread;
+    Offsets getEarlyGlOffsets() const {
+        return mEarlyGlOffsets;
+    }
+
+    void setEventThreads(EventThread* sfEventThread, EventThread* appEventThread) {
+        mSfEventThread = sfEventThread;
+        mAppEventThread = appEventThread;
     }
 
     void setTransactionStart(TransactionStart transactionStart) {
@@ -71,63 +87,70 @@ public:
             return;
         }
         mTransactionStart = transactionStart;
-        updatePhaseOffsets();
+        updateOffsets();
     }
 
     void onTransactionHandled() {
         if (mTransactionStart == TransactionStart::NORMAL) return;
         mTransactionStart = TransactionStart::NORMAL;
-        updatePhaseOffsets();
+        updateOffsets();
     }
 
     void onRefreshed(bool usedRenderEngine) {
-        bool updatePhaseOffsetsNeeded = false;
+        bool updateOffsetsNeeded = false;
         if (mRemainingEarlyFrameCount > 0) {
             mRemainingEarlyFrameCount--;
-            updatePhaseOffsetsNeeded = true;
+            updateOffsetsNeeded = true;
         }
         if (usedRenderEngine != mLastFrameUsedRenderEngine) {
             mLastFrameUsedRenderEngine = usedRenderEngine;
-            updatePhaseOffsetsNeeded = true;
+            updateOffsetsNeeded = true;
         }
-        if (updatePhaseOffsetsNeeded) {
-            updatePhaseOffsets();
+        if (updateOffsetsNeeded) {
+            updateOffsets();
         }
     }
 
 private:
 
-    void updatePhaseOffsets() {
+    void updateOffsets() {
+        const Offsets desired = getOffsets();
+        const Offsets current = mOffsets;
 
-        // Do not change phase offsets if disabled.
-        if (mEarlyPhaseOffset == mLatePhaseOffset) return;
+        bool changed = false;
+        if (desired.sf != current.sf) {
+            mSfEventThread->setPhaseOffset(desired.sf);
+            changed = true;
+        }
+        if (desired.app != current.app) {
+            mAppEventThread->setPhaseOffset(desired.app);
+            changed = true;
+        }
 
-        if (shouldUseEarlyOffset()) {
-            if (mPhaseOffset != mEarlyPhaseOffset) {
-                if (mEventThread) {
-                    mEventThread->setPhaseOffset(mEarlyPhaseOffset);
-                }
-                mPhaseOffset = mEarlyPhaseOffset;
-            }
-        } else {
-            if (mPhaseOffset != mLatePhaseOffset) {
-                if (mEventThread) {
-                    mEventThread->setPhaseOffset(mLatePhaseOffset);
-                }
-                mPhaseOffset = mLatePhaseOffset;
-            }
+        if (changed) {
+            mOffsets = desired;
         }
     }
 
-    bool shouldUseEarlyOffset() {
-        return mTransactionStart == TransactionStart::EARLY || mLastFrameUsedRenderEngine
-                || mRemainingEarlyFrameCount > 0;
+    Offsets getOffsets() {
+        if (mTransactionStart == TransactionStart::EARLY || mRemainingEarlyFrameCount > 0) {
+            return mEarlyOffsets;
+        } else if (mLastFrameUsedRenderEngine) {
+            return mEarlyGlOffsets;
+        } else {
+            return mLateOffsets;
+        }
     }
 
-    nsecs_t mLatePhaseOffset = 0;
-    nsecs_t mEarlyPhaseOffset = 0;
-    EventThread* mEventThread = nullptr;
-    std::atomic<nsecs_t> mPhaseOffset = 0;
+    Offsets mLateOffsets;
+    Offsets mEarlyOffsets;
+    Offsets mEarlyGlOffsets;
+
+    EventThread* mSfEventThread = nullptr;
+    EventThread* mAppEventThread = nullptr;
+
+    std::atomic<Offsets> mOffsets;
+
     std::atomic<TransactionStart> mTransactionStart = TransactionStart::NORMAL;
     std::atomic<bool> mLastFrameUsedRenderEngine = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
