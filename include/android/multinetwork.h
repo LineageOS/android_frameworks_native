@@ -60,6 +60,8 @@ typedef uint64_t net_handle_t;
  * on failure with an appropriate errno value set.
  */
 
+#if __ANDROID_API__ >= 23
+
 /**
  * Set the network to be used by the given socket file descriptor.
  *
@@ -105,6 +107,8 @@ int android_setprocnetwork(net_handle_t network) __INTRODUCED_IN(23);
 int android_getaddrinfofornetwork(net_handle_t network,
         const char *node, const char *service,
         const struct addrinfo *hints, struct addrinfo **res) __INTRODUCED_IN(23);
+
+#endif /* __ANDROID_API__ >= 23 */
 
 __END_DECLS
 

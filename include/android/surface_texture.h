@@ -43,6 +43,7 @@
  */
 
 #include <stdint.h>
+#include <sys/cdefs.h>
 
 #include <android/native_window.h>
 
@@ -57,6 +58,8 @@ struct ASurfaceTexture;
  * ASurfaceTexture_fromSurfaceTexture().
  */
 typedef struct ASurfaceTexture ASurfaceTexture;
+
+#if __ANDROID_API__ >= 28
 
 /**
  * Release the reference to the native ASurfaceTexture acquired with
@@ -156,6 +159,8 @@ void ASurfaceTexture_getTransformMatrix(ASurfaceTexture* st, float mtx[16]) __IN
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  */
 int64_t ASurfaceTexture_getTimestamp(ASurfaceTexture* st) __INTRODUCED_IN(28);
+
+#endif /* __ANDROID_API__ >= 28 */
 
 __END_DECLS
 
