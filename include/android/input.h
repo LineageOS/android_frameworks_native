@@ -986,8 +986,10 @@ int32_t AMotionEvent_getFlags(const AInputEvent* motion_event);
  */
 int32_t AMotionEvent_getMetaState(const AInputEvent* motion_event);
 
+#if __ANDROID_API__ >= 14
 /** Get the button state of all buttons that are pressed. */
 int32_t AMotionEvent_getButtonState(const AInputEvent* motion_event) __INTRODUCED_IN(14);
+#endif
 
 /**
  * Get a bitfield indicating which edges, if any, were touched by this motion event.
@@ -1052,12 +1054,14 @@ size_t AMotionEvent_getPointerCount(const AInputEvent* motion_event);
  */
 int32_t AMotionEvent_getPointerId(const AInputEvent* motion_event, size_t pointer_index);
 
+#if __ANDROID_API__ >= 14
 /**
  * Get the tool type of a pointer for the given pointer index.
  * The tool type indicates the type of tool used to make contact such as a
  * finger or stylus, if known.
  */
 int32_t AMotionEvent_getToolType(const AInputEvent* motion_event, size_t pointer_index) __INTRODUCED_IN(14);
+#endif
 
 /**
  * Get the original raw X coordinate of this event.
@@ -1147,9 +1151,11 @@ float AMotionEvent_getToolMinor(const AInputEvent* motion_event, size_t pointer_
  */
 float AMotionEvent_getOrientation(const AInputEvent* motion_event, size_t pointer_index);
 
+#if __ANDROID_API__ >= 13
 /** Get the value of the request axis for the given pointer index. */
 float AMotionEvent_getAxisValue(const AInputEvent* motion_event,
         int32_t axis, size_t pointer_index) __INTRODUCED_IN(13);
+#endif
 
 /**
  * Get the number of historical points in this event.  These are movements that
@@ -1280,12 +1286,14 @@ float AMotionEvent_getHistoricalToolMinor(const AInputEvent* motion_event, size_
 float AMotionEvent_getHistoricalOrientation(const AInputEvent* motion_event, size_t pointer_index,
         size_t history_index);
 
+#if __ANDROID_API__ >= 13
 /**
  * Get the historical value of the request axis for the given pointer index
  * that occurred between this event and the previous motion event.
  */
 float AMotionEvent_getHistoricalAxisValue(const AInputEvent* motion_event,
         int32_t axis, size_t pointer_index, size_t history_index) __INTRODUCED_IN(13);
+#endif
 
 
 struct AInputQueue;
