@@ -35,6 +35,8 @@ public:
     bool isVisible() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
+
+    bool isCreatedFromMainThread() const override { return true; }
 };
 
 } // namespace android
