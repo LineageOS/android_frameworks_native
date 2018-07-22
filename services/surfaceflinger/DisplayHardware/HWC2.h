@@ -218,10 +218,8 @@ public:
             std::unordered_map<Layer*, Composition>* outTypes);
     [[clang::warn_unused_result]] Error getColorModes(
             std::vector<android::ui::ColorMode>* outModes) const;
-    // outSupportedPerFrameMetadata is an opaque bitmask to the callers
-    // but contains HdrMetadata::Type::*.
-    [[clang::warn_unused_result]] Error getSupportedPerFrameMetadata(
-            int32_t* outSupportedPerFrameMetadata) const;
+    // Returns a bitmask which contains HdrMetadata::Type::*.
+    [[clang::warn_unused_result]] int32_t getSupportedPerFrameMetadata() const;
     [[clang::warn_unused_result]] Error getRenderIntents(
             android::ui::ColorMode colorMode,
             std::vector<android::ui::RenderIntent>* outRenderIntents) const;

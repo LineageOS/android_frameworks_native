@@ -56,11 +56,11 @@ static bool waitpid_with_timeout(pid_t pid, int timeout_ms, int* status) {
     timespec ts;
     ts.tv_sec = MSEC_TO_SEC(timeout_ms);
     ts.tv_nsec = (timeout_ms % 1000) * 1000000;
-    int ret = TEMP_FAILURE_RETRY(sigtimedwait(&child_mask, NULL, &ts));
+    int ret = TEMP_FAILURE_RETRY(sigtimedwait(&child_mask, nullptr, &ts));
     int saved_errno = errno;
 
     // Set the signals back the way they were.
-    if (sigprocmask(SIG_SETMASK, &old_mask, NULL) == -1) {
+    if (sigprocmask(SIG_SETMASK, &old_mask, nullptr) == -1) {
         printf("*** sigprocmask failed: %s\n", strerror(errno));
         if (ret == 0) {
             return false;
@@ -310,7 +310,7 @@ int RunCommandToFd(int fd, const std::string& title, const std::vector<std::stri
         struct sigaction sigact;
         memset(&sigact, 0, sizeof(sigact));
         sigact.sa_handler = SIG_IGN;
-        sigaction(SIGPIPE, &sigact, NULL);
+        sigaction(SIGPIPE, &sigact, nullptr);
 
         execvp(path, (char**)args.data());
         // execvp's result will be handled after waitpid_with_timeout() below, but

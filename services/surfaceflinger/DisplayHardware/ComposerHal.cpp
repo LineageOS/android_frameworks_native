@@ -905,23 +905,25 @@ Error Composer::setLayerPerFrameMetadata(Display display, Layer layer,
     return Error::NONE;
 }
 
-Error Composer::getPerFrameMetadataKeys(
-        Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) {
+std::vector<IComposerClient::PerFrameMetadataKey> Composer::getPerFrameMetadataKeys(
+        Display display) {
+    std::vector<IComposerClient::PerFrameMetadataKey>  keys;
     if (!mClient_2_2) {
-        return Error::UNSUPPORTED;
+        return keys;
     }
 
     Error error = kDefaultError;
     mClient_2_2->getPerFrameMetadataKeys(display, [&](const auto& tmpError, const auto& tmpKeys) {
         error = tmpError;
         if (error != Error::NONE) {
+            ALOGW("getPerFrameMetadataKeys failed with %d", tmpError);
             return;
         }
 
-        *outKeys = tmpKeys;
+        keys = tmpKeys;
     });
 
-    return error;
+    return keys;
 }
 
 Error Composer::getRenderIntents(Display display, ColorMode colorMode,

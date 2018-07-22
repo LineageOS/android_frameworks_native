@@ -103,7 +103,9 @@ bool HWComposer::getDisplayIdentificationData(hwc2_display_t hwcDisplayId, uint8
                                               DisplayIdentificationData* outData) const {
     const auto error = mHwcDevice->getDisplayIdentificationData(hwcDisplayId, outPort, outData);
     if (error != HWC2::Error::None) {
-        LOG_HWC_DISPLAY_ERROR(hwcDisplayId, to_string(error).c_str());
+        if (error != HWC2::Error::Unsupported) {
+            LOG_HWC_DISPLAY_ERROR(hwcDisplayId, to_string(error).c_str());
+        }
         return false;
     }
     return true;
@@ -743,12 +745,7 @@ status_t HWComposer::getHdrCapabilities(
 
 int32_t HWComposer::getSupportedPerFrameMetadata(int32_t displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, 0);
-
-    int32_t supportedMetadata;
-    auto error = mDisplayData[displayId].hwcDisplay->getSupportedPerFrameMetadata(
-            &supportedMetadata);
-    RETURN_IF_HWC_ERROR(error, displayId, 0);
-    return supportedMetadata;
+    return mDisplayData[displayId].hwcDisplay->getSupportedPerFrameMetadata();
 }
 
 std::vector<ui::RenderIntent> HWComposer::getRenderIntents(int32_t displayId,
