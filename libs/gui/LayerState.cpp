@@ -37,13 +37,13 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeUint32(mask);
     *reinterpret_cast<layer_state_t::matrix22_t *>(
             output.writeInplace(sizeof(layer_state_t::matrix22_t))) = matrix;
-    output.write(crop);
-    output.write(finalCrop);
-    output.writeStrongBinder(barrierHandle);
+    output.write(crop_legacy);
+    output.write(finalCrop_legacy);
+    output.writeStrongBinder(barrierHandle_legacy);
     output.writeStrongBinder(reparentHandle);
-    output.writeUint64(frameNumber);
+    output.writeUint64(frameNumber_legacy);
     output.writeInt32(overrideScalingMode);
-    output.writeStrongBinder(IInterface::asBinder(barrierGbp));
+    output.writeStrongBinder(IInterface::asBinder(barrierGbp_legacy));
     output.writeStrongBinder(relativeLayerHandle);
     output.writeStrongBinder(parentHandleForChild);
     output.writeFloat(color.r);
@@ -72,14 +72,13 @@ status_t layer_state_t::read(const Parcel& input)
     } else {
         return BAD_VALUE;
     }
-    input.read(crop);
-    input.read(finalCrop);
-    barrierHandle = input.readStrongBinder();
+    input.read(crop_legacy);
+    input.read(finalCrop_legacy);
+    barrierHandle_legacy = input.readStrongBinder();
     reparentHandle = input.readStrongBinder();
-    frameNumber = input.readUint64();
+    frameNumber_legacy = input.readUint64();
     overrideScalingMode = input.readInt32();
-    barrierGbp =
-        interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
+    barrierGbp_legacy = interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
     relativeLayerHandle = input.readStrongBinder();
     parentHandleForChild = input.readStrongBinder();
     color.r = input.readFloat();
@@ -194,19 +193,19 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eLayerStackChanged;
         layerStack = other.layerStack;
     }
-    if (other.what & eCropChanged) {
-        what |= eCropChanged;
-        crop = other.crop;
+    if (other.what & eCropChanged_legacy) {
+        what |= eCropChanged_legacy;
+        crop_legacy = other.crop_legacy;
     }
-    if (other.what & eDeferTransaction) {
-        what |= eDeferTransaction;
-        barrierHandle = other.barrierHandle;
-        barrierGbp = other.barrierGbp;
-        frameNumber = other.frameNumber;
+    if (other.what & eDeferTransaction_legacy) {
+        what |= eDeferTransaction_legacy;
+        barrierHandle_legacy = other.barrierHandle_legacy;
+        barrierGbp_legacy = other.barrierGbp_legacy;
+        frameNumber_legacy = other.frameNumber_legacy;
     }
-    if (other.what & eFinalCropChanged) {
-        what |= eFinalCropChanged;
-        finalCrop = other.finalCrop;
+    if (other.what & eFinalCropChanged_legacy) {
+        what |= eFinalCropChanged_legacy;
+        finalCrop_legacy = other.finalCrop_legacy;
     }
     if (other.what & eOverrideScalingModeChanged) {
         what |= eOverrideScalingModeChanged;

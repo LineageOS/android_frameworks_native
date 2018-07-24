@@ -111,8 +111,8 @@ public:
     };
 
     struct State {
-        Geometry active;
-        Geometry requested;
+        Geometry active_legacy;
+        Geometry requested_legacy;
         int32_t z;
 
         // The identifier of the layer stack this layer belongs to. A layer can
@@ -128,23 +128,23 @@ public:
         bool modified;
 
         // Crop is expressed in layer space coordinate.
-        Rect crop;
-        Rect requestedCrop;
+        Rect crop_legacy;
+        Rect requestedCrop_legacy;
 
         // finalCrop is expressed in display space coordinate.
-        Rect finalCrop;
-        Rect requestedFinalCrop;
+        Rect finalCrop_legacy;
+        Rect requestedFinalCrop_legacy;
 
         // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
-        wp<Layer> barrierLayer;
-        uint64_t frameNumber;
+        wp<Layer> barrierLayer_legacy;
+        uint64_t frameNumber_legacy;
 
         // the transparentRegion hint is a bit special, it's latched only
         // when we receive a buffer -- this is because it's "content"
         // dependent.
-        Region activeTransparentRegion;
-        Region requestedTransparentRegion;
+        Region activeTransparentRegion_legacy;
+        Region requestedTransparentRegion_legacy;
 
         int32_t appId;
         int32_t type;
@@ -207,9 +207,9 @@ public:
     // space for top-level layers.
     bool setPosition(float x, float y, bool immediate);
     // Buffer space
-    bool setCrop(const Rect& crop, bool immediate);
+    bool setCrop_legacy(const Rect& crop, bool immediate);
     // Parent buffer space/display space
-    bool setFinalCrop(const Rect& crop, bool immediate);
+    bool setFinalCrop_legacy(const Rect& crop, bool immediate);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
@@ -223,8 +223,8 @@ public:
     bool setFlags(uint8_t flags, uint8_t mask);
     bool setLayerStack(uint32_t layerStack);
     uint32_t getLayerStack() const;
-    void deferTransactionUntil(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
-    void deferTransactionUntil(const sp<Layer>& barrierLayer, uint64_t frameNumber);
+    void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle, uint64_t frameNumber);
+    void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     bool setOverrideScalingMode(int32_t overrideScalingMode);
     void setInfo(int32_t type, int32_t appId);
     bool reparentChildren(const sp<IBinder>& layer);

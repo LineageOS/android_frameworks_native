@@ -518,7 +518,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     // FIXME: postedRegion should be dirty & bounds
     // transform the dirty region to window-manager space
-    return getTransform().transform(Region(Rect(s.active.w, s.active.h)));
+    return getTransform().transform(Region(Rect(s.active_legacy.w, s.active_legacy.h)));
 }
 
 // transaction
@@ -641,9 +641,9 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 
     Transform t = getTransform();
     Rect win = bounds;
-    if (!s.finalCrop.isEmpty()) {
+    if (!s.finalCrop_legacy.isEmpty()) {
         win = t.transform(win);
-        if (!win.intersect(s.finalCrop, &win)) {
+        if (!win.intersect(s.finalCrop_legacy, &win)) {
             win.clear();
         }
         win = t.inverse().transform(win);
@@ -652,10 +652,10 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
         }
     }
 
-    float left = float(win.left) / float(s.active.w);
-    float top = float(win.top) / float(s.active.h);
-    float right = float(win.right) / float(s.active.w);
-    float bottom = float(win.bottom) / float(s.active.h);
+    float left = float(win.left) / float(s.active_legacy.w);
+    float top = float(win.top) / float(s.active_legacy.h);
+    float right = float(win.right) / float(s.active_legacy.w);
+    float bottom = float(win.bottom) / float(s.active_legacy.h);
 
     // TODO: we probably want to generate the texture coords with the mesh
     // here we assume that we only have 4 vertices

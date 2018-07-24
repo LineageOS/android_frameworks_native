@@ -38,7 +38,7 @@ BufferQueueLayer::BufferQueueLayer(SurfaceFlinger* flinger, const sp<Client>& cl
         mActiveBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
         mQueuedFrames(0),
         mSidebandStreamChanged(false) {
-    mCurrentState.requested = mCurrentState.active;
+    mCurrentState.requested_legacy = mCurrentState.active_legacy;
 }
 
 // -----------------------------------------------------------------------
@@ -219,7 +219,7 @@ std::optional<Region> BufferQueueLayer::latchSidebandStream(bool& recomputeVisib
         recomputeVisibleRegions = true;
 
         const State& s(getDrawingState());
-        return getTransform().transform(Region(Rect(s.active.w, s.active.h)));
+        return getTransform().transform(Region(Rect(s.active_legacy.w, s.active_legacy.h)));
     }
     return {};
 }

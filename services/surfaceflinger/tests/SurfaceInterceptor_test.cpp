@@ -320,11 +320,11 @@ void SurfaceInterceptorTest::layerUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::cropUpdate(Transaction& t) {
-    t.setCrop(mBGSurfaceControl, CROP_UPDATE);
+    t.setCrop_legacy(mBGSurfaceControl, CROP_UPDATE);
 }
 
 void SurfaceInterceptorTest::finalCropUpdate(Transaction& t) {
-    t.setFinalCrop(mBGSurfaceControl, CROP_UPDATE);
+    t.setFinalCrop_legacy(mBGSurfaceControl, CROP_UPDATE);
 }
 
 void SurfaceInterceptorTest::matrixUpdate(Transaction& t) {
@@ -357,7 +357,8 @@ void SurfaceInterceptorTest::secureFlagUpdate(Transaction& t) {
 }
 
 void SurfaceInterceptorTest::deferredTransactionUpdate(Transaction& t) {
-    t.deferTransactionUntil(mBGSurfaceControl, mBGSurfaceControl->getHandle(), DEFERRED_UPDATE);
+    t.deferTransactionUntil_legacy(mBGSurfaceControl, mBGSurfaceControl->getHandle(),
+                                   DEFERRED_UPDATE);
 }
 
 void SurfaceInterceptorTest::displayCreation(Transaction&) {

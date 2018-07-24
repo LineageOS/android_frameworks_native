@@ -2766,7 +2766,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
                 if (translucent) {
                     if (tr.preserveRects()) {
                         // transform the transparent region
-                        transparentRegion = tr.transform(s.activeTransparentRegion);
+                        transparentRegion = tr.transform(s.activeTransparentRegion_legacy);
                     } else {
                         // transformation too complex, can't do the
                         // transparent region optimization.
@@ -3400,7 +3400,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
 
     // If we are deferring transaction, make sure to push the pending state, as otherwise the
     // pending state will also be deferred.
-    if (what & layer_state_t::eDeferTransaction) {
+    if (what & layer_state_t::eDeferTransaction_legacy) {
         layer->pushPendingState();
     }
 
@@ -3485,12 +3485,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setFlags(s.flags, s.mask))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eCropChanged) {
-        if (layer->setCrop(s.crop, !geometryAppliesWithResize))
+    if (what & layer_state_t::eCropChanged_legacy) {
+        if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eFinalCropChanged) {
-        if (layer->setFinalCrop(s.finalCrop, !geometryAppliesWithResize))
+    if (what & layer_state_t::eFinalCropChanged_legacy) {
+        if (layer->setFinalCrop_legacy(s.finalCrop_legacy, !geometryAppliesWithResize))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
@@ -3512,15 +3512,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             flags |= eTransactionNeeded|eTraversalNeeded|eDisplayLayerStackChanged;
         }
     }
-    if (what & layer_state_t::eDeferTransaction) {
-        if (s.barrierHandle != nullptr) {
-            layer->deferTransactionUntil(s.barrierHandle, s.frameNumber);
-        } else if (s.barrierGbp != nullptr) {
-            const sp<IGraphicBufferProducer>& gbp = s.barrierGbp;
+    if (what & layer_state_t::eDeferTransaction_legacy) {
+        if (s.barrierHandle_legacy != nullptr) {
+            layer->deferTransactionUntil_legacy(s.barrierHandle_legacy, s.frameNumber_legacy);
+        } else if (s.barrierGbp_legacy != nullptr) {
+            const sp<IGraphicBufferProducer>& gbp = s.barrierGbp_legacy;
             if (authenticateSurfaceTextureLocked(gbp)) {
                 const auto& otherLayer =
                     (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-                layer->deferTransactionUntil(otherLayer, s.frameNumber);
+                layer->deferTransactionUntil_legacy(otherLayer, s.frameNumber_legacy);
             } else {
                 ALOGE("Attempt to defer transaction to to an"
                         " unrecognized GraphicBufferProducer");
@@ -4864,10 +4864,10 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         const Transform& getTransform() const override { return mTransform; }
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
-            return Rect(layerState.active.w, layerState.active.h);
+            return Rect(layerState.active_legacy.w, layerState.active_legacy.h);
         }
-        int getHeight() const override { return mLayer->getDrawingState().active.h; }
-        int getWidth() const override { return mLayer->getDrawingState().active.w; }
+        int getHeight() const override { return mLayer->getDrawingState().active_legacy.h; }
+        int getWidth() const override { return mLayer->getDrawingState().active_legacy.w; }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return false; }
         Rect getSourceCrop() const override {
@@ -4935,12 +4935,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     Rect crop(sourceCrop);
     if (sourceCrop.width() <= 0) {
         crop.left = 0;
-        crop.right = parent->getCurrentState().active.w;
+        crop.right = parent->getCurrentState().active_legacy.w;
     }
 
     if (sourceCrop.height() <= 0) {
         crop.top = 0;
-        crop.bottom = parent->getCurrentState().active.h;
+        crop.bottom = parent->getCurrentState().active_legacy.h;
     }
 
     int32_t reqWidth = crop.width() * frameScale;

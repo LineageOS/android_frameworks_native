@@ -1188,7 +1188,7 @@ TEST_F(LayerTransactionTest, SetCropBasic) {
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
     const Rect crop(8, 8, 24, 24);
 
-    Transaction().setCrop(layer, crop).apply();
+    Transaction().setCrop_legacy(layer, crop).apply();
     auto shot = screenshot();
     shot->expectColor(crop, Color::RED);
     shot->expectBorder(crop, Color::BLACK);
@@ -1201,13 +1201,13 @@ TEST_F(LayerTransactionTest, SetCropEmpty) {
 
     {
         SCOPED_TRACE("empty rect");
-        Transaction().setCrop(layer, Rect(8, 8, 8, 8)).apply();
+        Transaction().setCrop_legacy(layer, Rect(8, 8, 8, 8)).apply();
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
     {
         SCOPED_TRACE("negative rect");
-        Transaction().setCrop(layer, Rect(8, 8, 0, 0)).apply();
+        Transaction().setCrop_legacy(layer, Rect(8, 8, 0, 0)).apply();
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 }
@@ -1217,7 +1217,7 @@ TEST_F(LayerTransactionTest, SetCropOutOfBounds) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
-    Transaction().setCrop(layer, Rect(-128, -64, 128, 64)).apply();
+    Transaction().setCrop_legacy(layer, Rect(-128, -64, 128, 64)).apply();
     auto shot = screenshot();
     shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
     shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
@@ -1230,7 +1230,7 @@ TEST_F(LayerTransactionTest, SetCropWithTranslation) {
 
     const Point position(32, 32);
     const Rect crop(8, 8, 24, 24);
-    Transaction().setPosition(layer, position.x, position.y).setCrop(layer, crop).apply();
+    Transaction().setPosition(layer, position.x, position.y).setCrop_legacy(layer, crop).apply();
     auto shot = screenshot();
     shot->expectColor(crop + position, Color::RED);
     shot->expectBorder(crop + position, Color::BLACK);
@@ -1244,7 +1244,7 @@ TEST_F(LayerTransactionTest, SetCropWithScale) {
     // crop is affected by matrix
     Transaction()
             .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
-            .setCrop(layer, Rect(8, 8, 24, 24))
+            .setCrop_legacy(layer, Rect(8, 8, 24, 24))
             .apply();
     auto shot = screenshot();
     shot->expectColor(Rect(16, 16, 48, 48), Color::RED);
@@ -1256,8 +1256,8 @@ TEST_F(LayerTransactionTest, SetCropWithResize) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
-    // setCrop is applied immediately by default, with or without resize pending
-    Transaction().setCrop(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
+    // setCrop_legacy is applied immediately by default, with or without resize pending
+    Transaction().setCrop_legacy(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
     {
         SCOPED_TRACE("resize pending");
         auto shot = screenshot();
@@ -1279,14 +1279,17 @@ TEST_F(LayerTransactionTest, SetCropWithNextResize) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
-    // request setCrop to be applied with the next resize
-    Transaction().setCrop(layer, Rect(8, 8, 24, 24)).setGeometryAppliesWithResize(layer).apply();
+    // request setCrop_legacy to be applied with the next resize
+    Transaction()
+            .setCrop_legacy(layer, Rect(8, 8, 24, 24))
+            .setGeometryAppliesWithResize(layer)
+            .apply();
     {
         SCOPED_TRACE("waiting for next resize");
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
-    Transaction().setCrop(layer, Rect(4, 4, 12, 12)).apply();
+    Transaction().setCrop_legacy(layer, Rect(4, 4, 12, 12)).apply();
     {
         SCOPED_TRACE("pending crop modified");
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
@@ -1313,9 +1316,9 @@ TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow) {
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
-    // setCrop is not immediate even with SCALE_TO_WINDOW override
+    // setCrop_legacy is not immediate even with SCALE_TO_WINDOW override
     Transaction()
-            .setCrop(layer, Rect(4, 4, 12, 12))
+            .setCrop_legacy(layer, Rect(4, 4, 12, 12))
             .setSize(layer, 16, 16)
             .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
             .setGeometryAppliesWithResize(layer)
@@ -1346,7 +1349,7 @@ TEST_F(LayerTransactionTest, SetFinalCropBasic) {
     const Rect crop(8, 8, 24, 24);
 
     // same as in SetCropBasic
-    Transaction().setFinalCrop(layer, crop).apply();
+    Transaction().setFinalCrop_legacy(layer, crop).apply();
     auto shot = screenshot();
     shot->expectColor(crop, Color::RED);
     shot->expectBorder(crop, Color::BLACK);
@@ -1360,13 +1363,13 @@ TEST_F(LayerTransactionTest, SetFinalCropEmpty) {
     // same as in SetCropEmpty
     {
         SCOPED_TRACE("empty rect");
-        Transaction().setFinalCrop(layer, Rect(8, 8, 8, 8)).apply();
+        Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 8, 8)).apply();
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
     {
         SCOPED_TRACE("negative rect");
-        Transaction().setFinalCrop(layer, Rect(8, 8, 0, 0)).apply();
+        Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 0, 0)).apply();
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 }
@@ -1377,7 +1380,7 @@ TEST_F(LayerTransactionTest, SetFinalCropOutOfBounds) {
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
     // same as in SetCropOutOfBounds
-    Transaction().setFinalCrop(layer, Rect(-128, -64, 128, 64)).apply();
+    Transaction().setFinalCrop_legacy(layer, Rect(-128, -64, 128, 64)).apply();
     auto shot = screenshot();
     shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
     shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
@@ -1389,7 +1392,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithTranslation) {
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
     // final crop is applied post-translation
-    Transaction().setPosition(layer, 16, 16).setFinalCrop(layer, Rect(8, 8, 24, 24)).apply();
+    Transaction().setPosition(layer, 16, 16).setFinalCrop_legacy(layer, Rect(8, 8, 24, 24)).apply();
     auto shot = screenshot();
     shot->expectColor(Rect(16, 16, 24, 24), Color::RED);
     shot->expectBorder(Rect(16, 16, 24, 24), Color::BLACK);
@@ -1403,7 +1406,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithScale) {
     // final crop is not affected by matrix
     Transaction()
             .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
-            .setFinalCrop(layer, Rect(8, 8, 24, 24))
+            .setFinalCrop_legacy(layer, Rect(8, 8, 24, 24))
             .apply();
     auto shot = screenshot();
     shot->expectColor(Rect(8, 8, 24, 24), Color::RED);
@@ -1416,7 +1419,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithResize) {
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED));
 
     // same as in SetCropWithResize
-    Transaction().setFinalCrop(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
+    Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
     {
         SCOPED_TRACE("resize pending");
         auto shot = screenshot();
@@ -1440,7 +1443,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResize) {
 
     // same as in SetCropWithNextResize
     Transaction()
-            .setFinalCrop(layer, Rect(8, 8, 24, 24))
+            .setFinalCrop_legacy(layer, Rect(8, 8, 24, 24))
             .setGeometryAppliesWithResize(layer)
             .apply();
     {
@@ -1448,7 +1451,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResize) {
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
-    Transaction().setFinalCrop(layer, Rect(4, 4, 12, 12)).apply();
+    Transaction().setFinalCrop_legacy(layer, Rect(4, 4, 12, 12)).apply();
     {
         SCOPED_TRACE("pending final crop modified");
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
@@ -1477,7 +1480,7 @@ TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow) {
 
     // same as in SetCropWithNextResizeScaleToWindow
     Transaction()
-            .setFinalCrop(layer, Rect(4, 4, 12, 12))
+            .setFinalCrop_legacy(layer, Rect(4, 4, 12, 12))
             .setSize(layer, 16, 16)
             .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
             .setGeometryAppliesWithResize(layer)
@@ -1649,8 +1652,8 @@ protected:
         asTransaction([&](Transaction& t) {
             t.setSize(mFGSurfaceControl, 64, 64);
             t.setPosition(mFGSurfaceControl, 64, 64);
-            t.setCrop(mFGSurfaceControl, Rect(0, 0, 64, 64));
-            t.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
+            t.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 64, 64));
+            t.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, -1, -1));
         });
 
         EXPECT_INITIAL_STATE("After restoring initial state");
@@ -1686,7 +1689,7 @@ TEST_F(CropLatchingTest, FinalCropLatchingBufferOldSize) {
     // Normally the crop applies immediately even while a resize is pending.
     asTransaction([&](Transaction& t) {
         t.setSize(mFGSurfaceControl, 128, 128);
-        t.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        t.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     });
 
     EXPECT_CROPPED_STATE("after setting crop (without geometryAppliesWithResize)");
@@ -1700,7 +1703,7 @@ TEST_F(CropLatchingTest, FinalCropLatchingBufferOldSize) {
     asTransaction([&](Transaction& t) {
         t.setSize(mFGSurfaceControl, 128, 128);
         t.setGeometryAppliesWithResize(mFGSurfaceControl);
-        t.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        t.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     });
 
     EXPECT_INITIAL_STATE("after setting crop (with geometryAppliesWithResize)");
@@ -1729,14 +1732,14 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     // set up two deferred transactions on different frames
     asTransaction([&](Transaction& t) {
         t.setAlpha(mFGSurfaceControl, 0.75);
-        t.deferTransactionUntil(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
-                                mSyncSurfaceControl->getSurface()->getNextFrameNumber());
+        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
+                                       mSyncSurfaceControl->getSurface()->getNextFrameNumber());
     });
 
     asTransaction([&](Transaction& t) {
         t.setPosition(mFGSurfaceControl, 128, 128);
-        t.deferTransactionUntil(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
-                                mSyncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
+        t.deferTransactionUntil_legacy(mFGSurfaceControl, mSyncSurfaceControl->getHandle(),
+                                       mSyncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
     });
 
     {
@@ -1881,7 +1884,7 @@ TEST_F(ChildLayerTest, ChildLayerCropping) {
         t.show(mChild);
         t.setPosition(mChild, 0, 0);
         t.setPosition(mFGSurfaceControl, 0, 0);
-        t.setCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
+        t.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
     });
 
     {
@@ -1897,7 +1900,7 @@ TEST_F(ChildLayerTest, ChildLayerFinalCropping) {
         t.show(mChild);
         t.setPosition(mChild, 0, 0);
         t.setPosition(mFGSurfaceControl, 0, 0);
-        t.setFinalCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
+        t.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
     });
 
     {
@@ -2166,8 +2169,8 @@ TEST_F(ChildLayerTest, Bug36858924) {
 
     // Show the child layer in a deferred transaction
     asTransaction([&](Transaction& t) {
-        t.deferTransactionUntil(mChild, mFGSurfaceControl->getHandle(),
-                                mFGSurfaceControl->getSurface()->getNextFrameNumber());
+        t.deferTransactionUntil_legacy(mChild, mFGSurfaceControl->getHandle(),
+                                       mFGSurfaceControl->getSurface()->getNextFrameNumber());
         t.show(mChild);
     });
 
@@ -2465,8 +2468,9 @@ TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentVisibility) {
 }
 
 TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentCrop) {
-
-    SurfaceComposerClient::Transaction().setCrop(mFGSurfaceControl, Rect(0, 0, 1, 1)).apply(true);
+    SurfaceComposerClient::Transaction()
+            .setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 1, 1))
+            .apply(true);
 
     // Even though the parent is cropped out we should still capture the child.
     verify();

@@ -344,54 +344,57 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatri
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop_legacy(
         const sp<SurfaceControl>& sc, const Rect& crop) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eCropChanged;
-    s->crop = crop;
+    s->what |= layer_state_t::eCropChanged_legacy;
+    s->crop_legacy = crop;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinalCrop(const sp<SurfaceControl>& sc, const Rect& crop) {
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinalCrop_legacy(
+        const sp<SurfaceControl>& sc, const Rect& crop) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eFinalCropChanged;
-    s->finalCrop = crop;
+    s->what |= layer_state_t::eFinalCropChanged_legacy;
+    s->finalCrop_legacy = crop;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTransactionUntil(
-        const sp<SurfaceControl>& sc,
-        const sp<IBinder>& handle, uint64_t frameNumber) {
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
+                                                                 const sp<IBinder>& handle,
+                                                                 uint64_t frameNumber) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eDeferTransaction;
-    s->barrierHandle = handle;
-    s->frameNumber = frameNumber;
+    s->what |= layer_state_t::eDeferTransaction_legacy;
+    s->barrierHandle_legacy = handle;
+    s->frameNumber_legacy = frameNumber;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTransactionUntil(
-        const sp<SurfaceControl>& sc,
-        const sp<Surface>& barrierSurface, uint64_t frameNumber) {
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
+                                                                 const sp<Surface>& barrierSurface,
+                                                                 uint64_t frameNumber) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eDeferTransaction;
-    s->barrierGbp = barrierSurface->getIGraphicBufferProducer();
-    s->frameNumber = frameNumber;
+    s->what |= layer_state_t::eDeferTransaction_legacy;
+    s->barrierGbp_legacy = barrierSurface->getIGraphicBufferProducer();
+    s->frameNumber_legacy = frameNumber;
     return *this;
 }
 

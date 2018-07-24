@@ -51,9 +51,9 @@ struct layer_state_t {
         eTransparentRegionChanged = 0x00000020,
         eFlagsChanged = 0x00000040,
         eLayerStackChanged = 0x00000080,
-        eCropChanged = 0x00000100,
-        eDeferTransaction = 0x00000200,
-        eFinalCropChanged = 0x00000400,
+        eCropChanged_legacy = 0x00000100,
+        eDeferTransaction_legacy = 0x00000200,
+        eFinalCropChanged_legacy = 0x00000400,
         eOverrideScalingModeChanged = 0x00000800,
         eGeometryAppliesWithResize = 0x00001000,
         eReparentChildren = 0x00002000,
@@ -76,9 +76,9 @@ struct layer_state_t {
             flags(0),
             mask(0),
             reserved(0),
-            crop(Rect::INVALID_RECT),
-            finalCrop(Rect::INVALID_RECT),
-            frameNumber(0),
+            crop_legacy(Rect::INVALID_RECT),
+            finalCrop_legacy(Rect::INVALID_RECT),
+            frameNumber_legacy(0),
             overrideScalingMode(-1) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
@@ -107,14 +107,14 @@ struct layer_state_t {
     uint8_t mask;
     uint8_t reserved;
     matrix22_t matrix;
-    Rect crop;
-    Rect finalCrop;
-    sp<IBinder> barrierHandle;
+    Rect crop_legacy;
+    Rect finalCrop_legacy;
+    sp<IBinder> barrierHandle_legacy;
     sp<IBinder> reparentHandle;
-    uint64_t frameNumber;
+    uint64_t frameNumber_legacy;
     int32_t overrideScalingMode;
 
-    sp<IGraphicBufferProducer> barrierGbp;
+    sp<IGraphicBufferProducer> barrierGbp_legacy;
 
     sp<IBinder> relativeLayerHandle;
 

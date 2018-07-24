@@ -99,18 +99,20 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     transaction->set_animation(layer->mTransactionFlags & BnSurfaceComposer::eAnimation);
 
     const int32_t layerId(getLayerId(layer));
-    addPositionLocked(transaction, layerId, layer->mCurrentState.active.transform.tx(),
-            layer->mCurrentState.active.transform.ty());
+    addPositionLocked(transaction, layerId, layer->mCurrentState.active_legacy.transform.tx(),
+                      layer->mCurrentState.active_legacy.transform.ty());
     addDepthLocked(transaction, layerId, layer->mCurrentState.z);
     addAlphaLocked(transaction, layerId, layer->mCurrentState.color.a);
-    addTransparentRegionLocked(transaction, layerId, layer->mCurrentState.activeTransparentRegion);
+    addTransparentRegionLocked(transaction, layerId,
+                               layer->mCurrentState.activeTransparentRegion_legacy);
     addLayerStackLocked(transaction, layerId, layer->mCurrentState.layerStack);
-    addCropLocked(transaction, layerId, layer->mCurrentState.crop);
-    if (layer->mCurrentState.barrierLayer != nullptr) {
-        addDeferTransactionLocked(transaction, layerId, layer->mCurrentState.barrierLayer.promote(),
-                layer->mCurrentState.frameNumber);
+    addCropLocked(transaction, layerId, layer->mCurrentState.crop_legacy);
+    if (layer->mCurrentState.barrierLayer_legacy != nullptr) {
+        addDeferTransactionLocked(transaction, layerId,
+                                  layer->mCurrentState.barrierLayer_legacy.promote(),
+                                  layer->mCurrentState.frameNumber_legacy);
     }
-    addFinalCropLocked(transaction, layerId, layer->mCurrentState.finalCrop);
+    addFinalCropLocked(transaction, layerId, layer->mCurrentState.finalCrop_legacy);
     addOverrideScalingModeLocked(transaction, layerId, layer->getEffectiveScalingMode());
     addFlagsLocked(transaction, layerId, layer->mCurrentState.flags);
 }
@@ -353,25 +355,26 @@ void SurfaceInterceptor::addSurfaceChangesLocked(Transaction* transaction,
     if (state.what & layer_state_t::eLayerStackChanged) {
         addLayerStackLocked(transaction, layerId, state.layerStack);
     }
-    if (state.what & layer_state_t::eCropChanged) {
-        addCropLocked(transaction, layerId, state.crop);
+    if (state.what & layer_state_t::eCropChanged_legacy) {
+        addCropLocked(transaction, layerId, state.crop_legacy);
     }
-    if (state.what & layer_state_t::eDeferTransaction) {
+    if (state.what & layer_state_t::eDeferTransaction_legacy) {
         sp<Layer> otherLayer = nullptr;
-        if (state.barrierHandle != nullptr) {
-            otherLayer = static_cast<Layer::Handle*>(state.barrierHandle.get())->owner.promote();
-        } else if (state.barrierGbp != nullptr) {
-            auto const& gbp = state.barrierGbp;
+        if (state.barrierHandle_legacy != nullptr) {
+            otherLayer =
+                    static_cast<Layer::Handle*>(state.barrierHandle_legacy.get())->owner.promote();
+        } else if (state.barrierGbp_legacy != nullptr) {
+            auto const& gbp = state.barrierGbp_legacy;
             if (mFlinger->authenticateSurfaceTextureLocked(gbp)) {
                 otherLayer = (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
             } else {
                 ALOGE("Attempt to defer transaction to to an unrecognized GraphicBufferProducer");
             }
         }
-        addDeferTransactionLocked(transaction, layerId, otherLayer, state.frameNumber);
+        addDeferTransactionLocked(transaction, layerId, otherLayer, state.frameNumber_legacy);
     }
-    if (state.what & layer_state_t::eFinalCropChanged) {
-        addFinalCropLocked(transaction, layerId, state.finalCrop);
+    if (state.what & layer_state_t::eFinalCropChanged_legacy) {
+        addFinalCropLocked(transaction, layerId, state.finalCrop_legacy);
     }
     if (state.what & layer_state_t::eOverrideScalingModeChanged) {
         addOverrideScalingModeLocked(transaction, layerId, state.overrideScalingMode);
@@ -422,8 +425,8 @@ void SurfaceInterceptor::addSurfaceCreationLocked(Increment* increment,
     SurfaceCreation* creation(increment->mutable_surface_creation());
     creation->set_id(getLayerId(layer));
     creation->set_name(getLayerName(layer));
-    creation->set_w(layer->mCurrentState.active.w);
-    creation->set_h(layer->mCurrentState.active.h);
+    creation->set_w(layer->mCurrentState.active_legacy.w);
+    creation->set_h(layer->mCurrentState.active_legacy.h);
 }
 
 void SurfaceInterceptor::addSurfaceDeletionLocked(Increment* increment,
