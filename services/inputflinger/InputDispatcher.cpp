@@ -235,6 +235,12 @@ static void dumpRegion(std::string& dump, const Region& region) {
     }
 }
 
+template<typename T, typename U>
+static T getValueByKey(std::unordered_map<U, T>& map, U key) {
+    typename std::unordered_map<U, T>::const_iterator it = map.find(key);
+    return it != map.end() ? it->second : T{};
+}
+
 
 // --- InputDispatcher ---
 
@@ -244,6 +250,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mAppSwitchSawKeyDown(false), mAppSwitchDueTime(LONG_LONG_MAX),
     mNextUnblockedEvent(nullptr),
     mDispatchEnabled(false), mDispatchFrozen(false), mInputFilterEnabled(false),
+    mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
     mInputTargetWaitCause(INPUT_TARGET_WAIT_CAUSE_NONE) {
     mLooper = new Looper(false);
 
@@ -808,8 +815,10 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
         if (entry->policyFlags & POLICY_FLAG_PASS_TO_USER) {
             CommandEntry* commandEntry = postCommandLocked(
                     & InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible);
-            if (mFocusedWindowHandle != nullptr) {
-                commandEntry->inputWindowHandle = mFocusedWindowHandle;
+            sp<InputWindowHandle> focusedWindowHandle =
+                    getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(entry));
+            if (focusedWindowHandle != nullptr) {
+                commandEntry->inputWindowHandle = focusedWindowHandle;
             }
             commandEntry->keyEntry = entry;
             entry->refCount += 1;
@@ -1108,17 +1117,49 @@ void InputDispatcher::resetANRTimeoutsLocked() {
     mInputTargetWaitApplicationHandle.clear();
 }
 
+/**
+ * Get the display id that the given event should go to. If this event specifies a valid display id,
+ * then it should be dispatched to that display. Otherwise, the event goes to the focused display.
+ * Focused display is the display that the user most recently interacted with.
+ */
+int32_t InputDispatcher::getTargetDisplayId(const EventEntry* entry) {
+    int32_t displayId;
+    switch (entry->type) {
+    case EventEntry::TYPE_KEY: {
+        const KeyEntry* typedEntry = static_cast<const KeyEntry*>(entry);
+        displayId = typedEntry->displayId;
+        break;
+    }
+    case EventEntry::TYPE_MOTION: {
+        const MotionEntry* typedEntry = static_cast<const MotionEntry*>(entry);
+        displayId = typedEntry->displayId;
+        break;
+    }
+    default: {
+        ALOGE("Unsupported event type '%" PRId32 "' for target display.", entry->type);
+        return ADISPLAY_ID_NONE;
+    }
+    }
+    return displayId == ADISPLAY_ID_NONE ? mFocusedDisplayId : displayId;
+}
+
 int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
         const EventEntry* entry, Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime) {
     int32_t injectionResult;
     std::string reason;
 
+    int32_t displayId = getTargetDisplayId(entry);
+    sp<InputWindowHandle> focusedWindowHandle =
+            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+    sp<InputApplicationHandle> focusedApplicationHandle =
+            getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
+
     // If there is no currently focused window and no focused application
     // then drop the event.
-    if (mFocusedWindowHandle == nullptr) {
-        if (mFocusedApplicationHandle != nullptr) {
+    if (focusedWindowHandle == nullptr) {
+        if (focusedApplicationHandle != nullptr) {
             injectionResult = handleTargetsNotReadyLocked(currentTime, entry,
-                    mFocusedApplicationHandle, nullptr, nextWakeupTime,
+                    focusedApplicationHandle, nullptr, nextWakeupTime,
                     "Waiting because no window has focus but there is a "
                     "focused application that may eventually add a window "
                     "when it finishes starting up.");
@@ -1131,23 +1172,23 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
     }
 
     // Check permissions.
-    if (! checkInjectionPermission(mFocusedWindowHandle, entry->injectionState)) {
+    if (!checkInjectionPermission(focusedWindowHandle, entry->injectionState)) {
         injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
         goto Failed;
     }
 
     // Check whether the window is ready for more input.
     reason = checkWindowReadyForMoreInputLocked(currentTime,
-            mFocusedWindowHandle, entry, "focused");
+            focusedWindowHandle, entry, "focused");
     if (!reason.empty()) {
         injectionResult = handleTargetsNotReadyLocked(currentTime, entry,
-                mFocusedApplicationHandle, mFocusedWindowHandle, nextWakeupTime, reason.c_str());
+                focusedApplicationHandle, focusedWindowHandle, nextWakeupTime, reason.c_str());
         goto Unresponsive;
     }
 
     // Success!  Output targets.
     injectionResult = INPUT_EVENT_INJECTION_SUCCEEDED;
-    addWindowTargetLocked(mFocusedWindowHandle,
+    addWindowTargetLocked(focusedWindowHandle,
             InputTarget::FLAG_FOREGROUND | InputTarget::FLAG_DISPATCH_AS_IS, BitSet32(0),
             inputTargets);
 
@@ -1802,8 +1843,11 @@ std::string InputDispatcher::getApplicationWindowLabelLocked(
 }
 
 void InputDispatcher::pokeUserActivityLocked(const EventEntry* eventEntry) {
-    if (mFocusedWindowHandle != nullptr) {
-        const InputWindowInfo* info = mFocusedWindowHandle->getInfo();
+    int32_t displayId = getTargetDisplayId(eventEntry);
+    sp<InputWindowHandle> focusedWindowHandle =
+            getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+    if (focusedWindowHandle != nullptr) {
+        const InputWindowInfo* info = focusedWindowHandle->getInfo();
         if (info->inputFeatures & InputWindowInfo::INPUT_FEATURE_DISABLE_USER_ACTIVITY) {
 #if DEBUG_DISPATCH_CYCLE
             ALOGD("Not poking user activity: disabled by window '%s'.", info->name.c_str());
@@ -2978,18 +3022,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
         // Copy old handles for release if they are no longer present.
         const Vector<sp<InputWindowHandle>> oldWindowHandles = getWindowHandlesLocked(displayId);
 
-        // TODO(b/111361570): multi-display focus, one focus window per display.
-        sp<InputWindowHandle> newFocusedWindowHandle = mFocusedWindowHandle;
-        // Reset newFocusedWindowHandle to nullptr if current display own the focus window,
-        // that will be updated below when going through all window handles in current display.
-        // And if list of window handles becomes empty then it will be updated by other display.
-        if (mFocusedWindowHandle != nullptr) {
-            const InputWindowInfo* info = mFocusedWindowHandle->getInfo();
-            if (info == nullptr || info->displayId == displayId) {
-                newFocusedWindowHandle = nullptr;
-            }
-        }
-
+        sp<InputWindowHandle> newFocusedWindowHandle = nullptr;
         bool foundHoveredWindow = false;
 
         if (inputWindowHandles.isEmpty()) {
@@ -3026,28 +3059,31 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             mLastHoverWindowHandle = nullptr;
         }
 
-        // TODO(b/111361570): multi-display focus, one focus in all display in current.
-        if (mFocusedWindowHandle != newFocusedWindowHandle) {
-            if (mFocusedWindowHandle != nullptr) {
+        sp<InputWindowHandle> oldFocusedWindowHandle =
+                getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+
+        if (oldFocusedWindowHandle != newFocusedWindowHandle) {
+            if (oldFocusedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
                 ALOGD("Focus left window: %s",
-                        mFocusedWindowHandle->getName().c_str());
+                        oldFocusedWindowHandle->getName().c_str());
 #endif
-                sp<InputChannel> focusedInputChannel = mFocusedWindowHandle->getInputChannel();
+                sp<InputChannel> focusedInputChannel = oldFocusedWindowHandle->getInputChannel();
                 if (focusedInputChannel != nullptr) {
                     CancelationOptions options(CancelationOptions::CANCEL_NON_POINTER_EVENTS,
                             "focus left window");
                     synthesizeCancelationEventsForInputChannelLocked(
                             focusedInputChannel, options);
                 }
+                mFocusedWindowHandlesByDisplay.erase(displayId);
             }
             if (newFocusedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
                 ALOGD("Focus entered window: %s",
                         newFocusedWindowHandle->getName().c_str());
 #endif
+                mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
             }
-            mFocusedWindowHandle = newFocusedWindowHandle;
         }
 
         ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
@@ -3096,29 +3132,88 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 }
 
 void InputDispatcher::setFocusedApplication(
-        const sp<InputApplicationHandle>& inputApplicationHandle) {
+        int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) {
 #if DEBUG_FOCUS
     ALOGD("setFocusedApplication");
 #endif
     { // acquire lock
         AutoMutex _l(mLock);
 
+        sp<InputApplicationHandle> oldFocusedApplicationHandle =
+                getValueByKey(mFocusedApplicationHandlesByDisplay, displayId);
         if (inputApplicationHandle != nullptr && inputApplicationHandle->updateInfo()) {
-            if (mFocusedApplicationHandle != inputApplicationHandle) {
-                if (mFocusedApplicationHandle != nullptr) {
+            if (oldFocusedApplicationHandle != inputApplicationHandle) {
+                if (oldFocusedApplicationHandle != nullptr) {
                     resetANRTimeoutsLocked();
-                    mFocusedApplicationHandle->releaseInfo();
+                    oldFocusedApplicationHandle->releaseInfo();
                 }
-                mFocusedApplicationHandle = inputApplicationHandle;
+                mFocusedApplicationHandlesByDisplay[displayId] = inputApplicationHandle;
             }
-        } else if (mFocusedApplicationHandle != nullptr) {
+        } else if (oldFocusedApplicationHandle != nullptr) {
             resetANRTimeoutsLocked();
-            mFocusedApplicationHandle->releaseInfo();
-            mFocusedApplicationHandle.clear();
+            oldFocusedApplicationHandle->releaseInfo();
+            oldFocusedApplicationHandle.clear();
+            mFocusedApplicationHandlesByDisplay.erase(displayId);
         }
 
 #if DEBUG_FOCUS
         //logDispatchStateLocked();
+#endif
+    } // release lock
+
+    // Wake up poll loop since it may need to make new input dispatching choices.
+    mLooper->wake();
+}
+
+/**
+ * Sets the focused display, which is responsible for receiving focus-dispatched input events where
+ * the display not specified.
+ *
+ * We track any unreleased events for each window. If a window loses the ability to receive the
+ * released event, we will send a cancel event to it. So when the focused display is changed, we
+ * cancel all the unreleased display-unspecified events for the focused window on the old focused
+ * display. The display-specified events won't be affected.
+ */
+void InputDispatcher::setFocusedDisplay(int32_t displayId) {
+#if DEBUG_FOCUS
+    ALOGD("setFocusedDisplay displayId=%" PRId32, displayId);
+#endif
+    { // acquire lock
+        AutoMutex _l(mLock);
+
+        if (mFocusedDisplayId != displayId) {
+            sp<InputWindowHandle> oldFocusedWindowHandle =
+                    getValueByKey(mFocusedWindowHandlesByDisplay, mFocusedDisplayId);
+            if (oldFocusedWindowHandle != nullptr) {
+                sp<InputChannel> inputChannel = oldFocusedWindowHandle->getInputChannel();
+                if (inputChannel != nullptr) {
+                    CancelationOptions options(
+                            CancelationOptions::CANCEL_DISPLAY_UNSPECIFIED_EVENTS,
+                            "The display which contains this window no longer has focus.");
+                    synthesizeCancelationEventsForInputChannelLocked(inputChannel, options);
+                }
+            }
+            mFocusedDisplayId = displayId;
+
+            // Sanity check
+            sp<InputWindowHandle> newFocusedWindowHandle =
+                    getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+            if (newFocusedWindowHandle == nullptr) {
+                ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
+                if (!mFocusedWindowHandlesByDisplay.empty()) {
+                    ALOGE("But another display has a focused window:");
+                    for (auto& it : mFocusedWindowHandlesByDisplay) {
+                        const int32_t displayId = it.first;
+                        const sp<InputWindowHandle>& windowHandle = it.second;
+                        ALOGE("Display #%" PRId32 " has focused window: '%s'\n",
+                                displayId, windowHandle->getName().c_str());
+                    }
+                }
+            }
+        }
+
+#if DEBUG_FOCUS
+        logDispatchStateLocked();
 #endif
     } // release lock
 
@@ -3152,7 +3247,7 @@ void InputDispatcher::setInputDispatchMode(bool enabled, bool frozen) {
         }
 
 #if DEBUG_FOCUS
-        //logDispatchStateLocked();
+        logDispatchStateLocked();
 #endif
     } // release lock
 
@@ -3297,17 +3392,35 @@ void InputDispatcher::logDispatchStateLocked() {
 void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     dump += StringPrintf(INDENT "DispatchEnabled: %d\n", mDispatchEnabled);
     dump += StringPrintf(INDENT "DispatchFrozen: %d\n", mDispatchFrozen);
+    dump += StringPrintf(INDENT "FocusedDisplayId: %" PRId32 "\n", mFocusedDisplayId);
 
-    if (mFocusedApplicationHandle != nullptr) {
-        dump += StringPrintf(INDENT "FocusedApplication: name='%s', dispatchingTimeout=%0.3fms\n",
-                mFocusedApplicationHandle->getName().c_str(),
-                mFocusedApplicationHandle->getDispatchingTimeout(
-                        DEFAULT_INPUT_DISPATCHING_TIMEOUT) / 1000000.0);
+    if (!mFocusedApplicationHandlesByDisplay.empty()) {
+        dump += StringPrintf(INDENT "FocusedApplications:\n");
+        for (auto& it : mFocusedApplicationHandlesByDisplay) {
+            const int32_t displayId = it.first;
+            const sp<InputApplicationHandle>& applicationHandle = it.second;
+            dump += StringPrintf(
+                    INDENT2 "displayId=%" PRId32 ", name='%s', dispatchingTimeout=%0.3fms\n",
+                    displayId,
+                    applicationHandle->getName().c_str(),
+                    applicationHandle->getDispatchingTimeout(
+                            DEFAULT_INPUT_DISPATCHING_TIMEOUT) / 1000000.0);
+        }
     } else {
-        dump += StringPrintf(INDENT "FocusedApplication: <null>\n");
+        dump += StringPrintf(INDENT "FocusedApplications: <none>\n");
     }
-    dump += StringPrintf(INDENT "FocusedWindow: name='%s'\n",
-            mFocusedWindowHandle != nullptr ? mFocusedWindowHandle->getName().c_str() : "<null>");
+
+    if (!mFocusedWindowHandlesByDisplay.empty()) {
+        dump += StringPrintf(INDENT "FocusedWindows:\n");
+        for (auto& it : mFocusedWindowHandlesByDisplay) {
+            const int32_t displayId = it.first;
+            const sp<InputWindowHandle>& windowHandle = it.second;
+            dump += StringPrintf(INDENT2 "displayId=%" PRId32 ", name='%s'\n",
+                    displayId, windowHandle->getName().c_str());
+        }
+    } else {
+        dump += StringPrintf(INDENT "FocusedWindows: <none>\n");
+    }
 
     if (!mTouchStatesByDisplay.isEmpty()) {
         dump += StringPrintf(INDENT "TouchStatesByDisplay:\n");
@@ -4527,6 +4640,8 @@ bool InputDispatcher::InputState::shouldCancelKey(const KeyMemento& memento,
         return true;
     case CancelationOptions::CANCEL_FALLBACK_EVENTS:
         return memento.flags & AKEY_EVENT_FLAG_FALLBACK;
+    case CancelationOptions::CANCEL_DISPLAY_UNSPECIFIED_EVENTS:
+        return memento.displayId == ADISPLAY_ID_NONE;
     default:
         return false;
     }
@@ -4545,6 +4660,8 @@ bool InputDispatcher::InputState::shouldCancelMotion(const MotionMemento& mement
         return memento.source & AINPUT_SOURCE_CLASS_POINTER;
     case CancelationOptions::CANCEL_NON_POINTER_EVENTS:
         return !(memento.source & AINPUT_SOURCE_CLASS_POINTER);
+    case CancelationOptions::CANCEL_DISPLAY_UNSPECIFIED_EVENTS:
+        return memento.displayId == ADISPLAY_ID_NONE;
     default:
         return false;
     }

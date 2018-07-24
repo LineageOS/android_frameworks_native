@@ -311,12 +311,18 @@ public:
     virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
             int32_t displayId) = 0;
 
-    /* Sets the focused application.
+    /* Sets the focused application on the given display.
      *
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setFocusedApplication(
-            const sp<InputApplicationHandle>& inputApplicationHandle) = 0;
+            int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) = 0;
+
+    /* Sets the focused display.
+     *
+     * This method may be called on any thread (usually by the input manager).
+     */
+    virtual void setFocusedDisplay(int32_t displayId) = 0;
 
     /* Sets the input dispatching mode.
      *
@@ -391,7 +397,9 @@ public:
 
     virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
             int32_t displayId);
-    virtual void setFocusedApplication(const sp<InputApplicationHandle>& inputApplicationHandle);
+    virtual void setFocusedApplication(int32_t displayId,
+            const sp<InputApplicationHandle>& inputApplicationHandle);
+    virtual void setFocusedDisplay(int32_t displayId);
     virtual void setInputDispatchMode(bool enabled, bool frozen);
     virtual void setInputFilterEnabled(bool enabled);
 
@@ -686,6 +694,10 @@ private:
             CANCEL_POINTER_EVENTS = 1,
             CANCEL_NON_POINTER_EVENTS = 2,
             CANCEL_FALLBACK_EVENTS = 3,
+
+            /* Cancel events where the display not specified. These events would go to the focused
+             * display. */
+            CANCEL_DISPLAY_UNSPECIFIED_EVENTS = 4,
         };
 
         // The criterion to use to determine which events should be canceled.
@@ -966,7 +978,7 @@ private:
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const;
 
     // Focus tracking for keys, trackball, etc.
-    sp<InputWindowHandle> mFocusedWindowHandle;
+    std::unordered_map<int32_t, sp<InputWindowHandle>> mFocusedWindowHandlesByDisplay;
 
     // Focus tracking for touch.
     struct TouchedWindow {
@@ -997,8 +1009,11 @@ private:
     KeyedVector<int32_t, TouchState> mTouchStatesByDisplay;
     TouchState mTempTouchState;
 
-    // Focused application.
-    sp<InputApplicationHandle> mFocusedApplicationHandle;
+    // Focused applications.
+    std::unordered_map<int32_t, sp<InputApplicationHandle>> mFocusedApplicationHandlesByDisplay;
+
+    // Top focused display.
+    int32_t mFocusedDisplayId;
 
     // Dispatcher state at time of last ANR.
     std::string mLastANRState;
@@ -1046,6 +1061,7 @@ private:
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime);
     void resetANRTimeoutsLocked();
 
+    int32_t getTargetDisplayId(const EventEntry* entry);
     int32_t findFocusedWindowTargetsLocked(nsecs_t currentTime, const EventEntry* entry,
             Vector<InputTarget>& inputTargets, nsecs_t* nextWakeupTime);
     int32_t findTouchedWindowTargetsLocked(nsecs_t currentTime, const MotionEntry* entry,

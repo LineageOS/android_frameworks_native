@@ -382,12 +382,13 @@ public:
         int32_t mDisplayId;
 };
 
-static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher) {
+static int32_t injectKeyDown(const sp<InputDispatcher>& dispatcher,
+        int32_t displayId = ADISPLAY_ID_NONE) {
     KeyEvent event;
     nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
 
     // Define a valid key down event.
-    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, ADISPLAY_ID_NONE,
+    event.initialize(DEVICE_ID, AINPUT_SOURCE_KEYBOARD, displayId,
             AKEY_EVENT_ACTION_DOWN, /* flags */ 0,
             AKEYCODE_A, KEY_A, AMETA_NONE, /* repeatCount */ 0, currentTime, currentTime);
 
@@ -466,7 +467,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second");
 
     // Set focus application.
-    mDispatcher->setFocusedApplication(application);
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
     // Expect one focus window exist in display.
     windowSecond->setFocus();
@@ -511,15 +512,21 @@ TEST_F(InputDispatcherTest, SetInputWindow_MultiDisplayTouch) {
     windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_MOTION, SECOND_DISPLAY_ID);
 }
 
-// TODO(b/111361570): multi-display focus, one focus window per display.
 TEST_F(InputDispatcherTest, SetInputWindow_FocusedInMultiDisplay) {
     sp<FakeApplicationHandle> application = new FakeApplicationHandle();
     sp<FakeWindowHandle> windowInPrimary = new FakeWindowHandle(application, mDispatcher, "D_1");
     sp<FakeApplicationHandle> application2 = new FakeApplicationHandle();
     sp<FakeWindowHandle> windowInSecondary = new FakeWindowHandle(application2, mDispatcher, "D_2");
 
+    constexpr int32_t SECOND_DISPLAY_ID = 1;
+
+    // Set focus to primary display window.
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+    windowInPrimary->setFocus();
+
     // Set focus to second display window.
-    mDispatcher->setFocusedApplication(application2);
+    mDispatcher->setFocusedDisplay(SECOND_DISPLAY_ID);
+    mDispatcher->setFocusedApplication(SECOND_DISPLAY_ID, application2);
     windowInSecondary->setFocus();
 
     // Update all windows per displays.
@@ -527,13 +534,18 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedInMultiDisplay) {
     inputWindowHandles.push(windowInPrimary);
     mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
 
-    constexpr int32_t SECOND_DISPLAY_ID = 1;
     windowInSecondary->setDisplayId(SECOND_DISPLAY_ID);
     Vector<sp<InputWindowHandle>> inputWindowHandles_Second;
     inputWindowHandles_Second.push(windowInSecondary);
     mDispatcher->setInputWindows(inputWindowHandles_Second, SECOND_DISPLAY_ID);
 
-    // Test inject a key down.
+    // Test inject a key down with display id specified.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher, ADISPLAY_ID_DEFAULT))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+    windowInPrimary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_DEFAULT);
+    windowInSecondary->assertNoEvents();
+
+    // Test inject a key down without display id specified.
     ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
             << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
     windowInPrimary->assertNoEvents();
@@ -545,6 +557,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedInMultiDisplay) {
 
     // Expect old focus should receive a cancel event.
     windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
+    // TODO(b/111361570): Validate that the event here was marked as canceled.
 
     // Test inject a key down, should timeout because of no target window.
     ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
