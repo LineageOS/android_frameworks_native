@@ -1765,6 +1765,8 @@ void SurfaceFlinger::preComposition()
     ATRACE_CALL();
     ALOGV("preComposition");
 
+    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
     bool needExtraInvalidate = false;
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->onPreComposition(mRefreshStartTime)) {
@@ -2218,8 +2220,6 @@ void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositi
 
 void SurfaceFlinger::beginFrame()
 {
-    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
-
     for (const auto& [token, display] : mDisplays) {
         bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
         bool empty = display->getVisibleLayersSortedByZ().size() == 0;
