@@ -82,7 +82,7 @@ ProgramCache::ProgramCache() {}
 
 ProgramCache::~ProgramCache() {}
 
-void ProgramCache::primeCache(bool hasWideColor) {
+void ProgramCache::primeCache(bool useColorManagement) {
     uint32_t shaderCount = 0;
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK;
     // Prime the cache for all combinations of the above masks,
@@ -105,7 +105,7 @@ void ProgramCache::primeCache(bool hasWideColor) {
     }
 
     // Prime for sRGB->P3 conversion
-    if (hasWideColor) {
+    if (useColorManagement) {
         Key shaderKey;
         shaderKey.set(Key::BLEND_MASK | Key::TEXTURE_MASK | Key::OUTPUT_TRANSFORM_MATRIX_MASK |
                               Key::INPUT_TF_MASK | Key::OUTPUT_TF_MASK,

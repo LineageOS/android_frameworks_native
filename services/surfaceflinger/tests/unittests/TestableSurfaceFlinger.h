@@ -113,6 +113,7 @@ public:
      */
 
     auto& mutableHasWideColorDisplay() { return SurfaceFlinger::hasWideColorDisplay; }
+    auto& mutableUseColorManagement() { return SurfaceFlinger::useColorManagement; }
 
     auto& mutableDisplayTokens() { return mFlinger->mDisplayTokens; }
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }

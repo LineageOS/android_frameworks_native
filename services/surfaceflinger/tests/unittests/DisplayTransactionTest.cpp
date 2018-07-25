@@ -137,6 +137,7 @@ DisplayTransactionTest::DisplayTransactionTest() {
 
     // Default to no wide color display support configured
     mFlinger.mutableHasWideColorDisplay() = false;
+    mFlinger.mutableUseColorManagement() = false;
     mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::UNMANAGED;
 
     // Default to using HWC virtual displays
@@ -455,6 +456,7 @@ struct WideColorSupportNotConfiguredVariant {
 
     static void injectConfigChange(DisplayTransactionTest* test) {
         test->mFlinger.mutableHasWideColorDisplay() = false;
+        test->mFlinger.mutableUseColorManagement() = false;
         test->mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::UNMANAGED;
     }
 
@@ -473,6 +475,7 @@ struct WideColorP3ColorimetricSupportedVariant {
     static constexpr bool WIDE_COLOR_SUPPORTED = true;
 
     static void injectConfigChange(DisplayTransactionTest* test) {
+        test->mFlinger.mutableUseColorManagement() = true;
         test->mFlinger.mutableHasWideColorDisplay() = true;
         test->mFlinger.mutableDisplayColorSetting() = DisplayColorSetting::UNMANAGED;
     }
@@ -501,6 +504,7 @@ struct WideColorNotSupportedVariant {
     static constexpr bool WIDE_COLOR_SUPPORTED = false;
 
     static void injectConfigChange(DisplayTransactionTest* test) {
+        test->mFlinger.mutableUseColorManagement() = true;
         test->mFlinger.mutableHasWideColorDisplay() = true;
     }
 

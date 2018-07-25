@@ -283,12 +283,12 @@ public:
     // FramebufferSurface
     static int64_t maxFrameBufferAcquiredBuffers;
 
-    // Indicate if platform supports color management on its
-    // wide-color display. This is typically found on devices
-    // with wide gamut (e.g. Display-P3) display.
-    // This also allows devices with wide-color displays that don't
-    // want to support color management to disable color management.
+    // Indicate if a device has wide color gamut display. This is typically
+    // found on devices with wide color gamut (e.g. Display-P3) display.
     static bool hasWideColorDisplay;
+
+    // Indicate if device wants color management on its display.
+    static bool useColorManagement;
 
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";

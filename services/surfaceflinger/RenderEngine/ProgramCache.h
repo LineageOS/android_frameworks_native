@@ -161,7 +161,7 @@ public:
     ~ProgramCache();
 
     // Generate shaders to populate the cache
-    void primeCache(bool hasWideColor);
+    void primeCache(bool useColorManagement);
 
     // useProgram lookup a suitable program in the cache or generates one
     // if none can be found.
