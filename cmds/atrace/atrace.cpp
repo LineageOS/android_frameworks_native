@@ -95,6 +95,7 @@ static const TracingCategory k_categories[] = {
     { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, {
         { OPT,      "events/mdss/enable" },
         { OPT,      "events/sde/enable" },
+        { OPT,      "events/mali_systrace/enable" },
     } },
     { "input",      "Input",            ATRACE_TAG_INPUT, { } },
     { "view",       "View System",      ATRACE_TAG_VIEW, { } },
