@@ -25,6 +25,8 @@
  *
  * These trace events can be collected and visualized using the Systrace tool.
  * For information about using the Systrace tool, read <a href="https://developer.android.com/studio/profile/systrace.html">Analyzing UI Performance with Systrace</a>.
+ *
+ * Available since API level 23.
  */
 
 #ifndef ANDROID_NATIVE_TRACE_H
@@ -42,6 +44,8 @@ extern "C" {
 /**
  * Returns true if tracing is enabled. Use this signal to avoid expensive computation only necessary
  * when tracing is enabled.
+ *
+ * Available since API level 23.
  */
 bool ATrace_isEnabled() __INTRODUCED_IN(23);
 
@@ -52,6 +56,8 @@ bool ATrace_isEnabled() __INTRODUCED_IN(23);
  * Note: At this time the vertical bar character '|' and newline character '\n' are used internally
  * by the tracing mechanism. If sectionName contains these characters they will be replaced with a
  * space character in the trace.
+ *
+ * Available since API level 23.
  */
 void ATrace_beginSection(const char* sectionName) __INTRODUCED_IN(23);
 
@@ -60,6 +66,8 @@ void ATrace_beginSection(const char* sectionName) __INTRODUCED_IN(23);
  * preceeded by a corresponding call to beginSection(char*) on the same thread. Calling this method
  * will mark the end of the most recently begun section of code, so care must be taken to ensure
  * that beginSection / endSection pairs are properly nested and called from the same thread.
+ *
+ * Available since API level 23.
  */
 void ATrace_endSection() __INTRODUCED_IN(23);
 
