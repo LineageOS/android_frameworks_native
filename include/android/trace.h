@@ -40,7 +40,7 @@ extern "C" {
 #endif
 
 /**
- * Returns true if tracing is enabled. Use this signal to avoid expensive computation only necessary
+ * Returns true if tracing is enabled. Use this to avoid expensive computation only necessary
  * when tracing is enabled.
  *
  * Available since API level 23.
@@ -49,10 +49,10 @@ bool ATrace_isEnabled() __INTRODUCED_IN(23);
 
 /**
  * Writes a tracing message to indicate that the given section of code has begun. This call must be
- * followed by a corresponding call to endSection() on the same thread.
+ * followed by a corresponding call to {@link ATrace_endSection} on the same thread.
  *
- * Note: At this time the vertical bar character '|' and newline character '\n' are used internally
- * by the tracing mechanism. If sectionName contains these characters they will be replaced with a
+ * Note: At this time the vertical bar character '|' and newline character '\\n' are used internally
+ * by the tracing mechanism. If \p sectionName contains these characters they will be replaced with a
  * space character in the trace.
  *
  * Available since API level 23.
@@ -61,9 +61,9 @@ void ATrace_beginSection(const char* sectionName) __INTRODUCED_IN(23);
 
 /**
  * Writes a tracing message to indicate that a given section of code has ended. This call must be
- * preceeded by a corresponding call to beginSection(char*) on the same thread. Calling this method
+ * preceeded by a corresponding call to {@link ATrace_beginSection} on the same thread. Calling this method
  * will mark the end of the most recently begun section of code, so care must be taken to ensure
- * that beginSection / endSection pairs are properly nested and called from the same thread.
+ * that {@link ATrace_beginSection}/{@link ATrace_endSection} pairs are properly nested and called from the same thread.
  *
  * Available since API level 23.
  */
