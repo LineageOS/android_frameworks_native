@@ -76,7 +76,7 @@ void ASurfaceTexture_release(ASurfaceTexture* st) __INTRODUCED_IN(28);
  * \param st A ASurfaceTexture reference acquired with ASurfaceTexture_fromSurfaceTexture()
  * @return A reference to an ANativeWindow. This reference MUST BE released when no longer needed
  * using ANativeWindow_release(). Failing to do so will result in leaked resources. nullptr is
- * returned if \st is null or if it's not an instance of android.graphics.SurfaceTexture
+ * returned if \p st is null or if it's not an instance of android.graphics.SurfaceTexture
  */
 ANativeWindow* ASurfaceTexture_acquireANativeWindow(ASurfaceTexture* st) __INTRODUCED_IN(28);
 
