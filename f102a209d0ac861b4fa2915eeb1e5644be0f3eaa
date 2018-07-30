@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "2c62fe62_e10fd741",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 4394,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-07-30T05:34:36Z",
+      "side": 1,
+      "message": "Could do this with a ternary and keep the const, but it would probably look kind of gross.",
+      "range": {
+        "startLine": 4387,
+        "startChar": 4,
+        "endLine": 4394,
+        "endChar": 5
+      },
+      "revId": "f102a209d0ac861b4fa2915eeb1e5644be0f3eaa",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
