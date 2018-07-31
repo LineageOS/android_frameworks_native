@@ -21,6 +21,7 @@
 
 /**
  * @file sharedmem.h
+ * @brief Shared memory buffers that can be shared across process.
  */
 
 #ifndef ANDROID_SHARED_MEMORY_H
@@ -45,10 +46,6 @@
  *   - DO NOT CHANGE THE LAYOUT OR SIZE OF STRUCTURES
  */
 
-/**
- * Structures and functions for a shared memory buffer that can be shared across process.
- */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -64,6 +61,8 @@ extern "C" {
  *
  * Use close() to release the shared memory region.
  *
+ * Available since API level 26.
+ *
  * \param name an optional name.
  * \param size size of the shared memory region
  * \return file descriptor that denotes the shared memory; error code on failure.
@@ -72,6 +71,8 @@ int ASharedMemory_create(const char *name, size_t size) __INTRODUCED_IN(26);
 
 /**
  * Get the size of the shared memory region.
+ *
+ * Available since API level 26.
  *
  * \param fd file descriptor of the shared memory region
  * \return size in bytes; 0 if fd is not a valid shared memory file descriptor.
@@ -101,6 +102,8 @@ size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
  *     ASharedMemory_setProt(fd, PROT_READ);
  *
  *     // share fd with another process here and the other process can only map with PROT_READ.
+ *
+ * Available since API level 26.
  *
  * \param fd   file descriptor of the shared memory region.
  * \param prot any bitwise-or'ed combination of PROT_READ, PROT_WRITE, PROT_EXEC denoting
