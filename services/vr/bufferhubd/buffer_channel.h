@@ -1,0 +1,66 @@
+#ifndef ANDROID_DVR_BUFFERHUBD_BUFFER_CHANNEL_H_
+#define ANDROID_DVR_BUFFERHUBD_BUFFER_CHANNEL_H_
+
+#include "buffer_hub.h"
+#include "buffer_node.h"
+
+#include <pdx/channel_handle.h>
+#include <pdx/file_handle.h>
+
+namespace android {
+namespace dvr {
+
+class BufferChannel : public BufferHubChannel {
+ public:
+  ~BufferChannel() override;
+
+  template <typename... Args>
+  static std::unique_ptr<BufferChannel> Create(Args&&... args) {
+    auto buffer = std::unique_ptr<BufferChannel>(
+        new BufferChannel(std::forward<Args>(args)...));
+    return buffer->IsValid() ? std::move(buffer) : nullptr;
+  }
+
+  // Returns whether the object holds a valid graphic buffer.
+  bool IsValid() const {
+    return buffer_node_ != nullptr && buffer_node_->IsValid();
+  }
+
+  // Captures buffer info for use by BufferHubService::DumpState().
+  BufferInfo GetBufferInfo() const override;
+
+  bool HandleMessage(pdx::Message& message) override;
+  void HandleImpulse(pdx::Message& message) override;
+
+ private:
+  // Creates a detached buffer from existing IonBuffers.
+  BufferChannel(BufferHubService* service, int buffer_id, int channel_id,
+                IonBuffer buffer, IonBuffer metadata_buffer,
+                size_t user_metadata_size);
+
+  // Allocates a new detached buffer.
+  BufferChannel(BufferHubService* service, int buffer_id, uint32_t width,
+                uint32_t height, uint32_t layer_count, uint32_t format,
+                uint64_t usage, size_t user_metadata_size);
+
+  // Creates a detached buffer from an existing BufferNode.
+  BufferChannel(BufferHubService* service, int buffer_id, int channel_id,
+                std::shared_ptr<BufferNode> buffer_node,
+                uint64_t buffer_state_bit);
+
+  pdx::Status<BufferDescription<pdx::BorrowedHandle>> OnImport(
+      pdx::Message& message);
+  pdx::Status<pdx::RemoteChannelHandle> OnDuplicate(pdx::Message& message);
+  pdx::Status<pdx::RemoteChannelHandle> OnPromote(pdx::Message& message);
+
+  // The concrete implementation of the Buffer object.
+  std::shared_ptr<BufferNode> buffer_node_;
+
+  // The state bit of this buffer. Must be one the lower 63 bits.
+  uint64_t buffer_state_bit_;
+};
+
+}  // namespace dvr
+}  // namespace android
+
+#endif  // ANDROID_DVR_BUFFERHUBD_BUFFER_CHANNEL_H_

@@ -104,6 +104,20 @@ Status<LocalChannelHandle> DetachedBuffer::Promote() {
   return status_or_handle;
 }
 
+Status<LocalChannelHandle> DetachedBuffer::Duplicate() {
+  ATRACE_NAME("DetachedBuffer::Duplicate");
+  ALOGD_IF(TRACE, "DetachedBuffer::Duplicate: id=%d.", id_);
+
+  auto status_or_handle =
+      client_.InvokeRemoteMethod<DetachedBufferRPC::Duplicate>();
+
+  if (!status_or_handle.ok()) {
+    ALOGE("DetachedBuffer::Duplicate: Failed to duplicate buffer (id=%d): %s.",
+          id_, status_or_handle.GetErrorMessage().c_str());
+  }
+  return status_or_handle;
+}
+
 sp<GraphicBuffer> DetachedBuffer::TakeGraphicBuffer() {
   if (!client_.IsValid() || !buffer_.buffer()) {
     ALOGE("DetachedBuffer::TakeGraphicBuffer: Invalid buffer.");
