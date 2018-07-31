@@ -344,54 +344,57 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatri
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop_legacy(
         const sp<SurfaceControl>& sc, const Rect& crop) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eCropChanged;
-    s->crop = crop;
+    s->what |= layer_state_t::eCropChanged_legacy;
+    s->crop_legacy = crop;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinalCrop(const sp<SurfaceControl>& sc, const Rect& crop) {
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinalCrop_legacy(
+        const sp<SurfaceControl>& sc, const Rect& crop) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eFinalCropChanged;
-    s->finalCrop = crop;
+    s->what |= layer_state_t::eFinalCropChanged_legacy;
+    s->finalCrop_legacy = crop;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTransactionUntil(
-        const sp<SurfaceControl>& sc,
-        const sp<IBinder>& handle, uint64_t frameNumber) {
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
+                                                                 const sp<IBinder>& handle,
+                                                                 uint64_t frameNumber) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eDeferTransaction;
-    s->barrierHandle = handle;
-    s->frameNumber = frameNumber;
+    s->what |= layer_state_t::eDeferTransaction_legacy;
+    s->barrierHandle_legacy = handle;
+    s->frameNumber_legacy = frameNumber;
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::deferTransactionUntil(
-        const sp<SurfaceControl>& sc,
-        const sp<Surface>& barrierSurface, uint64_t frameNumber) {
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
+                                                                 const sp<Surface>& barrierSurface,
+                                                                 uint64_t frameNumber) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
-    s->what |= layer_state_t::eDeferTransaction;
-    s->barrierGbp = barrierSurface->getIGraphicBufferProducer();
-    s->frameNumber = frameNumber;
+    s->what |= layer_state_t::eDeferTransaction_legacy;
+    s->barrierGbp_legacy = barrierSurface->getIGraphicBufferProducer();
+    s->frameNumber_legacy = frameNumber;
     return *this;
 }
 
@@ -431,6 +434,127 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
     }
     s->what |= layer_state_t::eColorChanged;
     s->color = color;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTransform(
+        const sp<SurfaceControl>& sc, uint32_t transform) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eTransformChanged;
+    s->transform = transform;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction&
+SurfaceComposerClient::Transaction::setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
+                                                                 bool transformToDisplayInverse) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eTransformToDisplayInverseChanged;
+    s->transformToDisplayInverse = transformToDisplayInverse;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
+        const sp<SurfaceControl>& sc, const Rect& crop) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eCropChanged;
+    s->crop = crop;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
+        const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eBufferChanged;
+    s->buffer = buffer;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAcquireFence(
+        const sp<SurfaceControl>& sc, const sp<Fence>& fence) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eAcquireFenceChanged;
+    s->acquireFence = fence;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDataspace(
+        const sp<SurfaceControl>& sc, ui::Dataspace dataspace) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eDataspaceChanged;
+    s->dataspace = dataspace;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setHdrMetadata(
+        const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eHdrMetadataChanged;
+    s->hdrMetadata = hdrMetadata;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSurfaceDamageRegion(
+        const sp<SurfaceControl>& sc, const Region& surfaceDamageRegion) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eSurfaceDamageRegionChanged;
+    s->surfaceDamageRegion = surfaceDamageRegion;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setApi(
+        const sp<SurfaceControl>& sc, int32_t api) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eApiChanged;
+    s->api = api;
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSidebandStream(
+        const sp<SurfaceControl>& sc, const sp<NativeHandle>& sidebandStream) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eSidebandStreamChanged;
+    s->sidebandStream = sidebandStream;
     return *this;
 }
 

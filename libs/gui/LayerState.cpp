@@ -37,19 +37,45 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeUint32(mask);
     *reinterpret_cast<layer_state_t::matrix22_t *>(
             output.writeInplace(sizeof(layer_state_t::matrix22_t))) = matrix;
-    output.write(crop);
-    output.write(finalCrop);
-    output.writeStrongBinder(barrierHandle);
+    output.write(crop_legacy);
+    output.write(finalCrop_legacy);
+    output.writeStrongBinder(barrierHandle_legacy);
     output.writeStrongBinder(reparentHandle);
-    output.writeUint64(frameNumber);
+    output.writeUint64(frameNumber_legacy);
     output.writeInt32(overrideScalingMode);
-    output.writeStrongBinder(IInterface::asBinder(barrierGbp));
+    output.writeStrongBinder(IInterface::asBinder(barrierGbp_legacy));
     output.writeStrongBinder(relativeLayerHandle);
     output.writeStrongBinder(parentHandleForChild);
     output.writeFloat(color.r);
     output.writeFloat(color.g);
     output.writeFloat(color.b);
     output.write(transparentRegion);
+    output.writeUint32(transform);
+    output.writeBool(transformToDisplayInverse);
+    output.write(crop);
+    if (buffer) {
+        output.writeBool(true);
+        output.write(*buffer);
+    } else {
+        output.writeBool(false);
+    }
+    if (acquireFence) {
+        output.writeBool(true);
+        output.write(*acquireFence);
+    } else {
+        output.writeBool(false);
+    }
+    output.writeUint32(static_cast<uint32_t>(dataspace));
+    output.write(hdrMetadata);
+    output.write(surfaceDamageRegion);
+    output.writeInt32(api);
+    if (sidebandStream) {
+        output.writeBool(true);
+        output.writeNativeHandle(sidebandStream->handle());
+    } else {
+        output.writeBool(false);
+    }
+
     return NO_ERROR;
 }
 
@@ -72,20 +98,38 @@ status_t layer_state_t::read(const Parcel& input)
     } else {
         return BAD_VALUE;
     }
-    input.read(crop);
-    input.read(finalCrop);
-    barrierHandle = input.readStrongBinder();
+    input.read(crop_legacy);
+    input.read(finalCrop_legacy);
+    barrierHandle_legacy = input.readStrongBinder();
     reparentHandle = input.readStrongBinder();
-    frameNumber = input.readUint64();
+    frameNumber_legacy = input.readUint64();
     overrideScalingMode = input.readInt32();
-    barrierGbp =
-        interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
+    barrierGbp_legacy = interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
     relativeLayerHandle = input.readStrongBinder();
     parentHandleForChild = input.readStrongBinder();
     color.r = input.readFloat();
     color.g = input.readFloat();
     color.b = input.readFloat();
     input.read(transparentRegion);
+    transform = input.readUint32();
+    transformToDisplayInverse = input.readBool();
+    input.read(crop);
+    buffer = new GraphicBuffer();
+    if (input.readBool()) {
+        input.read(*buffer);
+    }
+    acquireFence = new Fence();
+    if (input.readBool()) {
+        input.read(*acquireFence);
+    }
+    dataspace = static_cast<ui::Dataspace>(input.readUint32());
+    input.read(hdrMetadata);
+    input.read(surfaceDamageRegion);
+    api = input.readInt32();
+    if (input.readBool()) {
+        sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
+    }
+
     return NO_ERROR;
 }
 
@@ -194,19 +238,19 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eLayerStackChanged;
         layerStack = other.layerStack;
     }
-    if (other.what & eCropChanged) {
-        what |= eCropChanged;
-        crop = other.crop;
+    if (other.what & eCropChanged_legacy) {
+        what |= eCropChanged_legacy;
+        crop_legacy = other.crop_legacy;
     }
-    if (other.what & eDeferTransaction) {
-        what |= eDeferTransaction;
-        barrierHandle = other.barrierHandle;
-        barrierGbp = other.barrierGbp;
-        frameNumber = other.frameNumber;
+    if (other.what & eDeferTransaction_legacy) {
+        what |= eDeferTransaction_legacy;
+        barrierHandle_legacy = other.barrierHandle_legacy;
+        barrierGbp_legacy = other.barrierGbp_legacy;
+        frameNumber_legacy = other.frameNumber_legacy;
     }
-    if (other.what & eFinalCropChanged) {
-        what |= eFinalCropChanged;
-        finalCrop = other.finalCrop;
+    if (other.what & eFinalCropChanged_legacy) {
+        what |= eFinalCropChanged_legacy;
+        finalCrop_legacy = other.finalCrop_legacy;
     }
     if (other.what & eOverrideScalingModeChanged) {
         what |= eOverrideScalingModeChanged;
@@ -233,6 +277,46 @@ void layer_state_t::merge(const layer_state_t& other) {
     }
     if (other.what & eDestroySurface) {
         what |= eDestroySurface;
+    }
+    if (other.what & eTransformChanged) {
+        what |= eTransformChanged;
+        transform = other.transform;
+    }
+    if (other.what & eTransformToDisplayInverseChanged) {
+        what |= eTransformToDisplayInverseChanged;
+        transformToDisplayInverse = other.transformToDisplayInverse;
+    }
+    if (other.what & eCropChanged) {
+        what |= eCropChanged;
+        crop = other.crop;
+    }
+    if (other.what & eBufferChanged) {
+        what |= eBufferChanged;
+        buffer = other.buffer;
+    }
+    if (other.what & eAcquireFenceChanged) {
+        what |= eAcquireFenceChanged;
+        acquireFence = other.acquireFence;
+    }
+    if (other.what & eDataspaceChanged) {
+        what |= eDataspaceChanged;
+        dataspace = other.dataspace;
+    }
+    if (other.what & eHdrMetadataChanged) {
+        what |= eHdrMetadataChanged;
+        hdrMetadata = other.hdrMetadata;
+    }
+    if (other.what & eSurfaceDamageRegionChanged) {
+        what |= eSurfaceDamageRegionChanged;
+        surfaceDamageRegion = other.surfaceDamageRegion;
+    }
+    if (other.what & eApiChanged) {
+        what |= eApiChanged;
+        api = other.api;
+    }
+    if (other.what & eSidebandStreamChanged) {
+        what |= eSidebandStreamChanged;
+        sidebandStream = other.sidebandStream;
     }
 }
 

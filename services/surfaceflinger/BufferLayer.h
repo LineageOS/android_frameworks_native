@@ -47,152 +47,142 @@
 
 namespace android {
 
-/*
- * A new BufferQueue and a new BufferLayerConsumer are created when the
- * BufferLayer is first referenced.
- *
- * This also implements onFrameAvailable(), which notifies SurfaceFlinger
- * that new data has arrived.
- */
-class BufferLayer : public Layer, public BufferLayerConsumer::ContentsChangedListener {
+class BufferLayer : public Layer {
 public:
     BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
                 uint32_t h, uint32_t flags);
 
     ~BufferLayer() override;
 
-    // If we have received a new buffer this frame, we will pass its surface
-    // damage down to hardware composer. Otherwise, we must send a region with
-    // one empty rect.
-    void useSurfaceDamage();
-    void useEmptyDamage();
-
     // -----------------------------------------------------------------------
     // Overriden from Layer
     // -----------------------------------------------------------------------
-
-    /*
-     * getTypeId - Provide unique string for each class type in the Layer
-     * hierarchy
-     */
-    const char* getTypeId() const override { return "BufferLayer"; }
-
-    /*
-     * isProtected - true if the layer may contain protected content in the
-     * GRALLOC_USAGE_PROTECTED sense.
-     */
-    bool isProtected() const;
-
-    /*
-     * isVisible - true if this layer is visible, false otherwise
-     */
-    bool isVisible() const override;
-
-    /*
-     * isFixedSize - true if content has a fixed size
-     */
-    bool isFixedSize() const override;
-
-    // the this layer's size and format
-    status_t setBuffers(uint32_t w, uint32_t h, PixelFormat format, uint32_t flags);
-
-    /*
-     * onDraw - draws the surface.
-     */
-    void onDraw(const RenderArea& renderArea, const Region& clip,
-                bool useIdentityTransform) const override;
-    void drawNow(const RenderArea& renderArea, bool useIdentityTransform) const;
-
-    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
-
-    void abandon() override;
-    bool shouldPresentNow(const DispSync& dispSync) const override;
-    void setTransformHint(uint32_t orientation) const override;
-    bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
-                           const std::shared_ptr<FenceTime>& presentFence,
-                           const CompositorTiming& compositorTiming) override;
-    std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
-    bool getTransformToDisplayInverse() const override;
-
 public:
-    bool onPreComposition(nsecs_t refreshStartTime) override;
+    // If we have received a new buffer this frame, we will pass its surface
+    // damage down to hardware composer. Otherwise, we must send a region with
+    // one empty rect.
+    void useSurfaceDamage() override;
+    void useEmptyDamage() override;
 
-    // If a buffer was replaced this frame, release the former buffer
-    void releasePendingBuffer(nsecs_t dequeueReadyTime);
-
-    /*
-     * latchBuffer - called each time the screen is redrawn and returns whether
-     * the visible regions need to be recomputed (this is a fairly heavy
-     * operation, so this should be set only if needed). Typically this is used
-     * to figure out if the content or size of a surface has changed.
-     */
-    Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
-    bool isBufferLatched() const override { return mRefreshPending; }
-    void setDefaultBufferSize(uint32_t w, uint32_t h) override;
-
-    bool isHdrY410() const override;
-
-    void setPerFrameData(const sp<const DisplayDevice>& display) override;
+    // getTypeId - Provide unique string for each class type in the Layer
+    // hierarchy
+    const char* getTypeId() const override { return "BufferLayer"; }
 
     bool isOpaque(const Layer::State& s) const override;
 
-private:
-    void onFirstRef() override;
+    // isVisible - true if this layer is visible, false otherwise
+    bool isVisible() const override;
 
-    // Interface implementation for
-    // BufferLayerConsumer::ContentsChangedListener
-    void onFrameAvailable(const BufferItem& item) override;
-    void onFrameReplaced(const BufferItem& item) override;
-    void onSidebandStreamChanged() override;
+    // isFixedSize - true if content has a fixed size
+    bool isFixedSize() const override;
 
-    // needsLinearFiltering - true if this surface's state requires filtering
-    bool needsFiltering(const RenderArea& renderArea) const;
+    // onDraw - draws the surface.
+    void onDraw(const RenderArea& renderArea, const Region& clip,
+                bool useIdentityTransform) override;
+    void drawNow(const RenderArea& renderArea, bool useIdentityTransform);
 
-    static bool getOpacityForFormat(uint32_t format);
+    bool isHdrY410() const override;
 
-    // drawing
-    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
+    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
 
-    // Temporary - Used only for LEGACY camera mode.
-    uint32_t getProducerStickyTransform() const;
+    bool onPreComposition(nsecs_t refreshStartTime) override;
+    bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
+                           const std::shared_ptr<FenceTime>& presentFence,
+                           const CompositorTiming& compositorTiming) override;
 
-    // Loads the corresponding system property once per process
-    static bool latchUnsignaledBuffers();
+    // latchBuffer - called each time the screen is redrawn and returns whether
+    // the visible regions need to be recomputed (this is a fairly heavy
+    // operation, so this should be set only if needed). Typically this is used
+    // to figure out if the content or size of a surface has changed.
+    Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
 
-    uint64_t getHeadFrameNumber() const;
-    bool headFenceHasSignaled() const;
+    bool isBufferLatched() const override { return mRefreshPending; }
+
+    void notifyAvailableFrames() override;
+
+    bool hasReadyFrame() const override;
 
     // Returns the current scaling mode, unless mOverrideScalingMode
     // is set, in which case, it returns mOverrideScalingMode
     uint32_t getEffectiveScalingMode() const override;
+    // -----------------------------------------------------------------------
+
+    // -----------------------------------------------------------------------
+    // Functions that must be implemented by derived classes
+    // -----------------------------------------------------------------------
+private:
+    virtual bool fenceHasSignaled() const = 0;
+
+    virtual nsecs_t getDesiredPresentTime() = 0;
+    virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
+
+    virtual void getDrawingTransformMatrix(float *matrix) = 0;
+    virtual uint32_t getDrawingTransform() const = 0;
+    virtual ui::Dataspace getDrawingDataSpace() const = 0;
+    virtual Rect getDrawingCrop() const = 0;
+    virtual uint32_t getDrawingScalingMode() const = 0;
+    virtual Region getDrawingSurfaceDamage() const = 0;
+    virtual const HdrMetadata& getDrawingHdrMetadata() const = 0;
+    virtual int getDrawingApi() const = 0;
+    virtual PixelFormat getPixelFormat() const = 0;
+
+    virtual uint64_t getFrameNumber() const = 0;
+
+    virtual bool getAutoRefresh() const = 0;
+    virtual bool getSidebandStreamChanged() const = 0;
+
+    virtual std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) = 0;
+
+    virtual bool hasDrawingBuffer() const = 0;
+
+    virtual void setFilteringEnabled(bool enabled) = 0;
+
+    virtual status_t bindTextureImage() const = 0;
+    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
+
+    virtual status_t updateActiveBuffer() = 0;
+    virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
+
+    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& display) = 0;
+
+    // -----------------------------------------------------------------------
 
 public:
-    void notifyAvailableFrames() override;
+    // isProtected - true if the layer may contain protected content in the
+    // GRALLOC_USAGE_PROTECTED sense.
+    bool isProtected() const;
 
-    PixelFormat getPixelFormat() const override { return mFormat; }
-    sp<IGraphicBufferProducer> getProducer() const;
-
-private:
-    sp<BufferLayerConsumer> mConsumer;
+protected:
+    // Loads the corresponding system property once per process
+    static bool latchUnsignaledBuffers();
 
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled
     bool allTransactionsSignaled();
-    sp<IGraphicBufferProducer> mProducer;
 
-    // constants
-    uint32_t mTextureName; // from GLES
-    PixelFormat mFormat;
+    static bool getOpacityForFormat(uint32_t format);
 
-    // main thread
+    // from GLES
+    const uint32_t mTextureName;
+
+private:
+    // needsLinearFiltering - true if this surface's state requires filtering
+    bool needsFiltering(const RenderArea& renderArea) const;
+
+    // drawing
+    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
+
+    uint64_t getHeadFrameNumber() const;
+
     uint32_t mCurrentScalingMode;
-    bool mBufferLatched = false;   // TODO: Use mActiveBuffer?
-    uint64_t mPreviousFrameNumber; // Only accessed on the main thread.
+
+    // main thread.
+    bool mBufferLatched; // TODO: Use mActiveBuffer?
+
     // The texture used to draw the layer in GLES composition mode
     mutable Texture mTexture;
 
-    bool mUpdateTexImageFailed; // This is only accessed on the main thread.
     bool mRefreshPending;
 };
 

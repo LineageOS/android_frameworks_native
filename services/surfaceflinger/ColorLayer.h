@@ -31,8 +31,8 @@ public:
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform) const;
-    void drawNow(const RenderArea& , bool ) const;
+                        bool useIdentityTransform);
+    void drawNow(const RenderArea&, bool);
     bool isVisible() const override;
 
     void setPerFrameData(const sp<const DisplayDevice>& display) override;

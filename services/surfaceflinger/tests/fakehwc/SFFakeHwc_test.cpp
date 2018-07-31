@@ -624,7 +624,7 @@ TEST_F(TransactionTest, LayerCrop) {
     {
         TransactionScope ts(*sFakeComposer);
         Rect cropRect(16, 16, 32, 32);
-        ts.setCrop(mFGSurfaceControl, cropRect);
+        ts.setCrop_legacy(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -639,7 +639,7 @@ TEST_F(TransactionTest, LayerFinalCrop) {
     {
         TransactionScope ts(*sFakeComposer);
         Rect cropRect(32, 32, 32 + 64, 32 + 64);
-        ts.setFinalCrop(mFGSurfaceControl, cropRect);
+        ts.setFinalCrop_legacy(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -657,7 +657,7 @@ TEST_F(TransactionTest, LayerFinalCropEmpty) {
     {
         TransactionScope ts(*sFakeComposer);
         Rect cropRect(16, 16, 32, 32);
-        ts.setFinalCrop(mFGSurfaceControl, cropRect);
+        ts.setFinalCrop_legacy(mFGSurfaceControl, cropRect);
     }
     ASSERT_EQ(2, sFakeComposer->getFrameCount());
 
@@ -847,18 +847,16 @@ TEST_F(TransactionTest, DeferredTransaction) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.setAlpha(mFGSurfaceControl, 0.75);
-        ts.deferTransactionUntil(mFGSurfaceControl, 
-                syncSurfaceControl->getHandle(),
-                syncSurfaceControl->getSurface()->getNextFrameNumber());
+        ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl->getHandle(),
+                                        syncSurfaceControl->getSurface()->getNextFrameNumber());
     }
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 
     {
         TransactionScope ts(*sFakeComposer);
         ts.setPosition(mFGSurfaceControl, 128, 128);
-        ts.deferTransactionUntil(mFGSurfaceControl,
-                syncSurfaceControl->getHandle(),
-                syncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
+        ts.deferTransactionUntil_legacy(mFGSurfaceControl, syncSurfaceControl->getHandle(),
+                                        syncSurfaceControl->getSurface()->getNextFrameNumber() + 1);
     }
     EXPECT_EQ(4, sFakeComposer->getFrameCount());
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
@@ -981,7 +979,7 @@ TEST_F(ChildLayerTest, Cropping) {
         ts.show(mChild);
         ts.setPosition(mChild, 0, 0);
         ts.setPosition(mFGSurfaceControl, 0, 0);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
     }
     // NOTE: The foreground surface would be occluded by the child
     // now, but is included in the stack because the child is
@@ -1000,7 +998,7 @@ TEST_F(ChildLayerTest, FinalCropping) {
         ts.show(mChild);
         ts.setPosition(mChild, 0, 0);
         ts.setPosition(mFGSurfaceControl, 0, 0);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, 5, 5));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
     }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
@@ -1238,8 +1236,8 @@ TEST_F(ChildLayerTest, Bug36858924) {
     // Show the child layer in a deferred transaction
     {
         TransactionScope ts(*sFakeComposer);
-        ts.deferTransactionUntil(mChild, mFGSurfaceControl->getHandle(), 
-                                      mFGSurfaceControl->getSurface()->getNextFrameNumber());
+        ts.deferTransactionUntil_legacy(mChild, mFGSurfaceControl->getHandle(),
+                                        mFGSurfaceControl->getSurface()->getNextFrameNumber());
         ts.show(mChild);
     }
 
@@ -1355,8 +1353,8 @@ protected:
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 64, 64);
         ts.setPosition(mFGSurfaceControl, 64, 64);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 64, 64));
-        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 64, 64));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, -1, -1));
     }
 };
 
@@ -1400,7 +1398,7 @@ TEST_F(LatchingTest, CropLatching) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 63, 63));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 63, 63));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1414,7 +1412,7 @@ TEST_F(LatchingTest, CropLatching) {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
         ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setCrop(mFGSurfaceControl, Rect(0, 0, 63, 63));
+        ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 63, 63));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1432,7 +1430,7 @@ TEST_F(LatchingTest, FinalCropLatching) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1447,7 +1445,7 @@ TEST_F(LatchingTest, FinalCropLatching) {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
         ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1468,7 +1466,7 @@ TEST_F(LatchingTest, FinalCropLatchingBufferOldSize) {
     {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
 
     auto referenceFrame1 = mBaseFrame;
@@ -1487,7 +1485,7 @@ TEST_F(LatchingTest, FinalCropLatchingBufferOldSize) {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
         ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 
@@ -1516,12 +1514,12 @@ TEST_F(LatchingTest, FinalCropLatchingRegressionForb37531386) {
         TransactionScope ts(*sFakeComposer);
         ts.setSize(mFGSurfaceControl, 128, 128);
         ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(64, 64, 127, 127));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
     }
 
     {
         TransactionScope ts(*sFakeComposer);
-        ts.setFinalCrop(mFGSurfaceControl, Rect(0, 0, -1, -1));
+        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, -1, -1));
     }
     EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
 

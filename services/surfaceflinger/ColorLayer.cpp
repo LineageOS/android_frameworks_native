@@ -43,7 +43,7 @@ ColorLayer::ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const 
 }
 
 void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
-                        bool useIdentityTransform) const {
+                        bool useIdentityTransform) {
     half4 color = getColor();
     if (color.a > 0) {
         computeGeometry(renderArea, getBE().mMesh, useIdentityTransform);
@@ -54,7 +54,7 @@ void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
     }
 }
 
-void ColorLayer::drawNow(const RenderArea& renderArea, bool useIdentityTransform) const {
+void ColorLayer::drawNow(const RenderArea& renderArea, bool useIdentityTransform) {
     CompositionInfo& compositionInfo = getBE().compositionInfo;
     auto& engine(mFlinger->getRenderEngine());
 
