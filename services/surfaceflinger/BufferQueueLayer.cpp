@@ -424,6 +424,8 @@ void BufferQueueLayer::onSidebandStreamChanged() {
 // -----------------------------------------------------------------------
 
 void BufferQueueLayer::onFirstRef() {
+    BufferLayer::onFirstRef();
+
     // Creates a custom BufferQueue for SurfaceFlingerConsumer to use
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
