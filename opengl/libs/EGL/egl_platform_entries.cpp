@@ -718,87 +718,82 @@ EGLSurface eglCreateWindowSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
                                         NativeWindowType window,
                                         const EGLint *attrib_list)
 {
-    const EGLint *origAttribList = attrib_list;
-
     egl_connection_t* cnx = nullptr;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
-    if (dp) {
-        if (!window) {
+    if (!dp) {
+        return EGL_NO_SURFACE;
+    }
+
+    if (!window) {
+        return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+    }
+
+    int value = 0;
+    window->query(window, NATIVE_WINDOW_IS_VALID, &value);
+    if (!value) {
+        return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+    }
+
+    // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
+    // native_window_* calls, so don't do them here.
+    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
+        if (result < 0) {
+            ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
+                  "failed (%#x) (already connected to another API?)",
+                  window, result);
+            return setError(EGL_BAD_ALLOC, EGL_NO_SURFACE);
+        }
+    }
+
+    EGLDisplay iDpy = dp->disp.dpy;
+    android_pixel_format format;
+    getNativePixelFormat(iDpy, cnx, config, &format);
+
+    // now select correct colorspace and dataspace based on user's attribute list
+    EGLint colorSpace = EGL_UNKNOWN;
+    std::vector<EGLint> strippedAttribList;
+    if (!processAttributes(dp, window, format, attrib_list, &colorSpace, &strippedAttribList)) {
+        ALOGE("error invalid colorspace: %d", colorSpace);
+        return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+    }
+    attrib_list = strippedAttribList.data();
+
+    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        int err = native_window_set_buffers_format(window, format);
+        if (err != 0) {
+            ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
 
-        int value = 0;
-        window->query(window, NATIVE_WINDOW_IS_VALID, &value);
-        if (!value) {
-            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-        }
-
-        // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
-        // native_window_* calls, so don't do them here.
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
-            int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
-            if (result < 0) {
-                ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
-                      "failed (%#x) (already connected to another API?)",
-                      window, result);
-                return setError(EGL_BAD_ALLOC, EGL_NO_SURFACE);
-            }
-        }
-
-        EGLDisplay iDpy = dp->disp.dpy;
-        android_pixel_format format;
-        getNativePixelFormat(iDpy, cnx, config, &format);
-
-        // now select correct colorspace and dataspace based on user's attribute list
-        EGLint colorSpace = EGL_UNKNOWN;
-        std::vector<EGLint> strippedAttribList;
-        if (!processAttributes(dp, window, format, attrib_list, &colorSpace,
-                               &strippedAttribList)) {
-            ALOGE("error invalid colorspace: %d", colorSpace);
-            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-        }
-        attrib_list = strippedAttribList.data();
-
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
-            int err = native_window_set_buffers_format(window, format);
+        android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
+        if (dataSpace != HAL_DATASPACE_UNKNOWN) {
+            err = native_window_set_buffers_data_space(window, dataSpace);
             if (err != 0) {
-                ALOGE("error setting native window pixel format: %s (%d)",
-                      strerror(-err), err);
+                ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err), err);
                 native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
                 return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
             }
-
-            android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
-            if (dataSpace != HAL_DATASPACE_UNKNOWN) {
-                err = native_window_set_buffers_data_space(window, dataSpace);
-                if (err != 0) {
-                    ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err),
-                          err);
-                    native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
-                    return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-                }
-            }
         }
+    }
 
-        // the EGL spec requires that a new EGLSurface default to swap interval
-        // 1, so explicitly set that on the window here.
-        ANativeWindow* anw = reinterpret_cast<ANativeWindow*>(window);
-        anw->setSwapInterval(anw, 1);
+    // the EGL spec requires that a new EGLSurface default to swap interval
+    // 1, so explicitly set that on the window here.
+    ANativeWindow* anw = reinterpret_cast<ANativeWindow*>(window);
+    anw->setSwapInterval(anw, 1);
 
-        EGLSurface surface = cnx->egl.eglCreateWindowSurface(
-                iDpy, config, window, attrib_list);
-        if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, window, surface,
-                                      getReportedColorSpace(colorSpace), cnx);
-            return s;
-        }
+    EGLSurface surface = cnx->egl.eglCreateWindowSurface(iDpy, config, window, attrib_list);
+    if (surface != EGL_NO_SURFACE) {
+        egl_surface_t* s = new egl_surface_t(dp.get(), config, window, surface,
+                                             getReportedColorSpace(colorSpace), cnx);
+        return s;
+    }
 
-        // EGLSurface creation failed
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
-            native_window_set_buffers_format(window, 0);
-            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
-        }
+    // EGLSurface creation failed
+    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        native_window_set_buffers_format(window, 0);
+        native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
     }
     return EGL_NO_SURFACE;
 }
