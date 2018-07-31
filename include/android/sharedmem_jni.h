@@ -21,6 +21,7 @@
 
 /**
  * @file sharedmem_jni.h
+ * @brief Shared memory buffers that can be shared across process.
  */
 
 #ifndef ANDROID_SHARED_MEMORY_JNI_H
@@ -46,10 +47,6 @@
  *   - DO NOT CHANGE THE LAYOUT OR SIZE OF STRUCTURES
  */
 
-/**
- * Structures and functions for a shared memory buffer that can be shared across process.
- */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -63,6 +60,8 @@ extern "C" {
  * android.os.SharedMemory object.
  *
  * Use close() to release the shared memory region.
+ *
+ * Available since API level 27.
  *
  * \param env The JNIEnv* pointer
  * \param sharedMemory The Java android.os.SharedMemory object
