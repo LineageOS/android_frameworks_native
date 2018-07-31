@@ -1813,74 +1813,184 @@ EGLBoolean eglDestroyImageImpl(EGLDisplay dpy, EGLImageKHR img) {
 // EGL_EGLEXT_VERSION 5
 // ----------------------------------------------------------------------------
 
-
-EGLSyncKHR eglCreateSyncKHRImpl(EGLDisplay dpy, EGLenum type, const EGLint *attrib_list)
-{
+// NOTE: EGLSyncKHR and EGLSync are identical, no need to templatize
+template <typename AttrType, typename FuncType>
+EGLSyncKHR eglCreateSyncTmpl(EGLDisplay dpy, EGLenum type, const AttrType* attrib_list,
+                             FuncType eglCreateSyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_NO_SYNC_KHR;
 
-    EGLSyncKHR result = EGL_NO_SYNC_KHR;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglCreateSyncKHR) {
-        result = cnx->egl.eglCreateSyncKHR(dp->disp.dpy, type, attrib_list);
+    EGLSyncKHR result = EGL_NO_SYNC_KHR;
+    if (cnx->dso && eglCreateSyncFunc) {
+        result = eglCreateSyncFunc(dp->disp.dpy, type, attrib_list);
     }
     return result;
 }
 
-EGLBoolean eglDestroySyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync)
-{
+typedef EGLSurface(EGLAPIENTRYP PFNEGLCREATESYNC)(EGLDisplay dpy, EGLenum type,
+                                                  const EGLAttrib* attrib_list);
+
+EGLSyncKHR eglCreateSyncKHRImpl(EGLDisplay dpy, EGLenum type, const EGLint* attrib_list) {
+    return eglCreateSyncTmpl<EGLint, PFNEGLCREATESYNCKHRPROC>(dpy, type, attrib_list,
+                                                              gEGLImpl.egl.eglCreateSyncKHR);
+}
+
+EGLSync eglCreateSyncImpl(EGLDisplay dpy, EGLenum type, const EGLAttrib* attrib_list) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglCreateSync) {
+            return eglCreateSyncTmpl<EGLAttrib, PFNEGLCREATESYNC>(dpy, type, attrib_list,
+                                                                  cnx->egl.eglCreateSync);
+        }
+        // driver doesn't support native function, return EGL_BAD_DISPLAY
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglCreateSync");
+        return setError(EGL_BAD_DISPLAY, EGL_NO_SYNC);
+    }
+
+    std::vector<EGLint> convertedAttribs;
+    convertAttribs(attrib_list, convertedAttribs);
+    return eglCreateSyncTmpl<EGLint, PFNEGLCREATESYNCKHRPROC>(dpy, type, convertedAttribs.data(),
+                                                              cnx->egl.eglCreateSyncKHR);
+}
+
+EGLBoolean eglDestroySyncTmpl(EGLDisplay dpy, EGLSyncKHR sync,
+                              PFNEGLDESTROYSYNCKHRPROC eglDestroySyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglDestroySyncKHR) {
-        result = cnx->egl.eglDestroySyncKHR(dp->disp.dpy, sync);
+    if (cnx->dso && eglDestroySyncFunc) {
+        result = eglDestroySyncFunc(dp->disp.dpy, sync);
+    }
+    return result;
+}
+
+EGLBoolean eglDestroySyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync) {
+    return eglDestroySyncTmpl(dpy, sync, gEGLImpl.egl.eglDestroySyncKHR);
+}
+
+EGLBoolean eglDestroySyncImpl(EGLDisplay dpy, EGLSyncKHR sync) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglDestroySync) {
+            return eglDestroySyncTmpl(dpy, sync, cnx->egl.eglDestroySync);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglDestroySync");
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    return eglDestroySyncTmpl(dpy, sync, cnx->egl.eglDestroySyncKHR);
+}
+
+EGLBoolean eglSignalSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode,
+                             PFNEGLSIGNALSYNCKHRPROC eglSignalSyncFunc) {
+    const egl_display_ptr dp = validate_display(dpy);
+    if (!dp) return EGL_FALSE;
+
+    EGLBoolean result = EGL_FALSE;
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->dso && eglSignalSyncFunc) {
+        result = eglSignalSyncFunc(dp->disp.dpy, sync, mode);
     }
     return result;
 }
 
 EGLBoolean eglSignalSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
-    const egl_display_ptr dp = validate_display(dpy);
-    if (!dp) return EGL_FALSE;
-
-    EGLBoolean result = EGL_FALSE;
-    egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglSignalSyncKHR) {
-        result = cnx->egl.eglSignalSyncKHR(
-                dp->disp.dpy, sync, mode);
-    }
-    return result;
+    return eglSignalSyncTmpl(dpy, sync, mode, gEGLImpl.egl.eglSignalSyncKHR);
 }
 
-EGLint eglClientWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync,
-        EGLint flags, EGLTimeKHR timeout)
-{
+EGLBoolean eglSignalSyncImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglSignalSync) {
+            return eglSignalSyncTmpl(dpy, sync, mode, cnx->egl.eglSignalSync);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglSignalSync");
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    return eglSignalSyncTmpl(dpy, sync, mode, gEGLImpl.egl.eglSignalSyncKHR);
+}
+
+EGLint eglClientWaitSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout,
+                             PFNEGLCLIENTWAITSYNCKHRPROC eglClientWaitSyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLint result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglClientWaitSyncKHR) {
-        result = cnx->egl.eglClientWaitSyncKHR(
-                dp->disp.dpy, sync, flags, timeout);
+    if (cnx->dso && eglClientWaitSyncFunc) {
+        result = eglClientWaitSyncFunc(dp->disp.dpy, sync, flags, timeout);
     }
     return result;
 }
 
-EGLBoolean eglGetSyncAttribKHRImpl(EGLDisplay dpy, EGLSyncKHR sync,
-        EGLint attribute, EGLint *value)
-{
+EGLint eglClientWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    return eglClientWaitSyncTmpl(dpy, sync, flags, timeout, cnx->egl.eglClientWaitSyncKHR);
+}
+
+EGLint eglClientWaitSyncImpl(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTimeKHR timeout) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglClientWaitSync) {
+            return eglClientWaitSyncTmpl(dpy, sync, flags, timeout, cnx->egl.eglClientWaitSync);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglClientWaitSync");
+        return setError(EGL_BAD_DISPLAY, (EGLint)EGL_FALSE);
+    }
+
+    return eglClientWaitSyncTmpl(dpy, sync, flags, timeout, cnx->egl.eglClientWaitSyncKHR);
+}
+
+template <typename AttrType, typename FuncType>
+EGLBoolean eglGetSyncAttribTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint attribute, AttrType* value,
+                                FuncType eglGetSyncAttribFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglGetSyncAttribKHR) {
-        result = cnx->egl.eglGetSyncAttribKHR(
-                dp->disp.dpy, sync, attribute, value);
+    if (cnx->dso && eglGetSyncAttribFunc) {
+        result = eglGetSyncAttribFunc(dp->disp.dpy, sync, attribute, value);
     }
     return result;
+}
+
+typedef EGLBoolean(EGLAPIENTRYP PFNEGLGETSYNCATTRIB)(EGLDisplay dpy, EGLSync sync, EGLint attribute,
+                                                     EGLAttrib* value);
+
+EGLBoolean eglGetSyncAttribImpl(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib* value) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglGetSyncAttrib) {
+            return eglGetSyncAttribTmpl<EGLAttrib, PFNEGLGETSYNCATTRIB>(dpy, sync, attribute, value,
+                                                                        cnx->egl.eglGetSyncAttrib);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglGetSyncAttrib");
+        return setError(EGL_BAD_DISPLAY, (EGLint)EGL_FALSE);
+    }
+
+    // Fallback to KHR, ask for EGLint attribute and cast back to EGLAttrib
+    EGLint attribValue;
+    EGLBoolean ret =
+            eglGetSyncAttribTmpl<EGLint, PFNEGLGETSYNCATTRIBKHRPROC>(dpy, sync, attribute,
+                                                                     &attribValue,
+                                                                     gEGLImpl.egl
+                                                                             .eglGetSyncAttribKHR);
+    if (ret) {
+        *value = static_cast<EGLAttrib>(attribValue);
+    }
+    return ret;
+}
+
+EGLBoolean eglGetSyncAttribKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint attribute,
+                                   EGLint* value) {
+    return eglGetSyncAttribTmpl<EGLint, PFNEGLGETSYNCATTRIBKHRPROC>(dpy, sync, attribute, value,
+                                                                    gEGLImpl.egl
+                                                                            .eglGetSyncAttribKHR);
 }
 
 EGLStreamKHR eglCreateStreamKHRImpl(EGLDisplay dpy, const EGLint *attrib_list)
@@ -2069,15 +2179,41 @@ EGLStreamKHR eglCreateStreamFromFileDescriptorKHRImpl(
 // EGL_EGLEXT_VERSION 15
 // ----------------------------------------------------------------------------
 
-EGLint eglWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags) {
+// Need to template function type because return type is different
+template <typename ReturnType, typename FuncType>
+ReturnType eglWaitSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags,
+                           FuncType eglWaitSyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
-    EGLint result = EGL_FALSE;
+    ReturnType result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglWaitSyncKHR) {
-        result = cnx->egl.eglWaitSyncKHR(dp->disp.dpy, sync, flags);
+    if (cnx->dso && eglWaitSyncFunc) {
+        result = eglWaitSyncFunc(dp->disp.dpy, sync, flags);
     }
     return result;
+}
+
+typedef EGLBoolean(EGLAPIENTRYP PFNEGLWAITSYNC)(EGLDisplay dpy, EGLSync sync, EGLint flags);
+
+EGLint eglWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    return eglWaitSyncTmpl<EGLint, PFNEGLWAITSYNCKHRPROC>(dpy, sync, flags,
+                                                          cnx->egl.eglWaitSyncKHR);
+}
+
+EGLBoolean eglWaitSyncImpl(EGLDisplay dpy, EGLSync sync, EGLint flags) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglWaitSync) {
+            return eglWaitSyncTmpl<EGLBoolean, PFNEGLWAITSYNC>(dpy, sync, flags,
+                                                               cnx->egl.eglWaitSync);
+        }
+        return setError(EGL_BAD_DISPLAY, (EGLint)EGL_FALSE);
+    }
+
+    return static_cast<EGLBoolean>(
+            eglWaitSyncTmpl<EGLint, PFNEGLWAITSYNCKHRPROC>(dpy, sync, flags,
+                                                           cnx->egl.eglWaitSyncKHR));
 }
 
 // ----------------------------------------------------------------------------
@@ -2553,6 +2689,11 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglDestroyImageKHR", (EGLFuncPointer)&eglDestroyImageKHRImpl },
     { "eglCreateImage", (EGLFuncPointer)&eglCreateImageImpl },
     { "eglDestroyImage", (EGLFuncPointer)&eglDestroyImageImpl },
+    { "eglCreateSync", (EGLFuncPointer)&eglCreateSyncImpl },
+    { "eglDestroySync", (EGLFuncPointer)&eglDestroySyncImpl },
+    { "eglSignalSync", (EGLFuncPointer)&eglSignalSyncImpl },
+    { "eglClientWaitSync", (EGLFuncPointer)&eglClientWaitSyncImpl },
+    { "eglGetSyncAttrib", (EGLFuncPointer)&eglGetSyncAttribImpl },
     { "eglCreateSyncKHR", (EGLFuncPointer)&eglCreateSyncKHRImpl },
     { "eglDestroySyncKHR", (EGLFuncPointer)&eglDestroySyncKHRImpl },
     { "eglSignalSyncKHR", (EGLFuncPointer)&eglSignalSyncKHRImpl },
@@ -2570,6 +2711,7 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglStreamConsumerReleaseKHR", (EGLFuncPointer)&eglStreamConsumerReleaseKHRImpl },
     { "eglGetStreamFileDescriptorKHR", (EGLFuncPointer)&eglGetStreamFileDescriptorKHRImpl },
     { "eglCreateStreamFromFileDescriptorKHR", (EGLFuncPointer)&eglCreateStreamFromFileDescriptorKHRImpl },
+    { "eglWaitSync", (EGLFuncPointer)&eglWaitSyncImpl },
     { "eglWaitSyncKHR", (EGLFuncPointer)&eglWaitSyncKHRImpl },
     { "eglDupNativeFenceFDANDROID", (EGLFuncPointer)&eglDupNativeFenceFDANDROIDImpl },
     { "eglPresentationTimeANDROID", (EGLFuncPointer)&eglPresentationTimeANDROIDImpl },
