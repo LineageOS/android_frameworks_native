@@ -27,6 +27,8 @@
 
 #include <input/Input.h>
 #include <input/InputTransport.h>
+
+#include <input/IInputFlinger.h>
 #include <utils/Errors.h>
 #include <utils/Vector.h>
 #include <utils/Timers.h>
@@ -72,7 +74,7 @@ public:
     virtual sp<InputDispatcherInterface> getDispatcher() = 0;
 };
 
-class InputManager : public InputManagerInterface {
+class InputManager : public InputManagerInterface, public BnInputFlinger {
 protected:
     virtual ~InputManager();
 
@@ -92,6 +94,8 @@ public:
 
     virtual sp<InputReaderInterface> getReader();
     virtual sp<InputDispatcherInterface> getDispatcher();
+
+    virtual void setInputWindows(const Vector<InputWindowInfo>& handles);
 
 private:
     sp<InputReaderInterface> mReader;

@@ -39,6 +39,7 @@ public:
     InputFlinger() ANDROID_API;
 
     virtual status_t dump(int fd, const Vector<String16>& args);
+    void setInputWindows(const Vector<InputWindowInfo>&) {}
 
 private:
     virtual ~InputFlinger();
