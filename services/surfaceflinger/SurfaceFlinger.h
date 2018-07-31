@@ -98,6 +98,7 @@ class EventControlThread;
 class EventThread;
 class IGraphicBufferConsumer;
 class IGraphicBufferProducer;
+class IInputFlinger;
 class InjectVSyncSource;
 class Layer;
 class Surface;
@@ -531,6 +532,7 @@ private:
     void handleTransaction(uint32_t transactionFlags);
     void handleTransactionLocked(uint32_t transactionFlags);
 
+    void updateInputWindows();
     void updateCursorAsync();
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
@@ -986,6 +988,8 @@ private:
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
+
+    sp<IInputFlinger> mInputFlinger;
 };
 }; // namespace android
 
