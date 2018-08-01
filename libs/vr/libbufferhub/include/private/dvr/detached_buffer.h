@@ -57,6 +57,9 @@ class DetachedBuffer {
   // return. Further IPCs towards this channel will return error.
   pdx::Status<pdx::LocalChannelHandle> Promote();
 
+  // Creates a DetachedBuffer from an existing one.
+  pdx::Status<pdx::LocalChannelHandle> Duplicate();
+
   // Takes the underlying graphic buffer out of this DetachedBuffer. This call
   // immediately invalidates this DetachedBuffer object and transfers the
   // underlying pdx::LocalChannelHandle into the GraphicBuffer.

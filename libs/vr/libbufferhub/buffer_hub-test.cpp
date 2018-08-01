@@ -945,3 +945,35 @@ TEST_F(LibBufferHubTest, TestDetachThenPromote) {
   EXPECT_EQ(b1_id, p2_id);
   EXPECT_TRUE(IsBufferGained(p2->buffer_state()));
 }
+
+TEST_F(LibBufferHubTest, TestDuplicateDetachedBuffer) {
+  auto b1 = DetachedBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                   kUsage, kUserMetadataSize);
+  int b1_id = b1->id();
+  EXPECT_TRUE(b1->IsValid());
+
+  auto status_or_handle = b1->Duplicate();
+  EXPECT_TRUE(status_or_handle);
+
+  // The detached buffer should still be valid.
+  EXPECT_TRUE(b1->IsConnected());
+  EXPECT_TRUE(b1->IsValid());
+
+  // Gets the channel handle for the duplicated buffer.
+  LocalChannelHandle h2 = status_or_handle.take();
+  EXPECT_TRUE(h2.valid());
+
+  std::unique_ptr<DetachedBuffer> b2 = DetachedBuffer::Import(std::move(h2));
+  EXPECT_FALSE(h2.valid());
+  ASSERT_TRUE(b2 != nullptr);
+  int b2_id = b2->id();
+
+  // The duplicated buffer should inherit the same buffer id.
+  EXPECT_EQ(b1_id, b2_id);
+
+  // Promote the detached buffer should fail as b1 is no longer the exclusive
+  // owner of the buffer..
+  status_or_handle = b1->Promote();
+  EXPECT_FALSE(status_or_handle.ok());
+  EXPECT_EQ(status_or_handle.error(), EINVAL);
+}
