@@ -537,6 +537,8 @@ void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
 }
 
 void BufferStateLayer::onFirstRef() {
+    BufferLayer::onFirstRef();
+
     if (const auto display = mFlinger->getDefaultDisplayDevice()) {
         updateTransformHint(display);
     }
