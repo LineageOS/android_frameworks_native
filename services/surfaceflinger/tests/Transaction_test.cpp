@@ -1422,6 +1422,19 @@ TEST_P(LayerTypeTransactionTest, SetOverrideScalingModeBasic) {
     }
 }
 
+TEST_P(LayerTypeTransactionTest, RefreshRateIsInitialized) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+
+    sp<IBinder> handle = layer->getHandle();
+    ASSERT_TRUE(handle != nullptr);
+
+    FrameStats frameStats;
+    mClient->getLayerFrameStats(handle, &frameStats);
+
+    ASSERT_GT(frameStats.refreshPeriodNano, static_cast<nsecs_t>(0));
+}
+
 TEST_F(LayerTransactionTest, SetCropBasic_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
