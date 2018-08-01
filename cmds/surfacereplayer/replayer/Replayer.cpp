@@ -489,7 +489,7 @@ void Replayer::setCrop(SurfaceComposerClient::Transaction& t,
 
     Rect r = Rect(cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
-    t.setCrop(mLayers[id], r);
+    t.setCrop_legacy(mLayers[id], r);
 }
 
 void Replayer::setFinalCrop(SurfaceComposerClient::Transaction& t,
@@ -499,7 +499,7 @@ void Replayer::setFinalCrop(SurfaceComposerClient::Transaction& t,
             fcc.rectangle().bottom());
     Rect r = Rect(fcc.rectangle().left(), fcc.rectangle().top(), fcc.rectangle().right(),
             fcc.rectangle().bottom());
-    t.setFinalCrop(mLayers[id], r);
+    t.setFinalCrop_legacy(mLayers[id], r);
 }
 
 void Replayer::setMatrix(SurfaceComposerClient::Transaction& t,
@@ -570,7 +570,7 @@ void Replayer::setDeferredTransaction(SurfaceComposerClient::Transaction& t,
 
     auto handle = mLayers[dtc.layer_id()]->getHandle();
 
-    t.deferTransactionUntil(mLayers[id], handle, dtc.frame_number());
+    t.deferTransactionUntil_legacy(mLayers[id], handle, dtc.frame_number());
 }
 
 void Replayer::setDisplaySurface(SurfaceComposerClient::Transaction& t,

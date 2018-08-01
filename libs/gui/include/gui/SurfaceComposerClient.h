@@ -200,22 +200,21 @@ public:
                 float alpha);
         Transaction& setMatrix(const sp<SurfaceControl>& sc,
                 float dsdx, float dtdx, float dtdy, float dsdy);
-        Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
-        Transaction& setFinalCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setCrop_legacy(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setFinalCrop_legacy(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
         // Defers applying any changes made in this transaction until the Layer
         // identified by handle reaches the given frameNumber. If the Layer identified
         // by handle is removed, then we will apply this transaction regardless of
         // what frame number has been reached.
-        Transaction& deferTransactionUntil(const sp<SurfaceControl>& sc,
-                const sp<IBinder>& handle,
-                uint64_t frameNumber);
-        // A variant of deferTransactionUntil which identifies the Layer we wait for by
+        Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
+                                                  const sp<IBinder>& handle, uint64_t frameNumber);
+        // A variant of deferTransactionUntil_legacy which identifies the Layer we wait for by
         // Surface instead of Handle. Useful for clients which may not have the
         // SurfaceControl for some of their Surfaces. Otherwise behaves identically.
-        Transaction& deferTransactionUntil(const sp<SurfaceControl>& sc,
-                const sp<Surface>& barrierSurface,
-                uint64_t frameNumber);
+        Transaction& deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
+                                                  const sp<Surface>& barrierSurface,
+                                                  uint64_t frameNumber);
         // Reparents all children of this layer to the new parent handle.
         Transaction& reparentChildren(const sp<SurfaceControl>& sc,
                 const sp<IBinder>& newParentHandle);
@@ -227,6 +226,20 @@ public:
                 const sp<IBinder>& newParentHandle);
 
         Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);
+
+        Transaction& setTransform(const sp<SurfaceControl>& sc, uint32_t transform);
+        Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
+                                                  bool transformToDisplayInverse);
+        Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
+        Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
+        Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
+        Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
+        Transaction& setSurfaceDamageRegion(const sp<SurfaceControl>& sc,
+                                            const Region& surfaceDamageRegion);
+        Transaction& setApi(const sp<SurfaceControl>& sc, int32_t api);
+        Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
+                                       const sp<NativeHandle>& sidebandStream);
 
         // Detaches all child surfaces (and their children recursively)
         // from their SurfaceControl.

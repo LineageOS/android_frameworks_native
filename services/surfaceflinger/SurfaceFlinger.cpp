@@ -63,6 +63,8 @@
 #include <private/gui/SyncFeatures.h>
 
 #include "BufferLayer.h"
+#include "BufferQueueLayer.h"
+#include "BufferStateLayer.h"
 #include "Client.h"
 #include "ColorLayer.h"
 #include "Colorizer.h"
@@ -2765,7 +2767,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
                 if (translucent) {
                     if (tr.preserveRects()) {
                         // transform the transparent region
-                        transparentRegion = tr.transform(s.activeTransparentRegion);
+                        transparentRegion = tr.transform(layer->getActiveTransparentRegion(s));
                     } else {
                         // transformation too complex, can't do the
                         // transparent region optimization.
@@ -2869,7 +2871,7 @@ bool SurfaceFlinger::handlePageFlip()
     // Display is now waiting on Layer 1's frame, which is behind layer 0's
     // second frame. But layer 0's second frame could be waiting on display.
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (layer->hasQueuedFrame()) {
+        if (layer->hasReadyFrame()) {
             frameQueued = true;
             if (layer->shouldPresentNow(mPrimaryDispSync)) {
                 mLayersWithQueuedFrames.push_back(layer);
@@ -3399,7 +3401,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
 
     // If we are deferring transaction, make sure to push the pending state, as otherwise the
     // pending state will also be deferred.
-    if (what & layer_state_t::eDeferTransaction) {
+    if (what & layer_state_t::eDeferTransaction_legacy) {
         layer->pushPendingState();
     }
 
@@ -3484,12 +3486,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setFlags(s.flags, s.mask))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eCropChanged) {
-        if (layer->setCrop(s.crop, !geometryAppliesWithResize))
+    if (what & layer_state_t::eCropChanged_legacy) {
+        if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eFinalCropChanged) {
-        if (layer->setFinalCrop(s.finalCrop, !geometryAppliesWithResize))
+    if (what & layer_state_t::eFinalCropChanged_legacy) {
+        if (layer->setFinalCrop_legacy(s.finalCrop_legacy, !geometryAppliesWithResize))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
@@ -3511,15 +3513,15 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             flags |= eTransactionNeeded|eTraversalNeeded|eDisplayLayerStackChanged;
         }
     }
-    if (what & layer_state_t::eDeferTransaction) {
-        if (s.barrierHandle != nullptr) {
-            layer->deferTransactionUntil(s.barrierHandle, s.frameNumber);
-        } else if (s.barrierGbp != nullptr) {
-            const sp<IGraphicBufferProducer>& gbp = s.barrierGbp;
+    if (what & layer_state_t::eDeferTransaction_legacy) {
+        if (s.barrierHandle_legacy != nullptr) {
+            layer->deferTransactionUntil_legacy(s.barrierHandle_legacy, s.frameNumber_legacy);
+        } else if (s.barrierGbp_legacy != nullptr) {
+            const sp<IGraphicBufferProducer>& gbp = s.barrierGbp_legacy;
             if (authenticateSurfaceTextureLocked(gbp)) {
                 const auto& otherLayer =
                     (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-                layer->deferTransactionUntil(otherLayer, s.frameNumber);
+                layer->deferTransactionUntil_legacy(otherLayer, s.frameNumber_legacy);
             } else {
                 ALOGE("Attempt to defer transaction to to an"
                         " unrecognized GraphicBufferProducer");
@@ -3549,6 +3551,37 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         layer->setOverrideScalingMode(s.overrideScalingMode);
         // We don't trigger a traversal here because if no other state is
         // changed, we don't want this to cause any more work
+    }
+    if (what & layer_state_t::eTransformChanged) {
+        if (layer->setTransform(s.transform)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eTransformToDisplayInverseChanged) {
+        if (layer->setTransformToDisplayInverse(s.transformToDisplayInverse))
+            flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eCropChanged) {
+        if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eBufferChanged) {
+        if (layer->setBuffer(s.buffer)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eAcquireFenceChanged) {
+        if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eDataspaceChanged) {
+        if (layer->setDataspace(s.dataspace)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eHdrMetadataChanged) {
+        if (layer->setHdrMetadata(s.hdrMetadata)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eSurfaceDamageRegionChanged) {
+        if (layer->setSurfaceDamageRegion(s.surfaceDamageRegion)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eApiChanged) {
+        if (layer->setApi(s.api)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eSidebandStreamChanged) {
+        if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
     }
     return flags;
 }
@@ -3592,11 +3625,13 @@ status_t SurfaceFlinger::createLayer(
     String8 uniqueName = getUniqueLayerName(name);
 
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
-        case ISurfaceComposerClient::eFXSurfaceNormal:
-            result = createBufferLayer(client,
-                    uniqueName, w, h, flags, format,
-                    handle, gbp, &layer);
+        case ISurfaceComposerClient::eFXSurfaceBufferQueue:
+            result = createBufferQueueLayer(client, uniqueName, w, h, flags, format, handle, gbp,
+                                            &layer);
 
+            break;
+        case ISurfaceComposerClient::eFXSurfaceBufferState:
+            result = createBufferStateLayer(client, uniqueName, w, h, flags, handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             result = createColorLayer(client,
@@ -3659,10 +3694,11 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
     return uniqueName;
 }
 
-status_t SurfaceFlinger::createBufferLayer(const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags, PixelFormat& format,
-        sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* outLayer)
-{
+status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const String8& name,
+                                                uint32_t w, uint32_t h, uint32_t flags,
+                                                PixelFormat& format, sp<IBinder>* handle,
+                                                sp<IGraphicBufferProducer>* gbp,
+                                                sp<Layer>* outLayer) {
     // initialize the surfaces
     switch (format) {
     case PIXEL_FORMAT_TRANSPARENT:
@@ -3674,16 +3710,26 @@ status_t SurfaceFlinger::createBufferLayer(const sp<Client>& client,
         break;
     }
 
-    sp<BufferLayer> layer = new BufferLayer(this, client, name, w, h, flags);
-    status_t err = layer->setBuffers(w, h, format, flags);
+    sp<BufferQueueLayer> layer = new BufferQueueLayer(this, client, name, w, h, flags);
+    status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
         *gbp = layer->getProducer();
         *outLayer = layer;
     }
 
-    ALOGE_IF(err, "createBufferLayer() failed (%s)", strerror(-err));
+    ALOGE_IF(err, "createBufferQueueLayer() failed (%s)", strerror(-err));
     return err;
+}
+
+status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
+                                                uint32_t w, uint32_t h, uint32_t flags,
+                                                sp<IBinder>* handle, sp<Layer>* outLayer) {
+    sp<BufferStateLayer> layer = new BufferStateLayer(this, client, name, w, h, flags);
+    *handle = layer->getHandle();
+    *outLayer = layer;
+
+    return NO_ERROR;
 }
 
 status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
@@ -4863,10 +4909,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         const Transform& getTransform() const override { return mTransform; }
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
-            return Rect(layerState.active.w, layerState.active.h);
+            return Rect(mLayer->getActiveWidth(layerState), mLayer->getActiveHeight(layerState));
         }
-        int getHeight() const override { return mLayer->getDrawingState().active.h; }
-        int getWidth() const override { return mLayer->getDrawingState().active.w; }
+        int getHeight() const override {
+            return mLayer->getActiveHeight(mLayer->getDrawingState());
+        }
+        int getWidth() const override { return mLayer->getActiveWidth(mLayer->getDrawingState()); }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return false; }
         Rect getSourceCrop() const override {
@@ -4934,12 +4982,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     Rect crop(sourceCrop);
     if (sourceCrop.width() <= 0) {
         crop.left = 0;
-        crop.right = parent->getCurrentState().active.w;
+        crop.right = parent->getActiveWidth(parent->getCurrentState());
     }
 
     if (sourceCrop.height() <= 0) {
         crop.top = 0;
-        crop.bottom = parent->getCurrentState().active.h;
+        crop.bottom = parent->getActiveHeight(parent->getCurrentState());
     }
 
     int32_t reqWidth = crop.width() * frameScale;

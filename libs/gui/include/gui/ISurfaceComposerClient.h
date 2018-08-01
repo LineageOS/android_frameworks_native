@@ -40,8 +40,9 @@ public:
         eProtectedByDRM = 0x00001000,
         eCursorWindow = 0x00002000,
 
-        eFXSurfaceNormal = 0x00000000,
+        eFXSurfaceBufferQueue = 0x00000000,
         eFXSurfaceColor = 0x00020000,
+        eFXSurfaceBufferState = 0x00040000,
         eFXSurfaceMask = 0x000F0000,
     };
 
