@@ -126,6 +126,7 @@ public:
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
+    auto& mutablePrimaryDispSync() { return mFlinger->mPrimaryDispSync; }
     auto& mutablePrimaryHWVsyncEnabled() { return mFlinger->mPrimaryHWVsyncEnabled; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableUseHwcVirtualDisplays() { return mFlinger->mUseHwcVirtualDisplays; }
@@ -144,6 +145,7 @@ public:
         mutableEventQueue().reset();
         mutableEventThread().reset();
         mutableInterceptor().reset();
+        mutablePrimaryDispSync().reset();
         mFlinger->getBE().mHwc.reset();
         mFlinger->getBE().mRenderEngine.reset();
     }

@@ -40,6 +40,10 @@ using std::min;
 
 namespace android {
 
+DispSync::~DispSync() = default;
+
+namespace impl {
+
 // Setting this to true enables verbose tracing that can be used to debug
 // vsync event model or phase issues.
 static const bool kTraceDetailedInfo = false;
@@ -706,5 +710,7 @@ void DispSync::dump(String8& result) const {
 
     result.appendFormat("current monotonic time: %" PRId64 "\n", now);
 }
+
+} // namespace impl
 
 } // namespace android

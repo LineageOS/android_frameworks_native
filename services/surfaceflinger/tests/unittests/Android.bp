@@ -27,6 +27,7 @@ cc_test {
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/gui/MockGraphicBufferConsumer.cpp",
         "mock/gui/MockGraphicBufferProducer.cpp",
+        "mock/MockDispSync.cpp",
         "mock/MockEventControlThread.cpp",
         "mock/MockEventThread.cpp",
         "mock/MockMessageQueue.cpp",
