@@ -12,8 +12,8 @@
 #include <thread>
 
 #include <private/dvr/bufferhub_rpc.h>
+#include "buffer_channel.h"
 #include "consumer_channel.h"
-#include "detached_buffer_channel.h"
 
 using android::pdx::BorrowedHandle;
 using android::pdx::ErrorStatus;
@@ -26,14 +26,6 @@ using android::pdx::rpc::WrapBuffer;
 
 namespace android {
 namespace dvr {
-
-namespace {
-
-static inline uint64_t FindNextClearedBit(uint64_t bits) {
-  return ~bits - (~bits & (~bits - 1));
-}
-
-}  // namespace
 
 ProducerChannel::ProducerChannel(BufferHubService* service, int buffer_id,
                                  int channel_id, IonBuffer buffer,
@@ -270,7 +262,7 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
 
   // Try find the next consumer state bit which has not been claimed by any
   // consumer yet.
-  uint64_t consumer_state_bit = FindNextClearedBit(
+  uint64_t consumer_state_bit = BufferHubDefs::FindNextClearedBit(
       active_consumer_bit_mask_ | orphaned_consumer_bit_mask_ |
       BufferHubDefs::kProducerStateBit);
   if (consumer_state_bit == 0ULL) {
@@ -419,10 +411,9 @@ Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
     return ErrorStatus(-ret);
   };
 
-  std::unique_ptr<DetachedBufferChannel> channel =
-      DetachedBufferChannel::Create(
-          service(), buffer_id(), channel_id, std::move(buffer_),
-          std::move(metadata_buffer_), user_metadata_size_);
+  std::unique_ptr<BufferChannel> channel = BufferChannel::Create(
+      service(), buffer_id(), channel_id, std::move(buffer_),
+      std::move(metadata_buffer_), user_metadata_size_);
   if (!channel) {
     ALOGE("ProducerChannel::OnProducerDetach: Invalid buffer.");
     return ErrorStatus(EINVAL);

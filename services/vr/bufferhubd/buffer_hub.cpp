@@ -13,8 +13,8 @@
 
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/dvr/bufferhub_rpc.h>
+#include "buffer_channel.h"
 #include "consumer_channel.h"
-#include "detached_buffer_channel.h"
 #include "producer_channel.h"
 #include "producer_queue_channel.h"
 
@@ -267,7 +267,7 @@ pdx::Status<void> BufferHubService::HandleMessage(Message& message) {
       return {};
 
     case DetachedBufferRPC::Promote::Opcode:
-      // In addition to the message handler in the DetachedBufferChannel's
+      // In addition to the message handler in the BufferChannel's
       // HandleMessage method, we also need to invalid the channel. Note that
       // this has to be done after HandleMessage returns to make sure the IPC
       // request has went back to the client first.
@@ -332,9 +332,9 @@ pdx::Status<void> BufferHubService::OnCreateDetachedBuffer(
     return ErrorStatus(EALREADY);
   }
 
-  std::unique_ptr<DetachedBufferChannel> channel =
-      DetachedBufferChannel::Create(this, buffer_id, width, height, layer_count,
-                                    format, usage, user_metadata_size);
+  std::unique_ptr<BufferChannel> channel =
+      BufferChannel::Create(this, buffer_id, width, height, layer_count, format,
+                            usage, user_metadata_size);
   if (!channel) {
     ALOGE(
         "BufferHubService::OnCreateDetachedBuffer: Failed to allocate buffer, "
