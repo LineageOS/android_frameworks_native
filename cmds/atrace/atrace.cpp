@@ -230,8 +230,8 @@ static int g_traceBufferSizeKB = 2048;
 static bool g_compress = false;
 static bool g_nohup = false;
 static int g_initialSleepSecs = 0;
-static const char* g_categoriesFile = NULL;
-static const char* g_kernelTraceFuncs = NULL;
+static const char* g_categoriesFile = nullptr;
+static const char* g_kernelTraceFuncs = nullptr;
 static const char* g_debugAppCmdLine = "";
 static const char* g_outputFile = nullptr;
 
@@ -407,7 +407,7 @@ static bool isCategorySupported(const TracingCategory& category)
     for (int i = 0; i < MAX_SYS_FILES; i++) {
         const char* path = category.sysfiles[i].path;
         bool req = category.sysfiles[i].required == REQ;
-        if (path != NULL) {
+        if (path != nullptr) {
             if (req) {
                 if (!fileIsWritable(path)) {
                     return false;
@@ -432,7 +432,7 @@ static bool isCategorySupportedForRoot(const TracingCategory& category)
     for (int i = 0; i < MAX_SYS_FILES; i++) {
         const char* path = category.sysfiles[i].path;
         bool req = category.sysfiles[i].required == REQ;
-        if (path != NULL) {
+        if (path != nullptr) {
             if (req) {
                 if (!fileExists(path)) {
                     return false;
@@ -548,10 +548,10 @@ static bool pokeBinderServices()
     Vector<String16> services = sm->listServices();
     for (size_t i = 0; i < services.size(); i++) {
         sp<IBinder> obj = sm->checkService(services[i]);
-        if (obj != NULL) {
+        if (obj != nullptr) {
             Parcel data;
             if (obj->transact(IBinder::SYSPROPS_TRANSACTION, data,
-                    NULL, 0) != OK) {
+                    nullptr, 0) != OK) {
                 if (false) {
                     // XXX: For some reason this fails on tablets trying to
                     // poke the "phone" service.  It's not clear whether some
@@ -641,9 +641,9 @@ static bool setAppCmdlineProperty(char* cmdline)
 {
     int i = 0;
     char* start = cmdline;
-    while (start != NULL) {
+    while (start != nullptr) {
         char* end = strchr(start, ',');
-        if (end != NULL) {
+        if (end != nullptr) {
             *end = '\0';
             end++;
         }
@@ -673,7 +673,7 @@ static bool disableKernelTraceEvents() {
         const TracingCategory &c = k_categories[i];
         for (int j = 0; j < MAX_SYS_FILES; j++) {
             const char* path = c.sysfiles[j].path;
-            if (path != NULL && fileIsWritable(path)) {
+            if (path != nullptr && fileIsWritable(path)) {
                 ok &= setKernelOptionEnable(path, false);
             }
         }
@@ -709,7 +709,7 @@ static bool verifyKernelTraceFuncs(const char* funcs)
                 ok = false;
             }
         }
-        func = strtok(NULL, ",");
+        func = strtok(nullptr, ",");
     }
     free(myFuncs);
     return ok;
@@ -720,7 +720,7 @@ static bool setKernelTraceFuncs(const char* funcs)
 {
     bool ok = true;
 
-    if (funcs == NULL || funcs[0] == '\0') {
+    if (funcs == nullptr || funcs[0] == '\0') {
         // Disable kernel function tracing.
         if (fileIsWritable(k_currentTracerPath)) {
             ok &= writeStr(k_currentTracerPath, "nop");
@@ -742,7 +742,7 @@ static bool setKernelTraceFuncs(const char* funcs)
         char* func = strtok(myFuncs, ",");
         while (func) {
             ok &= appendStr(k_ftraceFilterPath, func);
-            func = strtok(NULL, ",");
+            func = strtok(nullptr, ",");
         }
         free(myFuncs);
 
@@ -784,7 +784,7 @@ static bool setCategoriesEnableFromFile(const char* categories_file)
     if (!categories_file) {
         return true;
     }
-    Tokenizer* tokenizer = NULL;
+    Tokenizer* tokenizer = nullptr;
     if (Tokenizer::open(String8(categories_file), &tokenizer) != NO_ERROR) {
         return false;
     }
@@ -886,7 +886,7 @@ static bool setUpKernelTracing()
             for (int j = 0; j < MAX_SYS_FILES; j++) {
                 const char* path = c.sysfiles[j].path;
                 bool required = c.sysfiles[j].required == REQ;
-                if (path != NULL) {
+                if (path != nullptr) {
                     if (fileIsWritable(path)) {
                         ok &= setKernelOptionEnable(path, true);
                     } else if (required) {
@@ -911,7 +911,7 @@ static void cleanUpKernelTracing()
     setTraceOverwriteEnable(true);
     setTraceBufferSizeKB(1);
     setPrintTgidEnableIfPresent(false);
-    setKernelTraceFuncs(NULL);
+    setKernelTraceFuncs(nullptr);
     setUserInitiatedTraceProperty(false);
 }
 
@@ -1069,10 +1069,10 @@ static void registerSigHandler()
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
     sa.sa_handler = handleSignal;
-    sigaction(SIGHUP, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-    sigaction(SIGQUIT, &sa, NULL);
-    sigaction(SIGTERM, &sa, NULL);
+    sigaction(SIGHUP, &sa, nullptr);
+    sigaction(SIGINT, &sa, nullptr);
+    sigaction(SIGQUIT, &sa, nullptr);
+    sigaction(SIGTERM, &sa, nullptr);
 }
 
 static void listSupportedCategories()
@@ -1162,13 +1162,13 @@ int main(int argc, char **argv)
         int ret;
         int option_index = 0;
         static struct option long_options[] = {
-            {"async_start",       no_argument, 0,  0 },
-            {"async_stop",        no_argument, 0,  0 },
-            {"async_dump",        no_argument, 0,  0 },
-            {"only_userspace",    no_argument, 0,  0 },
-            {"list_categories",   no_argument, 0,  0 },
-            {"stream",            no_argument, 0,  0 },
-            {           0,                  0, 0,  0 }
+            {"async_start",       no_argument, nullptr,  0 },
+            {"async_stop",        no_argument, nullptr,  0 },
+            {"async_dump",        no_argument, nullptr,  0 },
+            {"only_userspace",    no_argument, nullptr,  0 },
+            {"list_categories",   no_argument, nullptr,  0 },
+            {"stream",            no_argument, nullptr,  0 },
+            {nullptr,                       0, nullptr,  0 }
         };
 
         ret = getopt_long(argc, argv, "a:b:cf:k:ns:t:zo:",
