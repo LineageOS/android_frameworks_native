@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
 
     if (s == -1) {
         printf("FAIL:Failed to connect to dumpstatez service: %s\n", strerror(errno));
-        return EXIT_SUCCESS;
+        return EXIT_FAILURE;
     }
 
     // Set a timeout so that if nothing is read in 10 minutes, we'll stop
@@ -92,8 +92,16 @@ int main(int argc, char* argv[]) {
     tv.tv_sec = 10 * 60;
     tv.tv_usec = 0;
     if (setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
-        fprintf(stderr, "WARNING: Cannot set socket timeout: %s\n", strerror(errno));
+        fprintf(stderr,
+                "WARNING: Cannot set socket timeout, bugreportz might hang indefinitely: %s\n",
+                strerror(errno));
     }
 
-    bugreportz(s, show_progress);
+    int ret = bugreportz(s, show_progress);
+
+    if (close(s) == -1) {
+        fprintf(stderr, "WARNING: error closing socket: %s\n", strerror(errno));
+        ret = EXIT_FAILURE;
+    }
+    return ret;
 }
