@@ -16,6 +16,8 @@
 
 #include "../InputDispatcher.h"
 
+#include <binder/Binder.h>
+
 #include <gtest/gtest.h>
 #include <linux/input.h>
 
@@ -53,12 +55,12 @@ private:
     }
 
     virtual nsecs_t notifyANR(const sp<InputApplicationHandle>&,
-            const sp<InputWindowHandle>&,
+            const sp<IBinder>&,
             const std::string&) {
         return 0;
     }
 
-    virtual void notifyInputChannelBroken(const sp<InputWindowHandle>&) {
+    virtual void notifyInputChannelBroken(const sp<IBinder>&) {
     }
 
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) {
@@ -75,12 +77,12 @@ private:
     virtual void interceptMotionBeforeQueueing(nsecs_t, uint32_t&) {
     }
 
-    virtual nsecs_t interceptKeyBeforeDispatching(const sp<InputWindowHandle>&,
+    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&,
             const KeyEvent*, uint32_t) {
         return 0;
     }
 
-    virtual bool dispatchUnhandledKey(const sp<InputWindowHandle>&,
+    virtual bool dispatchUnhandledKey(const sp<IBinder>&,
             const KeyEvent*, uint32_t, KeyEvent*) {
         return false;
     }
@@ -336,6 +338,8 @@ protected:
             const std::string name, int32_t displayId) :
                 mDispatcher(dispatcher), mName(name), mDisplayId(displayId) {
             InputChannel::openInputChannelPair(name, mServerChannel, mClientChannel);
+            mServerChannel->setToken(new BBinder());
+
             mConsumer = new InputConsumer(mClientChannel);
         }
 
@@ -366,7 +370,7 @@ public:
             InputWindowHandle(inputApplicationHandle),
             FakeInputReceiver(dispatcher, name, displayId),
             mFocused(false) {
-            mDispatcher->registerInputChannel(mServerChannel, this, displayId);
+            mDispatcher->registerInputChannel(mServerChannel, displayId);
     }
 
     virtual bool updateInfo() {
@@ -649,7 +653,7 @@ class FakeMonitorReceiver : public FakeInputReceiver, public RefBase {
 public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
             int32_t displayId) : FakeInputReceiver(dispatcher, name, displayId) {
-        mDispatcher->registerInputChannel(mServerChannel, nullptr, displayId);
+        mDispatcher->registerInputChannel(mServerChannel, displayId);
     }
 };
 

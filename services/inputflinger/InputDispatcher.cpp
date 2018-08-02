@@ -818,7 +818,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             sp<InputWindowHandle> focusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(entry));
             if (focusedWindowHandle != nullptr) {
-                commandEntry->inputWindowHandle = focusedWindowHandle;
+                commandEntry->inputChannel = focusedWindowHandle->getInputChannel();
             }
             commandEntry->keyEntry = entry;
             entry->refCount += 1;
@@ -1064,6 +1064,13 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(nsecs_t currentTime,
     }
 }
 
+void InputDispatcher::removeWindowByTokenLocked(const sp<IBinder>& token) {
+    for (size_t d = 0; d < mTouchStatesByDisplay.size(); d++) {
+        TouchState& state = mTouchStatesByDisplay.editValueAt(d);
+        state.removeWindowByToken(token);
+    }
+}
+
 void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
         const sp<InputChannel>& inputChannel) {
     if (newTimeout > 0) {
@@ -1078,17 +1085,10 @@ void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout
             ssize_t connectionIndex = getConnectionIndexLocked(inputChannel);
             if (connectionIndex >= 0) {
                 sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-                sp<InputWindowHandle> windowHandle = connection->inputWindowHandle;
+                sp<IBinder> token = connection->inputChannel->getToken();
 
-                if (windowHandle != nullptr) {
-                    const InputWindowInfo* info = windowHandle->getInfo();
-                    if (info) {
-                        ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(info->displayId);
-                        if (stateIndex >= 0) {
-                            mTouchStatesByDisplay.editValueAt(stateIndex).removeWindow(
-                                    windowHandle);
-                        }
-                    }
+                if (token != nullptr) {
+                    removeWindowByTokenLocked(token);
                 }
 
                 if (connection->status == Connection::STATUS_NORMAL) {
@@ -3640,8 +3640,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             mConfig.keyRepeatTimeout * 0.000001f);
 }
 
-status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel,
-        const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId) {
+status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel, int32_t displayId) {
 #if DEBUG_REGISTRATION
     ALOGD("channel '%s' ~ registerInputChannel - displayId=%" PRId32,
             inputChannel->getName().c_str(), displayId);
@@ -3658,9 +3657,9 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
 
         // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
         // treat inputChannel as monitor channel for displayId.
-        bool monitor = inputWindowHandle == nullptr && displayId != ADISPLAY_ID_NONE;
+        bool monitor = inputChannel->getToken() == nullptr && displayId != ADISPLAY_ID_NONE;
 
-        sp<Connection> connection = new Connection(inputChannel, inputWindowHandle, monitor);
+        sp<Connection> connection = new Connection(inputChannel, monitor);
 
         int fd = inputChannel->getFd();
         mConnectionsByFd.add(fd, connection);
@@ -3809,7 +3808,7 @@ void InputDispatcher::onANRLocked(
     CommandEntry* commandEntry = postCommandLocked(
             & InputDispatcher::doNotifyANRLockedInterruptible);
     commandEntry->inputApplicationHandle = applicationHandle;
-    commandEntry->inputWindowHandle = windowHandle;
+    commandEntry->inputChannel = windowHandle != nullptr ? windowHandle->getInputChannel() : nullptr;
     commandEntry->reason = reason;
 }
 
@@ -3829,7 +3828,7 @@ void InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible(
     if (connection->status != Connection::STATUS_ZOMBIE) {
         mLock.unlock();
 
-        mPolicy->notifyInputChannelBroken(connection->inputWindowHandle);
+        mPolicy->notifyInputChannelBroken(connection->inputChannel->getToken());
 
         mLock.lock();
     }
@@ -3840,14 +3839,14 @@ void InputDispatcher::doNotifyANRLockedInterruptible(
     mLock.unlock();
 
     nsecs_t newTimeout = mPolicy->notifyANR(
-            commandEntry->inputApplicationHandle, commandEntry->inputWindowHandle,
+            commandEntry->inputApplicationHandle,
+            commandEntry->inputChannel ? commandEntry->inputChannel->getToken() : nullptr,
             commandEntry->reason);
 
     mLock.lock();
 
     resumeAfterTargetsNotReadyTimeoutLocked(newTimeout,
-            commandEntry->inputWindowHandle != nullptr
-                    ? commandEntry->inputWindowHandle->getInputChannel() : nullptr);
+            commandEntry->inputChannel);
 }
 
 void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
@@ -3860,7 +3859,9 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
     mLock.unlock();
 
     android::base::Timer t;
-    nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(commandEntry->inputWindowHandle,
+    sp<IBinder> token = commandEntry->inputChannel != nullptr ?
+        commandEntry->inputChannel->getToken() : nullptr;
+    nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(token,
             &event, entry->policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
@@ -3961,7 +3962,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
                 mLock.unlock();
 
-                mPolicy->dispatchUnhandledKey(connection->inputWindowHandle,
+                mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
                         &event, keyEntry->policyFlags, &event);
 
                 mLock.lock();
@@ -4006,7 +4007,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
             mLock.unlock();
 
-            bool fallback = mPolicy->dispatchUnhandledKey(connection->inputWindowHandle,
+            bool fallback = mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
                     &event, keyEntry->policyFlags, &event);
 
             mLock.lock();
@@ -4722,9 +4723,8 @@ bool InputDispatcher::InputState::shouldCancelMotion(const MotionMemento& mement
 
 // --- InputDispatcher::Connection ---
 
-InputDispatcher::Connection::Connection(const sp<InputChannel>& inputChannel,
-        const sp<InputWindowHandle>& inputWindowHandle, bool monitor) :
-        status(STATUS_NORMAL), inputChannel(inputChannel), inputWindowHandle(inputWindowHandle),
+InputDispatcher::Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor) :
+        status(STATUS_NORMAL), inputChannel(inputChannel),
         monitor(monitor),
         inputPublisher(inputChannel), inputPublisherBlocked(false) {
 }
@@ -4733,8 +4733,8 @@ InputDispatcher::Connection::~Connection() {
 }
 
 const std::string InputDispatcher::Connection::getWindowName() const {
-    if (inputWindowHandle != nullptr) {
-        return inputWindowHandle->getName();
+    if (inputChannel != nullptr) {
+        return inputChannel->getName();
     }
     if (monitor) {
         return "monitor";
@@ -4835,6 +4835,15 @@ void InputDispatcher::TouchState::addOrUpdateWindow(const sp<InputWindowHandle>&
 void InputDispatcher::TouchState::removeWindow(const sp<InputWindowHandle>& windowHandle) {
     for (size_t i = 0; i < windows.size(); i++) {
         if (windows.itemAt(i).windowHandle == windowHandle) {
+            windows.removeAt(i);
+            return;
+        }
+    }
+}
+
+void InputDispatcher::TouchState::removeWindowByToken(const sp<IBinder>& token) {
+    for (size_t i = 0; i < windows.size(); i++) {
+        if (windows.itemAt(i).windowHandle->getInputChannel()->getToken() == token) {
             windows.removeAt(i);
             return;
         }

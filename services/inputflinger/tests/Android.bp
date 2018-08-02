@@ -15,6 +15,7 @@ cc_test {
     ],
     shared_libs: [
         "libbase",
+        "libbinder",
         "libcutils",
         "liblog",
         "libutils",
