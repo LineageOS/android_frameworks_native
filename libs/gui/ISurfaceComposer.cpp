@@ -116,20 +116,20 @@ public:
         data.writeInt32(maxLayerZ);
         data.writeInt32(static_cast<int32_t>(useIdentityTransform));
         data.writeInt32(static_cast<int32_t>(rotation));
-        status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
-
-        if (err != NO_ERROR) {
-            return err;
+        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("captureScreen failed to transact: %d", result);
+            return result;
         }
-
-        err = reply.readInt32();
-        if (err != NO_ERROR) {
-            return err;
+        result = reply.readInt32();
+        if (result != NO_ERROR) {
+            ALOGE("captureScreen failed to readInt32: %d", result);
+            return result;
         }
 
         *outBuffer = new GraphicBuffer();
         reply.read(**outBuffer);
-        return err;
+        return result;
     }
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
@@ -141,21 +141,20 @@ public:
         data.write(sourceCrop);
         data.writeFloat(frameScale);
         data.writeBool(childrenOnly);
-        status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
-
-        if (err != NO_ERROR) {
-            return err;
+        status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("captureLayers failed to transact: %d", result);
+            return result;
         }
-
-        err = reply.readInt32();
-        if (err != NO_ERROR) {
-            return err;
+        result = reply.readInt32();
+        if (result != NO_ERROR) {
+            ALOGE("captureLayers failed to readInt32: %d", result);
+            return result;
         }
-
         *outBuffer = new GraphicBuffer();
         reply.read(**outBuffer);
 
-        return err;
+        return result;
     }
 
     virtual bool authenticateSurfaceTexture(
@@ -344,10 +343,26 @@ public:
     virtual status_t setActiveConfig(const sp<IBinder>& display, int id)
     {
         Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(display);
-        data.writeInt32(id);
-        remote()->transact(BnSurfaceComposer::SET_ACTIVE_CONFIG, data, &reply);
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("setActiveConfig failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(display);
+        if (result != NO_ERROR) {
+            ALOGE("setActiveConfig failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = data.writeInt32(id);
+        if (result != NO_ERROR) {
+            ALOGE("setActiveConfig failed to writeInt32: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::SET_ACTIVE_CONFIG, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("setActiveConfig failed to transact: %d", result);
+            return result;
+        }
         return reply.readInt32();
     }
 
@@ -429,8 +444,16 @@ public:
 
     virtual status_t clearAnimationFrameStats() {
         Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::CLEAR_ANIMATION_FRAME_STATS, data, &reply);
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("clearAnimationFrameStats failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::CLEAR_ANIMATION_FRAME_STATS, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("clearAnimationFrameStats failed to transact: %d", result);
+            return result;
+        }
         return reply.readInt32();
     }
 
