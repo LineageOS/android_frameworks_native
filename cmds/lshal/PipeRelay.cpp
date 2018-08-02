@@ -78,7 +78,7 @@ void PipeRelay::CloseFd(int *fd) {
 PipeRelay::~PipeRelay() {
     CloseFd(&mFds[1]);
 
-    if (mThread != NULL) {
+    if (mThread != nullptr) {
         mThread->join();
         mThread.clear();
     }

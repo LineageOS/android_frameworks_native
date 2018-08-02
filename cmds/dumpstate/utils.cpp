@@ -555,13 +555,13 @@ void do_dmesg() {
     if (PropertiesHelper::IsDryRun()) return;
 
     /* Get size of kernel buffer */
-    int size = klogctl(KLOG_SIZE_BUFFER, NULL, 0);
+    int size = klogctl(KLOG_SIZE_BUFFER, nullptr, 0);
     if (size <= 0) {
         printf("Unexpected klogctl return value: %d\n\n", size);
         return;
     }
     char *buf = (char *) malloc(size + 1);
-    if (buf == NULL) {
+    if (buf == nullptr) {
         printf("memory allocation failed\n\n");
         return;
     }
@@ -628,7 +628,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
     DurationReporter duration_reporter(title);
     DIR *dirp;
     struct dirent *d;
-    char *newpath = NULL;
+    char *newpath = nullptr;
     const char *slash = "/";
     int retval = 0;
 
@@ -641,7 +641,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
         ++slash;
     }
     dirp = opendir(dir);
-    if (dirp == NULL) {
+    if (dirp == nullptr) {
         retval = -errno;
         MYLOGE("%s: %s\n", dir, strerror(errno));
         return retval;
@@ -650,7 +650,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
     if (!dump_from_fd) {
         dump_from_fd = dump_file_from_fd;
     }
-    for (; ((d = readdir(dirp))); free(newpath), newpath = NULL) {
+    for (; ((d = readdir(dirp))); free(newpath), newpath = nullptr) {
         if ((d->d_name[0] == '.')
          && (((d->d_name[1] == '.') && (d->d_name[2] == '\0'))
           || (d->d_name[1] == '\0'))) {
@@ -678,7 +678,7 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
             printf("*** %s: %s\n", newpath, strerror(errno));
             continue;
         }
-        (*dump_from_fd)(NULL, newpath, fd.get());
+        (*dump_from_fd)(nullptr, newpath, fd.get());
     }
     closedir(dirp);
     if (!title.empty()) {

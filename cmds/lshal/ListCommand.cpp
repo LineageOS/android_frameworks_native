@@ -1073,9 +1073,9 @@ static std::unique_ptr<struct option[]> getLongOptions(
         i++;
     }
     // getopt_long last option has all zeros
-    ret[i].name = NULL;
+    ret[i].name = nullptr;
     ret[i].has_arg = 0;
-    ret[i].flag = NULL;
+    ret[i].flag = nullptr;
     ret[i].val = 0;
 
     return ret;

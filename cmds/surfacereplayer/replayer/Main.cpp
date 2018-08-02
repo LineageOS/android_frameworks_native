@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
     }
 
     char** input = argv + optind;
-    if (input[0] == NULL) {
+    if (input[0] == nullptr) {
         std::cerr << "No trace file provided...exiting" << std::endl;
         abort();
     }
