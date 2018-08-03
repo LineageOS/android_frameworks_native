@@ -701,6 +701,8 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 }
 
 void BufferLayer::onFirstRef() {
+    Layer::onFirstRef();
+
     // Creates a custom BufferQueue for SurfaceFlingerConsumer to use
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
