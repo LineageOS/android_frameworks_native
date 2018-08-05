@@ -40,7 +40,6 @@
 #include <gui/SurfaceComposerClient.h>
 
 #include <private/gui/ComposerService.h>
-#include <private/gui/SyncFeatures.h>
 
 #include <utils/Log.h>
 #include <utils/String8.h>
@@ -206,7 +205,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return err;
     }
 
-    if (!SyncFeatures::getInstance().useNativeFenceSync()) {
+    if (mRE.useNativeFenceSync()) {
         // Bind the new buffer to the GL texture.
         //
         // Older devices require the "implicit" synchronization provided
@@ -374,7 +373,7 @@ status_t BufferLayerConsumer::syncForReleaseLocked() {
     BLC_LOGV("syncForReleaseLocked");
 
     if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
-        if (SyncFeatures::getInstance().useNativeFenceSync()) {
+        if (mRE.useNativeFenceSync()) {
             base::unique_fd fenceFd = mRE.flush();
             if (fenceFd == -1) {
                 BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
@@ -512,7 +511,7 @@ status_t BufferLayerConsumer::doFenceWaitLocked() const {
     }
 
     if (mCurrentFence->isValid()) {
-        if (SyncFeatures::getInstance().useWaitSync()) {
+        if (mRE.useWaitSync()) {
             base::unique_fd fenceFd(mCurrentFence->dup());
             if (fenceFd == -1) {
                 BLC_LOGE("doFenceWait: error dup'ing fence fd: %d", errno);

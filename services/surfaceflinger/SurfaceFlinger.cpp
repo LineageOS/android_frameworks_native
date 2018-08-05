@@ -264,7 +264,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mDebugInTransaction(0),
         mLastTransactionTime(0),
         mForceFullDamage(false),
-        mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
         mHasPoweredOff(false),
@@ -325,7 +324,13 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     }
     ALOGV("Primary Display Orientation is set to %2d.", mPrimaryDisplayOrientation);
 
-    mPrimaryDispSync.init(SurfaceFlinger::hasSyncFramework, SurfaceFlinger::dispSyncPresentTimeOffset);
+    // Note: We create a local temporary with the real DispSync implementation
+    // type temporarily so we can initialize it with the configured values,
+    // before storing it for more generic use using the interface type.
+    auto primaryDispSync = std::make_unique<impl::DispSync>("PrimaryDispSync");
+    primaryDispSync->init(SurfaceFlinger::hasSyncFramework,
+                          SurfaceFlinger::dispSyncPresentTimeOffset);
+    mPrimaryDispSync = std::move(primaryDispSync);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -703,14 +708,14 @@ void SurfaceFlinger::init() {
 
     // start the EventThread
     mEventThreadSource =
-            std::make_unique<DispSyncSource>(&mPrimaryDispSync, SurfaceFlinger::vsyncPhaseOffsetNs,
-                                             true, "app");
+            std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
+                                             SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
     mEventThread = std::make_unique<impl::EventThread>(mEventThreadSource.get(),
                                                        [this] { resyncWithRateLimit(); },
                                                        impl::EventThread::InterceptVSyncsCallback(),
                                                        "appEventThread");
     mSfEventThreadSource =
-            std::make_unique<DispSyncSource>(&mPrimaryDispSync,
+            std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
                                              SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
 
     mSFEventThread =
@@ -996,8 +1001,8 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
 
     // FIXME for now we always return stats for the primary display
     memset(stats, 0, sizeof(*stats));
-    stats->vsyncTime   = mPrimaryDispSync.computeNextRefresh(0);
-    stats->vsyncPeriod = mPrimaryDispSync.getPeriod();
+    stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
+    stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
     return NO_ERROR;
 }
 
@@ -1295,7 +1300,7 @@ void SurfaceFlinger::run() {
 void SurfaceFlinger::enableHardwareVsync() {
     Mutex::Autolock _l(mHWVsyncLock);
     if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
-        mPrimaryDispSync.beginResync();
+        mPrimaryDispSync->beginResync();
         mEventControlThread->setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
@@ -1320,11 +1325,11 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable) {
     const auto activeConfig = getHwComposer().getActiveConfig(displayId);
     const nsecs_t period = activeConfig->getVsyncPeriod();
 
-    mPrimaryDispSync.reset();
-    mPrimaryDispSync.setPeriod(period);
+    mPrimaryDispSync->reset();
+    mPrimaryDispSync->setPeriod(period);
 
     if (!mPrimaryHWVsyncEnabled) {
-        mPrimaryDispSync.beginResync();
+        mPrimaryDispSync->beginResync();
         mEventControlThread->setVsyncEnabled(true);
         mPrimaryHWVsyncEnabled = true;
     }
@@ -1334,7 +1339,7 @@ void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
     Mutex::Autolock _l(mHWVsyncLock);
     if (mPrimaryHWVsyncEnabled) {
         mEventControlThread->setVsyncEnabled(false);
-        mPrimaryDispSync.endResync();
+        mPrimaryDispSync->endResync();
         mPrimaryHWVsyncEnabled = false;
     }
     if (makeUnavailable) {
@@ -1379,7 +1384,7 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
     { // Scope for the lock
         Mutex::Autolock _l(mHWVsyncLock);
         if (mPrimaryHWVsyncEnabled) {
-            needsHwVsync = mPrimaryDispSync.addResyncSample(timestamp);
+            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp);
         }
     }
 
@@ -1506,8 +1511,8 @@ void SurfaceFlinger::updateVrFlinger() {
 
     // The present fences returned from vr_hwc are not an accurate
     // representation of vsync times.
-    mPrimaryDispSync.setIgnorePresentFences(
-            getBE().mHwc->isUsingVrComposer() || !hasSyncFramework);
+    mPrimaryDispSync->setIgnorePresentFences(getBE().mHwc->isUsingVrComposer() ||
+                                             !hasSyncFramework);
 
     // Use phase of 0 since phase is not known.
     // Use latency of 0, which will snap to the ideal latency.
@@ -1770,8 +1775,8 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFence);
     getBE().mDisplayTimeline.push(presentFenceTime);
 
-    nsecs_t vsyncPhase = mPrimaryDispSync.computeNextRefresh(0);
-    nsecs_t vsyncInterval = mPrimaryDispSync.getPeriod();
+    nsecs_t vsyncPhase = mPrimaryDispSync->computeNextRefresh(0);
+    nsecs_t vsyncInterval = mPrimaryDispSync->getPeriod();
 
     // We use the refreshStartTime which might be sampled a little later than
     // when we started doing work for this frame, but that should be okay
@@ -1794,7 +1799,7 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     });
 
     if (presentFenceTime->isValid()) {
-        if (mPrimaryDispSync.addPresentFence(presentFenceTime)) {
+        if (mPrimaryDispSync->addPresentFence(presentFenceTime)) {
             enableHardwareVsync();
         } else {
             disableHardwareVsync(false);
@@ -2873,7 +2878,7 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            if (layer->shouldPresentNow(mPrimaryDispSync)) {
+            if (layer->shouldPresentNow(*mPrimaryDispSync)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
                 layer->useEmptyDamage();
@@ -3966,7 +3971,7 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
             if ((index < numArgs) &&
                     (args[index] == String16("--dispsync"))) {
                 index++;
-                mPrimaryDispSync.dump(result);
+                mPrimaryDispSync->dump(result);
                 dumpAll = false;
             }
 
@@ -4749,7 +4754,7 @@ status_t SurfaceFlinger::onTransact(
             // Needs to be shifted to proper binder interface when we productize
             case 1016: {
                 n = data.readInt32();
-                mPrimaryDispSync.setRefreshSkipCount(n);
+                mPrimaryDispSync->setRefreshSkipCount(n);
                 return NO_ERROR;
             }
             case 1017: {

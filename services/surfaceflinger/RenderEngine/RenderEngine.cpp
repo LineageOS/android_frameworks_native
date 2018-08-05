@@ -29,6 +29,7 @@
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
+#include <private/gui/SyncFeatures.h>
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
@@ -173,6 +174,14 @@ EGLDisplay RenderEngine::getEGLDisplay() const {
 
 EGLConfig RenderEngine::getEGLConfig() const {
     return mEGLConfig;
+}
+
+bool RenderEngine::useNativeFenceSync() const {
+    return SyncFeatures::getInstance().useNativeFenceSync();
+}
+
+bool RenderEngine::useWaitSync() const {
+    return SyncFeatures::getInstance().useWaitSync();
 }
 
 bool RenderEngine::isCurrent() const {

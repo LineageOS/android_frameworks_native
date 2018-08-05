@@ -25,6 +25,7 @@
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockDisplaySurface.h"
+#include "mock/MockDispSync.h"
 #include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
@@ -119,6 +120,7 @@ public:
     Hwc2::mock::Composer* mComposer = nullptr;
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
+    mock::DispSync* mPrimaryDispSync = new mock::DispSync();
 
     // These mocks are created only when expected to be created via a factory.
     sp<mock::GraphicBufferConsumer> mConsumer;
@@ -154,6 +156,7 @@ DisplayTransactionTest::DisplayTransactionTest() {
     mFlinger.mutableEventQueue().reset(mMessageQueue);
     mFlinger.setupRenderEngine(std::unique_ptr<RE::RenderEngine>(mRenderEngine));
     mFlinger.mutableInterceptor().reset(mSurfaceInterceptor);
+    mFlinger.mutablePrimaryDispSync().reset(mPrimaryDispSync);
 
     injectMockComposer(0);
 }
@@ -960,6 +963,9 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
 
     // The call clears the current render engine surface
     EXPECT_CALL(*mRenderEngine, resetCurrentSurface());
+
+    // The call ends any display resyncs
+    EXPECT_CALL(*mPrimaryDispSync, endResync()).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -2400,6 +2406,24 @@ struct EventThreadIsSupportedVariant : public EventThreadBaseSupportedVariant {
     }
 };
 
+struct DispSyncIsSupportedVariant {
+    static void setupBeginResyncCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mPrimaryDispSync, reset()).Times(1);
+        EXPECT_CALL(*test->mPrimaryDispSync, setPeriod(DEFAULT_REFRESH_RATE)).Times(1);
+        EXPECT_CALL(*test->mPrimaryDispSync, beginResync()).Times(1);
+    }
+
+    static void setupEndResyncCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mPrimaryDispSync, endResync()).Times(1);
+    }
+};
+
+struct DispSyncNotSupportedVariant {
+    static void setupBeginResyncCallExpectations(DisplayTransactionTest* /* test */) {}
+
+    static void setupEndResyncCallExpectations(DisplayTransactionTest* /* test */) {}
+};
+
 // --------------------------------------------------------------------
 // Note:
 //
@@ -2421,6 +2445,7 @@ struct TransitionOffToOnVariant
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
         Case::EventThread::setupAcquireAndEnableVsyncCallExpectations(test);
+        Case::DispSync::setupBeginResyncCallExpectations(test);
         Case::setupRepaintEverythingCallExpectations(test);
     }
 
@@ -2450,6 +2475,7 @@ struct TransitionOnToOffVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupReleaseAndDisableVsyncCallExpectations(test);
+        Case::DispSync::setupEndResyncCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::OFF);
     }
 
@@ -2485,6 +2511,7 @@ struct TransitionDozeSuspendToDozeVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupAcquireAndEnableVsyncCallExpectations(test);
+        Case::DispSync::setupBeginResyncCallExpectations(test);
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE);
     }
 };
@@ -2503,6 +2530,7 @@ struct TransitionDozeSuspendToOnVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupAcquireAndEnableVsyncCallExpectations(test);
+        Case::DispSync::setupBeginResyncCallExpectations(test);
         Case::setupComposerCallExpectations(test, IComposerClient::PowerMode::ON);
     }
 };
@@ -2512,6 +2540,7 @@ struct TransitionOnToDozeSuspendVariant
     template <typename Case>
     static void setupCallExpectations(DisplayTransactionTest* test) {
         Case::EventThread::setupReleaseAndDisableVsyncCallExpectations(test);
+        Case::DispSync::setupEndResyncCallExpectations(test);
         Case::setupComposerCallExpectations(test, Case::Doze::ACTUAL_POWER_MODE_FOR_DOZE_SUSPEND);
     }
 };
@@ -2534,11 +2563,12 @@ struct TransitionOnToUnknownVariant
 // --------------------------------------------------------------------
 
 template <typename DisplayVariant, typename DozeVariant, typename EventThreadVariant,
-          typename TransitionVariant>
+          typename DispSyncVariant, typename TransitionVariant>
 struct DisplayPowerCase {
     using Display = DisplayVariant;
     using Doze = DozeVariant;
     using EventThread = EventThreadVariant;
+    using DispSync = DispSyncVariant;
     using Transition = TransitionVariant;
 
     static auto injectDisplayWithInitialPowerMode(DisplayTransactionTest* test, int mode) {
@@ -2586,15 +2616,16 @@ struct DisplayPowerCase {
 // In addition to having event thread support, we emulate doze support.
 template <typename TransitionVariant>
 using PrimaryDisplayPowerCase = DisplayPowerCase<PrimaryDisplayVariant, DozeIsSupportedVariant,
-                                                 EventThreadIsSupportedVariant, TransitionVariant>;
+                                                 EventThreadIsSupportedVariant,
+                                                 DispSyncIsSupportedVariant, TransitionVariant>;
 
 // A sample configuration for the external display.
 // In addition to not having event thread support, we emulate not having doze
 // support.
 template <typename TransitionVariant>
-using ExternalDisplayPowerCase =
-        DisplayPowerCase<ExternalDisplayVariant, DozeNotSupportedVariant,
-                         EventThreadNotSupportedVariant, TransitionVariant>;
+using ExternalDisplayPowerCase = DisplayPowerCase<ExternalDisplayVariant, DozeNotSupportedVariant,
+                                                  EventThreadNotSupportedVariant,
+                                                  DispSyncNotSupportedVariant, TransitionVariant>;
 
 class SetPowerModeInternalTest : public DisplayTransactionTest {
 public:

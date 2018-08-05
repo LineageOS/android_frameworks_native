@@ -31,6 +31,36 @@ namespace android {
 
 class String8;
 class FenceTime;
+
+class DispSync {
+public:
+    class Callback {
+    public:
+        virtual ~Callback() = default;
+        virtual void onDispSyncEvent(nsecs_t when) = 0;
+    };
+
+    virtual ~DispSync();
+
+    virtual void reset() = 0;
+    virtual bool addPresentFence(const std::shared_ptr<FenceTime>&) = 0;
+    virtual void beginResync() = 0;
+    virtual bool addResyncSample(nsecs_t timestamp) = 0;
+    virtual void endResync() = 0;
+    virtual void setPeriod(nsecs_t period) = 0;
+    virtual nsecs_t getPeriod() = 0;
+    virtual void setRefreshSkipCount(int count) = 0;
+    virtual status_t addEventListener(const char* name, nsecs_t phase, Callback* callback) = 0;
+    virtual status_t removeEventListener(Callback* callback) = 0;
+    virtual status_t changePhaseOffset(Callback* callback, nsecs_t phase) = 0;
+    virtual nsecs_t computeNextRefresh(int periodOffset) const = 0;
+    virtual void setIgnorePresentFences(bool ignore) = 0;
+
+    virtual void dump(String8& result) const = 0;
+};
+
+namespace impl {
+
 class DispSyncThread;
 
 // DispSync maintains a model of the periodic hardware-based vsync events of a
@@ -46,21 +76,15 @@ class DispSyncThread;
 // current model accurately represents the hardware event times it will return
 // false to indicate that a resynchronization (via addResyncSample) is not
 // needed.
-class DispSync {
+class DispSync : public android::DispSync {
 public:
-    class Callback {
-    public:
-        virtual ~Callback(){};
-        virtual void onDispSyncEvent(nsecs_t when) = 0;
-    };
-
     explicit DispSync(const char* name);
-    ~DispSync();
+    ~DispSync() override;
 
     void init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset);
 
     // reset clears the resync samples and error value.
-    void reset();
+    void reset() override;
 
     // addPresentFence adds a fence for use in validating the current vsync
     // event model.  The fence need not be signaled at the time
@@ -71,7 +95,7 @@ public:
     //
     // This method should be called with the retire fence from each HWComposer
     // set call that affects the display.
-    bool addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
+    bool addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) override;
 
     // The beginResync, addResyncSample, and endResync methods are used to re-
     // synchronize the DispSync's model to the hardware vsync events.  The re-
@@ -84,45 +108,45 @@ public:
     // is turned on (i.e. once immediately after it's turned on) and whenever
     // addPresentFence returns true indicating that the model has drifted away
     // from the hardware vsync events.
-    void beginResync();
-    bool addResyncSample(nsecs_t timestamp);
-    void endResync();
+    void beginResync() override;
+    bool addResyncSample(nsecs_t timestamp) override;
+    void endResync() override;
 
     // The setPeriod method sets the vsync event model's period to a specific
     // value.  This should be used to prime the model when a display is first
     // turned on.  It should NOT be used after that.
-    void setPeriod(nsecs_t period);
+    void setPeriod(nsecs_t period) override;
 
     // The getPeriod method returns the current vsync period.
-    nsecs_t getPeriod();
+    nsecs_t getPeriod() override;
 
     // setRefreshSkipCount specifies an additional number of refresh
     // cycles to skip.  For example, on a 60Hz display, a skip count of 1
     // will result in events happening at 30Hz.  Default is zero.  The idea
     // is to sacrifice smoothness for battery life.
-    void setRefreshSkipCount(int count);
+    void setRefreshSkipCount(int count) override;
 
     // addEventListener registers a callback to be called repeatedly at the
     // given phase offset from the hardware vsync events.  The callback is
     // called from a separate thread and it should return reasonably quickly
     // (i.e. within a few hundred microseconds).
-    status_t addEventListener(const char* name, nsecs_t phase, Callback* callback);
+    status_t addEventListener(const char* name, nsecs_t phase, Callback* callback) override;
 
     // removeEventListener removes an already-registered event callback.  Once
     // this method returns that callback will no longer be called by the
     // DispSync object.
-    status_t removeEventListener(Callback* callback);
+    status_t removeEventListener(Callback* callback) override;
 
     // changePhaseOffset changes the phase offset of an already-registered event callback. The
     // method will make sure that there is no skipping or double-firing on the listener per frame,
     // even when changing the offsets multiple times.
-    status_t changePhaseOffset(Callback* callback, nsecs_t phase);
+    status_t changePhaseOffset(Callback* callback, nsecs_t phase) override;
 
     // computeNextRefresh computes when the next refresh is expected to begin.
     // The periodOffset value can be used to move forward or backward; an
     // offset of zero is the next refresh, -1 is the previous refresh, 1 is
     // the refresh after next. etc.
-    nsecs_t computeNextRefresh(int periodOffset) const;
+    nsecs_t computeNextRefresh(int periodOffset) const override;
 
     // In certain situations the present fences aren't a good indicator of vsync
     // time, e.g. when vr flinger is active, or simply aren't available,
@@ -130,10 +154,10 @@ public:
     // whether or not DispSync ignores present fences. If present fences are
     // ignored, DispSync will always ask for hardware vsync events by returning
     // true from addPresentFence() and addResyncSample().
-    void setIgnorePresentFences(bool ignore);
+    void setIgnorePresentFences(bool ignore) override;
 
     // dump appends human-readable debug info to the result string.
-    void dump(String8& result) const;
+    void dump(String8& result) const override;
 
 private:
     void updateModelLocked();
@@ -205,6 +229,8 @@ private:
 
     std::unique_ptr<Callback> mZeroPhaseTracer;
 };
+
+} // namespace impl
 
 } // namespace android
 
