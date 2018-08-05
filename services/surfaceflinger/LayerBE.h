@@ -54,6 +54,7 @@ struct CompositionInfo {
         sp<NativeHandle> sidebandStream;
         ui::Dataspace dataspace;
         hwc_color_t color;
+        bool clearClientTarget = false;
     } hwc;
     struct {
         Mesh* mesh;
