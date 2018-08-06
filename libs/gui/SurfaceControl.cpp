@@ -102,14 +102,14 @@ bool SurfaceControl::isSameSurface(
 
 status_t SurfaceControl::clearLayerFrameStats() const {
     status_t err = validate();
-    if (err < 0) return err;
+    if (err != NO_ERROR) return err;
     const sp<SurfaceComposerClient>& client(mClient);
     return client->clearLayerFrameStats(mHandle);
 }
 
 status_t SurfaceControl::getLayerFrameStats(FrameStats* outStats) const {
     status_t err = validate();
-    if (err < 0) return err;
+    if (err != NO_ERROR) return err;
     const sp<SurfaceComposerClient>& client(mClient);
     return client->getLayerFrameStats(mHandle, outStats);
 }
