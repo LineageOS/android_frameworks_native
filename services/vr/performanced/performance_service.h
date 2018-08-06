@@ -39,6 +39,14 @@ class PerformanceService : public pdx::ServiceBase<PerformanceService> {
   pdx::Status<std::string> OnGetCpuPartition(pdx::Message& message,
                                              pid_t task_id);
 
+  // Set which thread gets the vr:app:render policy. Only one thread at a time
+  // is allowed to have vr:app:render. If multiple threads are allowed
+  // vr:app:render, and those threads busy loop, the system can freeze. When
+  // SetVrAppRenderThread() is called, the thread which we had previously
+  // assigned vr:app:render will have its scheduling policy reset to default
+  // values.
+  void SetVrAppRenderThread(pid_t new_vr_app_render_thread);
+
   CpuSetManager cpuset_;
 
   int sched_fifo_min_priority_;
@@ -69,6 +77,8 @@ class PerformanceService : public pdx::ServiceBase<PerformanceService> {
 
   std::function<bool(const pdx::Message& message, const Task& task)>
       partition_permission_check_;
+
+  pid_t vr_app_render_thread_ = -1;
 
   PerformanceService(const PerformanceService&) = delete;
   void operator=(const PerformanceService&) = delete;
