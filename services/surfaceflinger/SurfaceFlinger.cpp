@@ -1578,7 +1578,7 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     preComposition(refreshStartTime);
     rebuildLayerStacks();
-    setUpHWComposer();
+    calculateWorkingSet();
     doDebugFlashRegions();
     doTracing("handleRefresh");
     logLayerStats();
@@ -1593,6 +1593,120 @@ void SurfaceFlinger::handleMessageRefresh() {
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
+}
+
+void SurfaceFlinger::calculateWorkingSet() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    for (const auto& [token, display] : mDisplays) {
+        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
+        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
+        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
+
+        // If nothing has changed (!dirty), don't recompose.
+        // If something changed, but we don't currently have any visible layers,
+        //   and didn't when we last did a composition, then skip it this time.
+        // The second rule does two things:
+        // - When all layers are removed from a display, we'll emit one black
+        //   frame, then nothing more until we get new layers.
+        // - When a display is created with a private layer stack, we won't
+        //   emit any black frames until a layer is added to the layer stack.
+        bool mustRecompose = dirty && !(empty && wasEmpty);
+
+        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
+                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
+                 empty ? "+" : "-", wasEmpty ? "+" : "-");
+
+        display->beginFrame(mustRecompose);
+
+        if (mustRecompose) {
+            display->lastCompositionHadVisibleLayers = !empty;
+        }
+    }
+
+    // build the h/w work list
+    if (CC_UNLIKELY(mGeometryInvalid)) {
+        mGeometryInvalid = false;
+        for (const auto& [token, display] : mDisplays) {
+            const auto displayId = display->getId();
+            if (displayId >= 0) {
+                const Vector<sp<Layer>>& currentLayers(
+                        display->getVisibleLayersSortedByZ());
+                for (size_t i = 0; i < currentLayers.size(); i++) {
+                    const auto& layer = currentLayers[i];
+
+                    if (!layer->hasHwcLayer(displayId)) {
+                        if (!layer->createHwcLayer(getBE().mHwc.get(), displayId)) {
+                            layer->forceClientComposition(displayId);
+                            continue;
+                        }
+                    }
+
+                    layer->setGeometry(display, i);
+                    if (mDebugDisableHWC || mDebugRegion) {
+                        layer->forceClientComposition(displayId);
+                    }
+                }
+            }
+        }
+    }
+
+    // Set the per-frame data
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
+        if (displayId < 0) {
+            continue;
+        }
+
+        if (mDrawingState.colorMatrixChanged) {
+            display->setColorTransform(mDrawingState.colorMatrix);
+            status_t result = getBE().mHwc->setColorTransform(displayId, mDrawingState.colorMatrix);
+            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on "
+                    "display %d: %d", displayId, result);
+        }
+        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+            if (layer->isHdrY410()) {
+                layer->forceClientComposition(displayId);
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
+                    !display->hasHDR10Support()) {
+                layer->forceClientComposition(displayId);
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
+                    !display->hasHLGSupport()) {
+                layer->forceClientComposition(displayId);
+            }
+
+            if (layer->getForceClientComposition(displayId)) {
+                ALOGV("[%s] Requesting Client composition", layer->getName().string());
+                layer->setCompositionType(displayId, HWC2::Composition::Client);
+                continue;
+            }
+
+            layer->setPerFrameData(display);
+        }
+
+        if (hasWideColorDisplay) {
+            ColorMode  colorMode;
+            Dataspace dataSpace;
+            RenderIntent renderIntent;
+            pickColorMode(display, &colorMode, &dataSpace, &renderIntent);
+            setActiveColorModeInternal(display, colorMode, dataSpace, renderIntent);
+        }
+    }
+
+    mDrawingState.colorMatrixChanged = false;
+
+    for (const auto& [token, display] : mDisplays) {
+        if (!display->isPoweredOn()) {
+            continue;
+        }
+
+        status_t result = display->prepareFrame(*getBE().mHwc);
+        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
+                 display->getId(), result, strerror(-result));
+    }
 }
 
 void SurfaceFlinger::doDebugFlashRegions()
@@ -1994,117 +2108,6 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
-void SurfaceFlinger::setUpHWComposer() {
-    ATRACE_CALL();
-    ALOGV("setUpHWComposer");
-
-    for (const auto& [token, display] : mDisplays) {
-        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
-        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
-        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
-
-        // If nothing has changed (!dirty), don't recompose.
-        // If something changed, but we don't currently have any visible layers,
-        //   and didn't when we last did a composition, then skip it this time.
-        // The second rule does two things:
-        // - When all layers are removed from a display, we'll emit one black
-        //   frame, then nothing more until we get new layers.
-        // - When a display is created with a private layer stack, we won't
-        //   emit any black frames until a layer is added to the layer stack.
-        bool mustRecompose = dirty && !(empty && wasEmpty);
-
-        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
-                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
-                 empty ? "+" : "-", wasEmpty ? "+" : "-");
-
-        display->beginFrame(mustRecompose);
-
-        if (mustRecompose) {
-            display->lastCompositionHadVisibleLayers = !empty;
-        }
-    }
-
-    // build the h/w work list
-    if (CC_UNLIKELY(mGeometryInvalid)) {
-        mGeometryInvalid = false;
-        for (const auto& [token, display] : mDisplays) {
-            const auto displayId = display->getId();
-            if (displayId >= 0) {
-                const Vector<sp<Layer>>& currentLayers = display->getVisibleLayersSortedByZ();
-                for (size_t i = 0; i < currentLayers.size(); i++) {
-                    const auto& layer = currentLayers[i];
-                    if (!layer->hasHwcLayer(displayId)) {
-                        if (!layer->createHwcLayer(getBE().mHwc.get(), displayId)) {
-                            layer->forceClientComposition(displayId);
-                            continue;
-                        }
-                    }
-
-                    layer->setGeometry(display, i);
-                    if (mDebugDisableHWC || mDebugRegion) {
-                        layer->forceClientComposition(displayId);
-                    }
-                }
-            }
-        }
-    }
-
-    // Set the per-frame data
-    for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        if (displayId < 0) {
-            continue;
-        }
-
-        if (mDrawingState.colorMatrixChanged) {
-            display->setColorTransform(mDrawingState.colorMatrix);
-            status_t result = getBE().mHwc->setColorTransform(displayId, mDrawingState.colorMatrix);
-            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display %d: %d",
-                     displayId, result);
-        }
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            if (layer->isHdrY410()) {
-                layer->forceClientComposition(displayId);
-            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
-                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                    !display->hasHDR10Support()) {
-                layer->forceClientComposition(displayId);
-            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
-                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                    !display->hasHLGSupport()) {
-                layer->forceClientComposition(displayId);
-            }
-
-            if (layer->getForceClientComposition(displayId)) {
-                ALOGV("[%s] Requesting Client composition", layer->getName().string());
-                layer->setCompositionType(displayId, HWC2::Composition::Client);
-                continue;
-            }
-
-            layer->setPerFrameData(display);
-        }
-
-        if (hasWideColorDisplay) {
-            ColorMode colorMode;
-            Dataspace dataSpace;
-            RenderIntent renderIntent;
-            pickColorMode(display, &colorMode, &dataSpace, &renderIntent);
-            setActiveColorModeInternal(display, colorMode, dataSpace, renderIntent);
-        }
-    }
-
-    mDrawingState.colorMatrixChanged = false;
-
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->isPoweredOn()) {
-            continue;
-        }
-
-        status_t result = display->prepareFrame(*getBE().mHwc);
-        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
-                 display->getId(), result, strerror(-result));
-    }
-}
 
 void SurfaceFlinger::doComposition() {
     ATRACE_CALL();

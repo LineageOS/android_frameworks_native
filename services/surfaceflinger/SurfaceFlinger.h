@@ -667,7 +667,7 @@ private:
     void pickColorMode(const sp<DisplayDevice>& display, ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
-    void setUpHWComposer();
+    void calculateWorkingSet();
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);
