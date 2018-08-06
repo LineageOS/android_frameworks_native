@@ -100,6 +100,7 @@ class Layer;
 class Surface;
 class SurfaceFlingerBE;
 class VSyncSource;
+struct CompositionInfo;
 
 namespace impl {
 class EventThread;
@@ -224,6 +225,8 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
+
+    std::vector<CompositionInfo> mCompositionInfo;
 };
 
 

@@ -1473,6 +1473,9 @@ void SurfaceFlinger::handleMessageRefresh() {
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
+    for (auto& compositionInfo : getBE().mCompositionInfo) {
+        compositionInfo.hwc.hwcLayer = nullptr;
+    }
 }
 
 
@@ -1557,6 +1560,19 @@ void SurfaceFlinger::calculateWorkingSet() {
     }
 
     mDrawingState.colorMatrixChanged = false;
+    getBE().mCompositionInfo.clear();
+
+    for (const auto& [token, display] : mDisplays) {
+        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+            auto displayId = display->getId();
+            layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
+            if (!layer->setHwcLayer(displayId)) {
+                ALOGV("Need to create HWCLayer for %s", layer->getName().string());
+            }
+            getBE().mCompositionInfo.push_back(layer->getBE().compositionInfo);
+            layer->getBE().compositionInfo.hwc.hwcLayer = nullptr;
+        }
+    }
 }
 
 void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)

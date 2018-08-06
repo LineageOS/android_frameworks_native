@@ -55,6 +55,8 @@ struct CompositionInfo {
         ui::Dataspace dataspace;
         hwc_color_t color;
         bool clearClientTarget = false;
+        bool supportedPerFrameMetadata = false;
+        HdrMetadata hdrMetadata;
     } hwc;
     struct {
         Mesh* mesh;
