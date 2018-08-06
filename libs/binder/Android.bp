@@ -117,7 +117,6 @@ cc_library {
         "liblog",
         "libcutils",
         "libutils",
-        "libutilscallstack",
     ],
 
     header_libs: [
