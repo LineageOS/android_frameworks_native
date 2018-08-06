@@ -51,8 +51,11 @@ extern void setGLHooksThreadSpecific(gl_hooks_t const *value);
 
 // ----------------------------------------------------------------------------
 
-static bool findExtension(const char* exts, const char* name, size_t nameLen) {
+bool findExtension(const char* exts, const char* name, size_t nameLen) {
     if (exts) {
+        if (!nameLen) {
+            nameLen = strlen(name);
+        }
         for (const char* match = strstr(exts, name); match; match = strstr(match + nameLen, name)) {
             if (match[nameLen] == '\0' || match[nameLen] == ' ') {
                 return true;
@@ -203,15 +206,31 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
 
         mExtensionString = gBuiltinExtensionString;
 
+        hasColorSpaceSupport = findExtension(disp.queryString.extensions, "EGL_KHR_gl_colorspace");
+
+        // Note: CDD requires that devices supporting wide color and/or HDR color also support
+        // the EGL_KHR_gl_colorspace extension.
         bool wideColorBoardConfig =
                 getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(
                         false);
 
         // Add wide-color extensions if device can support wide-color
-        if (wideColorBoardConfig) {
+        if (wideColorBoardConfig && hasColorSpaceSupport) {
             mExtensionString.append(
                     "EGL_EXT_gl_colorspace_scrgb EGL_EXT_gl_colorspace_scrgb_linear "
                     "EGL_EXT_gl_colorspace_display_p3_linear EGL_EXT_gl_colorspace_display_p3 ");
+        }
+
+        bool hasHdrBoardConfig =
+                getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
+
+        if (hasHdrBoardConfig && hasColorSpaceSupport) {
+            // hasHDRBoardConfig indicates the system is capable of supporting HDR content.
+            // Typically that means there is an HDR capable display attached, but could be
+            // support for attaching an HDR display. In either case, advertise support for
+            // HDR color spaces.
+            mExtensionString.append(
+                    "EGL_EXT_gl_colorspace_bt2020_linear EGL_EXT_gl_colorspace_bt2020_pq ");
         }
 
         char const* start = gExtensionString;
@@ -221,6 +240,12 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
             if (len) {
                 // NOTE: we could avoid the copy if we had strnstr.
                 const std::string ext(start, len);
+                // Temporary hack: Adreno 530 driver exposes this extension under the draft
+                // KHR name, but during Khronos review it was decided to demote it to EXT.
+                if (ext == "EGL_EXT_image_gl_colorspace" &&
+                    findExtension(disp.queryString.extensions, "EGL_KHR_image_gl_colorspace")) {
+                    mExtensionString.append("EGL_EXT_image_gl_colorspace ");
+                }
                 if (findExtension(disp.queryString.extensions, ext.c_str(), len)) {
                     mExtensionString.append(ext + " ");
                 }

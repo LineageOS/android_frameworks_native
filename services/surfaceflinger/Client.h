@@ -51,14 +51,14 @@ public:
 
     sp<Layer> getLayerUser(const sp<IBinder>& handle) const;
 
-    void setParentLayer(const sp<Layer>& parentLayer);
+    void updateParent(const sp<Layer>& parentLayer);
 
 private:
     // ISurfaceComposerClient interface
     virtual status_t createSurface(
             const String8& name,
             uint32_t w, uint32_t h,PixelFormat format, uint32_t flags,
-            const sp<IBinder>& parent, uint32_t windowType, uint32_t ownerUid,
+            const sp<IBinder>& parent, int32_t windowType, int32_t ownerUid,
             sp<IBinder>* handle,
             sp<IGraphicBufferProducer>* gbp);
 

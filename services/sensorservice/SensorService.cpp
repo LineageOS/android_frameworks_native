@@ -13,14 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include <binder/ActivityManager.h>
 #include <binder/AppOpsManager.h>
 #include <binder/BinderService.h>
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
+#include <binder/PermissionController.h>
 #include <cutils/ashmem.h>
+#include <cutils/misc.h>
 #include <cutils/properties.h>
 #include <hardware/sensors.h>
 #include <hardware_legacy/power.h>
+#include <log/log.h>
 #include <openssl/digest.h>
 #include <openssl/hmac.h>
 #include <openssl/rand.h>
@@ -52,6 +56,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <private/android_filesystem_config.h>
+
 namespace android {
 // ---------------------------------------------------------------------------
 
@@ -75,10 +81,12 @@ bool SensorService::sHmacGlobalKeyIsValid = false;
 // Permissions.
 static const String16 sDumpPermission("android.permission.DUMP");
 static const String16 sLocationHardwarePermission("android.permission.LOCATION_HARDWARE");
+static const String16 sManageSensorsPermission("android.permission.MANAGE_SENSORS");
 
 SensorService::SensorService()
     : mInitCheck(NO_INIT), mSocketBufferSize(SOCKET_BUFFER_SIZE_NON_BATCHED),
       mWakeLockAcquired(false) {
+    mUidPolicy = new UidPolicy(this);
 }
 
 bool SensorService::initializeHmacKey() {
@@ -274,6 +282,22 @@ void SensorService::onFirstRef() {
 
             // priority can only be changed after run
             enableSchedFifoMode();
+
+            // Start watching UID changes to apply policy.
+            mUidPolicy->registerSelf();
+        }
+    }
+}
+
+void SensorService::setSensorAccess(uid_t uid, bool hasAccess) {
+    SortedVector< sp<SensorEventConnection> > activeConnections;
+    populateActiveConnections(&activeConnections);
+    {
+        Mutex::Autolock _l(mLock);
+        for (size_t i = 0 ; i < activeConnections.size(); i++) {
+            if (activeConnections[i] != 0 && activeConnections[i]->getUid() == uid) {
+                activeConnections[i]->setSensorAccess(hasAccess);
+            }
         }
     }
 }
@@ -312,6 +336,7 @@ SensorService::~SensorService() {
     for (auto && entry : mRecentEvent) {
         delete entry.second;
     }
+    mUidPolicy->unregisterSelf();
 }
 
 status_t SensorService::dump(int fd, const Vector<String16>& args) {
@@ -486,6 +511,82 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
     }
     write(fd, result.string(), result.size());
     return NO_ERROR;
+}
+
+// NOTE: This is a remote API - make sure all args are validated
+status_t SensorService::shellCommand(int in, int out, int err, Vector<String16>& args) {
+    if (!checkCallingPermission(sManageSensorsPermission, nullptr, nullptr)) {
+        return PERMISSION_DENIED;
+    }
+    if (in == BAD_TYPE || out == BAD_TYPE || err == BAD_TYPE) {
+        return BAD_VALUE;
+    }
+    if (args.size() == 3 && args[0] == String16("set-uid-state")) {
+        return handleSetUidState(args, err);
+    } else if (args.size() == 2 && args[0] == String16("reset-uid-state")) {
+        return handleResetUidState(args, err);
+    } else if (args.size() == 2 && args[0] == String16("get-uid-state")) {
+        return handleGetUidState(args, out, err);
+    } else if (args.size() == 1 && args[0] == String16("help")) {
+        printHelp(out);
+        return NO_ERROR;
+    }
+    printHelp(err);
+    return BAD_VALUE;
+}
+
+status_t SensorService::handleSetUidState(Vector<String16>& args, int err) {
+    PermissionController pc;
+    int uid = pc.getPackageUid(args[1], 0);
+    if (uid <= 0) {
+        ALOGE("Unknown package: '%s'", String8(args[1]).string());
+        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+        return BAD_VALUE;
+    }
+    bool active = false;
+    if (args[2] == String16("active")) {
+        active = true;
+    } else if ((args[2] != String16("idle"))) {
+        ALOGE("Expected active or idle but got: '%s'", String8(args[2]).string());
+        return BAD_VALUE;
+    }
+    mUidPolicy->addOverrideUid(uid, active);
+    return NO_ERROR;
+}
+
+status_t SensorService::handleResetUidState(Vector<String16>& args, int err) {
+    PermissionController pc;
+    int uid = pc.getPackageUid(args[1], 0);
+    if (uid < 0) {
+        ALOGE("Unknown package: '%s'", String8(args[1]).string());
+        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+        return BAD_VALUE;
+    }
+    mUidPolicy->removeOverrideUid(uid);
+    return NO_ERROR;
+}
+
+status_t SensorService::handleGetUidState(Vector<String16>& args, int out, int err) {
+    PermissionController pc;
+    int uid = pc.getPackageUid(args[1], 0);
+    if (uid < 0) {
+        ALOGE("Unknown package: '%s'", String8(args[1]).string());
+        dprintf(err, "Unknown package: '%s'\n", String8(args[1]).string());
+        return BAD_VALUE;
+    }
+    if (mUidPolicy->isUidActive(uid)) {
+        return dprintf(out, "active\n");
+    } else {
+        return dprintf(out, "idle\n");
+    }
+}
+
+status_t SensorService::printHelp(int out) {
+    return dprintf(out, "Sensor service commands:\n"
+        "  get-uid-state <PACKAGE> gets the uid state\n"
+        "  set-uid-state <PACKAGE> <active|idle> overrides the uid state\n"
+        "  reset-uid-state <PACKAGE> clears the uid state override\n"
+        "  help print this message\n");
 }
 
 //TODO: move to SensorEventConnection later
@@ -676,7 +777,6 @@ bool SensorService::threadLoop() {
                 }
             }
         }
-
 
         // Send our events to clients. Check the state of wake lock for each client and release the
         // lock if none of the clients need it.
@@ -939,8 +1039,9 @@ sp<ISensorEventConnection> SensorService::createSensorEventConnection(const Stri
             (packageName == "") ? String8::format("unknown_package_pid_%d", pid) : packageName;
     String16 connOpPackageName =
             (opPackageName == String16("")) ? String16(connPackageName) : opPackageName;
+    bool hasSensorAccess = mUidPolicy->isUidActive(uid);
     sp<SensorEventConnection> result(new SensorEventConnection(this, uid, connPackageName,
-            requestedMode == DATA_INJECTION, connOpPackageName));
+            requestedMode == DATA_INJECTION, connOpPackageName, hasSensorAccess));
     if (requestedMode == DATA_INJECTION) {
         if (mActiveConnections.indexOf(result) < 0) {
             mActiveConnections.add(result);
@@ -993,10 +1094,15 @@ sp<ISensorEventConnection> SensorService::createSensorDirectConnection(
     // check specific to memory type
     switch(type) {
         case SENSOR_DIRECT_MEM_TYPE_ASHMEM: { // channel backed by ashmem
+            if (resource->numFds < 1) {
+                ALOGE("Ashmem direct channel requires a memory region to be supplied");
+                android_errorWriteLog(0x534e4554, "70986337");  // SafetyNet
+                return nullptr;
+            }
             int fd = resource->data[0];
             int size2 = ashmem_get_size_region(fd);
             // check size consistency
-            if (size2 < static_cast<int>(size)) {
+            if (size2 < static_cast<int64_t>(size)) {
                 ALOGE("Ashmem direct channel size %" PRIu32 " greater than shared memory size %d",
                       size, size2);
                 return nullptr;
@@ -1528,6 +1634,100 @@ bool SensorService::isOperationRestricted(const String16& opPackageName) {
         return !isWhiteListedPackage(package);
     }
     return false;
+}
+
+void SensorService::UidPolicy::registerSelf() {
+    ActivityManager am;
+    am.registerUidObserver(this, ActivityManager::UID_OBSERVER_GONE
+            | ActivityManager::UID_OBSERVER_IDLE
+            | ActivityManager::UID_OBSERVER_ACTIVE,
+            ActivityManager::PROCESS_STATE_UNKNOWN,
+            String16("android"));
+}
+
+void SensorService::UidPolicy::unregisterSelf() {
+    ActivityManager am;
+    am.unregisterUidObserver(this);
+}
+
+void SensorService::UidPolicy::onUidGone(__unused uid_t uid, __unused bool disabled) {
+    onUidIdle(uid, disabled);
+}
+
+void SensorService::UidPolicy::onUidActive(uid_t uid) {
+    {
+        Mutex::Autolock _l(mUidLock);
+        mActiveUids.insert(uid);
+    }
+    sp<SensorService> service = mService.promote();
+    if (service != nullptr) {
+        service->setSensorAccess(uid, true);
+    }
+}
+
+void SensorService::UidPolicy::onUidIdle(uid_t uid, __unused bool disabled) {
+    bool deleted = false;
+    {
+        Mutex::Autolock _l(mUidLock);
+        if (mActiveUids.erase(uid) > 0) {
+            deleted = true;
+        }
+    }
+    if (deleted) {
+        sp<SensorService> service = mService.promote();
+        if (service != nullptr) {
+            service->setSensorAccess(uid, false);
+        }
+    }
+}
+
+void SensorService::UidPolicy::addOverrideUid(uid_t uid, bool active) {
+    updateOverrideUid(uid, active, true);
+}
+
+void SensorService::UidPolicy::removeOverrideUid(uid_t uid) {
+    updateOverrideUid(uid, false, false);
+}
+
+void SensorService::UidPolicy::updateOverrideUid(uid_t uid, bool active, bool insert) {
+    bool wasActive = false;
+    bool isActive = false;
+    {
+        Mutex::Autolock _l(mUidLock);
+        wasActive = isUidActiveLocked(uid);
+        mOverrideUids.erase(uid);
+        if (insert) {
+            mOverrideUids.insert(std::pair<uid_t, bool>(uid, active));
+        }
+        isActive = isUidActiveLocked(uid);
+    }
+    if (wasActive != isActive) {
+        sp<SensorService> service = mService.promote();
+        if (service != nullptr) {
+            service->setSensorAccess(uid, isActive);
+        }
+    }
+}
+
+bool SensorService::UidPolicy::isUidActive(uid_t uid) {
+    // Non-app UIDs are considered always active
+    if (uid < FIRST_APPLICATION_UID) {
+        return true;
+    }
+    Mutex::Autolock _l(mUidLock);
+    return isUidActiveLocked(uid);
+}
+
+bool SensorService::UidPolicy::isUidActiveLocked(uid_t uid) {
+    // Non-app UIDs are considered always active
+    if (uid < FIRST_APPLICATION_UID) {
+        return true;
+    }
+    auto it = mOverrideUids.find(uid);
+    if (it != mOverrideUids.end()) {
+        return it->second;
+    }
+    return mActiveUids.find(uid) != mActiveUids.end();
 }
 
 }; // namespace android

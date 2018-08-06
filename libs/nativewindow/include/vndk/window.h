@@ -306,20 +306,6 @@ int ANativeWindow_setBuffersTimestamp(ANativeWindow* window, int64_t timestamp);
 
 
 /*
- * All buffers queued after this call will be associated with the dataSpace
- * parameter specified.
- *
- * dataSpace specifies additional information about the buffer that's dependent
- * on the buffer format and the endpoints. For example, it can be used to convey
- * the color space of the image data in the buffer, or it can be used to
- * indicate that the buffers contain depth measurement data instead of color
- * images.  The default dataSpace is 0, HAL_DATASPACE_UNKNOWN, unless it has been
- * overridden by the consumer.
- */
-int ANativeWindow_setBufferDataSpace(ANativeWindow* window, android_dataspace_t dataSpace);
-
-
-/*
  * Enable/disable shared buffer mode
  */
 int ANativeWindow_setSharedBufferMode(ANativeWindow* window, bool sharedBufferMode);

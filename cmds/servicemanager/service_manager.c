@@ -138,6 +138,7 @@ struct svcinfo
     uint32_t handle;
     struct binder_death death;
     int allow_isolated;
+    uint32_t dumpsys_priority;
     size_t len;
     uint16_t name[0];
 };
@@ -198,11 +199,8 @@ uint32_t do_find_service(const uint16_t *s, size_t len, uid_t uid, pid_t spid)
     return si->handle;
 }
 
-int do_add_service(struct binder_state *bs,
-                   const uint16_t *s, size_t len,
-                   uint32_t handle, uid_t uid, int allow_isolated,
-                   pid_t spid)
-{
+int do_add_service(struct binder_state *bs, const uint16_t *s, size_t len, uint32_t handle,
+                   uid_t uid, int allow_isolated, uint32_t dumpsys_priority, pid_t spid) {
     struct svcinfo *si;
 
     //ALOGI("add_service('%s',%x,%s) uid=%d\n", str8(s, len), handle,
@@ -239,6 +237,7 @@ int do_add_service(struct binder_state *bs,
         si->death.func = (void*) svcinfo_death;
         si->death.ptr = si;
         si->allow_isolated = allow_isolated;
+        si->dumpsys_priority = dumpsys_priority;
         si->next = svclist;
         svclist = si;
     }
@@ -259,6 +258,7 @@ int svcmgr_handler(struct binder_state *bs,
     uint32_t handle;
     uint32_t strict_policy;
     int allow_isolated;
+    uint32_t dumpsys_priority;
 
     //ALOGI("target=%p code=%d pid=%d uid=%d\n",
     //      (void*) txn->target.ptr, txn->code, txn->sender_pid, txn->sender_euid);
@@ -317,13 +317,15 @@ int svcmgr_handler(struct binder_state *bs,
         }
         handle = bio_get_ref(msg);
         allow_isolated = bio_get_uint32(msg) ? 1 : 0;
-        if (do_add_service(bs, s, len, handle, txn->sender_euid,
-            allow_isolated, txn->sender_pid))
+        dumpsys_priority = bio_get_uint32(msg);
+        if (do_add_service(bs, s, len, handle, txn->sender_euid, allow_isolated, dumpsys_priority,
+                           txn->sender_pid))
             return -1;
         break;
 
     case SVC_MGR_LIST_SERVICES: {
         uint32_t n = bio_get_uint32(msg);
+        uint32_t req_dumpsys_priority = bio_get_uint32(msg);
 
         if (!svc_can_list(txn->sender_pid, txn->sender_euid)) {
             ALOGE("list_service() uid=%d - PERMISSION DENIED\n",
@@ -331,8 +333,15 @@ int svcmgr_handler(struct binder_state *bs,
             return -1;
         }
         si = svclist;
-        while ((n-- > 0) && si)
+        // walk through the list of services n times skipping services that
+        // do not support the requested priority
+        while (si) {
+            if (si->dumpsys_priority & req_dumpsys_priority) {
+                if (n == 0) break;
+                n--;
+            }
             si = si->next;
+        }
         if (si) {
             bio_put_string16(reply, si->name);
             return 0;

@@ -18,7 +18,7 @@
 #include <binder/Parcel.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/IGraphicBufferProducer.h>
-#include <private/gui/LayerState.h>
+#include <gui/LayerState.h>
 
 namespace android {
 
@@ -45,6 +45,10 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeInt32(overrideScalingMode);
     output.writeStrongBinder(IInterface::asBinder(barrierGbp));
     output.writeStrongBinder(relativeLayerHandle);
+    output.writeStrongBinder(parentHandleForChild);
+    output.writeFloat(color.r);
+    output.writeFloat(color.g);
+    output.writeFloat(color.b);
     output.write(transparentRegion);
     return NO_ERROR;
 }
@@ -77,6 +81,10 @@ status_t layer_state_t::read(const Parcel& input)
     barrierGbp =
         interface_cast<IGraphicBufferProducer>(input.readStrongBinder());
     relativeLayerHandle = input.readStrongBinder();
+    parentHandleForChild = input.readStrongBinder();
+    color.r = input.readFloat();
+    color.g = input.readFloat();
+    color.b = input.readFloat();
     input.read(transparentRegion);
     return NO_ERROR;
 }
@@ -128,5 +136,104 @@ status_t DisplayState::read(const Parcel& input) {
     return NO_ERROR;
 }
 
+void DisplayState::merge(const DisplayState& other) {
+    if (other.what & eSurfaceChanged) {
+        what |= eSurfaceChanged;
+        surface = other.surface;
+    }
+    if (other.what & eLayerStackChanged) {
+        what |= eLayerStackChanged;
+        layerStack = other.layerStack;
+    }
+    if (other.what & eDisplayProjectionChanged) {
+        what |= eDisplayProjectionChanged;
+        orientation = other.orientation;
+        viewport = other.viewport;
+        frame = other.frame;
+    }
+    if (other.what & eDisplaySizeChanged) {
+        what |= eDisplaySizeChanged;
+        width = other.width;
+        height = other.height;
+    }
+}
+
+void layer_state_t::merge(const layer_state_t& other) {
+    if (other.what & ePositionChanged) {
+        what |= ePositionChanged;
+        x = other.x;
+        y = other.y;
+    }
+    if (other.what & eLayerChanged) {
+        what |= eLayerChanged;
+        z = other.z;
+    }
+    if (other.what & eSizeChanged) {
+        what |= eSizeChanged;
+        w = other.w;
+        h = other.h;
+    }
+    if (other.what & eAlphaChanged) {
+        what |= eAlphaChanged;
+        alpha = other.alpha;
+    }
+    if (other.what & eMatrixChanged) {
+        what |= eMatrixChanged;
+        matrix = other.matrix;
+    }
+    if (other.what & eTransparentRegionChanged) {
+        what |= eTransparentRegionChanged;
+        transparentRegion = other.transparentRegion;
+    }
+    if (other.what & eFlagsChanged) {
+        what |= eFlagsChanged;
+        flags = other.flags;
+        mask = other.mask;
+    }
+    if (other.what & eLayerStackChanged) {
+        what |= eLayerStackChanged;
+        layerStack = other.layerStack;
+    }
+    if (other.what & eCropChanged) {
+        what |= eCropChanged;
+        crop = other.crop;
+    }
+    if (other.what & eDeferTransaction) {
+        what |= eDeferTransaction;
+        barrierHandle = other.barrierHandle;
+        barrierGbp = other.barrierGbp;
+        frameNumber = other.frameNumber;
+    }
+    if (other.what & eFinalCropChanged) {
+        what |= eFinalCropChanged;
+        finalCrop = other.finalCrop;
+    }
+    if (other.what & eOverrideScalingModeChanged) {
+        what |= eOverrideScalingModeChanged;
+        overrideScalingMode = other.overrideScalingMode;
+    }
+    if (other.what & eGeometryAppliesWithResize) {
+        what |= eGeometryAppliesWithResize;
+    }
+    if (other.what & eReparentChildren) {
+        what |= eReparentChildren;
+        reparentHandle = other.reparentHandle;
+    }
+    if (other.what & eDetachChildren) {
+        what |= eDetachChildren;
+    }
+    if (other.what & eRelativeLayerChanged) {
+        what |= eRelativeLayerChanged;
+        z = other.z;
+        relativeLayerHandle = other.relativeLayerHandle;
+    }
+    if (other.what & eReparent) {
+        what |= eReparent;
+        parentHandleForChild = other.parentHandleForChild;
+    }
+    if (other.what & eDestroySurface) {
+        what |= eDestroySurface;
+    }
+}
 
 }; // namespace android

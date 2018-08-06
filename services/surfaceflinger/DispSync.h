@@ -20,8 +20,8 @@
 #include <stddef.h>
 
 #include <utils/Mutex.h>
-#include <utils/Timers.h>
 #include <utils/RefBase.h>
+#include <utils/Timers.h>
 
 #include <ui/FenceTime.h>
 
@@ -47,12 +47,10 @@ class DispSyncThread;
 // false to indicate that a resynchronization (via addResyncSample) is not
 // needed.
 class DispSync {
-
 public:
-
-    class Callback: public virtual RefBase {
+    class Callback {
     public:
-        virtual ~Callback() {};
+        virtual ~Callback(){};
         virtual void onDispSyncEvent(nsecs_t when) = 0;
     };
 
@@ -108,13 +106,17 @@ public:
     // given phase offset from the hardware vsync events.  The callback is
     // called from a separate thread and it should return reasonably quickly
     // (i.e. within a few hundred microseconds).
-    status_t addEventListener(const char* name, nsecs_t phase,
-            const sp<Callback>& callback);
+    status_t addEventListener(const char* name, nsecs_t phase, Callback* callback);
 
     // removeEventListener removes an already-registered event callback.  Once
     // this method returns that callback will no longer be called by the
     // DispSync object.
-    status_t removeEventListener(const sp<Callback>& callback);
+    status_t removeEventListener(Callback* callback);
+
+    // changePhaseOffset changes the phase offset of an already-registered event callback. The
+    // method will make sure that there is no skipping or double-firing on the listener per frame,
+    // even when changing the offsets multiple times.
+    status_t changePhaseOffset(Callback* callback, nsecs_t phase);
 
     // computeNextRefresh computes when the next refresh is expected to begin.
     // The periodOffset value can be used to move forward or backward; an
@@ -126,7 +128,6 @@ public:
     void dump(String8& result) const;
 
 private:
-
     void updateModelLocked();
     void updateErrorLocked();
     void resetErrorLocked();
@@ -174,8 +175,7 @@ private:
 
     // These member variables store information about the present fences used
     // to validate the currently computed model.
-    std::shared_ptr<FenceTime>
-            mPresentFences[NUM_PRESENT_SAMPLES] {FenceTime::NO_FENCE};
+    std::shared_ptr<FenceTime> mPresentFences[NUM_PRESENT_SAMPLES]{FenceTime::NO_FENCE};
     size_t mPresentSampleOffset;
 
     int mRefreshSkipCount;
@@ -193,8 +193,10 @@ private:
     // Ignore present (retire) fences if the device doesn't have support for the
     // sync framework
     bool mIgnorePresentFences;
+
+    std::unique_ptr<Callback> mZeroPhaseTracer;
 };
 
-}
+} // namespace android
 
 #endif // ANDROID_DISPSYNC_H

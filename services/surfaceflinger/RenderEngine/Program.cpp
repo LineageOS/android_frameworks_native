@@ -19,14 +19,15 @@
 #include <log/log.h>
 #include <utils/String8.h>
 
+#include <math/mat4.h>
+#include "Description.h"
 #include "Program.h"
 #include "ProgramCache.h"
-#include "Description.h"
 
 namespace android {
 
 Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const char* fragment)
-        : mInitialized(false) {
+      : mInitialized(false) {
     GLuint vertexId = buildShader(vertex, GL_VERTEX_SHADER);
     GLuint fragmentId = buildShader(fragment, GL_FRAGMENT_SHADER);
     GLuint programId = glCreateProgram();
@@ -57,24 +58,22 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mVertexShader = vertexId;
         mFragmentShader = fragmentId;
         mInitialized = true;
-
-        mColorMatrixLoc = glGetUniformLocation(programId, "colorMatrix");
         mProjectionMatrixLoc = glGetUniformLocation(programId, "projection");
         mTextureMatrixLoc = glGetUniformLocation(programId, "texture");
         mSamplerLoc = glGetUniformLocation(programId, "sampler");
         mColorLoc = glGetUniformLocation(programId, "color");
-        mAlphaPlaneLoc = glGetUniformLocation(programId, "alphaPlane");
+        mDisplayMaxLuminanceLoc = glGetUniformLocation(programId, "displayMaxLuminance");
+        mInputTransformMatrixLoc = glGetUniformLocation(programId, "inputTransformMatrix");
+        mOutputTransformMatrixLoc = glGetUniformLocation(programId, "outputTransformMatrix");
 
         // set-up the default values for our uniforms
         glUseProgram(programId);
-        const GLfloat m[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1 };
-        glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, m);
+        glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, mat4().asArray());
         glEnableVertexAttribArray(0);
     }
 }
 
-Program::~Program() {
-}
+Program::~Program() {}
 
 bool Program::isValid() const {
     return mInitialized;
@@ -117,14 +116,13 @@ String8& Program::dumpShader(String8& result, GLenum /*type*/) {
     GLint l;
     glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &l);
     char* src = new char[l];
-    glGetShaderSource(shader, l, NULL, src);
+    glGetShaderSource(shader, l, nullptr, src);
     result.append(src);
-    delete [] src;
+    delete[] src;
     return result;
 }
 
 void Program::setUniforms(const Description& desc) {
-
     // TODO: we should have a mechanism here to not always reset uniforms that
     // didn't change for this program.
 
@@ -132,14 +130,32 @@ void Program::setUniforms(const Description& desc) {
         glUniform1i(mSamplerLoc, 0);
         glUniformMatrix4fv(mTextureMatrixLoc, 1, GL_FALSE, desc.mTexture.getMatrix().asArray());
     }
-    if (mAlphaPlaneLoc >= 0) {
-        glUniform1f(mAlphaPlaneLoc, desc.mPlaneAlpha);
-    }
     if (mColorLoc >= 0) {
-        glUniform4fv(mColorLoc, 1, desc.mColor);
+        const float color[4] = {desc.mColor.r, desc.mColor.g, desc.mColor.b, desc.mColor.a};
+        glUniform4fv(mColorLoc, 1, color);
     }
-    if (mColorMatrixLoc >= 0) {
-        glUniformMatrix4fv(mColorMatrixLoc, 1, GL_FALSE, desc.mColorMatrix.asArray());
+    if (mInputTransformMatrixLoc >= 0) {
+        // If the input transform matrix is not identity matrix, we want to merge
+        // the saturation matrix with input transform matrix so that the saturation
+        // matrix is applied at the correct stage.
+        mat4 inputTransformMatrix = mat4(desc.mInputTransformMatrix) * desc.mSaturationMatrix;
+        glUniformMatrix4fv(mInputTransformMatrixLoc, 1, GL_FALSE, inputTransformMatrix.asArray());
+    }
+    if (mOutputTransformMatrixLoc >= 0) {
+        // The output transform matrix and color matrix can be combined as one matrix
+        // that is applied right before applying OETF.
+        mat4 outputTransformMatrix = desc.mColorMatrix * desc.mOutputTransformMatrix;
+        // If there is no input transform matrix, we want to merge the saturation
+        // matrix with output transform matrix to avoid extra matrix multiplication
+        // in shader.
+        if (mInputTransformMatrixLoc < 0) {
+            outputTransformMatrix *= desc.mSaturationMatrix;
+        }
+        glUniformMatrix4fv(mOutputTransformMatrixLoc, 1, GL_FALSE,
+                           outputTransformMatrix.asArray());
+    }
+    if (mDisplayMaxLuminanceLoc >= 0) {
+        glUniform1f(mDisplayMaxLuminanceLoc, desc.mDisplayMaxLuminance);
     }
     // these uniforms are always present
     glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.mProjectionMatrix.asArray());

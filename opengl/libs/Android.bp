@@ -122,6 +122,16 @@ cc_library_static {
     },
 }
 
+cc_library_static {
+    name: "libEGL_blobCache",
+    defaults: ["egl_libs_defaults"],
+    srcs: [
+        "EGL/BlobCache.cpp",
+        "EGL/FileBlobCache.cpp",
+    ],
+    export_include_dirs: ["EGL"],
+}
+
 cc_library_shared {
     name: "libEGL",
     defaults: ["egl_libs_defaults"],
@@ -133,7 +143,6 @@ cc_library_shared {
         "EGL/egl.cpp",
         "EGL/eglApi.cpp",
         "EGL/Loader.cpp",
-        "EGL/BlobCache.cpp",
     ],
     shared_libs: [
         "libvndksupport",
@@ -143,7 +152,10 @@ cc_library_shared {
         "libhidltransport",
         "libutils",
     ],
-    static_libs: ["libEGL_getProcAddress"],
+    static_libs: [
+        "libEGL_getProcAddress",
+        "libEGL_blobCache",
+    ],
     ldflags: ["-Wl,--exclude-libs=ALL"],
     export_include_dirs: ["EGL/include"],
 }

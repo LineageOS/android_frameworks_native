@@ -513,6 +513,12 @@ void Region::rasterizer::flushSpan()
 
 bool Region::validate(const Region& reg, const char* name, bool silent)
 {
+    if (reg.mStorage.isEmpty()) {
+        ALOGE_IF(!silent, "%s: mStorage is empty, which is never valid", name);
+        // return immediately as the code below assumes mStorage is non-empty
+        return false;
+    }
+
     bool result = true;
     const_iterator cur = reg.begin();
     const_iterator const tail = reg.end();
@@ -832,6 +838,11 @@ Region::const_iterator Region::begin() const {
 }
 
 Region::const_iterator Region::end() const {
+    // Workaround for b/77643177
+    // mStorage should never be empty, but somehow it is and it's causing
+    // an abort in ubsan
+    if (mStorage.isEmpty()) return mStorage.array();
+
     size_t numRects = isRect() ? 1 : mStorage.size() - 1;
     return mStorage.array() + numRects;
 }

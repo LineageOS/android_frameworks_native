@@ -54,7 +54,7 @@ private:
 
     virtual nsecs_t notifyANR(const sp<InputApplicationHandle>&,
             const sp<InputWindowHandle>&,
-            const String8&) {
+            const std::string&) {
         return 0;
     }
 

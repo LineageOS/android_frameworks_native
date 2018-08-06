@@ -23,7 +23,6 @@
 #include <ui/Region.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
-#include <utils/String8.h>
 
 #include "InputApplication.h"
 
@@ -116,7 +115,7 @@ struct InputWindowInfo {
     };
 
     sp<InputChannel> inputChannel;
-    String8 name;
+    std::string name;
     int32_t layoutParamsFlags;
     int32_t layoutParamsType;
     nsecs_t dispatchingTimeout;
@@ -173,8 +172,8 @@ public:
         return mInfo ? mInfo->inputChannel : NULL;
     }
 
-    inline String8 getName() const {
-        return mInfo ? mInfo->name : String8("<invalid>");
+    inline std::string getName() const {
+        return mInfo ? mInfo->name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {

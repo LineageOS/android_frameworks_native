@@ -33,6 +33,27 @@ static int32_t query(ANativeWindow* window, int what) {
     return res < 0 ? res : value;
 }
 
+static bool isDataSpaceValid(ANativeWindow* window, int32_t dataSpace) {
+    bool supported = false;
+    switch (dataSpace) {
+        case HAL_DATASPACE_UNKNOWN:
+        case HAL_DATASPACE_V0_SRGB:
+            return true;
+        // These data space need wide gamut support.
+        case HAL_DATASPACE_V0_SCRGB_LINEAR:
+        case HAL_DATASPACE_V0_SCRGB:
+        case HAL_DATASPACE_DISPLAY_P3:
+            native_window_get_wide_color_support(window, &supported);
+            return supported;
+        // These data space need HDR support.
+        case HAL_DATASPACE_BT2020_PQ:
+            native_window_get_hdr_support(window, &supported);
+            return supported;
+        default:
+            return false;
+    }
+}
+
 /**************************************************************************************************
  * NDK
  **************************************************************************************************/
@@ -92,13 +113,38 @@ int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transfo
     constexpr int32_t kAllTransformBits =
             ANATIVEWINDOW_TRANSFORM_MIRROR_HORIZONTAL |
             ANATIVEWINDOW_TRANSFORM_MIRROR_VERTICAL |
-            ANATIVEWINDOW_TRANSFORM_ROTATE_90;
+            ANATIVEWINDOW_TRANSFORM_ROTATE_90 |
+            // We don't expose INVERSE_DISPLAY as an NDK constant, but someone could have read it
+            // from a buffer already set by Camera framework, so we allow it to be forwarded.
+            NATIVE_WINDOW_TRANSFORM_INVERSE_DISPLAY;
     if (!window || !query(window, NATIVE_WINDOW_IS_VALID))
         return -EINVAL;
     if ((transform & ~kAllTransformBits) != 0)
         return -EINVAL;
 
     return native_window_set_buffers_transform(window, transform);
+}
+
+int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpace) {
+    static_assert(static_cast<int>(ADATASPACE_UNKNOWN) == static_cast<int>(HAL_DATASPACE_UNKNOWN));
+    static_assert(static_cast<int>(ADATASPACE_SCRGB_LINEAR) == static_cast<int>(HAL_DATASPACE_V0_SCRGB_LINEAR));
+    static_assert(static_cast<int>(ADATASPACE_SRGB) == static_cast<int>(HAL_DATASPACE_V0_SRGB));
+    static_assert(static_cast<int>(ADATASPACE_SCRGB) == static_cast<int>(HAL_DATASPACE_V0_SCRGB));
+    static_assert(static_cast<int>(ADATASPACE_DISPLAY_P3) == static_cast<int>(HAL_DATASPACE_DISPLAY_P3));
+    static_assert(static_cast<int>(ADATASPACE_BT2020_PQ) == static_cast<int>(HAL_DATASPACE_BT2020_PQ));
+
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID) ||
+            !isDataSpaceValid(window, dataSpace)) {
+        return -EINVAL;
+    }
+    return native_window_set_buffers_data_space(window,
+                                                static_cast<android_dataspace_t>(dataSpace));
+}
+
+int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) {
+    if (!window || !query(window, NATIVE_WINDOW_IS_VALID))
+        return -EINVAL;
+    return query(window, NATIVE_WINDOW_DATASPACE);
 }
 
 /**************************************************************************************************
@@ -207,10 +253,6 @@ int ANativeWindow_setBuffersFormat(ANativeWindow* window, int format) {
 
 int ANativeWindow_setBuffersTimestamp(ANativeWindow* window, int64_t timestamp) {
     return native_window_set_buffers_timestamp(window, timestamp);
-}
-
-int ANativeWindow_setBufferDataSpace(ANativeWindow* window, android_dataspace_t dataSpace) {
-    return native_window_set_buffers_data_space(window, dataSpace);
 }
 
 int ANativeWindow_setSharedBufferMode(ANativeWindow* window, bool sharedBufferMode) {

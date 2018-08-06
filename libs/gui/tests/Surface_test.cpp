@@ -22,6 +22,7 @@
 #include <binder/ProcessState.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
+#include <inttypes.h>
 #include <gui/BufferItemConsumer.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
@@ -41,9 +42,15 @@ using namespace std::chrono_literals;
 // retrieve wide-color and hdr settings from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using ui::ColorMode;
+
+using Transaction = SurfaceComposerClient::Transaction;
 
 static bool hasWideColorDisplay =
         getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
+
+static bool hasHdrDisplay =
+        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(false);
 
 class FakeSurfaceComposer;
 class FakeProducerFrameEventHistory;
@@ -52,7 +59,6 @@ static constexpr uint64_t NO_FRAME_INDEX = std::numeric_limits<uint64_t>::max();
 
 class SurfaceTest : public ::testing::Test {
 protected:
-
     SurfaceTest() {
         ProcessState::self()->startThreadPool();
     }
@@ -69,10 +75,10 @@ protected:
         ASSERT_TRUE(mSurfaceControl != NULL);
         ASSERT_TRUE(mSurfaceControl->isValid());
 
-        SurfaceComposerClient::openGlobalTransaction();
-        ASSERT_EQ(NO_ERROR, mSurfaceControl->setLayer(0x7fffffff));
-        ASSERT_EQ(NO_ERROR, mSurfaceControl->show());
-        SurfaceComposerClient::closeGlobalTransaction();
+        Transaction t;
+        ASSERT_EQ(NO_ERROR, t.setLayer(mSurfaceControl, 0x7fffffff)
+                .show(mSurfaceControl)
+                .apply());
 
         mSurface = mSurfaceControl->getSurface();
         ASSERT_TRUE(mSurface != NULL);
@@ -86,6 +92,16 @@ protected:
     sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mSurfaceControl;
 };
+
+TEST_F(SurfaceTest, CreateSurfaceReturnsErrorBadClient) {
+    mComposerClient->dispose();
+    ASSERT_EQ(NO_INIT, mComposerClient->initCheck());
+
+    sp<SurfaceControl> sc;
+    status_t err = mComposerClient->createSurfaceChecked(
+            String8("Test Surface"), 32, 32, PIXEL_FORMAT_RGBA_8888, &sc, 0);
+    ASSERT_EQ(NO_INIT, err);
+}
 
 TEST_F(SurfaceTest, QueuesToWindowComposerIsTrueWhenVisible) {
     sp<ANativeWindow> anw(mSurface);
@@ -114,14 +130,11 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     sp<ANativeWindow> anw(mSurface);
 
     // Verify the screenshot works with no protected buffers.
-    sp<IGraphicBufferProducer> producer;
-    sp<IGraphicBufferConsumer> consumer;
-    BufferQueue::createBufferQueue(&producer, &consumer);
-    sp<CpuConsumer> cpuConsumer = new CpuConsumer(consumer, 1);
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     sp<IBinder> display(sf->getBuiltInDisplay(
             ISurfaceComposer::eDisplayIdMain));
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(),
+    sp<GraphicBuffer> outBuffer;
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
             64, 64, 0, 0x7fffffff, false));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
@@ -152,7 +165,7 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
                 &buf));
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, producer, Rect(),
+    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
             64, 64, 0, 0x7fffffff, false));
 }
 
@@ -293,6 +306,68 @@ TEST_F(SurfaceTest, GetWideColorSupport) {
     // wide color in the BoardConfig but does not support
     // a wide-color color mode on the primary display.
     ASSERT_EQ(hasWideColorDisplay, supported);
+}
+
+TEST_F(SurfaceTest, GetHdrSupport) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setConsumerName(String8("TestConsumer"));
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+
+    bool supported;
+    status_t result = surface->getHdrSupport(&supported);
+    ASSERT_EQ(NO_ERROR, result);
+
+    // NOTE: This is not a CTS test.
+    // This test verifies that when the BoardConfig TARGET_HAS_HDR_DISPLAY
+    // is TRUE, getHdrSupport is also true.
+    // TODO: Add check for an HDR color mode on the primary display.
+    ASSERT_EQ(hasHdrDisplay, supported);
+}
+
+TEST_F(SurfaceTest, SetHdrMetadata) {
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+
+    sp<DummyConsumer> dummyConsumer(new DummyConsumer);
+    consumer->consumerConnect(dummyConsumer, false);
+    consumer->setConsumerName(String8("TestConsumer"));
+
+    sp<Surface> surface = new Surface(producer);
+    sp<ANativeWindow> window(surface);
+    native_window_api_connect(window.get(), NATIVE_WINDOW_API_CPU);
+
+    bool supported;
+    status_t result = surface->getHdrSupport(&supported);
+    ASSERT_EQ(NO_ERROR, result);
+
+    if (!hasHdrDisplay || !supported) {
+        return;
+    }
+    const android_smpte2086_metadata smpte2086 = {
+        {0.680, 0.320},
+        {0.265, 0.690},
+        {0.150, 0.060},
+        {0.3127, 0.3290},
+        100.0,
+        0.1,
+    };
+    const android_cta861_3_metadata cta861_3 = {
+        78.0,
+        62.0,
+    };
+    int error = native_window_set_buffers_smpte2086_metadata(window.get(), &smpte2086);
+    ASSERT_EQ(error, NO_ERROR);
+    error = native_window_set_buffers_cta861_3_metadata(window.get(), &cta861_3);
+    ASSERT_EQ(error, NO_ERROR);
 }
 
 TEST_F(SurfaceTest, DynamicSetBufferCount) {
@@ -512,21 +587,26 @@ public:
         return NO_ERROR;
     }
     status_t getDisplayColorModes(const sp<IBinder>& /*display*/,
-            Vector<android_color_mode_t>* /*outColorModes*/) override {
+            Vector<ColorMode>* /*outColorModes*/) override {
         return NO_ERROR;
     }
-    android_color_mode_t getActiveColorMode(const sp<IBinder>& /*display*/)
+    ColorMode getActiveColorMode(const sp<IBinder>& /*display*/)
             override {
-        return HAL_COLOR_MODE_NATIVE;
+        return ColorMode::NATIVE;
     }
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
-            android_color_mode_t /*colorMode*/) override { return NO_ERROR; }
+        ColorMode /*colorMode*/) override { return NO_ERROR; }
     status_t captureScreen(const sp<IBinder>& /*display*/,
-            const sp<IGraphicBufferProducer>& /*producer*/,
+            sp<GraphicBuffer>* /*outBuffer*/,
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
             int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
             Rotation /*rotation*/) override { return NO_ERROR; }
+    virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
+                                   sp<GraphicBuffer>* /*outBuffer*/, const Rect& /*sourceCrop*/,
+                                   float /*frameScale*/, bool /*childrenOnly*/) override {
+        return NO_ERROR;
+    }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }
     status_t getAnimationFrameStats(FrameStats* /*outStats*/) const override {
         return NO_ERROR;
@@ -800,7 +880,7 @@ protected:
                 (iOldFrame == NO_FRAME_INDEX) ? nullptr : &mFrames[iOldFrame];
         FrameEvents* newFrame = &mFrames[iNewFrame];
 
-        uint64_t nOldFrame = iOldFrame + 1;
+        uint64_t nOldFrame = (iOldFrame == NO_FRAME_INDEX) ? 0 : iOldFrame + 1;
         uint64_t nNewFrame = iNewFrame + 1;
 
         // Latch, Composite, and Release the frames in a plausible order.

@@ -53,7 +53,7 @@ public:
     bool advance();
 
     Area getBufferArea() const;
-    android_dataspace_t getDataspace() const;
+    android::ui::Dataspace getDataspace() const;
     const hwc_region_t getSurfaceDamage() const;
 
 private:

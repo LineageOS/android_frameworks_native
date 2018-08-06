@@ -39,8 +39,8 @@ static inline constexpr T to64(const uint32_t lo, const uint32_t hi) {
 }
 
 BufferItem::BufferItem() :
-    mGraphicBuffer(nullptr),
-    mFence(nullptr),
+    mGraphicBuffer(NULL),
+    mFence(NULL),
     mCrop(Rect::INVALID_RECT),
     mTransform(0),
     mScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
@@ -55,7 +55,8 @@ BufferItem::BufferItem() :
     mSurfaceDamage(),
     mAutoRefresh(false),
     mQueuedBuffer(true),
-    mIsStale(false) {
+    mIsStale(false),
+    mApi(0) {
 }
 
 BufferItem::~BufferItem() {}
@@ -84,30 +85,32 @@ size_t BufferItem::getPodSize() const {
     addAligned(size, mAutoRefresh);
     addAligned(size, mQueuedBuffer);
     addAligned(size, mIsStale);
+    addAligned(size, mApi);
     return size;
 }
 
 size_t BufferItem::getFlattenedSize() const {
     size_t size = sizeof(uint32_t); // Flags
-    if (mGraphicBuffer != nullptr) {
+    if (mGraphicBuffer != 0) {
         size += mGraphicBuffer->getFlattenedSize();
         size = FlattenableUtils::align<4>(size);
     }
-    if (mFence != nullptr) {
+    if (mFence != 0) {
         size += mFence->getFlattenedSize();
         size = FlattenableUtils::align<4>(size);
     }
     size += mSurfaceDamage.getFlattenedSize();
+    size += mHdrMetadata.getFlattenedSize();
     size = FlattenableUtils::align<8>(size);
     return size + getPodSize();
 }
 
 size_t BufferItem::getFdCount() const {
     size_t count = 0;
-    if (mGraphicBuffer != nullptr) {
+    if (mGraphicBuffer != 0) {
         count += mGraphicBuffer->getFdCount();
     }
-    if (mFence != nullptr) {
+    if (mFence != 0) {
         count += mFence->getFdCount();
     }
     return count;
@@ -134,13 +137,13 @@ status_t BufferItem::flatten(
     FlattenableUtils::advance(buffer, size, sizeof(uint32_t));
 
     flags = 0;
-    if (mGraphicBuffer != nullptr) {
+    if (mGraphicBuffer != 0) {
         status_t err = mGraphicBuffer->flatten(buffer, size, fds, count);
         if (err) return err;
         size -= FlattenableUtils::align<4>(buffer);
         flags |= 1;
     }
-    if (mFence != nullptr) {
+    if (mFence != 0) {
         status_t err = mFence->flatten(buffer, size, fds, count);
         if (err) return err;
         size -= FlattenableUtils::align<4>(buffer);
@@ -150,6 +153,10 @@ status_t BufferItem::flatten(
     status_t err = mSurfaceDamage.flatten(buffer, size);
     if (err) return err;
     FlattenableUtils::advance(buffer, size, mSurfaceDamage.getFlattenedSize());
+
+    err = mHdrMetadata.flatten(buffer, size);
+    if (err) return err;
+    FlattenableUtils::advance(buffer, size, mHdrMetadata.getFlattenedSize());
 
     // Check we still have enough space
     if (size < getPodSize()) {
@@ -172,6 +179,7 @@ status_t BufferItem::flatten(
     writeAligned(buffer, size, mAutoRefresh);
     writeAligned(buffer, size, mQueuedBuffer);
     writeAligned(buffer, size, mIsStale);
+    writeAligned(buffer, size, mApi);
 
     return NO_ERROR;
 }
@@ -212,6 +220,10 @@ status_t BufferItem::unflatten(
     if (err) return err;
     FlattenableUtils::advance(buffer, size, mSurfaceDamage.getFlattenedSize());
 
+    err = mHdrMetadata.unflatten(buffer, size);
+    if (err) return err;
+    FlattenableUtils::advance(buffer, size, mHdrMetadata.getFlattenedSize());
+
     // Check we still have enough space
     if (size < getPodSize()) {
         return NO_MEMORY;
@@ -238,6 +250,7 @@ status_t BufferItem::unflatten(
     readAligned(buffer, size, mAutoRefresh);
     readAligned(buffer, size, mQueuedBuffer);
     readAligned(buffer, size, mIsStale);
+    readAligned(buffer, size, mApi);
 
     return NO_ERROR;
 }

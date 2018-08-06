@@ -269,24 +269,10 @@ bool GLHelper::createWindowSurface(uint32_t w, uint32_t h,
         return false;
     }
 
-    SurfaceComposerClient::openGlobalTransaction();
-    err = sc->setLayer(0x7FFFFFFF);
-    if (err != NO_ERROR) {
-        fprintf(stderr, "SurfaceComposer::setLayer error: %#x\n", err);
-        return false;
-    }
-    err = sc->setMatrix(scale, 0.0f, 0.0f, scale);
-    if (err != NO_ERROR) {
-        fprintf(stderr, "SurfaceComposer::setMatrix error: %#x\n", err);
-        return false;
-    }
-
-    err = sc->show();
-    if (err != NO_ERROR) {
-        fprintf(stderr, "SurfaceComposer::show error: %#x\n", err);
-        return false;
-    }
-    SurfaceComposerClient::closeGlobalTransaction();
+    SurfaceComposerClient::Transaction{}.setLayer(sc, 0x7FFFFFFF)
+            .setMatrix(sc, scale, 0.0f, 0.0f, scale)
+            .show(sc)
+            .apply();
 
     sp<ANativeWindow> anw = sc->getSurface();
     EGLSurface s = eglCreateWindowSurface(mDisplay, mConfig, anw.get(), nullptr);

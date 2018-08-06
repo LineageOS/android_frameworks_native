@@ -33,8 +33,8 @@
 #include <ui/FenceTime.h>
 
 #include "DispSync.h"
-#include "SurfaceFlinger.h"
 #include "EventLog/EventLog.h"
+#include "SurfaceFlinger.h"
 
 using std::max;
 using std::min;
@@ -53,15 +53,14 @@ static const bool kEnableZeroPhaseTracer = false;
 // needed to re-synchronize the software vsync model with the hardware.  The
 // error metric used is the mean of the squared difference between each
 // present time and the nearest software-predicted vsync.
-static const nsecs_t kErrorThreshold = 160000000000;    // 400 usec squared
+static const nsecs_t kErrorThreshold = 160000000000; // 400 usec squared
 
 #undef LOG_TAG
 #define LOG_TAG "DispSyncThread"
-class DispSyncThread: public Thread {
+class DispSyncThread : public Thread {
 public:
-
-    explicit DispSyncThread(const char* name):
-            mName(name),
+    explicit DispSyncThread(const char* name)
+          : mName(name),
             mStop(false),
             mPeriod(0),
             mPhase(0),
@@ -78,8 +77,8 @@ public:
         mPhase = phase;
         mReferenceTime = referenceTime;
         ALOGV("[%s] updateModel: mPeriod = %" PRId64 ", mPhase = %" PRId64
-                " mReferenceTime = %" PRId64, mName, ns2us(mPeriod),
-                ns2us(mPhase), ns2us(mReferenceTime));
+              " mReferenceTime = %" PRId64,
+              mName, ns2us(mPeriod), ns2us(mPhase), ns2us(mReferenceTime));
         mCond.signal();
     }
 
@@ -115,8 +114,7 @@ public:
                 if (mPeriod == 0) {
                     err = mCond.wait(mMutex);
                     if (err != NO_ERROR) {
-                        ALOGE("error waiting for new events: %s (%d)",
-                                strerror(-err), err);
+                        ALOGE("error waiting for new events: %s (%d)", strerror(-err), err);
                         return false;
                     }
                     continue;
@@ -133,16 +131,14 @@ public:
                         ALOGV("[%s] Waiting forever", mName);
                         err = mCond.wait(mMutex);
                     } else {
-                        ALOGV("[%s] Waiting until %" PRId64, mName,
-                                ns2us(targetTime));
+                        ALOGV("[%s] Waiting until %" PRId64, mName, ns2us(targetTime));
                         err = mCond.waitRelative(mMutex, targetTime - now);
                     }
 
                     if (err == TIMED_OUT) {
                         isWakeup = true;
                     } else if (err != NO_ERROR) {
-                        ALOGE("error waiting for next event: %s (%d)",
-                                strerror(-err), err);
+                        ALOGE("error waiting for next event: %s (%d)", strerror(-err), err);
                         return false;
                     }
                 }
@@ -153,8 +149,7 @@ public:
                 static const nsecs_t kMaxWakeupLatency = us2ns(1500);
 
                 if (isWakeup) {
-                    mWakeupLatency = ((mWakeupLatency * 63) +
-                            (now - targetTime)) / 64;
+                    mWakeupLatency = ((mWakeupLatency * 63) + (now - targetTime)) / 64;
                     mWakeupLatency = min(mWakeupLatency, kMaxWakeupLatency);
                     if (kTraceDetailedInfo) {
                         ATRACE_INT64("DispSync:WakeupLat", now - targetTime);
@@ -173,8 +168,7 @@ public:
         return false;
     }
 
-    status_t addEventListener(const char* name, nsecs_t phase,
-            const sp<DispSync::Callback>& callback) {
+    status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback) {
         if (kTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
@@ -191,8 +185,7 @@ public:
 
         // We want to allow the firstmost future event to fire without
         // allowing any past events to fire
-        listener.mLastEventTime = systemTime() - mPeriod / 2 + mPhase -
-                mWakeupLatency;
+        listener.mLastEventTime = systemTime() - mPeriod / 2 + mPhase - mWakeupLatency;
 
         mEventListeners.push(listener);
 
@@ -201,13 +194,35 @@ public:
         return NO_ERROR;
     }
 
-    status_t removeEventListener(const sp<DispSync::Callback>& callback) {
+    status_t removeEventListener(DispSync::Callback* callback) {
         if (kTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
         for (size_t i = 0; i < mEventListeners.size(); i++) {
             if (mEventListeners[i].mCallback == callback) {
                 mEventListeners.removeAt(i);
+                mCond.signal();
+                return NO_ERROR;
+            }
+        }
+
+        return BAD_VALUE;
+    }
+
+    status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) {
+        if (kTraceDetailedInfo) ATRACE_CALL();
+        Mutex::Autolock lock(mMutex);
+
+        for (size_t i = 0; i < mEventListeners.size(); i++) {
+            if (mEventListeners[i].mCallback == callback) {
+                EventListener& listener = mEventListeners.editItemAt(i);
+                const nsecs_t oldPhase = listener.mPhase;
+                listener.mPhase = phase;
+
+                // Pretend that the last time this event was handled at the same frame but with the
+                // new offset to allow for a seamless offset change without double-firing or
+                // skipping.
+                listener.mLastEventTime -= (oldPhase - phase);
                 mCond.signal();
                 return NO_ERROR;
             }
@@ -225,16 +240,15 @@ public:
     }
 
 private:
-
     struct EventListener {
         const char* mName;
         nsecs_t mPhase;
         nsecs_t mLastEventTime;
-        sp<DispSync::Callback> mCallback;
+        DispSync::Callback* mCallback;
     };
 
     struct CallbackInvocation {
-        sp<DispSync::Callback> mCallback;
+        DispSync::Callback* mCallback;
         nsecs_t mEventTime;
     };
 
@@ -243,8 +257,7 @@ private:
         ALOGV("[%s] computeNextEventTimeLocked", mName);
         nsecs_t nextEventTime = INT64_MAX;
         for (size_t i = 0; i < mEventListeners.size(); i++) {
-            nsecs_t t = computeListenerNextEventTimeLocked(mEventListeners[i],
-                    now);
+            nsecs_t t = computeListenerNextEventTimeLocked(mEventListeners[i], now);
 
             if (t < nextEventTime) {
                 nextEventTime = t;
@@ -257,22 +270,19 @@ private:
 
     Vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
         if (kTraceDetailedInfo) ATRACE_CALL();
-        ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName,
-                ns2us(now));
+        ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName, ns2us(now));
 
         Vector<CallbackInvocation> callbackInvocations;
         nsecs_t onePeriodAgo = now - mPeriod;
 
         for (size_t i = 0; i < mEventListeners.size(); i++) {
-            nsecs_t t = computeListenerNextEventTimeLocked(mEventListeners[i],
-                    onePeriodAgo);
+            nsecs_t t = computeListenerNextEventTimeLocked(mEventListeners[i], onePeriodAgo);
 
             if (t < now) {
                 CallbackInvocation ci;
                 ci.mCallback = mEventListeners[i].mCallback;
                 ci.mEventTime = t;
-                ALOGV("[%s] [%s] Preparing to fire", mName,
-                        mEventListeners[i].mName);
+                ALOGV("[%s] [%s] Preparing to fire", mName, mEventListeners[i].mName);
                 callbackInvocations.push(ci);
                 mEventListeners.editItemAt(i).mLastEventTime = t;
             }
@@ -281,18 +291,16 @@ private:
         return callbackInvocations;
     }
 
-    nsecs_t computeListenerNextEventTimeLocked(const EventListener& listener,
-            nsecs_t baseTime) {
+    nsecs_t computeListenerNextEventTimeLocked(const EventListener& listener, nsecs_t baseTime) {
         if (kTraceDetailedInfo) ATRACE_CALL();
-        ALOGV("[%s] [%s] computeListenerNextEventTimeLocked(%" PRId64 ")",
-                mName, listener.mName, ns2us(baseTime));
+        ALOGV("[%s] [%s] computeListenerNextEventTimeLocked(%" PRId64 ")", mName, listener.mName,
+              ns2us(baseTime));
 
         nsecs_t lastEventTime = listener.mLastEventTime + mWakeupLatency;
         ALOGV("[%s] lastEventTime: %" PRId64, mName, ns2us(lastEventTime));
         if (baseTime < lastEventTime) {
             baseTime = lastEventTime;
-            ALOGV("[%s] Clamping baseTime to lastEventTime -> %" PRId64, mName,
-                    ns2us(baseTime));
+            ALOGV("[%s] Clamping baseTime to lastEventTime -> %" PRId64, mName, ns2us(baseTime));
         }
 
         baseTime -= mReferenceTime;
@@ -374,11 +382,8 @@ private:
     bool mParity;
 };
 
-DispSync::DispSync(const char* name) :
-        mName(name),
-        mRefreshSkipCount(0),
-        mThread(new DispSyncThread(name)) {
-}
+DispSync::DispSync(const char* name)
+      : mName(name), mRefreshSkipCount(0), mThread(new DispSyncThread(name)) {}
 
 DispSync::~DispSync() {}
 
@@ -404,7 +409,8 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
         // not needed because any time there is an event registered we will
         // turn on the HW vsync events.
         if (!mIgnorePresentFences && kEnableZeroPhaseTracer) {
-            addEventListener("ZeroPhaseTracer", 0, new ZeroPhaseTracer());
+            mZeroPhaseTracer = std::make_unique<ZeroPhaseTracer>();
+            addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get());
         }
     }
 }
@@ -451,8 +457,8 @@ bool DispSync::addResyncSample(nsecs_t timestamp) {
         mPhase = 0;
         mReferenceTime = timestamp;
         ALOGV("[%s] First resync sample: mPeriod = %" PRId64 ", mPhase = 0, "
-                "mReferenceTime = %" PRId64, mName, ns2us(mPeriod),
-                ns2us(mReferenceTime));
+              "mReferenceTime = %" PRId64,
+              mName, ns2us(mPeriod), ns2us(mReferenceTime));
         mThread->updateModel(mPeriod, mPhase, mReferenceTime);
     }
 
@@ -480,16 +486,13 @@ bool DispSync::addResyncSample(nsecs_t timestamp) {
     // Check against kErrorThreshold / 2 to add some hysteresis before having to
     // resync again
     bool modelLocked = mModelUpdated && mError < (kErrorThreshold / 2);
-    ALOGV("[%s] addResyncSample returning %s", mName,
-            modelLocked ? "locked" : "unlocked");
+    ALOGV("[%s] addResyncSample returning %s", mName, modelLocked ? "locked" : "unlocked");
     return !modelLocked;
 }
 
-void DispSync::endResync() {
-}
+void DispSync::endResync() {}
 
-status_t DispSync::addEventListener(const char* name, nsecs_t phase,
-        const sp<Callback>& callback) {
+status_t DispSync::addEventListener(const char* name, nsecs_t phase, Callback* callback) {
     Mutex::Autolock lock(mMutex);
     return mThread->addEventListener(name, phase, callback);
 }
@@ -501,9 +504,14 @@ void DispSync::setRefreshSkipCount(int count) {
     updateModelLocked();
 }
 
-status_t DispSync::removeEventListener(const sp<Callback>& callback) {
+status_t DispSync::removeEventListener(Callback* callback) {
     Mutex::Autolock lock(mMutex);
     return mThread->removeEventListener(callback);
+}
+
+status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
+    Mutex::Autolock lock(mMutex);
+    return mThread->changePhaseOffset(callback, phase);
 }
 
 void DispSync::setPeriod(nsecs_t period) {
@@ -597,8 +605,7 @@ void DispSync::updateErrorLocked() {
         // call getSignalTime() periodically so the cache is updated when the
         // fence signals.
         nsecs_t time = mPresentFences[i]->getCachedSignalTime();
-        if (time == Fence::SIGNAL_TIME_PENDING ||
-                time == Fence::SIGNAL_TIME_INVALID) {
+        if (time == Fence::SIGNAL_TIME_PENDING || time == Fence::SIGNAL_TIME_INVALID) {
             continue;
         }
 
@@ -622,9 +629,8 @@ void DispSync::updateErrorLocked() {
         mError = 0;
         // Use mod ACCEPTABLE_ZERO_ERR_SAMPLES_COUNT to avoid log spam.
         mZeroErrSamplesCount++;
-        ALOGE_IF(
-                (mZeroErrSamplesCount % ACCEPTABLE_ZERO_ERR_SAMPLES_COUNT) == 0,
-                "No present times for model error.");
+        ALOGE_IF((mZeroErrSamplesCount % ACCEPTABLE_ZERO_ERR_SAMPLES_COUNT) == 0,
+                 "No present times for model error.");
     }
 
     if (kTraceDetailedInfo) {
@@ -650,17 +656,14 @@ nsecs_t DispSync::computeNextRefresh(int periodOffset) const {
 
 void DispSync::dump(String8& result) const {
     Mutex::Autolock lock(mMutex);
-    result.appendFormat("present fences are %s\n",
-            mIgnorePresentFences ? "ignored" : "used");
-    result.appendFormat("mPeriod: %" PRId64 " ns (%.3f fps; skipCount=%d)\n",
-            mPeriod, 1000000000.0 / mPeriod, mRefreshSkipCount);
+    result.appendFormat("present fences are %s\n", mIgnorePresentFences ? "ignored" : "used");
+    result.appendFormat("mPeriod: %" PRId64 " ns (%.3f fps; skipCount=%d)\n", mPeriod,
+                        1000000000.0 / mPeriod, mRefreshSkipCount);
     result.appendFormat("mPhase: %" PRId64 " ns\n", mPhase);
-    result.appendFormat("mError: %" PRId64 " ns (sqrt=%.1f)\n",
-            mError, sqrt(mError));
+    result.appendFormat("mError: %" PRId64 " ns (sqrt=%.1f)\n", mError, sqrt(mError));
     result.appendFormat("mNumResyncSamplesSincePresent: %d (limit %d)\n",
-            mNumResyncSamplesSincePresent, MAX_RESYNC_SAMPLES_WITHOUT_PRESENT);
-    result.appendFormat("mNumResyncSamples: %zd (max %d)\n",
-            mNumResyncSamples, MAX_RESYNC_SAMPLES);
+                        mNumResyncSamplesSincePresent, MAX_RESYNC_SAMPLES_WITHOUT_PRESENT);
+    result.appendFormat("mNumResyncSamples: %zd (max %d)\n", mNumResyncSamples, MAX_RESYNC_SAMPLES);
 
     result.appendFormat("mResyncSamples:\n");
     nsecs_t previous = -1;
@@ -670,14 +673,13 @@ void DispSync::dump(String8& result) const {
         if (i == 0) {
             result.appendFormat("  %" PRId64 "\n", sampleTime);
         } else {
-            result.appendFormat("  %" PRId64 " (+%" PRId64 ")\n",
-                    sampleTime, sampleTime - previous);
+            result.appendFormat("  %" PRId64 " (+%" PRId64 ")\n", sampleTime,
+                                sampleTime - previous);
         }
         previous = sampleTime;
     }
 
-    result.appendFormat("mPresentFences [%d]:\n",
-            NUM_PRESENT_SAMPLES);
+    result.appendFormat("mPresentFences [%d]:\n", NUM_PRESENT_SAMPLES);
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     previous = Fence::SIGNAL_TIME_INVALID;
     for (size_t i = 0; i < NUM_PRESENT_SAMPLES; i++) {
@@ -685,17 +687,16 @@ void DispSync::dump(String8& result) const {
         nsecs_t presentTime = mPresentFences[idx]->getSignalTime();
         if (presentTime == Fence::SIGNAL_TIME_PENDING) {
             result.appendFormat("  [unsignaled fence]\n");
-        } else if(presentTime == Fence::SIGNAL_TIME_INVALID) {
+        } else if (presentTime == Fence::SIGNAL_TIME_INVALID) {
             result.appendFormat("  [invalid fence]\n");
         } else if (previous == Fence::SIGNAL_TIME_PENDING ||
-                previous == Fence::SIGNAL_TIME_INVALID) {
+                   previous == Fence::SIGNAL_TIME_INVALID) {
             result.appendFormat("  %" PRId64 "  (%.3f ms ago)\n", presentTime,
-                    (now - presentTime) / 1000000.0);
+                                (now - presentTime) / 1000000.0);
         } else {
-            result.appendFormat("  %" PRId64 " (+%" PRId64 " / %.3f)  (%.3f ms ago)\n",
-                    presentTime, presentTime - previous,
-                    (presentTime - previous) / (double) mPeriod,
-                    (now - presentTime) / 1000000.0);
+            result.appendFormat("  %" PRId64 " (+%" PRId64 " / %.3f)  (%.3f ms ago)\n", presentTime,
+                                presentTime - previous, (presentTime - previous) / (double)mPeriod,
+                                (now - presentTime) / 1000000.0);
         }
         previous = presentTime;
     }

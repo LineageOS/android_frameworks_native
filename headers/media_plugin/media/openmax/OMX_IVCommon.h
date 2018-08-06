@@ -165,6 +165,14 @@ typedef enum OMX_COLOR_FORMATTYPE {
      *  format for it. */
     OMX_COLOR_FormatYUV420Flexible = 0x7F420888,
 
+    // 10-bit or 12-bit YUV format, LSB-justified (0's on higher bits)
+    OMX_COLOR_FormatYUV420Planar16 = 0x7F42016B,
+
+    // Packed 10-bit YUV444 representation that includes 2 bits of alpha. Each pixel is
+    // 32-bit. Bits 0-9 contain the U sample, bits 10-19 contain the Y sample,
+    // bits 20-29 contain the V sample, and bits 30-31 contain the alpha value.
+    OMX_COLOR_FormatYUV444Y410 = 0x7F444AAA,
+
     OMX_TI_COLOR_FormatYUV420PackedSemiPlanar = 0x7F000100,
     OMX_QCOM_COLOR_FormatYVU420SemiPlanar = 0x7FA30C00,
     OMX_QCOM_COLOR_FormatYUV420PackedSemiPlanar64x32Tile2m8ka = 0x7FA30C03,

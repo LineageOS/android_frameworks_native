@@ -63,6 +63,7 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexParamAudioAndroidAacPresentation,      /**< reference: OMX_AUDIO_PARAM_ANDROID_AACPRESENTATIONTYPE */
     OMX_IndexParamAudioAndroidEac3,                 /**< reference: OMX_AUDIO_PARAM_ANDROID_EAC3TYPE */
     OMX_IndexParamAudioProfileQuerySupported,       /**< reference: OMX_AUDIO_PARAM_ANDROID_PROFILETYPE */
+    OMX_IndexParamAudioAndroidAacDrcPresentation,   /**< reference: OMX_AUDIO_PARAM_ANDROID_AACDRCPRESENTATIONTYPE */
     OMX_IndexExtAudioEndUnused,
 
     /* Image parameters and configurations */
@@ -85,6 +86,7 @@ typedef enum OMX_INDEXEXTTYPE {
     OMX_IndexParamMaxFrameDurationForBitrateControl,/**< reference: OMX_PARAM_U32TYPE */
     OMX_IndexParamVideoVp9,                         /**< reference: OMX_VIDEO_PARAM_VP9TYPE */
     OMX_IndexParamVideoAndroidVp9Encoder,           /**< reference: OMX_VIDEO_PARAM_ANDROID_VP9ENCODERTYPE */
+    OMX_IndexParamVideoAndroidImageGrid,            /**< reference: OMX_VIDEO_PARAM_ANDROID_IMAGEGRIDTYPE */
     OMX_IndexExtVideoEndUnused,
 
     /* Image & Video common configurations */

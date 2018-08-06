@@ -148,9 +148,19 @@ String8 KeyMap::getPath(const InputDeviceIdentifier& deviceIdentifier,
 
 // --- Global functions ---
 
+bool isKeyboardSpecialFunction(const PropertyMap* config) {
+    if (config == nullptr) {
+        return false;
+    }
+    bool isSpecialFunction = false;
+    config->tryGetProperty(String8("keyboard.specialFunction"), isSpecialFunction);
+    return isSpecialFunction;
+}
+
 bool isEligibleBuiltInKeyboard(const InputDeviceIdentifier& deviceIdentifier,
         const PropertyMap* deviceConfiguration, const KeyMap* keyMap) {
-    if (!keyMap->haveKeyCharacterMap()
+    // TODO: remove the third OR statement (SPECIAL_FUNCTION) in Q
+    if (!keyMap->haveKeyCharacterMap() || isKeyboardSpecialFunction(deviceConfiguration)
             || keyMap->keyCharacterMap->getKeyboardType()
                     == KeyCharacterMap::KEYBOARD_TYPE_SPECIAL_FUNCTION) {
         return false;

@@ -18,6 +18,9 @@
 #undef LOG_TAG
 #define LOG_TAG "DisplayDevice"
 
+#include <array>
+#include <unordered_set>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +31,7 @@
 #include <utils/RefBase.h>
 #include <utils/Log.h>
 
+#include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
 
@@ -37,9 +41,7 @@
 
 #include "DisplayHardware/DisplaySurface.h"
 #include "DisplayHardware/HWComposer.h"
-#ifdef USE_HWC2
 #include "DisplayHardware/HWC2.h"
-#endif
 #include "RenderEngine/RenderEngine.h"
 
 #include "clz.h"
@@ -50,28 +52,15 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
-// ----------------------------------------------------------------------------
-using namespace android;
-// ----------------------------------------------------------------------------
-
-#ifdef EGL_ANDROID_swap_rectangle
-static constexpr bool kEGLAndroidSwapRectangle = true;
-#else
-static constexpr bool kEGLAndroidSwapRectangle = false;
-#endif
+namespace android {
 
 // retrieve triple buffer setting from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
-
-static bool useTripleFramebuffer = getInt64< ISurfaceFlingerConfigs,
-        &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2) >= 3;
-
-#if !defined(EGL_EGLEXT_PROTOTYPES) || !defined(EGL_ANDROID_swap_rectangle)
-// Dummy implementation in case it is missing.
-inline void eglSetSwapRectangleANDROID (EGLDisplay, EGLSurface, EGLint, EGLint, EGLint, EGLint) {
-}
-#endif
+using android::ui::ColorMode;
+using android::ui::Dataspace;
+using android::ui::Hdr;
+using android::ui::RenderIntent;
 
 /*
  * Initialize the display to the specified values.
@@ -80,123 +69,246 @@ inline void eglSetSwapRectangleANDROID (EGLDisplay, EGLSurface, EGLint, EGLint, 
 
 uint32_t DisplayDevice::sPrimaryDisplayOrientation = 0;
 
+namespace {
+
+// ordered list of known SDR color modes
+const std::array<ColorMode, 2> sSdrColorModes = {
+        ColorMode::DISPLAY_P3,
+        ColorMode::SRGB,
+};
+
+// ordered list of known HDR color modes
+const std::array<ColorMode, 2> sHdrColorModes = {
+        ColorMode::BT2100_PQ,
+        ColorMode::BT2100_HLG,
+};
+
+// ordered list of known SDR render intents
+const std::array<RenderIntent, 2> sSdrRenderIntents = {
+        RenderIntent::ENHANCE,
+        RenderIntent::COLORIMETRIC,
+};
+
+// ordered list of known HDR render intents
+const std::array<RenderIntent, 2> sHdrRenderIntents = {
+        RenderIntent::TONE_MAP_ENHANCE,
+        RenderIntent::TONE_MAP_COLORIMETRIC,
+};
+
+// map known color mode to dataspace
+Dataspace colorModeToDataspace(ColorMode mode) {
+    switch (mode) {
+        case ColorMode::SRGB:
+            return Dataspace::SRGB;
+        case ColorMode::DISPLAY_P3:
+            return Dataspace::DISPLAY_P3;
+        case ColorMode::BT2100_HLG:
+            return Dataspace::BT2020_HLG;
+        case ColorMode::BT2100_PQ:
+            return Dataspace::BT2020_PQ;
+        default:
+            return Dataspace::UNKNOWN;
+    }
+}
+
+// Return a list of candidate color modes.
+std::vector<ColorMode> getColorModeCandidates(ColorMode mode) {
+    std::vector<ColorMode> candidates;
+
+    // add mode itself
+    candidates.push_back(mode);
+
+    // check if mode is HDR
+    bool isHdr = false;
+    for (auto hdrMode : sHdrColorModes) {
+        if (hdrMode == mode) {
+            isHdr = true;
+            break;
+        }
+    }
+
+    // add other HDR candidates when mode is HDR
+    if (isHdr) {
+        for (auto hdrMode : sHdrColorModes) {
+            if (hdrMode != mode) {
+                candidates.push_back(hdrMode);
+            }
+        }
+    }
+
+    // add other SDR candidates
+    for (auto sdrMode : sSdrColorModes) {
+        if (sdrMode != mode) {
+            candidates.push_back(sdrMode);
+        }
+    }
+
+    return candidates;
+}
+
+// Return a list of candidate render intents.
+std::vector<RenderIntent> getRenderIntentCandidates(RenderIntent intent) {
+    std::vector<RenderIntent> candidates;
+
+    // add intent itself
+    candidates.push_back(intent);
+
+    // check if intent is HDR
+    bool isHdr = false;
+    for (auto hdrIntent : sHdrRenderIntents) {
+        if (hdrIntent == intent) {
+            isHdr = true;
+            break;
+        }
+    }
+
+    if (isHdr) {
+        // add other HDR candidates when intent is HDR
+        for (auto hdrIntent : sHdrRenderIntents) {
+            if (hdrIntent != intent) {
+                candidates.push_back(hdrIntent);
+            }
+        }
+    } else {
+        // add other SDR candidates when intent is SDR
+        for (auto sdrIntent : sSdrRenderIntents) {
+            if (sdrIntent != intent) {
+                candidates.push_back(sdrIntent);
+            }
+        }
+    }
+
+    return candidates;
+}
+
+// Return the best color mode supported by HWC.
+ColorMode getHwcColorMode(
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes,
+        ColorMode mode) {
+    std::vector<ColorMode> candidates = getColorModeCandidates(mode);
+    for (auto candidate : candidates) {
+        auto iter = hwcColorModes.find(candidate);
+        if (iter != hwcColorModes.end()) {
+            return candidate;
+        }
+    }
+
+    return ColorMode::NATIVE;
+}
+
+// Return the best render intent supported by HWC.
+RenderIntent getHwcRenderIntent(const std::vector<RenderIntent>& hwcIntents, RenderIntent intent) {
+    std::vector<RenderIntent> candidates = getRenderIntentCandidates(intent);
+    for (auto candidate : candidates) {
+        for (auto hwcIntent : hwcIntents) {
+            if (candidate == hwcIntent) {
+                return candidate;
+            }
+        }
+    }
+
+    return RenderIntent::COLORIMETRIC;
+}
+
+} // anonymous namespace
+
 // clang-format off
 DisplayDevice::DisplayDevice(
         const sp<SurfaceFlinger>& flinger,
         DisplayType type,
         int32_t hwcId,
-#ifndef USE_HWC2
-        int format,
-#endif
         bool isSecure,
         const wp<IBinder>& displayToken,
+        const sp<ANativeWindow>& nativeWindow,
         const sp<DisplaySurface>& displaySurface,
-        const sp<IGraphicBufferProducer>& producer,
-        EGLConfig config,
-        bool supportWideColor)
+        std::unique_ptr<RE::Surface> renderSurface,
+        int displayWidth,
+        int displayHeight,
+        bool hasWideColorGamut,
+        const HdrCapabilities& hdrCapabilities,
+        const int32_t supportedPerFrameMetadata,
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes,
+        int initialPowerMode)
     : lastCompositionHadVisibleLayers(false),
       mFlinger(flinger),
       mType(type),
       mHwcDisplayId(hwcId),
       mDisplayToken(displayToken),
+      mNativeWindow(nativeWindow),
       mDisplaySurface(displaySurface),
-      mDisplay(EGL_NO_DISPLAY),
-      mSurface(EGL_NO_SURFACE),
-      mDisplayWidth(),
-      mDisplayHeight(),
-#ifndef USE_HWC2
-      mFormat(),
-#endif
-      mFlags(),
-      mPageFlipCount(),
+      mSurface{std::move(renderSurface)},
+      mDisplayWidth(displayWidth),
+      mDisplayHeight(displayHeight),
+      mPageFlipCount(0),
       mIsSecure(isSecure),
       mLayerStack(NO_LAYER_STACK),
       mOrientation(),
-      mPowerMode(HWC_POWER_MODE_OFF),
-      mActiveConfig(0)
+      mViewport(Rect::INVALID_RECT),
+      mFrame(Rect::INVALID_RECT),
+      mPowerMode(initialPowerMode),
+      mActiveConfig(0),
+      mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
+      mHasWideColorGamut(hasWideColorGamut),
+      mHasHdr10(false),
+      mHasHLG(false),
+      mHasDolbyVision(false),
+      mSupportedPerFrameMetadata(supportedPerFrameMetadata)
 {
     // clang-format on
-    Surface* surface;
-    mNativeWindow = surface = new Surface(producer, false);
-    ANativeWindow* const window = mNativeWindow.get();
+    populateColorModes(hwcColorModes);
 
-#ifdef USE_HWC2
-    mActiveColorMode = HAL_COLOR_MODE_NATIVE;
-    mDisplayHasWideColor = supportWideColor;
-#else
-    (void) supportWideColor;
-#endif
-    /*
-     * Create our display's surface
-     */
-
-    EGLSurface eglSurface;
-    EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
-    if (config == EGL_NO_CONFIG) {
-#ifdef USE_HWC2
-        config = RenderEngine::chooseEglConfig(display, PIXEL_FORMAT_RGBA_8888,
-                                               /*logConfig*/ false);
-#else
-        config = RenderEngine::chooseEglConfig(display, format,
-                                               /*logConfig*/ false);
-#endif
+    std::vector<Hdr> types = hdrCapabilities.getSupportedHdrTypes();
+    for (Hdr hdrType : types) {
+        switch (hdrType) {
+            case Hdr::HDR10:
+                mHasHdr10 = true;
+                break;
+            case Hdr::HLG:
+                mHasHLG = true;
+                break;
+            case Hdr::DOLBY_VISION:
+                mHasDolbyVision = true;
+                break;
+            default:
+                ALOGE("UNKNOWN HDR capability: %d", static_cast<int32_t>(hdrType));
+        }
     }
-    eglSurface = eglCreateWindowSurface(display, config, window, NULL);
-    eglQuerySurface(display, eglSurface, EGL_WIDTH,  &mDisplayWidth);
-    eglQuerySurface(display, eglSurface, EGL_HEIGHT, &mDisplayHeight);
 
-    // Make sure that composition can never be stalled by a virtual display
-    // consumer that isn't processing buffers fast enough. We have to do this
-    // in two places:
-    // * Here, in case the display is composed entirely by HWC.
-    // * In makeCurrent(), using eglSwapInterval. Some EGL drivers set the
-    //   window's swap interval in eglMakeCurrent, so they'll override the
-    //   interval we set here.
-    if (mType >= DisplayDevice::DISPLAY_VIRTUAL)
-        window->setSwapInterval(window, 0);
+    float minLuminance = hdrCapabilities.getDesiredMinLuminance();
+    float maxLuminance = hdrCapabilities.getDesiredMaxLuminance();
+    float maxAverageLuminance = hdrCapabilities.getDesiredMaxAverageLuminance();
 
-    mConfig = config;
-    mDisplay = display;
-    mSurface = eglSurface;
-#ifndef USE_HWC2
-    mFormat = format;
-#endif
-    mPageFlipCount = 0;
-    mViewport.makeInvalid();
-    mFrame.makeInvalid();
+    minLuminance = minLuminance <= 0.0 ? sDefaultMinLumiance : minLuminance;
+    maxLuminance = maxLuminance <= 0.0 ? sDefaultMaxLumiance : maxLuminance;
+    maxAverageLuminance = maxAverageLuminance <= 0.0 ? sDefaultMaxLumiance : maxAverageLuminance;
+    if (this->hasWideColorGamut()) {
+        // insert HDR10/HLG as we will force client composition for HDR10/HLG
+        // layers
+        if (!hasHDR10Support()) {
+          types.push_back(Hdr::HDR10);
+        }
 
-    // virtual displays are always considered enabled
-    mPowerMode = (mType >= DisplayDevice::DISPLAY_VIRTUAL) ?
-                  HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
+        if (!hasHLGSupport()) {
+          types.push_back(Hdr::HLG);
+        }
+    }
+    mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
 
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
-
-    if (useTripleFramebuffer) {
-        surface->allocateBuffers();
-    }
 }
 
-DisplayDevice::~DisplayDevice() {
-    if (mSurface != EGL_NO_SURFACE) {
-        eglDestroySurface(mDisplay, mSurface);
-        mSurface = EGL_NO_SURFACE;
-    }
-}
+DisplayDevice::~DisplayDevice() = default;
 
 void DisplayDevice::disconnect(HWComposer& hwc) {
     if (mHwcDisplayId >= 0) {
         hwc.disconnectDisplay(mHwcDisplayId);
-#ifndef USE_HWC2
-        if (mHwcDisplayId >= DISPLAY_VIRTUAL)
-            hwc.freeDisplayId(mHwcDisplayId);
-#endif
         mHwcDisplayId = -1;
     }
 }
 
 bool DisplayDevice::isValid() const {
-    return mFlinger != NULL;
+    return mFlinger != nullptr;
 }
 
 int DisplayDevice::getWidth() const {
@@ -205,16 +317,6 @@ int DisplayDevice::getWidth() const {
 
 int DisplayDevice::getHeight() const {
     return mDisplayHeight;
-}
-
-#ifndef USE_HWC2
-PixelFormat DisplayDevice::getFormat() const {
-    return mFormat;
-}
-#endif
-
-EGLSurface DisplayDevice::getEGLSurface() const {
-    return mSurface;
 }
 
 void DisplayDevice::setDisplayName(const String8& displayName) {
@@ -228,25 +330,9 @@ uint32_t DisplayDevice::getPageFlipCount() const {
     return mPageFlipCount;
 }
 
-#ifndef USE_HWC2
-status_t DisplayDevice::compositionComplete() const {
-    return mDisplaySurface->compositionComplete();
-}
-#endif
-
-void DisplayDevice::flip(const Region& dirty) const
+void DisplayDevice::flip() const
 {
     mFlinger->getRenderEngine().checkErrors();
-
-    if (kEGLAndroidSwapRectangle) {
-        if (mFlags & SWAP_RECTANGLE) {
-            const Region newDirty(dirty.intersect(bounds()));
-            const Rect b(newDirty.getBounds());
-            eglSetSwapRectangleANDROID(mDisplay, mSurface,
-                    b.left, b.top, b.width(), b.height());
-        }
-    }
-
     mPageFlipCount++;
 }
 
@@ -254,7 +340,6 @@ status_t DisplayDevice::beginFrame(bool mustRecompose) const {
     return mDisplaySurface->beginFrame(mustRecompose);
 }
 
-#ifdef USE_HWC2
 status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
     status_t error = hwc.prepare(*this);
     if (error != NO_ERROR) {
@@ -278,53 +363,10 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
     }
     return mDisplaySurface->prepareFrame(compositionType);
 }
-#else
-status_t DisplayDevice::prepareFrame(const HWComposer& hwc) const {
-    DisplaySurface::CompositionType compositionType;
-    bool haveGles = hwc.hasGlesComposition(mHwcDisplayId);
-    bool haveHwc = hwc.hasHwcComposition(mHwcDisplayId);
-    if (haveGles && haveHwc) {
-        compositionType = DisplaySurface::COMPOSITION_MIXED;
-    } else if (haveGles) {
-        compositionType = DisplaySurface::COMPOSITION_GLES;
-    } else if (haveHwc) {
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    } else {
-        // Nothing to do -- when turning the screen off we get a frame like
-        // this. Call it a HWC frame since we won't be doing any GLES work but
-        // will do a prepare/set cycle.
-        compositionType = DisplaySurface::COMPOSITION_HWC;
-    }
-    return mDisplaySurface->prepareFrame(compositionType);
-}
-#endif
 
 void DisplayDevice::swapBuffers(HWComposer& hwc) const {
-#ifdef USE_HWC2
-    if (hwc.hasClientComposition(mHwcDisplayId)) {
-#else
-    // We need to call eglSwapBuffers() if:
-    //  (1) we don't have a hardware composer, or
-    //  (2) we did GLES composition this frame, and either
-    //    (a) we have framebuffer target support (not present on legacy
-    //        devices, where HWComposer::commit() handles things); or
-    //    (b) this is a virtual display
-    if (hwc.initCheck() != NO_ERROR ||
-            (hwc.hasGlesComposition(mHwcDisplayId) &&
-             (hwc.supportsFramebufferTarget() || mType >= DISPLAY_VIRTUAL))) {
-#endif
-        EGLBoolean success = eglSwapBuffers(mDisplay, mSurface);
-        if (!success) {
-            EGLint error = eglGetError();
-            if (error == EGL_CONTEXT_LOST ||
-                    mType == DisplayDevice::DISPLAY_PRIMARY) {
-                LOG_ALWAYS_FATAL("eglSwapBuffers(%p, %p) failed with 0x%08x",
-                        mDisplay, mSurface, error);
-            } else {
-                ALOGE("eglSwapBuffers(%p, %p) failed with 0x%08x",
-                        mDisplay, mSurface, error);
-            }
-        }
+    if (hwc.hasClientComposition(mHwcDisplayId) || hwc.hasFlipClientTargetRequest(mHwcDisplayId)) {
+        mSurface->swapBuffers();
     }
 
     status_t result = mDisplaySurface->advanceFrame();
@@ -334,35 +376,14 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
     }
 }
 
-#ifdef USE_HWC2
 void DisplayDevice::onSwapBuffersCompleted() const {
     mDisplaySurface->onFrameCommitted();
 }
-#else
-void DisplayDevice::onSwapBuffersCompleted(HWComposer& hwc) const {
-    if (hwc.initCheck() == NO_ERROR) {
-        mDisplaySurface->onFrameCommitted();
-    }
-}
-#endif
 
-uint32_t DisplayDevice::getFlags() const
-{
-    return mFlags;
-}
-
-EGLBoolean DisplayDevice::makeCurrent(EGLDisplay dpy, EGLContext ctx) const {
-    EGLBoolean result = EGL_TRUE;
-    EGLSurface sur = eglGetCurrentSurface(EGL_DRAW);
-    if (sur != mSurface) {
-        result = eglMakeCurrent(dpy, mSurface, mSurface, ctx);
-        if (result == EGL_TRUE) {
-            if (mType >= DisplayDevice::DISPLAY_VIRTUAL)
-                eglSwapInterval(dpy, 0);
-        }
-    }
+bool DisplayDevice::makeCurrent() const {
+    bool success = mFlinger->getRenderEngine().setCurrentSurface(*mSurface);
     setViewportAndProjection();
-    return result;
+    return success;
 }
 
 void DisplayDevice::setViewportAndProjection() const {
@@ -430,20 +451,41 @@ int DisplayDevice::getActiveConfig()  const {
 }
 
 // ----------------------------------------------------------------------------
-#ifdef USE_HWC2
-void DisplayDevice::setActiveColorMode(android_color_mode_t mode) {
+void DisplayDevice::setActiveColorMode(ColorMode mode) {
     mActiveColorMode = mode;
 }
 
-android_color_mode_t DisplayDevice::getActiveColorMode() const {
+ColorMode DisplayDevice::getActiveColorMode() const {
     return mActiveColorMode;
 }
 
-void DisplayDevice::setCompositionDataSpace(android_dataspace dataspace) {
-    ANativeWindow* const window = mNativeWindow.get();
-    native_window_set_buffers_data_space(window, dataspace);
+RenderIntent DisplayDevice::getActiveRenderIntent() const {
+    return mActiveRenderIntent;
 }
-#endif
+
+void DisplayDevice::setActiveRenderIntent(RenderIntent renderIntent) {
+    mActiveRenderIntent = renderIntent;
+}
+
+void DisplayDevice::setColorTransform(const mat4& transform) {
+    const bool isIdentity = (transform == mat4());
+    mColorTransform =
+            isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
+}
+
+android_color_transform_t DisplayDevice::getColorTransform() const {
+    return mColorTransform;
+}
+
+void DisplayDevice::setCompositionDataSpace(ui::Dataspace dataspace) {
+    mCompositionDataSpace = dataspace;
+    ANativeWindow* const window = mNativeWindow.get();
+    native_window_set_buffers_data_space(window, static_cast<android_dataspace>(dataspace));
+}
+
+ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
+    return mCompositionDataSpace;
+}
 
 // ----------------------------------------------------------------------------
 
@@ -500,17 +542,14 @@ status_t DisplayDevice::orientationToTransfrom(
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
     dirtyRegion.set(getBounds());
 
-    if (mSurface != EGL_NO_SURFACE) {
-        eglDestroySurface(mDisplay, mSurface);
-        mSurface = EGL_NO_SURFACE;
-    }
+    mSurface->setNativeWindow(nullptr);
 
     mDisplaySurface->resizeBuffers(newWidth, newHeight);
 
     ANativeWindow* const window = mNativeWindow.get();
-    mSurface = eglCreateWindowSurface(mDisplay, mConfig, window, NULL);
-    eglQuerySurface(mDisplay, mSurface, EGL_WIDTH,  &mDisplayWidth);
-    eglQuerySurface(mDisplay, mSurface, EGL_HEIGHT, &mDisplayHeight);
+    mSurface->setNativeWindow(window);
+    mDisplayWidth = mSurface->queryWidth();
+    mDisplayHeight = mSurface->queryHeight();
 
     LOG_FATAL_IF(mDisplayWidth != newWidth,
                 "Unable to set new width to %d", newWidth);
@@ -568,6 +607,15 @@ void DisplayDevice::setProjection(int orientation,
     TL.set(-src_x, -src_y);
     TP.set(dst_x, dst_y);
 
+    // need to take care of primary display rotation for mGlobalTransform
+    // for case if the panel is not installed aligned with device orientation
+    if (mType == DisplayType::DISPLAY_PRIMARY) {
+        int primaryDisplayOrientation = mFlinger->getPrimaryDisplayOrientation();
+        DisplayDevice::orientationToTransfrom(
+                (orientation + primaryDisplayOrientation) % (DisplayState::eOrientation270 + 1),
+                w, h, &R);
+    }
+
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
@@ -611,17 +659,14 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 
 void DisplayDevice::dump(String8& result) const {
     const Transform& tr(mGlobalTransform);
-    EGLint redSize, greenSize, blueSize, alphaSize;
-    eglGetConfigAttrib(mDisplay, mConfig, EGL_RED_SIZE, &redSize);
-    eglGetConfigAttrib(mDisplay, mConfig, EGL_GREEN_SIZE, &greenSize);
-    eglGetConfigAttrib(mDisplay, mConfig, EGL_BLUE_SIZE, &blueSize);
-    eglGetConfigAttrib(mDisplay, mConfig, EGL_ALPHA_SIZE, &alphaSize);
+    ANativeWindow* const window = mNativeWindow.get();
     result.appendFormat("+ DisplayDevice: %s\n", mDisplayName.string());
     result.appendFormat("   type=%x, hwcId=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "
                         "(%d:%d:%d:%d), orient=%2d (type=%08x), "
                         "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
-                        mType, mHwcDisplayId, mLayerStack, mDisplayWidth, mDisplayHeight,
-                        mNativeWindow.get(), redSize, greenSize, blueSize, alphaSize, mOrientation,
+                        mType, mHwcDisplayId, mLayerStack, mDisplayWidth, mDisplayHeight, window,
+                        mSurface->queryRedSize(), mSurface->queryGreenSize(),
+                        mSurface->queryBlueSize(), mSurface->queryAlphaSize(), mOrientation,
                         tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
                         mVisibleLayersSortedByZ.size());
     result.appendFormat("   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
@@ -630,10 +675,120 @@ void DisplayDevice::dump(String8& result) const {
                         mFrame.left, mFrame.top, mFrame.right, mFrame.bottom, mScissor.left,
                         mScissor.top, mScissor.right, mScissor.bottom, tr[0][0], tr[1][0], tr[2][0],
                         tr[0][1], tr[1][1], tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
+    auto const surface = static_cast<Surface*>(window);
+    ui::Dataspace dataspace = surface->getBuffersDataSpace();
+    result.appendFormat("   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
+                        mHasWideColorGamut, mHasHdr10,
+                        decodeColorMode(mActiveColorMode).c_str(),
+                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
     result.append(surfaceDump);
+}
+
+// Map dataspace/intent to the best matched dataspace/colorMode/renderIntent
+// supported by HWC.
+void DisplayDevice::addColorMode(
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes,
+        const ColorMode mode, const RenderIntent intent) {
+    // find the best color mode
+    const ColorMode hwcColorMode = getHwcColorMode(hwcColorModes, mode);
+
+    // find the best render intent
+    auto iter = hwcColorModes.find(hwcColorMode);
+    const auto& hwcIntents =
+            iter != hwcColorModes.end() ? iter->second : std::vector<RenderIntent>();
+    const RenderIntent hwcIntent = getHwcRenderIntent(hwcIntents, intent);
+
+    const Dataspace dataspace = colorModeToDataspace(mode);
+    const Dataspace hwcDataspace = colorModeToDataspace(hwcColorMode);
+
+    ALOGV("DisplayDevice %d/%d: map (%s, %s) to (%s, %s, %s)", mType, mHwcDisplayId,
+          dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
+          decodeRenderIntent(intent).c_str(),
+          dataspaceDetails(static_cast<android_dataspace_t>(hwcDataspace)).c_str(),
+          decodeColorMode(hwcColorMode).c_str(), decodeRenderIntent(hwcIntent).c_str());
+
+    mColorModes[getColorModeKey(dataspace, intent)] = {hwcDataspace, hwcColorMode, hwcIntent};
+}
+
+void DisplayDevice::populateColorModes(
+        const std::unordered_map<ColorMode, std::vector<RenderIntent>>& hwcColorModes) {
+    if (!hasWideColorGamut()) {
+        return;
+    }
+
+    // collect all known SDR render intents
+    std::unordered_set<RenderIntent> sdrRenderIntents(sSdrRenderIntents.begin(),
+                                                      sSdrRenderIntents.end());
+    auto iter = hwcColorModes.find(ColorMode::SRGB);
+    if (iter != hwcColorModes.end()) {
+        for (auto intent : iter->second) {
+            sdrRenderIntents.insert(intent);
+        }
+    }
+
+    // add all known SDR combinations
+    for (auto intent : sdrRenderIntents) {
+        for (auto mode : sSdrColorModes) {
+            addColorMode(hwcColorModes, mode, intent);
+        }
+    }
+
+    // collect all known HDR render intents
+    std::unordered_set<RenderIntent> hdrRenderIntents(sHdrRenderIntents.begin(),
+                                                      sHdrRenderIntents.end());
+    iter = hwcColorModes.find(ColorMode::BT2100_PQ);
+    if (iter != hwcColorModes.end()) {
+        for (auto intent : iter->second) {
+            hdrRenderIntents.insert(intent);
+        }
+    }
+
+    // add all known HDR combinations
+    for (auto intent : sHdrRenderIntents) {
+        for (auto mode : sHdrColorModes) {
+            addColorMode(hwcColorModes, mode, intent);
+        }
+    }
+}
+
+bool DisplayDevice::hasRenderIntent(RenderIntent intent) const {
+    // assume a render intent is supported when SRGB supports it; we should
+    // get rid of that assumption.
+    auto iter = mColorModes.find(getColorModeKey(Dataspace::SRGB, intent));
+    return iter != mColorModes.end() && iter->second.renderIntent == intent;
+}
+
+bool DisplayDevice::hasLegacyHdrSupport(Dataspace dataspace) const {
+    if ((dataspace == Dataspace::BT2020_PQ && hasHDR10Support()) ||
+        (dataspace == Dataspace::BT2020_HLG && hasHLGSupport())) {
+        auto iter =
+                mColorModes.find(getColorModeKey(dataspace, RenderIntent::TONE_MAP_COLORIMETRIC));
+        return iter == mColorModes.end() || iter->second.dataspace != dataspace;
+    }
+
+    return false;
+}
+
+void DisplayDevice::getBestColorMode(Dataspace dataspace, RenderIntent intent,
+                                     Dataspace* outDataspace, ColorMode* outMode,
+                                     RenderIntent* outIntent) const {
+    auto iter = mColorModes.find(getColorModeKey(dataspace, intent));
+    if (iter != mColorModes.end()) {
+        *outDataspace = iter->second.dataspace;
+        *outMode = iter->second.colorMode;
+        *outIntent = iter->second.renderIntent;
+    } else {
+        ALOGE("map unknown (%s)/(%s) to default color mode",
+              dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
+              decodeRenderIntent(intent).c_str());
+
+        *outDataspace = Dataspace::UNKNOWN;
+        *outMode = ColorMode::NATIVE;
+        *outIntent = RenderIntent::COLORIMETRIC;
+    }
 }
 
 std::atomic<int32_t> DisplayDeviceState::nextDisplayId(1);
@@ -649,3 +804,5 @@ DisplayDeviceState::DisplayDeviceState(DisplayDevice::DisplayType type, bool isS
     viewport.makeInvalid();
     frame.makeInvalid();
 }
+
+}  // namespace android

@@ -18,17 +18,21 @@
 
 #define ATRACE_TAG ATRACE_TAG_PACKAGE_MANAGER
 
+#include <algorithm>
 #include <errno.h>
-#include <inttypes.h>
 #include <fstream>
 #include <fts.h>
+#include <functional>
+#include <inttypes.h>
 #include <regex>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/capability.h>
 #include <sys/file.h>
-#include <sys/resource.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/quota.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <sys/types.h>
@@ -41,6 +45,7 @@
 #include <android-base/stringprintf.h>
 #include <android-base/strings.h>
 #include <android-base/unique_fd.h>
+#include <cutils/ashmem.h>
 #include <cutils/fs.h>
 #include <cutils/properties.h>
 #include <cutils/sched_policy.h>
@@ -72,6 +77,7 @@ namespace installd {
 
 static constexpr const char* kCpPath = "/system/bin/cp";
 static constexpr const char* kXattrDefault = "user.default";
+static constexpr const char* kPropHasReserved = "vold.has_reserved";
 
 static constexpr const int MIN_RESTRICTED_HOME_SDK_VERSION = 24; // > M
 
@@ -83,6 +89,10 @@ static constexpr const char *kIdMapPath = "/system/bin/idmap";
 static constexpr const char* IDMAP_PREFIX = "/data/resource-cache/";
 static constexpr const char* IDMAP_SUFFIX = "@idmap";
 
+// fsverity assumes the page size is always 4096. If not, the feature can not be
+// enabled.
+static constexpr int kVerityPageSize = 4096;
+static constexpr size_t kSha256Size = 32;
 static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 
 // NOTE: keep in sync with Installer
@@ -162,6 +172,35 @@ binder::Status checkArgumentPackageName(const std::string& packageName) {
     }
 }
 
+binder::Status checkArgumentPath(const std::string& path) {
+    if (path.empty()) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Missing path");
+    }
+    if (path[0] != '/') {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("Path %s is relative", path.c_str()));
+    }
+    if ((path + '/').find("/../") != std::string::npos) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("Path %s is shady", path.c_str()));
+    }
+    for (const char& c : path) {
+        if (c == '\0' || c == '\n') {
+            return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                    StringPrintf("Path %s is malformed", path.c_str()));
+        }
+    }
+    return ok();
+}
+
+binder::Status checkArgumentPath(const std::unique_ptr<std::string>& path) {
+    if (path) {
+        return checkArgumentPath(*path);
+    } else {
+        return ok();
+    }
+}
+
 #define ENFORCE_UID(uid) {                                  \
     binder::Status status = checkUid((uid));                \
     if (!status.isOk()) {                                   \
@@ -181,6 +220,19 @@ binder::Status checkArgumentPackageName(const std::string& packageName) {
             checkArgumentPackageName((packageName));        \
     if (!status.isOk()) {                                   \
         return status;                                      \
+    }                                                       \
+}
+
+#define CHECK_ARGUMENT_PATH(path) {                         \
+    binder::Status status = checkArgumentPath((path));      \
+    if (!status.isOk()) {                                   \
+        return status;                                      \
+    }                                                       \
+}
+
+#define ASSERT_PAGE_SIZE_4K() {                             \
+    if (getpagesize() != kVerityPageSize) {                 \
+        return error("FSVerity only supports 4K pages");     \
     }                                                       \
 }
 
@@ -304,8 +356,11 @@ static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t ui
  * Ensure that we have a hard-limit quota to protect against abusive apps;
  * they should never use more than 90% of blocks or 50% of inodes.
  */
-static int prepare_app_quota(const std::unique_ptr<std::string>& uuid, const std::string& device,
-        uid_t uid) {
+static int prepare_app_quota(const std::unique_ptr<std::string>& uuid ATTRIBUTE_UNUSED,
+        const std::string& device, uid_t uid) {
+    // Skip when reserved blocks are protecting us against abusive apps
+    if (android::base::GetBoolProperty(kPropHasReserved, false)) return 0;
+    // Skip when device no quotas present
     if (device.empty()) return 0;
 
     struct dqblk dq;
@@ -1122,6 +1177,7 @@ binder::Status InstalldNativeService::freeCache(const std::unique_ptr<std::strin
 binder::Status InstalldNativeService::rmdex(const std::string& codePath,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(codePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     char dex_path[PKG_PATH_MAX];
@@ -1380,6 +1436,9 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
     CHECK_ARGUMENT_UUID(uuid);
     for (const auto& packageName : packageNames) {
         CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    }
+    for (const auto& codePath : codePaths) {
+        CHECK_ARGUMENT_PATH(codePath);
     }
     // NOTE: Locking is relaxed on this method, since it's limited to
     // read-only measurements without mutation.
@@ -1826,6 +1885,7 @@ binder::Status InstalldNativeService::dumpProfiles(int32_t uid, const std::strin
         const std::string& profileName, const std::string& codePath, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(codePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     *_aidl_return = dump_profiles(uid, packageName, profileName, codePath);
@@ -1893,9 +1953,12 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
         const std::unique_ptr<std::string>& compilationReason) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
+    CHECK_ARGUMENT_PATH(apkPath);
     if (packageName && *packageName != "*") {
         CHECK_ARGUMENT_PACKAGE_NAME(*packageName);
     }
+    CHECK_ARGUMENT_PATH(outputPath);
+    CHECK_ARGUMENT_PATH(dexMetadataPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
@@ -1936,33 +1999,13 @@ binder::Status InstalldNativeService::markBootComplete(const std::string& instru
     return ok();
 }
 
-void mkinnerdirs(char* path, int basepos, mode_t mode, int uid, int gid,
-        struct stat* statbuf)
-{
-    while (path[basepos] != 0) {
-        if (path[basepos] == '/') {
-            path[basepos] = 0;
-            if (lstat(path, statbuf) < 0) {
-                ALOGV("Making directory: %s\n", path);
-                if (mkdir(path, mode) == 0) {
-                    chown(path, uid, gid);
-                } else {
-                    ALOGW("Unable to make directory %s: %s\n", path, strerror(errno));
-                }
-            }
-            path[basepos] = '/';
-            basepos++;
-        }
-        basepos++;
-    }
-}
-
 binder::Status InstalldNativeService::linkNativeLibraryDirectory(
         const std::unique_ptr<std::string>& uuid, const std::string& packageName,
         const std::string& nativeLibPath32, int32_t userId) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(uuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(nativeLibPath32);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* uuid_ = uuid ? uuid->c_str() : nullptr;
@@ -2130,6 +2173,8 @@ static int flatten_path(const char *prefix, const char *suffix,
 binder::Status InstalldNativeService::idmap(const std::string& targetApkPath,
         const std::string& overlayApkPath, int32_t uid) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(targetApkPath);
+    CHECK_ARGUMENT_PATH(overlayApkPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* target_apk = targetApkPath.c_str();
@@ -2215,6 +2260,10 @@ fail:
 }
 
 binder::Status InstalldNativeService::removeIdmap(const std::string& overlayApkPath) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(overlayApkPath);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     const char* overlay_apk = overlayApkPath.c_str();
     char idmap_path[PATH_MAX];
 
@@ -2265,6 +2314,7 @@ binder::Status InstalldNativeService::restoreconAppData(const std::unique_ptr<st
 binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
         const std::string& instructionSet) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(oatDir);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* oat_dir = oatDir.c_str();
@@ -2289,6 +2339,7 @@ binder::Status InstalldNativeService::createOatDir(const std::string& oatDir,
 
 binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(packageDir);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     if (validate_apk_path(packageDir.c_str())) {
@@ -2303,6 +2354,8 @@ binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir
 binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
         const std::string& fromBase, const std::string& toBase) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(fromBase);
+    CHECK_ARGUMENT_PATH(toBase);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* relative_path = relativePath.c_str();
@@ -2331,6 +2384,8 @@ binder::Status InstalldNativeService::linkFile(const std::string& relativePath,
 binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
         const std::string& instructionSet, const std::string& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(apkPath);
+    CHECK_ARGUMENT_PATH(outputPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
@@ -2344,6 +2399,8 @@ binder::Status InstalldNativeService::moveAb(const std::string& apkPath,
 binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
         const std::string& instructionSet, const std::unique_ptr<std::string>& outputPath) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(apkPath);
+    CHECK_ARGUMENT_PATH(outputPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* apk_path = apkPath.c_str();
@@ -2354,15 +2411,140 @@ binder::Status InstalldNativeService::deleteOdex(const std::string& apkPath,
     return res ? ok() : error();
 }
 
-binder::Status InstalldNativeService::installApkVerity(const std::string& /*filePath*/,
-        const ::android::base::unique_fd& /*verityInput*/) {
+// This kernel feature is experimental.
+// TODO: remove local definition once upstreamed
+#ifndef FS_IOC_ENABLE_VERITY
+
+#define FS_IOC_ENABLE_VERITY           _IO('f', 133)
+#define FS_IOC_SET_VERITY_MEASUREMENT  _IOW('f', 134, struct fsverity_measurement)
+
+#define FS_VERITY_ALG_SHA256           1
+
+struct fsverity_measurement {
+    __u16 digest_algorithm;
+    __u16 digest_size;
+    __u32 reserved1;
+    __u64 reserved2[3];
+    __u8 digest[];
+};
+
+#endif
+
+binder::Status InstalldNativeService::installApkVerity(const std::string& filePath,
+        const ::android::base::unique_fd& verityInputAshmem, int32_t contentSize) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(filePath);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
     if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
         return ok();
     }
-    // TODO: Append verity to filePath then issue ioctl to enable
-    // it and hide the tree.  See b/30972906.
-    return error("not implemented yet");
+#ifndef NDEBUG
+    ASSERT_PAGE_SIZE_4K();
+#endif
+    // TODO: also check fsverity support in the current file system if compiled with DEBUG.
+    // TODO: change ashmem to some temporary file to support huge apk.
+    if (!ashmem_valid(verityInputAshmem.get())) {
+        return error("FD is not an ashmem");
+    }
+
+    // 1. Seek to the next page boundary beyond the end of the file.
+    ::android::base::unique_fd wfd(open(filePath.c_str(), O_WRONLY));
+    if (wfd.get() < 0) {
+        return error("Failed to open " + filePath);
+    }
+    struct stat st;
+    if (fstat(wfd.get(), &st) < 0) {
+        return error("Failed to stat " + filePath);
+    }
+    // fsverity starts from the block boundary.
+    off_t padding = kVerityPageSize - st.st_size % kVerityPageSize;
+    if (padding == kVerityPageSize) {
+        padding = 0;
+    }
+    if (lseek(wfd.get(), st.st_size + padding, SEEK_SET) < 0) {
+        return error("Failed to lseek " + filePath);
+    }
+
+    // 2. Write everything in the ashmem to the file.  Note that allocated
+    //    ashmem size is multiple of page size, which is different from the
+    //    actual content size.
+    int shmSize = ashmem_get_size_region(verityInputAshmem.get());
+    if (shmSize < 0) {
+        return error("Failed to get ashmem size: " + std::to_string(shmSize));
+    }
+    if (contentSize < 0) {
+        return error("Invalid content size: " + std::to_string(contentSize));
+    }
+    if (contentSize > shmSize) {
+        return error("Content size overflow: " + std::to_string(contentSize) + " > " +
+                     std::to_string(shmSize));
+    }
+    auto data = std::unique_ptr<void, std::function<void (void *)>>(
+        mmap(NULL, contentSize, PROT_READ, MAP_SHARED, verityInputAshmem.get(), 0),
+        [contentSize] (void* ptr) {
+          if (ptr != MAP_FAILED) {
+            munmap(ptr, contentSize);
+          }
+        });
+
+    if (data.get() == MAP_FAILED) {
+        return error("Failed to mmap the ashmem");
+    }
+    char* cursor = reinterpret_cast<char*>(data.get());
+    int remaining = contentSize;
+    while (remaining > 0) {
+        int ret = TEMP_FAILURE_RETRY(write(wfd.get(), cursor, remaining));
+        if (ret < 0) {
+            return error("Failed to write to " + filePath + " (" + std::to_string(remaining) +
+                         + "/" + std::to_string(contentSize) + ")");
+        }
+        cursor += ret;
+        remaining -= ret;
+    }
+    wfd.reset();
+
+    // 3. Enable fsverity (needs readonly fd. Once it's done, the file becomes immutable.
+    ::android::base::unique_fd rfd(open(filePath.c_str(), O_RDONLY));
+    if (ioctl(rfd.get(), FS_IOC_ENABLE_VERITY, nullptr) < 0) {
+        return error("Failed to enable fsverity on " + filePath);
+    }
+    return ok();
+}
+
+binder::Status InstalldNativeService::assertFsverityRootHashMatches(const std::string& filePath,
+        const std::vector<uint8_t>& expectedHash) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_PATH(filePath);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    if (!android::base::GetBoolProperty(kPropApkVerityMode, false)) {
+        return ok();
+    }
+    // TODO: also check fsverity support in the current file system if compiled with DEBUG.
+    if (expectedHash.size() != kSha256Size) {
+        return error("verity hash size should be " + std::to_string(kSha256Size) + " but is " +
+                     std::to_string(expectedHash.size()));
+    }
+
+    ::android::base::unique_fd fd(open(filePath.c_str(), O_RDONLY));
+    if (fd.get() < 0) {
+        return error("Failed to open " + filePath + ": " + strerror(errno));
+    }
+
+    unsigned int buffer_size = sizeof(fsverity_measurement) + kSha256Size;
+    std::vector<char> buffer(buffer_size, 0);
+
+    fsverity_measurement* config = reinterpret_cast<fsverity_measurement*>(buffer.data());
+    config->digest_algorithm = FS_VERITY_ALG_SHA256;
+    config->digest_size = kSha256Size;
+    memcpy(config->digest, expectedHash.data(), kSha256Size);
+    if (ioctl(fd.get(), FS_IOC_SET_VERITY_MEASUREMENT, config) < 0) {
+        // This includes an expected failure case with no FSVerity setup. It normally happens when
+        // the apk does not contains the Merkle tree root hash.
+        return error("Failed to measure fsverity on " + filePath + ": " + strerror(errno));
+    }
+    return ok();  // hashes match
 }
 
 binder::Status InstalldNativeService::reconcileSecondaryDexFile(
@@ -2372,8 +2554,9 @@ binder::Status InstalldNativeService::reconcileSecondaryDexFile(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
-
+    CHECK_ARGUMENT_PATH(dexPath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
+
     bool result = android::installd::reconcile_secondary_dex_file(
             dexPath, packageName, uid, isas, volumeUuid, storage_flag, _aidl_return);
     return result ? ok() : error();
@@ -2386,6 +2569,7 @@ binder::Status InstalldNativeService::hashSecondaryDexFile(
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(dexPath);
 
     // mLock is not taken here since we will never modify the file system.
     // If a file is modified just as we are reading it this may result in an
@@ -2431,14 +2615,18 @@ binder::Status InstalldNativeService::invalidateMounts() {
                 mQuotaReverseMounts[target] = source;
 
                 // ext4 only enables DQUOT_USAGE_ENABLED by default, so we
-                // need to kick it again to enable DQUOT_LIMITS_ENABLED.
-                if (quotactl(QCMD(Q_QUOTAON, USRQUOTA), source.c_str(), QFMT_VFS_V1, nullptr) != 0
-                        && errno != EBUSY) {
-                    PLOG(ERROR) << "Failed to enable USRQUOTA on " << source;
-                }
-                if (quotactl(QCMD(Q_QUOTAON, GRPQUOTA), source.c_str(), QFMT_VFS_V1, nullptr) != 0
-                        && errno != EBUSY) {
-                    PLOG(ERROR) << "Failed to enable GRPQUOTA on " << source;
+                // need to kick it again to enable DQUOT_LIMITS_ENABLED. We
+                // only need hard limits enabled when we're not being protected
+                // by reserved blocks.
+                if (!android::base::GetBoolProperty(kPropHasReserved, false)) {
+                    if (quotactl(QCMD(Q_QUOTAON, USRQUOTA), source.c_str(), QFMT_VFS_V1,
+                            nullptr) != 0 && errno != EBUSY) {
+                        PLOG(ERROR) << "Failed to enable USRQUOTA on " << source;
+                    }
+                    if (quotactl(QCMD(Q_QUOTAON, GRPQUOTA), source.c_str(), QFMT_VFS_V1,
+                            nullptr) != 0 && errno != EBUSY) {
+                        PLOG(ERROR) << "Failed to enable GRPQUOTA on " << source;
+                    }
                 }
             }
         }
@@ -2478,6 +2666,7 @@ binder::Status InstalldNativeService::prepareAppProfile(const std::string& packa
         const std::unique_ptr<std::string>& dexMetadata, bool* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    CHECK_ARGUMENT_PATH(codePath);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     *_aidl_return = prepare_app_profile(packageName, userId, appId, profileName, codePath,

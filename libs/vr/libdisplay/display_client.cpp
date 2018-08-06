@@ -9,7 +9,6 @@
 #include <mutex>
 
 #include <private/dvr/display_protocol.h>
-#include <private/dvr/native_buffer.h>
 
 using android::pdx::ErrorStatus;
 using android::pdx::LocalHandle;

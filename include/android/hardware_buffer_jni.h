@@ -31,9 +31,11 @@ __BEGIN_DECLS
 
 /**
  * Return the AHardwareBuffer associated with a Java HardwareBuffer object,
- * for interacting with it through native code.  This acquires a reference
- * on the AHardwareBuffer that is returned; be sure to use
- * AHardwareBuffer_release() when done with it so that it doesn't leak.
+ * for interacting with it through native code. This method does not acquire any
+ * additional reference to the AHardwareBuffer that is returned. To keep the
+ * AHardwareBuffer live after the Java HardwareBuffer object got garbage
+ * collected, be sure to use AHardwareBuffer_acquire() to acquire an additional
+ * reference.
  */
 AHardwareBuffer* AHardwareBuffer_fromHardwareBuffer(JNIEnv* env,
         jobject hardwareBufferObj);

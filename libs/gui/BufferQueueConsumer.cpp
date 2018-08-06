@@ -35,7 +35,9 @@
 #include <gui/IProducerListener.h>
 
 #include <binder/IPCThreadState.h>
+#ifndef __ANDROID_VNDK__
 #include <binder/PermissionCache.h>
+#endif
 
 #include <system/window.h>
 
@@ -253,7 +255,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         // mGraphicBuffer to NULL to avoid unnecessarily remapping this buffer
         // on the consumer side
         if (outBuffer->mAcquireCalled) {
-            outBuffer->mGraphicBuffer = nullptr;
+            outBuffer->mGraphicBuffer = NULL;
         }
 
         mCore->mQueue.erase(front);
@@ -270,7 +272,7 @@ status_t BufferQueueConsumer::acquireBuffer(BufferItem* outBuffer,
         VALIDATE_CONSISTENCY();
     }
 
-    if (listener != nullptr) {
+    if (listener != NULL) {
         for (int i = 0; i < numDroppedBuffers; ++i) {
             listener->onBufferReleased();
         }
@@ -319,10 +321,10 @@ status_t BufferQueueConsumer::attachBuffer(int* outSlot,
         const sp<android::GraphicBuffer>& buffer) {
     ATRACE_CALL();
 
-    if (outSlot == nullptr) {
+    if (outSlot == NULL) {
         BQ_LOGE("attachBuffer: outSlot must not be NULL");
         return BAD_VALUE;
-    } else if (buffer == nullptr) {
+    } else if (buffer == NULL) {
         BQ_LOGE("attachBuffer: cannot attach NULL buffer");
         return BAD_VALUE;
     }
@@ -411,7 +413,7 @@ status_t BufferQueueConsumer::releaseBuffer(int slot, uint64_t frameNumber,
     ATRACE_BUFFER_INDEX(slot);
 
     if (slot < 0 || slot >= BufferQueueDefs::NUM_BUFFER_SLOTS ||
-            releaseFence == nullptr) {
+            releaseFence == NULL) {
         BQ_LOGE("releaseBuffer: slot %d out of range or fence %p NULL", slot,
                 releaseFence.get());
         return BAD_VALUE;
@@ -463,7 +465,7 @@ status_t BufferQueueConsumer::releaseBuffer(int slot, uint64_t frameNumber,
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBufferReleased();
     }
 
@@ -474,7 +476,7 @@ status_t BufferQueueConsumer::connect(
         const sp<IConsumerListener>& consumerListener, bool controlledByApp) {
     ATRACE_CALL();
 
-    if (consumerListener == nullptr) {
+    if (consumerListener == NULL) {
         BQ_LOGE("connect: consumerListener may not be NULL");
         return BAD_VALUE;
     }
@@ -502,13 +504,13 @@ status_t BufferQueueConsumer::disconnect() {
 
     Mutex::Autolock lock(mCore->mMutex);
 
-    if (mCore->mConsumerListener == nullptr) {
+    if (mCore->mConsumerListener == NULL) {
         BQ_LOGE("disconnect: no consumer is connected");
         return BAD_VALUE;
     }
 
     mCore->mIsAbandoned = true;
-    mCore->mConsumerListener = nullptr;
+    mCore->mConsumerListener = NULL;
     mCore->mQueue.clear();
     mCore->freeAllBuffersLocked();
     mCore->mSharedBufferSlot = BufferQueueCore::INVALID_BUFFER_SLOT;
@@ -519,7 +521,7 @@ status_t BufferQueueConsumer::disconnect() {
 status_t BufferQueueConsumer::getReleasedBuffers(uint64_t *outSlotMask) {
     ATRACE_CALL();
 
-    if (outSlotMask == nullptr) {
+    if (outSlotMask == NULL) {
         BQ_LOGE("getReleasedBuffers: outSlotMask may not be NULL");
         return BAD_VALUE;
     }
@@ -671,7 +673,7 @@ status_t BufferQueueConsumer::setMaxAcquiredBufferCount(
         }
     }
     // Call back without lock held
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
     }
 
@@ -757,14 +759,20 @@ status_t BufferQueueConsumer::dumpState(const String8& prefix, String8* outResul
     }
 
     const IPCThreadState* ipc = IPCThreadState::self();
-    const pid_t pid = ipc->getCallingPid();
     const uid_t uid = ipc->getCallingUid();
+#ifndef __ANDROID_VNDK__
+    // permission check can't be done for vendors as vendors have no access to
+    // the PermissionController
+    const pid_t pid = ipc->getCallingPid();
     if ((uid != shellUid) &&
         !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {
         outResult->appendFormat("Permission Denial: can't dump BufferQueueConsumer "
                 "from pid=%d, uid=%d\n", pid, uid);
+#else
+    if (uid != shellUid) {
+#endif
         android_errorWriteWithInfoLog(0x534e4554, "27046057",
-                static_cast<int32_t>(uid), nullptr, 0);
+                static_cast<int32_t>(uid), NULL, 0);
         return PERMISSION_DENIED;
     }
 

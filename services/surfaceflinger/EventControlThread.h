@@ -14,35 +14,50 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_EVENTCONTROLTHREAD_H
-#define ANDROID_EVENTCONTROLTHREAD_H
+#pragma once
 
-#include <stddef.h>
+#include <condition_variable>
+#include <cstddef>
+#include <functional>
+#include <mutex>
+#include <thread>
 
-#include <utils/Mutex.h>
-#include <utils/Thread.h>
+#include <android-base/thread_annotations.h>
 
 namespace android {
 
-class SurfaceFlinger;
-
-class EventControlThread: public Thread {
+class EventControlThread {
 public:
+    virtual ~EventControlThread();
 
-    explicit EventControlThread(const sp<SurfaceFlinger>& flinger);
-    virtual ~EventControlThread() {}
-
-    void setVsyncEnabled(bool enabled);
-    virtual bool threadLoop();
-
-private:
-    sp<SurfaceFlinger> mFlinger;
-    bool mVsyncEnabled;
-
-    Mutex mMutex;
-    Condition mCond;
+    virtual void setVsyncEnabled(bool enabled) = 0;
 };
 
-}
+namespace impl {
 
-#endif // ANDROID_EVENTCONTROLTHREAD_H
+class EventControlThread final : public android::EventControlThread {
+public:
+    using SetVSyncEnabledFunction = std::function<void(bool)>;
+
+    explicit EventControlThread(SetVSyncEnabledFunction function);
+    ~EventControlThread();
+
+    // EventControlThread implementation
+    void setVsyncEnabled(bool enabled) override;
+
+private:
+    void threadMain();
+
+    std::mutex mMutex;
+    std::condition_variable mCondition;
+
+    const SetVSyncEnabledFunction mSetVSyncEnabled;
+    bool mVsyncEnabled GUARDED_BY(mMutex) = false;
+    bool mKeepRunning GUARDED_BY(mMutex) = true;
+
+    // Must be last so that everything is initialized before the thread starts.
+    std::thread mThread{&EventControlThread::threadMain, this};
+};
+
+} // namespace impl
+} // namespace android

@@ -798,7 +798,7 @@ private:
         return false;
     }
 
-    virtual void dump(String8&) {
+    virtual void dump(std::string&) {
     }
 
     virtual void monitor() {
@@ -2954,8 +2954,8 @@ const int32_t TouchInputMapperTest::RAW_TOUCH_MIN = 0;
 const int32_t TouchInputMapperTest::RAW_TOUCH_MAX = 31;
 const int32_t TouchInputMapperTest::RAW_TOOL_MIN = 0;
 const int32_t TouchInputMapperTest::RAW_TOOL_MAX = 15;
-const int32_t TouchInputMapperTest::RAW_PRESSURE_MIN = RAW_TOUCH_MIN;
-const int32_t TouchInputMapperTest::RAW_PRESSURE_MAX = RAW_TOUCH_MAX;
+const int32_t TouchInputMapperTest::RAW_PRESSURE_MIN = 0;
+const int32_t TouchInputMapperTest::RAW_PRESSURE_MAX = 255;
 const int32_t TouchInputMapperTest::RAW_ORIENTATION_MIN = -7;
 const int32_t TouchInputMapperTest::RAW_ORIENTATION_MAX = 7;
 const int32_t TouchInputMapperTest::RAW_DISTANCE_MIN = 0;
@@ -4384,6 +4384,7 @@ protected:
     void processSlot(MultiTouchInputMapper* mapper, int32_t slot);
     void processToolType(MultiTouchInputMapper* mapper, int32_t toolType);
     void processKey(MultiTouchInputMapper* mapper, int32_t code, int32_t value);
+    void processTimestamp(MultiTouchInputMapper* mapper, uint32_t value);
     void processMTSync(MultiTouchInputMapper* mapper);
     void processSync(MultiTouchInputMapper* mapper);
 };
@@ -4497,6 +4498,10 @@ void MultiTouchInputMapperTest::processToolType(
 void MultiTouchInputMapperTest::processKey(
         MultiTouchInputMapper* mapper, int32_t code, int32_t value) {
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, code, value);
+}
+
+void MultiTouchInputMapperTest::processTimestamp(MultiTouchInputMapper* mapper, uint32_t value) {
+    process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_MSC, MSC_TIMESTAMP, value);
 }
 
 void MultiTouchInputMapperTest::processMTSync(MultiTouchInputMapper* mapper) {
@@ -5316,6 +5321,12 @@ TEST_F(MultiTouchInputMapperTest, Process_PressureAxis_AmplitudeCalibration) {
     addConfigurationProperty("touch.pressure.scale", "0.01");
     addMapperAndConfigure(mapper);
 
+    InputDeviceInfo info;
+    mapper->populateDeviceInfo(&info);
+    ASSERT_NO_FATAL_FAILURE(assertMotionRange(info,
+            AINPUT_MOTION_RANGE_PRESSURE, AINPUT_SOURCE_TOUCHSCREEN,
+            0.0f, RAW_PRESSURE_MAX * 0.01, 0.0f, 0.0f));
+
     // These calculations are based on the input device calibration documentation.
     int32_t rawX = 100;
     int32_t rawY = 200;
@@ -5873,6 +5884,64 @@ TEST_F(MultiTouchInputMapperTest, Process_WhenAbsMTPressureIsPresent_HoversIfIts
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_EXIT, motionArgs.action);
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(motionArgs.pointerCoords[0],
             toDisplayX(150), toDisplayY(250), 0, 0, 0, 0, 0, 0, 0, 0));
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_HandlesTimestamp) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+    NotifyMotionArgs args;
+
+    // By default, deviceTimestamp should be zero
+    processPosition(mapper, 100, 100);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(0U, args.deviceTimestamp);
+
+    // Now the timestamp of 1000 is reported by evdev and should appear in MotionArgs
+    processPosition(mapper, 0, 0);
+    processTimestamp(mapper, 1000);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(1000U, args.deviceTimestamp);
+}
+
+TEST_F(MultiTouchInputMapperTest, WhenMapperIsReset_TimestampIsCleared) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+    NotifyMotionArgs args;
+
+    // Send a touch event with a timestamp
+    processPosition(mapper, 100, 100);
+    processTimestamp(mapper, 1);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(1U, args.deviceTimestamp);
+
+    // Since the data accumulates, and new timestamp has not arrived, deviceTimestamp won't change
+    processPosition(mapper, 100, 200);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(1U, args.deviceTimestamp);
+
+    mapper->reset(/* when */ 0);
+    // After the mapper is reset, deviceTimestamp should become zero again
+    processPosition(mapper, 100, 300);
+    processMTSync(mapper);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(0U, args.deviceTimestamp);
 }
 
 

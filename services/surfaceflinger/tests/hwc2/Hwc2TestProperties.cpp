@@ -262,62 +262,62 @@ Hwc2TestDataspace::Hwc2TestDataspace(Hwc2TestCoverage coverage)
 std::string Hwc2TestDataspace::dump() const
 {
     std::stringstream dmp;
-    dmp << "\tdataspace: " << get() << "\n";
+    dmp << "\tdataspace: " << static_cast<int32_t>(get()) << "\n";
     return dmp.str();
 }
 
-const std::vector<android_dataspace_t> Hwc2TestDataspace::defaultDataspaces = {
-    HAL_DATASPACE_UNKNOWN,
+const std::vector<android::ui::Dataspace> Hwc2TestDataspace::defaultDataspaces = {
+    android::ui::Dataspace::UNKNOWN,
 };
 
-const std::vector<android_dataspace_t> Hwc2TestDataspace::basicDataspaces = {
-    HAL_DATASPACE_UNKNOWN,
-    HAL_DATASPACE_V0_SRGB,
+const std::vector<android::ui::Dataspace> Hwc2TestDataspace::basicDataspaces = {
+    android::ui::Dataspace::UNKNOWN,
+    android::ui::Dataspace::V0_SRGB,
 };
 
-const std::vector<android_dataspace_t> Hwc2TestDataspace::completeDataspaces = {
-    HAL_DATASPACE_UNKNOWN,
-    HAL_DATASPACE_ARBITRARY,
-    HAL_DATASPACE_STANDARD_SHIFT,
-    HAL_DATASPACE_STANDARD_MASK,
-    HAL_DATASPACE_STANDARD_UNSPECIFIED,
-    HAL_DATASPACE_STANDARD_BT709,
-    HAL_DATASPACE_STANDARD_BT601_625,
-    HAL_DATASPACE_STANDARD_BT601_625_UNADJUSTED,
-    HAL_DATASPACE_STANDARD_BT601_525,
-    HAL_DATASPACE_STANDARD_BT601_525_UNADJUSTED,
-    HAL_DATASPACE_STANDARD_BT2020,
-    HAL_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE,
-    HAL_DATASPACE_STANDARD_BT470M,
-    HAL_DATASPACE_STANDARD_FILM,
-    HAL_DATASPACE_TRANSFER_SHIFT,
-    HAL_DATASPACE_TRANSFER_MASK,
-    HAL_DATASPACE_TRANSFER_UNSPECIFIED,
-    HAL_DATASPACE_TRANSFER_LINEAR,
-    HAL_DATASPACE_TRANSFER_SRGB,
-    HAL_DATASPACE_TRANSFER_SMPTE_170M,
-    HAL_DATASPACE_TRANSFER_GAMMA2_2,
-    HAL_DATASPACE_TRANSFER_GAMMA2_8,
-    HAL_DATASPACE_TRANSFER_ST2084,
-    HAL_DATASPACE_TRANSFER_HLG,
-    HAL_DATASPACE_RANGE_SHIFT,
-    HAL_DATASPACE_RANGE_MASK,
-    HAL_DATASPACE_RANGE_UNSPECIFIED,
-    HAL_DATASPACE_RANGE_FULL,
-    HAL_DATASPACE_RANGE_LIMITED,
-    HAL_DATASPACE_SRGB_LINEAR,
-    HAL_DATASPACE_V0_SRGB_LINEAR,
-    HAL_DATASPACE_SRGB,
-    HAL_DATASPACE_V0_SRGB,
-    HAL_DATASPACE_JFIF,
-    HAL_DATASPACE_V0_JFIF,
-    HAL_DATASPACE_BT601_625,
-    HAL_DATASPACE_V0_BT601_625,
-    HAL_DATASPACE_BT601_525,
-    HAL_DATASPACE_V0_BT601_525,
-    HAL_DATASPACE_BT709,
-    HAL_DATASPACE_V0_BT709,
-    HAL_DATASPACE_DEPTH,
+const std::vector<android::ui::Dataspace> Hwc2TestDataspace::completeDataspaces = {
+    android::ui::Dataspace::UNKNOWN,
+    android::ui::Dataspace::ARBITRARY,
+    android::ui::Dataspace::STANDARD_SHIFT,
+    android::ui::Dataspace::STANDARD_MASK,
+    android::ui::Dataspace::STANDARD_UNSPECIFIED,
+    android::ui::Dataspace::STANDARD_BT709,
+    android::ui::Dataspace::STANDARD_BT601_625,
+    android::ui::Dataspace::STANDARD_BT601_625_UNADJUSTED,
+    android::ui::Dataspace::STANDARD_BT601_525,
+    android::ui::Dataspace::STANDARD_BT601_525_UNADJUSTED,
+    android::ui::Dataspace::STANDARD_BT2020,
+    android::ui::Dataspace::STANDARD_BT2020_CONSTANT_LUMINANCE,
+    android::ui::Dataspace::STANDARD_BT470M,
+    android::ui::Dataspace::STANDARD_FILM,
+    android::ui::Dataspace::TRANSFER_SHIFT,
+    android::ui::Dataspace::TRANSFER_MASK,
+    android::ui::Dataspace::TRANSFER_UNSPECIFIED,
+    android::ui::Dataspace::TRANSFER_LINEAR,
+    android::ui::Dataspace::TRANSFER_SRGB,
+    android::ui::Dataspace::TRANSFER_SMPTE_170M,
+    android::ui::Dataspace::TRANSFER_GAMMA2_2,
+    android::ui::Dataspace::TRANSFER_GAMMA2_8,
+    android::ui::Dataspace::TRANSFER_ST2084,
+    android::ui::Dataspace::TRANSFER_HLG,
+    android::ui::Dataspace::RANGE_SHIFT,
+    android::ui::Dataspace::RANGE_MASK,
+    android::ui::Dataspace::RANGE_UNSPECIFIED,
+    android::ui::Dataspace::RANGE_FULL,
+    android::ui::Dataspace::RANGE_LIMITED,
+    android::ui::Dataspace::SRGB_LINEAR,
+    android::ui::Dataspace::V0_SRGB_LINEAR,
+    android::ui::Dataspace::SRGB,
+    android::ui::Dataspace::V0_SRGB,
+    android::ui::Dataspace::JFIF,
+    android::ui::Dataspace::V0_JFIF,
+    android::ui::Dataspace::BT601_625,
+    android::ui::Dataspace::V0_BT601_625,
+    android::ui::Dataspace::BT601_525,
+    android::ui::Dataspace::V0_BT601_525,
+    android::ui::Dataspace::BT709,
+    android::ui::Dataspace::V0_BT709,
+    android::ui::Dataspace::DEPTH,
 };
 
 
@@ -335,9 +335,9 @@ std::string Hwc2TestDisplayDimension::dump() const
     return dmp.str();
 }
 
-void Hwc2TestDisplayDimension::setDependent(Hwc2TestBuffer* buffer)
+void Hwc2TestDisplayDimension::setDependent(Hwc2TestVirtualBuffer* buffer)
 {
-    mBuffer = buffer;
+    mBuffers.insert(buffer);
     updateDependents();
 }
 
@@ -345,8 +345,8 @@ void Hwc2TestDisplayDimension::updateDependents()
 {
     const UnsignedArea& curr = get();
 
-    if (mBuffer)
-        mBuffer->updateBufferArea({static_cast<int32_t>(curr.width),
+    for (Hwc2TestVirtualBuffer* buffer : mBuffers)
+        buffer->updateBufferArea({static_cast<int32_t>(curr.width),
                 static_cast<int32_t>(curr.height)});
 }
 

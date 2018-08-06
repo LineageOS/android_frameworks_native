@@ -22,6 +22,8 @@
 #include <string>
 
 using android::base::StringPrintf;
+using android::ui::ColorMode;
+using android::ui::RenderIntent;
 
 std::string decodeStandard(android_dataspace dataspace) {
     const uint32_t dataspaceSelect = (dataspace & HAL_DATASPACE_STANDARD_MASK);
@@ -74,7 +76,7 @@ std::string decodeStandard(android_dataspace dataspace) {
                 case HAL_DATASPACE_SRGB:
                     return std::string("(deprecated) sRGB");
 
-                case HAL_DATASPACE_V0_BT709:
+                case HAL_DATASPACE_BT709:
                     return std::string("(deprecated) BT709");
 
                 case HAL_DATASPACE_ARBITRARY:
@@ -84,7 +86,7 @@ std::string decodeStandard(android_dataspace dataspace) {
                 // Fallthrough
                 default:
                     return android::base::StringPrintf("Unknown deprecated dataspace code %d",
-                                                       dataspaceSelect);
+                                                       dataspace);
             }
     }
 
@@ -98,7 +100,7 @@ std::string decodeTransfer(android_dataspace dataspace) {
             case HAL_DATASPACE_JFIF:
             case HAL_DATASPACE_BT601_625:
             case HAL_DATASPACE_BT601_525:
-            case HAL_DATASPACE_V0_BT709:
+            case HAL_DATASPACE_BT709:
                 return std::string("SMPTE_170M");
 
             case HAL_DATASPACE_SRGB_LINEAR:
@@ -159,8 +161,8 @@ std::string decodeRange(android_dataspace dataspace) {
 
             case HAL_DATASPACE_BT601_625:
             case HAL_DATASPACE_BT601_525:
-            case HAL_DATASPACE_V0_BT709:
-                return std::string("Limited range)");
+            case HAL_DATASPACE_BT709:
+                return std::string("Limited range");
 
             case HAL_DATASPACE_ARBITRARY:
             case HAL_DATASPACE_UNKNOWN:
@@ -197,40 +199,76 @@ std::string dataspaceDetails(android_dataspace dataspace) {
                                        decodeRange(dataspace).c_str());
 }
 
-std::string decodeColorMode(android_color_mode colorMode) {
+std::string decodeColorMode(ColorMode colorMode) {
     switch (colorMode) {
-        case HAL_COLOR_MODE_NATIVE:
-            return std::string("HAL_COLOR_MODE_NATIVE");
+        case ColorMode::NATIVE:
+            return std::string("ColorMode::NATIVE");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_625:
-            return std::string("HAL_COLOR_MODE_BT601_625");
+        case ColorMode::STANDARD_BT601_625:
+            return std::string("ColorMode::BT601_625");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_625_UNADJUSTED:
-            return std::string("HAL_COLOR_MODE_BT601_625_UNADJUSTED");
+        case ColorMode::STANDARD_BT601_625_UNADJUSTED:
+            return std::string("ColorMode::BT601_625_UNADJUSTED");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_525:
-            return std::string("HAL_COLOR_MODE_BT601_525");
+        case ColorMode::STANDARD_BT601_525:
+            return std::string("ColorMode::BT601_525");
 
-        case HAL_COLOR_MODE_STANDARD_BT601_525_UNADJUSTED:
-            return std::string("HAL_COLOR_MODE_BT601_525_UNADJUSTED");
+        case ColorMode::STANDARD_BT601_525_UNADJUSTED:
+            return std::string("ColorMode::BT601_525_UNADJUSTED");
 
-        case HAL_COLOR_MODE_STANDARD_BT709:
-            return std::string("HAL_COLOR_MODE_BT709");
+        case ColorMode::STANDARD_BT709:
+            return std::string("ColorMode::BT709");
 
-        case HAL_COLOR_MODE_DCI_P3:
-            return std::string("HAL_COLOR_MODE_DCI_P3");
+        case ColorMode::DCI_P3:
+            return std::string("ColorMode::DCI_P3");
 
-        case HAL_COLOR_MODE_SRGB:
-            return std::string("HAL_COLOR_MODE_SRGB");
+        case ColorMode::SRGB:
+            return std::string("ColorMode::SRGB");
 
-        case HAL_COLOR_MODE_ADOBE_RGB:
-            return std::string("HAL_COLOR_MODE_ADOBE_RGB");
+        case ColorMode::ADOBE_RGB:
+            return std::string("ColorMode::ADOBE_RGB");
 
-        case HAL_COLOR_MODE_DISPLAY_P3:
-            return std::string("HAL_COLOR_MODE_DISPLAY_P3");
+        case ColorMode::DISPLAY_P3:
+            return std::string("ColorMode::DISPLAY_P3");
+
+        case ColorMode::BT2020:
+            return std::string("ColorMode::BT2020");
+
+        case ColorMode::BT2100_PQ:
+            return std::string("ColorMode::BT2100_PQ");
+
+        case ColorMode::BT2100_HLG:
+            return std::string("ColorMode::BT2100_HLG");
     }
 
     return android::base::StringPrintf("Unknown color mode %d", colorMode);
+}
+
+std::string decodeColorTransform(android_color_transform colorTransform) {
+    switch (colorTransform) {
+        case HAL_COLOR_TRANSFORM_IDENTITY:
+            return std::string("Identity");
+
+        case HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX:
+            return std::string("Arbitrary matrix");
+
+        case HAL_COLOR_TRANSFORM_VALUE_INVERSE:
+            return std::string("Inverse value");
+
+        case HAL_COLOR_TRANSFORM_GRAYSCALE:
+            return std::string("Grayscale");
+
+        case HAL_COLOR_TRANSFORM_CORRECT_PROTANOPIA:
+            return std::string("Correct protanopia");
+
+        case HAL_COLOR_TRANSFORM_CORRECT_DEUTERANOPIA:
+            return std::string("Correct deuteranopia");
+
+        case HAL_COLOR_TRANSFORM_CORRECT_TRITANOPIA:
+            return std::string("Correct tritanopia");
+    }
+
+    return android::base::StringPrintf("Unknown color transform %d", colorTransform);
 }
 
 // Converts a PixelFormat to a human-readable string.  Max 11 chars.
@@ -264,6 +302,20 @@ std::string decodePixelFormat(android::PixelFormat format) {
         default:
             return android::base::StringPrintf("Unknown %#08x", format);
     }
+}
+
+std::string decodeRenderIntent(RenderIntent renderIntent) {
+    switch(renderIntent) {
+      case RenderIntent::COLORIMETRIC:
+          return std::string("RenderIntent::COLORIMETRIC");
+      case RenderIntent::ENHANCE:
+          return std::string("RenderIntent::ENHANCE");
+      case RenderIntent::TONE_MAP_COLORIMETRIC:
+          return std::string("RenderIntent::TONE_MAP_COLORIMETRIC");
+      case RenderIntent::TONE_MAP_ENHANCE:
+          return std::string("RenderIntent::TONE_MAP_ENHANCE");
+    }
+    return std::string("Unknown RenderIntent");
 }
 
 std::string to_string(const android::Rect& rect) {

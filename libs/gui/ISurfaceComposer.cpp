@@ -29,8 +29,7 @@
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerDebugInfo.h>
-
-#include <private/gui/LayerState.h>
+#include <gui/LayerState.h>
 
 #include <system/graphics.h>
 
@@ -43,6 +42,8 @@
 // ---------------------------------------------------------------------------
 
 namespace android {
+
+using ui::ColorMode;
 
 class BpSurfaceComposer : public BpInterface<ISurfaceComposer>
 {
@@ -101,17 +102,13 @@ public:
         remote()->transact(BnSurfaceComposer::BOOT_FINISHED, data, &reply);
     }
 
-    virtual status_t captureScreen(const sp<IBinder>& display,
-            const sp<IGraphicBufferProducer>& producer,
-            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-            int32_t minLayerZ, int32_t maxLayerZ,
-            bool useIdentityTransform,
-            ISurfaceComposer::Rotation rotation)
-    {
+    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
+                                   ISurfaceComposer::Rotation rotation) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
-        data.writeStrongBinder(IInterface::asBinder(producer));
         data.write(sourceCrop);
         data.writeUint32(reqWidth);
         data.writeUint32(reqHeight);
@@ -119,8 +116,46 @@ public:
         data.writeInt32(maxLayerZ);
         data.writeInt32(static_cast<int32_t>(useIdentityTransform));
         data.writeInt32(static_cast<int32_t>(rotation));
-        remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
-        return reply.readInt32();
+        status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
+
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        err = reply.readInt32();
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        *outBuffer = new GraphicBuffer();
+        reply.read(**outBuffer);
+        return err;
+    }
+
+    virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
+                                   sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                   float frameScale, bool childrenOnly) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(layerHandleBinder);
+        data.write(sourceCrop);
+        data.writeFloat(frameScale);
+        data.writeBool(childrenOnly);
+        status_t err = remote()->transact(BnSurfaceComposer::CAPTURE_LAYERS, data, &reply);
+
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        err = reply.readInt32();
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        *outBuffer = new GraphicBuffer();
+        reply.read(**outBuffer);
+
+        return err;
     }
 
     virtual bool authenticateSurfaceTexture(
@@ -317,7 +352,7 @@ public:
     }
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
-            Vector<android_color_mode_t>* outColorModes) {
+            Vector<ColorMode>* outColorModes) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -340,34 +375,34 @@ public:
             outColorModes->clear();
             outColorModes->resize(numModes);
             for (size_t i = 0; i < numModes; ++i) {
-                outColorModes->replaceAt(static_cast<android_color_mode_t>(reply.readInt32()), i);
+                outColorModes->replaceAt(static_cast<ColorMode>(reply.readInt32()), i);
             }
         }
         return result;
     }
 
-    virtual android_color_mode_t getActiveColorMode(const sp<IBinder>& display) {
+    virtual ColorMode getActiveColorMode(const sp<IBinder>& display) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
             ALOGE("getActiveColorMode failed to writeInterfaceToken: %d", result);
-            return static_cast<android_color_mode_t>(result);
+            return static_cast<ColorMode>(result);
         }
         result = data.writeStrongBinder(display);
         if (result != NO_ERROR) {
             ALOGE("getActiveColorMode failed to writeStrongBinder: %d", result);
-            return static_cast<android_color_mode_t>(result);
+            return static_cast<ColorMode>(result);
         }
         result = remote()->transact(BnSurfaceComposer::GET_ACTIVE_COLOR_MODE, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("getActiveColorMode failed to transact: %d", result);
-            return static_cast<android_color_mode_t>(result);
+            return static_cast<ColorMode>(result);
         }
-        return static_cast<android_color_mode_t>(reply.readInt32());
+        return static_cast<ColorMode>(reply.readInt32());
     }
 
     virtual status_t setActiveColorMode(const sp<IBinder>& display,
-            android_color_mode_t colorMode) {
+            ColorMode colorMode) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (result != NO_ERROR) {
@@ -379,7 +414,7 @@ public:
             ALOGE("setActiveColorMode failed to writeStrongBinder: %d", result);
             return result;
         }
-        result = data.writeInt32(colorMode);
+        result = data.writeInt32(static_cast<int32_t>(colorMode));
         if (result != NO_ERROR) {
             ALOGE("setActiveColorMode failed to writeInt32: %d", result);
             return result;
@@ -571,8 +606,7 @@ status_t BnSurfaceComposer::onTransact(
         case CAPTURE_SCREEN: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = data.readStrongBinder();
-            sp<IGraphicBufferProducer> producer =
-                    interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
+            sp<GraphicBuffer> outBuffer;
             Rect sourceCrop(Rect::EMPTY_RECT);
             data.read(sourceCrop);
             uint32_t reqWidth = data.readUint32();
@@ -582,11 +616,30 @@ status_t BnSurfaceComposer::onTransact(
             bool useIdentityTransform = static_cast<bool>(data.readInt32());
             int32_t rotation = data.readInt32();
 
-            status_t res = captureScreen(display, producer,
-                    sourceCrop, reqWidth, reqHeight, minLayerZ, maxLayerZ,
-                    useIdentityTransform,
-                    static_cast<ISurfaceComposer::Rotation>(rotation));
+            status_t res = captureScreen(display, &outBuffer, sourceCrop, reqWidth, reqHeight,
+                                         minLayerZ, maxLayerZ, useIdentityTransform,
+                                         static_cast<ISurfaceComposer::Rotation>(rotation));
             reply->writeInt32(res);
+            if (res == NO_ERROR) {
+                reply->write(*outBuffer);
+            }
+            return NO_ERROR;
+        }
+        case CAPTURE_LAYERS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> layerHandleBinder = data.readStrongBinder();
+            sp<GraphicBuffer> outBuffer;
+            Rect sourceCrop(Rect::EMPTY_RECT);
+            data.read(sourceCrop);
+            float frameScale = data.readFloat();
+            bool childrenOnly = data.readBool();
+
+            status_t res = captureLayers(layerHandleBinder, &outBuffer, sourceCrop, frameScale,
+                                         childrenOnly);
+            reply->writeInt32(res);
+            if (res == NO_ERROR) {
+                reply->write(*outBuffer);
+            }
             return NO_ERROR;
         }
         case AUTHENTICATE_SURFACE: {
@@ -688,7 +741,7 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_DISPLAY_COLOR_MODES: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            Vector<android_color_mode_t> colorModes;
+            Vector<ColorMode> colorModes;
             sp<IBinder> display = nullptr;
             status_t result = data.readStrongBinder(&display);
             if (result != NO_ERROR) {
@@ -700,7 +753,7 @@ status_t BnSurfaceComposer::onTransact(
             if (result == NO_ERROR) {
                 reply->writeUint32(static_cast<uint32_t>(colorModes.size()));
                 for (size_t i = 0; i < colorModes.size(); ++i) {
-                    reply->writeInt32(colorModes[i]);
+                    reply->writeInt32(static_cast<int32_t>(colorModes[i]));
                 }
             }
             return NO_ERROR;
@@ -713,7 +766,7 @@ status_t BnSurfaceComposer::onTransact(
                 ALOGE("getActiveColorMode failed to readStrongBinder: %d", result);
                 return result;
             }
-            android_color_mode_t colorMode = getActiveColorMode(display);
+            ColorMode colorMode = getActiveColorMode(display);
             result = reply->writeInt32(static_cast<int32_t>(colorMode));
             return result;
         }
@@ -732,7 +785,7 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             result = setActiveColorMode(display,
-                    static_cast<android_color_mode_t>(colorModeInt));
+                    static_cast<ColorMode>(colorModeInt));
             result = reply->writeInt32(result);
             return result;
         }

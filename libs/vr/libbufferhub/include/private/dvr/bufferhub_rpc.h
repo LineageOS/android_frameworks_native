@@ -2,8 +2,8 @@
 #define ANDROID_DVR_BUFFERHUB_RPC_H_
 
 #include <cutils/native_handle.h>
-#include <gui/BufferQueueDefs.h>
 #include <sys/types.h>
+#include <ui/BufferQueueDefs.h>
 
 #include <dvr/dvr_api.h>
 #include <pdx/channel_handle.h>
@@ -366,23 +366,25 @@ struct BufferHubRPC {
   // Op codes.
   enum {
     kOpCreateBuffer = 0,
-    kOpCreatePersistentBuffer,
-    kOpGetPersistentBuffer,
     kOpGetBuffer,
     kOpNewConsumer,
-    kOpProducerMakePersistent,
-    kOpProducerRemovePersistence,
     kOpProducerPost,
     kOpProducerGain,
     kOpConsumerAcquire,
     kOpConsumerRelease,
     kOpConsumerSetIgnore,
+    kOpProducerBufferDetach,
+    kOpConsumerBufferDetach,
+    kOpDetachedBufferCreate,
+    kOpDetachedBufferPromote,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
     kOpGetQueueInfo,
     kOpProducerQueueAllocateBuffers,
     kOpProducerQueueRemoveBuffer,
     kOpConsumerQueueImportBuffers,
+    // TODO(b/77153033): Separate all those RPC operations into subclasses.
+    kOpDetachedBufferBase = 1000,
   };
 
   // Aliases.
@@ -394,19 +396,9 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(CreateBuffer, kOpCreateBuffer,
                     void(uint32_t width, uint32_t height, uint32_t format,
                          uint64_t usage, size_t user_metadata_size));
-  PDX_REMOTE_METHOD(CreatePersistentBuffer, kOpCreatePersistentBuffer,
-                    void(const std::string& name, int user_id, int group_id,
-                         uint32_t width, uint32_t height, uint32_t format,
-                         uint64_t usage, size_t user_metadata_size));
-  PDX_REMOTE_METHOD(GetPersistentBuffer, kOpGetPersistentBuffer,
-                    void(const std::string& name));
   PDX_REMOTE_METHOD(GetBuffer, kOpGetBuffer,
                     BufferDescription<LocalHandle>(Void));
   PDX_REMOTE_METHOD(NewConsumer, kOpNewConsumer, LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(ProducerMakePersistent, kOpProducerMakePersistent,
-                    void(const std::string& name, int user_id, int group_id));
-  PDX_REMOTE_METHOD(ProducerRemovePersistence, kOpProducerRemovePersistence,
-                    void(Void));
   PDX_REMOTE_METHOD(ProducerPost, kOpProducerPost,
                     void(LocalFence acquire_fence));
   PDX_REMOTE_METHOD(ProducerGain, kOpProducerGain, LocalFence(Void));
@@ -414,6 +406,17 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
                     void(LocalFence release_fence));
   PDX_REMOTE_METHOD(ConsumerSetIgnore, kOpConsumerSetIgnore, void(bool ignore));
+  PDX_REMOTE_METHOD(ProducerBufferDetach, kOpProducerBufferDetach,
+                    LocalChannelHandle(Void));
+
+  // Detaches a ConsumerBuffer from an existing producer/consumer set. Can only
+  // be called when the consumer is the only consumer and it has exclusive
+  // access to the buffer (i.e. in the acquired'ed state). On the successful
+  // return of the IPC call, a new DetachedBufferChannel handle will be returned
+  // and all existing producer and consumer channels will be closed. Further
+  // IPCs towards those channels will return error.
+  PDX_REMOTE_METHOD(ConsumerBufferDetach, kOpConsumerBufferDetach,
+                    LocalChannelHandle(Void));
 
   // Buffer Queue Methods.
   PDX_REMOTE_METHOD(CreateProducerQueue, kOpCreateProducerQueue,
@@ -431,6 +434,25 @@ struct BufferHubRPC {
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(Void));
+};
+
+struct DetachedBufferRPC final : public BufferHubRPC {
+ private:
+  enum {
+    kOpCreate = kOpDetachedBufferBase,
+    kOpImport,
+    kOpPromote,
+  };
+
+ public:
+  PDX_REMOTE_METHOD(Create, kOpCreate,
+                    void(uint32_t width, uint32_t height, uint32_t layer_count,
+                         uint32_t format, uint64_t usage,
+                         size_t user_metadata_size));
+  PDX_REMOTE_METHOD(Import, kOpImport, BufferDescription<LocalHandle>(Void));
+  PDX_REMOTE_METHOD(Promote, kOpPromote, LocalChannelHandle(Void));
+
+  PDX_REMOTE_API(API, Create, Promote);
 };
 
 }  // namespace dvr

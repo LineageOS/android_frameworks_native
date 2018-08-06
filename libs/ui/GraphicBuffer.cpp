@@ -22,6 +22,7 @@
 
 #include <grallocusage/GrallocUsageConversion.h>
 
+#include <ui/DetachedBufferHandle.h>
 #include <ui/Gralloc2.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
@@ -169,6 +170,8 @@ status_t GraphicBuffer::initWithSize(uint32_t inWidth, uint32_t inHeight,
             inUsage, &handle, &outStride, mId,
             std::move(requestorName));
     if (err == NO_ERROR) {
+        mBufferMapper.getTransportSize(handle, &mTransportNumFds, &mTransportNumInts);
+
         width = static_cast<int>(inWidth);
         height = static_cast<int>(inHeight);
         format = inFormat;
@@ -198,7 +201,8 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
 
     if (method == TAKE_UNREGISTERED_HANDLE || method == CLONE_HANDLE) {
         buffer_handle_t importedHandle;
-        status_t err = mBufferMapper.importBuffer(handle, &importedHandle);
+        status_t err = mBufferMapper.importBuffer(handle, width, height,
+                layerCount, format, usage, stride, &importedHandle);
         if (err != NO_ERROR) {
             initWithHandle(nullptr, WRAP_HANDLE, 0, 0, 0, 0, 0, 0);
 
@@ -211,6 +215,7 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
         }
 
         handle = importedHandle;
+        mBufferMapper.getTransportSize(handle, &mTransportNumFds, &mTransportNumInts);
     }
 
     ANativeWindowBuffer::handle = handle;
@@ -322,11 +327,11 @@ status_t GraphicBuffer::unlockAsync(int *fenceFd)
 }
 
 size_t GraphicBuffer::getFlattenedSize() const {
-    return static_cast<size_t>(13 + (handle ? handle->numInts : 0)) * sizeof(int);
+    return static_cast<size_t>(13 + (handle ? mTransportNumInts : 0)) * sizeof(int);
 }
 
 size_t GraphicBuffer::getFdCount() const {
-    return static_cast<size_t>(handle ? handle->numFds : 0);
+    return static_cast<size_t>(handle ? mTransportNumFds : 0);
 }
 
 status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& count) const {
@@ -352,18 +357,18 @@ status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& 
     buf[12] = int(usage >> 32); // high 32-bits
 
     if (handle) {
-        buf[10] = handle->numFds;
-        buf[11] = handle->numInts;
-        memcpy(fds, handle->data, static_cast<size_t>(handle->numFds) * sizeof(int));
+        buf[10] = int32_t(mTransportNumFds);
+        buf[11] = int32_t(mTransportNumInts);
+        memcpy(fds, handle->data, static_cast<size_t>(mTransportNumFds) * sizeof(int));
         memcpy(buf + 13, handle->data + handle->numFds,
-                static_cast<size_t>(handle->numInts) * sizeof(int));
+                static_cast<size_t>(mTransportNumInts) * sizeof(int));
     }
 
     buffer = static_cast<void*>(static_cast<uint8_t*>(buffer) + sizeNeeded);
     size -= sizeNeeded;
     if (handle) {
-        fds += handle->numFds;
-        count -= static_cast<size_t>(handle->numFds);
+        fds += mTransportNumFds;
+        count -= static_cast<size_t>(mTransportNumFds);
     }
 
     return NO_ERROR;
@@ -456,7 +461,8 @@ status_t GraphicBuffer::unflatten(
 
     if (handle != 0) {
         buffer_handle_t importedHandle;
-        status_t err = mBufferMapper.importBuffer(handle, &importedHandle);
+        status_t err = mBufferMapper.importBuffer(handle, uint32_t(width), uint32_t(height),
+                uint32_t(layerCount), format, usage, uint32_t(stride), &importedHandle);
         if (err != NO_ERROR) {
             width = height = stride = format = usage_deprecated = 0;
             layerCount = 0;
@@ -469,6 +475,7 @@ status_t GraphicBuffer::unflatten(
         native_handle_close(handle);
         native_handle_delete(const_cast<native_handle_t*>(handle));
         handle = importedHandle;
+        mBufferMapper.getTransportSize(handle, &mTransportNumFds, &mTransportNumInts);
     }
 
     buffer = static_cast<void const*>(static_cast<uint8_t const*>(buffer) + sizeNeeded);
@@ -477,6 +484,24 @@ status_t GraphicBuffer::unflatten(
     count -= numFds;
 
     return NO_ERROR;
+}
+
+bool GraphicBuffer::isDetachedBuffer() const {
+    return mDetachedBufferHandle && mDetachedBufferHandle->isValid();
+}
+
+status_t GraphicBuffer::setDetachedBufferHandle(std::unique_ptr<DetachedBufferHandle> channel) {
+    if (isDetachedBuffer()) {
+        ALOGW("setDetachedBuffer: there is already a BufferHub channel associated with this "
+              "GraphicBuffer. Replacing the old one.");
+    }
+
+    mDetachedBufferHandle = std::move(channel);
+    return NO_ERROR;
+}
+
+std::unique_ptr<DetachedBufferHandle> GraphicBuffer::takeDetachedBufferHandle() {
+    return std::move(mDetachedBufferHandle);
 }
 
 // ---------------------------------------------------------------------------

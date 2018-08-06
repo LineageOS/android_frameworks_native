@@ -54,7 +54,7 @@ namespace android {
             : [tls] "J"(TLS_SLOT_OPENGL_API*4),                 \
               [ext] "J"(__builtin_offsetof(gl_hooks_t,          \
                                       ext.extensions[0])),      \
-              [api] "J"(_api*sizeof(void*))                     \
+              [api] "I"(_api*sizeof(void*))                     \
             : "r12"                                             \
             );
 
@@ -80,46 +80,44 @@ namespace android {
 
 #elif defined(__i386__)
 
-    #define API_ENTRY(_api) __attribute__((noinline,optimize("omit-frame-pointer"))) _api
+    #define API_ENTRY(_api) __attribute__((naked)) _api
 
     #define CALL_GL_EXTENSION_API(_api)                         \
-         register void** fn;                                    \
          __asm__ volatile(                                      \
-            "mov %%gs:0, %[fn]\n"                               \
-            "mov %P[tls](%[fn]), %[fn]\n"                       \
-            "test %[fn], %[fn]\n"                               \
-            "cmovne %P[api](%[fn]), %[fn]\n"                    \
-            "test %[fn], %[fn]\n"                               \
+            "mov %%gs:0, %%eax\n"                               \
+            "mov %P[tls](%%eax), %%eax\n"                       \
+            "test %%eax, %%eax\n"                               \
+            "cmovne %P[api](%%eax), %%eax\n"                    \
+            "test %%eax, %%eax\n"                               \
             "je 1f\n"                                           \
-            "jmp *%[fn]\n"                                      \
-            "1:\n"                                              \
-            : [fn] "=r" (fn)                                    \
+            "jmp *%%eax\n"                                      \
+            "1: ret\n"                                          \
+            :                                                   \
             : [tls] "i" (TLS_SLOT_OPENGL_API*sizeof(void*)),    \
               [api] "i" (__builtin_offsetof(gl_hooks_t,         \
                                       ext.extensions[_api]))    \
-            : "cc"                                              \
+            : "eax", "cc"                                       \
             );
 
 #elif defined(__x86_64__)
 
-    #define API_ENTRY(_api) __attribute__((noinline,optimize("omit-frame-pointer"))) _api
+    #define API_ENTRY(_api) __attribute__((naked)) _api
 
     #define CALL_GL_EXTENSION_API(_api)                         \
-         register void** fn;                                    \
          __asm__ volatile(                                      \
-            "mov %%fs:0, %[fn]\n"                               \
-            "mov %P[tls](%[fn]), %[fn]\n"                       \
-            "test %[fn], %[fn]\n"                               \
-            "cmovne %P[api](%[fn]), %[fn]\n"                    \
-            "test %[fn], %[fn]\n"                               \
+            "mov %%fs:0, %%rax\n"                               \
+            "mov %P[tls](%%rax), %%rax\n"                       \
+            "test %%rax, %%rax\n"                               \
+            "cmovne %P[api](%%rax), %%rax\n"                    \
+            "test %%rax, %%rax\n"                               \
             "je 1f\n"                                           \
-            "jmp *%[fn]\n"                                      \
-            "1:\n"                                              \
-            : [fn] "=r" (fn)                                    \
+            "jmp *%%rax\n"                                      \
+            "1: ret\n"                                          \
+            :                                                   \
             : [tls] "i" (TLS_SLOT_OPENGL_API*sizeof(void*)),    \
               [api] "i" (__builtin_offsetof(gl_hooks_t,         \
                                       ext.extensions[_api]))    \
-            : "cc"                                              \
+            : "rax", "cc"                                       \
             );
 
 #elif defined(__mips64)

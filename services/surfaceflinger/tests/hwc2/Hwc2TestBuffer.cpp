@@ -23,14 +23,17 @@
 #include <gui/BufferItemConsumer.h>
 
 #include <ui/GraphicBuffer.h>
+#include <android/hardware/graphics/common/1.0/types.h>
 #include <math/vec4.h>
 
 #include <GLES3/gl3.h>
-
+#include <SkImageEncoder.h>
+#include <SkStream.h>
 #include "Hwc2TestBuffer.h"
 #include "Hwc2TestLayers.h"
 
 using namespace android;
+using android::hardware::graphics::common::V1_0::BufferUsage;
 
 /* Returns a fence from egl */
 typedef void (*FenceCallback)(int32_t fence, void* callbackArgs);
@@ -396,8 +399,9 @@ int Hwc2TestBuffer::generateBuffer()
 {
     /* Create new graphic buffer with correct dimensions */
     mGraphicBuffer = new GraphicBuffer(mBufferArea.width, mBufferArea.height,
-            mFormat, GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
-            "hwc2_test_buffer");
+            mFormat, BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+            BufferUsage::COMPOSER_OVERLAY, "hwc2_test_buffer");
+
     int ret = mGraphicBuffer->initCheck();
     if (ret) {
         return ret;
@@ -408,7 +412,8 @@ int Hwc2TestBuffer::generateBuffer()
 
     /* Locks the buffer for writing */
     uint8_t* img;
-    mGraphicBuffer->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
+    mGraphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN),
+            (void**)(&img));
 
     uint32_t stride = mGraphicBuffer->getStride();
 
@@ -458,31 +463,22 @@ Hwc2TestClientTargetBuffer::Hwc2TestClientTargetBuffer()
 
 Hwc2TestClientTargetBuffer::~Hwc2TestClientTargetBuffer() { }
 
-/* Generates a client target buffer using the layers assigned for client
- * composition. Takes into account the individual layer properties such as
+/* Generates a buffer from layersToDraw.
+ * Takes into account the individual layer properties such as
  * transform, blend mode, source crop, etc. */
-int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
-        int32_t* outFence, const Area& bufferArea,
+static void compositeBufferFromLayers(
+        const android::sp<android::GraphicBuffer>& graphicBuffer,
+        android_pixel_format_t format, const Area& bufferArea,
         const Hwc2TestLayers* testLayers,
-        const std::set<hwc2_layer_t>* clientLayers,
+        const std::set<hwc2_layer_t>* layersToDraw,
         const std::set<hwc2_layer_t>* clearLayers)
 {
-    /* Create new graphic buffer with correct dimensions */
-    mGraphicBuffer = new GraphicBuffer(bufferArea.width, bufferArea.height,
-            mFormat, GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_HW_RENDER,
-            "hwc2_test_buffer");
-    int ret = mGraphicBuffer->initCheck();
-    if (ret) {
-        return ret;
-    }
-    if (!mGraphicBuffer->handle) {
-        return -EINVAL;
-    }
-
+    /* Locks the buffer for writing */
     uint8_t* img;
-    mGraphicBuffer->lock(GRALLOC_USAGE_SW_WRITE_OFTEN, (void**)(&img));
+    graphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN),
+            (void**)(&img));
 
-    uint32_t stride = mGraphicBuffer->getStride();
+    uint32_t stride = graphicBuffer->getStride();
 
     float bWDiv3 = bufferArea.width / 3;
     float bW2Div3 = bufferArea.width * 2 / 3;
@@ -497,10 +493,10 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
             uint8_t r = 0, g = 0, b = 0;
             float a = 0.0f;
 
-            /* Cycle through each client layer from back to front and
+            /* Cycle through each layer from back to front and
              * update the pixel color. */
-            for (auto layer = clientLayers->rbegin();
-                    layer != clientLayers->rend(); ++layer) {
+            for (auto layer = layersToDraw->rbegin();
+                    layer != layersToDraw->rend(); ++layer) {
 
                 const hwc_rect_t df = testLayers->getDisplayFrame(*layer);
 
@@ -570,8 +566,8 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
                      * (100x50) at the end of the transformation. */
                     if (transform & HWC_TRANSFORM_ROT_90) {
                         float tmp = xPos;
-                        xPos = -yPos * dfW / dfH;
-                        yPos = tmp * dfH / dfW;
+                        xPos = yPos * dfW / dfH;
+                        yPos = -tmp * dfH / dfW;
                     }
 
                     /* Change origin back to the top left corner of the
@@ -682,13 +678,113 @@ int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
             }
 
             /* Set the pixel color */
-            setColor(x, y, mFormat, stride, img, r, g, b, a * 255);
+            setColor(x, y, format, stride, img, r, g, b, a * 255);
         }
     }
 
-    mGraphicBuffer->unlock();
+    graphicBuffer->unlock();
+}
+
+/* Generates a client target buffer using the layers assigned for client
+ * composition. Takes into account the individual layer properties such as
+ * transform, blend mode, source crop, etc. */
+int Hwc2TestClientTargetBuffer::get(buffer_handle_t* outHandle,
+        int32_t* outFence, const Area& bufferArea,
+        const Hwc2TestLayers* testLayers,
+        const std::set<hwc2_layer_t>* clientLayers,
+        const std::set<hwc2_layer_t>* clearLayers)
+{
+    /* Create new graphic buffer with correct dimensions */
+    mGraphicBuffer = new GraphicBuffer(bufferArea.width, bufferArea.height,
+            mFormat, BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+            BufferUsage::COMPOSER_OVERLAY, "hwc2_test_buffer");
+
+    int ret = mGraphicBuffer->initCheck();
+    if (ret)
+        return ret;
+
+    if (!mGraphicBuffer->handle)
+        return -EINVAL;
+
+    compositeBufferFromLayers(mGraphicBuffer, mFormat, bufferArea, testLayers,
+            clientLayers, clearLayers);
 
     *outFence = mFenceGenerator->get();
+    *outHandle = mGraphicBuffer->handle;
+
+    return 0;
+}
+
+void Hwc2TestVirtualBuffer::updateBufferArea(const Area& bufferArea)
+{
+    mBufferArea.width = bufferArea.width;
+    mBufferArea.height = bufferArea.height;
+}
+
+bool Hwc2TestVirtualBuffer::writeBufferToFile(std::string path)
+{
+    SkFILEWStream file(path.c_str());
+    const SkImageInfo info = SkImageInfo::Make(mBufferArea.width,
+            mBufferArea.height, SkColorType::kRGBA_8888_SkColorType,
+            SkAlphaType::kPremul_SkAlphaType);
+
+    uint8_t* img;
+    mGraphicBuffer->lock(static_cast<uint32_t>(BufferUsage::CPU_WRITE_OFTEN),
+            (void**)(&img));
+
+    SkPixmap pixmap(info, img, mGraphicBuffer->getStride());
+    bool result = file.isValid() && SkEncodeImage(&file, pixmap,
+            SkEncodedImageFormat::kPNG, 100);
+
+    mGraphicBuffer->unlock();
+    return result;
+}
+
+/* Generates a buffer that holds the expected result of compositing all of our
+ * layers */
+int Hwc2TestExpectedBuffer::generateExpectedBuffer(
+        const Hwc2TestLayers* testLayers,
+        const std::vector<hwc2_layer_t>* allLayers,
+        const std::set<hwc2_layer_t>* clearLayers)
+{
+    mGraphicBuffer = new GraphicBuffer(mBufferArea.width, mBufferArea.height,
+            mFormat, BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN,
+            "hwc2_test_buffer");
+
+    int ret = mGraphicBuffer->initCheck();
+    if (ret)
+        return ret;
+
+    if (!mGraphicBuffer->handle)
+        return -EINVAL;
+
+    const std::set<hwc2_layer_t> allLayerSet(allLayers->begin(),
+            allLayers->end());
+
+    compositeBufferFromLayers(mGraphicBuffer, mFormat, mBufferArea, testLayers,
+            &allLayerSet, clearLayers);
+
+    return 0;
+}
+
+int Hwc2TestOutputBuffer::getOutputBuffer(buffer_handle_t* outHandle,
+        int32_t* outFence)
+{
+    if (mBufferArea.width == -1 || mBufferArea.height == -1)
+        return -EINVAL;
+
+    mGraphicBuffer = new GraphicBuffer(mBufferArea.width, mBufferArea.height,
+            mFormat, BufferUsage::CPU_READ_OFTEN |
+            BufferUsage::GPU_RENDER_TARGET, "hwc2_test_buffer");
+
+    int ret = mGraphicBuffer->initCheck();
+    if (ret)
+        return ret;
+
+    if (!mGraphicBuffer->handle)
+        return -EINVAL;
+
+    *outFence = -1;
     *outHandle = mGraphicBuffer->handle;
 
     return 0;

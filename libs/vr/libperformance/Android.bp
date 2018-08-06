@@ -19,13 +19,13 @@ sourceFiles = [
 
 includeFiles = [ "include" ]
 
-staticLibraries = ["libpdx_default_transport"]
-
 sharedLibraries = [
     "libbase",
+    "libbinder",
     "libcutils",
     "liblog",
     "libutils",
+    "libpdx_default_transport",
 ]
 
 cc_library {
@@ -37,7 +37,6 @@ cc_library {
         "-Werror",
     ],
     export_include_dirs: includeFiles,
-    static_libs: staticLibraries,
     shared_libs: sharedLibraries,
     name: "libperformance",
 }

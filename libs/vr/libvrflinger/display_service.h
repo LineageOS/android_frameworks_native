@@ -65,12 +65,9 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
     hardware_composer_.SetVSyncCallback(callback);
   }
 
-  HWCDisplayMetrics GetDisplayMetrics() {
-    return hardware_composer_.display_metrics();
-  }
-
   void GrantDisplayOwnership() { hardware_composer_.Enable(); }
   void SeizeDisplayOwnership() { hardware_composer_.Disable(); }
+  void OnBootFinished() { hardware_composer_.OnBootFinished(); }
 
  private:
   friend BASE;
@@ -81,6 +78,7 @@ class DisplayService : public pdx::ServiceBase<DisplayService> {
   using RequestDisplayCallback = std::function<void(bool)>;
 
   DisplayService(android::Hwc2::Composer* hidl,
+                 hwc2_display_t primary_display_id,
                  RequestDisplayCallback request_display_callback);
 
   pdx::Status<BorrowedNativeBufferHandle> OnGetGlobalBuffer(

@@ -61,7 +61,8 @@ class MyShellCallback : public BnShellCallback
 public:
     bool mActive = true;
 
-    virtual int openOutputFile(const String16& path, const String16& seLinuxContext) {
+    virtual int openFile(const String16& path, const String16& seLinuxContext,
+            const String16& mode) {
         String8 path8(path);
         char cwd[256];
         getcwd(cwd, 256);
@@ -71,7 +72,32 @@ public:
             aerr << "Open attempt after active for: " << fullPath << endl;
             return -EPERM;
         }
-        int fd = open(fullPath.string(), O_WRONLY|O_CREAT|O_TRUNC, S_IRWXU|S_IRWXG);
+#if DEBUG
+        ALOGD("openFile: %s, full=%s", path8.string(), fullPath.string());
+#endif
+        int flags = 0;
+        bool checkRead = false;
+        bool checkWrite = false;
+        if (mode == String16("w")) {
+            flags = O_WRONLY|O_CREAT|O_TRUNC;
+            checkWrite = true;
+        } else if (mode == String16("w+")) {
+            flags = O_RDWR|O_CREAT|O_TRUNC;
+            checkRead = checkWrite = true;
+        } else if (mode == String16("r")) {
+            flags = O_RDONLY;
+            checkRead = true;
+        } else if (mode == String16("r+")) {
+            flags = O_RDWR;
+            checkRead = checkWrite = true;
+        } else {
+            aerr << "Invalid mode requested: " << mode.string() << endl;
+            return -EINVAL;
+        }
+        int fd = open(fullPath.string(), flags, S_IRWXU|S_IRWXG);
+#if DEBUG
+        ALOGD("openFile: fd=%d", fd);
+#endif
         if (fd < 0) {
             return fd;
         }
@@ -80,14 +106,33 @@ public:
             security_context_t tmp = NULL;
             getfilecon(fullPath.string(), &tmp);
             Unique_SecurityContext context(tmp);
-            int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
-                    "file", "write", NULL);
-            if (accessGranted != 0) {
-                close(fd);
-                aerr << "System server has no access to file context " << context.get()
-                        << " (from path " << fullPath.string() << ", context "
-                        << seLinuxContext8.string() << ")" << endl;
-                return -EPERM;
+            if (checkWrite) {
+                int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
+                        "file", "write", NULL);
+                if (accessGranted != 0) {
+#if DEBUG
+                    ALOGD("openFile: failed selinux write check!");
+#endif
+                    close(fd);
+                    aerr << "System server has no access to write file context " << context.get()
+                            << " (from path " << fullPath.string() << ", context "
+                            << seLinuxContext8.string() << ")" << endl;
+                    return -EPERM;
+                }
+            }
+            if (checkRead) {
+                int accessGranted = selinux_check_access(seLinuxContext8.string(), context.get(),
+                        "file", "read", NULL);
+                if (accessGranted != 0) {
+#if DEBUG
+                    ALOGD("openFile: failed selinux read check!");
+#endif
+                    close(fd);
+                    aerr << "System server has no access to read file context " << context.get()
+                            << " (from path " << fullPath.string() << ", context "
+                            << seLinuxContext8.string() << ")" << endl;
+                    return -EPERM;
+                }
             }
         }
         return fd;
@@ -122,15 +167,11 @@ int main(int argc, char* const argv[])
 {
     signal(SIGPIPE, SIG_IGN);
     sp<ProcessState> proc = ProcessState::self();
-    // setThreadPoolMaxThreadCount(0) actually tells the kernel it's
-    // not allowed to spawn any additional threads, but we still spawn
-    // a binder thread from userspace when we call startThreadPool().
-    // This is safe because we only have 2 callbacks, neither of which
-    // block.
-    // See b/36066697 for rationale
-    proc->setThreadPoolMaxThreadCount(0);
     proc->startThreadPool();
 
+#if DEBUG
+    ALOGD("cmd: starting");
+#endif
     sp<IServiceManager> sm = defaultServiceManager();
     fflush(stdout);
     if (sm == NULL) {
