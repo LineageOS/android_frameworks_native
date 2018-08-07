@@ -1290,6 +1290,8 @@ static void dumpstate() {
 
     DumpPacketStats();
 
+    RunDumpsys("EBPF MAP STATS", {"netd", "trafficcontroller"});
+
     DoKmsg();
 
     DumpIpAddrAndRules();
