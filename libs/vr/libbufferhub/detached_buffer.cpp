@@ -49,7 +49,7 @@ DetachedBuffer::DetachedBuffer(LocalChannelHandle channel_handle)
 }
 
 int DetachedBuffer::ImportGraphicBuffer() {
-  ATRACE_NAME("DetachedBuffer::DetachedBuffer");
+  ATRACE_NAME("DetachedBuffer::ImportGraphicBuffer");
 
   auto status = client_.InvokeRemoteMethod<DetachedBufferRPC::Import>();
   if (!status) {
@@ -76,9 +76,53 @@ int DetachedBuffer::ImportGraphicBuffer() {
     return ret;
   }
 
+  // Import the metadata.
+  IonBuffer metadata_buffer;
+  if (const int ret = buffer_desc.ImportMetadata(&metadata_buffer)) {
+    ALOGE("Failed to import metadata buffer, error=%d", ret);
+    return ret;
+  }
+  size_t metadata_buf_size = metadata_buffer.width();
+  if (metadata_buf_size < BufferHubDefs::kMetadataHeaderSize) {
+    ALOGE("DetachedBuffer::ImportGraphicBuffer: metadata buffer too small: %zu",
+          metadata_buf_size);
+    return -EINVAL;
+  }
+
   // If all imports succeed, replace the previous buffer and id.
   id_ = buffer_id;
   buffer_ = std::move(ion_buffer);
+  metadata_buffer_ = std::move(metadata_buffer);
+  user_metadata_size_ = metadata_buf_size - BufferHubDefs::kMetadataHeaderSize;
+
+  void* metadata_ptr = nullptr;
+  if (const int ret =
+          metadata_buffer_.Lock(BufferHubDefs::kMetadataUsage, /*x=*/0,
+                                /*y=*/0, metadata_buf_size,
+                                /*height=*/1, &metadata_ptr)) {
+    ALOGE("DetachedBuffer::ImportGraphicBuffer: Failed to lock metadata.");
+    return ret;
+  }
+
+  // TODO(b/112012161) Set up shared fences.
+
+  // Note that here the buffer state is mapped from shared memory as an atomic
+  // object. The std::atomic's constructor will not be called so that the
+  // original value stored in the memory region can be preserved.
+  metadata_header_ = static_cast<BufferHubDefs::MetadataHeader*>(metadata_ptr);
+  if (user_metadata_size_) {
+    user_metadata_ptr_ = static_cast<void*>(metadata_header_ + 1);
+  } else {
+    user_metadata_ptr_ = nullptr;
+  }
+
+  id_ = buffer_desc.id();
+  buffer_state_bit_ = buffer_desc.buffer_state_bit();
+
+  ALOGD_IF(TRACE,
+           "DetachedBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64
+           ".",
+           id(), metadata_header_->buffer_state.load());
   return 0;
 }
 
