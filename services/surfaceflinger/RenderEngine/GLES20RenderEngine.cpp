@@ -30,7 +30,6 @@
 #include <utils/Trace.h>
 
 #include <cutils/compiler.h>
-#include <gui/ISurfaceComposer.h>
 #include <math.h>
 
 #include "Description.h"

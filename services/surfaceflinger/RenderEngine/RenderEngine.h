@@ -26,7 +26,6 @@
 #include <EGL/eglext.h>
 #include <Transform.h>
 #include <android-base/unique_fd.h>
-#include <gui/SurfaceControl.h>
 #include <math/mat4.h>
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
