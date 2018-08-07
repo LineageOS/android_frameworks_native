@@ -19,7 +19,7 @@
 #include <gmock/gmock.h>
 
 #include <utils/String8.h>
-#include "DispSync.h"
+#include "Scheduler/DispSync.h"
 
 namespace android {
 namespace mock {

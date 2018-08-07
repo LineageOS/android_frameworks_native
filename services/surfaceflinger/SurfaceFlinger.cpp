@@ -70,10 +70,7 @@
 #include "Colorizer.h"
 #include "ContainerLayer.h"
 #include "DdmConnection.h"
-#include "DispSync.h"
 #include "DisplayDevice.h"
-#include "EventControlThread.h"
-#include "EventThread.h"
 #include "Layer.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
@@ -85,10 +82,12 @@
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
-
 #include "Effects/Daltonizer.h"
-
 #include "RenderEngine/RenderEngine.h"
+#include "Scheduler/DispSync.h"
+#include "Scheduler/EventControlThread.h"
+#include "Scheduler/EventThread.h"
+
 #include <cutils/compiler.h>
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
