@@ -515,9 +515,23 @@ status_t DispSync::changePhaseOffset(Callback* callback, nsecs_t phase) {
 
 void DispSync::setPeriod(nsecs_t period) {
     Mutex::Autolock lock(mMutex);
-    mPeriod = period;
+    mPeriodBase = mPeriod = period;
     mPhase = 0;
     mReferenceTime = 0;
+    mThread->updateModel(mPeriod, mPhase, mReferenceTime);
+}
+
+void DispSync::scalePeriod(uint32_t multiplier, uint32_t divisor) {
+    Mutex::Autolock lock(mMutex);
+
+    // if only 1 of the properties is updated, we will get to this
+    // point "attempting" to set the scale to 1 when it is already
+    // 1.  Check that special case so that we don't do a useless
+    // update of the model.
+    if ((multiplier == 1) && (divisor == 1) && (mPeriod == mPeriodBase))
+        return;
+
+    mPeriod = mPeriodBase * multiplier / divisor;
     mThread->updateModel(mPeriod, mPhase, mReferenceTime);
 }
 
@@ -545,7 +559,7 @@ void DispSync::updateModelLocked() {
 
         // Exclude the min and max from the average
         durationSum -= minDuration + maxDuration;
-        mPeriod = durationSum / (mNumResyncSamples - 3);
+        mPeriodBase = mPeriod = durationSum / (mNumResyncSamples - 3);
 
         ALOGV("[%s] mPeriod = %" PRId64, mName, ns2us(mPeriod));
 

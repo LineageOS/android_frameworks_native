@@ -4878,6 +4878,33 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 reply->writeBool(getBE().mHwc->isUsingVrComposer());
                 return NO_ERROR;
             }
+            case 1029: {
+                // Code 1029 is an experimental feature that allows applications to
+                // simulate a high frequency panel by setting a multiplier and divisor
+                // on the VSYNC-sf clock.  If either the multiplier or divisor are
+                // 0, then the code will set both to 1 to return the VSYNC-sf clock
+                // to it's normal frequency.
+                int multiplier = data.readInt32();
+                int divisor = data.readInt32();
+
+                if ((multiplier == 0) || (divisor == 0)) {
+                    multiplier = 1;
+                    divisor = 1;
+                }
+
+                if ((multiplier == 1) && (divisor == 1)) {
+                    enableHardwareVsync();
+                } else {
+                    disableHardwareVsync(true);
+                }
+                getBE().mHwc->getActiveConfig(DisplayDevice::DISPLAY_PRIMARY)
+                    ->scalePanelFrequency(multiplier, divisor);
+                mPrimaryDispSync->scalePeriod(multiplier, divisor);
+
+                ATRACE_INT("PeriodMultiplier", multiplier);
+                ATRACE_INT("PeriodDivisor", divisor);
+                return NO_ERROR;
+            }
         }
     }
     return err;
