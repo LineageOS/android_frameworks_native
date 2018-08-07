@@ -77,28 +77,48 @@ class Replayer {
     void deleteDisplay(const DisplayDeletion& delete_, const std::shared_ptr<Event>& event);
     void updatePowerMode(const PowerModeUpdate& update, const std::shared_ptr<Event>& event);
 
-    status_t doSurfaceTransaction(const SurfaceChanges& surfaceChange);
-    void doDisplayTransaction(const DisplayChanges& displayChange);
+    status_t doSurfaceTransaction(SurfaceComposerClient::Transaction& transaction,
+            const SurfaceChanges& surfaceChange);
+    void doDisplayTransaction(SurfaceComposerClient::Transaction& transaction,
+            const DisplayChanges& displayChange);
 
-    status_t setPosition(layer_id id, const PositionChange& pc);
-    status_t setSize(layer_id id, const SizeChange& sc);
-    status_t setAlpha(layer_id id, const AlphaChange& ac);
-    status_t setLayer(layer_id id, const LayerChange& lc);
-    status_t setCrop(layer_id id, const CropChange& cc);
-    status_t setFinalCrop(layer_id id, const FinalCropChange& fcc);
-    status_t setMatrix(layer_id id, const MatrixChange& mc);
-    status_t setOverrideScalingMode(layer_id id, const OverrideScalingModeChange& osmc);
-    status_t setTransparentRegionHint(layer_id id, const TransparentRegionHintChange& trgc);
-    status_t setLayerStack(layer_id id, const LayerStackChange& lsc);
-    status_t setHiddenFlag(layer_id id, const HiddenFlagChange& hfc);
-    status_t setOpaqueFlag(layer_id id, const OpaqueFlagChange& ofc);
-    status_t setSecureFlag(layer_id id, const SecureFlagChange& sfc);
-    status_t setDeferredTransaction(layer_id id, const DeferredTransactionChange& dtc);
+    void setPosition(SurfaceComposerClient::Transaction& t,
+            layer_id id, const PositionChange& pc);
+    void setSize(SurfaceComposerClient::Transaction& t,
+            layer_id id, const SizeChange& sc);
+    void setAlpha(SurfaceComposerClient::Transaction& t,
+            layer_id id, const AlphaChange& ac);
+    void setLayer(SurfaceComposerClient::Transaction& t,
+            layer_id id, const LayerChange& lc);
+    void setCrop(SurfaceComposerClient::Transaction& t,
+            layer_id id, const CropChange& cc);
+    void setFinalCrop(SurfaceComposerClient::Transaction& t,
+            layer_id id, const FinalCropChange& fcc);
+    void setMatrix(SurfaceComposerClient::Transaction& t,
+            layer_id id, const MatrixChange& mc);
+    void setOverrideScalingMode(SurfaceComposerClient::Transaction& t,
+            layer_id id, const OverrideScalingModeChange& osmc);
+    void setTransparentRegionHint(SurfaceComposerClient::Transaction& t,
+            layer_id id, const TransparentRegionHintChange& trgc);
+    void setLayerStack(SurfaceComposerClient::Transaction& t,
+            layer_id id, const LayerStackChange& lsc);
+    void setHiddenFlag(SurfaceComposerClient::Transaction& t,
+            layer_id id, const HiddenFlagChange& hfc);
+    void setOpaqueFlag(SurfaceComposerClient::Transaction& t,
+            layer_id id, const OpaqueFlagChange& ofc);
+    void setSecureFlag(SurfaceComposerClient::Transaction& t,
+            layer_id id, const SecureFlagChange& sfc);
+    void setDeferredTransaction(SurfaceComposerClient::Transaction& t,
+            layer_id id, const DeferredTransactionChange& dtc);
 
-    void setDisplaySurface(display_id id, const DispSurfaceChange& dsc);
-    void setDisplayLayerStack(display_id id, const LayerStackChange& lsc);
-    void setDisplaySize(display_id id, const SizeChange& sc);
-    void setDisplayProjection(display_id id, const ProjectionChange& pc);
+    void setDisplaySurface(SurfaceComposerClient::Transaction& t,
+            display_id id, const DispSurfaceChange& dsc);
+    void setDisplayLayerStack(SurfaceComposerClient::Transaction& t,
+            display_id id, const LayerStackChange& lsc);
+    void setDisplaySize(SurfaceComposerClient::Transaction& t,
+            display_id id, const SizeChange& sc);
+    void setDisplayProjection(SurfaceComposerClient::Transaction& t,
+            display_id id, const ProjectionChange& pc);
 
     void doDeleteSurfaceControls();
     void waitUntilTimestamp(int64_t timestamp);

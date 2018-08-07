@@ -18,6 +18,11 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 //#define LOG_NDEBUG 0
 
+#ifndef NO_BUFFERHUB
+#include <gui/BufferHubConsumer.h>
+#include <gui/BufferHubProducer.h>
+#endif
+
 #include <gui/BufferQueue.h>
 #include <gui/BufferQueueConsumer.h>
 #include <gui/BufferQueueCore.h>
@@ -33,7 +38,7 @@ BufferQueue::ProxyConsumerListener::~ProxyConsumerListener() {}
 
 void BufferQueue::ProxyConsumerListener::onDisconnect() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onDisconnect();
     }
 }
@@ -41,7 +46,7 @@ void BufferQueue::ProxyConsumerListener::onDisconnect() {
 void BufferQueue::ProxyConsumerListener::onFrameAvailable(
         const BufferItem& item) {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onFrameAvailable(item);
     }
 }
@@ -49,21 +54,21 @@ void BufferQueue::ProxyConsumerListener::onFrameAvailable(
 void BufferQueue::ProxyConsumerListener::onFrameReplaced(
         const BufferItem& item) {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onFrameReplaced(item);
     }
 }
 
 void BufferQueue::ProxyConsumerListener::onBuffersReleased() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
     }
 }
 
 void BufferQueue::ProxyConsumerListener::onSidebandStreamChanged() {
     sp<ConsumerListener> listener(mConsumerListener.promote());
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onSidebandStreamChanged();
     }
 }
@@ -80,25 +85,53 @@ void BufferQueue::ProxyConsumerListener::addAndGetFrameTimestamps(
 void BufferQueue::createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
         sp<IGraphicBufferConsumer>* outConsumer,
         bool consumerIsSurfaceFlinger) {
-    LOG_ALWAYS_FATAL_IF(outProducer == nullptr,
+    LOG_ALWAYS_FATAL_IF(outProducer == NULL,
             "BufferQueue: outProducer must not be NULL");
-    LOG_ALWAYS_FATAL_IF(outConsumer == nullptr,
+    LOG_ALWAYS_FATAL_IF(outConsumer == NULL,
             "BufferQueue: outConsumer must not be NULL");
 
     sp<BufferQueueCore> core(new BufferQueueCore());
-    LOG_ALWAYS_FATAL_IF(core == nullptr,
+    LOG_ALWAYS_FATAL_IF(core == NULL,
             "BufferQueue: failed to create BufferQueueCore");
 
     sp<IGraphicBufferProducer> producer(new BufferQueueProducer(core, consumerIsSurfaceFlinger));
-    LOG_ALWAYS_FATAL_IF(producer == nullptr,
+    LOG_ALWAYS_FATAL_IF(producer == NULL,
             "BufferQueue: failed to create BufferQueueProducer");
 
     sp<IGraphicBufferConsumer> consumer(new BufferQueueConsumer(core));
-    LOG_ALWAYS_FATAL_IF(consumer == nullptr,
+    LOG_ALWAYS_FATAL_IF(consumer == NULL,
             "BufferQueue: failed to create BufferQueueConsumer");
 
     *outProducer = producer;
     *outConsumer = consumer;
 }
+
+#ifndef NO_BUFFERHUB
+void BufferQueue::createBufferHubQueue(sp<IGraphicBufferProducer>* outProducer,
+                                       sp<IGraphicBufferConsumer>* outConsumer) {
+    LOG_ALWAYS_FATAL_IF(outProducer == NULL, "BufferQueue: outProducer must not be NULL");
+    LOG_ALWAYS_FATAL_IF(outConsumer == NULL, "BufferQueue: outConsumer must not be NULL");
+
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+
+    dvr::ProducerQueueConfigBuilder configBuilder;
+    std::shared_ptr<dvr::ProducerQueue> producerQueue =
+            dvr::ProducerQueue::Create(configBuilder.Build(), dvr::UsagePolicy{});
+    LOG_ALWAYS_FATAL_IF(producerQueue == NULL, "BufferQueue: failed to create ProducerQueue.");
+
+    std::shared_ptr<dvr::ConsumerQueue> consumerQueue = producerQueue->CreateConsumerQueue();
+    LOG_ALWAYS_FATAL_IF(consumerQueue == NULL, "BufferQueue: failed to create ConsumerQueue.");
+
+    producer = BufferHubProducer::Create(producerQueue);
+    consumer = BufferHubConsumer::Create(consumerQueue);
+
+    LOG_ALWAYS_FATAL_IF(producer == NULL, "BufferQueue: failed to create BufferQueueProducer");
+    LOG_ALWAYS_FATAL_IF(consumer == NULL, "BufferQueue: failed to create BufferQueueConsumer");
+
+    *outProducer = producer;
+    *outConsumer = consumer;
+}
+#endif
 
 }; // namespace android

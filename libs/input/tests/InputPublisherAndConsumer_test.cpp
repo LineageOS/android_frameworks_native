@@ -36,7 +36,7 @@ protected:
     PreallocatedInputEventFactory mEventFactory;
 
     virtual void SetUp() {
-        status_t result = InputChannel::openInputChannelPair(String8("channel name"),
+        status_t result = InputChannel::openInputChannelPair("channel name",
                 serverChannel, clientChannel);
 
         mPublisher = new InputPublisher(serverChannel);
@@ -254,11 +254,15 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_EndToEnd) {
     ASSERT_NO_FATAL_FAILURE(PublishAndConsumeMotionEvent());
 }
 
-TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessThan1_ReturnsError) {
+TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenSequenceNumberIsZero_ReturnsError) {
     status_t status;
-    const size_t pointerCount = 0;
+    const size_t pointerCount = 1;
     PointerProperties pointerProperties[pointerCount];
     PointerCoords pointerCoords[pointerCount];
+    for (size_t i = 0; i < pointerCount; i++) {
+        pointerProperties[i].clear();
+        pointerCoords[i].clear();
+    }
 
     status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             pointerCount, pointerProperties, pointerCoords);
@@ -266,7 +270,20 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessTha
             << "publisher publishMotionEvent should return BAD_VALUE";
 }
 
-TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountGreaterThanMax_ReturnsError) {
+TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountLessThan1_ReturnsError) {
+    status_t status;
+    const size_t pointerCount = 0;
+    PointerProperties pointerProperties[pointerCount];
+    PointerCoords pointerCoords[pointerCount];
+
+    status = mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            pointerCount, pointerProperties, pointerCoords);
+    ASSERT_EQ(BAD_VALUE, status)
+            << "publisher publishMotionEvent should return BAD_VALUE";
+}
+
+TEST_F(InputPublisherAndConsumerTest,
+        PublishMotionEvent_WhenPointerCountGreaterThanMax_ReturnsError) {
     status_t status;
     const size_t pointerCount = MAX_POINTERS + 1;
     PointerProperties pointerProperties[pointerCount];
@@ -276,7 +293,7 @@ TEST_F(InputPublisherAndConsumerTest, PublishMotionEvent_WhenPointerCountGreater
         pointerCoords[i].clear();
     }
 
-    status = mPublisher->publishMotionEvent(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    status = mPublisher->publishMotionEvent(1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
             pointerCount, pointerProperties, pointerCoords);
     ASSERT_EQ(BAD_VALUE, status)
             << "publisher publishMotionEvent should return BAD_VALUE";

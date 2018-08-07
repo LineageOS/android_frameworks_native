@@ -185,6 +185,7 @@ class TimingInfo {
 struct Surface {
     android::sp<ANativeWindow> window;
     VkSwapchainKHR swapchain_handle;
+    uint64_t consumer_usage;
 };
 
 VkSurfaceKHR HandleFromSurface(Surface* surface) {
@@ -496,9 +497,18 @@ VkResult CreateAndroidSurfaceKHR(
 
     surface->window = pCreateInfo->window;
     surface->swapchain_handle = VK_NULL_HANDLE;
+    int err = native_window_get_consumer_usage(surface->window.get(),
+                                               &surface->consumer_usage);
+    if (err != android::NO_ERROR) {
+        ALOGE("native_window_get_consumer_usage() failed: %s (%d)",
+              strerror(-err), err);
+        surface->~Surface();
+        allocator->pfnFree(allocator->pUserData, surface);
+        return VK_ERROR_INITIALIZATION_FAILED;
+    }
 
     // TODO(jessehall): Create and use NATIVE_WINDOW_API_VULKAN.
-    int err =
+    err =
         native_window_api_connect(surface->window.get(), NATIVE_WINDOW_API_EGL);
     if (err != 0) {
         // TODO(jessehall): Improve error reporting. Can we enumerate possible
@@ -536,9 +546,45 @@ void DestroySurfaceKHR(VkInstance instance,
 VKAPI_ATTR
 VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
                                             uint32_t /*queue_family*/,
-                                            VkSurfaceKHR /*surface*/,
+                                            VkSurfaceKHR surface_handle,
                                             VkBool32* supported) {
-    *supported = VK_TRUE;
+    const Surface* surface = SurfaceFromHandle(surface_handle);
+    if (!surface) {
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    const ANativeWindow* window = surface->window.get();
+
+    int query_value;
+    int err = window->query(window, NATIVE_WINDOW_FORMAT, &query_value);
+    if (err != 0 || query_value < 0) {
+        ALOGE("NATIVE_WINDOW_FORMAT query failed: %s (%d) value=%d",
+              strerror(-err), err, query_value);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+
+    android_pixel_format native_format =
+        static_cast<android_pixel_format>(query_value);
+
+    bool format_supported = false;
+    switch (native_format) {
+        case HAL_PIXEL_FORMAT_RGBA_8888:
+        case HAL_PIXEL_FORMAT_RGB_565:
+            format_supported = true;
+            break;
+        default:
+            break;
+    }
+
+    // USAGE_CPU_READ_MASK 0xFUL
+    // USAGE_CPU_WRITE_MASK (0xFUL << 4)
+    // The currently used bits are as below:
+    // USAGE_CPU_READ_RARELY = 2UL
+    // USAGE_CPU_READ_OFTEN = 3UL
+    // USAGE_CPU_WRITE_RARELY = (2UL << 4)
+    // USAGE_CPU_WRITE_OFTEN = (3UL << 4)
+    *supported = static_cast<VkBool32>(format_supported ||
+                                       (surface->consumer_usage & 0xFFUL) == 0);
+
     return VK_SUCCESS;
 }
 
@@ -573,8 +619,15 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     }
 
     // TODO(jessehall): Figure out what the min/max values should be.
-    capabilities->minImageCount = 2;
-    capabilities->maxImageCount = 3;
+    int max_buffer_count;
+    err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &max_buffer_count);
+    if (err != 0) {
+        ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d)",
+              strerror(-err), err);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    capabilities->minImageCount = max_buffer_count == 1 ? 1 : 2;
+    capabilities->maxImageCount = static_cast<uint32_t>(max_buffer_count);
 
     capabilities->currentExtent =
         VkExtent2D{static_cast<uint32_t>(width), static_cast<uint32_t>(height)};
@@ -744,11 +797,32 @@ VkResult GetPhysicalDeviceSurfaceFormats2KHR(
 
 VKAPI_ATTR
 VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
-                                                 VkSurfaceKHR /*surface*/,
+                                                 VkSurfaceKHR surface,
                                                  uint32_t* count,
                                                  VkPresentModeKHR* modes) {
+    int err;
+    int query_value;
+    ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
+
+    err = window->query(window, NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS, &query_value);
+    if (err != 0 || query_value < 0) {
+        ALOGE("NATIVE_WINDOW_MIN_UNDEQUEUED_BUFFERS query failed: %s (%d) value=%d",
+              strerror(-err), err, query_value);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    uint32_t min_undequeued_buffers = static_cast<uint32_t>(query_value);
+
+    err = window->query(window, NATIVE_WINDOW_MAX_BUFFER_COUNT, &query_value);
+    if (err != 0 || query_value < 0) {
+        ALOGE("NATIVE_WINDOW_MAX_BUFFER_COUNT query failed: %s (%d) value=%d",
+              strerror(-err), err, query_value);
+        return VK_ERROR_SURFACE_LOST_KHR;
+    }
+    uint32_t max_buffer_count = static_cast<uint32_t>(query_value);
+
     android::Vector<VkPresentModeKHR> present_modes;
-    present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
+    if (min_undequeued_buffers + 1 < max_buffer_count)
+        present_modes.push_back(VK_PRESENT_MODE_MAILBOX_KHR);
     present_modes.push_back(VK_PRESENT_MODE_FIFO_KHR);
 
     VkPhysicalDevicePresentationPropertiesANDROID present_properties;
@@ -1194,19 +1268,19 @@ VkResult CreateSwapchainKHR(VkDevice device,
     //
     // TODO(jessehall): The error path here is the same as DestroySwapchain,
     // but not the non-error path. Should refactor/unify.
-    if (!swapchain->shared) {
-        for (uint32_t i = 0; i < num_images; i++) {
-            Swapchain::Image& img = swapchain->images[i];
-            if (img.dequeued) {
+    for (uint32_t i = 0; i < num_images; i++) {
+        Swapchain::Image& img = swapchain->images[i];
+        if (img.dequeued) {
+            if (!swapchain->shared) {
                 surface.window->cancelBuffer(surface.window.get(), img.buffer.get(),
                                              img.dequeue_fence);
                 img.dequeue_fence = -1;
                 img.dequeued = false;
             }
-            if (result != VK_SUCCESS) {
-                if (img.image)
-                    dispatch.DestroyImage(device, img.image, nullptr);
-            }
+        }
+        if (result != VK_SUCCESS) {
+            if (img.image)
+                dispatch.DestroyImage(device, img.image, nullptr);
         }
     }
 
@@ -1650,15 +1724,39 @@ VkResult GetSwapchainStatusKHR(
 }
 
 VKAPI_ATTR void SetHdrMetadataEXT(
-    VkDevice device,
+    VkDevice,
     uint32_t swapchainCount,
     const VkSwapchainKHR* pSwapchains,
     const VkHdrMetadataEXT* pHdrMetadataEXTs) {
-    // TODO: courtneygo: implement actual function
-    (void)device;
-    (void)swapchainCount;
-    (void)pSwapchains;
-    (void)pHdrMetadataEXTs;
+
+    for (uint32_t idx = 0; idx < swapchainCount; idx++) {
+        Swapchain* swapchain = SwapchainFromHandle(pSwapchains[idx]);
+        if (!swapchain)
+            continue;
+
+        if (swapchain->surface.swapchain_handle != pSwapchains[idx]) continue;
+
+        ANativeWindow* window = swapchain->surface.window.get();
+
+        VkHdrMetadataEXT vulkanMetadata = pHdrMetadataEXTs[idx];
+        const android_smpte2086_metadata smpteMetdata = {
+            {vulkanMetadata.displayPrimaryRed.x,
+             vulkanMetadata.displayPrimaryRed.y},
+            {vulkanMetadata.displayPrimaryGreen.x,
+             vulkanMetadata.displayPrimaryGreen.y},
+            {vulkanMetadata.displayPrimaryBlue.x,
+             vulkanMetadata.displayPrimaryBlue.y},
+            {vulkanMetadata.whitePoint.x, vulkanMetadata.whitePoint.y},
+            vulkanMetadata.maxLuminance,
+            vulkanMetadata.minLuminance};
+        native_window_set_buffers_smpte2086_metadata(window, &smpteMetdata);
+
+        const android_cta861_3_metadata cta8613Metadata = {
+            vulkanMetadata.maxContentLightLevel,
+            vulkanMetadata.maxFrameAverageLightLevel};
+        native_window_set_buffers_cta861_3_metadata(window, &cta8613Metadata);
+    }
+
     return;
 }
 

@@ -95,15 +95,18 @@ public:
     }
 
     // rectangle's width
+    __attribute__((no_sanitize("signed-integer-overflow")))
     inline int32_t getWidth() const {
         return right - left;
     }
 
     // rectangle's height
+    __attribute__((no_sanitize("signed-integer-overflow")))
     inline int32_t getHeight() const {
         return bottom - top;
     }
 
+    __attribute__((no_sanitize("signed-integer-overflow")))
     inline Rect getBounds() const {
         return Rect(right - left, bottom - top);
     }

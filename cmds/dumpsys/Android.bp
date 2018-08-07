@@ -17,6 +17,10 @@ cc_defaults {
         "libbinder",
     ],
 
+    static_libs: [
+        "libserviceutils",
+    ],
+
     clang: true,
 }
 

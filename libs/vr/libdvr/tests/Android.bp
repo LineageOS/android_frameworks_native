@@ -15,6 +15,7 @@
 shared_libraries = [
     "libbase",
     "libbinder",
+    "libbufferhubqueue",
     "libcutils",
     "libgui",
     "liblog",
@@ -22,22 +23,19 @@ shared_libraries = [
     "libui",
     "libutils",
     "libnativewindow",
+    "libpdx_default_transport",
 ]
 
 static_libraries = [
     "libdvr_static",
-    "libbufferhubqueue",
-    "libbufferhub",
     "libchrome",
     "libdvrcommon",
     "libdisplay",
-    "libpdx_default_transport",
     "libbroadcastring",
 ]
 
 cc_test {
     srcs: [
-        "dvr_buffer_queue-test.cpp",
         "dvr_display_manager-test.cpp",
         "dvr_named_buffer-test.cpp",
     ],

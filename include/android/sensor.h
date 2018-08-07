@@ -288,7 +288,7 @@ enum {
  * A sensor event.
  */
 
-/* NOTE: Must match hardware/sensors.h */
+/* NOTE: changes to these structs have to be backward compatible */
 typedef struct ASensorVector {
     union {
         float v[3];
@@ -350,7 +350,7 @@ typedef struct {
     };
 } AAdditionalInfoEvent;
 
-/* NOTE: Must match hardware/sensors.h */
+/* NOTE: changes to this struct has to be backward compatible */
 typedef struct ASensorEvent {
     int32_t version; /* sizeof(struct ASensorEvent) */
     int32_t sensor;

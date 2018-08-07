@@ -29,6 +29,7 @@
 
 #include <sys/cdefs.h>
 
+#include <android/data_space.h>
 #include <android/hardware_buffer.h>
 #include <android/rect.h>
 
@@ -84,23 +85,23 @@ typedef struct ANativeWindow ANativeWindow;
  * A pointer can be obtained using {@link ANativeWindow_lock()}.
  */
 typedef struct ANativeWindow_Buffer {
-    // The number of pixels that are show horizontally.
+    /// The number of pixels that are shown horizontally.
     int32_t width;
 
-    // The number of pixels that are shown vertically.
+    /// The number of pixels that are shown vertically.
     int32_t height;
 
-    // The number of *pixels* that a line in the buffer takes in
-    // memory. This may be >= width.
+    /// The number of *pixels* that a line in the buffer takes in
+    /// memory. This may be >= width.
     int32_t stride;
 
-    // The format of the buffer. One of AHARDWAREBUFFER_FORMAT_*
+    /// The format of the buffer. One of AHARDWAREBUFFER_FORMAT_*
     int32_t format;
 
-    // The actual bits.
+    /// The actual bits.
     void* bits;
 
-    // Do not touch.
+    /// Do not touch.
     uint32_t reserved[6];
 } ANativeWindow_Buffer;
 
@@ -188,6 +189,33 @@ int32_t ANativeWindow_unlockAndPost(ANativeWindow* window);
 int32_t ANativeWindow_setBuffersTransform(ANativeWindow* window, int32_t transform) __INTRODUCED_IN(26);
 
 #endif // __ANDROID_API__ >= 26
+
+#if __ANDROID_API__ >= 28
+
+/**
+ * All buffers queued after this call will be associated with the dataSpace
+ * parameter specified.
+ *
+ * dataSpace specifies additional information about the buffer.
+ * For example, it can be used to convey the color space of the image data in
+ * the buffer, or it can be used to indicate that the buffers contain depth
+ * measurement data instead of color images. The default dataSpace is 0,
+ * ADATASPACE_UNKNOWN, unless it has been overridden by the producer.
+ *
+ * \param dataSpace data space of all buffers queued after this call.
+ * \return 0 for success, -EINVAL if window is invalid or the dataspace is not
+ * supported.
+ */
+int32_t ANativeWindow_setBuffersDataSpace(ANativeWindow* window, int32_t dataSpace) __INTRODUCED_IN(28);
+
+/**
+ * Get the dataspace of the buffers in window.
+ * \return the dataspace of buffers in window, ADATASPACE_UNKNOWN is returned if
+ * dataspace is unknown, or -EINVAL if window is invalid.
+ */
+int32_t ANativeWindow_getBuffersDataSpace(ANativeWindow* window) __INTRODUCED_IN(28);
+
+#endif // __ANDROID_API__ >= 28
 
 #ifdef __cplusplus
 };

@@ -824,6 +824,9 @@ status_t KeyCharacterMap::Parser::parseType() {
     } else if (typeToken == "FULL") {
         type = KEYBOARD_TYPE_FULL;
     } else if (typeToken == "SPECIAL_FUNCTION") {
+        ALOGW("The SPECIAL_FUNCTION type is now declared in the device's IDC file, please set "
+                "the property 'keyboard.specialFunction' to '1' there instead.");
+        // TODO: return BAD_VALUE here in Q
         type = KEYBOARD_TYPE_SPECIAL_FUNCTION;
     } else if (typeToken == "OVERLAY") {
         type = KEYBOARD_TYPE_OVERLAY;

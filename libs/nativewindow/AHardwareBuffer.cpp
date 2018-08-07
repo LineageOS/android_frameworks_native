@@ -29,7 +29,7 @@
 #include <system/graphics.h>
 
 #include <private/android/AHardwareBufferHelpers.h>
-#include <android/hardware/graphics/common/1.0/types.h>
+#include <android/hardware/graphics/common/1.1/types.h>
 
 
 static constexpr int kFdBufferSize = 128 * sizeof(int);  // 128 ints
@@ -57,6 +57,13 @@ int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc, AHardwareBuffer**
 
     if (desc->format == AHARDWAREBUFFER_FORMAT_BLOB && desc->height != 1) {
         ALOGE("Height must be 1 when using the AHARDWAREBUFFER_FORMAT_BLOB format");
+        return BAD_VALUE;
+    }
+
+    if ((desc->usage & (AHARDWAREBUFFER_USAGE_CPU_READ_MASK | AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) &&
+        (desc->usage & AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT)) {
+        ALOGE("AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT requires AHARDWAREBUFFER_USAGE_CPU_READ_NEVER "
+              "and AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER");
         return BAD_VALUE;
     }
 
@@ -340,6 +347,18 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_BLOB == AHARDWAREBUFFER_FORMAT_BLOB,
             "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_DEPTH_16 == AHARDWAREBUFFER_FORMAT_D16_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_DEPTH_24 == AHARDWAREBUFFER_FORMAT_D24_UNORM,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_DEPTH_24_STENCIL_8 == AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_DEPTH_32F == AHARDWAREBUFFER_FORMAT_D32_FLOAT,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_DEPTH_32F_STENCIL_8 == AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT,
+            "HAL and AHardwareBuffer pixel format don't match");
+    static_assert(HAL_PIXEL_FORMAT_STENCIL_8 == AHARDWAREBUFFER_FORMAT_S8_UINT,
+            "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_BGRA_8888 == AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM,
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YV12 == AHARDWAREBUFFER_FORMAT_YV12,
@@ -360,14 +379,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCBCR_420_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420,
             "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_YCBCR_422_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422,
-            "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_YCBCR_444_888 == AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444,
-            "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_FLEX_RGB_888 == AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8,
-            "HAL and AHardwareBuffer pixel format don't match");
-    static_assert(HAL_PIXEL_FORMAT_FLEX_RGBA_8888 == AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8,
-            "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCBCR_422_SP == AHARDWAREBUFFER_FORMAT_YCbCr_422_SP,
             "HAL and AHardwareBuffer pixel format don't match");
     static_assert(HAL_PIXEL_FORMAT_YCRCB_420_SP == AHARDWAREBUFFER_FORMAT_YCrCb_420_SP,
@@ -383,6 +394,12 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
         case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
         case AHARDWAREBUFFER_FORMAT_BLOB:
+        case AHARDWAREBUFFER_FORMAT_D16_UNORM:
+        case AHARDWAREBUFFER_FORMAT_D24_UNORM:
+        case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
+        case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
+        case AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT:
+        case AHARDWAREBUFFER_FORMAT_S8_UINT:
             // VNDK formats only -- unfortunately we can't differentiate from where we're called
         case AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM:
         case AHARDWAREBUFFER_FORMAT_YV12:
@@ -394,10 +411,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_RAW_OPAQUE:
         case AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED:
         case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_422:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_444:
-        case AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8:
-        case AHARDWAREBUFFER_FORMAT_FLEX_R8G8B8A8:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
         case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
@@ -417,7 +430,7 @@ uint32_t AHardwareBuffer_convertToPixelFormat(uint32_t ahardwarebuffer_format) {
 }
 
 uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {
-    using android::hardware::graphics::common::V1_0::BufferUsage;
+    using android::hardware::graphics::common::V1_1::BufferUsage;
     static_assert(AHARDWAREBUFFER_USAGE_CPU_READ_NEVER == (uint64_t)BufferUsage::CPU_READ_NEVER,
             "gralloc and AHardwareBuffer flags don't match");
     static_assert(AHARDWAREBUFFER_USAGE_CPU_READ_RARELY == (uint64_t)BufferUsage::CPU_READ_RARELY,
@@ -441,6 +454,10 @@ uint64_t AHardwareBuffer_convertToGrallocUsageBits(uint64_t usage) {
     static_assert(AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER == (uint64_t)BufferUsage::GPU_DATA_BUFFER,
             "gralloc and AHardwareBuffer flags don't match");
     static_assert(AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA == (uint64_t)BufferUsage::SENSOR_DIRECT_DATA,
+            "gralloc and AHardwareBuffer flags don't match");
+    static_assert(AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP == (uint64_t)BufferUsage::GPU_CUBE_MAP,
+            "gralloc and AHardwareBuffer flags don't match");
+    static_assert(AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE == (uint64_t)BufferUsage::GPU_MIPMAP_COMPLETE,
             "gralloc and AHardwareBuffer flags don't match");
     return usage;
 }

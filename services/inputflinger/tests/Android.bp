@@ -20,7 +20,6 @@ cc_test {
         "libhardware",
         "libhardware_legacy",
         "libui",
-        "libskia",
         "libinput",
         "libinputflinger",
         "libinputservice",

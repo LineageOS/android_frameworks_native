@@ -36,7 +36,6 @@
 #include <thread>
 
 constexpr Config NULL_DISPLAY_CONFIG = static_cast<Config>(0);
-constexpr Display DEFAULT_DISPLAY = static_cast<Display>(1);
 
 using namespace sftest;
 
@@ -146,8 +145,7 @@ private:
 } // namespace
 
 FakeComposerClient::FakeComposerClient()
-      : mCallbacksOn(false),
-        mClient(nullptr),
+      : mEventCallback(nullptr),
         mCurrentConfig(NULL_DISPLAY_CONFIG),
         mVsyncEnabled(false),
         mLayers(),
@@ -161,24 +159,32 @@ bool FakeComposerClient::hasCapability(hwc2_capability_t /*capability*/) {
     return false;
 }
 
-void FakeComposerClient::removeClient() {
-    ALOGV("removeClient");
-    // TODO: Ahooga! Only thing current lifetime management choices in
-    // APIs make possible. Sad.
-    delete this;
+std::string FakeComposerClient::dumpDebugInfo() {
+    return {};
 }
 
-void FakeComposerClient::enableCallback(bool enable) {
-    ALOGV("enableCallback");
-    mCallbacksOn = enable;
-    if (mCallbacksOn) {
-        mClient->onHotplug(DEFAULT_DISPLAY, IComposerCallback::Connection::CONNECTED);
+void FakeComposerClient::registerEventCallback(EventCallback* callback) {
+    ALOGV("registerEventCallback");
+    mEventCallback = callback;
+    if (mEventCallback) {
+        mEventCallback->onHotplug(PRIMARY_DISPLAY, IComposerCallback::Connection::CONNECTED);
     }
 }
 
+void FakeComposerClient::unregisterEventCallback() {
+    ALOGV("unregisterEventCallback");
+    mEventCallback = nullptr;
+}
+
 void FakeComposerClient::hotplugDisplay(Display display, IComposerCallback::Connection state) {
-    if (mCallbacksOn) {
-        mClient->onHotplug(display, state);
+    if (mEventCallback) {
+        mEventCallback->onHotplug(display, state);
+    }
+}
+
+void FakeComposerClient::refreshDisplay(Display display) {
+    if (mEventCallback) {
+        mEventCallback->onRefresh(display);
     }
 }
 
@@ -495,12 +501,8 @@ Error FakeComposerClient::setLayerZOrder(Display /*display*/, Layer layer, uint3
 
 //////////////////////////////////////////////////////////////////
 
-void FakeComposerClient::setClient(ComposerClient* client) {
-    mClient = client;
-}
-
 void FakeComposerClient::requestVSync(uint64_t vsyncTime) {
-    if (mCallbacksOn) {
+    if (mEventCallback) {
         uint64_t timestamp = vsyncTime;
         ALOGV("Vsync");
         if (timestamp == 0) {
@@ -511,7 +513,7 @@ void FakeComposerClient::requestVSync(uint64_t vsyncTime) {
         if (mSurfaceComposer != nullptr) {
             mSurfaceComposer->injectVSync(timestamp);
         } else {
-            mClient->onVsync(DEFAULT_DISPLAY, timestamp);
+            mEventCallback->onVsync(PRIMARY_DISPLAY, timestamp);
         }
     }
 }

@@ -166,7 +166,7 @@ status_t BufferQueueProducer::setMaxDequeuedBufferCount(
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
     }
 
@@ -221,7 +221,7 @@ status_t BufferQueueProducer::setAsyncMode(bool async) {
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
     }
     return NO_ERROR;
@@ -450,11 +450,11 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
 
         mSlots[found].mBufferState.dequeue();
 
-        if ((buffer == nullptr) ||
+        if ((buffer == NULL) ||
                 buffer->needsReallocation(width, height, format, BQ_LAYER_COUNT, usage))
         {
             mSlots[found].mAcquireCalled = false;
-            mSlots[found].mGraphicBuffer = nullptr;
+            mSlots[found].mGraphicBuffer = NULL;
             mSlots[found].mRequestBufferCalled = false;
             mSlots[found].mEglDisplay = EGL_NO_DISPLAY;
             mSlots[found].mEglFence = EGL_NO_SYNC_KHR;
@@ -472,7 +472,7 @@ status_t BufferQueueProducer::dequeueBuffer(int* outSlot, sp<android::Fence>* ou
         BQ_LOGV("dequeueBuffer: setting buffer age to %" PRIu64,
                 mCore->mBufferAge);
 
-        if (CC_UNLIKELY(mSlots[found].mFence == nullptr)) {
+        if (CC_UNLIKELY(mSlots[found].mFence == NULL)) {
             BQ_LOGE("dequeueBuffer: about to return a NULL fence - "
                     "slot=%d w=%d h=%d format=%u",
                     found, buffer->width, buffer->height, buffer->format);
@@ -613,7 +613,7 @@ status_t BufferQueueProducer::detachBuffer(int slot) {
         listener = mCore->mConsumerListener;
     }
 
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
     }
 
@@ -624,10 +624,10 @@ status_t BufferQueueProducer::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         sp<Fence>* outFence) {
     ATRACE_CALL();
 
-    if (outBuffer == nullptr) {
+    if (outBuffer == NULL) {
         BQ_LOGE("detachNextBuffer: outBuffer must not be NULL");
         return BAD_VALUE;
-    } else if (outFence == nullptr) {
+    } else if (outFence == NULL) {
         BQ_LOGE("detachNextBuffer: outFence must not be NULL");
         return BAD_VALUE;
     }
@@ -671,7 +671,7 @@ status_t BufferQueueProducer::detachNextBuffer(sp<GraphicBuffer>* outBuffer,
         listener = mCore->mConsumerListener;
     }
 
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
     }
 
@@ -682,10 +682,10 @@ status_t BufferQueueProducer::attachBuffer(int* outSlot,
         const sp<android::GraphicBuffer>& buffer) {
     ATRACE_CALL();
 
-    if (outSlot == nullptr) {
+    if (outSlot == NULL) {
         BQ_LOGE("attachBuffer: outSlot must not be NULL");
         return BAD_VALUE;
-    } else if (buffer == nullptr) {
+    } else if (buffer == NULL) {
         BQ_LOGE("attachBuffer: cannot attach NULL buffer");
         return BAD_VALUE;
     }
@@ -765,8 +765,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             &crop, &scalingMode, &transform, &acquireFence, &stickyTransform,
             &getFrameTimestamps);
     const Region& surfaceDamage = input.getSurfaceDamage();
+    const HdrMetadata& hdrMetadata = input.getHdrMetadata();
 
-    if (acquireFence == nullptr) {
+    if (acquireFence == NULL) {
         BQ_LOGE("queueBuffer: fence is NULL");
         return BAD_VALUE;
     }
@@ -825,9 +826,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         }
 
         BQ_LOGV("queueBuffer: slot=%d/%" PRIu64 " time=%" PRIu64 " dataSpace=%d"
-                " crop=[%d,%d,%d,%d] transform=%#x scale=%s",
-                slot, mCore->mFrameCounter + 1, requestedPresentTimestamp,
-                dataSpace, crop.left, crop.top, crop.right, crop.bottom,
+                " validHdrMetadataTypes=0x%x crop=[%d,%d,%d,%d] transform=%#x scale=%s",
+                slot, mCore->mFrameCounter + 1, requestedPresentTimestamp, dataSpace,
+                hdrMetadata.validTypes, crop.left, crop.top, crop.right, crop.bottom,
                 transform,
                 BufferItem::scalingModeName(static_cast<uint32_t>(scalingMode)));
 
@@ -866,6 +867,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mTimestamp = requestedPresentTimestamp;
         item.mIsAutoTimestamp = isAutoTimestamp;
         item.mDataSpace = dataSpace;
+        item.mHdrMetadata = hdrMetadata;
         item.mFrameNumber = currentFrameNumber;
         item.mSlot = slot;
         item.mFence = acquireFence;
@@ -876,6 +878,7 @@ status_t BufferQueueProducer::queueBuffer(int slot,
         item.mSurfaceDamage = surfaceDamage;
         item.mQueuedBuffer = true;
         item.mAutoRefresh = mCore->mSharedBufferMode && mCore->mAutoRefresh;
+        item.mApi = mCore->mConnectedApi;
 
         mStickyTransform = stickyTransform;
 
@@ -970,9 +973,9 @@ status_t BufferQueueProducer::queueBuffer(int slot,
             mCallbackCondition.wait(mCallbackMutex);
         }
 
-        if (frameAvailableListener != nullptr) {
+        if (frameAvailableListener != NULL) {
             frameAvailableListener->onFrameAvailable(item);
-        } else if (frameReplacedListener != nullptr) {
+        } else if (frameReplacedListener != NULL) {
             frameReplacedListener->onFrameReplaced(item);
         }
 
@@ -1037,7 +1040,7 @@ status_t BufferQueueProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
         BQ_LOGE("cancelBuffer: slot %d is not owned by the producer "
                 "(state = %s)", slot, mSlots[slot].mBufferState.string());
         return BAD_VALUE;
-    } else if (fence == nullptr) {
+    } else if (fence == NULL) {
         BQ_LOGE("cancelBuffer: fence is NULL");
         return BAD_VALUE;
     }
@@ -1067,7 +1070,7 @@ int BufferQueueProducer::query(int what, int *outValue) {
     ATRACE_CALL();
     Mutex::Autolock lock(mCore->mMutex);
 
-    if (outValue == nullptr) {
+    if (outValue == NULL) {
         BQ_LOGE("query: outValue was NULL");
         return BAD_VALUE;
     }
@@ -1118,6 +1121,9 @@ int BufferQueueProducer::query(int what, int *outValue) {
         case NATIVE_WINDOW_CONSUMER_IS_PROTECTED:
             value = static_cast<int32_t>(mCore->mConsumerIsProtected);
             break;
+        case NATIVE_WINDOW_MAX_BUFFER_COUNT:
+            value = static_cast<int32_t>(mCore->mMaxBufferCount);
+            break;
         default:
             return BAD_VALUE;
     }
@@ -1140,12 +1146,12 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
         return NO_INIT;
     }
 
-    if (mCore->mConsumerListener == nullptr) {
+    if (mCore->mConsumerListener == NULL) {
         BQ_LOGE("connect: BufferQueue has no consumer");
         return NO_INIT;
     }
 
-    if (output == nullptr) {
+    if (output == NULL) {
         BQ_LOGE("connect: output was NULL");
         return BAD_VALUE;
     }
@@ -1183,10 +1189,10 @@ status_t BufferQueueProducer::connect(const sp<IProducerListener>& listener,
             output->nextFrameNumber = mCore->mFrameCounter + 1;
             output->bufferReplaced = false;
 
-            if (listener != nullptr) {
+            if (listener != NULL) {
                 // Set up a death notification so that we can disconnect
                 // automatically if the remote producer dies
-                if (IInterface::asBinder(listener)->remoteBinder() != nullptr) {
+                if (IInterface::asBinder(listener)->remoteBinder() != NULL) {
                     status = IInterface::asBinder(listener)->linkToDeath(
                             static_cast<IBinder::DeathRecipient*>(this));
                     if (status != NO_ERROR) {
@@ -1263,7 +1269,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                     mCore->freeAllBuffersLocked();
 
                     // Remove our death notification callback if we have one
-                    if (mCore->mLinkedToDeath != nullptr) {
+                    if (mCore->mLinkedToDeath != NULL) {
                         sp<IBinder> token =
                                 IInterface::asBinder(mCore->mLinkedToDeath);
                         // This can fail if we're here because of the death
@@ -1273,8 +1279,8 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
                     }
                     mCore->mSharedBufferSlot =
                             BufferQueueCore::INVALID_BUFFER_SLOT;
-                    mCore->mLinkedToDeath = nullptr;
-                    mCore->mConnectedProducerListener = nullptr;
+                    mCore->mLinkedToDeath = NULL;
+                    mCore->mConnectedProducerListener = NULL;
                     mCore->mConnectedApi = BufferQueueCore::NO_CONNECTED_API;
                     mCore->mConnectedPid = -1;
                     mCore->mSidebandStream.clear();
@@ -1297,7 +1303,7 @@ status_t BufferQueueProducer::disconnect(int api, DisconnectMode mode) {
     } // Autolock scope
 
     // Call back without lock held
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onBuffersReleased();
         listener->onDisconnect();
     }
@@ -1313,7 +1319,7 @@ status_t BufferQueueProducer::setSidebandStream(const sp<NativeHandle>& stream) 
         listener = mCore->mConsumerListener;
     } // Autolock scope
 
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->onSidebandStreamChanged();
     }
     return NO_ERROR;
@@ -1328,6 +1334,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
         uint32_t allocHeight = 0;
         PixelFormat allocFormat = PIXEL_FORMAT_UNKNOWN;
         uint64_t allocUsage = 0;
+        std::string allocName;
         { // Autolock scope
             Mutex::Autolock lock(mCore->mMutex);
             mCore->waitWhileAllocatingLocked();
@@ -1347,6 +1354,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
             allocHeight = height > 0 ? height : mCore->mDefaultHeight;
             allocFormat = format != 0 ? format : mCore->mDefaultBufferFormat;
             allocUsage = usage | mCore->mConsumerUsageBits;
+            allocName.assign(mCore->mConsumerName.string(), mCore->mConsumerName.size());
 
             mCore->mIsAllocating = true;
         } // Autolock scope
@@ -1355,7 +1363,7 @@ void BufferQueueProducer::allocateBuffers(uint32_t width, uint32_t height,
         for (size_t i = 0; i <  newBufferCount; ++i) {
             sp<GraphicBuffer> graphicBuffer = new GraphicBuffer(
                     allocWidth, allocHeight, allocFormat, BQ_LAYER_COUNT,
-                    allocUsage, {mConsumerName.string(), mConsumerName.size()});
+                    allocUsage, allocName);
 
             status_t result = graphicBuffer->initCheck();
 
@@ -1527,7 +1535,7 @@ void BufferQueueProducer::addAndGetFrameTimestamps(
         Mutex::Autolock lock(mCore->mMutex);
         listener = mCore->mConsumerListener;
     }
-    if (listener != nullptr) {
+    if (listener != NULL) {
         listener->addAndGetFrameTimestamps(newTimestamps, outDelta);
     }
 }

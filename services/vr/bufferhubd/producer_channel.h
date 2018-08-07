@@ -30,6 +30,12 @@ class ProducerChannel : public BufferHubChannel {
   template <typename T>
   using BufferWrapper = pdx::rpc::BufferWrapper<T>;
 
+  static std::unique_ptr<ProducerChannel> Create(BufferHubService* service,
+                                                 int buffer_id, int channel_id,
+                                                 IonBuffer buffer,
+                                                 IonBuffer metadata_buffer,
+                                                 size_t user_metadata_size);
+
   static pdx::Status<std::shared_ptr<ProducerChannel>> Create(
       BufferHubService* service, int channel_id, uint32_t width,
       uint32_t height, uint32_t layer_count, uint32_t format, uint64_t usage,
@@ -57,15 +63,9 @@ class ProducerChannel : public BufferHubChannel {
   void AddConsumer(ConsumerChannel* channel);
   void RemoveConsumer(ConsumerChannel* channel);
 
-  bool CheckAccess(int euid, int egid);
   bool CheckParameters(uint32_t width, uint32_t height, uint32_t layer_count,
                        uint32_t format, uint64_t usage,
                        size_t user_metadata_size);
-
-  pdx::Status<void> OnProducerMakePersistent(Message& message,
-                                             const std::string& name,
-                                             int user_id, int group_id);
-  pdx::Status<void> OnRemovePersistence(Message& message);
 
  private:
   std::vector<ConsumerChannel*> consumer_channels_;
@@ -98,23 +98,18 @@ class ProducerChannel : public BufferHubChannel {
   pdx::LocalHandle release_fence_fd_;
   pdx::LocalHandle dummy_fence_fd_;
 
-  static constexpr int kNoCheckId = -1;
-  static constexpr int kUseCallerId = 0;
-  static constexpr int kRootId = 0;
-
-  // User and group id to check when obtaining a persistent buffer.
-  int owner_user_id_ = kNoCheckId;
-  int owner_group_id_ = kNoCheckId;
-
-  std::string name_;
-
+  ProducerChannel(BufferHubService* service, int buffer_id, int channel_id,
+                  IonBuffer buffer, IonBuffer metadata_buffer,
+                  size_t user_metadata_size, int* error);
   ProducerChannel(BufferHubService* service, int channel, uint32_t width,
                   uint32_t height, uint32_t layer_count, uint32_t format,
                   uint64_t usage, size_t user_metadata_size, int* error);
 
+  int InitializeBuffer();
   pdx::Status<BufferDescription<BorrowedHandle>> OnGetBuffer(Message& message);
   pdx::Status<void> OnProducerPost(Message& message, LocalFence acquire_fence);
   pdx::Status<LocalFence> OnProducerGain(Message& message);
+  pdx::Status<RemoteChannelHandle> OnProducerDetach(Message& message);
 
   ProducerChannel(const ProducerChannel&) = delete;
   void operator=(const ProducerChannel&) = delete;

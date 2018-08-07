@@ -41,6 +41,9 @@ class ClientChannel : public pdx::ClientChannel {
   }
 
   LocalChannelHandle& GetChannelHandle() override { return channel_handle_; }
+  const LocalChannelHandle& GetChannelHandle() const override {
+    return channel_handle_;
+  }
   void* AllocateTransactionState() override;
   void FreeTransactionState(void* state) override;
 
@@ -73,6 +76,8 @@ class ClientChannel : public pdx::ClientChannel {
                      LocalHandle* handle) const override;
   bool GetChannelHandle(void* transaction_state, ChannelReference ref,
                         LocalChannelHandle* handle) const override;
+
+  std::unique_ptr<pdx::ChannelParcelable> TakeChannelParcelable() override;
 
  private:
   explicit ClientChannel(LocalChannelHandle channel_handle);

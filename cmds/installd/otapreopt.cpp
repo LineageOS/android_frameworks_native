@@ -555,6 +555,7 @@ private:
                 CHECK(EndsWith(path, "/"));
                 path = path + "oat";
                 if (access(path.c_str(), F_OK) == 0) {
+                    LOG(INFO) << "Skipping A/B OTA preopt of already preopted package " << apk_path;
                     return true;
                 }
             }
@@ -566,7 +567,7 @@ private:
         // this tool will wipe the OTA artifact cache and try again (for robustness after
         // a failed OTA with remaining cache artifacts).
         if (access(apk_path, F_OK) != 0) {
-            LOG(WARNING) << "Skipping preopt of non-existing package " << apk_path;
+            LOG(WARNING) << "Skipping A/B OTA preopt of non-existing package " << apk_path;
             return true;
         }
 

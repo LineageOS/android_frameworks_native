@@ -19,7 +19,7 @@ cc_library_headers {
 
 cc_library_shared {
     name: "libgui",
-    vendor_available: true,
+    vendor_available: false,
     vndk: {
         enabled: true,
     },
@@ -63,6 +63,12 @@ cc_library_shared {
         // Allow documentation warnings
         "-Wno-documentation",
 
+        // Allow implicit instantiation for templated class function
+        "-Wno-undefined-func-template",
+
+        // Allow explicitly marking struct as packed even when unnecessary
+        "-Wno-packed",
+
         "-DDEBUG_ONLY_CODE=0",
     ],
 
@@ -77,6 +83,8 @@ cc_library_shared {
 
     srcs: [
         "BitTube.cpp",
+        "BufferHubConsumer.cpp",
+        "BufferHubProducer.cpp",
         "BufferItem.cpp",
         "BufferItemConsumer.cpp",
         "BufferQueue.cpp",
@@ -90,6 +98,7 @@ cc_library_shared {
         "FrameTimestamps.cpp",
         "GLConsumer.cpp",
         "GuiConfig.cpp",
+        "HdrMetadata.cpp",
         "IDisplayEventConnection.cpp",
         "IConsumerListener.cpp",
         "IGraphicBufferConsumer.cpp",
@@ -111,8 +120,11 @@ cc_library_shared {
     ],
 
     shared_libs: [
+        "android.hardware.graphics.common@1.1",
         "libsync",
         "libbinder",
+        "libbufferhubqueue",  // TODO(b/70046255): Remove this once BufferHub is integrated into libgui.
+        "libpdx_default_transport",
         "libcutils",
         "libEGL",
         "libGLESv2",
@@ -128,9 +140,26 @@ cc_library_shared {
         "android.hardware.configstore-utils",
     ],
 
+    // bufferhub is not used when building libgui for vendors
+    target: {
+        vendor: {
+            cflags: ["-DNO_BUFFERHUB"],
+            exclude_srcs: [
+                "BufferHubConsumer.cpp",
+                "BufferHubProducer.cpp",
+            ],
+            exclude_shared_libs: [
+                "libbufferhubqueue",
+                "libpdx_default_transport",
+            ],
+        },
+    },
+
     header_libs: [
+        "libdvr_headers",
         "libnativebase_headers",
         "libgui_headers",
+        "libpdx_headers",
     ],
 
     export_shared_lib_headers: [
@@ -140,6 +169,7 @@ cc_library_shared {
         "libui",
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
+        "android.hardware.graphics.common@1.1",
     ],
 
     export_header_lib_headers: [

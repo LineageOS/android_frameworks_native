@@ -119,6 +119,10 @@ LocalChannelHandle& Client::GetChannelHandle() {
   return channel_->GetChannelHandle();
 }
 
+const LocalChannelHandle& Client::GetChannelHandle() const {
+  return channel_->GetChannelHandle();
+}
+
 ///////////////////////////// Transaction implementation //////////////////////
 
 Transaction::Transaction(Client& client) : client_{client} {}

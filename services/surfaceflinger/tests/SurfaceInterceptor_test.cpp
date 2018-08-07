@@ -22,10 +22,11 @@
 #include <android/native_window.h>
 
 #include <gui/ISurfaceComposer.h>
+#include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
+
 #include <private/gui/ComposerService.h>
-#include <private/gui/LayerState.h>
 #include <ui/DisplayInfo.h>
 
 #include <fstream>
@@ -33,6 +34,8 @@
 #include <thread>
 
 namespace android {
+
+using Transaction = SurfaceComposerClient::Transaction;
 
 constexpr int32_t SCALING_UPDATE = 1;
 constexpr uint32_t BUFFER_UPDATES = 18;
@@ -145,15 +148,15 @@ protected:
         mBGSurfaceControl = mComposerClient->createSurface(
                 String8("BG Interceptor Test Surface"), displayWidth, displayHeight,
                 PIXEL_FORMAT_RGBA_8888, 0);
-        ASSERT_TRUE(mBGSurfaceControl != NULL);
+        ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         mBGLayerId = getSurfaceId("BG Interceptor Test Surface");
 
-        SurfaceComposerClient::openGlobalTransaction();
-        mComposerClient->setDisplayLayerStack(display, 0);
-        ASSERT_EQ(NO_ERROR, mBGSurfaceControl->setLayer(INT_MAX-3));
-        ASSERT_EQ(NO_ERROR, mBGSurfaceControl->show());
-        SurfaceComposerClient::closeGlobalTransaction(true);
+        Transaction t;
+        t.setDisplayLayerStack(display, 0);
+        ASSERT_EQ(NO_ERROR, t.setLayer(mBGSurfaceControl, INT_MAX-3)
+                .show(mBGSurfaceControl)
+                .apply());
     }
 
     virtual void TearDown() {
@@ -169,13 +172,14 @@ protected:
     int32_t mTargetId;
 
 public:
-    void captureTest(void (SurfaceInterceptorTest::* action)(void),
+    void captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
             bool (SurfaceInterceptorTest::* verification)(Trace *));
-    void captureTest(void (SurfaceInterceptorTest::* action)(void),
+    void captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
             SurfaceChange::SurfaceChangeCase changeCase);
-    void captureTest(void (SurfaceInterceptorTest::* action)(void),
+    void captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
             Increment::IncrementCase incrementCase);
-    void runInTransaction(void (SurfaceInterceptorTest::* action)(void), bool intercepted = false);
+    void runInTransaction(void (SurfaceInterceptorTest::* action)(Transaction&),
+            bool intercepted = false);
 
     // Verification of changes to a surface
     bool positionUpdateFound(const SurfaceChange& change, bool foundPosition);
@@ -206,28 +210,29 @@ public:
     bool bufferUpdatesFound(Trace* trace);
 
     // Perform each of the possible changes to a surface
-    void positionUpdate();
-    void sizeUpdate();
-    void alphaUpdate();
-    void layerUpdate();
-    void cropUpdate();
-    void finalCropUpdate();
-    void matrixUpdate();
-    void overrideScalingModeUpdate();
-    void transparentRegionHintUpdate();
-    void layerStackUpdate();
-    void hiddenFlagUpdate();
-    void opaqueFlagUpdate();
-    void secureFlagUpdate();
-    void deferredTransactionUpdate();
-    void runAllUpdates();
-    void surfaceCreation();
+    void positionUpdate(Transaction&);
+    void sizeUpdate(Transaction&);
+    void alphaUpdate(Transaction&);
+    void layerUpdate(Transaction&);
+    void cropUpdate(Transaction&);
+    void finalCropUpdate(Transaction&);
+    void matrixUpdate(Transaction&);
+    void overrideScalingModeUpdate(Transaction&);
+    void transparentRegionHintUpdate(Transaction&);
+    void layerStackUpdate(Transaction&);
+    void hiddenFlagUpdate(Transaction&);
+    void opaqueFlagUpdate(Transaction&);
+    void secureFlagUpdate(Transaction&);
+    void deferredTransactionUpdate(Transaction&);
+    void surfaceCreation(Transaction&);
+    void displayCreation(Transaction&);
+    void displayDeletion(Transaction&);
+
     void nBufferUpdates();
-    void displayCreation();
-    void displayDeletion();
+    void runAllUpdates();
 };
 
-void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(void),
+void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
         bool (SurfaceInterceptorTest::* verification)(Trace *))
 {
     runInTransaction(action, true);
@@ -236,7 +241,7 @@ void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)
     ASSERT_TRUE((this->*verification)(&capturedTrace));
 }
 
-void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(void),
+void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
         Increment::IncrementCase incrementCase)
 {
     runInTransaction(action, true);
@@ -245,7 +250,7 @@ void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)
     ASSERT_TRUE(singleIncrementFound(&capturedTrace, incrementCase));
 }
 
-void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(void),
+void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)(Transaction&),
         SurfaceChange::SurfaceChangeCase changeCase)
 {
     runInTransaction(action, true);
@@ -254,83 +259,84 @@ void SurfaceInterceptorTest::captureTest(void (SurfaceInterceptorTest::* action)
     ASSERT_TRUE(surfaceUpdateFound(&capturedTrace, changeCase));
 }
 
-void SurfaceInterceptorTest::runInTransaction(void (SurfaceInterceptorTest::* action)(void),
+void SurfaceInterceptorTest::runInTransaction(void (SurfaceInterceptorTest::* action)(Transaction&),
         bool intercepted)
 {
     if (intercepted) {
         enableInterceptor();
     }
-    SurfaceComposerClient::openGlobalTransaction();
-    (this->*action)();
-    SurfaceComposerClient::closeGlobalTransaction(true);
+    Transaction t;
+    (this->*action)(t);
+    t.apply(true);
+
     if (intercepted) {
         disableInterceptor();
     }
 }
 
-void SurfaceInterceptorTest::positionUpdate() {
-    mBGSurfaceControl->setPosition(POSITION_UPDATE, POSITION_UPDATE);
+void SurfaceInterceptorTest::positionUpdate(Transaction& t) {
+    t.setPosition(mBGSurfaceControl, POSITION_UPDATE, POSITION_UPDATE);
 }
 
-void SurfaceInterceptorTest::sizeUpdate() {
-    mBGSurfaceControl->setSize(SIZE_UPDATE, SIZE_UPDATE);
+void SurfaceInterceptorTest::sizeUpdate(Transaction& t) {
+    t.setSize(mBGSurfaceControl, SIZE_UPDATE, SIZE_UPDATE);
 }
 
-void SurfaceInterceptorTest::alphaUpdate() {
-    mBGSurfaceControl->setAlpha(ALPHA_UPDATE);
+void SurfaceInterceptorTest::alphaUpdate(Transaction& t) {
+    t.setAlpha(mBGSurfaceControl, ALPHA_UPDATE);
 }
 
-void SurfaceInterceptorTest::layerUpdate() {
-    mBGSurfaceControl->setLayer(LAYER_UPDATE);
+void SurfaceInterceptorTest::layerUpdate(Transaction& t) {
+    t.setLayer(mBGSurfaceControl, LAYER_UPDATE);
 }
 
-void SurfaceInterceptorTest::cropUpdate() {
-    mBGSurfaceControl->setCrop(CROP_UPDATE);
+void SurfaceInterceptorTest::cropUpdate(Transaction& t) {
+    t.setCrop(mBGSurfaceControl, CROP_UPDATE);
 }
 
-void SurfaceInterceptorTest::finalCropUpdate() {
-    mBGSurfaceControl->setFinalCrop(CROP_UPDATE);
+void SurfaceInterceptorTest::finalCropUpdate(Transaction& t) {
+    t.setFinalCrop(mBGSurfaceControl, CROP_UPDATE);
 }
 
-void SurfaceInterceptorTest::matrixUpdate() {
-    mBGSurfaceControl->setMatrix(M_SQRT1_2, M_SQRT1_2, -M_SQRT1_2, M_SQRT1_2);
+void SurfaceInterceptorTest::matrixUpdate(Transaction& t) {
+    t.setMatrix(mBGSurfaceControl, M_SQRT1_2, M_SQRT1_2, -M_SQRT1_2, M_SQRT1_2);
 }
 
-void SurfaceInterceptorTest::overrideScalingModeUpdate() {
-    mBGSurfaceControl->setOverrideScalingMode(SCALING_UPDATE);
+void SurfaceInterceptorTest::overrideScalingModeUpdate(Transaction& t) {
+    t.setOverrideScalingMode(mBGSurfaceControl, SCALING_UPDATE);
 }
 
-void SurfaceInterceptorTest::transparentRegionHintUpdate() {
+void SurfaceInterceptorTest::transparentRegionHintUpdate(Transaction& t) {
     Region region(CROP_UPDATE);
-    mBGSurfaceControl->setTransparentRegionHint(region);
+    t.setTransparentRegionHint(mBGSurfaceControl, region);
 }
 
-void SurfaceInterceptorTest::layerStackUpdate() {
-    mBGSurfaceControl->setLayerStack(STACK_UPDATE);
+void SurfaceInterceptorTest::layerStackUpdate(Transaction& t) {
+    t.setLayerStack(mBGSurfaceControl, STACK_UPDATE);
 }
 
-void SurfaceInterceptorTest::hiddenFlagUpdate() {
-    mBGSurfaceControl->setFlags(layer_state_t::eLayerHidden, layer_state_t::eLayerHidden);
+void SurfaceInterceptorTest::hiddenFlagUpdate(Transaction& t) {
+    t.setFlags(mBGSurfaceControl, layer_state_t::eLayerHidden, layer_state_t::eLayerHidden);
 }
 
-void SurfaceInterceptorTest::opaqueFlagUpdate() {
-    mBGSurfaceControl->setFlags(layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
+void SurfaceInterceptorTest::opaqueFlagUpdate(Transaction& t) {
+    t.setFlags(mBGSurfaceControl, layer_state_t::eLayerOpaque, layer_state_t::eLayerOpaque);
 }
 
-void SurfaceInterceptorTest::secureFlagUpdate() {
-    mBGSurfaceControl->setFlags(layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
+void SurfaceInterceptorTest::secureFlagUpdate(Transaction& t) {
+    t.setFlags(mBGSurfaceControl, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure);
 }
 
-void SurfaceInterceptorTest::deferredTransactionUpdate() {
-    mBGSurfaceControl->deferTransactionUntil(mBGSurfaceControl->getHandle(), DEFERRED_UPDATE);
+void SurfaceInterceptorTest::deferredTransactionUpdate(Transaction& t) {
+    t.deferTransactionUntil(mBGSurfaceControl, mBGSurfaceControl->getHandle(), DEFERRED_UPDATE);
 }
 
-void SurfaceInterceptorTest::displayCreation() {
+void SurfaceInterceptorTest::displayCreation(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, true);
     SurfaceComposerClient::destroyDisplay(testDisplay);
 }
 
-void SurfaceInterceptorTest::displayDeletion() {
+void SurfaceInterceptorTest::displayDeletion(Transaction&) {
     sp<IBinder> testDisplay = SurfaceComposerClient::createDisplay(DISPLAY_NAME, false);
     mTargetId = getDisplayId(DISPLAY_NAME.string());
     SurfaceComposerClient::destroyDisplay(testDisplay);
@@ -353,7 +359,7 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::deferredTransactionUpdate);
 }
 
-void SurfaceInterceptorTest::surfaceCreation() {
+void SurfaceInterceptorTest::surfaceCreation(Transaction&) {
     mComposerClient->createSurface(String8(LAYER_NAME), SIZE_UPDATE, SIZE_UPDATE,
             PIXEL_FORMAT_RGBA_8888, 0);
 }
@@ -825,8 +831,10 @@ TEST_F(SurfaceInterceptorTest, InterceptDisplayDeletionWorks) {
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptBufferUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::nBufferUpdates,
-            &SurfaceInterceptorTest::bufferUpdatesFound);
+    nBufferUpdates();
+    Trace capturedTrace;
+    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
+    ASSERT_TRUE(bufferUpdatesFound(&capturedTrace));
 }
 
 // If the interceptor is enabled while buffer updates are being pushed, the interceptor should

@@ -71,4 +71,38 @@ protected:
     const android_pixel_format_t mFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 };
 
+
+class Hwc2TestVirtualBuffer {
+public:
+    void updateBufferArea(const Area& bufferArea);
+
+    bool writeBufferToFile(std::string path);
+
+    android::sp<android::GraphicBuffer>& graphicBuffer()
+    {
+        return mGraphicBuffer;
+    }
+
+protected:
+    android::sp<android::GraphicBuffer> mGraphicBuffer;
+
+    Area mBufferArea = {-1, -1};
+
+    const android_pixel_format_t mFormat = HAL_PIXEL_FORMAT_RGBA_8888;
+};
+
+
+class Hwc2TestExpectedBuffer : public Hwc2TestVirtualBuffer {
+public:
+    int generateExpectedBuffer(const Hwc2TestLayers* testLayers,
+            const std::vector<hwc2_layer_t>* allLayers,
+            const std::set<hwc2_layer_t>* clearLayers);
+};
+
+
+class Hwc2TestOutputBuffer : public Hwc2TestVirtualBuffer {
+public:
+    int getOutputBuffer(buffer_handle_t* outHandle, int32_t* outFence);
+};
+
 #endif /* ifndef _HWC2_TEST_BUFFER_H */

@@ -60,7 +60,6 @@ cc_library_shared {
         "layers_extensions.cpp",
         "stubhal.cpp",
         "swapchain.cpp",
-        "vulkan_loader_data.cpp",
     ],
 
     export_header_lib_headers: ["vulkan_headers"],
@@ -68,10 +67,14 @@ cc_library_shared {
         "vulkan_headers",
     ],
     shared_libs: [
+        "android.hardware.configstore@1.0",
+        "android.hardware.configstore-utils",
         "libziparchive",
         "libhardware",
         "libsync",
         "libbase",
+        "libhidlbase",
+        "libhidltransport",
         "liblog",
         "libui",
         "libgraphicsenv",

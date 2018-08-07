@@ -26,9 +26,10 @@ sharedLibraries = [
     "libui",
     "libgui",
     "libhardware",
+    "libpdx_default_transport",
 ]
 
-staticLibraries = ["libpdx_default_transport", "libbroadcastring"]
+staticLibraries = ["libbroadcastring"]
 
 headerLibraries = [
     "libeigen",

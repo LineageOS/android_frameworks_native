@@ -1,13 +1,15 @@
-#include <private/dvr/buffer_hub_queue_producer.h>
-
 #include <base/logging.h>
+#include <gui/BufferHubProducer.h>
 #include <gui/IProducerListener.h>
 #include <gui/Surface.h>
+#include <pdx/default_transport/channel_parcelable.h>
 
 #include <gtest/gtest.h>
 
 namespace android {
 namespace dvr {
+
+using pdx::LocalHandle;
 
 namespace {
 
@@ -92,7 +94,11 @@ class BufferHubQueueProducerTest : public ::testing::Test {
     ALOGD_IF(TRACE, "Begin test: %s.%s", testInfo->test_case_name(),
              testInfo->name());
 
-    mProducer = BufferHubQueueProducer::Create();
+    auto config = ProducerQueueConfigBuilder().Build();
+    auto queue = ProducerQueue::Create(config, UsagePolicy{});
+    ASSERT_TRUE(queue != nullptr);
+
+    mProducer = BufferHubProducer::Create(std::move(queue));
     ASSERT_TRUE(mProducer != nullptr);
     mSurface = new Surface(mProducer, true);
     ASSERT_TRUE(mSurface != nullptr);
@@ -136,7 +142,7 @@ class BufferHubQueueProducerTest : public ::testing::Test {
 
   const sp<IProducerListener> kDummyListener{new DummyProducerListener};
 
-  sp<BufferHubQueueProducer> mProducer;
+  sp<BufferHubProducer> mProducer;
   sp<Surface> mSurface;
 };
 
@@ -544,6 +550,55 @@ TEST_F(BufferHubQueueProducerTest, ConnectDisconnectReconnect) {
   }
 
   EXPECT_EQ(NO_ERROR, mProducer->disconnect(kTestApi));
+}
+
+TEST_F(BufferHubQueueProducerTest, TakeAsParcelable) {
+  // Connected producer cannot be taken out as a parcelable.
+  EXPECT_NO_FATAL_FAILURE(ConnectProducer());
+  ProducerQueueParcelable producer_parcelable;
+  EXPECT_EQ(mProducer->TakeAsParcelable(&producer_parcelable), BAD_VALUE);
+
+  // Create a valid dummy producer parcelable.
+  auto dummy_channel_parcelable =
+      std::make_unique<pdx::default_transport::ChannelParcelable>(
+          LocalHandle(0), LocalHandle(0), LocalHandle(0));
+  EXPECT_TRUE(dummy_channel_parcelable->IsValid());
+  ProducerQueueParcelable dummy_producer_parcelable(
+      std::move(dummy_channel_parcelable));
+  EXPECT_TRUE(dummy_producer_parcelable.IsValid());
+
+  // Disconnect producer can be taken out, but only to an invalid parcelable.
+  ASSERT_EQ(mProducer->disconnect(kTestApi), NO_ERROR);
+  EXPECT_EQ(mProducer->TakeAsParcelable(&dummy_producer_parcelable), BAD_VALUE);
+  EXPECT_FALSE(producer_parcelable.IsValid());
+  EXPECT_EQ(mProducer->TakeAsParcelable(&producer_parcelable), NO_ERROR);
+  EXPECT_TRUE(producer_parcelable.IsValid());
+
+  // Should still be able to query buffer dimension after disconnect.
+  int32_t value = -1;
+  EXPECT_EQ(NO_ERROR, mProducer->query(NATIVE_WINDOW_WIDTH, &value));
+  EXPECT_EQ(static_cast<uint32_t>(value), kDefaultWidth);
+
+  EXPECT_EQ(mProducer->query(NATIVE_WINDOW_HEIGHT, &value), NO_ERROR);
+  EXPECT_EQ(static_cast<uint32_t>(value), kDefaultHeight);
+
+  EXPECT_EQ(mProducer->query(NATIVE_WINDOW_FORMAT, &value), NO_ERROR);
+  EXPECT_EQ(value, kDefaultFormat);
+
+  // But connect to API will fail.
+  IGraphicBufferProducer::QueueBufferOutput output;
+  EXPECT_EQ(mProducer->connect(kDummyListener, kTestApi, kTestControlledByApp,
+                               &output),
+            BAD_VALUE);
+
+  // Create a new producer from the parcelable and connect to kTestApi should
+  // succeed.
+  sp<BufferHubProducer> new_producer =
+      BufferHubProducer::Create(std::move(producer_parcelable));
+  ASSERT_TRUE(new_producer != nullptr);
+  EXPECT_EQ(new_producer->connect(kDummyListener, kTestApi,
+                                  kTestControlledByApp, &output),
+            NO_ERROR);
 }
 
 }  // namespace

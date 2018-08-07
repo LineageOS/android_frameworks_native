@@ -15,6 +15,8 @@
 
 using namespace android;
 
+#define METADATA_SCALE(x) (static_cast<EGLint>(x * EGL_METADATA_SCALING_EXT))
+
 EGLDisplay eglDisplay;
 EGLSurface eglSurface;
 EGLContext eglContext;
@@ -330,6 +332,39 @@ void create_texture(void)
     glTexEnvx(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE);
 }
 
+void setSurfaceMetadata(EGLDisplay dpy, EGLSurface surface) {
+    static EGLBoolean toggle = GL_FALSE;
+    if (EGLUtils::hasEglExtension(dpy, "EGL_EXT_surface_SMPTE2086_metadata")) {
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_RX_EXT, METADATA_SCALE(0.640));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_RY_EXT, METADATA_SCALE(0.330));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_GX_EXT, METADATA_SCALE(0.290));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_GY_EXT, METADATA_SCALE(0.600));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_BX_EXT, METADATA_SCALE(0.150));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_DISPLAY_PRIMARY_BY_EXT, METADATA_SCALE(0.060));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_WHITE_POINT_X_EXT, METADATA_SCALE(0.3127));
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_WHITE_POINT_Y_EXT, METADATA_SCALE(0.3290));
+        if (toggle) {
+            eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_MAX_LUMINANCE_EXT, METADATA_SCALE(350));
+        } else {
+            eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_MAX_LUMINANCE_EXT, METADATA_SCALE(300));
+        }
+        eglSurfaceAttrib(dpy, surface, EGL_SMPTE2086_MIN_LUMINANCE_EXT, METADATA_SCALE(0.7));
+    }
+
+    if (EGLUtils::hasEglExtension(dpy, "EGL_EXT_surface_CTA861_3_metadata")) {
+        if (toggle) {
+            eglSurfaceAttrib(dpy, surface, EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT,
+                             METADATA_SCALE(300));
+        } else {
+            eglSurfaceAttrib(dpy, surface, EGL_CTA861_3_MAX_CONTENT_LIGHT_LEVEL_EXT,
+                             METADATA_SCALE(325));
+        }
+        eglSurfaceAttrib(dpy, surface, EGL_CTA861_3_MAX_FRAME_AVERAGE_LEVEL_EXT,
+                         METADATA_SCALE(75));
+    }
+    toggle = !toggle;
+}
+
 void render()
 {
     const GLfloat vertices[] = {
@@ -354,5 +389,6 @@ void render()
     int nelem = sizeof(indices)/sizeof(indices[0]);
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
     glDrawElements(GL_TRIANGLES, nelem, GL_UNSIGNED_SHORT, indices);
+    setSurfaceMetadata(eglDisplay, eglSurface);
     eglSwapBuffers(eglDisplay, eglSurface);
 }

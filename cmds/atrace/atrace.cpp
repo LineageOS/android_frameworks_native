@@ -128,6 +128,7 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/sched/sched_waking/enable" },
         { OPT,      "events/sched/sched_blocked_reason/enable" },
         { OPT,      "events/sched/sched_cpu_hotplug/enable" },
+        { OPT,      "events/sched/sched_pi_setprio/enable" },
         { OPT,      "events/cgroup/enable" },
     } },
     { "irq",        "IRQ Events",   0, {
@@ -188,7 +189,10 @@ static const TracingCategory k_categories[] = {
         { REQ,      "events/cpufreq_interactive/enable" },
     } },
     { "sync",       "Synchronization",  0, {
-        { REQ,      "events/sync/enable" },
+        // before linux kernel 4.9
+        { OPT,      "events/sync/enable" },
+        // starting in linux kernel 4.9
+        { OPT,      "events/fence/enable" },
     } },
     { "workq",      "Kernel Workqueues", 0, {
         { REQ,      "events/workqueue/enable" },

@@ -8,11 +8,7 @@ cc_library_shared {
 
   static_libs: [
     "libbroadcastring",
-    "libhwcomposer-client",
     "libdisplay",
-    "libbufferhubqueue",
-    "libbufferhub",
-    "libpdx_default_transport",
   ],
 
   shared_libs: [
@@ -20,6 +16,8 @@ cc_library_shared {
     "android.hardware.graphics.composer@2.1",
     "android.hardware.graphics.mapper@2.0",
     "libbase",
+    "libbufferhubqueue",
+    "libbinder",
     "libcutils",
     "libfmq",
     "libhardware",
@@ -29,10 +27,16 @@ cc_library_shared {
     "libsync",
     "libui",
     "libutils",
+    "libpdx_default_transport",
   ],
 
-  export_static_lib_headers: [
-    "libhwcomposer-client",
+  header_libs: [
+    "android.hardware.graphics.composer@2.1-command-buffer",
+    "android.hardware.graphics.composer@2.1-hal",
+  ],
+
+  export_header_lib_headers: [
+    "android.hardware.graphics.composer@2.1-hal",
   ],
 
   export_shared_lib_headers: [

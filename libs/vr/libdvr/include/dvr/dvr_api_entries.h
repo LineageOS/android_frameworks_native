@@ -8,6 +8,10 @@
 #error Do not include this header directly.
 #endif
 
+#ifndef DVR_V1_API_ENTRY_DEPRECATED
+#error Do not include this header directly.
+#endif
+
 // Do not delete this line: BEGIN CODEGEN OUTPUT
 // Display manager client
 DVR_V1_API_ENTRY(DisplayManagerCreate);
@@ -32,42 +36,42 @@ DVR_V1_API_ENTRY(SurfaceStateGetAttributeCount);
 DVR_V1_API_ENTRY(SurfaceStateGetAttributes);
 
 // Write buffer
-DVR_V1_API_ENTRY(WriteBufferCreateEmpty);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferCreateEmpty);
 DVR_V1_API_ENTRY(WriteBufferDestroy);
 DVR_V1_API_ENTRY(WriteBufferIsValid);
-DVR_V1_API_ENTRY(WriteBufferClear);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferClear);
 DVR_V1_API_ENTRY(WriteBufferGetId);
 DVR_V1_API_ENTRY(WriteBufferGetAHardwareBuffer);
-DVR_V1_API_ENTRY(WriteBufferPost);
-DVR_V1_API_ENTRY(WriteBufferGain);
-DVR_V1_API_ENTRY(WriteBufferGainAsync);
-DVR_V1_API_ENTRY(WriteBufferGetNativeHandle);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferPost);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferGain);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferGainAsync);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferGetNativeHandle);
 
 // Read buffer
-DVR_V1_API_ENTRY(ReadBufferCreateEmpty);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferCreateEmpty);
 DVR_V1_API_ENTRY(ReadBufferDestroy);
 DVR_V1_API_ENTRY(ReadBufferIsValid);
-DVR_V1_API_ENTRY(ReadBufferClear);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferClear);
 DVR_V1_API_ENTRY(ReadBufferGetId);
 DVR_V1_API_ENTRY(ReadBufferGetAHardwareBuffer);
-DVR_V1_API_ENTRY(ReadBufferAcquire);
-DVR_V1_API_ENTRY(ReadBufferRelease);
-DVR_V1_API_ENTRY(ReadBufferReleaseAsync);
-DVR_V1_API_ENTRY(ReadBufferGetNativeHandle);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferAcquire);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferRelease);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferReleaseAsync);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferGetNativeHandle);
 
 // Buffer
 DVR_V1_API_ENTRY(BufferDestroy);
 DVR_V1_API_ENTRY(BufferGetAHardwareBuffer);
-DVR_V1_API_ENTRY(BufferGetNativeHandle);
+DVR_V1_API_ENTRY_DEPRECATED(BufferGetNativeHandle);
 DVR_V1_API_ENTRY(BufferGlobalLayoutVersionGet);
 
 // Write buffer queue
 DVR_V1_API_ENTRY(WriteBufferQueueDestroy);
 DVR_V1_API_ENTRY(WriteBufferQueueGetCapacity);
 DVR_V1_API_ENTRY(WriteBufferQueueGetId);
-DVR_V1_API_ENTRY(WriteBufferQueueGetExternalSurface);  // deprecated
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferQueueGetExternalSurface);
 DVR_V1_API_ENTRY(WriteBufferQueueCreateReadQueue);
-DVR_V1_API_ENTRY(WriteBufferQueueDequeue);
+DVR_V1_API_ENTRY_DEPRECATED(WriteBufferQueueDequeue);
 DVR_V1_API_ENTRY(WriteBufferQueueResizeBuffer);
 
 // Read buffer queue
@@ -75,7 +79,7 @@ DVR_V1_API_ENTRY(ReadBufferQueueDestroy);
 DVR_V1_API_ENTRY(ReadBufferQueueGetCapacity);
 DVR_V1_API_ENTRY(ReadBufferQueueGetId);
 DVR_V1_API_ENTRY(ReadBufferQueueCreateReadQueue);
-DVR_V1_API_ENTRY(ReadBufferQueueDequeue);
+DVR_V1_API_ENTRY_DEPRECATED(ReadBufferQueueDequeue);
 DVR_V1_API_ENTRY(ReadBufferQueueSetBufferAvailableCallback);
 DVR_V1_API_ENTRY(ReadBufferQueueSetBufferRemovedCallback);
 DVR_V1_API_ENTRY(ReadBufferQueueHandleEvents);

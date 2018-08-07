@@ -24,9 +24,9 @@ namespace android {
 class Mesh {
 public:
     enum Primitive {
-        TRIANGLES       = 0x0004,       // GL_TRIANGLES
-        TRIANGLE_STRIP  = 0x0005,       // GL_TRIANGLE_STRIP
-        TRIANGLE_FAN    = 0x0006        // GL_TRIANGLE_FAN
+        TRIANGLES = 0x0004,      // GL_TRIANGLES
+        TRIANGLE_STRIP = 0x0005, // GL_TRIANGLE_STRIP
+        TRIANGLE_FAN = 0x0006    // GL_TRIANGLE_FAN
     };
 
     Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t texCoordsSize = 0);
@@ -40,21 +40,24 @@ public:
         friend class Mesh;
         float* mData;
         size_t mStride;
-        VertexArray(float* data, size_t stride) : mData(data), mStride(stride) { }
+        VertexArray(float* data, size_t stride) : mData(data), mStride(stride) {}
+
     public:
-        TYPE& operator[](size_t index) {
-            return *reinterpret_cast<TYPE*>(&mData[index*mStride]);
-        }
+        TYPE& operator[](size_t index) { return *reinterpret_cast<TYPE*>(&mData[index * mStride]); }
         TYPE const& operator[](size_t index) const {
-            return *reinterpret_cast<TYPE const*>(&mData[index*mStride]);
+            return *reinterpret_cast<TYPE const*>(&mData[index * mStride]);
         }
     };
 
     template <typename TYPE>
-    VertexArray<TYPE> getPositionArray() { return VertexArray<TYPE>(getPositions(), mStride); }
+    VertexArray<TYPE> getPositionArray() {
+        return VertexArray<TYPE>(getPositions(), mStride);
+    }
 
     template <typename TYPE>
-    VertexArray<TYPE> getTexCoordArray() { return VertexArray<TYPE>(getTexCoords(), mStride); }
+    VertexArray<TYPE> getTexCoordArray() {
+        return VertexArray<TYPE>(getTexCoords(), mStride);
+    }
 
     Primitive getPrimitive() const;
 
@@ -81,8 +84,8 @@ public:
 
 private:
     Mesh(const Mesh&);
-    Mesh& operator = (const Mesh&);
-    Mesh const& operator = (const Mesh&) const;
+    Mesh& operator=(const Mesh&);
+    Mesh const& operator=(const Mesh&) const;
 
     float* getPositions();
     float* getTexCoords();
@@ -93,7 +96,6 @@ private:
     size_t mStride;
     Primitive mPrimitive;
 };
-
 
 } /* namespace android */
 #endif /* SF_RENDER_ENGINE_MESH_H */

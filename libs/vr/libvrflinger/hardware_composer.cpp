@@ -45,13 +45,21 @@ namespace dvr {
 
 namespace {
 
-const char kBacklightBrightnessSysFile[] =
-    "/sys/class/leds/lcd-backlight/brightness";
-
 const char kDvrPerformanceProperty[] = "sys.dvr.performance";
 const char kDvrStandaloneProperty[] = "ro.boot.vr";
 
 const char kRightEyeOffsetProperty[] = "dvr.right_eye_offset_ns";
+
+const char kUseExternalDisplayProperty[] = "persist.vr.use_external_display";
+
+// How long to wait after boot finishes before we turn the display off.
+constexpr int kBootFinishedDisplayOffTimeoutSec = 10;
+
+constexpr int kDefaultDisplayWidth = 1920;
+constexpr int kDefaultDisplayHeight = 1080;
+constexpr int64_t kDefaultVsyncPeriodNs = 16666667;
+// Hardware composer reports dpi as dots per thousand inches (dpi * 1000).
+constexpr int kDefaultDpi = 400000;
 
 // Get time offset from a vsync to when the pose for that vsync should be
 // predicted out to. For example, if scanout gets halfway through the frame
@@ -109,6 +117,11 @@ class TraceArgs {
 #define TRACE_FORMAT(format, ...) \
   TraceArgs PASTE(__tracer, __LINE__) { format, ##__VA_ARGS__ }
 
+// Returns "primary" or "external". Useful for writing more readable logs.
+const char* GetDisplayName(bool is_primary) {
+  return is_primary ? "primary" : "external";
+}
+
 }  // anonymous namespace
 
 HardwareComposer::HardwareComposer()
@@ -121,7 +134,8 @@ HardwareComposer::~HardwareComposer(void) {
 }
 
 bool HardwareComposer::Initialize(
-    Hwc2::Composer* composer, RequestDisplayCallback request_display_callback) {
+    Hwc2::Composer* composer, hwc2_display_t primary_display_id,
+    RequestDisplayCallback request_display_callback) {
   if (initialized_) {
     ALOGE("HardwareComposer::Initialize: already initialized.");
     return false;
@@ -131,42 +145,7 @@ bool HardwareComposer::Initialize(
 
   request_display_callback_ = request_display_callback;
 
-  HWC::Error error = HWC::Error::None;
-
-  Hwc2::Config config;
-  error = composer->getActiveConfig(HWC_DISPLAY_PRIMARY, &config);
-
-  if (error != HWC::Error::None) {
-    ALOGE("HardwareComposer: Failed to get current display config : %d",
-          config);
-    return false;
-  }
-
-  error = GetDisplayMetrics(composer, HWC_DISPLAY_PRIMARY, config,
-                            &native_display_metrics_);
-
-  if (error != HWC::Error::None) {
-    ALOGE(
-        "HardwareComposer: Failed to get display attributes for current "
-        "configuration : %d",
-        error.value);
-    return false;
-  }
-
-  ALOGI(
-      "HardwareComposer: primary display attributes: width=%d height=%d "
-      "vsync_period_ns=%d DPI=%dx%d",
-      native_display_metrics_.width, native_display_metrics_.height,
-      native_display_metrics_.vsync_period_ns, native_display_metrics_.dpi.x,
-      native_display_metrics_.dpi.y);
-
-  // Set the display metrics but never use rotation to avoid the long latency of
-  // rotation processing in hwc.
-  display_transform_ = HWC_TRANSFORM_NONE;
-  display_metrics_ = native_display_metrics_;
-
-  // Setup the display metrics used by all Layer instances.
-  Layer::SetDisplayMetrics(native_display_metrics_);
+  primary_display_ = GetDisplayParams(composer, primary_display_id, true);
 
   post_thread_event_fd_.Reset(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK));
   LOG_ALWAYS_FATAL_IF(
@@ -187,6 +166,21 @@ void HardwareComposer::Enable() {
 
 void HardwareComposer::Disable() {
   UpdatePostThreadState(PostThreadState::Suspended, true);
+
+  std::unique_lock<std::mutex> lock(post_thread_mutex_);
+  post_thread_ready_.wait(lock, [this] {
+    return !post_thread_resumed_;
+  });
+}
+
+void HardwareComposer::OnBootFinished() {
+  std::lock_guard<std::mutex> lock(post_thread_mutex_);
+  if (boot_finished_)
+    return;
+  boot_finished_ = true;
+  post_thread_wait_.notify_one();
+  if (is_standalone_device_)
+    request_display_callback_(true);
 }
 
 // Update the post thread quiescent state based on idle and suspended inputs.
@@ -218,57 +212,63 @@ void HardwareComposer::UpdatePostThreadState(PostThreadStateType state,
     eventfd_read(post_thread_event_fd_.Get(), &value);
     post_thread_wait_.notify_one();
   }
+}
 
-  // Wait until the post thread is in the requested state.
-  post_thread_ready_.wait(lock, [this, effective_suspend] {
-    return effective_suspend != post_thread_resumed_;
-  });
+void HardwareComposer::CreateComposer() {
+  if (composer_)
+    return;
+  composer_.reset(new Hwc2::impl::Composer("default"));
+  composer_callback_ = new ComposerCallback;
+  composer_->registerCallback(composer_callback_);
+  LOG_ALWAYS_FATAL_IF(!composer_callback_->GotFirstHotplug(),
+      "Registered composer callback but didn't get hotplug for primary"
+      " display");
 }
 
 void HardwareComposer::OnPostThreadResumed() {
-  // Phones create a new composer client on resume and destroy it on pause.
-  // Standalones only create the composer client once and then use SetPowerMode
-  // to control the screen on pause/resume.
-  if (!is_standalone_device_ || !composer_) {
-    composer_.reset(new Hwc2::Composer("default"));
-    composer_callback_ = new ComposerCallback;
-    composer_->registerCallback(composer_callback_);
-    Layer::SetComposer(composer_.get());
-  } else {
-    SetPowerMode(true);
-  }
-
-  EnableVsync(true);
-
-  // TODO(skiazyk): We need to do something about accessing this directly,
-  // supposedly there is a backlight service on the way.
-  // TODO(steventhomas): When we change the backlight setting, will surface
-  // flinger (or something else) set it back to its original value once we give
-  // control of the display back to surface flinger?
-  SetBacklightBrightness(255);
+  ALOGI("OnPostThreadResumed");
+  EnableDisplay(*target_display_, true);
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "performance");
 }
 
 void HardwareComposer::OnPostThreadPaused() {
+  ALOGI("OnPostThreadPaused");
   retire_fence_fds_.clear();
   layers_.clear();
 
-  if (composer_) {
-    EnableVsync(false);
-  }
-
+  // Phones create a new composer client on resume and destroy it on pause.
+  // Standalones only create the composer client once and then use SetPowerMode
+  // to control the screen on pause/resume.
   if (!is_standalone_device_) {
     composer_callback_ = nullptr;
     composer_.reset(nullptr);
-    Layer::SetComposer(nullptr);
   } else {
-    SetPowerMode(false);
+    EnableDisplay(*target_display_, false);
   }
 
   // Trigger target-specific performance mode change.
   property_set(kDvrPerformanceProperty, "idle");
+}
+
+bool HardwareComposer::PostThreadCondWait(std::unique_lock<std::mutex>& lock,
+                                          int timeout_sec,
+                                          const std::function<bool()>& pred) {
+  auto pred_with_quit = [&] {
+    return pred() || (post_thread_state_ & PostThreadState::Quit);
+  };
+  if (timeout_sec >= 0) {
+    post_thread_wait_.wait_for(lock, std::chrono::seconds(timeout_sec),
+                               pred_with_quit);
+  } else {
+    post_thread_wait_.wait(lock, pred_with_quit);
+  }
+  if (post_thread_state_ & PostThreadState::Quit) {
+    ALOGI("HardwareComposer::PostThread: Quitting.");
+    return true;
+  }
+  return false;
 }
 
 HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
@@ -278,27 +278,55 @@ HWC::Error HardwareComposer::Validate(hwc2_display_t display) {
       composer_->validateDisplay(display, &num_types, &num_requests);
 
   if (error == HWC2_ERROR_HAS_CHANGES) {
-    // TODO(skiazyk): We might need to inspect the requested changes first, but
-    // so far it seems like we shouldn't ever hit a bad state.
-    // error = hwc2_funcs_.accept_display_changes_fn_(hardware_composer_device_,
-    //                                               display);
+    ALOGE("Hardware composer has requested composition changes, "
+          "which we don't support.");
+    // Accept the changes anyway and see if we can get something on the screen.
     error = composer_->acceptDisplayChanges(display);
   }
 
   return error;
 }
 
-HWC::Error HardwareComposer::EnableVsync(bool enabled) {
-  return composer_->setVsyncEnabled(
-      HWC_DISPLAY_PRIMARY,
+bool HardwareComposer::EnableVsync(const DisplayParams& display, bool enabled) {
+  HWC::Error error = composer_->setVsyncEnabled(display.id,
       (Hwc2::IComposerClient::Vsync)(enabled ? HWC2_VSYNC_ENABLE
                                              : HWC2_VSYNC_DISABLE));
+  if (error != HWC::Error::None) {
+    ALOGE("Error attempting to %s vsync on %s display: %s",
+        enabled ? "enable" : "disable", GetDisplayName(display.is_primary),
+        error.to_string().c_str());
+  }
+  return error == HWC::Error::None;
 }
 
-HWC::Error HardwareComposer::SetPowerMode(bool active) {
+bool HardwareComposer::SetPowerMode(const DisplayParams& display, bool active) {
+  ALOGI("Turning %s display %s", GetDisplayName(display.is_primary),
+      active ? "on" : "off");
   HWC::PowerMode power_mode = active ? HWC::PowerMode::On : HWC::PowerMode::Off;
-  return composer_->setPowerMode(
-      HWC_DISPLAY_PRIMARY, power_mode.cast<Hwc2::IComposerClient::PowerMode>());
+  HWC::Error error = composer_->setPowerMode(display.id,
+      power_mode.cast<Hwc2::IComposerClient::PowerMode>());
+  if (error != HWC::Error::None) {
+    ALOGE("Error attempting to turn %s display %s: %s",
+          GetDisplayName(display.is_primary), active ? "on" : "off",
+        error.to_string().c_str());
+  }
+  return error == HWC::Error::None;
+}
+
+bool HardwareComposer::EnableDisplay(const DisplayParams& display,
+                                     bool enabled) {
+  bool power_result;
+  bool vsync_result;
+  // When turning a display on, we set the power state then set vsync. When
+  // turning a display off we do it in the opposite order.
+  if (enabled) {
+    power_result = SetPowerMode(display, enabled);
+    vsync_result = EnableVsync(display, enabled);
+  } else {
+    vsync_result = EnableVsync(display, enabled);
+    power_result = SetPowerMode(display, enabled);
+  }
+  return power_result && vsync_result;
 }
 
 HWC::Error HardwareComposer::Present(hwc2_display_t display) {
@@ -317,78 +345,105 @@ HWC::Error HardwareComposer::Present(hwc2_display_t display) {
   return error;
 }
 
-HWC::Error HardwareComposer::GetDisplayAttribute(Hwc2::Composer* composer,
-                                                 hwc2_display_t display,
-                                                 hwc2_config_t config,
-                                                 hwc2_attribute_t attribute,
-                                                 int32_t* out_value) const {
-  return composer->getDisplayAttribute(
-      display, config, (Hwc2::IComposerClient::Attribute)attribute, out_value);
-}
+DisplayParams HardwareComposer::GetDisplayParams(
+    Hwc2::Composer* composer, hwc2_display_t display, bool is_primary) {
+  DisplayParams params;
+  params.id = display;
+  params.is_primary = is_primary;
 
-HWC::Error HardwareComposer::GetDisplayMetrics(
-    Hwc2::Composer* composer, hwc2_display_t display, hwc2_config_t config,
-    HWCDisplayMetrics* out_metrics) const {
-  HWC::Error error;
+  Hwc2::Config config;
+  HWC::Error error = composer->getActiveConfig(display, &config);
 
-  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_WIDTH,
-                              &out_metrics->width);
-  if (error != HWC::Error::None) {
-    ALOGE(
-        "HardwareComposer::GetDisplayMetrics: Failed to get display width: %s",
-        error.to_string().c_str());
-    return error;
+  if (error == HWC::Error::None) {
+    auto get_attr = [&](hwc2_attribute_t attr, const char* attr_name)
+        -> std::optional<int32_t> {
+      int32_t val;
+      HWC::Error error = composer->getDisplayAttribute(
+          display, config, (Hwc2::IComposerClient::Attribute)attr, &val);
+      if (error != HWC::Error::None) {
+        ALOGE("Failed to get %s display attr %s: %s",
+            GetDisplayName(is_primary), attr_name,
+            error.to_string().c_str());
+        return std::nullopt;
+      }
+      return val;
+    };
+
+    auto width = get_attr(HWC2_ATTRIBUTE_WIDTH, "width");
+    auto height = get_attr(HWC2_ATTRIBUTE_HEIGHT, "height");
+
+    if (width && height) {
+      params.width = *width;
+      params.height = *height;
+    } else {
+      ALOGI("Failed to get width and/or height for %s display. Using default"
+          " size %dx%d.", GetDisplayName(is_primary), kDefaultDisplayWidth,
+          kDefaultDisplayHeight);
+      params.width = kDefaultDisplayWidth;
+      params.height = kDefaultDisplayHeight;
+    }
+
+    auto vsync_period = get_attr(HWC2_ATTRIBUTE_VSYNC_PERIOD, "vsync period");
+    if (vsync_period) {
+      params.vsync_period_ns = *vsync_period;
+    } else {
+      ALOGI("Failed to get vsync period for %s display. Using default vsync"
+          " period %.2fms", GetDisplayName(is_primary),
+          static_cast<float>(kDefaultVsyncPeriodNs) / 1000000);
+      params.vsync_period_ns = kDefaultVsyncPeriodNs;
+    }
+
+    auto dpi_x = get_attr(HWC2_ATTRIBUTE_DPI_X, "DPI X");
+    auto dpi_y = get_attr(HWC2_ATTRIBUTE_DPI_Y, "DPI Y");
+    if (dpi_x && dpi_y) {
+      params.dpi.x = *dpi_x;
+      params.dpi.y = *dpi_y;
+    } else {
+      ALOGI("Failed to get dpi_x and/or dpi_y for %s display. Using default"
+          " dpi %d.", GetDisplayName(is_primary), kDefaultDpi);
+      params.dpi.x = kDefaultDpi;
+      params.dpi.y = kDefaultDpi;
+    }
+  } else {
+    ALOGE("HardwareComposer: Failed to get current %s display config: %d."
+        " Using default display values.",
+        GetDisplayName(is_primary), error.value);
+    params.width = kDefaultDisplayWidth;
+    params.height = kDefaultDisplayHeight;
+    params.dpi.x = kDefaultDpi;
+    params.dpi.y = kDefaultDpi;
+    params.vsync_period_ns = kDefaultVsyncPeriodNs;
   }
 
-  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_HEIGHT,
-                              &out_metrics->height);
-  if (error != HWC::Error::None) {
-    ALOGE(
-        "HardwareComposer::GetDisplayMetrics: Failed to get display height: %s",
-        error.to_string().c_str());
-    return error;
-  }
+  ALOGI(
+      "HardwareComposer: %s display attributes: width=%d height=%d "
+      "vsync_period_ns=%d DPI=%dx%d",
+      GetDisplayName(is_primary),
+      params.width,
+      params.height,
+      params.vsync_period_ns,
+      params.dpi.x,
+      params.dpi.y);
 
-  error = GetDisplayAttribute(composer, display, config,
-                              HWC2_ATTRIBUTE_VSYNC_PERIOD,
-                              &out_metrics->vsync_period_ns);
-  if (error != HWC::Error::None) {
-    ALOGE(
-        "HardwareComposer::GetDisplayMetrics: Failed to get display height: %s",
-        error.to_string().c_str());
-    return error;
-  }
-
-  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_DPI_X,
-                              &out_metrics->dpi.x);
-  if (error != HWC::Error::None) {
-    ALOGE(
-        "HardwareComposer::GetDisplayMetrics: Failed to get display DPI X: %s",
-        error.to_string().c_str());
-    return error;
-  }
-
-  error = GetDisplayAttribute(composer, display, config, HWC2_ATTRIBUTE_DPI_Y,
-                              &out_metrics->dpi.y);
-  if (error != HWC::Error::None) {
-    ALOGE(
-        "HardwareComposer::GetDisplayMetrics: Failed to get display DPI Y: %s",
-        error.to_string().c_str());
-    return error;
-  }
-
-  return HWC::Error::None;
+  return params;
 }
 
 std::string HardwareComposer::Dump() {
   std::unique_lock<std::mutex> lock(post_thread_mutex_);
   std::ostringstream stream;
 
-  stream << "Display metrics:     " << display_metrics_.width << "x"
-         << display_metrics_.height << " " << (display_metrics_.dpi.x / 1000.0)
-         << "x" << (display_metrics_.dpi.y / 1000.0) << " dpi @ "
-         << (1000000000.0 / display_metrics_.vsync_period_ns) << " Hz"
-         << std::endl;
+  auto print_display_metrics = [&](const DisplayParams& params) {
+    stream << GetDisplayName(params.is_primary)
+           << " display metrics:     " << params.width << "x"
+           << params.height << " " << (params.dpi.x / 1000.0)
+           << "x" << (params.dpi.y / 1000.0) << " dpi @ "
+           << (1000000000.0 / params.vsync_period_ns) << " Hz"
+           << std::endl;
+  };
+
+  print_display_metrics(primary_display_);
+  if (external_display_)
+    print_display_metrics(*external_display_);
 
   stream << "Post thread resumed: " << post_thread_resumed_ << std::endl;
   stream << "Active layers:       " << layers_.size() << std::endl;
@@ -411,19 +466,12 @@ std::string HardwareComposer::Dump() {
   return stream.str();
 }
 
-void HardwareComposer::PostLayers() {
+void HardwareComposer::PostLayers(hwc2_display_t display) {
   ATRACE_NAME("HardwareComposer::PostLayers");
 
   // Setup the hardware composer layers with current buffers.
   for (auto& layer : layers_) {
     layer.Prepare();
-  }
-
-  HWC::Error error = Validate(HWC_DISPLAY_PRIMARY);
-  if (error != HWC::Error::None) {
-    ALOGE("HardwareComposer::PostLayers: Validate failed: %s",
-          error.to_string().c_str());
-    return;
   }
 
   // Now that we have taken in a frame from the application, we have a chance
@@ -466,7 +514,14 @@ void HardwareComposer::PostLayers() {
   }
 #endif
 
-  error = Present(HWC_DISPLAY_PRIMARY);
+  HWC::Error error = Validate(display);
+  if (error != HWC::Error::None) {
+    ALOGE("HardwareComposer::PostLayers: Validate failed: %s display=%" PRIu64,
+          error.to_string().c_str(), display);
+    return;
+  }
+
+  error = Present(display);
   if (error != HWC::Error::None) {
     ALOGE("HardwareComposer::PostLayers: Present failed: %s",
           error.to_string().c_str());
@@ -475,8 +530,8 @@ void HardwareComposer::PostLayers() {
 
   std::vector<Hwc2::Layer> out_layers;
   std::vector<int> out_fences;
-  error = composer_->getReleaseFences(HWC_DISPLAY_PRIMARY, &out_layers,
-                                      &out_fences);
+  error = composer_->getReleaseFences(display,
+                                      &out_layers, &out_fences);
   ALOGE_IF(error != HWC::Error::None,
            "HardwareComposer::PostLayers: Failed to get release fences: %s",
            error.to_string().c_str());
@@ -499,10 +554,11 @@ void HardwareComposer::SetDisplaySurfaces(
   const bool display_idle = surfaces.size() == 0;
   {
     std::unique_lock<std::mutex> lock(post_thread_mutex_);
-    pending_surfaces_ = std::move(surfaces);
+    surfaces_ = std::move(surfaces);
+    surfaces_changed_ = true;
   }
 
-  if (request_display_callback_ && (!is_standalone_device_ || !composer_))
+  if (request_display_callback_ && !is_standalone_device_)
     request_display_callback_(!display_idle);
 
   // Set idle state based on whether there are any surfaces to handle.
@@ -570,6 +626,9 @@ void HardwareComposer::UpdateConfigBuffer() {
   // Copy from latest record in shared_config_ring_ to local copy.
   DvrConfig record;
   if (shared_config_ring_.GetNewest(&shared_config_ring_sequence_, &record)) {
+    ALOGI("DvrConfig updated: sequence %u, post offset %d",
+          shared_config_ring_sequence_, record.frame_post_offset_ns);
+    ++shared_config_ring_sequence_;
     post_thread_config_ = record;
   }
 }
@@ -612,21 +671,11 @@ int HardwareComposer::PostThreadPollInterruptible(
   }
 }
 
-Status<int64_t> HardwareComposer::GetVSyncTime() {
-  auto status = composer_callback_->GetVsyncTime(HWC_DISPLAY_PRIMARY);
-  ALOGE_IF(!status,
-           "HardwareComposer::GetVSyncTime: Failed to get vsync timestamp: %s",
-           status.GetErrorMessage().c_str());
-  return status;
-}
-
-// Waits for the next vsync and returns the timestamp of the vsync event. If
-// vsync already passed since the last call, returns the latest vsync timestamp
-// instead of blocking.
-Status<int64_t> HardwareComposer::WaitForVSync() {
-  const int64_t predicted_vsync_time =
-      last_vsync_timestamp_ +
-      display_metrics_.vsync_period_ns * vsync_prediction_interval_;
+// Sleep until the next predicted vsync, returning the predicted vsync
+// timestamp.
+Status<int64_t> HardwareComposer::WaitForPredictedVSync() {
+  const int64_t predicted_vsync_time = last_vsync_timestamp_ +
+      (target_display_->vsync_period_ns * vsync_prediction_interval_);
   const int error = SleepUntil(predicted_vsync_time);
   if (error < 0) {
     ALOGE("HardwareComposer::WaifForVSync:: Failed to sleep: %s",
@@ -665,16 +714,6 @@ void HardwareComposer::PostThread() {
   bool thread_policy_setup =
       SetThreadPolicy("graphics:high", "/system/performance");
 
-#if ENABLE_BACKLIGHT_BRIGHTNESS
-  // TODO(hendrikw): This isn't required at the moment. It's possible that there
-  //                 is another method to access this when needed.
-  // Open the backlight brightness control sysfs node.
-  backlight_brightness_fd_ = LocalHandle(kBacklightBrightnessSysFile, O_RDWR);
-  ALOGW_IF(!backlight_brightness_fd_,
-           "HardwareComposer: Failed to open backlight brightness control: %s",
-           strerror(errno));
-#endif  // ENABLE_BACKLIGHT_BRIGHTNESS
-
   // Create a timerfd based on CLOCK_MONOTINIC.
   vsync_sleep_timer_fd_.Reset(timerfd_create(CLOCK_MONOTONIC, 0));
   LOG_ALWAYS_FATAL_IF(
@@ -682,19 +721,49 @@ void HardwareComposer::PostThread() {
       "HardwareComposer: Failed to create vsync sleep timerfd: %s",
       strerror(errno));
 
-  const int64_t ns_per_frame = display_metrics_.vsync_period_ns;
-  const int64_t photon_offset_ns = GetPosePredictionTimeOffset(ns_per_frame);
-
-  // TODO(jbates) Query vblank time from device, when such an API is available.
-  // This value (6.3%) was measured on A00 in low persistence mode.
-  int64_t vblank_ns = ns_per_frame * 63 / 1000;
-  int64_t right_eye_photon_offset_ns = (ns_per_frame - vblank_ns) / 2;
-
-  // Check property for overriding right eye offset value.
-  right_eye_photon_offset_ns =
-      property_get_int64(kRightEyeOffsetProperty, right_eye_photon_offset_ns);
-
+  struct VsyncEyeOffsets { int64_t left_ns, right_ns; };
   bool was_running = false;
+
+  auto get_vsync_eye_offsets = [this]() -> VsyncEyeOffsets {
+    VsyncEyeOffsets offsets;
+    offsets.left_ns =
+        GetPosePredictionTimeOffset(target_display_->vsync_period_ns);
+
+    // TODO(jbates) Query vblank time from device, when such an API is
+    // available. This value (6.3%) was measured on A00 in low persistence mode.
+    int64_t vblank_ns = target_display_->vsync_period_ns * 63 / 1000;
+    offsets.right_ns = (target_display_->vsync_period_ns - vblank_ns) / 2;
+
+    // Check property for overriding right eye offset value.
+    offsets.right_ns =
+        property_get_int64(kRightEyeOffsetProperty, offsets.right_ns);
+
+    return offsets;
+  };
+
+  VsyncEyeOffsets vsync_eye_offsets = get_vsync_eye_offsets();
+
+  if (is_standalone_device_) {
+    // First, wait until boot finishes.
+    std::unique_lock<std::mutex> lock(post_thread_mutex_);
+    if (PostThreadCondWait(lock, -1, [this] { return boot_finished_; })) {
+      return;
+    }
+
+    // Then, wait until we're either leaving the quiescent state, or the boot
+    // finished display off timeout expires.
+    if (PostThreadCondWait(lock, kBootFinishedDisplayOffTimeoutSec,
+                           [this] { return !post_thread_quiescent_; })) {
+      return;
+    }
+
+    LOG_ALWAYS_FATAL_IF(post_thread_state_ & PostThreadState::Suspended,
+                        "Vr flinger should own the display by now.");
+    post_thread_resumed_ = true;
+    post_thread_ready_.notify_all();
+    if (!composer_)
+      CreateComposer();
+  }
 
   while (1) {
     ATRACE_NAME("HardwareComposer::PostThread");
@@ -706,20 +775,17 @@ void HardwareComposer::PostThread() {
       std::unique_lock<std::mutex> lock(post_thread_mutex_);
       ALOGI("HardwareComposer::PostThread: Entering quiescent state.");
 
-      // Tear down resources if necessary.
-      if (was_running)
-        OnPostThreadPaused();
-
+      // Tear down resources.
+      OnPostThreadPaused();
       was_running = false;
       post_thread_resumed_ = false;
       post_thread_ready_.notify_all();
 
-      if (post_thread_state_ & PostThreadState::Quit) {
-        ALOGI("HardwareComposer::PostThread: Quitting.");
+      if (PostThreadCondWait(lock, -1,
+                             [this] { return !post_thread_quiescent_; })) {
+        // A true return value means we've been asked to quit.
         return;
       }
-
-      post_thread_wait_.wait(lock, [this] { return !post_thread_quiescent_; });
 
       post_thread_resumed_ = true;
       post_thread_ready_.notify_all();
@@ -727,10 +793,18 @@ void HardwareComposer::PostThread() {
       ALOGI("HardwareComposer::PostThread: Exiting quiescent state.");
     }
 
-    if (!was_running) {
-      // Setup resources.
+    if (!composer_)
+      CreateComposer();
+
+    bool target_display_changed = UpdateTargetDisplay();
+    bool just_resumed_running = !was_running;
+    was_running = true;
+
+    if (target_display_changed)
+      vsync_eye_offsets = get_vsync_eye_offsets();
+
+    if (just_resumed_running) {
       OnPostThreadResumed();
-      was_running = true;
 
       // Try to setup the scheduler policy if it failed during startup. Only
       // attempt to do this on transitions from inactive to active to avoid
@@ -739,12 +813,16 @@ void HardwareComposer::PostThread() {
         thread_policy_setup =
             SetThreadPolicy("graphics:high", "/system/performance");
       }
+    }
 
+    if (target_display_changed || just_resumed_running) {
       // Initialize the last vsync timestamp with the current time. The
       // predictor below uses this time + the vsync interval in absolute time
       // units for the initial delay. Once the driver starts reporting vsync the
       // predictor will sync up with the real vsync.
       last_vsync_timestamp_ = GetSystemClockNs();
+      vsync_prediction_interval_ = 1;
+      retire_fence_fds_.clear();
     }
 
     int64_t vsync_timestamp = 0;
@@ -754,7 +832,7 @@ void HardwareComposer::PostThread() {
                    vsync_count_ + 1, last_vsync_timestamp_,
                    vsync_prediction_interval_);
 
-      auto status = WaitForVSync();
+      auto status = WaitForPredictedVSync();
       ALOGE_IF(
           !status,
           "HardwareComposer::PostThread: Failed to wait for vsync event: %s",
@@ -775,16 +853,16 @@ void HardwareComposer::PostThread() {
     if (vsync_prediction_interval_ == 1)
       ++vsync_count_;
 
-    const bool layer_config_changed = UpdateLayerConfig();
+    UpdateLayerConfig();
 
     // Publish the vsync event.
     if (vsync_ring_) {
       DvrVsync vsync;
       vsync.vsync_count = vsync_count_;
       vsync.vsync_timestamp_ns = vsync_timestamp;
-      vsync.vsync_left_eye_offset_ns = photon_offset_ns;
-      vsync.vsync_right_eye_offset_ns = right_eye_photon_offset_ns;
-      vsync.vsync_period_ns = ns_per_frame;
+      vsync.vsync_left_eye_offset_ns = vsync_eye_offsets.left_ns;
+      vsync.vsync_right_eye_offset_ns = vsync_eye_offsets.right_ns;
+      vsync.vsync_period_ns = target_display_->vsync_period_ns;
 
       vsync_ring_->Publish(vsync);
     }
@@ -792,14 +870,14 @@ void HardwareComposer::PostThread() {
     // Signal all of the vsync clients. Because absolute time is used for the
     // wakeup time below, this can take a little time if necessary.
     if (vsync_callback_)
-      vsync_callback_(HWC_DISPLAY_PRIMARY, vsync_timestamp,
-                      /*frame_time_estimate*/ 0, vsync_count_);
+      vsync_callback_(vsync_timestamp, /*frame_time_estimate*/ 0, vsync_count_);
 
     {
       // Sleep until shortly before vsync.
       ATRACE_NAME("sleep");
 
-      const int64_t display_time_est_ns = vsync_timestamp + ns_per_frame;
+      const int64_t display_time_est_ns =
+          vsync_timestamp + target_display_->vsync_period_ns;
       const int64_t now_ns = GetSystemClockNs();
       const int64_t sleep_time_ns = display_time_est_ns - now_ns -
                                     post_thread_config_.frame_post_offset_ns;
@@ -809,26 +887,18 @@ void HardwareComposer::PostThread() {
       ATRACE_INT64("sleep_time_ns", sleep_time_ns);
       if (sleep_time_ns > 0) {
         int error = SleepUntil(wakeup_time_ns);
-        ALOGE_IF(error < 0, "HardwareComposer::PostThread: Failed to sleep: %s",
+        ALOGE_IF(error < 0 && error != kPostThreadInterrupted,
+                 "HardwareComposer::PostThread: Failed to sleep: %s",
                  strerror(-error));
-        if (error == kPostThreadInterrupted) {
-          if (layer_config_changed) {
-            // If the layer config changed we need to validateDisplay() even if
-            // we're going to drop the frame, to flush the Composer object's
-            // internal command buffer and apply our layer changes.
-            Validate(HWC_DISPLAY_PRIMARY);
-          }
-          continue;
-        }
+        // If the sleep was interrupted (error == kPostThreadInterrupted),
+        // we still go through and present this frame because we may have set
+        // layers earlier and we want to flush the Composer's internal command
+        // buffer by continuing through to validate and present.
       }
     }
 
     {
-      auto status = GetVSyncTime();
-      if (!status) {
-        ALOGE("HardwareComposer::PostThread: Failed to get VSYNC time: %s",
-              status.GetErrorMessage().c_str());
-      }
+      auto status = composer_callback_->GetVsyncTime(target_display_->id);
 
       // If we failed to read vsync there might be a problem with the driver.
       // Since there's nothing we can do just behave as though we didn't get an
@@ -855,20 +925,84 @@ void HardwareComposer::PostThread() {
       }
     }
 
-    PostLayers();
+    PostLayers(target_display_->id);
   }
+}
+
+bool HardwareComposer::UpdateTargetDisplay() {
+  bool target_display_changed = false;
+  auto displays = composer_callback_->GetDisplays();
+  if (displays.external_display_was_hotplugged) {
+    bool was_using_external_display = !target_display_->is_primary;
+    if (was_using_external_display) {
+      // The external display was hotplugged, so make sure to ignore any bad
+      // display errors as we destroy the layers.
+      for (auto& layer: layers_)
+        layer.IgnoreBadDisplayErrorsOnDestroy(true);
+    }
+
+    if (displays.external_display) {
+      // External display was connected
+      external_display_ = GetDisplayParams(composer_.get(),
+          *displays.external_display, /*is_primary*/ false);
+
+      if (property_get_bool(kUseExternalDisplayProperty, false)) {
+        ALOGI("External display connected. Switching to external display.");
+        target_display_ = &(*external_display_);
+        target_display_changed = true;
+      } else {
+        ALOGI("External display connected, but sysprop %s is unset, so"
+              " using primary display.", kUseExternalDisplayProperty);
+        if (was_using_external_display) {
+          target_display_ = &primary_display_;
+          target_display_changed = true;
+        }
+      }
+    } else {
+      // External display was disconnected
+      external_display_ = std::nullopt;
+      if (was_using_external_display) {
+        ALOGI("External display disconnected. Switching to primary display.");
+        target_display_ = &primary_display_;
+        target_display_changed = true;
+      }
+    }
+  }
+
+  if (target_display_changed) {
+    // If we're switching to the external display, turn the primary display off.
+    if (!target_display_->is_primary) {
+      EnableDisplay(primary_display_, false);
+    }
+    // If we're switching to the primary display, and the external display is
+    // still connected, turn the external display off.
+    else if (target_display_->is_primary && external_display_) {
+      EnableDisplay(*external_display_, false);
+    }
+
+    // Turn the new target display on.
+    EnableDisplay(*target_display_, true);
+
+    // When we switch displays we need to recreate all the layers, so clear the
+    // current list, which will trigger layer recreation.
+    layers_.clear();
+  }
+
+  return target_display_changed;
 }
 
 // Checks for changes in the surface stack and updates the layer config to
 // accomodate the new stack.
-bool HardwareComposer::UpdateLayerConfig() {
+void HardwareComposer::UpdateLayerConfig() {
   std::vector<std::shared_ptr<DirectDisplaySurface>> surfaces;
   {
     std::unique_lock<std::mutex> lock(post_thread_mutex_);
-    if (pending_surfaces_.empty())
-      return false;
 
-    surfaces = std::move(pending_surfaces_);
+    if (!surfaces_changed_ && (!layers_.empty() || surfaces_.empty()))
+      return;
+
+    surfaces = surfaces_;
+    surfaces_changed_ = false;
   }
 
   ATRACE_NAME("UpdateLayerConfig_HwLayers");
@@ -905,8 +1039,8 @@ bool HardwareComposer::UpdateLayerConfig() {
       layers_.erase(search);
     } else {
       // Insert a layer for the new surface.
-      layers.emplace_back(surface, blending, display_transform_,
-                          HWC::Composition::Device, layer_index);
+      layers.emplace_back(composer_.get(), *target_display_, surface, blending,
+          HWC::Composition::Device, layer_index);
     }
 
     ALOGI_IF(
@@ -927,26 +1061,36 @@ bool HardwareComposer::UpdateLayerConfig() {
 
   ALOGD_IF(TRACE, "HardwareComposer::UpdateLayerConfig: %zd active layers",
            layers_.size());
-  return true;
 }
 
 void HardwareComposer::SetVSyncCallback(VSyncCallback callback) {
   vsync_callback_ = callback;
 }
 
-void HardwareComposer::SetBacklightBrightness(int brightness) {
-  if (backlight_brightness_fd_) {
-    std::array<char, 32> text;
-    const int length = snprintf(text.data(), text.size(), "%d", brightness);
-    write(backlight_brightness_fd_.Get(), text.data(), length);
-  }
-}
-
 Return<void> HardwareComposer::ComposerCallback::onHotplug(
-    Hwc2::Display display, IComposerCallback::Connection /*conn*/) {
-  // See if the driver supports the vsync_event node in sysfs.
-  if (display < HWC_NUM_PHYSICAL_DISPLAY_TYPES &&
-      !displays_[display].driver_vsync_event_fd) {
+    Hwc2::Display display, IComposerCallback::Connection conn) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  ALOGI("onHotplug display=%" PRIu64 " conn=%d", display, conn);
+
+  bool is_primary = !got_first_hotplug_ || display == primary_display_.id;
+
+  // Our first onHotplug callback is always for the primary display.
+  if (!got_first_hotplug_) {
+    LOG_ALWAYS_FATAL_IF(conn != IComposerCallback::Connection::CONNECTED,
+        "Initial onHotplug callback should be primary display connected");
+    got_first_hotplug_ = true;
+  } else if (is_primary) {
+    ALOGE("Ignoring unexpected onHotplug() call for primary display");
+    return Void();
+  }
+
+  if (conn == IComposerCallback::Connection::CONNECTED) {
+    if (!is_primary)
+      external_display_ = DisplayInfo();
+    DisplayInfo& display_info = is_primary ?
+        primary_display_ : *external_display_;
+    display_info.id = display;
+
     std::array<char, 1024> buffer;
     snprintf(buffer.data(), buffer.size(),
              "/sys/class/graphics/fb%" PRIu64 "/vsync_event", display);
@@ -955,14 +1099,19 @@ Return<void> HardwareComposer::ComposerCallback::onHotplug(
           "HardwareComposer::ComposerCallback::onHotplug: Driver supports "
           "vsync_event node for display %" PRIu64,
           display);
-      displays_[display].driver_vsync_event_fd = std::move(handle);
+      display_info.driver_vsync_event_fd = std::move(handle);
     } else {
       ALOGI(
           "HardwareComposer::ComposerCallback::onHotplug: Driver does not "
           "support vsync_event node for display %" PRIu64,
           display);
     }
+  } else if (conn == IComposerCallback::Connection::DISCONNECTED) {
+    external_display_ = std::nullopt;
   }
+
+  if (!is_primary)
+    external_display_was_hotplugged_ = true;
 
   return Void();
 }
@@ -974,36 +1123,45 @@ Return<void> HardwareComposer::ComposerCallback::onRefresh(
 
 Return<void> HardwareComposer::ComposerCallback::onVsync(Hwc2::Display display,
                                                          int64_t timestamp) {
-  TRACE_FORMAT("vsync_callback|display=%" PRIu64 ";timestamp=%" PRId64 "|",
-               display, timestamp);
-  if (display < HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
-    displays_[display].callback_vsync_timestamp = timestamp;
-  } else {
-    ALOGW(
-        "HardwareComposer::ComposerCallback::onVsync: Received vsync on "
-        "non-physical display: display=%" PRId64,
-        display);
+  DisplayInfo* display_info = GetDisplayInfo(display);
+  if (display_info) {
+    TRACE_FORMAT("vsync_callback|display=%" PRIu64 ";timestamp=%" PRId64 "|",
+                 display, timestamp);
+    display_info->callback_vsync_timestamp = timestamp;
   }
+
   return Void();
 }
 
+HardwareComposer::ComposerCallback::Displays
+HardwareComposer::ComposerCallback::GetDisplays() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  Displays displays;
+  displays.primary_display = primary_display_.id;
+  if (external_display_)
+    displays.external_display = external_display_->id;
+  if (external_display_was_hotplugged_) {
+    external_display_was_hotplugged_ = false;
+    displays.external_display_was_hotplugged = true;
+  }
+  return displays;
+}
+
 Status<int64_t> HardwareComposer::ComposerCallback::GetVsyncTime(
-    Hwc2::Display display) {
-  if (display >= HWC_NUM_PHYSICAL_DISPLAY_TYPES) {
-    ALOGE(
-        "HardwareComposer::ComposerCallback::GetVsyncTime: Invalid physical "
-        "display requested: display=%" PRIu64,
-        display);
+    hwc2_display_t display) {
+  DisplayInfo* display_info = GetDisplayInfo(display);
+  if (!display_info) {
+    ALOGW("Attempt to get vsync time for unknown display %" PRIu64, display);
     return ErrorStatus(EINVAL);
   }
 
   // See if the driver supports direct vsync events.
-  LocalHandle& event_fd = displays_[display].driver_vsync_event_fd;
+  LocalHandle& event_fd = display_info->driver_vsync_event_fd;
   if (!event_fd) {
     // Fall back to returning the last timestamp returned by the vsync
     // callback.
-    std::lock_guard<std::mutex> autolock(vsync_mutex_);
-    return displays_[display].callback_vsync_timestamp;
+    std::lock_guard<std::mutex> autolock(mutex_);
+    return display_info->callback_vsync_timestamp;
   }
 
   // When the driver supports the vsync_event sysfs node we can use it to
@@ -1051,18 +1209,32 @@ Status<int64_t> HardwareComposer::ComposerCallback::GetVsyncTime(
   return {timestamp};
 }
 
-Hwc2::Composer* Layer::composer_{nullptr};
-HWCDisplayMetrics Layer::display_metrics_{0, 0, {0, 0}, 0};
+HardwareComposer::ComposerCallback::DisplayInfo*
+HardwareComposer::ComposerCallback::GetDisplayInfo(hwc2_display_t display) {
+  if (display == primary_display_.id) {
+    return &primary_display_;
+  } else if (external_display_ && display == external_display_->id) {
+    return &(*external_display_);
+  }
+  return nullptr;
+}
 
 void Layer::Reset() {
   if (hardware_composer_layer_) {
-    composer_->destroyLayer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_);
+    HWC::Error error =
+        composer_->destroyLayer(display_params_.id, hardware_composer_layer_);
+    if (error != HWC::Error::None &&
+        (!ignore_bad_display_errors_on_destroy_ ||
+         error != HWC::Error::BadDisplay)) {
+      ALOGE("destroyLayer() failed for display %" PRIu64 ", layer %" PRIu64
+          ". error: %s", display_params_.id, hardware_composer_layer_,
+          error.to_string().c_str());
+    }
     hardware_composer_layer_ = 0;
   }
 
   z_order_ = 0;
   blending_ = HWC::BlendMode::None;
-  transform_ = HWC::Transform::None;
   composition_type_ = HWC::Composition::Invalid;
   target_composition_type_ = composition_type_;
   source_ = EmptyVariant{};
@@ -1070,25 +1242,29 @@ void Layer::Reset() {
   surface_rect_functions_applied_ = false;
   pending_visibility_settings_ = true;
   cached_buffer_map_.clear();
+  ignore_bad_display_errors_on_destroy_ = false;
 }
 
-Layer::Layer(const std::shared_ptr<DirectDisplaySurface>& surface,
-             HWC::BlendMode blending, HWC::Transform transform,
-             HWC::Composition composition_type, size_t z_order)
-    : z_order_{z_order},
+Layer::Layer(Hwc2::Composer* composer, const DisplayParams& display_params,
+             const std::shared_ptr<DirectDisplaySurface>& surface,
+             HWC::BlendMode blending, HWC::Composition composition_type,
+             size_t z_order)
+    : composer_(composer),
+      display_params_(display_params),
+      z_order_{z_order},
       blending_{blending},
-      transform_{transform},
       target_composition_type_{composition_type},
       source_{SourceSurface{surface}} {
   CommonLayerSetup();
 }
 
-Layer::Layer(const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
-             HWC::Transform transform, HWC::Composition composition_type,
-             size_t z_order)
-    : z_order_{z_order},
+Layer::Layer(Hwc2::Composer* composer, const DisplayParams& display_params,
+             const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
+             HWC::Composition composition_type, size_t z_order)
+    : composer_(composer),
+      display_params_(display_params),
+      z_order_{z_order},
       blending_{blending},
-      transform_{transform},
       target_composition_type_{composition_type},
       source_{SourceBuffer{buffer}} {
   CommonLayerSetup();
@@ -1102,10 +1278,11 @@ Layer& Layer::operator=(Layer&& other) {
   if (this != &other) {
     Reset();
     using std::swap;
+    swap(composer_, other.composer_);
+    swap(display_params_, other.display_params_);
     swap(hardware_composer_layer_, other.hardware_composer_layer_);
     swap(z_order_, other.z_order_);
     swap(blending_, other.blending_);
-    swap(transform_, other.transform_);
     swap(composition_type_, other.composition_type_);
     swap(target_composition_type_, other.target_composition_type_);
     swap(source_, other.source_);
@@ -1114,6 +1291,8 @@ Layer& Layer::operator=(Layer&& other) {
          other.surface_rect_functions_applied_);
     swap(pending_visibility_settings_, other.pending_visibility_settings_);
     swap(cached_buffer_map_, other.cached_buffer_map_);
+    swap(ignore_bad_display_errors_on_destroy_,
+         other.ignore_bad_display_errors_on_destroy_);
   }
   return *this;
 }
@@ -1151,17 +1330,16 @@ void Layer::UpdateVisibilitySettings() {
     pending_visibility_settings_ = false;
 
     HWC::Error error;
-    hwc2_display_t display = HWC_DISPLAY_PRIMARY;
 
     error = composer_->setLayerBlendMode(
-        display, hardware_composer_layer_,
+        display_params_.id, hardware_composer_layer_,
         blending_.cast<Hwc2::IComposerClient::BlendMode>());
     ALOGE_IF(error != HWC::Error::None,
              "Layer::UpdateLayerSettings: Error setting layer blend mode: %s",
              error.to_string().c_str());
 
-    error =
-        composer_->setLayerZOrder(display, hardware_composer_layer_, z_order_);
+    error = composer_->setLayerZOrder(display_params_.id,
+        hardware_composer_layer_, z_order_);
     ALOGE_IF(error != HWC::Error::None,
              "Layer::UpdateLayerSettings: Error setting z_ order: %s",
              error.to_string().c_str());
@@ -1170,36 +1348,35 @@ void Layer::UpdateVisibilitySettings() {
 
 void Layer::UpdateLayerSettings() {
   HWC::Error error;
-  hwc2_display_t display = HWC_DISPLAY_PRIMARY;
 
   UpdateVisibilitySettings();
 
   // TODO(eieio): Use surface attributes or some other mechanism to control
   // the layer display frame.
   error = composer_->setLayerDisplayFrame(
-      display, hardware_composer_layer_,
-      {0, 0, display_metrics_.width, display_metrics_.height});
+      display_params_.id, hardware_composer_layer_,
+      {0, 0, display_params_.width, display_params_.height});
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer display frame: %s",
            error.to_string().c_str());
 
   error = composer_->setLayerVisibleRegion(
-      display, hardware_composer_layer_,
-      {{0, 0, display_metrics_.width, display_metrics_.height}});
+      display_params_.id, hardware_composer_layer_,
+      {{0, 0, display_params_.width, display_params_.height}});
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer visible region: %s",
            error.to_string().c_str());
 
-  error =
-      composer_->setLayerPlaneAlpha(display, hardware_composer_layer_, 1.0f);
+  error = composer_->setLayerPlaneAlpha(display_params_.id,
+      hardware_composer_layer_, 1.0f);
   ALOGE_IF(error != HWC::Error::None,
            "Layer::UpdateLayerSettings: Error setting layer plane alpha: %s",
            error.to_string().c_str());
 }
 
 void Layer::CommonLayerSetup() {
-  HWC::Error error =
-      composer_->createLayer(HWC_DISPLAY_PRIMARY, &hardware_composer_layer_);
+  HWC::Error error = composer_->createLayer(display_params_.id,
+                                            &hardware_composer_layer_);
   ALOGE_IF(error != HWC::Error::None,
            "Layer::CommonLayerSetup: Failed to create layer on primary "
            "display: %s",
@@ -1243,10 +1420,10 @@ void Layer::Prepare() {
     if (composition_type_ == HWC::Composition::Invalid) {
       composition_type_ = HWC::Composition::SolidColor;
       composer_->setLayerCompositionType(
-          HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+          display_params_.id, hardware_composer_layer_,
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
       Hwc2::IComposerClient::Color layer_color = {0, 0, 0, 0};
-      composer_->setLayerColor(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+      composer_->setLayerColor(display_params_.id, hardware_composer_layer_,
                                layer_color);
     } else {
       // The composition type is already set. Nothing else to do until a
@@ -1256,7 +1433,7 @@ void Layer::Prepare() {
     if (composition_type_ != target_composition_type_) {
       composition_type_ = target_composition_type_;
       composer_->setLayerCompositionType(
-          HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+          display_params_.id, hardware_composer_layer_,
           composition_type_.cast<Hwc2::IComposerClient::Composition>());
     }
 
@@ -1267,7 +1444,7 @@ void Layer::Prepare() {
 
     HWC::Error error{HWC::Error::None};
     error =
-        composer_->setLayerBuffer(HWC_DISPLAY_PRIMARY, hardware_composer_layer_,
+        composer_->setLayerBuffer(display_params_.id, hardware_composer_layer_,
                                   slot, handle, acquire_fence_.Get());
 
     ALOGE_IF(error != HWC::Error::None,
@@ -1277,7 +1454,7 @@ void Layer::Prepare() {
     if (!surface_rect_functions_applied_) {
       const float float_right = right;
       const float float_bottom = bottom;
-      error = composer_->setLayerSourceCrop(HWC_DISPLAY_PRIMARY,
+      error = composer_->setLayerSourceCrop(display_params_.id,
                                             hardware_composer_layer_,
                                             {0, 0, float_right, float_bottom});
 

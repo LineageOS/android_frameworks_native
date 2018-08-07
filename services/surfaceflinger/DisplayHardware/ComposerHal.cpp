@@ -19,9 +19,13 @@
 
 #include <inttypes.h>
 #include <log/log.h>
-#include <gui/BufferQueue.h>
 
 #include "ComposerHal.h"
+
+#include <android/hardware/graphics/composer/2.2/IComposer.h>
+#include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
+#include <gui/BufferQueue.h>
+#include <hidl/HidlTransportUtils.h>
 
 namespace android {
 
@@ -30,6 +34,8 @@ using hardware::hidl_vec;
 using hardware::hidl_handle;
 
 namespace Hwc2 {
+
+Composer::~Composer() = default;
 
 namespace {
 
@@ -103,6 +109,8 @@ Error unwrapRet(Return<Error>& ret)
 
 } // anonymous namespace
 
+namespace impl {
+
 Composer::CommandWriter::CommandWriter(uint32_t initialMaxSize)
     : CommandWriterBase(initialMaxSize) {}
 
@@ -113,10 +121,9 @@ Composer::CommandWriter::~CommandWriter()
 void Composer::CommandWriter::setLayerInfo(uint32_t type, uint32_t appId)
 {
     constexpr uint16_t kSetLayerInfoLength = 2;
-    beginCommand(
-        static_cast<IComposerClient::Command>(
-            IVrComposerClient::VrCommand::SET_LAYER_INFO),
-        kSetLayerInfoLength);
+    beginCommand(static_cast<V2_1::IComposerClient::Command>(
+                         IVrComposerClient::VrCommand::SET_LAYER_INFO),
+                 kSetLayerInfoLength);
     write(type);
     write(appId);
     endCommand();
@@ -126,10 +133,9 @@ void Composer::CommandWriter::setClientTargetMetadata(
         const IVrComposerClient::BufferMetadata& metadata)
 {
     constexpr uint16_t kSetClientTargetMetadataLength = 7;
-    beginCommand(
-        static_cast<IComposerClient::Command>(
-            IVrComposerClient::VrCommand::SET_CLIENT_TARGET_METADATA),
-        kSetClientTargetMetadataLength);
+    beginCommand(static_cast<V2_1::IComposerClient::Command>(
+                         IVrComposerClient::VrCommand::SET_CLIENT_TARGET_METADATA),
+                 kSetClientTargetMetadataLength);
     writeBufferMetadata(metadata);
     endCommand();
 }
@@ -138,10 +144,9 @@ void Composer::CommandWriter::setLayerBufferMetadata(
         const IVrComposerClient::BufferMetadata& metadata)
 {
     constexpr uint16_t kSetLayerBufferMetadataLength = 7;
-    beginCommand(
-        static_cast<IComposerClient::Command>(
-            IVrComposerClient::VrCommand::SET_LAYER_BUFFER_METADATA),
-        kSetLayerBufferMetadataLength);
+    beginCommand(static_cast<V2_1::IComposerClient::Command>(
+                         IVrComposerClient::VrCommand::SET_LAYER_BUFFER_METADATA),
+                 kSetLayerBufferMetadataLength);
     writeBufferMetadata(metadata);
     endCommand();
 }
@@ -161,7 +166,7 @@ Composer::Composer(const std::string& serviceName)
     : mWriter(kWriterInitialSize),
       mIsUsingVrComposer(serviceName == std::string("vr"))
 {
-    mComposer = IComposer::getService(serviceName);
+    mComposer = V2_1::IComposer::getService(serviceName);
 
     if (mComposer == nullptr) {
         LOG_ALWAYS_FATAL("failed to get hwcomposer service");
@@ -178,6 +183,13 @@ Composer::Composer(const std::string& serviceName)
         LOG_ALWAYS_FATAL("failed to create composer client");
     }
 
+    // 2.2 support is optional
+    sp<IComposer> composer_2_2 = IComposer::castFrom(mComposer);
+    if (composer_2_2 != nullptr) {
+        mClient_2_2 = IComposerClient::castFrom(mClient);
+        LOG_ALWAYS_FATAL_IF(mClient_2_2 == nullptr, "IComposer 2.2 did not return IComposerClient 2.2");
+    }
+
     if (mIsUsingVrComposer) {
         sp<IVrComposerClient> vrClient = IVrComposerClient::castFrom(mClient);
         if (vrClient == nullptr) {
@@ -185,6 +197,8 @@ Composer::Composer(const std::string& serviceName)
         }
     }
 }
+
+Composer::~Composer() = default;
 
 std::vector<IComposer::Capability> Composer::getCapabilities()
 {
@@ -223,6 +237,10 @@ void Composer::resetCommands() {
     mWriter.reset();
 }
 
+Error Composer::executeCommands() {
+    return execute();
+}
+
 uint32_t Composer::getMaxVirtualDisplayCount()
 {
     auto ret = mClient->getMaxVirtualDisplayCount();
@@ -234,17 +252,32 @@ Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
 {
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
-    mClient->createVirtualDisplay(width, height, *format, bufferSlotCount,
-            [&](const auto& tmpError, const auto& tmpDisplay,
-                const auto& tmpFormat) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    if (mClient_2_2) {
+        mClient_2_2->createVirtualDisplay_2_2(width, height, *format, bufferSlotCount,
+                [&](const auto& tmpError, const auto& tmpDisplay,
+                    const auto& tmpFormat) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
 
-                *outDisplay = tmpDisplay;
-                *format = tmpFormat;
+                    *outDisplay = tmpDisplay;
+                    *format = tmpFormat;
+                });
+    } else {
+        mClient->createVirtualDisplay(width, height,
+                static_cast<types::V1_0::PixelFormat>(*format), bufferSlotCount,
+                [&](const auto& tmpError, const auto& tmpDisplay,
+                    const auto& tmpFormat) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
+
+                    *outDisplay = tmpDisplay;
+                    *format = static_cast<PixelFormat>(tmpFormat);
             });
+    }
 
     return error;
 }
@@ -312,15 +345,29 @@ Error Composer::getColorModes(Display display,
         std::vector<ColorMode>* outModes)
 {
     Error error = kDefaultError;
-    mClient->getColorModes(display,
-            [&](const auto& tmpError, const auto& tmpModes) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
 
-                *outModes = tmpModes;
-            });
+    if (mClient_2_2) {
+        mClient_2_2->getColorModes_2_2(display,
+                [&](const auto& tmpError, const auto& tmpModes) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
+
+                    *outModes = tmpModes;
+                });
+    } else {
+        mClient->getColorModes(display,
+                [&](const auto& tmpError, const auto& tmpModes) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
+                    for (types::V1_0::ColorMode colorMode : tmpModes) {
+                        outModes->push_back(static_cast<ColorMode>(colorMode));
+                    }
+                });
+    }
 
     return error;
 }
@@ -481,7 +528,7 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
             .height = target->getHeight(),
             .stride = target->getStride(),
             .layerCount = target->getLayerCount(),
-            .format = static_cast<PixelFormat>(target->getPixelFormat()),
+            .format = static_cast<types::V1_0::PixelFormat>(target->getPixelFormat()),
             .usage = target->getUsage(),
         };
         mWriter.setClientTargetMetadata(metadata);
@@ -496,9 +543,16 @@ Error Composer::setClientTarget(Display display, uint32_t slot,
     return Error::NONE;
 }
 
-Error Composer::setColorMode(Display display, ColorMode mode)
+Error Composer::setColorMode(Display display, ColorMode mode,
+        RenderIntent renderIntent)
 {
-    auto ret = mClient->setColorMode(display, mode);
+    hardware::Return<Error> ret(kDefaultError);
+    if (mClient_2_2) {
+        ret = mClient_2_2->setColorMode_2_2(display, mode, renderIntent);
+    } else {
+        ret = mClient->setColorMode(display,
+                static_cast<types::V1_0::ColorMode>(mode));
+    }
     return unwrapRet(ret);
 }
 
@@ -518,9 +572,14 @@ Error Composer::setOutputBuffer(Display display, const native_handle_t* buffer,
     return Error::NONE;
 }
 
-Error Composer::setPowerMode(Display display, IComposerClient::PowerMode mode)
-{
-    auto ret = mClient->setPowerMode(display, mode);
+Error Composer::setPowerMode(Display display, IComposerClient::PowerMode mode) {
+    Return<Error> ret(Error::UNSUPPORTED);
+    if (mClient_2_2) {
+        ret = mClient_2_2->setPowerMode_2_2(display, mode);
+    } else if (mode != IComposerClient::PowerMode::ON_SUSPEND) {
+        ret = mClient->setPowerMode(display, static_cast<V2_1::IComposerClient::PowerMode>(mode));
+    }
+
     return unwrapRet(ret);
 }
 
@@ -596,7 +655,7 @@ Error Composer::setLayerBuffer(Display display, Layer layer,
             .height = buffer->getHeight(),
             .stride = buffer->getStride(),
             .layerCount = buffer->getLayerCount(),
-            .format = static_cast<PixelFormat>(buffer->getPixelFormat()),
+            .format = static_cast<types::V1_0::PixelFormat>(buffer->getPixelFormat()),
             .usage = buffer->getUsage(),
         };
         mWriter.setLayerBufferMetadata(metadata);
@@ -750,40 +809,50 @@ Error Composer::execute()
         }
     }
 
+    if (commandLength == 0) {
+        mWriter.reset();
+        return Error::NONE;
+    }
+
     Error error = kDefaultError;
-    auto ret = mClient->executeCommands(commandLength, commandHandles,
-            [&](const auto& tmpError, const auto& tmpOutChanged,
-                const auto& tmpOutLength, const auto& tmpOutHandles)
-            {
-                error = tmpError;
+    hardware::Return<void> ret;
+    auto hidl_callback = [&](const auto& tmpError, const auto& tmpOutChanged,
+                             const auto& tmpOutLength, const auto& tmpOutHandles)
+                         {
+                             error = tmpError;
 
-                // set up new output command queue if necessary
-                if (error == Error::NONE && tmpOutChanged) {
-                    error = kDefaultError;
-                    mClient->getOutputCommandQueue(
-                            [&](const auto& tmpError,
-                                const auto& tmpDescriptor)
-                            {
-                                error = tmpError;
-                                if (error != Error::NONE) {
-                                    return;
-                                }
+                             // set up new output command queue if necessary
+                             if (error == Error::NONE && tmpOutChanged) {
+                                 error = kDefaultError;
+                                 mClient->getOutputCommandQueue(
+                                     [&](const auto& tmpError,
+                                         const auto& tmpDescriptor)
+                                     {
+                                         error = tmpError;
+                                         if (error != Error::NONE) {
+                                             return;
+                                     }
 
-                                mReader.setMQDescriptor(tmpDescriptor);
-                            });
-                }
+                                     mReader.setMQDescriptor(tmpDescriptor);
+                                 });
+                             }
 
-                if (error != Error::NONE) {
-                    return;
-                }
+                             if (error != Error::NONE) {
+                                 return;
+                             }
 
-                if (mReader.readQueue(tmpOutLength, tmpOutHandles)) {
-                    error = mReader.parse();
-                    mReader.reset();
-                } else {
-                    error = Error::NO_RESOURCES;
-                }
-            });
+                             if (mReader.readQueue(tmpOutLength, tmpOutHandles)) {
+                                 error = mReader.parse();
+                                 mReader.reset();
+                             } else {
+                                 error = Error::NO_RESOURCES;
+                             }
+                         };
+    if (mClient_2_2) {
+        ret = mClient_2_2->executeCommands_2_2(commandLength, commandHandles, hidl_callback);
+    } else {
+        ret = mClient->executeCommands(commandLength, commandHandles, hidl_callback);
+    }
     // executeCommands can fail because of out-of-fd and we do not want to
     // abort() in that case
     if (!ret.isOk()) {
@@ -795,7 +864,8 @@ Error Composer::execute()
             mReader.takeErrors();
 
         for (const auto& cmdErr : commandErrors) {
-            auto command = mWriter.getCommand(cmdErr.location);
+            auto command =
+                    static_cast<IComposerClient::Command>(mWriter.getCommand(cmdErr.location));
 
             if (command == IComposerClient::Command::VALIDATE_DISPLAY ||
                 command == IComposerClient::Command::PRESENT_DISPLAY ||
@@ -813,6 +883,80 @@ Error Composer::execute()
     return error;
 }
 
+// Composer HAL 2.2
+
+Error Composer::setLayerPerFrameMetadata(Display display, Layer layer,
+        const std::vector<IComposerClient::PerFrameMetadata>& perFrameMetadatas) {
+    if (!mClient_2_2) {
+        return Error::UNSUPPORTED;
+    }
+
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerPerFrameMetadata(perFrameMetadatas);
+    return Error::NONE;
+}
+
+Error Composer::getPerFrameMetadataKeys(
+        Display display, std::vector<IComposerClient::PerFrameMetadataKey>* outKeys) {
+    if (!mClient_2_2) {
+        return Error::UNSUPPORTED;
+    }
+
+    Error error = kDefaultError;
+    mClient_2_2->getPerFrameMetadataKeys(display, [&](const auto& tmpError, const auto& tmpKeys) {
+        error = tmpError;
+        if (error != Error::NONE) {
+            return;
+        }
+
+        *outKeys = tmpKeys;
+    });
+
+    return error;
+}
+
+Error Composer::getRenderIntents(Display display, ColorMode colorMode,
+        std::vector<RenderIntent>* outRenderIntents) {
+    if (!mClient_2_2) {
+        outRenderIntents->push_back(RenderIntent::COLORIMETRIC);
+        return Error::NONE;
+    }
+
+    Error error = kDefaultError;
+    mClient_2_2->getRenderIntents(display, colorMode,
+            [&](const auto& tmpError, const auto& tmpKeys) {
+        error = tmpError;
+        if (error != Error::NONE) {
+            return;
+        }
+
+        *outRenderIntents = tmpKeys;
+    });
+
+    return error;
+}
+
+Error Composer::getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatrix)
+{
+    if (!mClient_2_2) {
+        *outMatrix = mat4();
+        return Error::NONE;
+    }
+
+    Error error = kDefaultError;
+    mClient_2_2->getDataspaceSaturationMatrix(dataspace, [&](const auto& tmpError, const auto& tmpMatrix) {
+        error = tmpError;
+        if (error != Error::NONE) {
+            return;
+        }
+
+        *outMatrix = mat4(tmpMatrix.data());
+    });
+
+    return error;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();
@@ -826,7 +970,8 @@ Error CommandReader::parse()
     uint16_t length = 0;
 
     while (!isEmpty()) {
-        if (!beginCommand(&command, &length)) {
+        auto command_2_1 = reinterpret_cast<V2_1::IComposerClient::Command*>(&command);
+        if (!beginCommand(command_2_1, &length)) {
             break;
         }
 
@@ -1108,6 +1253,8 @@ void CommandReader::takePresentOrValidateStage(Display display, uint32_t* state)
     ReturnData& data = found->second;
     *state = data.presentOrValidateState;
 }
+
+} // namespace impl
 
 } // namespace Hwc2
 

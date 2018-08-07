@@ -26,6 +26,8 @@ localIncludeFiles = [
 
 sharedLibraries = [
     "libbase",
+    "libbinder",
+    "libbufferhubqueue",
     "libcutils",
     "liblog",
     "libutils",
@@ -34,14 +36,12 @@ sharedLibraries = [
     "libhardware",
     "libsync",
     "libnativewindow",
+    "libpdx_default_transport",
 ]
 
 staticLibraries = [
     "libdvrcommon",
-    "libbufferhubqueue",
-    "libbufferhub",
     "libbroadcastring",
-    "libpdx_default_transport",
 ]
 
 headerLibraries = [

@@ -15,6 +15,7 @@ cc_test {
     static_libs: [
         "libdumpsys",
         "libgmock",
+        "libserviceutils",
     ],
 
     clang: true,

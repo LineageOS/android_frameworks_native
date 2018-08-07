@@ -35,10 +35,20 @@ public:
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
 
+    void setLayerPaths(android_namespace_t* appNamespace, const std::string layerPaths);
+    android_namespace_t* getAppNamespace();
+    const std::string getLayerPaths();
+
+    void setDebugLayers(const std::string layers);
+    const std::string getDebugLayers();
+
 private:
     GraphicsEnv() = default;
     std::string mDriverPath;
+    std::string mDebugLayers;
+    std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
+    android_namespace_t* mAppNamespace = nullptr;
 };
 
 } // namespace android

@@ -23,11 +23,10 @@ class BufferHubChannel : public pdx::Channel {
   enum ChannelType {
     kProducerType,
     kConsumerType,
+    kDetachedBufferType,
     kProducerQueueType,
     kConsumerQueueType,
   };
-
-  enum : int { kDetachedId = -1 };
 
   BufferHubChannel(BufferHubService* service, int buffer_id, int channel_id,
                    ChannelType channel_type)
@@ -57,7 +56,6 @@ class BufferHubChannel : public pdx::Channel {
     uint64_t state = 0;
     uint64_t signaled_mask = 0;
     uint64_t index = 0;
-    std::string name;
 
     // Data filed for producer queue.
     size_t capacity = 0;
@@ -66,7 +64,7 @@ class BufferHubChannel : public pdx::Channel {
     BufferInfo(int id, size_t consumer_count, uint32_t width, uint32_t height,
                uint32_t layer_count, uint32_t format, uint64_t usage,
                size_t pending_count, uint64_t state, uint64_t signaled_mask,
-               uint64_t index, const std::string& name)
+               uint64_t index)
         : id(id),
           type(kProducerType),
           consumer_count(consumer_count),
@@ -78,8 +76,7 @@ class BufferHubChannel : public pdx::Channel {
           pending_count(pending_count),
           state(state),
           signaled_mask(signaled_mask),
-          index(index),
-          name(name) {}
+          index(index) {}
 
     BufferInfo(int id, size_t consumer_count, size_t capacity,
                const UsagePolicy& usage_policy)
@@ -109,18 +106,8 @@ class BufferHubChannel : public pdx::Channel {
   int buffer_id() const { return buffer_id_; }
 
   int channel_id() const { return channel_id_; }
-  bool IsDetached() const { return channel_id_ == kDetachedId; }
 
   bool signaled() const { return signaled_; }
-
-  void Detach() {
-    if (channel_type_ == kProducerType)
-      channel_id_ = kDetachedId;
-  }
-  void Attach(int channel_id) {
-    if (channel_type_ == kProducerType && channel_id_ == kDetachedId)
-      channel_id_ = channel_id;
-  }
 
  private:
   BufferHubService* service_;
@@ -132,8 +119,7 @@ class BufferHubChannel : public pdx::Channel {
   // general because channel ids are not used for any lookup in this service.
   int buffer_id_;
 
-  // The channel id of the buffer. This may change for a persistent producer
-  // buffer if it is detached and re-attached to another channel.
+  // The channel id of the buffer.
   int channel_id_;
 
   bool signaled_;
@@ -152,34 +138,20 @@ class BufferHubService : public pdx::ServiceBase<BufferHubService> {
   pdx::Status<void> HandleMessage(pdx::Message& message) override;
   void HandleImpulse(pdx::Message& message) override;
 
-  void OnChannelClose(pdx::Message& message,
-                      const std::shared_ptr<pdx::Channel>& channel) override;
-
   bool IsInitialized() const override;
   std::string DumpState(size_t max_length) override;
-
-  bool AddNamedBuffer(const std::string& name,
-                      const std::shared_ptr<ProducerChannel>& buffer);
-  std::shared_ptr<ProducerChannel> GetNamedBuffer(const std::string& name);
-  bool RemoveNamedBuffer(const ProducerChannel& buffer);
 
  private:
   friend BASE;
 
-  std::unordered_map<std::string, std::shared_ptr<ProducerChannel>>
-      named_buffers_;
-
   pdx::Status<void> OnCreateBuffer(pdx::Message& message, uint32_t width,
                                    uint32_t height, uint32_t format,
                                    uint64_t usage, size_t meta_size_bytes);
-  pdx::Status<void> OnCreatePersistentBuffer(pdx::Message& message,
-                                             const std::string& name,
-                                             int user_id, int group_id,
-                                             uint32_t width, uint32_t height,
-                                             uint32_t format, uint64_t usage,
-                                             size_t meta_size_bytes);
-  pdx::Status<void> OnGetPersistentBuffer(pdx::Message& message,
-                                          const std::string& name);
+  pdx::Status<void> OnCreateDetachedBuffer(pdx::Message& message,
+                                           uint32_t width, uint32_t height,
+                                           uint32_t layer_count,
+                                           uint32_t format, uint64_t usage,
+                                           size_t user_metadata_size);
   pdx::Status<QueueInfo> OnCreateProducerQueue(
       pdx::Message& message, const ProducerQueueConfig& producer_config,
       const UsagePolicy& usage_policy);

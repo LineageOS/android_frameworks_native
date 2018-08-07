@@ -146,13 +146,13 @@ class Progress {
  *
  * See bugreport-format.md for more info.
  */
-static std::string VERSION_CURRENT = "1.0";
+static std::string VERSION_CURRENT = "2.0";
 
 /*
  * Temporary version that adds a anr-traces.txt entry. Once tools support it, the current version
- * will be bumped to 2.0-dev-1.
+ * will be bumped to 3.0.
  */
-static std::string VERSION_SPLIT_ANR = "2.0-dev-1";
+static std::string VERSION_SPLIT_ANR = "3.0-dev-split-anr";
 
 /*
  * "Alias" for the current version.
@@ -205,19 +205,19 @@ class Dumpstate {
 
     /*
      * Runs `dumpsys` with the given arguments, automatically setting its timeout
-     * (`-t` argument)
+     * (`-T` argument)
      * according to the command options.
      *
      * |title| description of the command printed on `stdout` (or empty to skip
      * description).
      * |dumpsys_args| `dumpsys` arguments (except `-t`).
      * |options| optional argument defining the command's behavior.
-     * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -t` (otherwise it uses the
+     * |dumpsys_timeout| when > 0, defines the value passed to `dumpsys -T` (otherwise it uses the
      * timeout from `options`)
      */
     void RunDumpsys(const std::string& title, const std::vector<std::string>& dumpsys_args,
                     const android::os::dumpstate::CommandOptions& options = DEFAULT_DUMPSYS,
-                    long dumpsys_timeout = 0);
+                    long dumpsys_timeout_ms = 0);
 
     /*
      * Prints the contents of a file.
@@ -235,8 +235,14 @@ class Dumpstate {
 
     /*
      * Adds a new entry to the existing zip file.
+     *
+     * |entry_name| destination path of the new entry.
+     * |fd| file descriptor to read from.
+     * |timeout| timeout to terminate the read if not completed. Set
+     * value of 0s (default) to disable timeout.
      */
-    bool AddZipEntryFromFd(const std::string& entry_name, int fd);
+    android::status_t AddZipEntryFromFd(const std::string& entry_name, int fd,
+                                        std::chrono::milliseconds timeout);
 
     /*
      * Adds a text entry entry to the existing zip file.
@@ -280,6 +286,9 @@ class Dumpstate {
 
     /* Gets the path of a bugreport file with the given suffix. */
     std::string GetPath(const std::string& suffix) const;
+
+    /* Returns true if the current version supports priority dump feature. */
+    bool CurrentVersionSupportsPriorityDumps() const;
 
     // TODO: initialize fields on constructor
 
@@ -347,9 +356,10 @@ class Dumpstate {
     // Pointer to the zip structure.
     std::unique_ptr<ZipWriter> zip_writer_;
 
-    // Binder object listing to progress.
+    // Binder object listening to progress.
     android::sp<android::os::IDumpstateListener> listener_;
     std::string listener_name_;
+    bool report_section_;
 
     // Notification title and description
     std::string notification_title;
@@ -444,6 +454,9 @@ void dump_emmc_ecsd(const char *ext_csd_path);
 
 /** Gets command-line arguments. */
 void format_args(int argc, const char *argv[], std::string *args);
+
+/** Main entry point for dumpstate. */
+int run_main(int argc, char* argv[]);
 
 #ifdef __cplusplus
 }

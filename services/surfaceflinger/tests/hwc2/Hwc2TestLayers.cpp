@@ -169,7 +169,7 @@ hwc_rect_t Hwc2TestLayers::getCursorPosition(hwc2_layer_t layer) const
     return mTestLayers.at(layer).getCursorPosition();
 }
 
-android_dataspace_t Hwc2TestLayers::getDataspace(hwc2_layer_t layer) const
+android::ui::Dataspace Hwc2TestLayers::getDataspace(hwc2_layer_t layer) const
 {
     if (mTestLayers.count(layer) == 0) {
         []() { GTEST_FAIL(); }();

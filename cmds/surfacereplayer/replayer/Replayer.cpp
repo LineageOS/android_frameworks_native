@@ -24,9 +24,9 @@
 
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposer.h>
+#include <gui/LayerState.h>
 #include <gui/Surface.h>
 #include <private/gui/ComposerService.h>
-#include <private/gui/LayerState.h>
 
 #include <ui/DisplayInfo.h>
 #include <utils/Log.h>
@@ -338,27 +338,29 @@ status_t Replayer::dispatchEvent(int index) {
 status_t Replayer::doTransaction(const Transaction& t, const std::shared_ptr<Event>& event) {
     ALOGV("Started Transaction");
 
-    SurfaceComposerClient::openGlobalTransaction();
+    SurfaceComposerClient::Transaction liveTransaction;
 
     status_t status = NO_ERROR;
 
-    status = doSurfaceTransaction(t.surface_change());
-    doDisplayTransaction(t.display_change());
+    status = doSurfaceTransaction(liveTransaction, t.surface_change());
+    doDisplayTransaction(liveTransaction, t.display_change());
 
     if (t.animation()) {
-        SurfaceComposerClient::setAnimationTransaction();
+        liveTransaction.setAnimationTransaction();
     }
 
     event->readyToExecute();
 
-    SurfaceComposerClient::closeGlobalTransaction(t.synchronous());
+    liveTransaction.apply(t.synchronous());
 
     ALOGV("Ended Transaction");
 
     return status;
 }
 
-status_t Replayer::doSurfaceTransaction(const SurfaceChanges& surfaceChanges) {
+status_t Replayer::doSurfaceTransaction(
+        SurfaceComposerClient::Transaction& transaction,
+        const SurfaceChanges& surfaceChanges) {
     status_t status = NO_ERROR;
 
     for (const SurfaceChange& change : surfaceChanges) {
@@ -369,62 +371,66 @@ status_t Replayer::doSurfaceTransaction(const SurfaceChanges& surfaceChanges) {
 
         switch (change.SurfaceChange_case()) {
             case SurfaceChange::SurfaceChangeCase::kPosition:
-                status = setPosition(change.id(), change.position());
+                setPosition(transaction, change.id(), change.position());
                 break;
             case SurfaceChange::SurfaceChangeCase::kSize:
-                status = setSize(change.id(), change.size());
+                setSize(transaction, change.id(), change.size());
                 break;
             case SurfaceChange::SurfaceChangeCase::kAlpha:
-                status = setAlpha(change.id(), change.alpha());
+                setAlpha(transaction, change.id(), change.alpha());
                 break;
             case SurfaceChange::SurfaceChangeCase::kLayer:
-                status = setLayer(change.id(), change.layer());
+                setLayer(transaction, change.id(), change.layer());
                 break;
             case SurfaceChange::SurfaceChangeCase::kCrop:
-                status = setCrop(change.id(), change.crop());
+                setCrop(transaction, change.id(), change.crop());
                 break;
             case SurfaceChange::SurfaceChangeCase::kMatrix:
-                status = setMatrix(change.id(), change.matrix());
+                setMatrix(transaction, change.id(), change.matrix());
                 break;
             case SurfaceChange::SurfaceChangeCase::kFinalCrop:
-                status = setFinalCrop(change.id(), change.final_crop());
+                setFinalCrop(transaction, change.id(), change.final_crop());
                 break;
             case SurfaceChange::SurfaceChangeCase::kOverrideScalingMode:
-                status = setOverrideScalingMode(change.id(), change.override_scaling_mode());
+                setOverrideScalingMode(transaction, change.id(),
+                        change.override_scaling_mode());
                 break;
             case SurfaceChange::SurfaceChangeCase::kTransparentRegionHint:
-                status = setTransparentRegionHint(change.id(), change.transparent_region_hint());
+                setTransparentRegionHint(transaction, change.id(),
+                        change.transparent_region_hint());
                 break;
             case SurfaceChange::SurfaceChangeCase::kLayerStack:
-                status = setLayerStack(change.id(), change.layer_stack());
+                setLayerStack(transaction, change.id(), change.layer_stack());
                 break;
             case SurfaceChange::SurfaceChangeCase::kHiddenFlag:
-                status = setHiddenFlag(change.id(), change.hidden_flag());
+                setHiddenFlag(transaction, change.id(), change.hidden_flag());
                 break;
             case SurfaceChange::SurfaceChangeCase::kOpaqueFlag:
-                status = setOpaqueFlag(change.id(), change.opaque_flag());
+                setOpaqueFlag(transaction, change.id(), change.opaque_flag());
                 break;
             case SurfaceChange::SurfaceChangeCase::kSecureFlag:
-                status = setSecureFlag(change.id(), change.secure_flag());
+                setSecureFlag(transaction, change.id(), change.secure_flag());
                 break;
             case SurfaceChange::SurfaceChangeCase::kDeferredTransaction:
                 waitUntilDeferredTransactionLayerExists(change.deferred_transaction(), lock);
-                status = setDeferredTransaction(change.id(), change.deferred_transaction());
+                setDeferredTransaction(transaction, change.id(),
+                        change.deferred_transaction());
                 break;
             default:
-                status = NO_ERROR;
+                status = 1;
                 break;
         }
 
         if (status != NO_ERROR) {
-            ALOGE("SET TRANSACTION FAILED");
+            ALOGE("Unknown Transaction Code");
             return status;
         }
     }
     return status;
 }
 
-void Replayer::doDisplayTransaction(const DisplayChanges& displayChanges) {
+void Replayer::doDisplayTransaction(SurfaceComposerClient::Transaction& t,
+        const DisplayChanges& displayChanges) {
     for (const DisplayChange& change : displayChanges) {
         ALOGV("Doing display transaction");
         std::unique_lock<std::mutex> lock(mDisplayLock);
@@ -434,16 +440,16 @@ void Replayer::doDisplayTransaction(const DisplayChanges& displayChanges) {
 
         switch (change.DisplayChange_case()) {
             case DisplayChange::DisplayChangeCase::kSurface:
-                setDisplaySurface(change.id(), change.surface());
+                setDisplaySurface(t, change.id(), change.surface());
                 break;
             case DisplayChange::DisplayChangeCase::kLayerStack:
-                setDisplayLayerStack(change.id(), change.layer_stack());
+                setDisplayLayerStack(t, change.id(), change.layer_stack());
                 break;
             case DisplayChange::DisplayChangeCase::kSize:
-                setDisplaySize(change.id(), change.size());
+                setDisplaySize(t, change.id(), change.size());
                 break;
             case DisplayChange::DisplayChangeCase::kProjection:
-                setDisplayProjection(change.id(), change.projection());
+                setDisplayProjection(t, change.id(), change.projection());
                 break;
             default:
                 break;
@@ -451,57 +457,66 @@ void Replayer::doDisplayTransaction(const DisplayChanges& displayChanges) {
     }
 }
 
-status_t Replayer::setPosition(layer_id id, const PositionChange& pc) {
+void Replayer::setPosition(SurfaceComposerClient::Transaction& t,
+        layer_id id, const PositionChange& pc) {
     ALOGV("Layer %d: Setting Position -- x=%f, y=%f", id, pc.x(), pc.y());
-    return mLayers[id]->setPosition(pc.x(), pc.y());
+    t.setPosition(mLayers[id], pc.x(), pc.y());
 }
 
-status_t Replayer::setSize(layer_id id, const SizeChange& sc) {
+void Replayer::setSize(SurfaceComposerClient::Transaction& t,
+        layer_id id, const SizeChange& sc) {
     ALOGV("Layer %d: Setting Size -- w=%u, h=%u", id, sc.w(), sc.h());
-    return mLayers[id]->setSize(sc.w(), sc.h());
+    t.setSize(mLayers[id], sc.w(), sc.h());
 }
 
-status_t Replayer::setLayer(layer_id id, const LayerChange& lc) {
+void Replayer::setLayer(SurfaceComposerClient::Transaction& t,
+        layer_id id, const LayerChange& lc) {
     ALOGV("Layer %d: Setting Layer -- layer=%d", id, lc.layer());
-    return mLayers[id]->setLayer(lc.layer());
+    t.setLayer(mLayers[id], lc.layer());
 }
 
-status_t Replayer::setAlpha(layer_id id, const AlphaChange& ac) {
+void Replayer::setAlpha(SurfaceComposerClient::Transaction& t,
+        layer_id id, const AlphaChange& ac) {
     ALOGV("Layer %d: Setting Alpha -- alpha=%f", id, ac.alpha());
-    return mLayers[id]->setAlpha(ac.alpha());
+    t.setAlpha(mLayers[id], ac.alpha());
 }
 
-status_t Replayer::setCrop(layer_id id, const CropChange& cc) {
+void Replayer::setCrop(SurfaceComposerClient::Transaction& t,
+        layer_id id, const CropChange& cc) {
     ALOGV("Layer %d: Setting Crop -- left=%d, top=%d, right=%d, bottom=%d", id,
             cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
 
     Rect r = Rect(cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
-    return mLayers[id]->setCrop(r);
+    t.setCrop(mLayers[id], r);
 }
 
-status_t Replayer::setFinalCrop(layer_id id, const FinalCropChange& fcc) {
+void Replayer::setFinalCrop(SurfaceComposerClient::Transaction& t,
+        layer_id id, const FinalCropChange& fcc) {
     ALOGV("Layer %d: Setting Final Crop -- left=%d, top=%d, right=%d, bottom=%d", id,
             fcc.rectangle().left(), fcc.rectangle().top(), fcc.rectangle().right(),
             fcc.rectangle().bottom());
     Rect r = Rect(fcc.rectangle().left(), fcc.rectangle().top(), fcc.rectangle().right(),
             fcc.rectangle().bottom());
-    return mLayers[id]->setFinalCrop(r);
+    t.setFinalCrop(mLayers[id], r);
 }
 
-status_t Replayer::setMatrix(layer_id id, const MatrixChange& mc) {
+void Replayer::setMatrix(SurfaceComposerClient::Transaction& t,
+        layer_id id, const MatrixChange& mc) {
     ALOGV("Layer %d: Setting Matrix -- dsdx=%f, dtdx=%f, dsdy=%f, dtdy=%f", id, mc.dsdx(),
             mc.dtdx(), mc.dsdy(), mc.dtdy());
-    return mLayers[id]->setMatrix(mc.dsdx(), mc.dtdx(), mc.dsdy(), mc.dtdy());
+    t.setMatrix(mLayers[id], mc.dsdx(), mc.dtdx(), mc.dsdy(), mc.dtdy());
 }
 
-status_t Replayer::setOverrideScalingMode(layer_id id, const OverrideScalingModeChange& osmc) {
+void Replayer::setOverrideScalingMode(SurfaceComposerClient::Transaction& t,
+        layer_id id, const OverrideScalingModeChange& osmc) {
     ALOGV("Layer %d: Setting Override Scaling Mode -- mode=%d", id, osmc.override_scaling_mode());
-    return mLayers[id]->setOverrideScalingMode(osmc.override_scaling_mode());
+    t.setOverrideScalingMode(mLayers[id], osmc.override_scaling_mode());
 }
 
-status_t Replayer::setTransparentRegionHint(layer_id id, const TransparentRegionHintChange& trhc) {
+void Replayer::setTransparentRegionHint(SurfaceComposerClient::Transaction& t,
+        layer_id id, const TransparentRegionHintChange& trhc) {
     ALOGV("Setting Transparent Region Hint");
     Region re = Region();
 
@@ -510,71 +525,80 @@ status_t Replayer::setTransparentRegionHint(layer_id id, const TransparentRegion
         re.merge(rect);
     }
 
-    return mLayers[id]->setTransparentRegionHint(re);
+    t.setTransparentRegionHint(mLayers[id], re);
 }
 
-status_t Replayer::setLayerStack(layer_id id, const LayerStackChange& lsc) {
+void Replayer::setLayerStack(SurfaceComposerClient::Transaction& t,
+        layer_id id, const LayerStackChange& lsc) {
     ALOGV("Layer %d: Setting LayerStack -- layer_stack=%d", id, lsc.layer_stack());
-    return mLayers[id]->setLayerStack(lsc.layer_stack());
+    t.setLayerStack(mLayers[id], lsc.layer_stack());
 }
 
-status_t Replayer::setHiddenFlag(layer_id id, const HiddenFlagChange& hfc) {
+void Replayer::setHiddenFlag(SurfaceComposerClient::Transaction& t,
+        layer_id id, const HiddenFlagChange& hfc) {
     ALOGV("Layer %d: Setting Hidden Flag -- hidden_flag=%d", id, hfc.hidden_flag());
     layer_id flag = hfc.hidden_flag() ? layer_state_t::eLayerHidden : 0;
 
-    return mLayers[id]->setFlags(flag, layer_state_t::eLayerHidden);
+    t.setFlags(mLayers[id], flag, layer_state_t::eLayerHidden);
 }
 
-status_t Replayer::setOpaqueFlag(layer_id id, const OpaqueFlagChange& ofc) {
+void Replayer::setOpaqueFlag(SurfaceComposerClient::Transaction& t,
+        layer_id id, const OpaqueFlagChange& ofc) {
     ALOGV("Layer %d: Setting Opaque Flag -- opaque_flag=%d", id, ofc.opaque_flag());
     layer_id flag = ofc.opaque_flag() ? layer_state_t::eLayerOpaque : 0;
 
-    return mLayers[id]->setFlags(flag, layer_state_t::eLayerOpaque);
+    t.setFlags(mLayers[id], flag, layer_state_t::eLayerOpaque);
 }
 
-status_t Replayer::setSecureFlag(layer_id id, const SecureFlagChange& sfc) {
+void Replayer::setSecureFlag(SurfaceComposerClient::Transaction& t,
+        layer_id id, const SecureFlagChange& sfc) {
     ALOGV("Layer %d: Setting Secure Flag -- secure_flag=%d", id, sfc.secure_flag());
     layer_id flag = sfc.secure_flag() ? layer_state_t::eLayerSecure : 0;
 
-    return mLayers[id]->setFlags(flag, layer_state_t::eLayerSecure);
+    t.setFlags(mLayers[id], flag, layer_state_t::eLayerSecure);
 }
 
-status_t Replayer::setDeferredTransaction(layer_id id, const DeferredTransactionChange& dtc) {
+void Replayer::setDeferredTransaction(SurfaceComposerClient::Transaction& t,
+        layer_id id, const DeferredTransactionChange& dtc) {
     ALOGV("Layer %d: Setting Deferred Transaction -- layer_id=%d, "
           "frame_number=%llu",
             id, dtc.layer_id(), dtc.frame_number());
     if (mLayers.count(dtc.layer_id()) == 0 || mLayers[dtc.layer_id()] == nullptr) {
         ALOGE("Layer %d not found in Deferred Transaction", dtc.layer_id());
-        return BAD_VALUE;
+        return;
     }
 
     auto handle = mLayers[dtc.layer_id()]->getHandle();
 
-    return mLayers[id]->deferTransactionUntil(handle, dtc.frame_number());
+    t.deferTransactionUntil(mLayers[id], handle, dtc.frame_number());
 }
 
-void Replayer::setDisplaySurface(display_id id, const DispSurfaceChange& /*dsc*/) {
+void Replayer::setDisplaySurface(SurfaceComposerClient::Transaction& t,
+        display_id id, const DispSurfaceChange& /*dsc*/) {
     sp<IGraphicBufferProducer> outProducer;
     sp<IGraphicBufferConsumer> outConsumer;
     BufferQueue::createBufferQueue(&outProducer, &outConsumer);
 
-    SurfaceComposerClient::setDisplaySurface(mDisplays[id], outProducer);
+    t.setDisplaySurface(mDisplays[id], outProducer);
 }
 
-void Replayer::setDisplayLayerStack(display_id id, const LayerStackChange& lsc) {
-    SurfaceComposerClient::setDisplayLayerStack(mDisplays[id], lsc.layer_stack());
+void Replayer::setDisplayLayerStack(SurfaceComposerClient::Transaction& t,
+        display_id id, const LayerStackChange& lsc) {
+    t.setDisplayLayerStack(mDisplays[id], lsc.layer_stack());
 }
 
-void Replayer::setDisplaySize(display_id id, const SizeChange& sc) {
-    SurfaceComposerClient::setDisplaySize(mDisplays[id], sc.w(), sc.h());
+void Replayer::setDisplaySize(SurfaceComposerClient::Transaction& t,
+        display_id id, const SizeChange& sc) {
+    t.setDisplaySize(mDisplays[id], sc.w(), sc.h());
 }
 
-void Replayer::setDisplayProjection(display_id id, const ProjectionChange& pc) {
+void Replayer::setDisplayProjection(SurfaceComposerClient::Transaction& t,
+        display_id id, const ProjectionChange& pc) {
     Rect viewport = Rect(pc.viewport().left(), pc.viewport().top(), pc.viewport().right(),
             pc.viewport().bottom());
     Rect frame = Rect(pc.frame().left(), pc.frame().top(), pc.frame().right(), pc.frame().bottom());
 
-    SurfaceComposerClient::setDisplayProjection(mDisplays[id], pc.orientation(), viewport, frame);
+    t.setDisplayProjection(mDisplays[id], pc.orientation(), viewport, frame);
 }
 
 status_t Replayer::createSurfaceControl(

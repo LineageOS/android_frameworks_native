@@ -16,6 +16,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_acquire;
     ANativeWindow_cancelBuffer; # vndk
     ANativeWindow_dequeueBuffer; # vndk
+    ANativeWindow_getBuffersDataSpace; # introduced=28
     ANativeWindow_getFormat;
     ANativeWindow_getHeight;
     ANativeWindow_getWidth;
@@ -26,7 +27,7 @@ LIBNATIVEWINDOW {
     ANativeWindow_release;
     ANativeWindow_setAutoRefresh; # vndk
     ANativeWindow_setBufferCount; # vndk
-    ANativeWindow_setBufferDataSpace; # vndk
+    ANativeWindow_setBuffersDataSpace; # introduced=28
     ANativeWindow_setBuffersDimensions; # vndk
     ANativeWindow_setBuffersFormat; # vndk
     ANativeWindow_setBuffersGeometry;

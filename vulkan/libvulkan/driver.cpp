@@ -27,6 +27,8 @@
 #include <log/log.h>
 
 #include <android/dlext.h>
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <graphicsenv/GraphicsEnv.h>
 #include <utils/Vector.h>
@@ -35,6 +37,9 @@
 
 #include "driver.h"
 #include "stubhal.h"
+
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
 
 // TODO(b/37049319) Get this from a header once one exists
 extern "C" {
@@ -883,6 +888,14 @@ VkResult EnumerateDeviceExtensionProperties(
     loader_extensions.push_back({
         VK_KHR_INCREMENTAL_PRESENT_EXTENSION_NAME,
         VK_KHR_INCREMENTAL_PRESENT_SPEC_VERSION});
+
+    bool hdrBoardConfig =
+        getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasHDRDisplay>(
+            false);
+    if (hdrBoardConfig) {
+        loader_extensions.push_back({VK_EXT_HDR_METADATA_EXTENSION_NAME,
+                                     VK_EXT_HDR_METADATA_SPEC_VERSION});
+    }
 
     VkPhysicalDevicePresentationPropertiesANDROID presentation_properties;
     if (QueryPresentationProperties(physicalDevice, &presentation_properties) &&

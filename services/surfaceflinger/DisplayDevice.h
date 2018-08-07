@@ -20,28 +20,25 @@
 #include "Transform.h"
 
 #include <stdlib.h>
+#include <unordered_map>
 
-#ifndef USE_HWC2
-#include <ui/PixelFormat.h>
-#endif
-#include <ui/Region.h>
+#include <math/mat4.h>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
-#ifdef USE_HWC2
 #include <binder/IBinder.h>
+#include <gui/ISurfaceComposer.h>
+#include <hardware/hwcomposer_defs.h>
+#include <ui/GraphicTypes.h>
+#include <ui/HdrCapabilities.h>
+#include <ui/Region.h>
 #include <utils/RefBase.h>
-#endif
 #include <utils/Mutex.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include <hardware/hwcomposer_defs.h>
+#include "RenderArea.h"
+#include "RenderEngine/Surface.h"
 
-#ifdef USE_HWC2
 #include <memory>
-#endif
 
 struct ANativeWindow;
 
@@ -58,10 +55,11 @@ class HWComposer;
 class DisplayDevice : public LightRefBase<DisplayDevice>
 {
 public:
+    constexpr static float sDefaultMinLumiance = 0.0;
+    constexpr static float sDefaultMaxLumiance = 500.0;
+
     // region in layer-stack space
     mutable Region dirtyRegion;
-    // region in screen space
-    mutable Region swapRegion;
     // region in screen space
     Region undefinedRegion;
     bool lastCompositionHadVisibleLayers;
@@ -75,11 +73,6 @@ public:
     };
 
     enum {
-        PARTIAL_UPDATES = 0x00020000, // video driver feature
-        SWAP_RECTANGLE  = 0x00080000,
-    };
-
-    enum {
         NO_LAYER_STACK = 0xFFFFFFFF,
     };
 
@@ -88,15 +81,18 @@ public:
             const sp<SurfaceFlinger>& flinger,
             DisplayType type,
             int32_t hwcId,
-#ifndef USE_HWC2
-            int format,
-#endif
             bool isSecure,
             const wp<IBinder>& displayToken,
+            const sp<ANativeWindow>& nativeWindow,
             const sp<DisplaySurface>& displaySurface,
-            const sp<IGraphicBufferProducer>& producer,
-            EGLConfig config,
-            bool supportWideColor);
+            std::unique_ptr<RE::Surface> renderSurface,
+            int displayWidth,
+            int displayHeight,
+            bool hasWideColorGamut,
+            const HdrCapabilities& hdrCapabilities,
+            const int32_t supportedPerFrameMetadata,
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
+            int initialPowerMode);
     // clang-format on
 
     ~DisplayDevice();
@@ -111,16 +107,10 @@ public:
 
     // Flip the front and back buffers if the back buffer is "dirty".  Might
     // be instantaneous, might involve copying the frame buffer around.
-    void flip(const Region& dirty) const;
+    void flip() const;
 
     int         getWidth() const;
     int         getHeight() const;
-#ifndef USE_HWC2
-    PixelFormat getFormat() const;
-#endif
-    uint32_t    getFlags() const;
-
-    EGLSurface  getEGLSurface() const;
 
     void                    setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers);
     const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
@@ -147,27 +137,42 @@ public:
     int32_t                 getHwcDisplayId() const { return mHwcDisplayId; }
     const wp<IBinder>&      getDisplayToken() const { return mDisplayToken; }
 
+    int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
+
     // We pass in mustRecompose so we can keep VirtualDisplaySurface's state
     // machine happy without actually queueing a buffer if nothing has changed
     status_t beginFrame(bool mustRecompose) const;
-#ifdef USE_HWC2
     status_t prepareFrame(HWComposer& hwc);
-    bool getWideColorSupport() const { return mDisplayHasWideColor; }
-#else
-    status_t prepareFrame(const HWComposer& hwc) const;
-#endif
+
+    bool hasWideColorGamut() const { return mHasWideColorGamut; }
+    // Whether h/w composer has native support for specific HDR type.
+    bool hasHDR10Support() const { return mHasHdr10; }
+    bool hasHLGSupport() const { return mHasHLG; }
+    bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
+
+    // Return true if the HDR dataspace is supported but
+    // there is no corresponding color mode.
+    bool hasLegacyHdrSupport(ui::Dataspace dataspace) const;
+
+    // The returned HdrCapabilities is the combination of HDR capabilities from
+    // hardware composer and RenderEngine. When the DisplayDevice supports wide
+    // color gamut, RenderEngine is able to simulate HDR support in Display P3
+    // color space for both PQ and HLG HDR contents. The minimum and maximum
+    // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
+    // respectively if hardware composer doesn't return meaningful values.
+    const HdrCapabilities& getHdrCapabilities() const { return mHdrCapabilities; }
+
+    // Return true if intent is supported by the display.
+    bool hasRenderIntent(ui::RenderIntent intent) const;
+
+    void getBestColorMode(ui::Dataspace dataspace, ui::RenderIntent intent,
+                          ui::Dataspace* outDataspace, ui::ColorMode* outMode,
+                          ui::RenderIntent* outIntent) const;
 
     void swapBuffers(HWComposer& hwc) const;
-#ifndef USE_HWC2
-    status_t compositionComplete() const;
-#endif
 
     // called after h/w composer has completed its set() call
-#ifdef USE_HWC2
     void onSwapBuffersCompleted() const;
-#else
-    void onSwapBuffersCompleted(HWComposer& hwc) const;
-#endif
 
     Rect getBounds() const {
         return Rect(mDisplayWidth, mDisplayHeight);
@@ -177,7 +182,7 @@ public:
     void setDisplayName(const String8& displayName);
     const String8& getDisplayName() const { return mDisplayName; }
 
-    EGLBoolean makeCurrent(EGLDisplay dpy, EGLContext ctx) const;
+    bool makeCurrent() const;
     void setViewportAndProjection() const;
 
     const sp<Fence>& getClientTargetAcquireFence() const;
@@ -189,11 +194,14 @@ public:
     void setPowerMode(int mode);
     bool isDisplayOn() const;
 
-#ifdef USE_HWC2
-    android_color_mode_t getActiveColorMode() const;
-    void setActiveColorMode(android_color_mode_t mode);
-    void setCompositionDataSpace(android_dataspace dataspace);
-#endif
+    ui::ColorMode getActiveColorMode() const;
+    void setActiveColorMode(ui::ColorMode mode);
+    ui::RenderIntent getActiveRenderIntent() const;
+    void setActiveRenderIntent(ui::RenderIntent renderIntent);
+    android_color_transform_t getColorTransform() const;
+    void setColorTransform(const mat4& transform);
+    void setCompositionDataSpace(ui::Dataspace dataspace);
+    ui::Dataspace getCompositionDataSpace() const;
 
     /* ------------------------------------------------------------------------
      * Display active config management.
@@ -223,15 +231,9 @@ private:
     sp<ANativeWindow> mNativeWindow;
     sp<DisplaySurface> mDisplaySurface;
 
-    EGLConfig       mConfig;
-    EGLDisplay      mDisplay;
-    EGLSurface      mSurface;
+    std::unique_ptr<RE::Surface> mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
-#ifndef USE_HWC2
-    PixelFormat     mFormat;
-#endif
-    uint32_t        mFlags;
     mutable uint32_t mPageFlipCount;
     String8         mDisplayName;
     bool            mIsSecure;
@@ -271,15 +273,43 @@ private:
     int mPowerMode;
     // Current active config
     int mActiveConfig;
-#ifdef USE_HWC2
     // current active color mode
-    android_color_mode_t mActiveColorMode;
+    ui::ColorMode mActiveColorMode = ui::ColorMode::NATIVE;
+    // Current active render intent.
+    ui::RenderIntent mActiveRenderIntent = ui::RenderIntent::COLORIMETRIC;
+    ui::Dataspace mCompositionDataSpace = ui::Dataspace::UNKNOWN;
+    // Current color transform
+    android_color_transform_t mColorTransform;
 
     // Need to know if display is wide-color capable or not.
     // Initialized by SurfaceFlinger when the DisplayDevice is created.
     // Fed to RenderEngine during composition.
-    bool mDisplayHasWideColor;
-#endif
+    bool mHasWideColorGamut;
+    bool mHasHdr10;
+    bool mHasHLG;
+    bool mHasDolbyVision;
+    HdrCapabilities mHdrCapabilities;
+    const int32_t mSupportedPerFrameMetadata;
+
+    // Mappings from desired Dataspace/RenderIntent to the supported
+    // Dataspace/ColorMode/RenderIntent.
+    using ColorModeKey = uint64_t;
+    struct ColorModeValue {
+        ui::Dataspace dataspace;
+        ui::ColorMode colorMode;
+        ui::RenderIntent renderIntent;
+    };
+
+    static ColorModeKey getColorModeKey(ui::Dataspace dataspace, ui::RenderIntent intent) {
+        return (static_cast<uint64_t>(dataspace) << 32) | static_cast<uint32_t>(intent);
+    }
+    void populateColorModes(
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes);
+    void addColorMode(
+            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
+            const ui::ColorMode mode, const ui::RenderIntent intent);
+
+    std::unordered_map<ColorModeKey, ColorModeValue> mColorModes;
 };
 
 struct DisplayDeviceState {
@@ -302,6 +332,30 @@ struct DisplayDeviceState {
     uint32_t height = 0;
     String8 displayName;
     bool isSecure = false;
+};
+
+class DisplayRenderArea : public RenderArea {
+public:
+    DisplayRenderArea(const sp<const DisplayDevice> device,
+                      ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
+          : DisplayRenderArea(device, device->getBounds(), device->getHeight(), device->getWidth(),
+                              rotation) {}
+    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqHeight,
+                      uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
+          : RenderArea(reqHeight, reqWidth, CaptureFill::OPAQUE, rotation), mDevice(device),
+                              mSourceCrop(sourceCrop) {}
+
+    const Transform& getTransform() const override { return mDevice->getTransform(); }
+    Rect getBounds() const override { return mDevice->getBounds(); }
+    int getHeight() const override { return mDevice->getHeight(); }
+    int getWidth() const override { return mDevice->getWidth(); }
+    bool isSecure() const override { return mDevice->isSecure(); }
+    bool needsFiltering() const override { return mDevice->needsFiltering(); }
+    Rect getSourceCrop() const override { return mSourceCrop; }
+
+private:
+    const sp<const DisplayDevice> mDevice;
+    const Rect mSourceCrop;
 };
 
 }; // namespace android

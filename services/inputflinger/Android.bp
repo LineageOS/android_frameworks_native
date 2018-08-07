@@ -26,6 +26,7 @@ cc_library_shared {
     ],
 
     shared_libs: [
+        "libbase",
         "libbinder",
         "libcrypto",
         "libcutils",

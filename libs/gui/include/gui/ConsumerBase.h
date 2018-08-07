@@ -89,6 +89,18 @@ public:
     // See IGraphicBufferConsumer::setDefaultBufferDataSpace
     status_t setDefaultBufferDataSpace(android_dataspace defaultDataSpace);
 
+    // See IGraphicBufferConsumer::setConsumerUsageBits
+    status_t setConsumerUsageBits(uint64_t usage);
+
+    // See IGraphicBufferConsumer::setTransformHint
+    status_t setTransformHint(uint32_t hint);
+
+    // See IGraphicBufferConsumer::setMaxAcquiredBufferCount
+    status_t setMaxAcquiredBufferCount(int maxAcquiredBuffers);
+
+    // See IGraphicBufferConsumer::getSidebandStream
+    sp<NativeHandle> getSidebandStream() const;
+
     // See IGraphicBufferConsumer::getOccupancyHistory
     status_t getOccupancyHistory(bool forceFlush,
             std::vector<OccupancyTracker::Segment>* outHistory);
@@ -187,7 +199,7 @@ protected:
     // ConsumerBase::releaseBufferLocked.
     virtual status_t releaseBufferLocked(int slot,
             const sp<GraphicBuffer> graphicBuffer,
-            EGLDisplay display, EGLSyncKHR eglFence);
+            EGLDisplay display = EGL_NO_DISPLAY, EGLSyncKHR eglFence = EGL_NO_SYNC_KHR);
 
     // returns true iff the slot still has the graphicBuffer in it.
     bool stillTracking(int slot, const sp<GraphicBuffer> graphicBuffer);

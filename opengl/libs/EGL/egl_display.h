@@ -42,6 +42,8 @@ class egl_object_t;
 class egl_context_t;
 struct egl_connection_t;
 
+bool findExtension(const char* exts, const char* name, size_t nameLen = 0);
+
 // ----------------------------------------------------------------------------
 
 class EGLAPI egl_display_t { // marked as EGLAPI for testing purposes
@@ -111,6 +113,7 @@ public:
     DisplayImpl     disp;
     bool    finishOnSwap;       // property: debug.egl.finish
     bool    traceGpuCompletion; // property: debug.egl.traceGpuCompletion
+    bool    hasColorSpaceSupport;
 
 private:
     friend class egl_display_ptr;

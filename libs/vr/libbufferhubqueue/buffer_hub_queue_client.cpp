@@ -31,20 +31,6 @@ namespace dvr {
 
 namespace {
 
-// Polls an fd for the given events.
-Status<int> PollEvents(int fd, short events) {
-  const int kTimeoutMs = 0;
-  pollfd pfd{fd, events, 0};
-  const int count = RETRY_EINTR(poll(&pfd, 1, kTimeoutMs));
-  if (count < 0) {
-    return ErrorStatus(errno);
-  } else if (count == 0) {
-    return ErrorStatus(ETIMEDOUT);
-  } else {
-    return {pfd.revents};
-  }
-}
-
 std::pair<int32_t, int32_t> Unstuff(uint64_t value) {
   return {static_cast<int32_t>(value >> 32),
           static_cast<int32_t>(value & ((1ull << 32) - 1))};
@@ -135,6 +121,28 @@ Status<LocalChannelHandle> BufferHubQueue::CreateConsumerQueueHandle(
   }
 
   return status;
+}
+
+pdx::Status<ConsumerQueueParcelable>
+BufferHubQueue::CreateConsumerQueueParcelable(bool silent) {
+  auto status = CreateConsumerQueueHandle(silent);
+  if (!status)
+    return status.error_status();
+
+  // A temporary consumer queue client to pull its channel parcelable.
+  auto consumer_queue =
+      std::unique_ptr<ConsumerQueue>(new ConsumerQueue(status.take()));
+  ConsumerQueueParcelable queue_parcelable(
+      consumer_queue->GetChannel()->TakeChannelParcelable());
+
+  if (!queue_parcelable.IsValid()) {
+    ALOGE(
+        "BufferHubQueue::CreateConsumerQueueParcelable: Failed to create "
+        "consumer queue parcelable.");
+    return ErrorStatus(EINVAL);
+  }
+
+  return {std::move(queue_parcelable)};
 }
 
 bool BufferHubQueue::WaitForBuffers(int timeout) {
@@ -555,6 +563,31 @@ pdx::Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
   return {std::move(buffer)};
 }
 
+pdx::Status<ProducerQueueParcelable> ProducerQueue::TakeAsParcelable() {
+  if (capacity() != 0) {
+    ALOGE(
+        "ProducerQueue::TakeAsParcelable: producer queue can only be taken out"
+        " as a parcelable when empty. Current queue capacity: %zu",
+        capacity());
+    return ErrorStatus(EINVAL);
+  }
+
+  std::unique_ptr<pdx::ClientChannel> channel = TakeChannel();
+  ProducerQueueParcelable queue_parcelable(channel->TakeChannelParcelable());
+
+  // Here the queue parcelable is returned and holds the underlying system
+  // resources backing the queue; while the original client channel of this
+  // producer queue is destroyed in place so that this client can no longer
+  // provide producer operations.
+  return {std::move(queue_parcelable)};
+}
+
+/*static */
+std::unique_ptr<ConsumerQueue> ConsumerQueue::Import(
+    LocalChannelHandle handle) {
+  return std::unique_ptr<ConsumerQueue>(new ConsumerQueue(std::move(handle)));
+}
+
 ConsumerQueue::ConsumerQueue(LocalChannelHandle handle)
     : BufferHubQueue(std::move(handle)) {
   auto status = ImportQueue();
@@ -629,27 +662,7 @@ Status<void> ConsumerQueue::AddBuffer(
     const std::shared_ptr<BufferConsumer>& buffer, size_t slot) {
   ALOGD_IF(TRACE, "ConsumerQueue::AddBuffer: queue_id=%d buffer_id=%d slot=%zu",
            id(), buffer->id(), slot);
-  auto status = BufferHubQueue::AddBuffer(buffer, slot);
-  if (!status)
-    return status;
-
-  // Check to see if the buffer is already signaled. This is necessary to catch
-  // cases where buffers are already available; epoll edge triggered mode does
-  // not fire until an edge transition when adding new buffers to the epoll
-  // set. Note that we only poll the fd events because HandleBufferEvent() takes
-  // care of checking the translated buffer events.
-  auto poll_status = PollEvents(buffer->event_fd(), POLLIN);
-  if (!poll_status && poll_status.error() != ETIMEDOUT) {
-    ALOGE("ConsumerQueue::AddBuffer: Failed to poll consumer buffer: %s",
-          poll_status.GetErrorMessage().c_str());
-    return poll_status.error_status();
-  }
-
-  // Update accounting if the buffer is available.
-  if (poll_status)
-    return HandleBufferEvent(slot, buffer->event_fd(), poll_status.get());
-  else
-    return {};
+  return BufferHubQueue::AddBuffer(buffer, slot);
 }
 
 Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(

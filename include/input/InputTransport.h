@@ -31,7 +31,6 @@
 #include <utils/Errors.h>
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 #include <utils/Vector.h>
 #include <utils/BitSet.h>
 
@@ -142,16 +141,16 @@ protected:
     virtual ~InputChannel();
 
 public:
-    InputChannel(const String8& name, int fd);
+    InputChannel(const std::string& name, int fd);
 
     /* Creates a pair of input channels.
      *
      * Returns OK on success.
      */
-    static status_t openInputChannelPair(const String8& name,
+    static status_t openInputChannelPair(const std::string& name,
             sp<InputChannel>& outServerChannel, sp<InputChannel>& outClientChannel);
 
-    inline String8 getName() const { return mName; }
+    inline std::string getName() const { return mName; }
     inline int getFd() const { return mFd; }
 
     /* Sends a message to the other endpoint.
@@ -183,7 +182,7 @@ public:
     sp<InputChannel> dup() const;
 
 private:
-    String8 mName;
+    std::string mName;
     int mFd;
 };
 

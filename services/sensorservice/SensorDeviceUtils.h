@@ -46,8 +46,10 @@ public:
      * @return true if service is restart since last reset(); false otherwise.
      */
     bool wait();
+protected:
+    void onFirstRef() override;
 private:
-    const bool mRegistered;
+    bool mRegistered;
 
     std::mutex mLock;
     std::condition_variable mCondition;

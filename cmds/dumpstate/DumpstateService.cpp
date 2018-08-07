@@ -52,6 +52,7 @@ status_t DumpstateService::Start() {
 
 binder::Status DumpstateService::setListener(const std::string& name,
                                              const sp<IDumpstateListener>& listener,
+                                             bool getSectionDetails,
                                              sp<IDumpstateToken>* returned_token) {
     *returned_token = nullptr;
     if (name.empty()) {
@@ -70,6 +71,7 @@ binder::Status DumpstateService::setListener(const std::string& name,
 
     ds_.listener_name_ = name;
     ds_.listener_ = listener;
+    ds_.report_section_ = getSectionDetails;
     *returned_token = new DumpstateToken();
 
     return binder::Status::ok();

@@ -2,7 +2,7 @@
 #include "include/dvr/dvr_buffer_queue.h"
 
 #include <android/native_window.h>
-#include <private/dvr/buffer_hub_queue_producer.h>
+#include <gui/BufferHubProducer.h>
 
 #include "dvr_internal.h"
 #include "dvr_buffer_queue_internal.h"
@@ -10,7 +10,6 @@
 using namespace android;
 using android::dvr::BufferConsumer;
 using android::dvr::BufferHubBuffer;
-using android::dvr::BufferHubQueueProducer;
 using android::dvr::BufferProducer;
 using android::dvr::ConsumerQueue;
 using android::dvr::ProducerQueue;
@@ -30,8 +29,7 @@ int DvrWriteBufferQueue::GetNativeWindow(ANativeWindow** out_window) {
   if (native_window_ == nullptr) {
     // Lazy creation of |native_window|, as not everyone is using
     // DvrWriteBufferQueue as an external surface.
-    sp<IGraphicBufferProducer> gbp =
-        BufferHubQueueProducer::Create(producer_queue_);
+    sp<IGraphicBufferProducer> gbp = BufferHubProducer::Create(producer_queue_);
     native_window_ = new Surface(gbp, true);
   }
 
@@ -275,14 +273,6 @@ int dvrWriteBufferQueueGetId(DvrWriteBufferQueue* write_queue) {
   return write_queue->id();
 }
 
-int dvrWriteBufferQueueGetExternalSurface(DvrWriteBufferQueue* write_queue,
-                                          ANativeWindow** out_window) {
-  ALOGW(
-      "dvrWriteBufferQueueGetExternalSurface: This API has been deprecated and "
-      "renamed to dvrWriteBufferQueueGetANativeWindow.");
-  return dvrWriteBufferQueueGetANativeWindow(write_queue, out_window);
-}
-
 int dvrWriteBufferQueueGetANativeWindow(DvrWriteBufferQueue* write_queue,
                                         ANativeWindow** out_window) {
   if (!write_queue || !out_window)
@@ -297,15 +287,6 @@ int dvrWriteBufferQueueCreateReadQueue(DvrWriteBufferQueue* write_queue,
     return -EINVAL;
 
   return write_queue->CreateReadQueue(out_read_queue);
-}
-
-int dvrWriteBufferQueueDequeue(DvrWriteBufferQueue* write_queue, int timeout,
-                               DvrWriteBuffer* write_buffer,
-                               int* out_fence_fd) {
-  if (!write_queue || !write_buffer || !out_fence_fd)
-    return -EINVAL;
-
-  return write_queue->Dequeue(timeout, write_buffer, out_fence_fd);
 }
 
 int dvrWriteBufferQueueGainBuffer(DvrWriteBufferQueue* write_queue, int timeout,
@@ -354,34 +335,6 @@ int DvrReadBufferQueue::CreateReadQueue(DvrReadBufferQueue** out_read_queue) {
   }
 
   *out_read_queue = new DvrReadBufferQueue(std::move(consumer_queue));
-  return 0;
-}
-
-int DvrReadBufferQueue::Dequeue(int timeout, DvrReadBuffer* read_buffer,
-                                int* out_fence_fd, void* out_meta,
-                                size_t meta_size_bytes) {
-  if (meta_size_bytes != consumer_queue_->metadata_size()) {
-    ALOGE(
-        "DvrReadBufferQueue::Dequeue: Invalid metadata size, expected (%zu), "
-        "but actual (%zu).",
-        consumer_queue_->metadata_size(), meta_size_bytes);
-    return -EINVAL;
-  }
-
-  size_t slot;
-  pdx::LocalHandle acquire_fence;
-  auto buffer_status = consumer_queue_->Dequeue(
-      timeout, &slot, out_meta, meta_size_bytes, &acquire_fence);
-  if (!buffer_status) {
-    ALOGE_IF(buffer_status.error() != ETIMEDOUT,
-             "dvrReadBufferQueueDequeue: Failed to dequeue buffer: %s",
-             buffer_status.GetErrorMessage().c_str());
-    return -buffer_status.error();
-  }
-
-  read_buffer->read_buffer = buffer_status.take();
-  *out_fence_fd = acquire_fence.Release();
-
   return 0;
 }
 
@@ -436,12 +389,22 @@ int DvrReadBufferQueue::ReleaseBuffer(DvrReadBuffer* read_buffer,
     return -EINVAL;
   }
   if (read_buffer->read_buffer->id() != consumer_queue_->GetBufferId(slot)) {
-    ALOGE(
-        "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released does not "
-        "belong to this buffer queue. Releasing buffer: id=%d, buffer in "
-        "queue: id=%d",
-        read_buffer->read_buffer->id(), consumer_queue_->GetBufferId(slot));
-    return -EINVAL;
+    if (consumer_queue_->GetBufferId(slot) > 0) {
+      ALOGE(
+          "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released may not "
+          "belong to this queue (queue_id=%d): attempting to release buffer "
+          "(buffer_id=%d) at slot %d which holds a different buffer "
+          "(buffer_id=%d).",
+          consumer_queue_->id(), read_buffer->read_buffer->id(),
+          static_cast<int>(slot), consumer_queue_->GetBufferId(slot));
+    } else {
+      ALOGI(
+          "DvrReadBufferQueue::ReleaseBuffer: Buffer to be released may not "
+          "belong to this queue (queue_id=%d): attempting to release buffer "
+          "(buffer_id=%d) at slot %d which is empty.",
+          consumer_queue_->id(), read_buffer->read_buffer->id(),
+          static_cast<int>(slot));
+    }
   }
 
   pdx::LocalHandle fence(release_fence_fd);
