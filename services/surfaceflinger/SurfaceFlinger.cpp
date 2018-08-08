@@ -4630,10 +4630,10 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         }
     }
 
-    // This code is used for IBinder protocol to interrogate the recipient
-    // side of the transaction for its canonical interface descriptor. We
-    // can let it pass by default.
-    if (code == IBinder::INTERFACE_TRANSACTION) {
+    // These codes are used for the IBinder protocol to either interrogate the recipient
+    // side of the transaction for its canonical interface descriptor or to dump its state.
+    // We let them pass by default.
+    if (code == IBinder::INTERFACE_TRANSACTION || code == IBinder::DUMP_TRANSACTION) {
         return OK;
     }
     // Numbers from 1000 to 1029 are currently use for backdoors. The code
