@@ -149,23 +149,20 @@ public:
         const bool isVendorService =
             strcmp(ProcessState::self()->getDriverName().c_str(), "/dev/vndbinder") == 0;
         const long timeout = uptimeMillis() + 5000;
-        if (!gSystemBootCompleted) {
+        if (!gSystemBootCompleted && !isVendorService) {
+            // Vendor code can't access system properties
             char bootCompleted[PROPERTY_VALUE_MAX];
             property_get("sys.boot_completed", bootCompleted, "0");
             gSystemBootCompleted = strcmp(bootCompleted, "1") == 0 ? true : false;
         }
-        // retry interval in millisecond.
+        // retry interval in millisecond; note that vendor services stay at 100ms
         const long sleepTime = gSystemBootCompleted ? 1000 : 100;
 
         int n = 0;
         while (uptimeMillis() < timeout) {
             n++;
-            if (isVendorService) {
-                ALOGI("Waiting for vendor service %s...", String8(name).string());
-                CallStack stack(LOG_TAG);
-            } else if (n%10 == 0) {
-                ALOGI("Waiting for service %s...", String8(name).string());
-            }
+            ALOGI("Waiting for service '%s' on '%s'...", String8(name).string(),
+                ProcessState::self()->getDriverName().c_str());
             usleep(1000*sleepTime);
 
             sp<IBinder> svc = checkService(name);
