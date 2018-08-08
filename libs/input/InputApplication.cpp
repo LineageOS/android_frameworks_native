@@ -16,7 +16,7 @@
 
 #define LOG_TAG "InputApplication"
 
-#include "InputApplication.h"
+#include <input/InputApplication.h>
 
 #include <android/log.h>
 
