@@ -42,6 +42,10 @@
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 
+#ifndef NO_INPUT
+#include <input/InputWindow.h>
+#endif
+
 #include <private/gui/ComposerService.h>
 
 namespace android {
@@ -758,6 +762,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeome
     registerSurfaceControlForCallback(sc);
     return *this;
 }
+
+#ifndef NO_INPUT
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInputWindowInfo(
+        const sp<SurfaceControl>& sc,
+        const InputWindowInfo& info) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->inputInfo = info;
+    s->what |= layer_state_t::eInputInfoChanged;
+    return *this;
+}
+#endif
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroySurface(
         const sp<SurfaceControl>& sc) {

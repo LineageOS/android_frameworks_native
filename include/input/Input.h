@@ -17,6 +17,8 @@
 #ifndef _LIBINPUT_INPUT_H
 #define _LIBINPUT_INPUT_H
 
+#pragma GCC system_header
+
 /**
  * Native input event structures.
  */

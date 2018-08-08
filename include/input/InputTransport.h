@@ -17,6 +17,8 @@
 #ifndef _LIBINPUT_INPUT_TRANSPORT_H
 #define _LIBINPUT_INPUT_TRANSPORT_H
 
+#pragma GCC system_header
+
 /**
  * Native input transport.
  *
