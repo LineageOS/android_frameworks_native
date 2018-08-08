@@ -18,8 +18,8 @@
 #include <gui/BufferHubProducer.h>
 #include <inttypes.h>
 #include <log/log.h>
-#include <private/dvr/detached_buffer.h>
 #include <system/window.h>
+#include <ui/BufferHubBuffer.h>
 #include <ui/DetachedBufferHandle.h>
 
 namespace android {

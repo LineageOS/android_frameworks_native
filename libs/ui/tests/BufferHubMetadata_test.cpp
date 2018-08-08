@@ -15,7 +15,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <private/dvr/buffer_hub_metadata.h>
+#include <ui/BufferHubMetadata.h>
 
 using android::dvr::BufferHubDefs::IsBufferGained;
 

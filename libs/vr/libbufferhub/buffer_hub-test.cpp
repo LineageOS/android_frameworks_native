@@ -2,9 +2,9 @@
 #include <poll.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include <private/dvr/detached_buffer.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
+#include <ui/BufferHubBuffer.h>
 #include <ui/DetachedBufferHandle.h>
 
 #include <mutex>
@@ -19,10 +19,10 @@
     return result;                            \
   })()
 
+using android::DetachedBuffer;
 using android::GraphicBuffer;
 using android::sp;
 using android::dvr::ConsumerBuffer;
-using android::dvr::DetachedBuffer;
 using android::dvr::ProducerBuffer;
 using android::dvr::BufferHubDefs::IsBufferAcquired;
 using android::dvr::BufferHubDefs::IsBufferGained;

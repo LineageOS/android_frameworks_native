@@ -19,7 +19,7 @@
 
 #include <cutils/ashmem.h>
 #include <log/log.h>
-#include <private/dvr/buffer_hub_metadata.h>
+#include <ui/BufferHubMetadata.h>
 
 namespace android {
 namespace dvr {
@@ -71,7 +71,7 @@ BufferHubMetadata BufferHubMetadata::Import(pdx::LocalHandle ashmem_handle) {
     return {};
   }
 
-  size_t metadata_size = ashmem_get_size_region(ashmem_handle.Get());
+  size_t metadata_size = static_cast<size_t>(ashmem_get_size_region(ashmem_handle.Get()));
   size_t user_metadata_size = metadata_size - kMetadataHeaderSize;
 
   // Note that here the buffer state is mapped from shared memory as an atomic

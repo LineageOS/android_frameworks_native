@@ -34,3 +34,11 @@ cc_test {
     srcs: ["GraphicBuffer_test.cpp"],
     cflags: ["-Wall", "-Werror"],
 }
+
+cc_test {
+    name: "BufferHubMetadata_test",
+    header_libs: ["libbufferhub_headers", "libdvr_headers"],
+    shared_libs: ["libpdx_default_transport", "libui", "libutils"],
+    srcs: ["BufferHubMetadata_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+}

@@ -1,17 +1,36 @@
 #ifndef ANDROID_DVR_DETACHED_BUFFER_H_
 #define ANDROID_DVR_DETACHED_BUFFER_H_
 
+// We would eliminate the clang warnings introduced by libdpx.
+// TODO(b/112338294): Remove those once BufferHub moved to use Binder
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wdouble-promotion"
+#pragma clang diagnostic ignored "-Wgnu-case-range"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma clang diagnostic ignored "-Winconsistent-missing-destructor-override"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+#pragma clang diagnostic ignored "-Wpacked"
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wswitch-enum"
+#pragma clang diagnostic ignored "-Wundefined-func-template"
+#pragma clang diagnostic ignored "-Wunused-template"
+#pragma clang diagnostic ignored "-Wweak-vtables"
 #include <pdx/client.h>
 #include <private/dvr/buffer_hub_defs.h>
-#include <private/dvr/buffer_hub_metadata.h>
-#include <private/dvr/ion_buffer.h>
+#include <private/dvr/native_handle_wrapper.h>
+#include <pdx/client.h>
+#pragma clang diagnostic pop
+
+#include <ui/BufferHubMetadata.h>
 
 namespace android {
-namespace dvr {
 
 class BufferHubClient : public pdx::Client {
  public:
   BufferHubClient();
+  virtual ~BufferHubClient();
   explicit BufferHubClient(pdx::LocalChannelHandle channel_handle);
 
   bool IsValid() const;
@@ -107,17 +126,16 @@ class DetachedBuffer {
   uint64_t buffer_state_bit_;
 
   // Wrapps the gralloc buffer handle of this buffer.
-  NativeHandleWrapper<pdx::LocalHandle> buffer_handle_;
+  dvr::NativeHandleWrapper<pdx::LocalHandle> buffer_handle_;
 
   // An ashmem-based metadata object. The same shared memory are mapped to the
   // bufferhubd daemon and all buffer clients.
-  BufferHubMetadata metadata_;
+  dvr::BufferHubMetadata metadata_;
 
   // PDX backend.
   BufferHubClient client_;
 };
 
-}  // namespace dvr
 }  // namespace android
 
 #endif  // ANDROID_DVR_DETACHED_BUFFER_H_

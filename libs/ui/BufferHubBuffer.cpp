@@ -1,12 +1,50 @@
+/*
+ * Copyright (C) 2018 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// We would eliminate the clang warnings introduced by libdpx.
+// TODO(b/112338294): Remove those once BufferHub moved to use Binder
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wdouble-promotion"
+#pragma clang diagnostic ignored "-Wgnu-case-range"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma clang diagnostic ignored "-Winconsistent-missing-destructor-override"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+#pragma clang diagnostic ignored "-Wpacked"
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wswitch-enum"
+#pragma clang diagnostic ignored "-Wundefined-func-template"
+#pragma clang diagnostic ignored "-Wunused-template"
+#pragma clang diagnostic ignored "-Wweak-vtables"
 #include <pdx/default_transport/client_channel.h>
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include <private/dvr/detached_buffer.h>
+#pragma clang diagnostic pop
+
+#include <ui/BufferHubBuffer.h>
 #include <ui/DetachedBufferHandle.h>
 
 #include <poll.h>
 
+using android::dvr::BufferHubMetadata;
+using android::dvr::BufferTraits;
+using android::dvr::DetachedBufferRPC;
+using android::dvr::NativeHandleWrapper;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
@@ -14,7 +52,6 @@ using android::pdx::default_transport::ClientChannel;
 using android::pdx::default_transport::ClientChannelFactory;
 
 namespace android {
-namespace dvr {
 
 namespace {
 
@@ -29,6 +66,8 @@ BufferHubClient::BufferHubClient()
 
 BufferHubClient::BufferHubClient(LocalChannelHandle channel_handle)
     : Client(ClientChannel::Create(std::move(channel_handle))) {}
+
+BufferHubClient::~BufferHubClient() {}
 
 bool BufferHubClient::IsValid() const {
   return IsConnected() && GetChannelHandle().valid();
@@ -46,10 +85,9 @@ DetachedBuffer::DetachedBuffer(uint32_t width, uint32_t height,
                                uint32_t layer_count, uint32_t format,
                                uint64_t usage, size_t user_metadata_size) {
   ATRACE_NAME("DetachedBuffer::DetachedBuffer");
-  ALOGD_IF(TRACE,
-           "DetachedBuffer::DetachedBuffer: width=%u height=%u layer_count=%u, "
-           "format=%u usage=%" PRIx64 " user_metadata_size=%zu",
-           width, height, layer_count, format, usage, user_metadata_size);
+  ALOGD("DetachedBuffer::DetachedBuffer: width=%u height=%u layer_count=%u, format=%u "
+        "usage=%" PRIx64 " user_metadata_size=%zu",
+        width, height, layer_count, format, usage, user_metadata_size);
 
   auto status = client_.InvokeRemoteMethod<DetachedBufferRPC::Create>(
       width, height, layer_count, format, usage, user_metadata_size);
@@ -113,8 +151,8 @@ int DetachedBuffer::ImportGraphicBuffer() {
     return -ENOMEM;
   }
 
-  size_t metadata_buf_size = buffer_traits.metadata_size();
-  if (metadata_buf_size < BufferHubDefs::kMetadataHeaderSize) {
+  size_t metadata_buf_size = static_cast<size_t>(buffer_traits.metadata_size());
+  if (metadata_buf_size < dvr::BufferHubDefs::kMetadataHeaderSize) {
     ALOGE("DetachedBuffer::ImportGraphicBuffer: metadata too small: %zu",
           metadata_buf_size);
     return -EINVAL;
@@ -129,12 +167,8 @@ int DetachedBuffer::ImportGraphicBuffer() {
   buffer_state_bit_ = buffer_traits.buffer_state_bit();
 
   // TODO(b/112012161) Set up shared fences.
-  ALOGD_IF(TRACE,
-           "DetachedBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64
-           ".",
-           id(),
-           metadata_.metadata_header()->buffer_state.load(
-               std::memory_order_acquire));
+  ALOGD("DetachedBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64 ".", id(),
+        metadata_.metadata_header()->buffer_state.load(std::memory_order_acquire));
   return 0;
 }
 
@@ -150,7 +184,7 @@ Status<LocalChannelHandle> DetachedBuffer::Promote() {
   return {};
 
   ATRACE_NAME("DetachedBuffer::Promote");
-  ALOGD_IF(TRACE, "DetachedBuffer::Promote: id=%d.", id_);
+  ALOGD("DetachedBuffer::Promote: id=%d.", id_);
 
   auto status_or_handle =
       client_.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
@@ -166,7 +200,7 @@ Status<LocalChannelHandle> DetachedBuffer::Promote() {
 
 Status<LocalChannelHandle> DetachedBuffer::Duplicate() {
   ATRACE_NAME("DetachedBuffer::Duplicate");
-  ALOGD_IF(TRACE, "DetachedBuffer::Duplicate: id=%d.", id_);
+  ALOGD("DetachedBuffer::Duplicate: id=%d.", id_);
 
   auto status_or_handle =
       client_.InvokeRemoteMethod<DetachedBufferRPC::Duplicate>();
@@ -178,5 +212,4 @@ Status<LocalChannelHandle> DetachedBuffer::Duplicate() {
   return status_or_handle;
 }
 
-}  // namespace dvr
 }  // namespace android

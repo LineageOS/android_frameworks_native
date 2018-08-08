@@ -54,6 +54,8 @@ cc_library_shared {
 
     srcs: [
         "ColorSpace.cpp",
+        "BufferHubBuffer.cpp",
+        "BufferHubMetadata.cpp",
         "DebugUtils.cpp",
         "Fence.cpp",
         "FenceTime.cpp",
@@ -91,6 +93,7 @@ cc_library_shared {
         "libutils",
         "libutilscallstack",
         "liblog",
+        "libpdx_default_transport",  // TODO(b/112338294): Remove this once BufferHub moved to use Binder.
     ],
 
     export_shared_lib_headers: [
@@ -103,8 +106,27 @@ cc_library_shared {
         "libmath",
     ],
 
+    // bufferhub is not used when building libgui for vendors
+    target: {
+        vendor: {
+            exclude_srcs: [
+                "BufferHubBuffer.cpp",
+                "BufferHubMetadata.cpp",
+            ],
+            exclude_header_libs: [
+                "libbufferhub_headers",
+                "libdvr_headers",
+            ],
+            exclude_shared_libs: [
+                "libpdx_default_transport",
+            ],
+        },
+    },
+
     header_libs: [
         "libbase_headers",
+        "libbufferhub_headers",
+        "libdvr_headers",
         "libnativebase_headers",
         "libhardware_headers",
         "libui_headers",

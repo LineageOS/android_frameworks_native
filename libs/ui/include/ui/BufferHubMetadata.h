@@ -17,8 +17,25 @@
 #ifndef ANDROID_DVR_BUFFER_HUB_METADATA_H_
 #define ANDROID_DVR_BUFFER_HUB_METADATA_H_
 
+// We would eliminate the clang warnings introduced by libdpx.
+// TODO(b/112338294): Remove those once BufferHub moved to use Binder
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wconversion"
+#pragma clang diagnostic ignored "-Wdouble-promotion"
+#pragma clang diagnostic ignored "-Wgnu-case-range"
+#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
+#pragma clang diagnostic ignored "-Winconsistent-missing-destructor-override"
+#pragma clang diagnostic ignored "-Wnested-anon-types"
+#pragma clang diagnostic ignored "-Wpacked"
+#pragma clang diagnostic ignored "-Wshadow"
+#pragma clang diagnostic ignored "-Wsign-conversion"
+#pragma clang diagnostic ignored "-Wswitch-enum"
+#pragma clang diagnostic ignored "-Wundefined-func-template"
+#pragma clang diagnostic ignored "-Wunused-template"
+#pragma clang diagnostic ignored "-Wweak-vtables"
 #include <pdx/file_handle.h>
 #include <private/dvr/buffer_hub_defs.h>
+#pragma clang diagnostic pop
 
 namespace android {
 namespace dvr {
