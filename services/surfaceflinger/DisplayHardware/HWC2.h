@@ -23,6 +23,7 @@
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
 
+#include <cutils/properties.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/GraphicTypes.h>
@@ -160,6 +161,8 @@ public:
             }
             Builder& setVsyncPeriod(int32_t vsyncPeriod) {
                 mConfig->mVsyncPeriod = vsyncPeriod;
+                mConfig->mPeriodMultiplier = 1;
+                mConfig->mPeriodDivisor = 1;
                 return *this;
             }
             Builder& setDpiX(int32_t dpiX) {
@@ -189,7 +192,12 @@ public:
 
         int32_t getWidth() const { return mWidth; }
         int32_t getHeight() const { return mHeight; }
-        nsecs_t getVsyncPeriod() const { return mVsyncPeriod; }
+        nsecs_t getVsyncPeriod() const {
+            return mVsyncPeriod * mPeriodMultiplier / mPeriodDivisor; }
+        void scalePanelFrequency(int32_t multiplier, int32_t divisor) const {
+            mPeriodMultiplier = multiplier;
+            mPeriodDivisor = divisor;
+        }
         float getDpiX() const { return mDpiX; }
         float getDpiY() const { return mDpiY; }
 
@@ -202,6 +210,8 @@ public:
         int32_t mWidth;
         int32_t mHeight;
         nsecs_t mVsyncPeriod;
+        mutable int32_t mPeriodMultiplier;
+        mutable int32_t mPeriodDivisor;
         float mDpiX;
         float mDpiY;
     };

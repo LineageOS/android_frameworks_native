@@ -1221,15 +1221,6 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const
         NO_THREAD_SAFETY_ANALYSIS {
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int pid = ipc->getCallingPid();
-    const int uid = ipc->getCallingUid();
-    if ((uid != AID_SHELL) &&
-            !PermissionCache::checkPermission(sDump, pid, uid)) {
-        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
-        return PERMISSION_DENIED;
-    }
-
     // Try to acquire a lock for 1s, fail gracefully
     const status_t err = mStateLock.timedLock(s2ns(1));
     const bool locked = (err == NO_ERROR);
@@ -3376,9 +3367,8 @@ bool callingThreadHasUnscopedSurfaceFlingerAccess() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
-
     if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
-            !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
+        !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         return false;
     }
     return true;
@@ -4564,51 +4554,64 @@ void SurfaceFlinger::updateColorMatrixLocked() {
 }
 
 status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
-    switch (code) {
-        case CREATE_CONNECTION:
-        case CREATE_DISPLAY:
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wswitch-enum"
+    switch (static_cast<ISurfaceComposerTag>(code)) {
+        // These methods should at minimum make sure that the client requested
+        // access to SF.
+        case AUTHENTICATE_SURFACE:
         case BOOT_FINISHED:
         case CLEAR_ANIMATION_FRAME_STATS:
-        case GET_ANIMATION_FRAME_STATS:
-        case SET_POWER_MODE:
-        case GET_HDR_CAPABILITIES:
+        case CREATE_CONNECTION:
+        case CREATE_DISPLAY:
+        case DESTROY_DISPLAY:
         case ENABLE_VSYNC_INJECTIONS:
+        case GET_ACTIVE_COLOR_MODE:
+        case GET_ANIMATION_FRAME_STATS:
+        case GET_HDR_CAPABILITIES:
+        case GET_DISPLAY_COLOR_MODES:
+        case SET_ACTIVE_CONFIG:
+        case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
-        {
-            // codes that require permission check
+        case SET_POWER_MODE: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
                         ipc->getCallingPid(), ipc->getCallingUid());
                 return PERMISSION_DENIED;
             }
-            break;
-        }
-        /*
-         * Calling setTransactionState is safe, because you need to have been
-         * granted a reference to Client* and Handle* to do anything with it.
-         *
-         * Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
-         */
-        case SET_TRANSACTION_STATE:
-        case CREATE_SCOPED_CONNECTION:
-        {
             return OK;
         }
-        case CAPTURE_SCREEN:
-        {
-            // codes that require permission check
+        case GET_LAYER_DEBUG_INFO: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
-            if ((uid != AID_GRAPHICS) &&
-                    !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
-                ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
+            if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
+                ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
-            break;
+            return OK;
         }
-        case CAPTURE_LAYERS: {
+        // Used by apps to hook Choreographer to SurfaceFlinger.
+        case CREATE_DISPLAY_EVENT_CONNECTION:
+        // The following calls are currently used by clients that do not
+        // request necessary permissions. However, they do not expose any secret
+        // information, so it is OK to pass them.
+        case GET_ACTIVE_CONFIG:
+        case GET_BUILT_IN_DISPLAY:
+        case GET_DISPLAY_CONFIGS:
+        case GET_DISPLAY_STATS:
+        case GET_SUPPORTED_FRAME_TIMESTAMPS:
+        // Calling setTransactionState is safe, because you need to have been
+        // granted a reference to Client* and Handle* to do anything with it.
+        case SET_TRANSACTION_STATE:
+        // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
+        case CREATE_SCOPED_CONNECTION: {
+            return OK;
+        }
+        case CAPTURE_LAYERS:
+        case CAPTURE_SCREEN: {
+            // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
@@ -4617,15 +4620,35 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
                 ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
-            break;
+            return OK;
+        }
+        // The following codes are deprecated and should never be allowed to access SF.
+        case CONNECT_DISPLAY_UNUSED:
+        case CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED: {
+            ALOGE("Attempting to access SurfaceFlinger with unused code: %u", code);
+            return PERMISSION_DENIED;
         }
     }
-    return OK;
+
+    // This code is used for IBinder protocol to interrogate the recipient
+    // side of the transaction for its canonical interface descriptor. We
+    // can let it pass by default.
+    if (code == IBinder::INTERFACE_TRANSACTION) {
+        return OK;
+    }
+    // Numbers from 1000 to 1028 are currently use for backdoors. The code
+    // in onTransact verifies that the user is root, and has access to use SF.
+    if (code >= 1000 && code <= 1028) {
+        ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
+        return OK;
+    }
+    ALOGE("Permission Denial: SurfaceFlinger did not recognize request code: %u", code);
+    return PERMISSION_DENIED;
+#pragma clang diagnostic pop
 }
 
-status_t SurfaceFlinger::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
+status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                    uint32_t flags) {
     status_t credentialCheck = CheckTransactCodeCredentials(code);
     if (credentialCheck != OK) {
         return credentialCheck;
@@ -4853,6 +4876,33 @@ status_t SurfaceFlinger::onTransact(
             case 1028: {
                 Mutex::Autolock _l(mStateLock);
                 reply->writeBool(getBE().mHwc->isUsingVrComposer());
+                return NO_ERROR;
+            }
+            case 1029: {
+                // Code 1029 is an experimental feature that allows applications to
+                // simulate a high frequency panel by setting a multiplier and divisor
+                // on the VSYNC-sf clock.  If either the multiplier or divisor are
+                // 0, then the code will set both to 1 to return the VSYNC-sf clock
+                // to it's normal frequency.
+                int multiplier = data.readInt32();
+                int divisor = data.readInt32();
+
+                if ((multiplier == 0) || (divisor == 0)) {
+                    multiplier = 1;
+                    divisor = 1;
+                }
+
+                if ((multiplier == 1) && (divisor == 1)) {
+                    enableHardwareVsync();
+                } else {
+                    disableHardwareVsync(true);
+                }
+                getBE().mHwc->getActiveConfig(DisplayDevice::DISPLAY_PRIMARY)
+                    ->scalePanelFrequency(multiplier, divisor);
+                mPrimaryDispSync->scalePeriod(multiplier, divisor);
+
+                ATRACE_INT("PeriodMultiplier", multiplier);
+                ATRACE_INT("PeriodDivisor", divisor);
                 return NO_ERROR;
             }
         }
