@@ -4636,9 +4636,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
     if (code == IBinder::INTERFACE_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1028 are currently use for backdoors. The code
+    // Numbers from 1000 to 1029 are currently use for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1028) {
+    if (code >= 1000 && code <= 1029) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
