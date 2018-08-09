@@ -259,17 +259,12 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
         const std::string& uniqueDisplayId, DisplayViewport* outViewport) const {
     for (const DisplayViewport& currentViewport : mDisplays) {
-        // for virtual displays, uniqueId must match
-        if (viewportType == ViewportType::VIEWPORT_VIRTUAL) {
-            if (currentViewport.type == ViewportType::VIEWPORT_VIRTUAL
-                    && currentViewport.uniqueId == uniqueDisplayId) {
+        if (currentViewport.type == viewportType) {
+            if (uniqueDisplayId.empty() ||
+                    (!uniqueDisplayId.empty() && uniqueDisplayId == currentViewport.uniqueId)) {
                 *outViewport = currentViewport;
                 return true;
             }
-        } else if (viewportType == currentViewport.type) {
-            // there can only be 1 internal or external viewport, for now
-            *outViewport = currentViewport;
-            return true;
         }
     }
     return false;
