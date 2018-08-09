@@ -29,22 +29,17 @@ namespace android {
  */
 class VSyncModulator {
 private:
-
     // Number of frames we'll keep the early phase offsets once they are activated. This acts as a
     // low-pass filter in case the client isn't quick enough in sending new transactions.
     const int MIN_EARLY_FRAME_COUNT = 2;
 
 public:
-
     struct Offsets {
         nsecs_t sf;
         nsecs_t app;
     };
 
-    enum TransactionStart {
-        EARLY,
-        NORMAL
-    };
+    enum TransactionStart { EARLY, NORMAL };
 
     // Sets the phase offsets
     //
@@ -63,13 +58,9 @@ public:
         mOffsets = late;
     }
 
-    Offsets getEarlyOffsets() const {
-        return mEarlyOffsets;
-    }
+    Offsets getEarlyOffsets() const { return mEarlyOffsets; }
 
-    Offsets getEarlyGlOffsets() const {
-        return mEarlyGlOffsets;
-    }
+    Offsets getEarlyGlOffsets() const { return mEarlyGlOffsets; }
 
     void setEventThreads(EventThread* sfEventThread, EventThread* appEventThread) {
         mSfEventThread = sfEventThread;
@@ -77,7 +68,6 @@ public:
     }
 
     void setTransactionStart(TransactionStart transactionStart) {
-
         if (transactionStart == TransactionStart::EARLY) {
             mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT;
         }
@@ -112,7 +102,6 @@ public:
     }
 
 private:
-
     void updateOffsets() {
         const Offsets desired = getOffsets();
         const Offsets current = mOffsets;

@@ -18,7 +18,7 @@
 
 #include <gmock/gmock.h>
 
-#include "MessageQueue.h"
+#include "Scheduler/MessageQueue.h"
 
 namespace android {
 namespace mock {

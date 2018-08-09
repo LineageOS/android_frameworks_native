@@ -528,8 +528,7 @@ void DispSync::scalePeriod(uint32_t multiplier, uint32_t divisor) {
     // point "attempting" to set the scale to 1 when it is already
     // 1.  Check that special case so that we don't do a useless
     // update of the model.
-    if ((multiplier == 1) && (divisor == 1) && (mPeriod == mPeriodBase))
-        return;
+    if ((multiplier == 1) && (divisor == 1) && (mPeriod == mPeriodBase)) return;
 
     mPeriod = mPeriodBase * multiplier / divisor;
     mThread->updateModel(mPeriod, mPhase, mReferenceTime);

@@ -25,7 +25,7 @@
 #include <utils/Errors.h>
 
 #include "AsyncCallRecorder.h"
-#include "EventThread.h"
+#include "Scheduler/EventThread.h"
 
 using namespace std::chrono_literals;
 using namespace std::placeholders;

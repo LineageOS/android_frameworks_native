@@ -21,10 +21,10 @@
 
 #include "BufferLayerConsumer.h"
 
-#include "DispSync.h"
 #include "Layer.h"
 #include "RenderEngine/Image.h"
 #include "RenderEngine/RenderEngine.h"
+#include "Scheduler/DispSync.h"
 
 #include <inttypes.h>
 
