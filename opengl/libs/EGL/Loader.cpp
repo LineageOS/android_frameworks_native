@@ -482,6 +482,7 @@ static void* load_angle(const char* kind, egl_connection_t* cnx) {
 
     void* so = nullptr;
     std::string name;
+    char prop[PROPERTY_VALUE_MAX];
 
     android_namespace_t* ns = android_getAngleNamespace();
     const char* app_name = android_getAngleAppName();
@@ -496,13 +497,21 @@ static void* load_angle(const char* kind, egl_connection_t* cnx) {
     }
 
     if (so) {
-        ALOGD("Loaded ANGLE libraries for %s", app_name ? app_name : "nullptr");
+        ALOGD("Loaded ANGLE %s library for %s (instead of native)",
+              kind, app_name ? app_name : "nullptr");
+        property_get("debug.angle.backend", prop, "UNSET");
+        ALOGD("ANGLE's backend set to %s", prop);
+        property_get("debug.hwui.renderer", prop, "UNSET");
+        ALOGD("Skia's renderer set to %s", prop);
         cnx->useAngle = true;
         // Find and load vendor libEGL for ANGLE
         if (!cnx->vendorEGL) {
             cnx->vendorEGL = load_system_driver("EGL");
         }
         return so;
+    } else {
+        ALOGD("Loaded native %s library for %s (instead of ANGLE)",
+              kind, app_name ? app_name : "nullptr");
     }
 
     return nullptr;
