@@ -16,6 +16,8 @@
 
 #include "mock/RenderEngine/MockRenderEngine.h"
 
+#include <ui/Region.h>
+
 namespace android {
 namespace RE {
 namespace mock {
