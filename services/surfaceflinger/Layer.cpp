@@ -230,7 +230,10 @@ sp<IBinder> Layer::getHandle() {
 bool Layer::createHwcLayer(HWComposer* hwc, int32_t displayId) {
     LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(displayId) != 0,
                         "Already have a layer for display %d", displayId);
-    HWC2::Layer* layer = hwc->createLayer(displayId);
+    auto layer = std::shared_ptr<HWC2::Layer>(
+            hwc->createLayer(displayId),
+            [hwc, displayId](HWC2::Layer* layer) {
+               hwc->destroyLayer(displayId, layer); });
     if (!layer) {
         return false;
     }
@@ -249,11 +252,8 @@ bool Layer::destroyHwcLayer(int32_t displayId) {
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     LOG_ALWAYS_FATAL_IF(hwcInfo.layer == nullptr, "Attempt to destroy null layer");
     LOG_ALWAYS_FATAL_IF(hwcInfo.hwc == nullptr, "Missing HWComposer");
-    hwcInfo.hwc->destroyLayer(displayId, hwcInfo.layer);
-    // The layer destroyed listener should have cleared the entry from
-    // mHwcLayers. Verify that.
-    LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(displayId) != 0,
-                        "Stale layer entry in getBE().mHwcLayers");
+    hwcInfo.layer = nullptr;
+
     return true;
 }
 
@@ -716,7 +716,8 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     auto position = displayTransform.transform(frame);
 
     auto error =
-            getBE().mHwcLayers[displayId].layer->setCursorPosition(position.left, position.top);
+            (getBE().mHwcLayers[displayId].layer)->setCursorPosition(
+                    position.left, position.top);
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set cursor position "
              "to (%d, %d): %s (%d)",
@@ -759,13 +760,13 @@ void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool c
     }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
-    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", hwcLayer->getId(), to_string(type).c_str(),
+    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", (hwcLayer)->getId(), to_string(type).c_str(),
           static_cast<int>(callIntoHwc));
     if (hwcInfo.compositionType != type) {
         ALOGV("    actually setting");
         hwcInfo.compositionType = type;
         if (callIntoHwc) {
-            auto error = hwcLayer->setCompositionType(type);
+            auto error = (hwcLayer)->setCompositionType(type);
             ALOGE_IF(error != HWC2::Error::None,
                      "[%s] Failed to set "
                      "composition type %s: %s (%d)",

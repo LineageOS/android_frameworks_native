@@ -35,7 +35,7 @@ void LayerBE::onLayerDisplayed(const sp<Fence>& releaseFence) {
 }
 
 void CompositionInfo::dumpHwc(const char* tag) const {
-    ALOGV("[%s]\thwcLayer=%p", tag, hwc.hwcLayer);
+    ALOGV("[%s]\thwcLayer=%p", tag, hwc.hwcLayer.get());
     ALOGV("[%s]\tfence=%p", tag, hwc.fence.get());
     ALOGV("[%s]\ttransform=%d", tag, hwc.transform);
     ALOGV("[%s]\tz=%d", tag, hwc.z);
