@@ -3018,7 +3018,7 @@ void RotaryEncoderInputMapper::configure(nsecs_t when,
     if (!changes) {
         mRotaryEncoderScrollAccumulator.configure(getDevice());
     }
-    if (!changes || (InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+    if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         DisplayViewport v;
         if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, NULL, &v)) {
             mOrientation = v.orientation;
