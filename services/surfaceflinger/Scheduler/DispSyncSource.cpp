@@ -16,8 +16,9 @@
 
 #include "DispSyncSource.h"
 
-#include <utils/Mutex.h>
+#include <android-base/stringprintf.h>
 #include <utils/Trace.h>
+#include <mutex>
 
 #include "DispSync.h"
 #include "EventThread.h"
@@ -27,42 +28,38 @@ namespace android {
 DispSyncSource::DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync,
                                const char* name)
       : mName(name),
-        mValue(0),
         mTraceVsync(traceVsync),
-        mVsyncOnLabel(String8::format("VsyncOn-%s", name)),
-        mVsyncEventLabel(String8::format("VSYNC-%s", name)),
+        mVsyncOnLabel(base::StringPrintf("VsyncOn-%s", name)),
+        mVsyncEventLabel(base::StringPrintf("VSYNC-%s", name)),
         mDispSync(dispSync),
-        mCallbackMutex(),
-        mVsyncMutex(),
-        mPhaseOffset(phaseOffset),
-        mEnabled(false) {}
+        mPhaseOffset(phaseOffset) {}
 
 void DispSyncSource::setVSyncEnabled(bool enable) {
-    Mutex::Autolock lock(mVsyncMutex);
+    std::lock_guard lock(mVsyncMutex);
     if (enable) {
         status_t err = mDispSync->addEventListener(mName, mPhaseOffset,
                                                    static_cast<DispSync::Callback*>(this));
         if (err != NO_ERROR) {
             ALOGE("error registering vsync callback: %s (%d)", strerror(-err), err);
         }
-        // ATRACE_INT(mVsyncOnLabel.string(), 1);
+        // ATRACE_INT(mVsyncOnLabel.c_str(), 1);
     } else {
         status_t err = mDispSync->removeEventListener(static_cast<DispSync::Callback*>(this));
         if (err != NO_ERROR) {
             ALOGE("error unregistering vsync callback: %s (%d)", strerror(-err), err);
         }
-        // ATRACE_INT(mVsyncOnLabel.string(), 0);
+        // ATRACE_INT(mVsyncOnLabel.c_str(), 0);
     }
     mEnabled = enable;
 }
 
 void DispSyncSource::setCallback(VSyncSource::Callback* callback) {
-    Mutex::Autolock lock(mCallbackMutex);
+    std::lock_guard lock(mCallbackMutex);
     mCallback = callback;
 }
 
 void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
-    Mutex::Autolock lock(mVsyncMutex);
+    std::lock_guard lock(mVsyncMutex);
 
     // Normalize phaseOffset to [0, period)
     auto period = mDispSync->getPeriod();
@@ -89,12 +86,12 @@ void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
 void DispSyncSource::onDispSyncEvent(nsecs_t when) {
     VSyncSource::Callback* callback;
     {
-        Mutex::Autolock lock(mCallbackMutex);
+        std::lock_guard lock(mCallbackMutex);
         callback = mCallback;
 
         if (mTraceVsync) {
             mValue = (mValue + 1) % 2;
-            ATRACE_INT(mVsyncEventLabel.string(), mValue);
+            ATRACE_INT(mVsyncEventLabel.c_str(), mValue);
         }
     }
 
