@@ -968,8 +968,19 @@ TEST_F(LibBufferHubTest, TestDuplicateDetachedBuffer) {
   ASSERT_TRUE(b2 != nullptr);
   int b2_id = b2->id();
 
-  // The duplicated buffer should inherit the same buffer id.
+  // These two buffer instances are based on the same physical buffer under the
+  // hood, so they should share the same id.
   EXPECT_EQ(b1_id, b2_id);
+  // We use buffer_state_bit() to tell those two instances apart.
+  EXPECT_NE(b1->buffer_state_bit(), b2->buffer_state_bit());
+  EXPECT_NE(b1->buffer_state_bit(), 0ULL);
+  EXPECT_NE(b2->buffer_state_bit(), 0ULL);
+  EXPECT_NE(b1->buffer_state_bit(), kProducerStateBit);
+  EXPECT_NE(b2->buffer_state_bit(), kProducerStateBit);
+
+  // Both buffer instances should be in gained state.
+  EXPECT_TRUE(IsBufferGained(b1->buffer_state()));
+  EXPECT_TRUE(IsBufferGained(b2->buffer_state()));
 
   // Promote the detached buffer should fail as b1 is no longer the exclusive
   // owner of the buffer..
