@@ -2328,7 +2328,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                     getHwComposer().getRenderIntents(displayId, colorMode);
             hwcColorModes.emplace(colorMode, renderIntents);
         }
+    }
 
+    if (displayId >= 0) {
         getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
         supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(displayId);
     }
