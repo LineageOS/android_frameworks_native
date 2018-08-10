@@ -37,7 +37,7 @@ struct CompositionInfo {
     HWC2::Composition compositionType;
     sp<GraphicBuffer> mBuffer = nullptr;
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
-    LayerBE* layer = nullptr;
+    std::shared_ptr<LayerBE> layer;
     struct {
         std::shared_ptr<HWC2::Layer> hwcLayer;
         sp<Fence> fence;
@@ -83,6 +83,7 @@ public:
     friend class SurfaceFlinger;
 
     LayerBE(Layer* layer, std::string layerName);
+    explicit LayerBE(const LayerBE& layer);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
     Mesh& getMesh() { return mMesh; }
