@@ -69,6 +69,7 @@
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
 #include "TimeStats/TimeStats.h"
 
@@ -935,6 +936,11 @@ private:
     CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
 
     SurfaceFlingerBE mBE;
+
+    bool mUseScheduler = false;
+    std::unique_ptr<Scheduler> mScheduler;
+    sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
+    sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
 };
 }; // namespace android
 
