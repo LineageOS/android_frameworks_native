@@ -55,23 +55,22 @@
 
 #include "Barrier.h"
 #include "DisplayDevice.h"
-#include "DispSync.h"
-#include "EventThread.h"
 #include "FrameTracker.h"
+#include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
-#include "MessageQueue.h"
+#include "StartPropertySetThread.h"
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
-#include "StartPropertySetThread.h"
-#include "TimeStats/TimeStats.h"
-#include "LayerBE.h"
-#include "VSyncModulator.h"
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
-
 #include "Effects/Daltonizer.h"
+#include "Scheduler/DispSync.h"
+#include "Scheduler/EventThread.h"
+#include "Scheduler/MessageQueue.h"
+#include "Scheduler/VSyncModulator.h"
+#include "TimeStats/TimeStats.h"
 
 #include <map>
 #include <mutex>
@@ -668,7 +667,7 @@ private:
     void pickColorMode(const sp<DisplayDevice>& display, ui::ColorMode* outMode,
                        ui::Dataspace* outDataSpace, ui::RenderIntent* outRenderIntent) const;
 
-    void setUpHWComposer();
+    void calculateWorkingSet();
     void doComposition();
     void doDebugFlashRegions();
     void doTracing(const char* where);

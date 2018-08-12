@@ -30,7 +30,16 @@ class DetachedBuffer {
 
   const sp<GraphicBuffer>& buffer() const { return buffer_.buffer(); }
 
+  // Gets ID of the buffer client. All DetachedBuffer clients derived from the
+  // same buffer in bufferhubd share the same buffer id.
   int id() const { return id_; }
+
+  // Returns the current value of MetadataHeader::buffer_state.
+  uint64_t buffer_state() { return metadata_header_->buffer_state.load(); }
+
+  // A state mask which is unique to a buffer hub client among all its siblings
+  // sharing the same concrete graphic buffer.
+  uint64_t buffer_state_bit() const { return buffer_state_bit_; }
 
   // Returns true if the buffer holds an open PDX channels towards bufferhubd.
   bool IsConnected() const { return client_.IsValid(); }
@@ -75,7 +84,18 @@ class DetachedBuffer {
 
   // Global id for the buffer that is consistent across processes.
   int id_;
+  uint64_t buffer_state_bit_;
+
+  // The concrete Ion buffers.
   IonBuffer buffer_;
+  IonBuffer metadata_buffer_;
+
+  // buffer metadata.
+  size_t user_metadata_size_ = 0;
+  BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
+  void* user_metadata_ptr_ = nullptr;
+
+  // PDX backend.
   BufferHubClient client_;
 };
 

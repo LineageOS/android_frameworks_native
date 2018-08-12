@@ -100,7 +100,8 @@ status_t EventThread::registerDisplayEventConnection(
     return NO_ERROR;
 }
 
-void EventThread::removeDisplayEventConnectionLocked(const wp<EventThread::Connection>& connection) {
+void EventThread::removeDisplayEventConnectionLocked(
+        const wp<EventThread::Connection>& connection) {
     mDisplayEventConnections.remove(connection);
 }
 

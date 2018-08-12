@@ -26,8 +26,15 @@ namespace android {
 LayerBE::LayerBE(Layer* layer, std::string layerName)
       : mLayer(layer),
         mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
-    compositionInfo.layer = this;
+    compositionInfo.layer = std::make_shared<LayerBE>(*this);
     compositionInfo.layerName = layerName;
+}
+
+LayerBE::LayerBE(const LayerBE& layer)
+      : mLayer(layer.mLayer),
+        mMesh(Mesh::TRIANGLE_FAN, 4, 2, 2) {
+    compositionInfo.layer = layer.compositionInfo.layer;
+    compositionInfo.layerName = layer.mLayer->getName().string();
 }
 
 void LayerBE::onLayerDisplayed(const sp<Fence>& releaseFence) {
@@ -35,7 +42,7 @@ void LayerBE::onLayerDisplayed(const sp<Fence>& releaseFence) {
 }
 
 void CompositionInfo::dumpHwc(const char* tag) const {
-    ALOGV("[%s]\thwcLayer=%p", tag, hwc.hwcLayer);
+    ALOGV("[%s]\thwcLayer=%p", tag, hwc.hwcLayer.get());
     ALOGV("[%s]\tfence=%p", tag, hwc.fence.get());
     ALOGV("[%s]\ttransform=%d", tag, hwc.transform);
     ALOGV("[%s]\tz=%d", tag, hwc.z);

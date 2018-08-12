@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "MessageQueue.h"
 #include "MonitoredProducer.h"
-#include "SurfaceFlinger.h"
 #include "Layer.h"
+#include "SurfaceFlinger.h"
+
+#include "Scheduler/MessageQueue.h"
 
 namespace android {
 

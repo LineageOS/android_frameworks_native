@@ -37,9 +37,9 @@ struct CompositionInfo {
     HWC2::Composition compositionType;
     sp<GraphicBuffer> mBuffer = nullptr;
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
-    LayerBE* layer = nullptr;
+    std::shared_ptr<LayerBE> layer;
     struct {
-        HWC2::Layer* hwcLayer;
+        std::shared_ptr<HWC2::Layer> hwcLayer;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;
@@ -54,6 +54,7 @@ struct CompositionInfo {
         sp<NativeHandle> sidebandStream;
         ui::Dataspace dataspace;
         hwc_color_t color;
+        bool clearClientTarget = false;
     } hwc;
     struct {
         Mesh* mesh;
@@ -83,6 +84,7 @@ public:
     friend class SurfaceFlinger;
 
     LayerBE(Layer* layer, std::string layerName);
+    explicit LayerBE(const LayerBE& layer);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
     Mesh& getMesh() { return mMesh; }
@@ -103,7 +105,7 @@ private:
                 transform(HWC2::Transform::None) {}
 
         HWComposer* hwc;
-        HWC2::Layer* layer;
+        std::shared_ptr<HWC2::Layer> layer;
         bool forceClientComposition;
         HWC2::Composition compositionType;
         bool clearClientTarget;

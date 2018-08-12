@@ -510,7 +510,7 @@ public:
         if (getBE().mHwcLayers.count(displayId) == 0) {
             return nullptr;
         }
-        return getBE().mHwcLayers[displayId].layer;
+        return getBE().mHwcLayers[displayId].layer.get();
     }
 
     // -----------------------------------------------------------------------

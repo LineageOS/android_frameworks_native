@@ -70,10 +70,7 @@
 #include "Colorizer.h"
 #include "ContainerLayer.h"
 #include "DdmConnection.h"
-#include "DispSync.h"
 #include "DisplayDevice.h"
-#include "EventControlThread.h"
-#include "EventThread.h"
 #include "Layer.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
@@ -85,10 +82,12 @@
 #include "DisplayHardware/FramebufferSurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
-
 #include "Effects/Daltonizer.h"
-
 #include "RenderEngine/RenderEngine.h"
+#include "Scheduler/DispSync.h"
+#include "Scheduler/EventControlThread.h"
+#include "Scheduler/EventThread.h"
+
 #include <cutils/compiler.h>
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
@@ -1221,15 +1220,6 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const
         NO_THREAD_SAFETY_ANALYSIS {
-    IPCThreadState* ipc = IPCThreadState::self();
-    const int pid = ipc->getCallingPid();
-    const int uid = ipc->getCallingUid();
-    if ((uid != AID_SHELL) &&
-            !PermissionCache::checkPermission(sDump, pid, uid)) {
-        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
-        return PERMISSION_DENIED;
-    }
-
     // Try to acquire a lock for 1s, fail gracefully
     const status_t err = mStateLock.timedLock(s2ns(1));
     const bool locked = (err == NO_ERROR);
@@ -1588,7 +1578,7 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     preComposition(refreshStartTime);
     rebuildLayerStacks();
-    setUpHWComposer();
+    calculateWorkingSet();
     doDebugFlashRegions();
     doTracing("handleRefresh");
     logLayerStats();
@@ -1603,6 +1593,120 @@ void SurfaceFlinger::handleMessageRefresh() {
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
+}
+
+void SurfaceFlinger::calculateWorkingSet() {
+    ATRACE_CALL();
+    ALOGV(__FUNCTION__);
+
+    for (const auto& [token, display] : mDisplays) {
+        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
+        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
+        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
+
+        // If nothing has changed (!dirty), don't recompose.
+        // If something changed, but we don't currently have any visible layers,
+        //   and didn't when we last did a composition, then skip it this time.
+        // The second rule does two things:
+        // - When all layers are removed from a display, we'll emit one black
+        //   frame, then nothing more until we get new layers.
+        // - When a display is created with a private layer stack, we won't
+        //   emit any black frames until a layer is added to the layer stack.
+        bool mustRecompose = dirty && !(empty && wasEmpty);
+
+        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
+                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
+                 empty ? "+" : "-", wasEmpty ? "+" : "-");
+
+        display->beginFrame(mustRecompose);
+
+        if (mustRecompose) {
+            display->lastCompositionHadVisibleLayers = !empty;
+        }
+    }
+
+    // build the h/w work list
+    if (CC_UNLIKELY(mGeometryInvalid)) {
+        mGeometryInvalid = false;
+        for (const auto& [token, display] : mDisplays) {
+            const auto displayId = display->getId();
+            if (displayId >= 0) {
+                const Vector<sp<Layer>>& currentLayers(
+                        display->getVisibleLayersSortedByZ());
+                for (size_t i = 0; i < currentLayers.size(); i++) {
+                    const auto& layer = currentLayers[i];
+
+                    if (!layer->hasHwcLayer(displayId)) {
+                        if (!layer->createHwcLayer(getBE().mHwc.get(), displayId)) {
+                            layer->forceClientComposition(displayId);
+                            continue;
+                        }
+                    }
+
+                    layer->setGeometry(display, i);
+                    if (mDebugDisableHWC || mDebugRegion) {
+                        layer->forceClientComposition(displayId);
+                    }
+                }
+            }
+        }
+    }
+
+    // Set the per-frame data
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
+        if (displayId < 0) {
+            continue;
+        }
+
+        if (mDrawingState.colorMatrixChanged) {
+            display->setColorTransform(mDrawingState.colorMatrix);
+            status_t result = getBE().mHwc->setColorTransform(displayId, mDrawingState.colorMatrix);
+            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on "
+                    "display %d: %d", displayId, result);
+        }
+        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+            if (layer->isHdrY410()) {
+                layer->forceClientComposition(displayId);
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
+                    !display->hasHDR10Support()) {
+                layer->forceClientComposition(displayId);
+            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
+                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
+                    !display->hasHLGSupport()) {
+                layer->forceClientComposition(displayId);
+            }
+
+            if (layer->getForceClientComposition(displayId)) {
+                ALOGV("[%s] Requesting Client composition", layer->getName().string());
+                layer->setCompositionType(displayId, HWC2::Composition::Client);
+                continue;
+            }
+
+            layer->setPerFrameData(display);
+        }
+
+        if (hasWideColorDisplay) {
+            ColorMode  colorMode;
+            Dataspace dataSpace;
+            RenderIntent renderIntent;
+            pickColorMode(display, &colorMode, &dataSpace, &renderIntent);
+            setActiveColorModeInternal(display, colorMode, dataSpace, renderIntent);
+        }
+    }
+
+    mDrawingState.colorMatrixChanged = false;
+
+    for (const auto& [token, display] : mDisplays) {
+        if (!display->isPoweredOn()) {
+            continue;
+        }
+
+        status_t result = display->prepareFrame(*getBE().mHwc);
+        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
+                 display->getId(), result, strerror(-result));
+    }
 }
 
 void SurfaceFlinger::doDebugFlashRegions()
@@ -2004,117 +2108,6 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
-void SurfaceFlinger::setUpHWComposer() {
-    ATRACE_CALL();
-    ALOGV("setUpHWComposer");
-
-    for (const auto& [token, display] : mDisplays) {
-        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
-        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
-        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
-
-        // If nothing has changed (!dirty), don't recompose.
-        // If something changed, but we don't currently have any visible layers,
-        //   and didn't when we last did a composition, then skip it this time.
-        // The second rule does two things:
-        // - When all layers are removed from a display, we'll emit one black
-        //   frame, then nothing more until we get new layers.
-        // - When a display is created with a private layer stack, we won't
-        //   emit any black frames until a layer is added to the layer stack.
-        bool mustRecompose = dirty && !(empty && wasEmpty);
-
-        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
-                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
-                 empty ? "+" : "-", wasEmpty ? "+" : "-");
-
-        display->beginFrame(mustRecompose);
-
-        if (mustRecompose) {
-            display->lastCompositionHadVisibleLayers = !empty;
-        }
-    }
-
-    // build the h/w work list
-    if (CC_UNLIKELY(mGeometryInvalid)) {
-        mGeometryInvalid = false;
-        for (const auto& [token, display] : mDisplays) {
-            const auto displayId = display->getId();
-            if (displayId >= 0) {
-                const Vector<sp<Layer>>& currentLayers = display->getVisibleLayersSortedByZ();
-                for (size_t i = 0; i < currentLayers.size(); i++) {
-                    const auto& layer = currentLayers[i];
-                    if (!layer->hasHwcLayer(displayId)) {
-                        if (!layer->createHwcLayer(getBE().mHwc.get(), displayId)) {
-                            layer->forceClientComposition(displayId);
-                            continue;
-                        }
-                    }
-
-                    layer->setGeometry(display, i);
-                    if (mDebugDisableHWC || mDebugRegion) {
-                        layer->forceClientComposition(displayId);
-                    }
-                }
-            }
-        }
-    }
-
-    // Set the per-frame data
-    for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        if (displayId < 0) {
-            continue;
-        }
-
-        if (mDrawingState.colorMatrixChanged) {
-            display->setColorTransform(mDrawingState.colorMatrix);
-            status_t result = getBE().mHwc->setColorTransform(displayId, mDrawingState.colorMatrix);
-            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display %d: %d",
-                     displayId, result);
-        }
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            if (layer->isHdrY410()) {
-                layer->forceClientComposition(displayId);
-            } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
-                        layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                    !display->hasHDR10Support()) {
-                layer->forceClientComposition(displayId);
-            } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
-                        layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                    !display->hasHLGSupport()) {
-                layer->forceClientComposition(displayId);
-            }
-
-            if (layer->getForceClientComposition(displayId)) {
-                ALOGV("[%s] Requesting Client composition", layer->getName().string());
-                layer->setCompositionType(displayId, HWC2::Composition::Client);
-                continue;
-            }
-
-            layer->setPerFrameData(display);
-        }
-
-        if (hasWideColorDisplay) {
-            ColorMode colorMode;
-            Dataspace dataSpace;
-            RenderIntent renderIntent;
-            pickColorMode(display, &colorMode, &dataSpace, &renderIntent);
-            setActiveColorModeInternal(display, colorMode, dataSpace, renderIntent);
-        }
-    }
-
-    mDrawingState.colorMatrixChanged = false;
-
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->isPoweredOn()) {
-            continue;
-        }
-
-        status_t result = display->prepareFrame(*getBE().mHwc);
-        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
-                 display->getId(), result, strerror(-result));
-    }
-}
 
 void SurfaceFlinger::doComposition() {
     ATRACE_CALL();
@@ -3376,9 +3369,8 @@ bool callingThreadHasUnscopedSurfaceFlingerAccess() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
-
     if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
-            !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
+        !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         return false;
     }
     return true;
@@ -4564,51 +4556,64 @@ void SurfaceFlinger::updateColorMatrixLocked() {
 }
 
 status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
-    switch (code) {
-        case CREATE_CONNECTION:
-        case CREATE_DISPLAY:
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wswitch-enum"
+    switch (static_cast<ISurfaceComposerTag>(code)) {
+        // These methods should at minimum make sure that the client requested
+        // access to SF.
+        case AUTHENTICATE_SURFACE:
         case BOOT_FINISHED:
         case CLEAR_ANIMATION_FRAME_STATS:
-        case GET_ANIMATION_FRAME_STATS:
-        case SET_POWER_MODE:
-        case GET_HDR_CAPABILITIES:
+        case CREATE_CONNECTION:
+        case CREATE_DISPLAY:
+        case DESTROY_DISPLAY:
         case ENABLE_VSYNC_INJECTIONS:
+        case GET_ACTIVE_COLOR_MODE:
+        case GET_ANIMATION_FRAME_STATS:
+        case GET_HDR_CAPABILITIES:
+        case SET_ACTIVE_CONFIG:
+        case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
-        {
-            // codes that require permission check
+        case SET_POWER_MODE: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
                         ipc->getCallingPid(), ipc->getCallingUid());
                 return PERMISSION_DENIED;
             }
-            break;
-        }
-        /*
-         * Calling setTransactionState is safe, because you need to have been
-         * granted a reference to Client* and Handle* to do anything with it.
-         *
-         * Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
-         */
-        case SET_TRANSACTION_STATE:
-        case CREATE_SCOPED_CONNECTION:
-        {
             return OK;
         }
-        case CAPTURE_SCREEN:
-        {
-            // codes that require permission check
+        case GET_LAYER_DEBUG_INFO: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
-            if ((uid != AID_GRAPHICS) &&
-                    !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
-                ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
+            if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
+                ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
-            break;
+            return OK;
         }
-        case CAPTURE_LAYERS: {
+        // Used by apps to hook Choreographer to SurfaceFlinger.
+        case CREATE_DISPLAY_EVENT_CONNECTION:
+        // The following calls are currently used by clients that do not
+        // request necessary permissions. However, they do not expose any secret
+        // information, so it is OK to pass them.
+        case GET_ACTIVE_CONFIG:
+        case GET_BUILT_IN_DISPLAY:
+        case GET_DISPLAY_COLOR_MODES:
+        case GET_DISPLAY_CONFIGS:
+        case GET_DISPLAY_STATS:
+        case GET_SUPPORTED_FRAME_TIMESTAMPS:
+        // Calling setTransactionState is safe, because you need to have been
+        // granted a reference to Client* and Handle* to do anything with it.
+        case SET_TRANSACTION_STATE:
+        // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
+        case CREATE_SCOPED_CONNECTION: {
+            return OK;
+        }
+        case CAPTURE_LAYERS:
+        case CAPTURE_SCREEN: {
+            // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
@@ -4617,15 +4622,37 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
                 ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
-            break;
+            return OK;
+        }
+        // The following codes are deprecated and should never be allowed to access SF.
+        case CONNECT_DISPLAY_UNUSED:
+        case CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED: {
+            ALOGE("Attempting to access SurfaceFlinger with unused code: %u", code);
+            return PERMISSION_DENIED;
         }
     }
-    return OK;
+
+    // These codes are used for the IBinder protocol to either interrogate the recipient
+    // side of the transaction for its canonical interface descriptor or to dump its state.
+    // We let them pass by default.
+    if (code == IBinder::INTERFACE_TRANSACTION || code == IBinder::DUMP_TRANSACTION ||
+        code == IBinder::PING_TRANSACTION || code == IBinder::SHELL_COMMAND_TRANSACTION ||
+        code == IBinder::SYSPROPS_TRANSACTION) {
+        return OK;
+    }
+    // Numbers from 1000 to 1029 are currently use for backdoors. The code
+    // in onTransact verifies that the user is root, and has access to use SF.
+    if (code >= 1000 && code <= 1029) {
+        ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
+        return OK;
+    }
+    ALOGE("Permission Denial: SurfaceFlinger did not recognize request code: %u", code);
+    return PERMISSION_DENIED;
+#pragma clang diagnostic pop
 }
 
-status_t SurfaceFlinger::onTransact(
-    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
-{
+status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
+                                    uint32_t flags) {
     status_t credentialCheck = CheckTransactCodeCredentials(code);
     if (credentialCheck != OK) {
         return credentialCheck;
