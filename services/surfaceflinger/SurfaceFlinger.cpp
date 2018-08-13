@@ -3628,6 +3628,11 @@ status_t SurfaceFlinger::createLayer(
                     uniqueName, w, h, flags,
                     handle, &layer);
             break;
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+            result = createContainerLayer(client,
+                    uniqueName, w, h, flags,
+                    handle, &layer);
+            break;
         default:
             result = BAD_VALUE;
             break;
@@ -3718,6 +3723,16 @@ status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
+
+status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
+        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
+        sp<IBinder>* handle, sp<Layer>* outLayer)
+{
+    *outLayer = new ContainerLayer(this, client, name, w, h, flags);
+    *handle = (*outLayer)->getHandle();
+    return NO_ERROR;
+}
+
 
 status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle)
 {
