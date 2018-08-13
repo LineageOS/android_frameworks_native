@@ -240,9 +240,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSize(
     s->w = w;
     s->h = h;
 
-    // Resizing a surface makes the transaction synchronous.
-    mForceSynchronous = true;
-
     return *this;
 }
 
