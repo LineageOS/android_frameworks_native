@@ -130,17 +130,26 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
 
-    const auto& hwc = flinger->getHwComposer();
-    const auto& activeConfig = hwc.getActiveConfig(HWC_DISPLAY_PRIMARY);
-    nsecs_t displayPeriod = activeConfig->getVsyncPeriod();
-    mFrameTracker.setDisplayRefreshPeriod(displayPeriod);
-
     CompositorTiming compositorTiming;
     flinger->getCompositorTiming(&compositorTiming);
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
 }
 
-void Layer::onFirstRef() {}
+void Layer::onFirstRef() NO_THREAD_SAFETY_ANALYSIS {
+    if (!isCreatedFromMainThread()) {
+        // Grab the SF state lock during this since it's the only way to safely access HWC
+        mFlinger->mStateLock.lock();
+    }
+
+    const auto& hwc = mFlinger->getHwComposer();
+    const auto& activeConfig = hwc.getActiveConfig(HWC_DISPLAY_PRIMARY);
+    nsecs_t displayPeriod = activeConfig->getVsyncPeriod();
+    mFrameTracker.setDisplayRefreshPeriod(displayPeriod);
+
+    if (!isCreatedFromMainThread()) {
+        mFlinger->mStateLock.unlock();
+    }
+}
 
 Layer::~Layer() {
     sp<Client> c(mClientRef.promote());
@@ -345,20 +354,25 @@ FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
         win.intersect(s.crop, &win);
     }
 
-    Rect bounds = win;
     const auto& p = mDrawingParent.promote();
+    FloatRect floatWin = win.toFloatRect();
+    FloatRect parentBounds = floatWin;
     if (p != nullptr) {
-        // Look in computeScreenBounds recursive call for explanation of
-        // why we pass false here.
-        bounds = p->computeScreenBounds(false /* reduceTransparentRegion */);
+        // We pass an empty Region here for reasons mirroring that of the case described in
+        // the computeScreenBounds reduceTransparentRegion=false case.
+        parentBounds = p->computeBounds(Region());
     }
 
-    Transform t = getTransform();
+    Transform t = s.active.transform;
 
-    FloatRect floatWin = win.toFloatRect();
-    if (p != nullptr) {
+
+    if (p != nullptr || !s.finalCrop.isEmpty()) {
         floatWin = t.transform(floatWin);
-        floatWin = floatWin.intersect(bounds.toFloatRect());
+        floatWin = floatWin.intersect(parentBounds);
+
+        if (!s.finalCrop.isEmpty()) {
+            floatWin = floatWin.intersect(s.finalCrop.toFloatRect());
+        }
         floatWin = t.inverse().transform(floatWin);
     }
 
@@ -1249,7 +1263,15 @@ bool Layer::setColor(const half3& color) {
     return true;
 }
 
-bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix) {
+bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
+        bool allowNonRectPreservingTransforms) {
+    Transform t;
+    t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
+
+    if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
+        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER ignored");
+        return false;
+    }
     mCurrentState.sequence++;
     mCurrentState.requested.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
     mCurrentState.modified = true;
@@ -1974,6 +1996,16 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     layerInfo->set_refresh_pending(isBufferLatched());
     layerInfo->set_window_type(state.type);
     layerInfo->set_app_id(state.appId);
+    layerInfo->set_curr_frame(mCurrentFrameNumber);
+
+    for (const auto& pendingState : mPendingStates) {
+        auto barrierLayer = pendingState.barrierLayer.promote();
+        if (barrierLayer != nullptr) {
+            BarrierLayerProto* barrierLayerProto = layerInfo->add_barrier_layer();
+            barrierLayerProto->set_id(barrierLayer->sequence);
+            barrierLayerProto->set_frame_number(pendingState.frameNumber);
+        }
+    }
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
