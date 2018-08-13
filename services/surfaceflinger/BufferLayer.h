@@ -134,7 +134,7 @@ private:
 
     virtual std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) = 0;
 
-    virtual bool hasDrawingBuffer() const = 0;
+    virtual bool hasFrameUpdate() const = 0;
 
     virtual void setFilteringEnabled(bool enabled) = 0;
 

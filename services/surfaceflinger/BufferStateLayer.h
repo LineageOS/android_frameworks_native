@@ -110,7 +110,7 @@ private:
 
     std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override;
 
-    bool hasDrawingBuffer() const override;
+    bool hasFrameUpdate() const override;
 
     void setFilteringEnabled(bool enabled) override;
 
@@ -135,6 +135,8 @@ private:
     std::atomic<bool> mSidebandStreamChanged{false};
 
     uint32_t mFrameNumber{0};
+
+    bool mCurrentStateModified = false;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 };

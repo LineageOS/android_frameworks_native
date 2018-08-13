@@ -61,7 +61,7 @@ bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
         return true;
     }
 
-    return hasDrawingBuffer();
+    return hasFrameUpdate();
 }
 
 bool BufferStateLayer::getTransformToDisplayInverse() const {
@@ -81,6 +81,7 @@ bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     while (!mPendingStates.empty()) {
         popPendingState(stateToCommit);
     }
+    mCurrentStateModified = stateUpdateAvailable && mCurrentState.modified;
     mCurrentState.modified = false;
     return stateUpdateAvailable;
 }
@@ -314,8 +315,8 @@ std::optional<Region> BufferStateLayer::latchSidebandStream(bool& recomputeVisib
     return {};
 }
 
-bool BufferStateLayer::hasDrawingBuffer() const {
-    return getDrawingState().buffer != nullptr;
+bool BufferStateLayer::hasFrameUpdate() const {
+    return mCurrentStateModified && getCurrentState().buffer != nullptr;
 }
 
 void BufferStateLayer::setFilteringEnabled(bool enabled) {
@@ -513,6 +514,7 @@ void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
               s.buffer->handle, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
+    mCurrentStateModified = false;
     mFrameNumber++;
 }
 
