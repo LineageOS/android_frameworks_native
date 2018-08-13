@@ -265,6 +265,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mForceFullDamage(false),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
+        mRefreshStartTime(0),
         mHasPoweredOff(false),
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
@@ -1574,16 +1575,16 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mRefreshPending = false;
 
-    nsecs_t refreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
-
-    preComposition(refreshStartTime);
+    preComposition();
     rebuildLayerStacks();
     calculateWorkingSet();
+    beginFrame();
+    prepareFrame();
     doDebugFlashRegions();
     doTracing("handleRefresh");
     logLayerStats();
     doComposition();
-    postComposition(refreshStartTime);
+    postComposition();
 
     mHadClientComposition = false;
     for (const auto& [token, display] : mDisplays) {
@@ -1598,32 +1599,6 @@ void SurfaceFlinger::handleMessageRefresh() {
 void SurfaceFlinger::calculateWorkingSet() {
     ATRACE_CALL();
     ALOGV(__FUNCTION__);
-
-    for (const auto& [token, display] : mDisplays) {
-        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
-        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
-        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
-
-        // If nothing has changed (!dirty), don't recompose.
-        // If something changed, but we don't currently have any visible layers,
-        //   and didn't when we last did a composition, then skip it this time.
-        // The second rule does two things:
-        // - When all layers are removed from a display, we'll emit one black
-        //   frame, then nothing more until we get new layers.
-        // - When a display is created with a private layer stack, we won't
-        //   emit any black frames until a layer is added to the layer stack.
-        bool mustRecompose = dirty && !(empty && wasEmpty);
-
-        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
-                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
-                 empty ? "+" : "-", wasEmpty ? "+" : "-");
-
-        display->beginFrame(mustRecompose);
-
-        if (mustRecompose) {
-            display->lastCompositionHadVisibleLayers = !empty;
-        }
-    }
 
     // build the h/w work list
     if (CC_UNLIKELY(mGeometryInvalid)) {
@@ -1697,16 +1672,6 @@ void SurfaceFlinger::calculateWorkingSet() {
     }
 
     mDrawingState.colorMatrixChanged = false;
-
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->isPoweredOn()) {
-            continue;
-        }
-
-        status_t result = display->prepareFrame(*getBE().mHwc);
-        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
-                 display->getId(), result, strerror(-result));
-    }
 }
 
 void SurfaceFlinger::doDebugFlashRegions()
@@ -1773,14 +1738,16 @@ void SurfaceFlinger::logLayerStats() {
     }
 }
 
-void SurfaceFlinger::preComposition(nsecs_t refreshStartTime)
+void SurfaceFlinger::preComposition()
 {
     ATRACE_CALL();
     ALOGV("preComposition");
 
+    mRefreshStartTime = systemTime(SYSTEM_TIME_MONOTONIC);
+
     bool needExtraInvalidate = false;
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (layer->onPreComposition(refreshStartTime)) {
+        if (layer->onPreComposition(mRefreshStartTime)) {
             needExtraInvalidate = true;
         }
     });
@@ -1849,7 +1816,7 @@ void SurfaceFlinger::setCompositorTimingSnapped(nsecs_t vsyncPhase,
     getBE().mCompositorTiming.presentLatency = snappedCompositeToPresentLatency;
 }
 
-void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
+void SurfaceFlinger::postComposition()
 {
     ATRACE_CALL();
     ALOGV("postComposition");
@@ -1882,11 +1849,11 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
     nsecs_t vsyncPhase = mPrimaryDispSync->computeNextRefresh(0);
     nsecs_t vsyncInterval = mPrimaryDispSync->getPeriod();
 
-    // We use the refreshStartTime which might be sampled a little later than
+    // We use the mRefreshStartTime which might be sampled a little later than
     // when we started doing work for this frame, but that should be okay
     // since updateCompositorTiming has snapping logic.
     updateCompositorTiming(
-        vsyncPhase, vsyncInterval, refreshStartTime, presentFenceTime);
+        vsyncPhase, vsyncInterval, mRefreshStartTime, presentFenceTime);
     CompositorTiming compositorTiming;
     {
         std::lock_guard<std::mutex> lock(getBE().mCompositorTimingLock);
@@ -2108,6 +2075,47 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
+void SurfaceFlinger::beginFrame()
+{
+    for (const auto& [token, display] : mDisplays) {
+        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
+        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
+        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
+
+        // If nothing has changed (!dirty), don't recompose.
+        // If something changed, but we don't currently have any visible layers,
+        //   and didn't when we last did a composition, then skip it this time.
+        // The second rule does two things:
+        // - When all layers are removed from a display, we'll emit one black
+        //   frame, then nothing more until we get new layers.
+        // - When a display is created with a private layer stack, we won't
+        //   emit any black frames until a layer is added to the layer stack.
+        bool mustRecompose = dirty && !(empty && wasEmpty);
+
+        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
+                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
+                 empty ? "+" : "-", wasEmpty ? "+" : "-");
+
+        display->beginFrame(mustRecompose);
+
+        if (mustRecompose) {
+            display->lastCompositionHadVisibleLayers = !empty;
+        }
+    }
+}
+
+void SurfaceFlinger::prepareFrame()
+{
+    for (const auto& [token, display] : mDisplays) {
+        if (!display->isPoweredOn()) {
+            continue;
+        }
+
+        status_t result = display->prepareFrame(*getBE().mHwc);
+        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
+                 display->getId(), result, strerror(-result));
+    }
+}
 
 void SurfaceFlinger::doComposition() {
     ATRACE_CALL();
