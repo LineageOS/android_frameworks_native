@@ -31,7 +31,6 @@
 #include <stddef.h>
 #include <unistd.h>
 #include <limits.h>
-#include <unordered_map>
 
 #include "InputWindow.h"
 #include "InputApplication.h"
@@ -308,8 +307,7 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
-            int displayId) = 0;
+    virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles) = 0;
 
     /* Sets the focused application.
      *
@@ -389,8 +387,7 @@ public:
             int32_t injectorPid, int32_t injectorUid, int32_t syncMode, int32_t timeoutMillis,
             uint32_t policyFlags);
 
-    virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
-            int displayId);
+    virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles);
     virtual void setFocusedApplication(const sp<InputApplicationHandle>& inputApplicationHandle);
     virtual void setInputDispatchMode(bool enabled, bool frozen);
     virtual void setInputFilterEnabled(bool enabled);
@@ -959,11 +956,10 @@ private:
     bool mDispatchFrozen;
     bool mInputFilterEnabled;
 
-    std::unordered_map<int32_t, Vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay;
-    // Get window handles by display, return an empty vector if not found.
-    Vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const;
+    Vector<sp<InputWindowHandle> > mWindowHandles;
+
     sp<InputWindowHandle> getWindowHandleLocked(const sp<InputChannel>& inputChannel) const;
-    bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle, int32_t displayId) const;
+    bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const;
 
     // Focus tracking for keys, trackball, etc.
     sp<InputWindowHandle> mFocusedWindowHandle;
