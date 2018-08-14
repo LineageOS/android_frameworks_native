@@ -328,6 +328,36 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   EXPECT_FALSE(invalid_fence.IsValid());
 }
 
+TEST_F(LibBufferHubTest, TestGainPostedBuffer) {
+  std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+
+  // The producer buffer starts in gained state. Post the buffer.
+  ASSERT_EQ(0, p->Post(LocalHandle()));
+
+  // Gain in posted state should only succeed with gain_posted_buffer = true.
+  LocalHandle invalid_fence;
+  EXPECT_EQ(-EBUSY, p->Gain(&invalid_fence, false));
+  EXPECT_EQ(0, p->Gain(&invalid_fence, true));
+}
+
+TEST_F(LibBufferHubTest, TestGainPostedBufferAsync) {
+  std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+
+  // The producer buffer starts in gained state. Post the buffer.
+  ASSERT_EQ(0, p->Post(LocalHandle()));
+
+  // GainAsync in posted state should only succeed with gain_posted_buffer
+  // equals true.
+  DvrNativeBufferMetadata metadata;
+  LocalHandle invalid_fence;
+  EXPECT_EQ(-EBUSY, p->GainAsync(&metadata, &invalid_fence, false));
+  EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence, true));
+}
+
 TEST_F(LibBufferHubTest, TestZeroConsumer) {
   std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
