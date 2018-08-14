@@ -88,6 +88,7 @@
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
+#include "Scheduler/InjectVSyncSource.h"
 
 #include <cutils/compiler.h>
 
@@ -565,31 +566,6 @@ uint32_t SurfaceFlinger::getNewTexture() {
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
     postMessageAsync(new LambdaMessage([=] { getRenderEngine().deleteTextures(1, &texture); }));
 }
-
-class InjectVSyncSource final : public VSyncSource {
-public:
-    InjectVSyncSource() = default;
-    ~InjectVSyncSource() override = default;
-
-    void setCallback(VSyncSource::Callback* callback) override {
-        std::lock_guard<std::mutex> lock(mCallbackMutex);
-        mCallback = callback;
-    }
-
-    void onInjectSyncEvent(nsecs_t when) {
-        std::lock_guard<std::mutex> lock(mCallbackMutex);
-        if (mCallback) {
-            mCallback->onVSyncEvent(when);
-        }
-    }
-
-    void setVSyncEnabled(bool) override {}
-    void setPhaseOffset(nsecs_t) override {}
-
-private:
-    std::mutex mCallbackMutex; // Protects the following
-    VSyncSource::Callback* mCallback = nullptr;
-};
 
 // Do not call property_set on main thread which will be blocked by init
 // Use StartPropertySetThread instead.
