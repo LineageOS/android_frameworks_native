@@ -435,7 +435,11 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
     // The check below is incorrect.  We actually rely on HWC here to fall
     // back to validate when there is any client layer.
     displayData.validateWasSkipped = false;
+#ifdef TARGET_HAS_HWC_HUAWEI
+    if ((false)) { //!displayData.hasClientComposition) {
+#else
     if (!displayData.hasClientComposition) {
+#endif
         sp<android::Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);

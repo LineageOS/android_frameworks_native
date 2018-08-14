@@ -149,6 +149,13 @@ cc_library_shared {
     cppflags: [
         "-fwhole-program-vtables", // requires ThinLTO
     ],
+    product_variables: {
+        lineage: {
+            has_hwc_huawei: {
+            cflags: ["-DTARGET_HAS_HWC_HUAWEI"],
+            },
+        },
+    },
     lto: {
         thin: true,
     },
