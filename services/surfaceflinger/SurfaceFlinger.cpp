@@ -85,6 +85,7 @@
 #include "Effects/Daltonizer.h"
 #include "RenderEngine/RenderEngine.h"
 #include "Scheduler/DispSync.h"
+#include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
 
@@ -564,112 +565,6 @@ uint32_t SurfaceFlinger::getNewTexture() {
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
     postMessageAsync(new LambdaMessage([=] { getRenderEngine().deleteTextures(1, &texture); }));
 }
-
-class DispSyncSource final : public VSyncSource, private DispSync::Callback {
-public:
-    DispSyncSource(DispSync* dispSync, nsecs_t phaseOffset, bool traceVsync,
-        const char* name) :
-            mName(name),
-            mValue(0),
-            mTraceVsync(traceVsync),
-            mVsyncOnLabel(String8::format("VsyncOn-%s", name)),
-            mVsyncEventLabel(String8::format("VSYNC-%s", name)),
-            mDispSync(dispSync),
-            mCallbackMutex(),
-            mVsyncMutex(),
-            mPhaseOffset(phaseOffset),
-            mEnabled(false) {}
-
-    ~DispSyncSource() override = default;
-
-    void setVSyncEnabled(bool enable) override {
-        Mutex::Autolock lock(mVsyncMutex);
-        if (enable) {
-            status_t err = mDispSync->addEventListener(mName, mPhaseOffset,
-                    static_cast<DispSync::Callback*>(this));
-            if (err != NO_ERROR) {
-                ALOGE("error registering vsync callback: %s (%d)",
-                        strerror(-err), err);
-            }
-            //ATRACE_INT(mVsyncOnLabel.string(), 1);
-        } else {
-            status_t err = mDispSync->removeEventListener(
-                    static_cast<DispSync::Callback*>(this));
-            if (err != NO_ERROR) {
-                ALOGE("error unregistering vsync callback: %s (%d)",
-                        strerror(-err), err);
-            }
-            //ATRACE_INT(mVsyncOnLabel.string(), 0);
-        }
-        mEnabled = enable;
-    }
-
-    void setCallback(VSyncSource::Callback* callback) override{
-        Mutex::Autolock lock(mCallbackMutex);
-        mCallback = callback;
-    }
-
-    void setPhaseOffset(nsecs_t phaseOffset) override {
-        Mutex::Autolock lock(mVsyncMutex);
-
-        // Normalize phaseOffset to [0, period)
-        auto period = mDispSync->getPeriod();
-        phaseOffset %= period;
-        if (phaseOffset < 0) {
-            // If we're here, then phaseOffset is in (-period, 0). After this
-            // operation, it will be in (0, period)
-            phaseOffset += period;
-        }
-        mPhaseOffset = phaseOffset;
-
-        // If we're not enabled, we don't need to mess with the listeners
-        if (!mEnabled) {
-            return;
-        }
-
-        status_t err = mDispSync->changePhaseOffset(static_cast<DispSync::Callback*>(this),
-                mPhaseOffset);
-        if (err != NO_ERROR) {
-            ALOGE("error changing vsync offset: %s (%d)",
-                    strerror(-err), err);
-        }
-    }
-
-private:
-    virtual void onDispSyncEvent(nsecs_t when) {
-        VSyncSource::Callback* callback;
-        {
-            Mutex::Autolock lock(mCallbackMutex);
-            callback = mCallback;
-
-            if (mTraceVsync) {
-                mValue = (mValue + 1) % 2;
-                ATRACE_INT(mVsyncEventLabel.string(), mValue);
-            }
-        }
-
-        if (callback != nullptr) {
-            callback->onVSyncEvent(when);
-        }
-    }
-
-    const char* const mName;
-
-    int mValue;
-
-    const bool mTraceVsync;
-    const String8 mVsyncOnLabel;
-    const String8 mVsyncEventLabel;
-
-    DispSync* mDispSync;
-
-    Mutex mCallbackMutex; // Protects the following
-    VSyncSource::Callback* mCallback = nullptr;
-
-    Mutex mVsyncMutex; // Protects the following
-    nsecs_t mPhaseOffset;
-    bool mEnabled;
-};
 
 class InjectVSyncSource final : public VSyncSource {
 public:

@@ -128,6 +128,7 @@ filegroup {
         "RenderEngine/Surface.cpp",
         "RenderEngine/Texture.cpp",
         "Scheduler/DispSync.cpp",
+        "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventControlThread.cpp",
         "Scheduler/EventThread.cpp",
         "Scheduler/MessageQueue.cpp",
