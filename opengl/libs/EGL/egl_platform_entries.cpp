@@ -863,35 +863,12 @@ EGLSurface eglCreatePlatformPixmapSurfaceImpl(EGLDisplay dpy, EGLConfig /*config
     return EGL_NO_SURFACE;
 }
 
-EGLSurface eglCreatePixmapSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
-                                        NativePixmapType pixmap,
-                                        const EGLint *attrib_list)
-{
+EGLSurface eglCreatePixmapSurfaceImpl(EGLDisplay dpy, EGLConfig /*config*/,
+                                      NativePixmapType /*pixmap*/, const EGLint* /*attrib_list*/) {
     egl_connection_t* cnx = nullptr;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
-        EGLDisplay iDpy = dp->disp.dpy;
-        android_pixel_format format;
-        getNativePixelFormat(iDpy, cnx, config, &format);
-
-        // now select a corresponding sRGB format if needed
-        EGLint colorSpace = EGL_UNKNOWN;
-        std::vector<EGLint> strippedAttribList;
-        if (!processAttributes(dp, nullptr, format, attrib_list, &colorSpace,
-                               &strippedAttribList)) {
-            ALOGE("error invalid colorspace: %d", colorSpace);
-            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-        }
-        attrib_list = strippedAttribList.data();
-
-        EGLSurface surface = cnx->egl.eglCreatePixmapSurface(
-                dp->disp.dpy, config, pixmap, attrib_list);
-        if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, nullptr, surface,
-                                      getReportedColorSpace(colorSpace), cnx);
-            return s;
-        }
+        return setError(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
     }
     return EGL_NO_SURFACE;
 }
