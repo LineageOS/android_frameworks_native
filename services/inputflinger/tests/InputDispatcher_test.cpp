@@ -338,7 +338,6 @@ protected:
             const std::string name, int32_t displayId) :
                 mDispatcher(dispatcher), mName(name), mDisplayId(displayId) {
             InputChannel::openInputChannelPair(name, mServerChannel, mClientChannel);
-            mServerChannel->setToken(new BBinder());
 
             mConsumer = new InputConsumer(mClientChannel);
         }
@@ -370,6 +369,7 @@ public:
             InputWindowHandle(inputApplicationHandle),
             FakeInputReceiver(dispatcher, name, displayId),
             mFocused(false) {
+            mServerChannel->setToken(new BBinder());
             mDispatcher->registerInputChannel(mServerChannel, displayId);
     }
 

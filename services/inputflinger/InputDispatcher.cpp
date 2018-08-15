@@ -58,6 +58,7 @@
 #include <utils/Trace.h>
 #include <powermanager/PowerManager.h>
 #include <ui/Region.h>
+#include <binder/Binder.h>
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -3018,7 +3019,8 @@ bool InputDispatcher::hasWindowHandleLocked(
         const Vector<sp<InputWindowHandle>> windowHandles = it.second;
         size_t numWindows = windowHandles.size();
         for (size_t i = 0; i < numWindows; i++) {
-            if (windowHandles.itemAt(i) == windowHandle) {
+            if (windowHandles.itemAt(i)->getInputChannel()->getToken()
+                    == windowHandle->getInputChannel()->getToken()) {
                 if (windowHandle->getInfo()->displayId != it.first) {
                     ALOGE("Found window %s in display %" PRId32
                             ", but it should belong to display %" PRId32,
@@ -3649,15 +3651,18 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
     { // acquire lock
         AutoMutex _l(mLock);
 
+        // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
+        // treat inputChannel as monitor channel for displayId.
+        bool monitor = inputChannel->getToken() == nullptr && displayId != ADISPLAY_ID_NONE;
+        if (monitor) {
+            inputChannel->setToken(new BBinder());
+        }
+
         if (getConnectionIndexLocked(inputChannel) >= 0) {
             ALOGW("Attempted to register already registered input channel '%s'",
                     inputChannel->getName().c_str());
             return BAD_VALUE;
         }
-
-        // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
-        // treat inputChannel as monitor channel for displayId.
-        bool monitor = inputChannel->getToken() == nullptr && displayId != ADISPLAY_ID_NONE;
 
         sp<Connection> connection = new Connection(inputChannel, monitor);
 
@@ -3744,17 +3749,17 @@ void InputDispatcher::removeMonitorChannelLocked(const sp<InputChannel>& inputCh
 }
 
 ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputChannel) {
-    if (!inputChannel) {
+    if (inputChannel == nullptr) {
         return -1;
     }
 
-    ssize_t connectionIndex = mConnectionsByFd.indexOfKey(inputChannel->getFd());
-    if (connectionIndex >= 0) {
-        sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-        if (connection->inputChannel.get() == inputChannel.get()) {
-            return connectionIndex;
+    for (size_t i = 0; i < mConnectionsByFd.size(); i++) {
+        sp<Connection> connection = mConnectionsByFd.valueAt(i);
+        if (connection->inputChannel->getToken() == inputChannel->getToken()) {
+            return i;
         }
     }
+
     return -1;
 }
 
