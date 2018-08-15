@@ -21,8 +21,6 @@
 #include <sys/types.h>
 #include <memory>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
 #include <android-base/unique_fd.h>
 #include <math/mat4.h>
 #include <renderengine/Framebuffer.h>
@@ -30,7 +28,10 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
-#define EGL_NO_CONFIG ((EGLConfig)0)
+/**
+ * Allows to set RenderEngine backend to GLES (default) or Vulkan (NOT yet supported).
+ */
+#define PROPERTY_DEBUG_RENDERENGINE_BACKEND "debug.renderengine.backend"
 
 struct ANativeWindowBuffer;
 
@@ -95,7 +96,6 @@ public:
     virtual void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
                                      float blue, float alpha) = 0;
 
-    // common to all GL versions
     virtual void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) = 0;
     virtual void disableScissor() = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;

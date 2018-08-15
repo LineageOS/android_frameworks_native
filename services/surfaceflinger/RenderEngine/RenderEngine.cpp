@@ -16,28 +16,22 @@
 
 #include <renderengine/RenderEngine.h>
 
-#include <vector>
-
+#include <cutils/properties.h>
 #include <log/log.h>
 #include <private/gui/SyncFeatures.h>
-#include <renderengine/Image.h>
-#include <renderengine/Mesh.h>
-#include <renderengine/Surface.h>
-#include <ui/Rect.h>
-#include <ui/Region.h>
-#include <utils/KeyedVector.h>
 #include "gl/GLES20RenderEngine.h"
-#include "gl/GLExtensions.h"
-#include "gl/ProgramCache.h"
-
-using namespace android::renderengine::gl;
-
-extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
 namespace android {
 namespace renderengine {
 
 std::unique_ptr<impl::RenderEngine> RenderEngine::create(int hwcFormat, uint32_t featureFlags) {
+    char prop[PROPERTY_VALUE_MAX];
+    property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "gles");
+    if (strcmp(prop, "gles") == 0) {
+        ALOGD("RenderEngine GLES Backend");
+        return renderengine::gl::GLES20RenderEngine::create(hwcFormat, featureFlags);
+    }
+    ALOGE("UNKNOWN BackendType: %s, create GLES RenderEngine.", prop);
     return renderengine::gl::GLES20RenderEngine::create(hwcFormat, featureFlags);
 }
 
