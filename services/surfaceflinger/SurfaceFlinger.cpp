@@ -632,7 +632,7 @@ void SurfaceFlinger::init() {
 
     mEventControlThread = new EventControlThread(this);
     mEventControlThread->run("EventControl", PRIORITY_URGENT_DISPLAY);
-    android_set_rt_ioprio(mEventControlThread->getTid(), 1);
+    android_set_bfq_ioprio(mEventControlThread->getTid(), 1, 1);
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
