@@ -318,6 +318,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eSidebandStreamChanged;
         sidebandStream = other.sidebandStream;
     }
+
+    if (other.what != what) {
+        ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating?");
+    }
 }
 
 }; // namespace android
