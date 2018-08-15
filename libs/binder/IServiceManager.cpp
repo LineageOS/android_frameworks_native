@@ -161,8 +161,10 @@ public:
         while (uptimeMillis() < timeout) {
             n++;
             if (isVendorService) {
+                char buildType[PROPERTY_VALUE_MAX];
+                property_get("ro.build.type", buildType, "unknown");
                 ALOGI("Waiting for vendor service %s...", String8(name).string());
-                CallStack stack(LOG_TAG);
+                if (strcmp(buildType, "eng") == 0) CallStack stack(LOG_TAG);
             } else if (n%10 == 0) {
                 ALOGI("Waiting for service %s...", String8(name).string());
             }
