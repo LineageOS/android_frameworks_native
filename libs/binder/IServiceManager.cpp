@@ -157,12 +157,17 @@ public:
         // retry interval in millisecond.
         const long sleepTime = gSystemBootCompleted ? 1000 : 100;
 
+        char buildType[PROPERTY_VALUE_MAX];
+        property_get("ro.build.type", buildType, "unknown");
+        const bool isBuildTypeEng = strcmp(buildType, "eng") == 0;
+
         int n = 0;
         while (uptimeMillis() < timeout) {
             n++;
             if (isVendorService) {
+                property_get("ro.build.type", buildType, "unknown");
                 ALOGI("Waiting for vendor service %s...", String8(name).string());
-                CallStack stack(LOG_TAG);
+                if (isBuildTypeEng) CallStack stack(LOG_TAG);
             } else if (n%10 == 0) {
                 ALOGI("Waiting for service %s...", String8(name).string());
             }
