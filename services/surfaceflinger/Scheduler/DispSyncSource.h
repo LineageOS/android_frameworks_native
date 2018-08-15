@@ -15,8 +15,8 @@
  */
 #pragma once
 
-#include <utils/Mutex.h>
-#include <utils/String8.h>
+#include <mutex>
+#include <string>
 
 #include "DispSync.h"
 #include "EventThread.h"
@@ -39,21 +39,20 @@ private:
     virtual void onDispSyncEvent(nsecs_t when);
 
     const char* const mName;
-
-    int mValue;
+    int mValue = 0;
 
     const bool mTraceVsync;
-    const String8 mVsyncOnLabel;
-    const String8 mVsyncEventLabel;
+    const std::string mVsyncOnLabel;
+    const std::string mVsyncEventLabel;
 
     DispSync* mDispSync;
 
-    Mutex mCallbackMutex; // Protects the following
-    VSyncSource::Callback* mCallback = nullptr;
+    std::mutex mCallbackMutex;
+    VSyncSource::Callback* mCallback GUARDED_BY(mCallbackMutex) = nullptr;
 
-    Mutex mVsyncMutex; // Protects the following
-    nsecs_t mPhaseOffset;
-    bool mEnabled;
+    std::mutex mVsyncMutex;
+    nsecs_t mPhaseOffset GUARDED_BY(mVsyncMutex);
+    bool mEnabled GUARDED_BY(mVsyncMutex) = false;
 };
 
 } // namespace android
