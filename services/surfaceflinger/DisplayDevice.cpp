@@ -44,7 +44,6 @@
 #include "DisplayHardware/HWC2.h"
 #include "RenderEngine/RenderEngine.h"
 
-#include "clz.h"
 #include "DisplayDevice.h"
 #include "SurfaceFlinger.h"
 #include "Layer.h"
@@ -582,7 +581,7 @@ void DisplayDevice::setProjection(int orientation,
         if (R.getOrientation() & Transform::ROT_90) {
             // viewport is always specified in the logical orientation
             // of the display (ie: post-rotation).
-            swap(viewport.right, viewport.bottom);
+            std::swap(viewport.right, viewport.bottom);
         }
     }
 

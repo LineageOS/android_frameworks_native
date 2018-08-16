@@ -21,7 +21,6 @@
 #include <ui/Region.h>
 
 #include "Transform.h"
-#include "clz.h"
 
 // ---------------------------------------------------------------------------
 
@@ -137,7 +136,7 @@ status_t Transform::set(uint32_t flags, float w, float h)
     Transform H, V, R;
     if (flags & ROT_90) {
         // w & h are inverted when rotating by 90 degrees
-        swap(w, h);
+        std::swap(w, h);
     }
 
     if (flags & FLIP_H) {
@@ -210,15 +209,15 @@ Rect Transform::transform(const Rect& bounds, bool roundOutwards) const
     rb = transform(rb);
 
     if (roundOutwards) {
-        r.left   = floorf(min(lt[0], rt[0], lb[0], rb[0]));
-        r.top    = floorf(min(lt[1], rt[1], lb[1], rb[1]));
-        r.right  = ceilf(max(lt[0], rt[0], lb[0], rb[0]));
-        r.bottom = ceilf(max(lt[1], rt[1], lb[1], rb[1]));
+        r.left   = floorf(std::min({lt[0], rt[0], lb[0], rb[0]}));
+        r.top    = floorf(std::min({lt[1], rt[1], lb[1], rb[1]}));
+        r.right  = ceilf(std::max({lt[0], rt[0], lb[0], rb[0]}));
+        r.bottom = ceilf(std::max({lt[1], rt[1], lb[1], rb[1]}));
     } else {
-        r.left   = floorf(min(lt[0], rt[0], lb[0], rb[0]) + 0.5f);
-        r.top    = floorf(min(lt[1], rt[1], lb[1], rb[1]) + 0.5f);
-        r.right  = floorf(max(lt[0], rt[0], lb[0], rb[0]) + 0.5f);
-        r.bottom = floorf(max(lt[1], rt[1], lb[1], rb[1]) + 0.5f);
+        r.left   = floorf(std::min({lt[0], rt[0], lb[0], rb[0]}) + 0.5f);
+        r.top    = floorf(std::min({lt[1], rt[1], lb[1], rb[1]}) + 0.5f);
+        r.right  = floorf(std::max({lt[0], rt[0], lb[0], rb[0]}) + 0.5f);
+        r.bottom = floorf(std::max({lt[1], rt[1], lb[1], rb[1]}) + 0.5f);
     }
 
     return r;
@@ -237,10 +236,10 @@ FloatRect Transform::transform(const FloatRect& bounds) const
     rb = transform(rb);
 
     FloatRect r;
-    r.left = min(lt[0], rt[0], lb[0], rb[0]);
-    r.top = min(lt[1], rt[1], lb[1], rb[1]);
-    r.right = max(lt[0], rt[0], lb[0], rb[0]);
-    r.bottom = max(lt[1], rt[1], lb[1], rb[1]);
+    r.left = std::min({lt[0], rt[0], lb[0], rb[0]});
+    r.top = std::min({lt[1], rt[1], lb[1], rb[1]});
+    r.right = std::max({lt[0], rt[0], lb[0], rb[0]});
+    r.bottom = std::max({lt[1], rt[1], lb[1], rb[1]});
 
     return r;
 }

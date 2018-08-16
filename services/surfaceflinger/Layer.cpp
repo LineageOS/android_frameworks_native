@@ -50,7 +50,6 @@
 #include "LayerRejecter.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
-#include "clz.h"
 
 #include "DisplayHardware/HWComposer.h"
 

@@ -23,7 +23,6 @@
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "LayerRejecter.h"
-#include "clz.h"
 
 #include "RenderEngine/RenderEngine.h"
 

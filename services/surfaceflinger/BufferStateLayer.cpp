@@ -21,7 +21,6 @@
 
 #include "BufferStateLayer.h"
 #include "RenderEngine/Image.h"
-#include "clz.h"
 
 #include <private/gui/SyncFeatures.h>
 
@@ -401,13 +400,13 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     uint32_t bufferHeight = s.buffer->height;
 
     if (s.transform & Transform::ROT_90) {
-        swap(bufferWidth, bufferHeight);
+        std::swap(bufferWidth, bufferHeight);
     }
 
     if (s.transformToDisplayInverse) {
         uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
         if (invTransform & Transform::ROT_90) {
-            swap(bufferWidth, bufferHeight);
+            std::swap(bufferWidth, bufferHeight);
         }
     }
 
