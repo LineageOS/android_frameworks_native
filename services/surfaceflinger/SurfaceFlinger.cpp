@@ -4253,7 +4253,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
                 appEarlyOffset,
                 sfEarlyOffset,
                 appEarlyGlOffset,
-                sfEarlyOffset,
+                sfEarlyGlOffset,
                 dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     }
     result.append("\n");
