@@ -81,6 +81,8 @@ cc_library_shared {
         "libutils",
         "libcutils",
         "libz",
+        "libnativebridge",
+        "libnativeloader",
         "libnativewindow",
         "android.hardware.graphics.common@1.0",
     ],
