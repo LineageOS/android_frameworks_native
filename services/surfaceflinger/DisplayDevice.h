@@ -17,19 +17,20 @@
 #ifndef ANDROID_DISPLAY_DEVICE_H
 #define ANDROID_DISPLAY_DEVICE_H
 
-#include "Transform.h"
-
 #include <stdlib.h>
+
+#include <memory>
+#include <string>
 #include <unordered_map>
 
-#include <math/mat4.h>
-
 #include <binder/IBinder.h>
-#include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
+#include <gui/ISurfaceComposer.h>
+#include <math/mat4.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
+#include <ui/Transform.h>
 #include <utils/RefBase.h>
 #include <utils/Mutex.h>
 #include <utils/String8.h>
@@ -37,9 +38,6 @@
 
 #include "RenderArea.h"
 #include "RenderEngine/Surface.h"
-
-#include <memory>
-#include <string>
 
 struct ANativeWindow;
 
@@ -126,7 +124,7 @@ public:
     int                     getOrientation() const { return mOrientation; }
     uint32_t                getOrientationTransform() const;
     static uint32_t         getPrimaryDisplayOrientationTransform();
-    const Transform&        getTransform() const { return mGlobalTransform; }
+    const ui::Transform&   getTransform() const { return mGlobalTransform; }
     const Rect              getViewport() const { return mViewport; }
     const Rect              getFrame() const { return mFrame; }
     const Rect&             getScissor() const { return mScissor; }
@@ -254,7 +252,7 @@ private:
      * Transaction state
      */
     static status_t orientationToTransfrom(int orientation,
-            int w, int h, Transform* tr);
+                                           int w, int h, ui::Transform* tr);
 
     // The identifier of the active layer stack for this display. Several displays
     // can use the same layer stack: A z-ordered group of layers (sometimes called
@@ -269,7 +267,7 @@ private:
     Rect mFrame;
     // pre-computed scissor to apply to the display
     Rect mScissor;
-    Transform mGlobalTransform;
+    ui::Transform mGlobalTransform;
     bool mNeedsFiltering;
     // Current power mode
     int mPowerMode;
@@ -344,7 +342,7 @@ public:
           : RenderArea(reqHeight, reqWidth, CaptureFill::OPAQUE, rotation), mDevice(device),
                               mSourceCrop(sourceCrop) {}
 
-    const Transform& getTransform() const override { return mDevice->getTransform(); }
+    const ui::Transform& getTransform() const override { return mDevice->getTransform(); }
     Rect getBounds() const override { return mDevice->getBounds(); }
     int getHeight() const override { return mDevice->getHeight(); }
     int getWidth() const override { return mDevice->getWidth(); }

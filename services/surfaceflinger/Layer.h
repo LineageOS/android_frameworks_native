@@ -28,10 +28,11 @@
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
+#include <ui/Transform.h>
 
+#include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
-#include <gui/BufferQueue.h>
 
 #include <list>
 #include <cstdint>
@@ -43,7 +44,6 @@
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
-#include "Transform.h"
 
 #include <layerproto/LayerProtoHeader.h>
 #include "DisplayHardware/HWComposer.h"
@@ -101,7 +101,7 @@ public:
     struct Geometry {
         uint32_t w;
         uint32_t h;
-        Transform transform;
+        ui::Transform transform;
 
         inline bool operator==(const Geometry& rhs) const {
             return (w == rhs.w && h == rhs.h) && (transform.tx() == rhs.transform.tx()) &&
@@ -345,7 +345,7 @@ public:
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
     virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
     virtual uint32_t getActiveHeight(const Layer::State& s) const { return s.active_legacy.h; }
-    virtual Transform getActiveTransform(const Layer::State& s) const {
+    virtual ui::Transform getActiveTransform(const Layer::State& s) const {
         return s.active_legacy.transform;
     }
     virtual Region getActiveTransparentRegion(const Layer::State& s) const {
@@ -545,7 +545,7 @@ public:
 
     virtual bool getTransformToDisplayInverse() const { return false; }
 
-    Transform getTransform() const;
+    ui::Transform getTransform() const;
 
     // Returns the Alpha of the Surface, accounting for the Alpha
     // of parent Surfaces in the hierarchy (alpha's will be multiplied

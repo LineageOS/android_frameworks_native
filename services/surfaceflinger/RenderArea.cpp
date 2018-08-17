@@ -4,6 +4,27 @@
 
 namespace android {
 
+ui::Transform::orientation_flags fromRotation(ISurfaceComposer::Rotation rotation) {
+    switch (rotation) {
+        case ISurfaceComposer::eRotateNone:
+            return ui::Transform::ROT_0;
+        case ISurfaceComposer::eRotate90:
+            return ui::Transform::ROT_90;
+        case ISurfaceComposer::eRotate180:
+            return ui::Transform::ROT_180;
+        case ISurfaceComposer::eRotate270:
+            return ui::Transform::ROT_270;
+    }
+    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
+    return ui::Transform::ROT_0;
+}
+
+RenderArea::RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
+                       ISurfaceComposer::Rotation rotation)
+      : mReqHeight(reqHeight), mReqWidth(reqWidth), mCaptureFill(captureFill) {
+    mRotationFlags = fromRotation(rotation);
+}
+
 float RenderArea::getCaptureFillValue(CaptureFill captureFill) {
     switch(captureFill) {
         case CaptureFill::CLEAR:
@@ -23,7 +44,7 @@ status_t RenderArea::updateDimensions(int displayRotation) {
     uint32_t width = getWidth();
     uint32_t height = getHeight();
 
-    if (mRotationFlags & Transform::ROT_90) {
+    if (mRotationFlags & ui::Transform::ROT_90) {
         std::swap(width, height);
     }
 

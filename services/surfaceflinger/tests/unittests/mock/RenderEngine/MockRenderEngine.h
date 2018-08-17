@@ -56,7 +56,7 @@ public:
     MOCK_METHOD5(readPixels, void(size_t, size_t, size_t, size_t, uint32_t*));
     MOCK_CONST_METHOD0(checkErrors, void());
     MOCK_METHOD6(setViewportAndProjection,
-                 void(size_t, size_t, Rect, size_t, bool, Transform::orientation_flags));
+                 void(size_t, size_t, Rect, size_t, bool, ui::Transform::orientation_flags));
     MOCK_METHOD4(setupLayerBlending, void(bool, bool, bool, const half4&));
     MOCK_METHOD1(setupLayerTexturing, void(const Texture&));
     MOCK_METHOD0(setupLayerBlackedOut, void());

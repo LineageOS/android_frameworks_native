@@ -17,16 +17,12 @@
 #include <math.h>
 
 #include <cutils/compiler.h>
-#include <utils/String8.h>
 #include <ui/Region.h>
-
-#include "Transform.h"
-
-// ---------------------------------------------------------------------------
+#include <ui/Transform.h>
+#include <utils/String8.h>
 
 namespace android {
-
-// ---------------------------------------------------------------------------
+namespace ui {
 
 Transform::Transform() {
     reset();
@@ -40,8 +36,7 @@ Transform::Transform(uint32_t orientation) {
     set(orientation, 0, 0);
 }
 
-Transform::~Transform() {
-}
+Transform::~Transform() = default;
 
 static const float EPSILON = 0.0f;
 
@@ -66,7 +61,7 @@ Transform Transform::operator * (const Transform& rhs) const
     const mat33& A(mMatrix);
     const mat33& B(rhs.mMatrix);
           mat33& D(r.mMatrix);
-    for (int i=0 ; i<3 ; i++) {
+    for (size_t i = 0; i < 3; i++) {
         const float v0 = A[0][i];
         const float v1 = A[1][i];
         const float v2 = A[2][i];
@@ -80,6 +75,12 @@ Transform Transform::operator * (const Transform& rhs) const
     r.mType &= 0xFF;
     r.mType |= UNKNOWN_TYPE;
     return r;
+}
+
+Transform& Transform::operator=(const Transform& other) {
+    mMatrix = other.mMatrix;
+    mType = other.mType;
+    return *this;
 }
 
 const vec3& Transform::operator [] (size_t i) const {
@@ -96,10 +97,10 @@ float Transform::ty() const {
 
 void Transform::reset() {
     mType = IDENTITY;
-    for(int i=0 ; i<3 ; i++) {
+    for(size_t i = 0; i < 3; i++) {
         vec3& v(mMatrix[i]);
-        for (int j=0 ; j<3 ; j++)
-            v[j] = ((i==j) ? 1.0f : 0.0f);
+        for (size_t j = 0; j < 3; j++)
+            v[j] = ((i == j) ? 1.0f : 0.0f);
     }
 }
 
@@ -209,15 +210,15 @@ Rect Transform::transform(const Rect& bounds, bool roundOutwards) const
     rb = transform(rb);
 
     if (roundOutwards) {
-        r.left   = floorf(std::min({lt[0], rt[0], lb[0], rb[0]}));
-        r.top    = floorf(std::min({lt[1], rt[1], lb[1], rb[1]}));
-        r.right  = ceilf(std::max({lt[0], rt[0], lb[0], rb[0]}));
-        r.bottom = ceilf(std::max({lt[1], rt[1], lb[1], rb[1]}));
+        r.left   = static_cast<int32_t>(floorf(std::min({lt[0], rt[0], lb[0], rb[0]})));
+        r.top    = static_cast<int32_t>(floorf(std::min({lt[1], rt[1], lb[1], rb[1]})));
+        r.right  = static_cast<int32_t>(ceilf(std::max({lt[0], rt[0], lb[0], rb[0]})));
+        r.bottom = static_cast<int32_t>(ceilf(std::max({lt[1], rt[1], lb[1], rb[1]})));
     } else {
-        r.left   = floorf(std::min({lt[0], rt[0], lb[0], rb[0]}) + 0.5f);
-        r.top    = floorf(std::min({lt[1], rt[1], lb[1], rb[1]}) + 0.5f);
-        r.right  = floorf(std::max({lt[0], rt[0], lb[0], rb[0]}) + 0.5f);
-        r.bottom = floorf(std::max({lt[1], rt[1], lb[1], rb[1]}) + 0.5f);
+        r.left   = static_cast<int32_t>(floorf(std::min({lt[0], rt[0], lb[0], rb[0]}) + 0.5f));
+        r.top    = static_cast<int32_t>(floorf(std::min({lt[1], rt[1], lb[1], rb[1]}) + 0.5f));
+        r.right  = static_cast<int32_t>(floorf(std::max({lt[0], rt[0], lb[0], rb[0]}) + 0.5f));
+        r.bottom = static_cast<int32_t>(floorf(std::max({lt[1], rt[1], lb[1], rb[1]}) + 0.5f));
     }
 
     return r;
@@ -258,8 +259,8 @@ Region Transform::transform(const Region& reg) const
             out.set(transform(reg.bounds()));
         }
     } else {
-        int xpos = floorf(tx() + 0.5f);
-        int ypos = floorf(ty() + 0.5f);
+        int xpos = static_cast<int>(floorf(tx() + 0.5f));
+        int ypos = static_cast<int>(floorf(ty() + 0.5f));
         out = reg.translate(xpos, ypos);
     }
     return out;
@@ -342,7 +343,7 @@ Transform Transform::inverse() const {
         const float x = M[2][0];
         const float y = M[2][1];
 
-        const float idet = 1.0 / (a*d - b*c);
+        const float idet = 1.0f / (a*d - b*c);
         result.mMatrix[0][0] =  d*idet;
         result.mMatrix[0][1] = -c*idet;
         result.mMatrix[1][0] = -b*idet;
@@ -403,28 +404,13 @@ void Transform::dump(const char* name) const
         type.append("TRANSLATE ");
 
     ALOGD("%s 0x%08x (%s, %s)", name, mType, flags.string(), type.string());
-    ALOGD("%.4f  %.4f  %.4f", m[0][0], m[1][0], m[2][0]);
-    ALOGD("%.4f  %.4f  %.4f", m[0][1], m[1][1], m[2][1]);
-    ALOGD("%.4f  %.4f  %.4f", m[0][2], m[1][2], m[2][2]);
+    ALOGD("%.4f  %.4f  %.4f", static_cast<double>(m[0][0]), static_cast<double>(m[1][0]),
+          static_cast<double>(m[2][0]));
+    ALOGD("%.4f  %.4f  %.4f", static_cast<double>(m[0][1]), static_cast<double>(m[1][1]),
+          static_cast<double>(m[2][1]));
+    ALOGD("%.4f  %.4f  %.4f", static_cast<double>(m[0][2]), static_cast<double>(m[1][2]),
+          static_cast<double>(m[2][2]));
 }
 
-Transform::orientation_flags Transform::fromRotation(ISurfaceComposer::Rotation rotation) {
-    // Convert to surfaceflinger's internal rotation type.
-    switch (rotation) {
-        case ISurfaceComposer::eRotateNone:
-            return Transform::ROT_0;
-        case ISurfaceComposer::eRotate90:
-            return Transform::ROT_90;
-        case ISurfaceComposer::eRotate180:
-            return Transform::ROT_180;
-        case ISurfaceComposer::eRotate270:
-            return Transform::ROT_270;
-        default:
-            ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
-            return Transform::ROT_0;
-    }
-}
-
-// ---------------------------------------------------------------------------
-
-}; // namespace android
+}  // namespace ui
+}  // namespace android
