@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "8f1dd9ea_b53b631a",
+        "filename": "libs/binder/IServiceManager.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 165,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-08-17T03:29:58Z",
+      "side": 1,
+      "message": "would be better to fetch property outside the loop\n\nAlso, what kind of vendor service would cause such spam?",
+      "range": {
+        "startLine": 165,
+        "startChar": 16,
+        "endLine": 165,
+        "endChar": 28
+      },
+      "revId": "6edf49f8d01cae821633c4f27ae4cc463e07eafd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d33c064c_5bb9dad6",
+        "filename": "libs/binder/IServiceManager.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 167,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-08-17T03:29:58Z",
+      "side": 1,
+      "message": "strncmp ?",
+      "range": {
+        "startLine": 167,
+        "startChar": 20,
+        "endLine": 167,
+        "endChar": 26
+      },
+      "revId": "6edf49f8d01cae821633c4f27ae4cc463e07eafd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
