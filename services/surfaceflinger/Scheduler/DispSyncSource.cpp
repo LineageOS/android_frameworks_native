@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "DispSyncSource.h"
 
 #include <android-base/stringprintf.h>
