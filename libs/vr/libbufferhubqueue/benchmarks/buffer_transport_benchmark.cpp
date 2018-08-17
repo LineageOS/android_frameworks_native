@@ -206,7 +206,7 @@ class BinderBufferTransport : public BufferTransport {
 class DvrApi {
  public:
   DvrApi() {
-    handle_ = dlopen("libdvr.so", RTLD_NOW | RTLD_LOCAL);
+    handle_ = dlopen("libdvr.google.so", RTLD_NOW | RTLD_LOCAL);
     CHECK(handle_);
 
     auto dvr_get_api =

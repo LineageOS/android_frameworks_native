@@ -5,7 +5,7 @@ cc_benchmark {
         "libbase",
         "libbinder",
         "libcutils",
-        "libdvr",
+        "libdvr.google",
         "libgui",
         "liblog",
         "libhardware",
