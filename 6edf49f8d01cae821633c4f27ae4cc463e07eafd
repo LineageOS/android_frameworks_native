@@ -25,6 +25,30 @@
     },
     {
       "key": {
+        "uuid": "79b855a4_29891f42",
+        "filename": "libs/binder/IServiceManager.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 165,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2018-08-17T09:39:50Z",
+      "side": 1,
+      "message": "\u003ewould be better to fetch property outside the loop\nI\u0027ll upload new patchset that does that later.\n\n\u003eAlso, what kind of vendor service would cause such spam?\nhttps://gist.github.com/luk1337/e5c1e8ba8a7ceab6f4c3dd043675d4c6",
+      "parentUuid": "8f1dd9ea_b53b631a",
+      "range": {
+        "startLine": 165,
+        "startChar": 16,
+        "endLine": 165,
+        "endChar": 28
+      },
+      "revId": "6edf49f8d01cae821633c4f27ae4cc463e07eafd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "d33c064c_5bb9dad6",
         "filename": "libs/binder/IServiceManager.cpp",
         "patchSetId": 2
@@ -36,6 +60,30 @@
       "writtenOn": "2018-08-17T03:29:58Z",
       "side": 1,
       "message": "strncmp ?",
+      "range": {
+        "startLine": 167,
+        "startChar": 20,
+        "endLine": 167,
+        "endChar": 26
+      },
+      "revId": "6edf49f8d01cae821633c4f27ae4cc463e07eafd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "42ef37c0_3585d11f",
+        "filename": "libs/binder/IServiceManager.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 167,
+      "author": {
+        "id": 10067
+      },
+      "writtenOn": "2018-08-17T09:39:50Z",
+      "side": 1,
+      "message": "bootCompleted check above does strcmp so I thought it\u0027d be fine here too.",
+      "parentUuid": "d33c064c_5bb9dad6",
       "range": {
         "startLine": 167,
         "startChar": 20,
