@@ -295,7 +295,7 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
         win.intersect(crop, &win);
     }
 
-    Transform t = getTransform();
+    ui::Transform t = getTransform();
     win = t.transform(win);
 
     Rect finalCrop = getFinalCrop(s);
@@ -349,7 +349,7 @@ FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
         parentBounds = p->computeBounds(Region());
     }
 
-    Transform t = s.active_legacy.transform;
+    ui::Transform t = s.active_legacy.transform;
 
     if (p != nullptr || !s.finalCrop_legacy.isEmpty()) {
         floatWin = t.transform(floatWin);
@@ -383,7 +383,7 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
         activeCrop.intersect(crop, &activeCrop);
     }
 
-    Transform t = getTransform();
+    ui::Transform t = getTransform();
     activeCrop = t.transform(activeCrop);
     if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
         activeCrop.clear();
@@ -414,7 +414,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
 
     // Screen space to make reduction to parent crop clearer.
     Rect activeCrop = computeInitialCrop(display);
-    Transform t = getTransform();
+    ui::Transform t = getTransform();
     // Back to layer space to work with the content crop.
     activeCrop = t.inverse().transform(activeCrop);
 
@@ -446,7 +446,8 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
             invTransformOrient ^= NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_FLIP_H;
         }
         // and apply to the current transform
-        invTransform = (Transform(invTransformOrient) * Transform(invTransform)).getOrientation();
+        invTransform = (ui::Transform(invTransformOrient) *
+                        ui::Transform(invTransform)).getOrientation();
     }
 
     int winWidth = getActiveWidth(s);
@@ -519,7 +520,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
     Region activeTransparentRegion(getActiveTransparentRegion(s));
-    Transform t = getTransform();
+    ui::Transform t = getTransform();
     Rect activeCrop = getCrop(s);
     if (!activeCrop.isEmpty()) {
         activeCrop = t.transform(activeCrop);
@@ -557,7 +558,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     if (!frame.intersect(display->getViewport(), &frame)) {
         frame.clear();
     }
-    const Transform& tr = display->getTransform();
+    const ui::Transform& tr = display->getTransform();
     Rect transformedFrame = tr.transform(frame);
     error = hwcLayer->setDisplayFrame(transformedFrame);
     if (error != HWC2::Error::None) {
@@ -613,8 +614,8 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
      * (NOTE: the matrices are multiplied in reverse order)
      */
 
-    const Transform bufferOrientation(mCurrentTransform);
-    Transform transform(tr * t * bufferOrientation);
+    const ui::Transform bufferOrientation(mCurrentTransform);
+    ui::Transform transform(tr * t * bufferOrientation);
 
     if (getTransformToDisplayInverse()) {
         /*
@@ -633,12 +634,12 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
          * computation so it's enough to just omit it in the composition.
          * See comment in onDraw with ref to b/36727915 for why.
          */
-        transform = Transform(invTransform) * tr * bufferOrientation;
+        transform = ui::Transform(invTransform) * tr * bufferOrientation;
     }
 
     // this gives us only the "orientation" component of the transform
     const uint32_t orientation = transform.getOrientation();
-    if (orientation & Transform::ROT_INVALID) {
+    if (orientation & ui::Transform::ROT_INVALID) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
     } else {
@@ -831,7 +832,7 @@ static void boundPoint(vec2* point, const Rect& crop) {
 void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
                             bool useIdentityTransform) const {
     const Layer::State& s(getDrawingState());
-    const Transform renderAreaTransform(renderArea.getTransform());
+    const ui::Transform renderAreaTransform(renderArea.getTransform());
     const uint32_t height = renderArea.getHeight();
     FloatRect win = computeBounds();
 
@@ -840,7 +841,7 @@ void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
     vec2 rb = vec2(win.right, win.bottom);
     vec2 rt = vec2(win.right, win.top);
 
-    Transform layerTransform = getTransform();
+    ui::Transform layerTransform = getTransform();
     if (!useIdentityTransform) {
         lt = layerTransform.transform(lt);
         lb = layerTransform.transform(lb);
@@ -1104,7 +1105,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
         // we may use linear filtering, if the matrix scales us
         const uint8_t type = getActiveTransform(c).getType();
-        mNeedsFiltering = (!getActiveTransform(c).preserveRects() || (type >= Transform::SCALE));
+        mNeedsFiltering = (!getActiveTransform(c).preserveRects() || type >= ui::Transform::SCALE);
     }
 
     // If the layer is hidden, signal and clear out all local sync points so
@@ -1279,7 +1280,7 @@ bool Layer::setColor(const half3& color) {
 
 bool Layer::setMatrix(const layer_state_t::matrix22_t& matrix,
         bool allowNonRectPreservingTransforms) {
-    Transform t;
+    ui::Transform t;
     t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
 
     if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
@@ -1418,9 +1419,9 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
         // The transform hint is used to improve performance, but we can
         // only have a single transform hint, it cannot
         // apply to all displays.
-        const Transform& planeTransform = display->getTransform();
+        const ui::Transform& planeTransform = display->getTransform();
         orientation = planeTransform.getOrientation();
-        if (orientation & Transform::ROT_INVALID) {
+        if (orientation & ui::Transform::ROT_INVALID) {
             orientation = 0;
         }
     }
@@ -1885,8 +1886,8 @@ void Layer::traverseChildrenInZOrder(LayerVector::StateSet stateSet,
     traverseChildrenInZOrderInner(layersInTree, stateSet, visitor);
 }
 
-Transform Layer::getTransform() const {
-    Transform t;
+ui::Transform Layer::getTransform() const {
+    ui::Transform t;
     const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
         t = p->getTransform();
@@ -1908,7 +1909,7 @@ Transform Layer::getTransform() const {
             }
             float sx = p->getActiveWidth(p->getDrawingState()) / static_cast<float>(bufferWidth);
             float sy = p->getActiveHeight(p->getDrawingState()) / static_cast<float>(bufferHeight);
-            Transform extraParentScaling;
+            ui::Transform extraParentScaling;
             extraParentScaling.set(sx, 0, 0, sy);
             t = t * extraParentScaling;
         }
@@ -1942,8 +1943,8 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
     const State& state = useDrawing ? mDrawingState : mCurrentState;
 
-    Transform requestedTransform = state.active_legacy.transform;
-    Transform transform = getTransform();
+    ui::Transform requestedTransform = state.active_legacy.transform;
+    ui::Transform transform = getTransform();
 
     layerInfo->set_id(sequence);
     layerInfo->set_name(getName().c_str());
@@ -2011,7 +2012,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     auto buffer = getBE().compositionInfo.mBuffer;
     if (buffer != nullptr) {
         LayerProtoHelper::writeToProto(buffer, layerInfo->mutable_active_buffer());
-        LayerProtoHelper::writeToProto(Transform(mCurrentTransform),
+        LayerProtoHelper::writeToProto(ui::Transform(mCurrentTransform),
                                        layerInfo->mutable_buffer_transform());
     }
 

@@ -19,6 +19,7 @@
 #include "RenderEngine.h"
 
 #include <log/log.h>
+#include <ui/PixelFormat.h>
 
 namespace android {
 namespace RE {

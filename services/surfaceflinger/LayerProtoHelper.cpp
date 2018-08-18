@@ -51,7 +51,8 @@ void LayerProtoHelper::writeToProto(const half4 color, ColorProto* colorProto) {
     colorProto->set_a(color.a);
 }
 
-void LayerProtoHelper::writeToProto(const Transform& transform, TransformProto* transformProto) {
+void LayerProtoHelper::writeToProto(const ui::Transform& transform,
+                                    TransformProto* transformProto) {
     transformProto->set_dsdx(transform[0][0]);
     transformProto->set_dtdx(transform[0][1]);
     transformProto->set_dsdy(transform[1][0]);

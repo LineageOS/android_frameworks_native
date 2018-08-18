@@ -258,7 +258,7 @@ bool BufferLayer::isHdrY410() const {
 void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
-    const Transform& tr = display->getTransform();
+    const ui::Transform& tr = display->getTransform();
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     const auto displayId = display->getId();
@@ -638,7 +638,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
      */
     const Rect bounds{computeBounds()}; // Rounds from FloatRect
 
-    Transform t = getTransform();
+    ui::Transform t = getTransform();
     Rect win = bounds;
     Rect finalCrop = getFinalCrop(s);
     if (!finalCrop.isEmpty()) {

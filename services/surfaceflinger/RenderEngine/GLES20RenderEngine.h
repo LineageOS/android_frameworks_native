@@ -21,7 +21,6 @@
 #include <sys/types.h>
 
 #include <GLES2/gl2.h>
-#include <Transform.h>
 
 #include "Description.h"
 #include "ProgramCache.h"
@@ -67,7 +66,7 @@ public:
 protected:
     virtual void dump(String8& result);
     virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
-                                          bool yswap, Transform::orientation_flags rotation);
+                                          bool yswap, ui::Transform::orientation_flags rotation);
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                                     const half4& color) override;
 
