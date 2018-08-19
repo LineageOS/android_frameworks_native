@@ -52,7 +52,7 @@ public:
 
     uint32_t getActiveWidth(const Layer::State& s) const override { return s.active.w; }
     uint32_t getActiveHeight(const Layer::State& s) const override { return s.active.h; }
-    Transform getActiveTransform(const Layer::State& s) const override {
+    ui::Transform getActiveTransform(const Layer::State& s) const override {
         return s.active.transform;
     }
     Region getActiveTransparentRegion(const Layer::State& s) const override {

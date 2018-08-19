@@ -14,7 +14,7 @@ class DvrApiTest : public ::testing::Test {
     // workaround for an Android NDK bug. See more detail:
     // https://github.com/android-ndk/ndk/issues/360
     flags |= RTLD_NODELETE;
-    platform_handle_ = dlopen("libdvr.so", flags);
+    platform_handle_ = dlopen("libdvr.google.so", flags);
     ASSERT_NE(nullptr, platform_handle_) << "Dvr shared library missing.";
 
     auto dvr_get_api = reinterpret_cast<decltype(&dvrGetApi)>(

@@ -72,7 +72,7 @@ bool ColorLayer::isVisible() const {
 }
 
 void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
-    const Transform& tr = display->getTransform();
+    const ui::Transform& tr = display->getTransform();
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     const auto displayId = display->getId();

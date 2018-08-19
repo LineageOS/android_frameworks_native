@@ -27,7 +27,6 @@
 #include "RenderEngine/Mesh.h"
 #include "RenderEngine/Texture.h"
 #include "SurfaceFlinger.h"
-#include "Transform.h"
 
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>

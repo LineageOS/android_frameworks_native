@@ -16,7 +16,6 @@
 
 #include "BufferQueueLayer.h"
 #include "LayerRejecter.h"
-#include "clz.h"
 
 #include <system/window.h>
 
@@ -449,7 +448,7 @@ void BufferQueueLayer::onFirstRef() {
 
 status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, PixelFormat format) {
     uint32_t const maxSurfaceDims =
-            min(mFlinger->getMaxTextureSize(), mFlinger->getMaxViewportDims());
+          std::min(mFlinger->getMaxTextureSize(), mFlinger->getMaxViewportDims());
 
     // never allow a surface larger than what our underlying GL implementation
     // can handle.

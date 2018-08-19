@@ -1,8 +1,8 @@
 #pragma once
 
+#include <gui/ISurfaceComposer.h>
 #include <ui/GraphicTypes.h>
-
-#include "Transform.h"
+#include <ui/Transform.h>
 
 #include <functional>
 
@@ -16,14 +16,11 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
-               ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
-          : mReqHeight(reqHeight), mReqWidth(reqWidth), mCaptureFill(captureFill) {
-        mRotationFlags = Transform::fromRotation(rotation);
-    }
+               ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone);
 
     virtual ~RenderArea() = default;
 
-    virtual const Transform& getTransform() const = 0;
+    virtual const ui::Transform& getTransform() const = 0;
     virtual Rect getBounds() const = 0;
     virtual int getHeight() const = 0;
     virtual int getWidth() const = 0;
@@ -35,7 +32,7 @@ public:
 
     int getReqHeight() const { return mReqHeight; };
     int getReqWidth() const { return mReqWidth; };
-    Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
+    ui::Transform::orientation_flags getRotationFlags() const { return mRotationFlags; };
     status_t updateDimensions(int displayRotation);
 
     CaptureFill getCaptureFill() const { return mCaptureFill; };
@@ -43,7 +40,7 @@ public:
 private:
     uint32_t mReqHeight;
     uint32_t mReqWidth;
-    Transform::orientation_flags mRotationFlags;
+    ui::Transform::orientation_flags mRotationFlags;
     CaptureFill mCaptureFill;
 };
 

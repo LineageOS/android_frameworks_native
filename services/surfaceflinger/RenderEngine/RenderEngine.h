@@ -24,9 +24,10 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <Transform.h>
 #include <android-base/unique_fd.h>
 #include <math/mat4.h>
+#include <ui/GraphicTypes.h>
+#include <ui/Transform.h>
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -105,7 +106,7 @@ public:
     // set-up
     virtual void checkErrors() const;
     virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
-                                          bool yswap, Transform::orientation_flags rotation) = 0;
+                                          bool yswap, ui::Transform::orientation_flags rotation) = 0;
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                                     const half4& color) = 0;
     virtual void setupLayerTexturing(const Texture& texture) = 0;

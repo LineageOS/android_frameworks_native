@@ -75,7 +75,6 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
-#include "clz.h"
 
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/DisplayIdentification.h"
@@ -1822,7 +1821,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
             Region dirtyRegion;
             Vector<sp<Layer>> layersSortedByZ;
             Vector<sp<Layer>> layersNeedingFences;
-            const Transform& tr = display->getTransform();
+            const ui::Transform& tr = display->getTransform();
             const Rect bounds = display->getBounds();
             if (display->isPoweredOn()) {
                 computeVisibleRegions(display, dirtyRegion, opaqueRegion);
@@ -2640,7 +2639,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
             const bool translucent = !layer->isOpaque(s);
             Rect bounds(layer->computeScreenBounds());
             visibleRegion.set(bounds);
-            Transform tr = layer->getTransform();
+            ui::Transform tr = layer->getTransform();
             if (!visibleRegion.isEmpty()) {
                 // Remove the transparent area from the visible region
                 if (translucent) {
@@ -2657,7 +2656,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
                 // compute the opaque region
                 const int32_t layerOrientation = tr.getOrientation();
                 if (layer->getAlpha() == 1.0f && !translucent &&
-                        ((layerOrientation & Transform::ROT_INVALID) == false)) {
+                        ((layerOrientation & ui::Transform::ROT_INVALID) == false)) {
                     // the opaque region is the layer's footprint
                     opaqueRegion = visibleRegion;
                 }
@@ -2920,7 +2919,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
      */
 
     ALOGV("Rendering client layers");
-    const Transform& displayTransform = display->getTransform();
+    const ui::Transform& displayTransform = display->getTransform();
     bool firstLayer = true;
     for (auto& layer : display->getVisibleLayersSortedByZ()) {
         const Region clip(bounds.intersect(
@@ -4253,7 +4252,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
                 appEarlyOffset,
                 sfEarlyOffset,
                 appEarlyGlOffset,
-                sfEarlyOffset,
+                sfEarlyGlOffset,
                 dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     }
     result.append("\n");
@@ -4846,7 +4845,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 mCrop(crop),
                 mFlinger(flinger),
                 mChildrenOnly(childrenOnly) {}
-        const Transform& getTransform() const override { return mTransform; }
+        const ui::Transform& getTransform() const override { return mTransform; }
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
             return Rect(mLayer->getActiveWidth(layerState), mLayer->getActiveHeight(layerState));
@@ -4898,7 +4897,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         // In the "childrenOnly" case we reparent the children to a screenshot
         // layer which has no properties set and which does not draw.
         sp<ContainerLayer> screenshotParentLayer;
-        Transform mTransform;
+        ui::Transform mTransform;
 
         SurfaceFlinger* mFlinger;
         const bool mChildrenOnly;
@@ -5052,17 +5051,17 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         sourceCrop.setLeftTop(Point(0, 0));
         sourceCrop.setRightBottom(Point(raWidth, raHeight));
     } else if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
-        Transform tr;
+        ui::Transform tr;
         uint32_t flags = 0x00;
         switch (mPrimaryDisplayOrientation) {
             case DisplayState::eOrientation90:
-                flags = Transform::ROT_90;
+                flags = ui::Transform::ROT_90;
                 break;
             case DisplayState::eOrientation180:
-                flags = Transform::ROT_180;
+                flags = ui::Transform::ROT_180;
                 break;
             case DisplayState::eOrientation270:
-                flags = Transform::ROT_270;
+                flags = ui::Transform::ROT_270;
                 break;
         }
         tr.set(flags, raWidth, raHeight);
@@ -5090,7 +5089,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // make sure to clear all GL error flags
     engine.checkErrors();
 
-    Transform::orientation_flags rotation = renderArea.getRotationFlags();
+    ui::Transform::orientation_flags rotation = renderArea.getRotationFlags();
     if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
         // convert hw orientation into flag presentation
         // here inverse transform needed
@@ -5098,26 +5097,26 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         uint8_t hw_flip_hv = 0x00;
         switch (mPrimaryDisplayOrientation) {
             case DisplayState::eOrientation90:
-                hw_rot_90 = Transform::ROT_90;
-                hw_flip_hv = Transform::ROT_180;
+                hw_rot_90 = ui::Transform::ROT_90;
+                hw_flip_hv = ui::Transform::ROT_180;
                 break;
             case DisplayState::eOrientation180:
-                hw_flip_hv = Transform::ROT_180;
+                hw_flip_hv = ui::Transform::ROT_180;
                 break;
             case DisplayState::eOrientation270:
-                hw_rot_90  = Transform::ROT_90;
+                hw_rot_90  = ui::Transform::ROT_90;
                 break;
         }
 
         // transform flags operation
         // 1) flip H V if both have ROT_90 flag
         // 2) XOR these flags
-        uint8_t rotation_rot_90  = rotation & Transform::ROT_90;
-        uint8_t rotation_flip_hv = rotation & Transform::ROT_180;
+        uint8_t rotation_rot_90  = rotation & ui::Transform::ROT_90;
+        uint8_t rotation_flip_hv = rotation & ui::Transform::ROT_180;
         if (rotation_rot_90 & hw_rot_90) {
-            rotation_flip_hv = (~rotation_flip_hv) & Transform::ROT_180;
+            rotation_flip_hv = (~rotation_flip_hv) & ui::Transform::ROT_180;
         }
-        rotation = static_cast<Transform::orientation_flags>
+        rotation = static_cast<ui::Transform::orientation_flags>
                    ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
     }
 

@@ -44,7 +44,6 @@
 #include "DisplayHardware/HWC2.h"
 #include "RenderEngine/RenderEngine.h"
 
-#include "clz.h"
 #include "DisplayDevice.h"
 #include "SurfaceFlinger.h"
 #include "Layer.h"
@@ -390,7 +389,7 @@ void DisplayDevice::setViewportAndProjection() const {
     size_t h = mDisplayHeight;
     Rect sourceCrop(0, 0, w, h);
     mFlinger->getRenderEngine().setViewportAndProjection(w, h, sourceCrop, h,
-        false, Transform::ROT_0);
+        false, ui::Transform::ROT_0);
 }
 
 const sp<Fence>& DisplayDevice::getClientTargetAcquireFence() const {
@@ -420,7 +419,7 @@ Region DisplayDevice::getDirtyRegion(bool repaintEverything) const {
     if (repaintEverything) {
         dirty.set(getBounds());
     } else {
-        const Transform& planeTransform(mGlobalTransform);
+        const ui::Transform& planeTransform(mGlobalTransform);
         dirty = planeTransform.transform(this->dirtyRegion);
         dirty.andSelf(getBounds());
     }
@@ -499,37 +498,37 @@ uint32_t DisplayDevice::getOrientationTransform() const {
     uint32_t transform = 0;
     switch (mOrientation) {
         case DisplayState::eOrientationDefault:
-            transform = Transform::ROT_0;
+            transform = ui::Transform::ROT_0;
             break;
         case DisplayState::eOrientation90:
-            transform = Transform::ROT_90;
+            transform = ui::Transform::ROT_90;
             break;
         case DisplayState::eOrientation180:
-            transform = Transform::ROT_180;
+            transform = ui::Transform::ROT_180;
             break;
         case DisplayState::eOrientation270:
-            transform = Transform::ROT_270;
+            transform = ui::Transform::ROT_270;
             break;
     }
     return transform;
 }
 
 status_t DisplayDevice::orientationToTransfrom(
-        int orientation, int w, int h, Transform* tr)
+        int orientation, int w, int h, ui::Transform* tr)
 {
     uint32_t flags = 0;
     switch (orientation) {
     case DisplayState::eOrientationDefault:
-        flags = Transform::ROT_0;
+        flags = ui::Transform::ROT_0;
         break;
     case DisplayState::eOrientation90:
-        flags = Transform::ROT_90;
+        flags = ui::Transform::ROT_90;
         break;
     case DisplayState::eOrientation180:
-        flags = Transform::ROT_180;
+        flags = ui::Transform::ROT_180;
         break;
     case DisplayState::eOrientation270:
-        flags = Transform::ROT_270;
+        flags = ui::Transform::ROT_270;
         break;
     default:
         return BAD_VALUE;
@@ -564,7 +563,7 @@ void DisplayDevice::setProjection(int orientation,
     const int w = mDisplayWidth;
     const int h = mDisplayHeight;
 
-    Transform R;
+    ui::Transform R;
     DisplayDevice::orientationToTransfrom(orientation, w, h, &R);
 
     if (!frame.isValid()) {
@@ -579,16 +578,16 @@ void DisplayDevice::setProjection(int orientation,
         // it's also invalid to have an empty viewport, so we handle that
         // case in the same way.
         viewport = Rect(w, h);
-        if (R.getOrientation() & Transform::ROT_90) {
+        if (R.getOrientation() & ui::Transform::ROT_90) {
             // viewport is always specified in the logical orientation
             // of the display (ie: post-rotation).
-            swap(viewport.right, viewport.bottom);
+            std::swap(viewport.right, viewport.bottom);
         }
     }
 
     dirtyRegion.set(getBounds());
 
-    Transform TL, TP, S;
+    ui::Transform TL, TP, S;
     float src_width  = viewport.width();
     float src_height = viewport.height();
     float dst_width  = frame.width();
@@ -622,7 +621,7 @@ void DisplayDevice::setProjection(int orientation,
 
     const uint8_t type = mGlobalTransform.getType();
     mNeedsFiltering = (!mGlobalTransform.preserveRects() ||
-            (type >= Transform::SCALE));
+            (type >= ui::Transform::SCALE));
 
     mScissor = mGlobalTransform.transform(viewport);
     if (mScissor.isEmpty()) {
@@ -634,16 +633,16 @@ void DisplayDevice::setProjection(int orientation,
         uint32_t transform = 0;
         switch (mOrientation) {
             case DisplayState::eOrientationDefault:
-                transform = Transform::ROT_0;
+                transform = ui::Transform::ROT_0;
                 break;
             case DisplayState::eOrientation90:
-                transform = Transform::ROT_90;
+                transform = ui::Transform::ROT_90;
                 break;
             case DisplayState::eOrientation180:
-                transform = Transform::ROT_180;
+                transform = ui::Transform::ROT_180;
                 break;
             case DisplayState::eOrientation270:
-                transform = Transform::ROT_270;
+                transform = ui::Transform::ROT_270;
                 break;
         }
         sPrimaryDisplayOrientation = transform;
@@ -657,7 +656,7 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 }
 
 void DisplayDevice::dump(String8& result) const {
-    const Transform& tr(mGlobalTransform);
+    const ui::Transform& tr(mGlobalTransform);
     ANativeWindow* const window = mNativeWindow.get();
     result.appendFormat("+ DisplayDevice: %s\n", mDisplayName.c_str());
     result.appendFormat("   type=%x, ID=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "

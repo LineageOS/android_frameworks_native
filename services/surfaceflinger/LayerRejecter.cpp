@@ -19,8 +19,6 @@
 #include <gui/BufferItem.h>
 #include <system/window.h>
 
-#include "clz.h"
-
 #define DEBUG_RESIZE 0
 
 namespace android {
@@ -52,14 +50,14 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
 
     // check that we received a buffer of the right size
     // (Take the buffer's orientation into account)
-    if (item.mTransform & Transform::ROT_90) {
-        swap(bufWidth, bufHeight);
+    if (item.mTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
     }
 
     if (mTransformToDisplayInverse) {
         uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
-        if (invTransform & Transform::ROT_90) {
-            swap(bufWidth, bufHeight);
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufWidth, bufHeight);
         }
     }
 

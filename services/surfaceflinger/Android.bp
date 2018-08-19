@@ -137,7 +137,6 @@ filegroup {
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
         "TimeStats/TimeStats.cpp",
-        "Transform.cpp",
     ],
 }
 

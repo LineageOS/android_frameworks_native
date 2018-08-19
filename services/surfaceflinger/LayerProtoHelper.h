@@ -16,13 +16,11 @@
 
 #include <layerproto/LayerProtoHeader.h>
 
+#include <math/vec4.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
-
-#include <Transform.h>
-
-#include <math/vec4.h>
+#include <ui/Transform.h>
 
 namespace android {
 namespace surfaceflinger {
@@ -32,7 +30,7 @@ public:
     static void writeToProto(const FloatRect& rect, FloatRectProto* rectProto);
     static void writeToProto(const Region& region, RegionProto* regionProto);
     static void writeToProto(const half4 color, ColorProto* colorProto);
-    static void writeToProto(const Transform& transform, TransformProto* transformProto);
+    static void writeToProto(const ui::Transform& transform, TransformProto* transformProto);
     static void writeToProto(const sp<GraphicBuffer>& buffer, ActiveBufferProto* activeBufferProto);
 };
 

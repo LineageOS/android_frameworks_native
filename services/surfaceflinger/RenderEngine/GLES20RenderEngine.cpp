@@ -167,7 +167,7 @@ size_t GLES20RenderEngine::getMaxViewportDims() const {
 
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                                   size_t hwh, bool yswap,
-                                                  Transform::orientation_flags rotation) {
+                                                  ui::Transform::orientation_flags rotation) {
     int32_t l = sourceCrop.left;
     int32_t r = sourceCrop.right;
 
@@ -185,15 +185,15 @@ void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect s
     // Apply custom rotation to the projection.
     float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
     switch (rotation) {
-        case Transform::ROT_0:
+        case ui::Transform::ROT_0:
             break;
-        case Transform::ROT_90:
+        case ui::Transform::ROT_90:
             m = mat4::rotate(rot90InRadians, vec3(0, 0, 1)) * m;
             break;
-        case Transform::ROT_180:
+        case ui::Transform::ROT_180:
             m = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1)) * m;
             break;
-        case Transform::ROT_270:
+        case ui::Transform::ROT_270:
             m = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1)) * m;
             break;
         default:

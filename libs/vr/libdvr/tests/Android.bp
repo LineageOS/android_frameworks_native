@@ -21,7 +21,7 @@ cc_test {
 
     header_libs: ["libdvr_headers"],
     static_libs: [
-        "libdvr_static",
+        "libdvr_static.google",
         "libchrome",
         "libdvrcommon",
         "libdisplay",
