@@ -1220,6 +1220,15 @@ status_t SurfaceFlinger::injectVSync(nsecs_t when) {
 
 status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const
         NO_THREAD_SAFETY_ANALYSIS {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_SHELL) &&
+            !PermissionCache::checkPermission(sDump, pid, uid)) {
+        ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
+        return PERMISSION_DENIED;
+    }
+
     // Try to acquire a lock for 1s, fail gracefully
     const status_t err = mStateLock.timedLock(s2ns(1));
     const bool locked = (err == NO_ERROR);
@@ -3366,8 +3375,9 @@ bool callingThreadHasUnscopedSurfaceFlingerAccess() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
+
     if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
-        !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
+            !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
         return false;
     }
     return true;
@@ -4553,64 +4563,51 @@ void SurfaceFlinger::updateColorMatrixLocked() {
 }
 
 status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
-#pragma clang diagnostic push
-#pragma clang diagnostic error "-Wswitch-enum"
-    switch (static_cast<ISurfaceComposerTag>(code)) {
-        // These methods should at minimum make sure that the client requested
-        // access to SF.
-        case AUTHENTICATE_SURFACE:
-        case BOOT_FINISHED:
-        case CLEAR_ANIMATION_FRAME_STATS:
+    switch (code) {
         case CREATE_CONNECTION:
         case CREATE_DISPLAY:
-        case DESTROY_DISPLAY:
-        case ENABLE_VSYNC_INJECTIONS:
-        case GET_ACTIVE_COLOR_MODE:
+        case BOOT_FINISHED:
+        case CLEAR_ANIMATION_FRAME_STATS:
         case GET_ANIMATION_FRAME_STATS:
+        case SET_POWER_MODE:
         case GET_HDR_CAPABILITIES:
-        case SET_ACTIVE_CONFIG:
-        case SET_ACTIVE_COLOR_MODE:
+        case ENABLE_VSYNC_INJECTIONS:
         case INJECT_VSYNC:
-        case SET_POWER_MODE: {
+        {
+            // codes that require permission check
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
                         ipc->getCallingPid(), ipc->getCallingUid());
                 return PERMISSION_DENIED;
             }
+            break;
+        }
+        /*
+         * Calling setTransactionState is safe, because you need to have been
+         * granted a reference to Client* and Handle* to do anything with it.
+         *
+         * Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
+         */
+        case SET_TRANSACTION_STATE:
+        case CREATE_SCOPED_CONNECTION:
+        {
             return OK;
         }
-        case GET_LAYER_DEBUG_INFO: {
+        case CAPTURE_SCREEN:
+        {
+            // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
-            if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
-                ALOGE("Layer debug info permission denied for pid=%d, uid=%d", pid, uid);
+            if ((uid != AID_GRAPHICS) &&
+                    !PermissionCache::checkPermission(sReadFramebuffer, pid, uid)) {
+                ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
-            return OK;
+            break;
         }
-        // Used by apps to hook Choreographer to SurfaceFlinger.
-        case CREATE_DISPLAY_EVENT_CONNECTION:
-        // The following calls are currently used by clients that do not
-        // request necessary permissions. However, they do not expose any secret
-        // information, so it is OK to pass them.
-        case GET_ACTIVE_CONFIG:
-        case GET_BUILT_IN_DISPLAY:
-        case GET_DISPLAY_COLOR_MODES:
-        case GET_DISPLAY_CONFIGS:
-        case GET_DISPLAY_STATS:
-        case GET_SUPPORTED_FRAME_TIMESTAMPS:
-        // Calling setTransactionState is safe, because you need to have been
-        // granted a reference to Client* and Handle* to do anything with it.
-        case SET_TRANSACTION_STATE:
-        // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
-        case CREATE_SCOPED_CONNECTION: {
-            return OK;
-        }
-        case CAPTURE_LAYERS:
-        case CAPTURE_SCREEN: {
-            // codes that require permission check
+        case CAPTURE_LAYERS: {
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
             const int uid = ipc->getCallingUid();
@@ -4619,37 +4616,15 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
                 ALOGE("Permission Denial: can't read framebuffer pid=%d, uid=%d", pid, uid);
                 return PERMISSION_DENIED;
             }
-            return OK;
-        }
-        // The following codes are deprecated and should never be allowed to access SF.
-        case CONNECT_DISPLAY_UNUSED:
-        case CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED: {
-            ALOGE("Attempting to access SurfaceFlinger with unused code: %u", code);
-            return PERMISSION_DENIED;
+            break;
         }
     }
-
-    // These codes are used for the IBinder protocol to either interrogate the recipient
-    // side of the transaction for its canonical interface descriptor or to dump its state.
-    // We let them pass by default.
-    if (code == IBinder::INTERFACE_TRANSACTION || code == IBinder::DUMP_TRANSACTION ||
-        code == IBinder::PING_TRANSACTION || code == IBinder::SHELL_COMMAND_TRANSACTION ||
-        code == IBinder::SYSPROPS_TRANSACTION) {
-        return OK;
-    }
-    // Numbers from 1000 to 1029 are currently use for backdoors. The code
-    // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1029) {
-        ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
-        return OK;
-    }
-    ALOGE("Permission Denial: SurfaceFlinger did not recognize request code: %u", code);
-    return PERMISSION_DENIED;
-#pragma clang diagnostic pop
+    return OK;
 }
 
-status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* reply,
-                                    uint32_t flags) {
+status_t SurfaceFlinger::onTransact(
+    uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags)
+{
     status_t credentialCheck = CheckTransactCodeCredentials(code);
     if (credentialCheck != OK) {
         return credentialCheck;
