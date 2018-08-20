@@ -171,12 +171,12 @@ int DvrWriteBufferQueue::GainBuffer(int timeout,
 int DvrWriteBufferQueue::PostBuffer(DvrWriteBuffer* write_buffer,
                                     const DvrNativeBufferMetadata* meta,
                                     int ready_fence_fd) {
+  // Some basic sanity checks before we put the buffer back into a slot.
+  size_t slot = static_cast<size_t>(write_buffer->slot);
   LOG_FATAL_IF(
       (write_buffers->slot < 0 || write_buffers->slot >= write_buffers_.size()),
       "DvrWriteBufferQueue::ReleaseBuffer: Invalid slot: %zu", slot);
 
-  // Some basic sanity checks before we put the buffer back into a slot.
-  size_t slot = static_cast<size_t>(write_buffer->slot);
   if (write_buffers_[slot] != nullptr) {
     ALOGE("DvrWriteBufferQueue::PostBuffer: Slot is not empty: %zu", slot);
     return -EINVAL;
@@ -374,12 +374,12 @@ int DvrReadBufferQueue::AcquireBuffer(int timeout,
 int DvrReadBufferQueue::ReleaseBuffer(DvrReadBuffer* read_buffer,
                                       const DvrNativeBufferMetadata* meta,
                                       int release_fence_fd) {
+  // Some basic sanity checks before we put the buffer back into a slot.
+  size_t slot = static_cast<size_t>(read_buffer->slot);
   LOG_FATAL_IF(
       (read_buffers->slot < 0 || read_buffers->slot >= read_buffers_size()),
       "DvrReadBufferQueue::ReleaseBuffer: Invalid slot: %zu", slot);
 
-  // Some basic sanity checks before we put the buffer back into a slot.
-  size_t slot = static_cast<size_t>(read_buffer->slot);
   if (read_buffers_[slot] != nullptr) {
     ALOGE("DvrReadBufferQueue::ReleaseBuffer: Slot is not empty: %zu", slot);
     return -EINVAL;
