@@ -2180,11 +2180,15 @@ void SurfaceFlinger::postFramebuffer()
         displayDevice->onSwapBuffersCompleted();
         displayDevice->makeCurrent();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+            sp<Fence> releaseFence = Fence::NO_FENCE;
+
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
             auto hwcLayer = layer->getHwcLayer(hwcId);
-            sp<Fence> releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            if (hwcId >= 0) {
+                releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            }
 
             // If the layer was client composited in the previous frame, we
             // need to merge with the previous client target acquire fence.
@@ -2331,8 +2335,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
     bool hasWideColorGamut = false;
     std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
+    HdrCapabilities hdrCapabilities;
+    int32_t supportedPerFrameMetadata = 0;
 
-    if (hasWideColorDisplay) {
+    if (hasWideColorDisplay && hwcId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(hwcId);
         for (ColorMode colorMode : modes) {
             switch (colorMode) {
@@ -2351,8 +2357,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         }
     }
 
-    HdrCapabilities hdrCapabilities;
-    getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+    if (hwcId >= 0) {
+        getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(hwcId);
+    }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
@@ -2386,8 +2394,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
                               hasWideColorGamut, hdrCapabilities,
-                              getHwComposer().getSupportedPerFrameMetadata(hwcId),
-                              hwcColorModes, initialPowerMode);
+                              supportedPerFrameMetadata, hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
