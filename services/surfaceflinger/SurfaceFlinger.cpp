@@ -4799,6 +4799,16 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
     const auto display = getDisplayDeviceLocked(displayToken);
     if (!display) return BAD_VALUE;
 
+    const Rect& dispScissor = display->getScissor();
+    if (!dispScissor.isEmpty()) {
+        sourceCrop.set(dispScissor);
+        // adb shell screencap will default reqWidth and reqHeight to zeros.
+        if (reqWidth == 0 || reqHeight == 0) {
+            reqWidth = uint32_t(dispScissor.width());
+            reqHeight = uint32_t(dispScissor.height());
+        }
+    }
+
     DisplayRenderArea renderArea(display, sourceCrop, reqHeight, reqWidth, rotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
