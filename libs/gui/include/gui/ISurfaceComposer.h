@@ -220,12 +220,12 @@ public:
 
 class BnSurfaceComposer: public BnInterface<ISurfaceComposer> {
 public:
-    enum {
+    enum ISurfaceComposerTag {
         // Note: BOOT_FINISHED must remain this value, it is called from
         // Java by ActivityManagerService.
         BOOT_FINISHED = IBinder::FIRST_CALL_TRANSACTION,
         CREATE_CONNECTION,
-        UNUSED, // formerly CREATE_GRAPHIC_BUFFER_ALLOC
+        CREATE_GRAPHIC_BUFFER_ALLOC_UNUSED, // unused, fails permissions check
         CREATE_DISPLAY_EVENT_CONNECTION,
         CREATE_DISPLAY,
         DESTROY_DISPLAY,
@@ -236,7 +236,7 @@ public:
         GET_DISPLAY_CONFIGS,
         GET_ACTIVE_CONFIG,
         SET_ACTIVE_CONFIG,
-        CONNECT_DISPLAY,
+        CONNECT_DISPLAY_UNUSED, // unused, fails permissions check
         CAPTURE_SCREEN,
         CAPTURE_LAYERS,
         CLEAR_ANIMATION_FRAME_STATS,
