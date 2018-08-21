@@ -4830,27 +4830,40 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 // Code 1029 is an experimental feature that allows applications to
                 // simulate a high frequency panel by setting a multiplier and divisor
                 // on the VSYNC-sf clock.  If either the multiplier or divisor are
-                // 0, then the code will set both to 1 to return the VSYNC-sf clock
-                // to it's normal frequency.
-                int multiplier = data.readInt32();
-                int divisor = data.readInt32();
+                // 0, then the code simply return the current multiplier and divisor.
+                HWC2::Device::FrequencyScaler frequencyScaler;
+                frequencyScaler.multiplier = data.readInt32();
+                frequencyScaler.divisor = data.readInt32();
 
-                if ((multiplier == 0) || (divisor == 0)) {
-                    multiplier = 1;
-                    divisor = 1;
+                if ((frequencyScaler.multiplier == 0) || (frequencyScaler.divisor == 0)) {
+                    frequencyScaler = getBE().mHwc->getDisplayFrequencyScaleParameters();
+                    reply->writeInt32(frequencyScaler.multiplier);
+                    reply->writeInt32(frequencyScaler.divisor);
+                    return NO_ERROR;
                 }
 
-                if ((multiplier == 1) && (divisor == 1)) {
+                if ((frequencyScaler.multiplier == 1) && (frequencyScaler.divisor == 1)) {
                     enableHardwareVsync();
                 } else {
                     disableHardwareVsync(true);
                 }
-                getBE().mHwc->getActiveConfig(DisplayDevice::DISPLAY_PRIMARY)
-                    ->scalePanelFrequency(multiplier, divisor);
-                mPrimaryDispSync->scalePeriod(multiplier, divisor);
+                mPrimaryDispSync->scalePeriod(frequencyScaler);
+                getBE().mHwc->setDisplayFrequencyScaleParameters(frequencyScaler);
 
-                ATRACE_INT("PeriodMultiplier", multiplier);
-                ATRACE_INT("PeriodDivisor", divisor);
+                ATRACE_INT("PeriodMultiplier", frequencyScaler.multiplier);
+                ATRACE_INT("PeriodDivisor", frequencyScaler.divisor);
+
+                const hwc2_display_t hwcDisplayId = getBE().mHwc->getActiveConfig(
+                        DisplayDevice::DISPLAY_PRIMARY)->getDisplayId();
+
+                onHotplugReceived(getBE().mComposerSequenceId,
+                        hwcDisplayId, HWC2::Connection::Disconnected);
+                onHotplugReceived(getBE().mComposerSequenceId,
+                        hwcDisplayId, HWC2::Connection::Connected);
+                frequencyScaler = getBE().mHwc->getDisplayFrequencyScaleParameters();
+                reply->writeInt32(frequencyScaler.multiplier);
+                reply->writeInt32(frequencyScaler.divisor);
+
                 return NO_ERROR;
             }
             // Is device color managed?

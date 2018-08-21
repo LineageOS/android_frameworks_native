@@ -184,6 +184,7 @@ void Device::onHotplug(hwc2_display_t displayId, Connection connection) {
 
         auto newDisplay = std::make_unique<Display>(
                 *mComposer.get(), mPowerAdvisor, mCapabilities, displayId, displayType);
+        newDisplay->setFrequencyScaleParameters(mFrequencyScaler);
         newDisplay->setConnected(true);
         mDisplays.emplace(displayId, std::move(newDisplay));
     } else if (connection == Connection::Disconnected) {
@@ -221,6 +222,14 @@ void Device::loadCapabilities()
 Error Device::flushCommands()
 {
     return static_cast<Error>(mComposer->executeCommands());
+}
+
+void Device::setDisplayFrequencyScaleParameters(Device::FrequencyScaler frequencyScaler) {
+    mFrequencyScaler = frequencyScaler;
+}
+
+Device::FrequencyScaler Device::getDisplayFrequencyScaleParameters() {
+    return mFrequencyScaler;
 }
 
 // Display methods
@@ -262,6 +271,7 @@ Display::Config::Config(Display& display, hwc2_config_t id)
     mWidth(-1),
     mHeight(-1),
     mVsyncPeriod(-1),
+    mFrequencyScaler(display.mFrequencyScaler),
     mDpiX(-1),
     mDpiY(-1) {}
 
@@ -699,6 +709,10 @@ void Display::setConnected(bool connected) {
         }
     }
     mIsConnected = connected;
+}
+
+void Display::setFrequencyScaleParameters(Device::FrequencyScaler frequencyScaler) {
+    mFrequencyScaler = frequencyScaler;
 }
 
 int32_t Display::getAttribute(hwc2_config_t configId, Attribute attribute)
