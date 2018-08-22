@@ -33,9 +33,10 @@
 #include <ui/PixelFormat.h>
 
 #include <gui/CpuConsumer.h>
+#include <gui/ITransactionCompletedListener.h>
+#include <gui/LayerState.h>
 #include <gui/SurfaceControl.h>
 #include <math/vec3.h>
-#include <gui/LayerState.h>
 
 namespace android {
 
@@ -46,6 +47,24 @@ class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
 class Region;
+
+// ---------------------------------------------------------------------------
+
+class TransactionCompletedListener : public BnTransactionCompletedListener {
+    TransactionCompletedListener() = default;
+
+    std::mutex mMutex;
+
+    bool mListening GUARDED_BY(mMutex) = false;
+
+public:
+    static sp<TransactionCompletedListener> getInstance();
+
+    void startListening();
+
+    // Overrides BnTransactionCompletedListener's onTransactionCompleted
+    void onTransactionCompleted() override;
+};
 
 // ---------------------------------------------------------------------------
 
@@ -349,6 +368,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+
 }; // namespace android
 
 #endif // ANDROID_GUI_SURFACE_COMPOSER_CLIENT_H

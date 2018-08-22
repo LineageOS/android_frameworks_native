@@ -25,7 +25,9 @@
 #include <utils/String8.h>
 #include <utils/threads.h>
 
+#include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
 
 #include <system/graphics.h>
 
@@ -94,6 +96,30 @@ void ComposerService::composerServiceDied()
     Mutex::Autolock _l(mLock);
     mComposerService = nullptr;
     mDeathObserver = nullptr;
+}
+
+// ---------------------------------------------------------------------------
+
+// TransactionCompletedListener does not use ANDROID_SINGLETON_STATIC_INSTANCE because it needs
+// to be able to return a sp<> to its instance to pass to SurfaceFlinger.
+// ANDROID_SINGLETON_STATIC_INSTANCE only allows a reference to an instance.
+
+sp<TransactionCompletedListener> TransactionCompletedListener::getInstance() {
+    static sp<TransactionCompletedListener> sInstance = new TransactionCompletedListener;
+    return sInstance;
+}
+
+void TransactionCompletedListener::startListening() {
+    std::lock_guard lock(mMutex);
+    if (mListening) {
+        return;
+    }
+    ProcessState::self()->startThreadPool();
+    mListening = true;
+}
+
+void TransactionCompletedListener::onTransactionCompleted() {
+    return;
 }
 
 // ---------------------------------------------------------------------------
