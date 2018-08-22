@@ -80,12 +80,12 @@ message LayerProto {
   optional int32 hwc_composition_type = 35;
   // If it's a buffer layer, indicate if the content is protected
   optional bool is_protected = 36;
-  // If active_buffer is not null, record its transform
-  optional TransformProto buffer_transform = 37;
   // Current frame number being rendered.
-  optional uint64 curr_frame = 38;
+  optional uint64 curr_frame = 37;
   // A list of barriers that the layer is waiting to update state.
-  repeated BarrierLayerProto barrier_layer = 39;
+  repeated BarrierLayerProto barrier_layer = 38;
+  // If active_buffer is not null, record its transform.
+  optional TransformProto buffer_transform = 39;
 }
 
 message PositionProto {
