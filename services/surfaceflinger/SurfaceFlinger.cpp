@@ -2923,22 +2923,17 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
             }
         }
 
-        if (!display->isPrimary()) {
-            // just to be on the safe side, we don't set the
-            // scissor on the main display. It should never be needed
-            // anyways (though in theory it could since the API allows it).
-            const Rect& bounds = display->getBounds();
-            const Rect& scissor = display->getScissor();
-            if (scissor != bounds) {
-                // scissor doesn't match the screen's dimensions, so we
-                // need to clear everything outside of it and enable
-                // the GL scissor so we don't draw anything where we shouldn't
+        const Rect& bounds = display->getBounds();
+        const Rect& scissor = display->getScissor();
+        if (scissor != bounds) {
+            // scissor doesn't match the screen's dimensions, so we
+            // need to clear everything outside of it and enable
+            // the GL scissor so we don't draw anything where we shouldn't
 
-                // enable scissor for this frame
-                const uint32_t height = display->getHeight();
-                getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
-                        scissor.getWidth(), scissor.getHeight());
-            }
+            // enable scissor for this frame
+            const uint32_t height = display->getHeight();
+            getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
+                                              scissor.getWidth(), scissor.getHeight());
         }
     }
 
