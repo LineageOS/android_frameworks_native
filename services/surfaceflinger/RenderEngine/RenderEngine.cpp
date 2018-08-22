@@ -596,7 +596,7 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format, bool log
 }
 
 void RenderEngine::primeCache() const {
-    ProgramCache::getInstance().primeCache(mFeatureFlags & WIDE_COLOR_SUPPORT);
+    ProgramCache::getInstance().primeCache(mFeatureFlags & USE_COLOR_MANAGEMENT);
 }
 
 // ---------------------------------------------------------------------------

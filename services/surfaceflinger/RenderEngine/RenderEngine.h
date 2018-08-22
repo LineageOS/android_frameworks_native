@@ -56,7 +56,7 @@ class RenderEngine;
 class RenderEngine {
 public:
     enum FeatureFlag {
-        WIDE_COLOR_SUPPORT = 1 << 0 // Platform has a wide color display
+        USE_COLOR_MANAGEMENT = 1 << 0, // Device manages color
     };
 
     virtual ~RenderEngine() = 0;

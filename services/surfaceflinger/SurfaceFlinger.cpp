@@ -93,6 +93,7 @@
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
 #include <configstore/Utils.h>
 
@@ -176,6 +177,7 @@ bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 // TODO(courtneygo): Rename hasWideColorDisplay to clarify its actual meaning.
 bool SurfaceFlinger::hasWideColorDisplay;
+bool SurfaceFlinger::useColorManagement;
 
 
 std::string getHwcServiceName() {
@@ -302,6 +304,8 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
 
     hasWideColorDisplay =
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
+    useColorManagement =
+            getBool<V1_2::ISurfaceFlingerConfigs, &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
 
     V1_1::DisplayOrientation primaryDisplayOrientation =
         getDisplayOrientation< V1_1::ISurfaceFlingerConfigs, &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
@@ -597,11 +601,10 @@ void SurfaceFlinger::init() {
     mVsyncModulator.setEventThreads(mSFEventThread.get(), mEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
+    int32_t renderEngineFeature = 0;
+    renderEngineFeature |= (useColorManagement ? RE::RenderEngine::USE_COLOR_MANAGEMENT : 0);
     getBE().mRenderEngine =
-            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
-                                           hasWideColorDisplay
-                                                   ? RE::RenderEngine::WIDE_COLOR_SUPPORT
-                                                   : 0);
+            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888, renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -1556,7 +1559,7 @@ void SurfaceFlinger::calculateWorkingSet() {
             layer->setPerFrameData(display);
         }
 
-        if (hasWideColorDisplay) {
+        if (useColorManagement) {
             ColorMode  colorMode;
             Dataspace dataSpace;
             RenderIntent renderIntent;
@@ -2214,7 +2217,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     HdrCapabilities hdrCapabilities;
     int32_t supportedPerFrameMetadata = 0;
 
-    if (hasWideColorDisplay && displayId >= 0) {
+    if (useColorManagement && displayId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (ColorMode colorMode : modes) {
             if (isWideColorMode(colorMode)) {
@@ -4152,7 +4155,8 @@ void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
 }
 
 void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
-    result.appendFormat("hasWideColorDisplay: %d\n", hasWideColorDisplay);
+    result.appendFormat("Device has wide color display: %d\n", hasWideColorDisplay);
+    result.appendFormat("Device uses color management: %d\n", useColorManagement);
     result.appendFormat("DisplayColorSetting: %s\n",
             decodeDisplayColorSetting(mDisplayColorSetting).c_str());
 
@@ -4727,7 +4731,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 repaintEverything();
                 return NO_ERROR;
             }
-            case 1024: { // Is wide color gamut rendering/color management supported?
+            // TODO(b/111505327): Find out whether the usage of 1024 can switch to 1030,
+            // deprecate 1024 if they can.
+            case 1024: { // Does device have wide color gamut display?
                 reply->writeBool(hasWideColorDisplay);
                 return NO_ERROR;
             }
@@ -4759,7 +4765,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 DisplayColorSetting setting = static_cast<DisplayColorSetting>(data.readInt32());
                 switch (setting) {
                     case DisplayColorSetting::MANAGED:
-                        reply->writeBool(hasWideColorDisplay);
+                        reply->writeBool(useColorManagement);
                         break;
                     case DisplayColorSetting::UNMANAGED:
                         reply->writeBool(true);
@@ -4805,6 +4811,11 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 
                 ATRACE_INT("PeriodMultiplier", multiplier);
                 ATRACE_INT("PeriodDivisor", divisor);
+                return NO_ERROR;
+            }
+            // Is device color managed?
+            case 1030: {
+                reply->writeBool(useColorManagement);
                 return NO_ERROR;
             }
         }
