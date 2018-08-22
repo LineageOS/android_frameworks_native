@@ -874,6 +874,21 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
+    if (outViewport == nullptr || display.get() == nullptr) {
+        return BAD_VALUE;
+    }
+
+    sp<const DisplayDevice> device(getDisplayDevice(display));
+    if (device == nullptr) {
+        return BAD_VALUE;
+    }
+
+    *outViewport = device->getViewport();
+
+    return NO_ERROR;
+}
+
 int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     const auto display = getDisplayDevice(displayToken);
     if (!display) {
@@ -4485,6 +4500,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_CONFIGS:
         case GET_DISPLAY_STATS:
+        case GET_DISPLAY_VIEWPORT:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
         // granted a reference to Client* and Handle* to do anything with it.
