@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
+#include <renderengine/Program.h>
+
 #include <stdint.h>
 
 #include <log/log.h>
-#include <utils/String8.h>
-
 #include <math/mat4.h>
-#include "Description.h"
-#include "Program.h"
-#include "ProgramCache.h"
+#include <renderengine/Description.h>
+#include <renderengine/ProgramCache.h>
+#include <utils/String8.h>
 
 namespace android {
 

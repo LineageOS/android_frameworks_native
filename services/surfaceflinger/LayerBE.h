@@ -19,14 +19,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <renderengine/Mesh.h>
+#include <renderengine/Texture.h>
 #include <ui/Region.h>
-
-#include "SurfaceFlinger.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
-#include "RenderEngine/Mesh.h"
-#include "RenderEngine/Texture.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 

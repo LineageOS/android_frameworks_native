@@ -18,6 +18,8 @@
 #undef LOG_TAG
 #define LOG_TAG "DisplayDevice"
 
+#include "DisplayDevice.h"
+
 #include <array>
 #include <unordered_set>
 
@@ -26,30 +28,23 @@
 #include <string.h>
 #include <math.h>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
 #include <cutils/properties.h>
-
-#include <utils/RefBase.h>
-#include <utils/Log.h>
-
+#include <gui/Surface.h>
+#include <hardware/gralloc.h>
+#include <renderengine/RenderEngine.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
-
-#include <gui/Surface.h>
-
-#include <hardware/gralloc.h>
+#include <utils/RefBase.h>
+#include <utils/Log.h>
 
 #include "DisplayHardware/DisplaySurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWC2.h"
-#include "RenderEngine/RenderEngine.h"
-
-#include "DisplayDevice.h"
 #include "SurfaceFlinger.h"
 #include "Layer.h"
-
-#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
-#include <configstore/Utils.h>
 
 namespace android {
 

@@ -27,6 +27,7 @@
 #include <hardware/hwcomposer_defs.h>
 #include <gui/ISurfaceComposer.h>
 #include <math/mat4.h>
+#include <renderengine/Surface.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
@@ -37,7 +38,6 @@
 #include <utils/Timers.h>
 
 #include "RenderArea.h"
-#include "RenderEngine/Surface.h"
 
 struct ANativeWindow;
 

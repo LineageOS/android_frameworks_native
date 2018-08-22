@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
+#include <renderengine/GLExtensions.h>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "GLExtensions.h"
 
 namespace android {
 // ---------------------------------------------------------------------------

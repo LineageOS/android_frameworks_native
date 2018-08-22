@@ -20,14 +20,14 @@
 #include <stdint.h>
 #include <sys/types.h>
 
-#include <utils/Singleton.h>
-#include <utils/SortedVector.h>
-#include <utils/String8.h>
-
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES/gl.h>
 #include <GLES/glext.h>
+
+#include <utils/Singleton.h>
+#include <utils/SortedVector.h>
+#include <utils/String8.h>
 
 namespace android {
 // ---------------------------------------------------------------------------

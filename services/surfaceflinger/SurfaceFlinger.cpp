@@ -47,7 +47,7 @@
 #include <gui/IDisplayEventConnection.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
-
+#include <renderengine/RenderEngine.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
 #include <ui/UiConfig.h>
@@ -82,7 +82,6 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "Effects/Daltonizer.h"
-#include "RenderEngine/RenderEngine.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"

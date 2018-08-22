@@ -53,7 +53,7 @@
 
 #include "DisplayHardware/HWComposer.h"
 
-#include "RenderEngine/RenderEngine.h"
+#include <renderengine/RenderEngine.h>
 
 #include <mutex>
 #include "LayerProtoHelper.h"
