@@ -981,6 +981,21 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& /* display */,
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
+    if (outViewport == nullptr || display.get() == nullptr) {
+        return BAD_VALUE;
+    }
+
+    sp<const DisplayDevice> device(getDisplayDevice(display));
+    if (device == nullptr) {
+        return BAD_VALUE;
+    }
+
+    *outViewport = device->getViewport();
+
+    return NO_ERROR;
+}
+
 int SurfaceFlinger::getActiveConfig(const sp<IBinder>& display) {
     if (display == nullptr) {
         ALOGE("%s : display is nullptr", __func__);

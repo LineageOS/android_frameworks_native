@@ -718,6 +718,10 @@ status_t SurfaceComposerClient::getDisplayInfo(const sp<IBinder>& display,
     return NO_ERROR;
 }
 
+status_t SurfaceComposerClient::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
+    return ComposerService::getComposerService()->getDisplayViewport(display, outViewport);
+}
+
 int SurfaceComposerClient::getActiveConfig(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->getActiveConfig(display);
 }
