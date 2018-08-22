@@ -516,6 +516,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
              " %s (%d)",
              mName.string(), to_string(blendMode).c_str(), to_string(error).c_str(),
              static_cast<int32_t>(error));
+    getBE().compositionInfo.hwc.blendMode = blendMode;
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
@@ -568,6 +569,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     } else {
         hwcInfo.displayFrame = transformedFrame;
     }
+    getBE().compositionInfo.hwc.displayFrame = transformedFrame;
 
     FloatRect sourceCrop = computeCrop(display);
     error = hwcLayer->setSourceCrop(sourceCrop);
@@ -579,6 +581,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     } else {
         hwcInfo.sourceCrop = sourceCrop;
     }
+    getBE().compositionInfo.hwc.sourceCrop = sourceCrop;
 
     float alpha = static_cast<float>(getAlpha());
     error = hwcLayer->setPlaneAlpha(alpha);
@@ -586,10 +589,12 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
              "[%s] Failed to set plane alpha %.3f: "
              "%s (%d)",
              mName.string(), alpha, to_string(error).c_str(), static_cast<int32_t>(error));
+    getBE().compositionInfo.hwc.alpha = alpha;
 
     error = hwcLayer->setZOrder(z);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)", mName.string(), z,
              to_string(error).c_str(), static_cast<int32_t>(error));
+    getBE().compositionInfo.hwc.z = z;
 
     int type = s.type;
     int appId = s.appId;
@@ -605,6 +610,9 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     error = hwcLayer->setInfo(type, appId);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
              static_cast<int32_t>(error));
+
+    getBE().compositionInfo.hwc.type = type;
+    getBE().compositionInfo.hwc.appId = appId;
 
     /*
      * Transformations are applied in this order:
@@ -642,6 +650,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     if (orientation & ui::Transform::ROT_INVALID) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
+        getBE().mHwcLayers[displayId].compositionType = HWC2::Composition::Client;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
         hwcInfo.transform = transform;
@@ -651,6 +660,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
                  "%s (%d)",
                  mName.string(), to_string(transform).c_str(), to_string(error).c_str(),
                  static_cast<int32_t>(error));
+        getBE().compositionInfo.hwc.transform = transform;
     }
 }
 

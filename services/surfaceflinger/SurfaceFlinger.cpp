@@ -259,8 +259,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mDebugDDMS(0),
         mDebugDisableHWC(0),
         mDebugDisableTransformHint(0),
-        mDebugInSwapBuffers(0),
-        mLastSwapBufferTime(0),
         mDebugInTransaction(0),
         mLastTransactionTime(0),
         mForceFullDamage(false),
@@ -1435,25 +1433,26 @@ bool SurfaceFlinger::handleMessageTransaction() {
     return false;
 }
 
-bool SurfaceFlinger::handleMessageInvalidate() {
-    ATRACE_CALL();
-    return handlePageFlip();
-}
-
 void SurfaceFlinger::handleMessageRefresh() {
     ATRACE_CALL();
 
     mRefreshPending = false;
 
+    const bool repaintEverything = android_atomic_and(0, &mRepaintEverything);
     preComposition();
     rebuildLayerStacks();
     calculateWorkingSet();
-    beginFrame();
-    prepareFrame();
-    doDebugFlashRegions();
+    for (const auto& [token, display] : mDisplays) {
+        beginFrame(display);
+        prepareFrame(display);
+        doDebugFlashRegions(display, repaintEverything);
+        doComposition(display, repaintEverything);
+    }
+
     doTracing("handleRefresh");
     logLayerStats();
-    doComposition();
+
+    postFrame();
     postComposition();
 
     mHadClientComposition = false;
@@ -1461,9 +1460,19 @@ void SurfaceFlinger::handleMessageRefresh() {
         mHadClientComposition = mHadClientComposition ||
                 getBE().mHwc->hasClientComposition(display->getId());
     }
+
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     mLayersWithQueuedFrames.clear();
+    for (auto& compositionInfo : getBE().mCompositionInfo) {
+        compositionInfo.hwc.hwcLayer = nullptr;
+    }
+}
+
+
+bool SurfaceFlinger::handleMessageInvalidate() {
+    ATRACE_CALL();
+    return handlePageFlip();
 }
 
 void SurfaceFlinger::calculateWorkingSet() {
@@ -1542,46 +1551,54 @@ void SurfaceFlinger::calculateWorkingSet() {
     }
 
     mDrawingState.colorMatrixChanged = false;
+    getBE().mCompositionInfo.clear();
+
+    for (const auto& [token, display] : mDisplays) {
+        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+            auto displayId = display->getId();
+            layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
+            if (!layer->setHwcLayer(displayId)) {
+                ALOGV("Need to create HWCLayer for %s", layer->getName().string());
+            }
+            getBE().mCompositionInfo.push_back(layer->getBE().compositionInfo);
+            layer->getBE().compositionInfo.hwc.hwcLayer = nullptr;
+        }
+    }
 }
 
-void SurfaceFlinger::doDebugFlashRegions()
+void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)
 {
     // is debugging enabled
     if (CC_LIKELY(!mDebugRegion))
         return;
 
-    const bool repaintEverything = mRepaintEverything;
-    for (const auto& [token, display] : mDisplays) {
-        if (display->isPoweredOn()) {
-            // transform the dirty region into this screen's coordinate space
-            const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
-            if (!dirtyRegion.isEmpty()) {
-                // redraw the whole screen
-                doComposeSurfaces(display);
+    if (display->isPoweredOn()) {
+        // transform the dirty region into this screen's coordinate space
+        const Region dirtyRegion(display->getDirtyRegion(repaintEverything));
+        if (!dirtyRegion.isEmpty()) {
+            // redraw the whole screen
+            doComposeSurfaces(display);
 
-                // and draw the dirty region
-                const int32_t height = display->getHeight();
-                auto& engine(getRenderEngine());
-                engine.fillRegionWithColor(dirtyRegion, height, 1, 0, 1, 1);
+            // and draw the dirty region
+            const int32_t height = display->getHeight();
+            auto& engine(getRenderEngine());
+            engine.fillRegionWithColor(dirtyRegion, height, 1, 0, 1, 1);
 
-                display->swapBuffers(getHwComposer());
-            }
+            display->swapBuffers(getHwComposer());
         }
     }
 
-    postFramebuffer();
+    postFramebuffer(display);
 
     if (mDebugRegion > 1) {
         usleep(mDebugRegion * 1000);
     }
 
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->isPoweredOn()) {
-            continue;
-        }
-
+    if (display->isPoweredOn()) {
         status_t result = display->prepareFrame(*getBE().mHwc);
-        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
+        ALOGE_IF(result != NO_ERROR,
+                 "prepareFrame for display %d failed:"
+                 " %d (%s)",
                  display->getId(), result, strerror(-result));
     }
 }
@@ -1945,80 +1962,85 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
-void SurfaceFlinger::beginFrame()
+void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 {
-    for (const auto& [token, display] : mDisplays) {
-        bool dirty = !display->getDirtyRegion(mRepaintEverything).isEmpty();
-        bool empty = display->getVisibleLayersSortedByZ().size() == 0;
-        bool wasEmpty = !display->lastCompositionHadVisibleLayers;
+    bool dirty = !display->getDirtyRegion(false).isEmpty();
+    bool empty = display->getVisibleLayersSortedByZ().size() == 0;
+    bool wasEmpty = !display->lastCompositionHadVisibleLayers;
 
-        // If nothing has changed (!dirty), don't recompose.
-        // If something changed, but we don't currently have any visible layers,
-        //   and didn't when we last did a composition, then skip it this time.
-        // The second rule does two things:
-        // - When all layers are removed from a display, we'll emit one black
-        //   frame, then nothing more until we get new layers.
-        // - When a display is created with a private layer stack, we won't
-        //   emit any black frames until a layer is added to the layer stack.
-        bool mustRecompose = dirty && !(empty && wasEmpty);
+    // If nothing has changed (!dirty), don't recompose.
+    // If something changed, but we don't currently have any visible layers,
+    //   and didn't when we last did a composition, then skip it this time.
+    // The second rule does two things:
+    // - When all layers are removed from a display, we'll emit one black
+    //   frame, then nothing more until we get new layers.
+    // - When a display is created with a private layer stack, we won't
+    //   emit any black frames until a layer is added to the layer stack.
+    bool mustRecompose = dirty && !(empty && wasEmpty);
 
-        ALOGV_IF(display->isVirtual(), "Display %d: %s composition (%sdirty %sempty %swasEmpty)",
-                 display->getId(), mustRecompose ? "doing" : "skipping", dirty ? "+" : "-",
-                 empty ? "+" : "-", wasEmpty ? "+" : "-");
+    ALOGV_IF(displayDevice->getDisplayType() == DisplayDevice::DISPLAY_VIRTUAL,
+            "dpy[%zu]: %s composition (%sdirty %sempty %swasEmpty)", dpy,
+            mustRecompose ? "doing" : "skipping",
+            dirty ? "+" : "-",
+            empty ? "+" : "-",
+            wasEmpty ? "+" : "-");
 
-        display->beginFrame(mustRecompose);
+    display->beginFrame(mustRecompose);
 
-        if (mustRecompose) {
-            display->lastCompositionHadVisibleLayers = !empty;
-        }
+    if (mustRecompose) {
+        display->lastCompositionHadVisibleLayers = !empty;
     }
 }
 
-void SurfaceFlinger::prepareFrame()
+void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
 {
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->isPoweredOn()) {
-            continue;
-        }
-
-        status_t result = display->prepareFrame(*getBE().mHwc);
-        ALOGE_IF(result != NO_ERROR, "prepareFrame for display %d failed: %d (%s)",
-                 display->getId(), result, strerror(-result));
+    if (!display->isPoweredOn()) {
+        return;
     }
+
+    status_t result = display->prepareFrame(*getBE().mHwc);
+    ALOGE_IF(result != NO_ERROR,
+             "prepareFrame for display %d failed:"
+             " %d (%s)",
+             display->getId(), result, strerror(-result));
 }
 
-void SurfaceFlinger::doComposition() {
+void SurfaceFlinger::doComposition(const sp<DisplayDevice>& display, bool repaintEverything) {
     ATRACE_CALL();
     ALOGV("doComposition");
 
-    const bool repaintEverything = android_atomic_and(0, &mRepaintEverything);
-    for (const auto& [token, display] : mDisplays) {
-        if (display->isPoweredOn()) {
-            // transform the dirty region into this screen's coordinate space
-            const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
+    if (display->isPoweredOn()) {
+        // transform the dirty region into this screen's coordinate space
+        const Region dirtyRegion(display->getDirtyRegion(repaintEverything));
 
-            // repaint the framebuffer (if needed)
-            doDisplayComposition(display, dirtyRegion);
+        // repaint the framebuffer (if needed)
+        doDisplayComposition(display, dirtyRegion);
 
-            display->dirtyRegion.clear();
-            display->flip();
-        }
+        display->dirtyRegion.clear();
+        display->flip();
     }
-    postFramebuffer();
+    postFramebuffer(display);
 }
 
-void SurfaceFlinger::postFramebuffer()
+void SurfaceFlinger::postFrame()
+{
+    // |mStateLock| not needed as we are on the main thread
+    if (getBE().mHwc->isConnected(HWC_DISPLAY_PRIMARY)) {
+        uint32_t flipCount = getDefaultDisplayDeviceLocked()->getPageFlipCount();
+        if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
+            logFrameStats();
+        }
+    }
+}
+
+void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
 {
     ATRACE_CALL();
     ALOGV("postFramebuffer");
 
-    const nsecs_t now = systemTime();
-    mDebugInSwapBuffers = now;
+    mPostFramebufferTime = systemTime();
 
-    for (const auto& [token, display] : mDisplays) {
-        if (!display->isPoweredOn()) {
-            continue;
-        }
+    if (display->isPoweredOn()) {
         const auto displayId = display->getId();
         if (displayId >= 0) {
             getBE().mHwc->presentAndGetReleaseFences(displayId);
@@ -2061,18 +2083,6 @@ void SurfaceFlinger::postFramebuffer()
 
         if (displayId >= 0) {
             getBE().mHwc->clearReleaseFences(displayId);
-        }
-    }
-
-    mLastSwapBufferTime = systemTime() - now;
-    mDebugInSwapBuffers = 0;
-
-    // |mStateLock| not needed as we are on the main thread
-    const auto display = getDefaultDisplayDeviceLocked();
-    if (display && getHwComposer().isConnected(display->getId())) {
-        const uint32_t flipCount = display->getPageFlipCount();
-        if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
-            logFrameStats();
         }
     }
 }
@@ -4200,9 +4210,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
     // figure out if we're stuck somewhere
     const nsecs_t now = systemTime();
-    const nsecs_t inSwapBuffers(mDebugInSwapBuffers);
     const nsecs_t inTransaction(mDebugInTransaction);
-    nsecs_t inSwapBuffersDuration = (inSwapBuffers) ? now-inSwapBuffers : 0;
     nsecs_t inTransactionDuration = (inTransaction) ? now-inTransaction : 0;
 
     /*
@@ -4310,11 +4318,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
         result.appendFormat("  orientation=%d, isPoweredOn=%d\n", display->getOrientation(),
                             display->isPoweredOn());
     }
-    result.appendFormat("  last eglSwapBuffers() time: %f us\n"
-                        "  last transaction time     : %f us\n"
-                        "  transaction-flags         : %08x\n"
+    result.appendFormat("  transaction-flags         : %08x\n"
                         "  gpu_to_cpu_unsupported    : %d\n",
-                        mLastSwapBufferTime / 1000.0, mLastTransactionTime / 1000.0,
                         mTransactionFlags, !mGpuToCpuSupported);
 
     if (display) {
@@ -4325,9 +4330,6 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
                             1e9 / activeConfig->getVsyncPeriod(), activeConfig->getDpiX(),
                             activeConfig->getDpiY());
     }
-
-    result.appendFormat("  eglSwapBuffers time: %f us\n",
-            inSwapBuffersDuration/1000.0);
 
     result.appendFormat("  transaction time: %f us\n",
             inTransactionDuration/1000.0);

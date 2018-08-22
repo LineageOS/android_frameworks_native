@@ -275,6 +275,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
+    getBE().compositionInfo.hwc.visibleRegion = visible;
 
     error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
     if (error != HWC2::Error::None) {
@@ -282,6 +283,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
               to_string(error).c_str(), static_cast<int32_t>(error));
         surfaceDamageRegion.dump(LOG_TAG);
     }
+    getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
 
     // Sideband layers
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
@@ -293,6 +295,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
                   getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
+        getBE().compositionInfo.compositionType = HWC2::Composition::Sideband;
         return;
     }
 
@@ -318,6 +321,9 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
         ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
+    getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
+    getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
+    getBE().compositionInfo.hwc.supportedPerFrameMetadata = display->getSupportedPerFrameMetadata();
 
     setHwcLayerBuffer(display);
 }

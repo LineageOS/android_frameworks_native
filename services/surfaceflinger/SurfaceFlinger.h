@@ -100,6 +100,7 @@ class Layer;
 class Surface;
 class SurfaceFlingerBE;
 class VSyncSource;
+struct CompositionInfo;
 
 namespace impl {
 class EventThread;
@@ -224,6 +225,8 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
+
+    std::vector<CompositionInfo> mCompositionInfo;
 };
 
 
@@ -673,14 +676,14 @@ private:
      * prior to any CompositionInfo handling and is not dependent on data in
      * CompositionInfo
      */
-    void beginFrame();
+    void beginFrame(const sp<DisplayDevice>& display);
     /* prepareFrame - This function will call into the DisplayDevice to prepare a
      * frame after CompositionInfo has been programmed.   This provides a mechanism
      * to prepare the hardware composer
      */
-    void prepareFrame();
-    void doComposition();
-    void doDebugFlashRegions();
+    void prepareFrame(const sp<DisplayDevice>& display);
+    void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
+    void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void doTracing(const char* where);
     void logLayerStats();
     void doDisplayComposition(const sp<const DisplayDevice>& display, const Region& dirtyRegion);
@@ -688,7 +691,8 @@ private:
     // This fails if using GL and the surface has been destroyed.
     bool doComposeSurfaces(const sp<const DisplayDevice>& display);
 
-    void postFramebuffer();
+    void postFramebuffer(const sp<DisplayDevice>& display);
+    void postFrame();
     void drawWormhole(const sp<const DisplayDevice>& display, const Region& region) const;
 
     /* ------------------------------------------------------------------------
@@ -844,9 +848,9 @@ private:
     int mDebugDisableHWC;
     int mDebugDisableTransformHint;
     volatile nsecs_t mDebugInSwapBuffers;
-    nsecs_t mLastSwapBufferTime;
     volatile nsecs_t mDebugInTransaction;
     nsecs_t mLastTransactionTime;
+    nsecs_t mPostFramebufferTime;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
     std::unique_ptr<SurfaceInterceptor> mInterceptor =

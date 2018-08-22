@@ -353,6 +353,9 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
               getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
+    getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
+    getBE().compositionInfo.mBuffer = mActiveBuffer;
+    getBE().compositionInfo.hwc.fence = acquireFence;
 }
 
 // -----------------------------------------------------------------------
