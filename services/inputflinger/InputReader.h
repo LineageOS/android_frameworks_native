@@ -1517,13 +1517,21 @@ private:
     // in the natural orientation.
     // The surface origin specifies how the surface coordinates should be translated
     // to align with the logical display coordinate space.
-    // The orientation may be different from the viewport orientation as it specifies
-    // the rotation of the surface coordinates required to produce the viewport's
-    // requested orientation, so it will depend on whether the device is orientation aware.
     int32_t mSurfaceWidth;
     int32_t mSurfaceHeight;
     int32_t mSurfaceLeft;
     int32_t mSurfaceTop;
+
+    // Similar to the surface coordinates, but in the raw display coordinate space rather than in
+    // the logical coordinate space.
+    int32_t mPhysicalWidth;
+    int32_t mPhysicalHeight;
+    int32_t mPhysicalLeft;
+    int32_t mPhysicalTop;
+
+    // The orientation may be different from the viewport orientation as it specifies
+    // the rotation of the surface coordinates required to produce the viewport's
+    // requested orientation, so it will depend on whether the device is orientation aware.
     int32_t mSurfaceOrientation;
 
     // Translation and scaling factors, orientation-independent.
