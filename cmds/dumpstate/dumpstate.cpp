@@ -1466,6 +1466,12 @@ static void DumpstateTelephonyOnly() {
             DUMPSYS_COMPONENTS_OPTIONS);
 
     printf("========================================================\n");
+    printf("== Checkins\n");
+    printf("========================================================\n");
+
+    RunDumpsys("CHECKIN BATTERYSTATS", {"batterystats", "-c"});
+
+    printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
 }
