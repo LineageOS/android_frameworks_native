@@ -338,11 +338,11 @@ class DisplayRenderArea : public RenderArea {
 public:
     DisplayRenderArea(const sp<const DisplayDevice> device,
                       ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
-          : DisplayRenderArea(device, device->getBounds(), device->getHeight(), device->getWidth(),
+          : DisplayRenderArea(device, device->getBounds(), device->getWidth(), device->getHeight(),
                               rotation) {}
-    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqHeight,
-                      uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
-          : RenderArea(reqHeight, reqWidth, CaptureFill::OPAQUE, rotation), mDevice(device),
+    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
+                      uint32_t reqHeight, ISurfaceComposer::Rotation rotation)
+          : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, rotation), mDevice(device),
                               mSourceCrop(sourceCrop) {}
 
     const Transform& getTransform() const override { return mDevice->getTransform(); }
