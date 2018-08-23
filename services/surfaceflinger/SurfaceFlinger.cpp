@@ -1996,8 +1996,8 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
     //   emit any black frames until a layer is added to the layer stack.
     bool mustRecompose = dirty && !(empty && wasEmpty);
 
-    ALOGV_IF(displayDevice->getDisplayType() == DisplayDevice::DISPLAY_VIRTUAL,
-            "dpy[%zu]: %s composition (%sdirty %sempty %swasEmpty)", dpy,
+    ALOGV_IF(display->getDisplayType() == DisplayDevice::DISPLAY_VIRTUAL,
+            "id[%d]: %s composition (%sdirty %sempty %swasEmpty)", display->getId(),
             mustRecompose ? "doing" : "skipping",
             dirty ? "+" : "-",
             empty ? "+" : "-",
