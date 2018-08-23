@@ -226,7 +226,7 @@ public:
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
 
-    std::vector<CompositionInfo> mCompositionInfo;
+    std::unordered_map<int32_t, std::vector<CompositionInfo>> mCompositionInfo;
 };
 
 
