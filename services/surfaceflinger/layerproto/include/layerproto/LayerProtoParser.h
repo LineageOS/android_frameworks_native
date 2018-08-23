@@ -92,7 +92,6 @@ public:
         float2 requestedPosition;
         int2 size;
         LayerProtoParser::Rect crop;
-        LayerProtoParser::Rect finalCrop;
         bool isOpaque;
         bool invalidate;
         std::string dataspace;

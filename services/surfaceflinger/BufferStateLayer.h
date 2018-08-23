@@ -58,7 +58,6 @@ public:
         return s.transparentRegionHint;
     }
     Rect getCrop(const Layer::State& s) const;
-    Rect getFinalCrop(const Layer::State& /*s*/) const { return Rect::EMPTY_RECT; }
 
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
@@ -79,7 +78,6 @@ public:
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setCrop_legacy(const Rect& /*crop*/, bool /*immediate*/) override { return false; };
-    bool setFinalCrop_legacy(const Rect& /*crop*/, bool /*immediate*/) override { return false; };
     void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
                                       uint64_t /*frameNumber*/) override {}
     void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,

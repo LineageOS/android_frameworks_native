@@ -634,40 +634,6 @@ TEST_F(TransactionTest, LayerCrop) {
     EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 }
 
-TEST_F(TransactionTest, LayerFinalCrop) {
-    // TODO: Add scaling to confirm that crop happens in display space?
-    {
-        TransactionScope ts(*sFakeComposer);
-        Rect cropRect(32, 32, 32 + 64, 32 + 64);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, cropRect);
-    }
-    ASSERT_EQ(2, sFakeComposer->getFrameCount());
-
-    // In display space we are cropping with [32, 32, 96, 96] against display rect
-    // [64, 64, 128, 128]. Should yield display rect [64, 64, 96, 96]
-    auto referenceFrame = mBaseFrame;
-    referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 32.f, 32.f};
-    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 64 + 32, 64 + 32};
-
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(TransactionTest, LayerFinalCropEmpty) {
-    // TODO: Add scaling to confirm that crop happens in display space?
-    {
-        TransactionScope ts(*sFakeComposer);
-        Rect cropRect(16, 16, 32, 32);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, cropRect);
-    }
-    ASSERT_EQ(2, sFakeComposer->getFrameCount());
-
-    // In display space we are cropping with [16, 16, 32, 32] against display rect
-    // [64, 64, 128, 128]. The intersection is empty and only the background layer is composited.
-    std::vector<RenderState> referenceFrame(1);
-    referenceFrame[BG_LAYER] = mBaseFrame[BG_LAYER];
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-}
-
 TEST_F(TransactionTest, LayerSetLayer) {
     {
         TransactionScope ts(*sFakeComposer);
@@ -984,22 +950,6 @@ TEST_F(ChildLayerTest, Cropping) {
     // NOTE: The foreground surface would be occluded by the child
     // now, but is included in the stack because the child is
     // transparent.
-    auto referenceFrame = mBaseFrame;
-    referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
-    referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 5.f, 5.f};
-    referenceFrame[CHILD_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
-    referenceFrame[CHILD_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 5.f, 5.f};
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(ChildLayerTest, FinalCropping) {
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.show(mChild);
-        ts.setPosition(mChild, 0, 0);
-        ts.setPosition(mFGSurfaceControl, 0, 0);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
-    }
     auto referenceFrame = mBaseFrame;
     referenceFrame[FG_LAYER].mDisplayFrame = hwc_rect_t{0, 0, 0 + 5, 0 + 5};
     referenceFrame[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 5.f, 5.f};
@@ -1354,7 +1304,6 @@ protected:
         ts.setSize(mFGSurfaceControl, 64, 64);
         ts.setPosition(mFGSurfaceControl, 64, 64);
         ts.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 64, 64));
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, -1, -1));
     }
 };
 
@@ -1423,111 +1372,6 @@ TEST_F(LatchingTest, CropLatching) {
     referenceFrame2[FG_LAYER].mSourceCrop = hwc_frect_t{0.f, 0.f, 63.f, 63.f};
     referenceFrame2[FG_LAYER].mSwapCount++;
     EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(LatchingTest, FinalCropLatching) {
-    // Normally the crop applies immediately even while a resize is pending.
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-
-    auto referenceFrame1 = mBaseFrame;
-    referenceFrame1[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame1[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    EXPECT_TRUE(framesAreSame(referenceFrame1, sFakeComposer->getLatestFrame()));
-
-    restoreInitialState();
-
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-    EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
-
-    completeFGResize();
-
-    auto referenceFrame2 = mBaseFrame;
-    referenceFrame2[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame2[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    referenceFrame2[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
-}
-
-// In this test we ensure that setGeometryAppliesWithResize actually demands
-// a buffer of the new size, and not just any size.
-TEST_F(LatchingTest, FinalCropLatchingBufferOldSize) {
-    // Normally the crop applies immediately even while a resize is pending.
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-
-    auto referenceFrame1 = mBaseFrame;
-    referenceFrame1[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame1[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    EXPECT_TRUE(framesAreSame(referenceFrame1, sFakeComposer->getLatestFrame()));
-
-    restoreInitialState();
-
-    // In order to prepare to submit a buffer at the wrong size, we acquire it prior to
-    // initiating the resize.
-    lockAndFillFGBuffer();
-
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-    EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
-
-    // We now submit our old buffer, at the old size, and ensure it doesn't
-    // trigger geometry latching.
-    unlockFGBuffer();
-
-    auto referenceFrame2 = mBaseFrame;
-    referenceFrame2[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame2, sFakeComposer->getLatestFrame()));
-
-    completeFGResize();
-    auto referenceFrame3 = referenceFrame2;
-    referenceFrame3[FG_LAYER].mDisplayFrame = hwc_rect_t{64, 64, 127, 127};
-    referenceFrame3[FG_LAYER].mSourceCrop =
-            hwc_frect_t{0.f, 0.f, static_cast<float>(127 - 64), static_cast<float>(127 - 64)};
-    referenceFrame3[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame3, sFakeComposer->getLatestFrame()));
-}
-
-TEST_F(LatchingTest, FinalCropLatchingRegressionForb37531386) {
-    // In this scenario, we attempt to set the final crop a second time while the resize
-    // is still pending, and ensure we are successful. Success meaning the second crop
-    // is the one which eventually latches and not the first.
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setSize(mFGSurfaceControl, 128, 128);
-        ts.setGeometryAppliesWithResize(mFGSurfaceControl);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    }
-
-    {
-        TransactionScope ts(*sFakeComposer);
-        ts.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, -1, -1));
-    }
-    EXPECT_TRUE(framesAreSame(mBaseFrame, sFakeComposer->getLatestFrame()));
-
-    completeFGResize();
-
-    auto referenceFrame = mBaseFrame;
-    referenceFrame[FG_LAYER].mSwapCount++;
-    EXPECT_TRUE(framesAreSame(referenceFrame, sFakeComposer->getLatestFrame()));
 }
 
 } // namespace

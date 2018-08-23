@@ -129,10 +129,6 @@ public:
         Rect crop_legacy;
         Rect requestedCrop_legacy;
 
-        // finalCrop is expressed in display space coordinate.
-        Rect finalCrop_legacy;
-        Rect requestedFinalCrop_legacy;
-
         // If set, defers this state update until the identified Layer
         // receives a frame with the given frameNumber
         wp<Layer> barrierLayer_legacy;
@@ -225,8 +221,6 @@ public:
     virtual bool setPosition(float x, float y, bool immediate);
     // Buffer space
     virtual bool setCrop_legacy(const Rect& crop, bool immediate);
-    // Parent buffer space/display space
-    virtual bool setFinalCrop_legacy(const Rect& crop, bool immediate);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
@@ -351,7 +345,6 @@ public:
         return s.activeTransparentRegion_legacy;
     }
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
-    virtual Rect getFinalCrop(const Layer::State& s) const { return s.finalCrop_legacy; }
 
 protected:
     /*

@@ -589,17 +589,6 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 
     ui::Transform t = getTransform();
     Rect win = bounds;
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        win = t.transform(win);
-        if (!win.intersect(finalCrop, &win)) {
-            win.clear();
-        }
-        win = t.inverse().transform(win);
-        if (!win.intersect(bounds, &win)) {
-            win.clear();
-        }
-    }
 
     float left = float(win.left) / float(getActiveWidth(s));
     float top = float(win.top) / float(getActiveHeight(s));

@@ -388,9 +388,6 @@ status_t Replayer::doSurfaceTransaction(
             case SurfaceChange::SurfaceChangeCase::kMatrix:
                 setMatrix(transaction, change.id(), change.matrix());
                 break;
-            case SurfaceChange::SurfaceChangeCase::kFinalCrop:
-                setFinalCrop(transaction, change.id(), change.final_crop());
-                break;
             case SurfaceChange::SurfaceChangeCase::kOverrideScalingMode:
                 setOverrideScalingMode(transaction, change.id(),
                         change.override_scaling_mode());
@@ -490,16 +487,6 @@ void Replayer::setCrop(SurfaceComposerClient::Transaction& t,
     Rect r = Rect(cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
     t.setCrop_legacy(mLayers[id], r);
-}
-
-void Replayer::setFinalCrop(SurfaceComposerClient::Transaction& t,
-        layer_id id, const FinalCropChange& fcc) {
-    ALOGV("Layer %d: Setting Final Crop -- left=%d, top=%d, right=%d, bottom=%d", id,
-            fcc.rectangle().left(), fcc.rectangle().top(), fcc.rectangle().right(),
-            fcc.rectangle().bottom());
-    Rect r = Rect(fcc.rectangle().left(), fcc.rectangle().top(), fcc.rectangle().right(),
-            fcc.rectangle().bottom());
-    t.setFinalCrop_legacy(mLayers[id], r);
 }
 
 void Replayer::setMatrix(SurfaceComposerClient::Transaction& t,

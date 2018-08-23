@@ -103,8 +103,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     mCurrentState.flags = layerFlags;
     mCurrentState.active_legacy.transform.set(0, 0);
     mCurrentState.crop_legacy.makeInvalid();
-    mCurrentState.finalCrop_legacy.makeInvalid();
-    mCurrentState.requestedFinalCrop_legacy = mCurrentState.finalCrop_legacy;
     mCurrentState.requestedCrop_legacy = mCurrentState.crop_legacy;
     mCurrentState.z = 0;
     mCurrentState.color.a = 1.0f;
@@ -298,11 +296,6 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
     ui::Transform t = getTransform();
     win = t.transform(win);
 
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        win.intersect(finalCrop, &win);
-    }
-
     const sp<Layer>& p = mDrawingParent.promote();
     // Now we need to calculate the parent bounds, so we can clip ourselves to those.
     // When calculating the parent bounds for purposes of clipping,
@@ -351,13 +344,9 @@ FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
 
     ui::Transform t = s.active_legacy.transform;
 
-    if (p != nullptr || !s.finalCrop_legacy.isEmpty()) {
+    if (p != nullptr) {
         floatWin = t.transform(floatWin);
         floatWin = floatWin.intersect(parentBounds);
-
-        if (!s.finalCrop_legacy.isEmpty()) {
-            floatWin = floatWin.intersect(s.finalCrop_legacy.toFloatRect());
-        }
         floatWin = t.inverse().transform(floatWin);
     }
 
@@ -387,12 +376,6 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     activeCrop = t.transform(activeCrop);
     if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
         activeCrop.clear();
-    }
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        if (!activeCrop.intersect(finalCrop, &activeCrop)) {
-            activeCrop.clear();
-        }
     }
 
     const auto& p = mDrawingParent.promote();
@@ -554,12 +537,6 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     // computeBounds returns a FloatRect to provide more accuracy during the
     // transformation. We then round upon constructing 'frame'.
     Rect frame{t.transform(computeBounds(activeTransparentRegion))};
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        if (!frame.intersect(finalCrop, &frame)) {
-            frame.clear();
-        }
-    }
     if (!frame.intersect(display->getViewport(), &frame)) {
         frame.clear();
     }
@@ -671,10 +648,6 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     Rect bounds = reduce(win, getActiveTransparentRegion(s));
     Rect frame(getTransform().transform(bounds));
     frame.intersect(display->getViewport(), &frame);
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        frame.intersect(finalCrop, &frame);
-    }
     auto& displayTransform = display->getTransform();
     auto position = displayTransform.transform(frame);
 
@@ -780,25 +753,9 @@ bool Layer::getFiltering() const {
 // local state
 // ----------------------------------------------------------------------------
 
-static void boundPoint(vec2* point, const Rect& crop) {
-    if (point->x < crop.left) {
-        point->x = crop.left;
-    }
-    if (point->x > crop.right) {
-        point->x = crop.right;
-    }
-    if (point->y < crop.top) {
-        point->y = crop.top;
-    }
-    if (point->y > crop.bottom) {
-        point->y = crop.bottom;
-    }
-}
-
 void Layer::computeGeometry(const RenderArea& renderArea,
                             renderengine::Mesh& mesh,
                             bool useIdentityTransform) const {
-    const Layer::State& s(getDrawingState());
     const ui::Transform renderAreaTransform(renderArea.getTransform());
     const uint32_t height = renderArea.getHeight();
     FloatRect win = computeBounds();
@@ -814,14 +771,6 @@ void Layer::computeGeometry(const RenderArea& renderArea,
         lb = layerTransform.transform(lb);
         rb = layerTransform.transform(rb);
         rt = layerTransform.transform(rt);
-    }
-
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        boundPoint(&lt, finalCrop);
-        boundPoint(&lb, finalCrop);
-        boundPoint(&rb, finalCrop);
-        boundPoint(&rt, finalCrop);
     }
 
     renderengine::Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
@@ -1292,20 +1241,6 @@ bool Layer::setCrop_legacy(const Rect& crop, bool immediate) {
     return true;
 }
 
-bool Layer::setFinalCrop_legacy(const Rect& crop, bool immediate) {
-    if (mCurrentState.requestedFinalCrop_legacy == crop) return false;
-    mCurrentState.sequence++;
-    mCurrentState.requestedFinalCrop_legacy = crop;
-    if (immediate && !mFreezeGeometryUpdates) {
-        mCurrentState.finalCrop_legacy = crop;
-    }
-    mFreezeGeometryUpdates = mFreezeGeometryUpdates || !immediate;
-
-    mCurrentState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
 bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     if (scalingMode == mOverrideScalingMode) return false;
     mOverrideScalingMode = scalingMode;
@@ -1417,7 +1352,6 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mWidth = ds.active_legacy.w;
     info.mHeight = ds.active_legacy.h;
     info.mCrop = ds.crop_legacy;
-    info.mFinalCrop = ds.finalCrop_legacy;
     info.mColor = ds.color;
     info.mFlags = ds.flags;
     info.mPixelFormat = getPixelFormat();
@@ -1955,7 +1889,6 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     size->set_h(state.active_legacy.h);
 
     LayerProtoHelper::writeToProto(state.crop_legacy, layerInfo->mutable_crop());
-    LayerProtoHelper::writeToProto(state.finalCrop_legacy, layerInfo->mutable_final_crop());
 
     layerInfo->set_is_opaque(isOpaque(state));
     layerInfo->set_invalidate(contentDirty);

@@ -3570,10 +3570,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
             flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eFinalCropChanged_legacy) {
-        if (layer->setFinalCrop_legacy(s.finalCrop_legacy, !geometryAppliesWithResize))
-            flags |= eTraversalNeeded;
-    }
     if (what & layer_state_t::eLayerStackChanged) {
         ssize_t idx = mCurrentState.layersSortedByZ.indexOf(layer);
         // We only allow setting layer stacks for top level layers,
