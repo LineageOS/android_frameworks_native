@@ -981,6 +981,21 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& /* display */,
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
+    if (outViewport == nullptr || display.get() == nullptr) {
+        return BAD_VALUE;
+    }
+
+    sp<const DisplayDevice> device(getDisplayDevice(display));
+    if (device == nullptr) {
+        return BAD_VALUE;
+    }
+
+    *outViewport = device->getViewport();
+
+    return NO_ERROR;
+}
+
 int SurfaceFlinger::getActiveConfig(const sp<IBinder>& display) {
     if (display == nullptr) {
         ALOGE("%s : display is nullptr", __func__);
@@ -3045,22 +3060,17 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             }
         }
 
-        if (displayDevice->getDisplayType() != DisplayDevice::DISPLAY_PRIMARY) {
-            // just to be on the safe side, we don't set the
-            // scissor on the main display. It should never be needed
-            // anyways (though in theory it could since the API allows it).
-            const Rect& bounds(displayDevice->getBounds());
-            const Rect& scissor(displayDevice->getScissor());
-            if (scissor != bounds) {
-                // scissor doesn't match the screen's dimensions, so we
-                // need to clear everything outside of it and enable
-                // the GL scissor so we don't draw anything where we shouldn't
+        const Rect& bounds(displayDevice->getBounds());
+        const Rect& scissor(displayDevice->getScissor());
+        if (scissor != bounds) {
+            // scissor doesn't match the screen's dimensions, so we
+            // need to clear everything outside of it and enable
+            // the GL scissor so we don't draw anything where we shouldn't
 
-                // enable scissor for this frame
-                const uint32_t height = displayDevice->getHeight();
-                getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
-                        scissor.getWidth(), scissor.getHeight());
-            }
+            // enable scissor for this frame
+            const uint32_t height = displayDevice->getHeight();
+            getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
+                                              scissor.getWidth(), scissor.getHeight());
         }
     }
 
@@ -4833,8 +4843,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
         sourceCrop.set(dispScissor);
         // adb shell screencap will default reqWidth and reqHeight to zeros.
         if (reqWidth == 0 || reqHeight == 0) {
-            reqWidth = uint32_t(dispScissor.width());
-            reqHeight = uint32_t(dispScissor.height());
+            reqWidth = uint32_t(device->getViewport().width());
+            reqHeight = uint32_t(device->getViewport().height());
         }
     }
 
