@@ -70,11 +70,9 @@ public:
     // covered by any rendered layer should be filled with this color.
     CaptureFill getCaptureFill() const { return mCaptureFill; };
 
-    status_t updateDimensions(int displayRotation);
-
 private:
-    uint32_t mReqWidth;
-    uint32_t mReqHeight;
+    const uint32_t mReqWidth;
+    const uint32_t mReqHeight;
     const CaptureFill mCaptureFill;
     const Transform::orientation_flags mRotationFlags;
 };
