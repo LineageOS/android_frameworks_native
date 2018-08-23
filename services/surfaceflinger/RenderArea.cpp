@@ -19,9 +19,9 @@ ui::Transform::orientation_flags fromRotation(ISurfaceComposer::Rotation rotatio
     return ui::Transform::ROT_0;
 }
 
-RenderArea::RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
+RenderArea::RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
                        ISurfaceComposer::Rotation rotation)
-      : mReqHeight(reqHeight), mReqWidth(reqWidth), mCaptureFill(captureFill) {
+      : mReqWidth(reqWidth), mReqHeight(reqHeight), mCaptureFill(captureFill) {
     mRotationFlags = fromRotation(rotation);
 }
 

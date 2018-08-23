@@ -20,7 +20,7 @@ public:
 
     static float getCaptureFillValue(CaptureFill captureFill);
 
-    RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
+    RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
                ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone);
 
     virtual ~RenderArea() = default;
@@ -71,8 +71,8 @@ public:
     status_t updateDimensions(int displayRotation);
 
 private:
-    uint32_t mReqHeight;
     uint32_t mReqWidth;
+    uint32_t mReqHeight;
     ui::Transform::orientation_flags mRotationFlags;
     CaptureFill mCaptureFill;
 };
