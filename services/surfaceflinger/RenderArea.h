@@ -20,9 +20,9 @@ public:
 
     static float getCaptureFillValue(CaptureFill captureFill);
 
-    RenderArea(uint32_t reqHeight, uint32_t reqWidth, CaptureFill captureFill,
+    RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
                ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
-          : mReqHeight(reqHeight), mReqWidth(reqWidth), mCaptureFill(captureFill) {
+          : mReqWidth(reqWidth), mReqHeight(reqHeight), mCaptureFill(captureFill) {
         mRotationFlags = Transform::fromRotation(rotation);
     }
 
@@ -74,8 +74,8 @@ public:
     status_t updateDimensions(int displayRotation);
 
 private:
-    uint32_t mReqHeight;
     uint32_t mReqWidth;
+    uint32_t mReqHeight;
     Transform::orientation_flags mRotationFlags;
     CaptureFill mCaptureFill;
 };
