@@ -30,6 +30,7 @@
 #include <jni.h>
 #include <android/sharedmem.h>
 #include <stddef.h>
+#include <sys/cdefs.h>
 
 /******************************************************************
  *
@@ -51,7 +52,7 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= __ANDROID_API_O_MR1__
+#if __ANDROID_API__ >= 27
 
 /**
  * Returns a dup'd FD from the given Java android.os.SharedMemory object. The returned file
@@ -69,9 +70,9 @@ extern "C" {
  *      already closed, if the JNIEnv or jobject is NULL, or if there are too many open file
  *      descriptors (errno=EMFILE)
  */
-int ASharedMemory_dupFromJava(JNIEnv* env, jobject sharedMemory);
+int ASharedMemory_dupFromJava(JNIEnv* env, jobject sharedMemory) __INTRODUCED_IN(27);
 
-#endif
+#endif // __ANDROID_API__ >= 27
 
 #ifdef __cplusplus
 };

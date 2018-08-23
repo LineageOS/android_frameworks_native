@@ -28,6 +28,7 @@
 #define ANDROID_SHARED_MEMORY_H
 
 #include <stddef.h>
+#include <sys/cdefs.h>
 
 /******************************************************************
  *
@@ -49,7 +50,7 @@
 extern "C" {
 #endif
 
-#if __ANDROID_API__ >= __ANDROID_API_O__
+#if __ANDROID_API__ >= 26
 
 /**
  * Create a shared memory region.
@@ -66,7 +67,7 @@ extern "C" {
  * \param size size of the shared memory region
  * \return file descriptor that denotes the shared memory; error code on failure.
  */
-int ASharedMemory_create(const char *name, size_t size);
+int ASharedMemory_create(const char *name, size_t size) __INTRODUCED_IN(26);
 
 /**
  * Get the size of the shared memory region.
@@ -76,7 +77,7 @@ int ASharedMemory_create(const char *name, size_t size);
  * \param fd file descriptor of the shared memory region
  * \return size in bytes; 0 if fd is not a valid shared memory file descriptor.
  */
-size_t ASharedMemory_getSize(int fd);
+size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
 
 /**
  * Restrict access of shared memory region.
@@ -109,9 +110,9 @@ size_t ASharedMemory_getSize(int fd);
  *             updated access. Note access can only be removed, but not added back.
  * \return 0 for success, error code on failure.
  */
-int ASharedMemory_setProt(int fd, int prot);
+int ASharedMemory_setProt(int fd, int prot) __INTRODUCED_IN(26);
 
-#endif
+#endif // __ANDROID_API__ >= 26
 
 #ifdef __cplusplus
 };
