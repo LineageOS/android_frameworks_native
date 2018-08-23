@@ -780,18 +780,18 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
 
     // TODO: Not sure if display density should handled by SF any longer
     class Density {
-        static int getDensityFromProperty(char const* propName) {
+        static float getDensityFromProperty(char const* propName) {
             char property[PROPERTY_VALUE_MAX];
-            int density = 0;
+            float density = 0.0f;
             if (property_get(propName, property, nullptr) > 0) {
-                density = atoi(property);
+                density = strtof(property, nullptr);
             }
             return density;
         }
     public:
-        static int getEmuDensity() {
+        static float getEmuDensity() {
             return getDensityFromProperty("qemu.sf.lcd_density"); }
-        static int getBuildDensity()  {
+        static float getBuildDensity()  {
             return getDensityFromProperty("ro.sf.lcd_density"); }
     };
 
