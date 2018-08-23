@@ -73,8 +73,9 @@ struct CompositionInfo {
     } re;
 
     void dump(const char* tag) const;
-    void dumpHwc(const char* tag) const;
-    void dumpRe(const char* tag) const;
+    void dump(std::string& result, const char* tag = nullptr) const;
+    void dumpHwc(std::string& result, const char* tag = nullptr) const;
+    void dumpRe(std::string& result, const char* tag = nullptr) const;
 };
 
 class LayerBE {
