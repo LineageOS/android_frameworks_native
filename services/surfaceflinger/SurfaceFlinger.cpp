@@ -4919,16 +4919,44 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
 
     auto renderAreaRotation = fromSurfaceComposerRotation(rotation);
 
-    const auto display = getDisplayDeviceLocked(displayToken);
-    if (!display) return BAD_VALUE;
+    sp<DisplayDevice> display;
+    {
+        Mutex::Autolock _l(mStateLock);
 
-    const Rect& dispScissor = display->getScissor();
-    if (!dispScissor.isEmpty()) {
-        sourceCrop.set(dispScissor);
-        // adb shell screencap will default reqWidth and reqHeight to zeros.
-        if (reqWidth == 0 || reqHeight == 0) {
-            reqWidth = uint32_t(display->getViewport().width());
-            reqHeight = uint32_t(display->getViewport().height());
+        display = getDisplayDeviceLocked(displayToken);
+        if (!display) return BAD_VALUE;
+
+        const Rect& dispScissor = display->getScissor();
+        if (!dispScissor.isEmpty()) {
+            sourceCrop.set(dispScissor);
+            // adb shell screencap will default reqWidth and reqHeight to zeros.
+            if (reqWidth == 0 || reqHeight == 0) {
+                reqWidth = uint32_t(display->getViewport().width());
+                reqHeight = uint32_t(display->getViewport().height());
+            }
+        }
+
+        // get screen geometry
+        uint32_t width = display->getWidth();
+        uint32_t height = display->getHeight();
+
+        if (renderAreaRotation & ui::Transform::ROT_90) {
+            std::swap(width, height);
+        }
+
+        if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+            std::swap(width, height);
+        }
+
+        if ((reqWidth > width) || (reqHeight > height)) {
+            ALOGE("size mismatch (%d, %d) > (%d, %d)", reqWidth, reqHeight, width, height);
+        } else {
+            if (reqWidth == 0) {
+                reqWidth = width;
+            }
+            if (reqHeight == 0) {
+                reqHeight = height;
+            }
         }
     }
 
@@ -5040,6 +5068,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     int32_t reqWidth = crop.width() * frameScale;
     int32_t reqHeight = crop.height() * frameScale;
 
+    // really small crop or frameScale
+    if (reqWidth <= 0) {
+        reqWidth = 1;
+    }
+    if (reqHeight <= 0) {
+        reqHeight = 1;
+    }
+
     LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, childrenOnly);
 
     auto traverseLayers = [parent, childrenOnly](const LayerVector::Visitor& visitor) {
@@ -5060,8 +5096,6 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              sp<GraphicBuffer>* outBuffer,
                                              bool useIdentityTransform) {
     ATRACE_CALL();
-
-    renderArea.updateDimensions(mPrimaryDisplayOrientation);
 
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
