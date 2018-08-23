@@ -89,6 +89,7 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
+    getBE().compositionInfo.hwc.visibleRegion = visible;
 
     setCompositionType(displayId, HWC2::Composition::SolidColor);
 
@@ -97,6 +98,7 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
         ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
               to_string(error).c_str(), static_cast<int32_t>(error));
     }
+    getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
 
     half4 color = getColor();
     error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
@@ -106,6 +108,9 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
         ALOGE("[%s] Failed to set color: %s (%d)", mName.string(), to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
+    getBE().compositionInfo.hwc.color = { static_cast<uint8_t>(std::round(255.0f * color.r)),
+                                      static_cast<uint8_t>(std::round(255.0f * color.g)),
+                                      static_cast<uint8_t>(std::round(255.0f * color.b)), 255 };
 
     // Clear out the transform, because it doesn't make sense absent a source buffer
     error = hwcLayer->setTransform(HWC2::Transform::None);
@@ -113,6 +118,7 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
         ALOGE("[%s] Failed to clear transform: %s (%d)", mName.string(), to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
+    getBE().compositionInfo.hwc.transform = HWC2::Transform::None;
 }
 
 // ---------------------------------------------------------------------------

@@ -114,7 +114,7 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
       : RenderEngine(featureFlags),
         mVpWidth(0),
         mVpHeight(0),
-        mPlatformHasWideColor((featureFlags & WIDE_COLOR_SUPPORT) != 0) {
+        mUseColorManagement(featureFlags & USE_COLOR_MANAGEMENT) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
 
@@ -132,7 +132,7 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
 
     // mColorBlindnessCorrection = M;
 
-    if (mPlatformHasWideColor) {
+    if (mUseColorManagement) {
         ColorSpace srgb(ColorSpace::sRGB());
         ColorSpace displayP3(ColorSpace::DisplayP3());
         ColorSpace bt2020(ColorSpace::BT2020());
@@ -322,8 +322,8 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     // BT2020 data space, in that case, the output data space is set to be
     // BT2020_HLG or BT2020_PQ respectively. In GPU fall back we need
     // to respect this and convert non-HDR content to HDR format.
-    if (mPlatformHasWideColor) {
-        Description wideColorState = mState;
+    if (mUseColorManagement) {
+        Description managedState = mState;
         Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
         Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
         Dataspace outputStandard = static_cast<Dataspace>(mOutputDataSpace &
@@ -336,26 +336,26 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
             // The supported input color spaces are standard RGB, Display P3 and BT2020.
             switch (inputStandard) {
                 case Dataspace::STANDARD_DCI_P3:
-                    wideColorState.setInputTransformMatrix(mDisplayP3ToXyz);
+                    managedState.setInputTransformMatrix(mDisplayP3ToXyz);
                     break;
                 case Dataspace::STANDARD_BT2020:
-                    wideColorState.setInputTransformMatrix(mBt2020ToXyz);
+                    managedState.setInputTransformMatrix(mBt2020ToXyz);
                     break;
                 default:
-                    wideColorState.setInputTransformMatrix(mSrgbToXyz);
+                    managedState.setInputTransformMatrix(mSrgbToXyz);
                     break;
             }
 
             // The supported output color spaces are BT2020, Display P3 and standard RGB.
             switch (outputStandard) {
                 case Dataspace::STANDARD_BT2020:
-                    wideColorState.setOutputTransformMatrix(mXyzToBt2020);
+                    managedState.setOutputTransformMatrix(mXyzToBt2020);
                     break;
                 case Dataspace::STANDARD_DCI_P3:
-                    wideColorState.setOutputTransformMatrix(mXyzToDisplayP3);
+                    managedState.setOutputTransformMatrix(mXyzToDisplayP3);
                     break;
                 default:
-                    wideColorState.setOutputTransformMatrix(mXyzToSrgb);
+                    managedState.setOutputTransformMatrix(mXyzToSrgb);
                     break;
             }
         } else if (inputStandard != outputStandard) {
@@ -370,9 +370,9 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
             // - sRGB
             // - Display P3
             if (outputStandard == Dataspace::STANDARD_BT709) {
-                wideColorState.setOutputTransformMatrix(mDisplayP3ToSrgb);
+                managedState.setOutputTransformMatrix(mDisplayP3ToSrgb);
             } else if (outputStandard == Dataspace::STANDARD_DCI_P3) {
-                wideColorState.setOutputTransformMatrix(mSrgbToDisplayP3);
+                managedState.setOutputTransformMatrix(mSrgbToDisplayP3);
             }
         }
 
@@ -380,44 +380,44 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
         // - there is a color matrix that is not an identity matrix, or
         // - there is an output transform matrix that is not an identity matrix, or
         // - the input transfer function doesn't match the output transfer function.
-        if (wideColorState.hasColorMatrix() || wideColorState.hasOutputTransformMatrix() ||
+        if (managedState.hasColorMatrix() || managedState.hasOutputTransformMatrix() ||
             inputTransfer != outputTransfer) {
             switch (inputTransfer) {
                 case Dataspace::TRANSFER_ST2084:
-                    wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
+                    managedState.setInputTransferFunction(Description::TransferFunction::ST2084);
                     break;
                 case Dataspace::TRANSFER_HLG:
-                    wideColorState.setInputTransferFunction(Description::TransferFunction::HLG);
+                    managedState.setInputTransferFunction(Description::TransferFunction::HLG);
                     break;
                 case Dataspace::TRANSFER_LINEAR:
-                    wideColorState.setInputTransferFunction(Description::TransferFunction::LINEAR);
+                    managedState.setInputTransferFunction(Description::TransferFunction::LINEAR);
                     break;
                 default:
-                    wideColorState.setInputTransferFunction(Description::TransferFunction::SRGB);
+                    managedState.setInputTransferFunction(Description::TransferFunction::SRGB);
                     break;
             }
 
             switch (outputTransfer) {
                 case Dataspace::TRANSFER_ST2084:
-                    wideColorState.setOutputTransferFunction(Description::TransferFunction::ST2084);
+                    managedState.setOutputTransferFunction(Description::TransferFunction::ST2084);
                     break;
                 case Dataspace::TRANSFER_HLG:
-                    wideColorState.setOutputTransferFunction(Description::TransferFunction::HLG);
+                    managedState.setOutputTransferFunction(Description::TransferFunction::HLG);
                     break;
                 default:
-                    wideColorState.setOutputTransferFunction(Description::TransferFunction::SRGB);
+                    managedState.setOutputTransferFunction(Description::TransferFunction::SRGB);
                     break;
             }
         }
 
-        ProgramCache::getInstance().useProgram(wideColorState);
+        ProgramCache::getInstance().useProgram(managedState);
 
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
 
         if (outputDebugPPMs) {
-            static uint64_t wideColorFrameCount = 0;
+            static uint64_t managedColorFrameCount = 0;
             std::ostringstream out;
-            out << "/data/texture_out" << wideColorFrameCount++;
+            out << "/data/texture_out" << managedColorFrameCount++;
             writePPM(out.str().c_str(), mVpWidth, mVpHeight);
         }
     } else {

@@ -100,6 +100,7 @@ class Layer;
 class Surface;
 class SurfaceFlingerBE;
 class VSyncSource;
+struct CompositionInfo;
 
 namespace impl {
 class EventThread;
@@ -224,6 +225,8 @@ public:
     // use to differentiate callbacks from different hardware composer
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
+
+    std::vector<CompositionInfo> mCompositionInfo;
 };
 
 
@@ -280,12 +283,12 @@ public:
     // FramebufferSurface
     static int64_t maxFrameBufferAcquiredBuffers;
 
-    // Indicate if platform supports color management on its
-    // wide-color display. This is typically found on devices
-    // with wide gamut (e.g. Display-P3) display.
-    // This also allows devices with wide-color displays that don't
-    // want to support color management to disable color management.
+    // Indicate if a device has wide color gamut display. This is typically
+    // found on devices with wide color gamut (e.g. Display-P3) display.
     static bool hasWideColorDisplay;
+
+    // Indicate if device wants color management on its display.
+    static bool useColorManagement;
 
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
@@ -431,6 +434,7 @@ private:
     virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
                                    const Rect& sourceCrop, float frameScale, bool childrenOnly);
     virtual status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
+    virtual status_t getDisplayViewport(const sp<IBinder>& display, Rect* outViewport);
     virtual status_t getDisplayConfigs(const sp<IBinder>& displayToken,
                                        Vector<DisplayInfo>* configs);
     virtual int getActiveConfig(const sp<IBinder>& displayToken);
@@ -673,14 +677,14 @@ private:
      * prior to any CompositionInfo handling and is not dependent on data in
      * CompositionInfo
      */
-    void beginFrame();
+    void beginFrame(const sp<DisplayDevice>& display);
     /* prepareFrame - This function will call into the DisplayDevice to prepare a
      * frame after CompositionInfo has been programmed.   This provides a mechanism
      * to prepare the hardware composer
      */
-    void prepareFrame();
-    void doComposition();
-    void doDebugFlashRegions();
+    void prepareFrame(const sp<DisplayDevice>& display);
+    void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
+    void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void doTracing(const char* where);
     void logLayerStats();
     void doDisplayComposition(const sp<const DisplayDevice>& display, const Region& dirtyRegion);
@@ -688,7 +692,8 @@ private:
     // This fails if using GL and the surface has been destroyed.
     bool doComposeSurfaces(const sp<const DisplayDevice>& display);
 
-    void postFramebuffer();
+    void postFramebuffer(const sp<DisplayDevice>& display);
+    void postFrame();
     void drawWormhole(const sp<const DisplayDevice>& display, const Region& region) const;
 
     /* ------------------------------------------------------------------------
@@ -844,9 +849,9 @@ private:
     int mDebugDisableHWC;
     int mDebugDisableTransformHint;
     volatile nsecs_t mDebugInSwapBuffers;
-    nsecs_t mLastSwapBufferTime;
     volatile nsecs_t mDebugInTransaction;
     nsecs_t mLastTransactionTime;
+    nsecs_t mPostFramebufferTime;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
     std::unique_ptr<SurfaceInterceptor> mInterceptor =

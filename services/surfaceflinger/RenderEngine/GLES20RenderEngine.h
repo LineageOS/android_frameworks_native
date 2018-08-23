@@ -94,8 +94,9 @@ protected:
     // Current output dataspace of the render engine
     ui::Dataspace mOutputDataSpace = ui::Dataspace::UNKNOWN;
 
-    // Currently only supporting sRGB, BT2020 and DisplayP3 color spaces
-    const bool mPlatformHasWideColor = false;
+    // Whether device supports color management, currently color management
+    // supports sRGB, DisplayP3 color spaces.
+    const bool mUseColorManagement = false;
     mat4 mSrgbToDisplayP3;
     mat4 mDisplayP3ToSrgb;
     mat3 mSrgbToXyz;

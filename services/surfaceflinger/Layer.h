@@ -513,6 +513,14 @@ public:
         return getBE().mHwcLayers[displayId].layer.get();
     }
 
+    bool setHwcLayer(int32_t hwcId) {
+        if (getBE().mHwcLayers.count(hwcId) == 0) {
+            return false;
+        }
+        getBE().compositionInfo.hwc.hwcLayer = getBE().mHwcLayers[hwcId].layer;
+        return true;
+    }
+
     // -----------------------------------------------------------------------
 
     void clearWithOpenGL(const RenderArea& renderArea) const;
