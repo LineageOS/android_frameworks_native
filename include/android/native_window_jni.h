@@ -44,6 +44,7 @@ extern "C" {
  */
 ANativeWindow* ANativeWindow_fromSurface(JNIEnv* env, jobject surface);
 
+#if __ANDROID_API__ >= 26
 /**
  * Return a Java Surface object derived from the ANativeWindow, for interacting
  * with it through Java code. The returned Java object acquires a reference on
@@ -52,6 +53,7 @@ ANativeWindow* ANativeWindow_fromSurface(JNIEnv* env, jobject surface);
  * collected.
  */
 jobject ANativeWindow_toSurface(JNIEnv* env, ANativeWindow* window) __INTRODUCED_IN(26);
+#endif
 
 #ifdef __cplusplus
 };
