@@ -143,6 +143,21 @@ bool isWideColorMode(const ColorMode colorMode) {
     return false;
 }
 
+ui::Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
+    switch (rotation) {
+        case ISurfaceComposer::eRotateNone:
+            return ui::Transform::ROT_0;
+        case ISurfaceComposer::eRotate90:
+            return ui::Transform::ROT_90;
+        case ISurfaceComposer::eRotate180:
+            return ui::Transform::ROT_180;
+        case ISurfaceComposer::eRotate270:
+            return ui::Transform::ROT_270;
+    }
+    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
+    return ui::Transform::ROT_0;
+}
+
 #pragma clang diagnostic pop
 
 class ConditionalLock {
@@ -4902,6 +4917,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
 
     if (!displayToken) return BAD_VALUE;
 
+    auto renderAreaRotation = fromSurfaceComposerRotation(rotation);
+
     const auto display = getDisplayDeviceLocked(displayToken);
     if (!display) return BAD_VALUE;
 
@@ -4915,7 +4932,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         }
     }
 
-    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, rotation);
+    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     display, minLayerZ, maxLayerZ, std::placeholders::_1);

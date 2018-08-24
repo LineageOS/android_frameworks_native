@@ -4,27 +4,6 @@
 
 namespace android {
 
-ui::Transform::orientation_flags fromRotation(ISurfaceComposer::Rotation rotation) {
-    switch (rotation) {
-        case ISurfaceComposer::eRotateNone:
-            return ui::Transform::ROT_0;
-        case ISurfaceComposer::eRotate90:
-            return ui::Transform::ROT_90;
-        case ISurfaceComposer::eRotate180:
-            return ui::Transform::ROT_180;
-        case ISurfaceComposer::eRotate270:
-            return ui::Transform::ROT_270;
-    }
-    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
-    return ui::Transform::ROT_0;
-}
-
-RenderArea::RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
-                       ISurfaceComposer::Rotation rotation)
-      : mReqWidth(reqWidth), mReqHeight(reqHeight), mCaptureFill(captureFill) {
-    mRotationFlags = fromRotation(rotation);
-}
-
 float RenderArea::getCaptureFillValue(CaptureFill captureFill) {
     switch(captureFill) {
         case CaptureFill::CLEAR:

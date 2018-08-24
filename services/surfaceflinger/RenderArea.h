@@ -1,7 +1,5 @@
 #pragma once
 
-#include <gui/ISurfaceComposer.h>
-#include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
 #include <functional>
@@ -21,7 +19,11 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
-               ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone);
+               ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
+          : mReqWidth(reqWidth),
+            mReqHeight(reqHeight),
+            mCaptureFill(captureFill),
+            mRotationFlags(rotation) {}
 
     virtual ~RenderArea() = default;
 
@@ -73,8 +75,8 @@ public:
 private:
     uint32_t mReqWidth;
     uint32_t mReqHeight;
-    ui::Transform::orientation_flags mRotationFlags;
-    CaptureFill mCaptureFill;
+    const CaptureFill mCaptureFill;
+    const ui::Transform::orientation_flags mRotationFlags;
 };
 
 } // namespace android
