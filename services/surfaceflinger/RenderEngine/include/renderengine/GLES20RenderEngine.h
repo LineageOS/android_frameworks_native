@@ -21,10 +21,9 @@
 #include <sys/types.h>
 
 #include <GLES2/gl2.h>
-
-#include "Description.h"
-#include "ProgramCache.h"
-#include "RenderEngine.h"
+#include <renderengine/Description.h>
+#include <renderengine/ProgramCache.h>
+#include <renderengine/RenderEngine.h>
 
 // ---------------------------------------------------------------------------
 namespace android {

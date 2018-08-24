@@ -20,9 +20,9 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "BufferStateLayer.h"
-#include "RenderEngine/Image.h"
 
 #include <private/gui/SyncFeatures.h>
+#include <renderengine/Image.h>
 
 namespace android {
 

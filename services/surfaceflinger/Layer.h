@@ -19,23 +19,26 @@
 
 #include <sys/types.h>
 
-#include <utils/RefBase.h>
-#include <utils/String8.h>
-#include <utils/Timers.h>
-
+#include <gui/BufferQueue.h>
+#include <gui/ISurfaceComposerClient.h>
+#include <gui/LayerState.h>
+#include <layerproto/LayerProtoHeader.h>
+#include <math/vec4.h>
+#include <renderengine/Mesh.h>
+#include <renderengine/Texture.h>
 #include <ui/FloatRect.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
+#include <utils/RefBase.h>
+#include <utils/String8.h>
+#include <utils/Timers.h>
 
-#include <gui/BufferQueue.h>
-#include <gui/ISurfaceComposerClient.h>
-#include <gui/LayerState.h>
-
-#include <list>
 #include <cstdint>
+#include <list>
+#include <vector>
 
 #include "Client.h"
 #include "FrameTracker.h"
@@ -45,15 +48,9 @@
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
 
-#include <layerproto/LayerProtoHeader.h>
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
 #include "RenderArea.h"
-#include "RenderEngine/Mesh.h"
-#include "RenderEngine/Texture.h"
-
-#include <math/vec4.h>
-#include <vector>
 
 using namespace android::surfaceflinger;
 

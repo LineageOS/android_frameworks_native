@@ -18,11 +18,11 @@
 
 #include <gmock/gmock.h>
 
-#include "RenderEngine/Image.h"
-#include "RenderEngine/Mesh.h"
-#include "RenderEngine/RenderEngine.h"
-#include "RenderEngine/Surface.h"
-#include "RenderEngine/Texture.h"
+#include <renderengine/Image.h>
+#include <renderengine/Mesh.h>
+#include <renderengine/RenderEngine.h>
+#include <renderengine/Surface.h>
+#include <renderengine/Texture.h>
 
 namespace android {
 namespace RE {

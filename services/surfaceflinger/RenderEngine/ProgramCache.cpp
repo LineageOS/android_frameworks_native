@@ -16,15 +16,14 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <renderengine/ProgramCache.h>
+
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-
+#include <renderengine/Description.h>
+#include <renderengine/Program.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
-
-#include "Description.h"
-#include "Program.h"
-#include "ProgramCache.h"
 
 namespace android {
 // -----------------------------------------------------------------------------------------------

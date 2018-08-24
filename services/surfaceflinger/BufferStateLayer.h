@@ -16,13 +16,12 @@
 
 #pragma once
 
-#include "RenderEngine/Image.h"
-#include "RenderEngine/RenderEngine.h"
-
 #include "BufferLayer.h"
 #include "Layer.h"
 
 #include <gui/GLConsumer.h>
+#include <renderengine/Image.h>
+#include <renderengine/RenderEngine.h>
 #include <system/window.h>
 #include <utils/String8.h>
 

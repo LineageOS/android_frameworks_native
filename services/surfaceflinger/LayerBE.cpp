@@ -20,9 +20,9 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "Layer.h"
-#include "RenderEngine/RenderEngine.h"
 
-#include "android-base/stringprintf.h"
+#include <android-base/stringprintf.h>
+#include <renderengine/RenderEngine.h>
 
 #include <string>
 

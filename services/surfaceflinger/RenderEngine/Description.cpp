@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+#include <renderengine/Description.h>
+
 #include <stdint.h>
 #include <string.h>
 
 #include <utils/TypeHelpers.h>
-
-#include "Description.h"
 
 namespace android {
 

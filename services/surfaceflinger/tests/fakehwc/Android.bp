@@ -30,8 +30,9 @@ cc_test {
         "libutils",
     ],
     static_libs: [
+        "libgmock",
+        "librenderengine",
         "libtrace_proto",
-        "libgmock"
     ],
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",

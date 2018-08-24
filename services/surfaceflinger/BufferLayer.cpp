@@ -24,7 +24,7 @@
 #include "DisplayDevice.h"
 #include "LayerRejecter.h"
 
-#include "RenderEngine/RenderEngine.h"
+#include <renderengine/RenderEngine.h>
 
 #include <gui/BufferItem.h>
 #include <gui/BufferQueue.h>
