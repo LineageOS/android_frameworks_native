@@ -25,7 +25,6 @@
 #include <math/mat4.h>
 
 #include <binder/IBinder.h>
-#include <gui/ISurfaceComposer.h>
 #include <hardware/hwcomposer_defs.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
@@ -337,11 +336,11 @@ struct DisplayDeviceState {
 class DisplayRenderArea : public RenderArea {
 public:
     DisplayRenderArea(const sp<const DisplayDevice> device,
-                      ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
+                      Transform::orientation_flags rotation = Transform::ROT_0)
           : DisplayRenderArea(device, device->getBounds(), device->getWidth(), device->getHeight(),
                               rotation) {}
     DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
-                      uint32_t reqHeight, ISurfaceComposer::Rotation rotation)
+                      uint32_t reqHeight, Transform::orientation_flags rotation)
           : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, rotation), mDevice(device),
                               mSourceCrop(sourceCrop) {}
 
