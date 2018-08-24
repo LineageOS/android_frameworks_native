@@ -807,4 +807,15 @@ HWComposer::getHwcDisplayId(int32_t displayId) const {
     return mDisplayData[displayId].hwcDisplay->getId();
 }
 
+void HWComposer::setDisplayFrequencyScaleParameters(
+        HWC2::Device::FrequencyScaler frequencyScaler)
+{
+    mHwcDevice->setDisplayFrequencyScaleParameters(frequencyScaler);
+}
+
+HWC2::Device::FrequencyScaler HWComposer::getDisplayFrequencyScaleParameters()
+{
+    return mHwcDevice->getDisplayFrequencyScaleParameters();
+}
+
 } // namespace android

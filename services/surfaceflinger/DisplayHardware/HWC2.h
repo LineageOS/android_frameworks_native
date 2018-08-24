@@ -85,6 +85,11 @@ class Device
 public:
     explicit Device(std::unique_ptr<android::Hwc2::Composer> composer);
 
+    struct FrequencyScaler {
+        int32_t multiplier = 1;
+        int32_t divisor = 1;
+    };
+
     void registerCallback(ComposerCallback* callback, int32_t sequenceId);
 
     // Required by HWC2
@@ -116,6 +121,9 @@ public:
     // This method provides an explicit way to flush state changes to HWC.
     Error flushCommands();
 
+    void setDisplayFrequencyScaleParameters(FrequencyScaler frequecyScaler);
+    FrequencyScaler getDisplayFrequencyScaleParameters();
+
 private:
     // Initialization methods
 
@@ -126,6 +134,7 @@ private:
     std::unordered_set<Capability> mCapabilities;
     std::unordered_map<hwc2_display_t, std::unique_ptr<Display>> mDisplays;
     android::Hwc2::impl::PowerAdvisor mPowerAdvisor;
+    FrequencyScaler mFrequencyScaler;
     bool mRegisteredCallback = false;
 };
 
@@ -161,8 +170,6 @@ public:
             }
             Builder& setVsyncPeriod(int32_t vsyncPeriod) {
                 mConfig->mVsyncPeriod = vsyncPeriod;
-                mConfig->mPeriodMultiplier = 1;
-                mConfig->mPeriodDivisor = 1;
                 return *this;
             }
             Builder& setDpiX(int32_t dpiX) {
@@ -193,11 +200,7 @@ public:
         int32_t getWidth() const { return mWidth; }
         int32_t getHeight() const { return mHeight; }
         nsecs_t getVsyncPeriod() const {
-            return mVsyncPeriod * mPeriodMultiplier / mPeriodDivisor; }
-        void scalePanelFrequency(int32_t multiplier, int32_t divisor) const {
-            mPeriodMultiplier = multiplier;
-            mPeriodDivisor = divisor;
-        }
+            return mVsyncPeriod * mFrequencyScaler.multiplier / mFrequencyScaler.divisor; }
         float getDpiX() const { return mDpiX; }
         float getDpiY() const { return mDpiY; }
 
@@ -210,8 +213,7 @@ public:
         int32_t mWidth;
         int32_t mHeight;
         nsecs_t mVsyncPeriod;
-        mutable int32_t mPeriodMultiplier;
-        mutable int32_t mPeriodDivisor;
+        Device::FrequencyScaler mFrequencyScaler;
         float mDpiX;
         float mDpiY;
     };
@@ -279,6 +281,7 @@ public:
     hwc2_display_t getId() const { return mId; }
     bool isConnected() const { return mIsConnected; }
     void setConnected(bool connected);  // For use by Device only
+    void setFrequencyScaleParameters(Device::FrequencyScaler frequencyScaler);
 
 private:
     int32_t getAttribute(hwc2_config_t configId, Attribute attribute);
@@ -303,6 +306,7 @@ private:
     hwc2_display_t mId;
     bool mIsConnected;
     DisplayType mType;
+    Device::FrequencyScaler mFrequencyScaler;
     std::unordered_map<hwc2_layer_t, std::unique_ptr<Layer>> mLayers;
     std::unordered_map<hwc2_config_t, std::shared_ptr<const Config>> mConfigs;
 };
