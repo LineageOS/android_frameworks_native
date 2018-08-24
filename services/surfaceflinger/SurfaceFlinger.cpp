@@ -805,6 +805,12 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         float xdpi = hwConfig->getDpiX();
         float ydpi = hwConfig->getDpiY();
 
+        info.w = hwConfig->getWidth();
+        info.h = hwConfig->getHeight();
+        // Default display viewport to display width and height
+        info.viewportW = info.w;
+        info.viewportH = info.h;
+
         if (type == DisplayDevice::DISPLAY_PRIMARY) {
             // The density of the device is provided by a build property
             float density = Density::getBuildDensity() / 160.0f;
@@ -824,6 +830,13 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
             // TODO: this needs to go away (currently needed only by webkit)
             const auto display = getDefaultDisplayDeviceLocked();
             info.orientation = display ? display->getOrientation() : 0;
+
+            // This is for screenrecord
+            const Rect viewport = display->getViewport();
+            if (viewport.isValid()) {
+                info.viewportW = uint32_t(viewport.getWidth());
+                info.viewportH = uint32_t(viewport.getHeight());
+            }
         } else {
             // TODO: where should this value come from?
             static const int TV_DENSITY = 213;
@@ -831,8 +844,6 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
             info.orientation = 0;
         }
 
-        info.w = hwConfig->getWidth();
-        info.h = hwConfig->getHeight();
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
@@ -876,21 +887,6 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
     memset(stats, 0, sizeof(*stats));
     stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
     stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
-    if (outViewport == nullptr || display.get() == nullptr) {
-        return BAD_VALUE;
-    }
-
-    sp<const DisplayDevice> device(getDisplayDevice(display));
-    if (device == nullptr) {
-        return BAD_VALUE;
-    }
-
-    *outViewport = device->getViewport();
-
     return NO_ERROR;
 }
 
@@ -4544,7 +4540,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_CONFIGS:
         case GET_DISPLAY_STATS:
-        case GET_DISPLAY_VIEWPORT:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
         // Calling setTransactionState is safe, because you need to have been
         // granted a reference to Client* and Handle* to do anything with it.

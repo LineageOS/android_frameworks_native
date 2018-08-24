@@ -79,9 +79,6 @@ public:
     static status_t getDisplayInfo(const sp<IBinder>& display,
             DisplayInfo* info);
 
-    // Get the display viewport for the given display
-    static status_t getDisplayViewport(const sp<IBinder>& display, Rect* outViewport);
-
     // Get the index of the current active configuration (relative to the list
     // returned by getDisplayInfo)
     static int getActiveConfig(const sp<IBinder>& display);

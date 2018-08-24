@@ -581,9 +581,6 @@ public:
             Vector<DisplayInfo>* /*configs*/) override { return NO_ERROR; }
     status_t getDisplayStats(const sp<IBinder>& /*display*/,
             DisplayStatInfo* /*stats*/) override { return NO_ERROR; }
-    status_t getDisplayViewport(const sp<IBinder>& /*display*/, Rect* /*outViewport*/) override {
-        return NO_ERROR;
-    }
     int getActiveConfig(const sp<IBinder>& /*display*/) override { return 0; }
     status_t setActiveConfig(const sp<IBinder>& /*display*/, int /*id*/)
             override {
