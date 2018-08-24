@@ -76,6 +76,7 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
+#include "Transform.h"
 #include "clz.h"
 
 #include "DisplayHardware/ComposerHal.h"
@@ -113,6 +114,27 @@ using ui::Hdr;
 using ui::RenderIntent;
 
 namespace {
+
+#pragma clang diagnostic push
+#pragma clang diagnostic error "-Wswitch-enum"
+
+Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
+    switch (rotation) {
+        case ISurfaceComposer::eRotateNone:
+            return Transform::ROT_0;
+        case ISurfaceComposer::eRotate90:
+            return Transform::ROT_90;
+        case ISurfaceComposer::eRotate180:
+            return Transform::ROT_180;
+        case ISurfaceComposer::eRotate270:
+            return Transform::ROT_270;
+    }
+    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
+    return Transform::ROT_0;
+}
+
+#pragma clang diagnostic pop
+
 class ConditionalLock {
 public:
     ConditionalLock(Mutex& mutex, bool lock) : mMutex(mutex), mLocked(lock) {
@@ -4856,6 +4878,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
 
     if (CC_UNLIKELY(display == 0)) return BAD_VALUE;
 
+    auto renderAreaRotation = fromSurfaceComposerRotation(rotation);
+
     const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
     if (CC_UNLIKELY(device == 0)) return BAD_VALUE;
 
@@ -4869,7 +4893,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
         }
     }
 
-    DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, rotation);
+    DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     device, minLayerZ, maxLayerZ, std::placeholders::_1);
