@@ -94,6 +94,13 @@ public:
         OP_PROCESS_OUTGOING_CALLS = 54,
         OP_USE_FINGERPRINT = 55,
         OP_BODY_SENSORS = 56,
+        OP_READ_CELL_BROADCASTS = 57,
+        OP_MOCK_LOCATION = 58,
+        OP_READ_EXTERNAL_STORAGE = 59,
+        OP_WRITE_EXTERNAL_STORAGE = 60,
+        OP_TURN_SCREEN_ON = 61,
+        OP_GET_ACCOUNTS = 62,
+        OP_RUN_IN_BACKGROUND = 63,
         OP_AUDIO_ACCESSIBILITY_VOLUME = 64,
         OP_READ_PHONE_NUMBERS = 65,
         OP_REQUEST_INSTALL_PACKAGES = 66,
@@ -109,6 +116,11 @@ public:
         OP_START_FOREGROUND = 76,
         OP_BLUETOOTH_SCAN = 77,
         OP_USE_BIOMETRIC = 78,
+        OP_BLUETOOTH_CHANGE = 79,
+        OP_BOOT_COMPLETED = 80,
+        OP_NFC_CHANGE = 81,
+        OP_DATA_CONNECT_CHANGE = 82,
+        OP_SU = 83
     };
 
     AppOpsManager();
