@@ -46,6 +46,17 @@ cc_library_shared {
         "-Wno-padded",
     ],
 
+    product_variables: {
+        lineage: {
+            additional_gralloc_10_usage_bits: {
+                cppflags: ["-DADDNL_GRALLOC_10_USAGE_BITS=%s"],
+            },
+            has_additional_gralloc_10_usage_bits: {
+                cppflags: ["-DHAS_ADDNL_GRALLOC_10_USAGE_BITS"],
+            },
+        },
+    },
+
     sanitize: {
         integer_overflow: true,
     },
