@@ -29,6 +29,14 @@ cc_library_shared {
         "-Wextra",
     ],
 
+    product_variables: {
+        lineage: {
+            additional_gralloc_10_usage_bits: {
+                cppflags: ["-DADDNL_GRALLOC_10_USAGE_BITS=%s"],
+            },
+        },
+    },
+
     sanitize: {
         integer_overflow: true,
         misc_undefined: ["bounds"],
