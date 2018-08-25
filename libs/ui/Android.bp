@@ -65,8 +65,11 @@ cc_library_shared {
         "include_private",
     ],
 
-    // Uncomment the following line to enable VALIDATE_REGIONS traces
-    //defaults: ["libui-validate-regions-defaults"],
+    defaults: [
+        "gralloc_10_usage_bits_defaults",
+        // Uncomment the following line to enable VALIDATE_REGIONS traces
+        // "libui-validate-regions-defaults",
+    ],
 
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",

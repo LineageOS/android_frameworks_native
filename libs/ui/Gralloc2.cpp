@@ -48,6 +48,13 @@ uint64_t getValid10UsageBits() {
         for (const auto bit : hardware::hidl_enum_range<BufferUsage>()) {
             bits = bits | bit;
         }
+
+#ifdef ADDNL_GRALLOC_10_USAGE_BITS
+        uint64_t addnl_bits = static_cast<uint64_t>(ADDNL_GRALLOC_10_USAGE_BITS);
+        ALOGI("Adding additional valid usage bits: 0x%" PRIx64, addnl_bits);
+        bits = bits | addnl_bits;
+#endif
+
         return bits;
     }();
     return valid10UsageBits;
