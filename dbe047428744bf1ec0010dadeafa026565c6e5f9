@@ -34,6 +34,24 @@
       "revId": "dbe047428744bf1ec0010dadeafa026565c6e5f9",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "38ec4240_4f445b69",
+        "filename": "libs/ui/Gralloc2.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 11801
+      },
+      "writtenOn": "2018-08-26T20:59:04Z",
+      "side": 1,
+      "message": "That\u0027s pretty terrible style, but OK; that\u0027s a fair point.",
+      "parentUuid": "5dc436f9_e5bb2a60",
+      "revId": "dbe047428744bf1ec0010dadeafa026565c6e5f9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
