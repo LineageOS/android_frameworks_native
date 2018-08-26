@@ -16,6 +16,24 @@
       "revId": "dbe047428744bf1ec0010dadeafa026565c6e5f9",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "5dc436f9_e5bb2a60",
+        "filename": "libs/ui/Gralloc2.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 51,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2018-08-26T20:39:03Z",
+      "side": 1,
+      "message": "\u003e Why not just bits |\u003d addnl_bits? That\u0027s the canonical way to do this, isn\u0027t it?\nConsistency of style with Google\u0027s code.",
+      "parentUuid": "7510fea0_031970a5",
+      "revId": "dbe047428744bf1ec0010dadeafa026565c6e5f9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
