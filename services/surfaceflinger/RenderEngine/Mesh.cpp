@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "Mesh.h"
+#include <renderengine/Mesh.h>
 
 #include <utils/Log.h>
 

@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <string.h>
+#include <renderengine/Texture.h>
 
-#include "Texture.h"
+#include <string.h>
 
 namespace android {
 

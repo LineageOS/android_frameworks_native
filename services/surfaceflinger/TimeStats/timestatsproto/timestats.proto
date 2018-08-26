@@ -20,10 +20,11 @@ package android.surfaceflinger;
 
 option optimize_for = LITE_RUNTIME;
 
-// //depot/google3/java/com/google/android/apps/graphics/proto/timestats.proto
-// is based on this proto. Please only make valid protobuf changes to these
-// messages, and keep the other file in sync per Android release. Please also
-// do not include "option optimize_for = LITE_RUNTIME;" on google3 side.
+// //depot/google3/java/com/google/android/apps/graphics/stats/proto/
+// timestats.proto is based on this proto. Please only make valid protobuf
+// changes to these messages, and keep the other file in sync per Android
+// release. Please also do not include "option optimize_for = LITE_RUNTIME;" at
+// google3 side.
 
 // Next tag: 7
 message SFTimeStatsGlobalProto {

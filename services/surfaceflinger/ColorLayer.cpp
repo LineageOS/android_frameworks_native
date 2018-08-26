@@ -22,14 +22,13 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <renderengine/RenderEngine.h>
+#include <ui/GraphicBuffer.h>
 #include <utils/Errors.h>
 #include <utils/Log.h>
 
-#include <ui/GraphicBuffer.h>
-
 #include "ColorLayer.h"
 #include "DisplayDevice.h"
-#include "RenderEngine/RenderEngine.h"
 #include "SurfaceFlinger.h"
 
 namespace android {

@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#include "Surface.h"
-
-#include "RenderEngine.h"
+#include <renderengine/Surface.h>
 
 #include <log/log.h>
+#include <renderengine/RenderEngine.h>
 #include <ui/PixelFormat.h>
 
 namespace android {

@@ -19,14 +19,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <renderengine/Mesh.h>
+#include <renderengine/Texture.h>
 #include <ui/Region.h>
-
-#include "SurfaceFlinger.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
-#include "RenderEngine/Mesh.h"
-#include "RenderEngine/Texture.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 
@@ -40,6 +39,7 @@ struct CompositionInfo {
     std::shared_ptr<LayerBE> layer;
     struct {
         std::shared_ptr<HWC2::Layer> hwcLayer;
+        int32_t displayId = -1;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;
@@ -72,8 +72,9 @@ struct CompositionInfo {
     } re;
 
     void dump(const char* tag) const;
-    void dumpHwc(const char* tag) const;
-    void dumpRe(const char* tag) const;
+    void dump(std::string& result, const char* tag = nullptr) const;
+    void dumpHwc(std::string& result, const char* tag = nullptr) const;
+    void dumpRe(std::string& result, const char* tag = nullptr) const;
 };
 
 class LayerBE {

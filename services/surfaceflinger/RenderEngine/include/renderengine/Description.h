@@ -15,7 +15,7 @@
  */
 
 #include <GLES2/gl2.h>
-#include "Texture.h"
+#include <renderengine/Texture.h>
 
 #ifndef SF_RENDER_ENGINE_DESCRIPTION_H_
 #define SF_RENDER_ENGINE_DESCRIPTION_H_

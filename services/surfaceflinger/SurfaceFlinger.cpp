@@ -47,7 +47,7 @@
 #include <gui/IDisplayEventConnection.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
-
+#include <renderengine/RenderEngine.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
 #include <ui/UiConfig.h>
@@ -82,7 +82,6 @@
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/VirtualDisplaySurface.h"
 #include "Effects/Daltonizer.h"
-#include "RenderEngine/RenderEngine.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/DispSyncSource.h"
 #include "Scheduler/EventControlThread.h"
@@ -90,6 +89,8 @@
 #include "Scheduler/InjectVSyncSource.h"
 
 #include <cutils/compiler.h>
+
+#include "android-base/stringprintf.h"
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
@@ -778,18 +779,18 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
 
     // TODO: Not sure if display density should handled by SF any longer
     class Density {
-        static int getDensityFromProperty(char const* propName) {
+        static float getDensityFromProperty(char const* propName) {
             char property[PROPERTY_VALUE_MAX];
-            int density = 0;
+            float density = 0.0f;
             if (property_get(propName, property, nullptr) > 0) {
-                density = atoi(property);
+                density = strtof(property, nullptr);
             }
             return density;
         }
     public:
-        static int getEmuDensity() {
+        static float getEmuDensity() {
             return getDensityFromProperty("qemu.sf.lcd_density"); }
-        static int getBuildDensity()  {
+        static float getBuildDensity()  {
             return getDensityFromProperty("ro.sf.lcd_density"); }
     };
 
@@ -1481,10 +1482,15 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
-    mLayersWithQueuedFrames.clear();
-    for (auto& compositionInfo : getBE().mCompositionInfo) {
-        compositionInfo.hwc.hwcLayer = nullptr;
+    getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
+        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[displayId]) {
+            compositionInfo.hwc.hwcLayer = nullptr;
+        }
     }
+
+    mLayersWithQueuedFrames.clear();
 }
 
 
@@ -1569,16 +1575,18 @@ void SurfaceFlinger::calculateWorkingSet() {
     }
 
     mDrawingState.colorMatrixChanged = false;
-    getBE().mCompositionInfo.clear();
 
     for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
+        getBE().mCompositionInfo[displayId].clear();
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
             auto displayId = display->getId();
             layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
             if (!layer->setHwcLayer(displayId)) {
                 ALOGV("Need to create HWCLayer for %s", layer->getName().string());
             }
-            getBE().mCompositionInfo.push_back(layer->getBE().compositionInfo);
+            layer->getBE().compositionInfo.hwc.displayId = displayId;
+            getBE().mCompositionInfo[displayId].push_back(layer->getBE().compositionInfo);
             layer->getBE().compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
@@ -3919,6 +3927,13 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
             }
 
             if ((index < numArgs) &&
+                    (args[index] == String16("--frame-composition"))) {
+                index++;
+                dumpFrameCompositionInfo(result);
+                dumpAll = false;
+            }
+
+            if ((index < numArgs) &&
                 (args[index] == String16("--display-identification"))) {
                 index++;
                 dumpDisplayIdentificationData(result);
@@ -4176,6 +4191,31 @@ void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
     result.append("\n");
 }
 
+void SurfaceFlinger::dumpFrameCompositionInfo(String8& result) const {
+    std::string stringResult;
+
+    for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
+        if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+            continue;
+        }
+
+        const auto& compositionInfoIt = getBE().mEndOfFrameCompositionInfo.find(displayId);
+        if (compositionInfoIt == getBE().mEndOfFrameCompositionInfo.end()) {
+            break;
+        }
+        const auto& compositionInfoList = compositionInfoIt->second;
+        stringResult += base::StringPrintf("Display: %d\n", displayId);
+        stringResult += base::StringPrintf("numComponents: %zu\n", compositionInfoList.size());
+        for (const auto& compositionInfo : compositionInfoList) {
+            compositionInfo.dump(stringResult, nullptr);
+            stringResult += base::StringPrintf("\n");
+        }
+    }
+
+    result.append(stringResult.c_str());
+}
+
 LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
     LayersProto layersProto;
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
@@ -4300,6 +4340,10 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
     auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
     result.append(LayerProtoParser::layersToString(std::move(layerTree)).c_str());
+    result.append("\n");
+
+    result.append("\nFrame-Composition information:\n");
+    dumpFrameCompositionInfo(result);
     result.append("\n");
 
     /*
@@ -4785,27 +4829,40 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 // Code 1029 is an experimental feature that allows applications to
                 // simulate a high frequency panel by setting a multiplier and divisor
                 // on the VSYNC-sf clock.  If either the multiplier or divisor are
-                // 0, then the code will set both to 1 to return the VSYNC-sf clock
-                // to it's normal frequency.
-                int multiplier = data.readInt32();
-                int divisor = data.readInt32();
+                // 0, then the code simply return the current multiplier and divisor.
+                HWC2::Device::FrequencyScaler frequencyScaler;
+                frequencyScaler.multiplier = data.readInt32();
+                frequencyScaler.divisor = data.readInt32();
 
-                if ((multiplier == 0) || (divisor == 0)) {
-                    multiplier = 1;
-                    divisor = 1;
+                if ((frequencyScaler.multiplier == 0) || (frequencyScaler.divisor == 0)) {
+                    frequencyScaler = getBE().mHwc->getDisplayFrequencyScaleParameters();
+                    reply->writeInt32(frequencyScaler.multiplier);
+                    reply->writeInt32(frequencyScaler.divisor);
+                    return NO_ERROR;
                 }
 
-                if ((multiplier == 1) && (divisor == 1)) {
+                if ((frequencyScaler.multiplier == 1) && (frequencyScaler.divisor == 1)) {
                     enableHardwareVsync();
                 } else {
                     disableHardwareVsync(true);
                 }
-                getBE().mHwc->getActiveConfig(DisplayDevice::DISPLAY_PRIMARY)
-                    ->scalePanelFrequency(multiplier, divisor);
-                mPrimaryDispSync->scalePeriod(multiplier, divisor);
+                mPrimaryDispSync->scalePeriod(frequencyScaler);
+                getBE().mHwc->setDisplayFrequencyScaleParameters(frequencyScaler);
 
-                ATRACE_INT("PeriodMultiplier", multiplier);
-                ATRACE_INT("PeriodDivisor", divisor);
+                ATRACE_INT("PeriodMultiplier", frequencyScaler.multiplier);
+                ATRACE_INT("PeriodDivisor", frequencyScaler.divisor);
+
+                const hwc2_display_t hwcDisplayId = getBE().mHwc->getActiveConfig(
+                        DisplayDevice::DISPLAY_PRIMARY)->getDisplayId();
+
+                onHotplugReceived(getBE().mComposerSequenceId,
+                        hwcDisplayId, HWC2::Connection::Disconnected);
+                onHotplugReceived(getBE().mComposerSequenceId,
+                        hwcDisplayId, HWC2::Connection::Connected);
+                frequencyScaler = getBE().mHwc->getDisplayFrequencyScaleParameters();
+                reply->writeInt32(frequencyScaler.multiplier);
+                reply->writeInt32(frequencyScaler.divisor);
+
                 return NO_ERROR;
             }
             // Is device color managed?

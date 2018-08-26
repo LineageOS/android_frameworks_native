@@ -332,10 +332,14 @@ Error VrHwc::getActiveConfig(Display display, Config* outConfig) {
   return Error::NONE;
 }
 
-Error VrHwc::getClientTargetSupport(Display /* display */, uint32_t /* width */,
+Error VrHwc::getClientTargetSupport(Display display, uint32_t /* width */,
                                     uint32_t /* height */,
                                     PixelFormat /* format */,
                                     Dataspace /* dataspace */) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (!FindDisplay(display))
+    return Error::BAD_DISPLAY;
+
   return Error::NONE;
 }
 
@@ -466,15 +470,36 @@ Error VrHwc::setColorMode(Display display, ColorMode mode) {
   if (!display_ptr)
     return Error::BAD_DISPLAY;
 
+  if (mode < ColorMode::NATIVE || mode > ColorMode::DISPLAY_P3)
+    return Error::BAD_PARAMETER;
+
   display_ptr->set_color_mode(mode);
   return Error::NONE;
 }
 
 Error VrHwc::setPowerMode(Display display, IComposerClient::PowerMode mode) {
+  bool dozeSupported = false;
+
+  Error dozeSupportError = getDozeSupport(display, &dozeSupported);
+
+  if (dozeSupportError != Error::NONE)
+    return dozeSupportError;
+
   std::lock_guard<std::mutex> guard(mutex_);
   auto display_ptr = FindDisplay(display);
   if (!display_ptr)
     return Error::BAD_DISPLAY;
+
+  if (mode < IComposerClient::PowerMode::OFF ||
+      mode > IComposerClient::PowerMode::DOZE_SUSPEND) {
+    return Error::BAD_PARAMETER;
+  }
+
+  if (!dozeSupported &&
+      (mode == IComposerClient::PowerMode::DOZE ||
+       mode == IComposerClient::PowerMode::DOZE_SUSPEND)) {
+    return Error::UNSUPPORTED;
+  }
 
   display_ptr->set_power_mode(mode);
   return Error::NONE;

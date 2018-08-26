@@ -20,10 +20,7 @@
 //#define LOG_NDEBUG 0
 
 #include "BufferLayerConsumer.h"
-
 #include "Layer.h"
-#include "RenderEngine/Image.h"
-#include "RenderEngine/RenderEngine.h"
 #include "Scheduler/DispSync.h"
 
 #include <inttypes.h>
@@ -38,9 +35,9 @@
 #include <gui/GLConsumer.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/SurfaceComposerClient.h>
-
 #include <private/gui/ComposerService.h>
-
+#include <renderengine/Image.h>
+#include <renderengine/RenderEngine.h>
 #include <utils/Log.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>

@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "Image.h"
+#include <renderengine/Image.h>
 
 #include <vector>
 
 #include <log/log.h>
 
-#include "GLExtensions.h"
-#include "RenderEngine.h"
+#include <renderengine/GLExtensions.h>
+#include <renderengine/RenderEngine.h>
 
 namespace android {
 namespace RE {

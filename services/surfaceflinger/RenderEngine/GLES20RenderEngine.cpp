@@ -19,25 +19,23 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <renderengine/GLES20RenderEngine.h>
+
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-
+#include <renderengine/Description.h>
+#include <renderengine/Mesh.h>
+#include <renderengine/Program.h>
+#include <renderengine/ProgramCache.h>
+#include <renderengine/Texture.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/Rect.h>
-
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
 #include <cutils/compiler.h>
 #include <math.h>
-
-#include "Description.h"
-#include "GLES20RenderEngine.h"
-#include "Mesh.h"
-#include "Program.h"
-#include "ProgramCache.h"
-#include "Texture.h"
 
 #include <fstream>
 #include <sstream>

@@ -14,22 +14,21 @@
  * limitations under the License.
  */
 
-#include <log/log.h>
-#include <ui/Rect.h>
-#include <ui/Region.h>
-
-#include "GLES20RenderEngine.h"
-#include "GLExtensions.h"
-#include "Image.h"
-#include "Mesh.h"
-#include "RenderEngine.h"
-
-#include <SurfaceFlinger.h>
-#include <vector>
+#include <renderengine/RenderEngine.h>
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
+#include <log/log.h>
 #include <private/gui/SyncFeatures.h>
+#include <renderengine/GLES20RenderEngine.h>
+#include <renderengine/GLExtensions.h>
+#include <renderengine/Image.h>
+#include <renderengine/Mesh.h>
+#include <renderengine/Surface.h>
+#include <ui/Rect.h>
+#include <ui/Region.h>
+
+#include <vector>
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;

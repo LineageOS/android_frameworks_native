@@ -53,7 +53,7 @@
 
 #include "DisplayHardware/HWComposer.h"
 
-#include "RenderEngine/RenderEngine.h"
+#include <renderengine/RenderEngine.h>
 
 #include <mutex>
 #include "LayerProtoHelper.h"
@@ -772,16 +772,12 @@ void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool c
 }
 
 HWC2::Composition Layer::getCompositionType(int32_t displayId) const {
-    if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+    if (getBE().mHwcLayers.count(displayId) == 0) {
         // If we're querying the composition type for a display that does not
         // have a HWC counterpart, then it will always be Client
         return HWC2::Composition::Client;
     }
-    if (getBE().mHwcLayers.count(displayId) == 0) {
-        ALOGE("getCompositionType called with an invalid HWC layer");
-        return HWC2::Composition::Invalid;
-    }
-    return getBE().mHwcLayers.at(displayId).compositionType;
+    return getBE().mHwcLayers[displayId].compositionType;
 }
 
 void Layer::setClearClientTarget(int32_t displayId, bool clear) {
@@ -1536,6 +1532,12 @@ void Layer::miniDump(String8& result, int32_t displayId) const {
     result.appendFormat("%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
     const FloatRect& crop = hwcInfo.sourceCrop;
     result.appendFormat("%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right, crop.bottom);
+
+    result.append("- - - - - - - - - - - - - - - -\n");
+
+    std::string compositionInfoStr;
+    getBE().compositionInfo.dump(compositionInfoStr, "compositionInfo");
+    result.append(compositionInfoStr.c_str());
 
     result.append("- - - - - - - - - - - - - - - -");
     result.append("- - - - - - - - - - - - - - - -");

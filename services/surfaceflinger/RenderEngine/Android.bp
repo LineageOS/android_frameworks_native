@@ -1,0 +1,75 @@
+// TODO(b/112585051) Add to VNDK once moved to libs/
+cc_defaults {
+    name: "renderengine_defaults",
+    cflags: [
+        "-DLOG_TAG=\"RenderEngine\"",
+        "-Wall",
+        "-Werror",
+        "-Wthread-safety",
+        "-Wunused",
+        "-Wunreachable-code",
+    ],
+    cppflags: ["-std=c++1z"],
+}
+
+cc_defaults {
+    name: "librenderengine_defaults",
+    defaults: ["renderengine_defaults"],
+    cflags: [
+        "-DGL_GLEXT_PROTOTYPES",
+        "-DEGL_EGLEXT_PROTOTYPES",
+    ],
+    shared_libs: [
+        "android.hardware.configstore-utils",
+        "android.hardware.configstore@1.0",
+        "android.hardware.configstore@1.1",
+        "android.hardware.configstore@1.2",
+        "libcutils",
+        "libEGL",
+        "libGLESv1_CM",
+        "libGLESv2",
+        "libgui",
+        "liblog",
+        "libui",
+        "libutils",
+    ],
+    local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}
+
+filegroup {
+    name: "librenderengine_sources",
+    srcs: [
+        "Description.cpp",
+        "GLES20RenderEngine.cpp",
+        "GLExtensions.cpp",
+        "Image.cpp",
+        "Mesh.cpp",
+        "Program.cpp",
+        "ProgramCache.cpp",
+        "RenderEngine.cpp",
+        "Surface.cpp",
+        "Texture.cpp",
+    ],
+}
+
+cc_library_static {
+    name: "librenderengine",
+    defaults: ["librenderengine_defaults"],
+    double_loadable: true,
+
+    clang: true,
+    cflags: [
+        "-fvisibility=hidden",
+        "-Werror=format",
+    ],
+    cppflags: [
+        "-fwhole-program-vtables", // requires ThinLTO
+    ],
+    srcs: [
+        ":librenderengine_sources",
+    ],
+    lto: {
+        thin: true,
+    },
+}
