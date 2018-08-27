@@ -87,6 +87,7 @@ public:
             std::unique_ptr<RE::Surface> renderSurface,
             int displayWidth,
             int displayHeight,
+            int displayInstallOrientation,
             bool hasWideColorGamut,
             const HdrCapabilities& hdrCapabilities,
             const int32_t supportedPerFrameMetadata,
@@ -110,6 +111,7 @@ public:
 
     int         getWidth() const;
     int         getHeight() const;
+    int         getInstallOrientation() const { return mDisplayInstallOrientation; }
 
     void                    setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers);
     const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
@@ -233,6 +235,7 @@ private:
     std::unique_ptr<RE::Surface> mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
+    const int       mDisplayInstallOrientation;
     mutable uint32_t mPageFlipCount;
     String8         mDisplayName;
     bool            mIsSecure;
