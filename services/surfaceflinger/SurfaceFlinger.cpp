@@ -167,7 +167,7 @@ bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 // TODO(courtneygo): Rename hasWideColorDisplay to clarify its actual meaning.
 bool SurfaceFlinger::hasWideColorDisplay;
-
+int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -302,19 +302,19 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
 
     switch (primaryDisplayOrientation) {
         case V1_1::DisplayOrientation::ORIENTATION_90:
-            mPrimaryDisplayOrientation = DisplayState::eOrientation90;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation90;
             break;
         case V1_1::DisplayOrientation::ORIENTATION_180:
-            mPrimaryDisplayOrientation = DisplayState::eOrientation180;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation180;
             break;
         case V1_1::DisplayOrientation::ORIENTATION_270:
-            mPrimaryDisplayOrientation = DisplayState::eOrientation270;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation270;
             break;
         default:
-            mPrimaryDisplayOrientation = DisplayState::eOrientationDefault;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
             break;
     }
-    ALOGV("Primary Display Orientation is set to %2d.", mPrimaryDisplayOrientation);
+    ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
     mPrimaryDispSync.init(SurfaceFlinger::hasSyncFramework, SurfaceFlinger::dispSyncPresentTimeOffset);
 
@@ -980,7 +980,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& display,
         info.secure = true;
 
         if (type == DisplayDevice::DISPLAY_PRIMARY &&
-            mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+            primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
             std::swap(info.w, info.h);
         }
 
@@ -4898,7 +4898,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
             reqHeight = uint32_t(device->getViewport().height());
         }
 
-        // XXX mPrimaryDisplayOrientation is ignored
+        // XXX primaryDisplayOrientation is ignored
     }
 
     DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
@@ -5119,7 +5119,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     Rect sourceCrop = renderArea.getSourceCrop();
 
     bool filtering = false;
-    if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+    if (primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
         filtering = static_cast<int32_t>(reqWidth) != raHeight ||
                 static_cast<int32_t>(reqHeight) != raWidth;
     } else {
@@ -5131,10 +5131,10 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     if (sourceCrop.width() == 0 || sourceCrop.height() == 0 || !sourceCrop.isValid()) {
         sourceCrop.setLeftTop(Point(0, 0));
         sourceCrop.setRightBottom(Point(raWidth, raHeight));
-    } else if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
+    } else if (primaryDisplayOrientation != DisplayState::eOrientationDefault) {
         Transform tr;
         uint32_t flags = 0x00;
-        switch (mPrimaryDisplayOrientation) {
+        switch (primaryDisplayOrientation) {
             case DisplayState::eOrientation90:
                 flags = Transform::ROT_90;
                 break;
@@ -5157,12 +5157,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     engine.checkErrors();
 
     Transform::orientation_flags rotation = renderArea.getRotationFlags();
-    if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
+    if (primaryDisplayOrientation != DisplayState::eOrientationDefault) {
         // convert hw orientation into flag presentation
         // here inverse transform needed
         uint8_t hw_rot_90  = 0x00;
         uint8_t hw_flip_hv = 0x00;
-        switch (mPrimaryDisplayOrientation) {
+        switch (primaryDisplayOrientation) {
             case DisplayState::eOrientation90:
                 hw_rot_90 = Transform::ROT_90;
                 hw_flip_hv = Transform::ROT_180;
