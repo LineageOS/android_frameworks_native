@@ -329,8 +329,9 @@ public:
             sp<DisplayDevice> device =
                     new DisplayDevice(mFlinger.mFlinger.get(), mType, mDisplayId, mSecure,
                                       mDisplayToken, mNativeWindow, mDisplaySurface,
-                                      std::move(mRenderSurface), 0, 0, false, HdrCapabilities(), 0,
-                                      hdrAndRenderIntents, HWC_POWER_MODE_NORMAL);
+                                      std::move(mRenderSurface), 0, 0,
+                                      DisplayState::eOrientationDefault, false, HdrCapabilities(),
+                                      0, hdrAndRenderIntents, HWC_POWER_MODE_NORMAL);
             mFlinger.mutableDisplays().emplace(mDisplayToken, device);
 
             DisplayDeviceState state;
