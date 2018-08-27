@@ -1019,10 +1019,6 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
                  s.active_legacy.w, s.active_legacy.h, s.crop_legacy.left, s.crop_legacy.top,
                  s.crop_legacy.right, s.crop_legacy.bottom, s.crop_legacy.getWidth(),
                  s.crop_legacy.getHeight(), s.requested_legacy.w, s.requested_legacy.h);
-
-        // record the new size, form this point on, when the client request
-        // a buffer, it'll get the new size.
-        setDefaultBufferSize(stateToCommit->requested_legacy.w, stateToCommit->requested_legacy.h);
     }
 
     // Don't let Layer::doTransaction update the drawing state
@@ -1259,6 +1255,10 @@ bool Layer::setSize(uint32_t w, uint32_t h) {
     mCurrentState.requested_legacy.h = h;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+
+    // record the new size, from this point on, when the client request
+    // a buffer, it'll get the new size.
+    setDefaultBufferSize(mCurrentState.requested_legacy.w, mCurrentState.requested_legacy.h);
     return true;
 }
 bool Layer::setAlpha(float alpha) {
