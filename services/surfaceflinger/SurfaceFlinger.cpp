@@ -4909,15 +4909,11 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
             std::swap(width, height);
         }
 
-        if ((reqWidth > width) || (reqHeight > height)) {
-            ALOGE("size mismatch (%d, %d) > (%d, %d)", reqWidth, reqHeight, width, height);
-        } else {
-            if (reqWidth == 0) {
-                reqWidth = width;
-            }
-            if (reqHeight == 0) {
-                reqHeight = height;
-            }
+        if (reqWidth == 0) {
+            reqWidth = width;
+        }
+        if (reqHeight == 0) {
+            reqHeight = height;
         }
     }
 
@@ -5167,20 +5163,6 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
         }
         tr.set(flags, raWidth, raHeight);
         sourceCrop = tr.transform(sourceCrop);
-    }
-
-    // ensure that sourceCrop is inside screen
-    if (sourceCrop.left < 0) {
-        ALOGE("Invalid crop rect: l = %d (< 0)", sourceCrop.left);
-    }
-    if (sourceCrop.right > raWidth) {
-        ALOGE("Invalid crop rect: r = %d (> %d)", sourceCrop.right, raWidth);
-    }
-    if (sourceCrop.top < 0) {
-        ALOGE("Invalid crop rect: t = %d (< 0)", sourceCrop.top);
-    }
-    if (sourceCrop.bottom > raHeight) {
-        ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, raHeight);
     }
 
     // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
