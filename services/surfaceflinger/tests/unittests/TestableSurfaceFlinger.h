@@ -306,10 +306,11 @@ public:
         sp<DisplayDevice> inject() {
             std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hdrAndRenderIntents;
             sp<DisplayDevice> device =
-                    new DisplayDevice(mFlinger.mFlinger.get(), mType, mHwcId, mSecure, mDisplayToken,
-                                      mNativeWindow, mDisplaySurface, std::move(mRenderSurface), 0,
-                                      0, false, HdrCapabilities(), 0, hdrAndRenderIntents,
-                                      HWC_POWER_MODE_NORMAL);
+                    new DisplayDevice(mFlinger.mFlinger.get(), mType, mHwcId, mSecure,
+                                      mDisplayToken, mNativeWindow, mDisplaySurface,
+                                      std::move(mRenderSurface), 0, 0,
+                                      DisplayState::eOrientationDefault, false, HdrCapabilities(),
+                                      0, hdrAndRenderIntents, HWC_POWER_MODE_NORMAL);
             mFlinger.mutableDisplays().add(mDisplayToken, device);
 
             DisplayDeviceState state(mType, mSecure);
