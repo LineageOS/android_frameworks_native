@@ -610,7 +610,7 @@ void DisplayDevice::setProjection(int orientation,
     // need to take care of primary display rotation for mGlobalTransform
     // for case if the panel is not installed aligned with device orientation
     if (mType == DisplayType::DISPLAY_PRIMARY) {
-        int primaryDisplayOrientation = mFlinger->getPrimaryDisplayOrientation();
+        int primaryDisplayOrientation = SurfaceFlinger::primaryDisplayOrientation;
         DisplayDevice::orientationToTransfrom(
                 (orientation + primaryDisplayOrientation) % (DisplayState::eOrientation270 + 1),
                 w, h, &R);
