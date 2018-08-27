@@ -2423,6 +2423,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
+    const int displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY ?
+        primaryDisplayOrientation : DisplayState::eOrientationDefault;
+
     // virtual displays are always considered enabled
     auto initialPowerMode = (state.type >= DisplayDevice::DISPLAY_VIRTUAL) ? HWC_POWER_MODE_NORMAL
                                                                            : HWC_POWER_MODE_OFF;
@@ -2430,7 +2433,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     sp<DisplayDevice> hw =
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
-                              hasWideColorGamut, hdrCapabilities,
+                              displayInstallOrientation, hasWideColorGamut, hdrCapabilities,
                               supportedPerFrameMetadata, hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
@@ -4898,7 +4901,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
             reqHeight = uint32_t(device->getViewport().height());
         }
 
-        // XXX primaryDisplayOrientation is ignored
+        // XXX display->getInstallOrientation() is ignored
     }
 
     DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
