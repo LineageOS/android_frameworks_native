@@ -5119,7 +5119,8 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
-    Rect sourceCrop = renderArea.getSourceCrop();
+    const auto sourceCrop = renderArea.getSourceCrop();
+    const auto rotation = renderArea.getRotationFlags();
 
     bool filtering = false;
     if (primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
@@ -5130,65 +5131,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                 static_cast<int32_t>(reqHeight) != raHeight;
     }
 
-    // if a default or invalid sourceCrop is passed in, set reasonable values
-    if (sourceCrop.width() == 0 || sourceCrop.height() == 0 || !sourceCrop.isValid()) {
-        sourceCrop.setLeftTop(Point(0, 0));
-        sourceCrop.setRightBottom(Point(raWidth, raHeight));
-    } else if (primaryDisplayOrientation != DisplayState::eOrientationDefault) {
-        Transform tr;
-        uint32_t flags = 0x00;
-        switch (primaryDisplayOrientation) {
-            case DisplayState::eOrientation90:
-                flags = Transform::ROT_90;
-                break;
-            case DisplayState::eOrientation180:
-                flags = Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation270:
-                flags = Transform::ROT_270;
-                break;
-        }
-        tr.set(flags, raWidth, raHeight);
-        sourceCrop = tr.transform(sourceCrop);
-    }
-
     // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
     engine.setOutputDataSpace(Dataspace::SRGB);
     engine.setDisplayMaxLuminance(DisplayDevice::sDefaultMaxLumiance);
 
     // make sure to clear all GL error flags
     engine.checkErrors();
-
-    Transform::orientation_flags rotation = renderArea.getRotationFlags();
-    if (primaryDisplayOrientation != DisplayState::eOrientationDefault) {
-        // convert hw orientation into flag presentation
-        // here inverse transform needed
-        uint8_t hw_rot_90  = 0x00;
-        uint8_t hw_flip_hv = 0x00;
-        switch (primaryDisplayOrientation) {
-            case DisplayState::eOrientation90:
-                hw_rot_90 = Transform::ROT_90;
-                hw_flip_hv = Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation180:
-                hw_flip_hv = Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation270:
-                hw_rot_90  = Transform::ROT_90;
-                break;
-        }
-
-        // transform flags operation
-        // 1) flip H V if both have ROT_90 flag
-        // 2) XOR these flags
-        uint8_t rotation_rot_90  = rotation & Transform::ROT_90;
-        uint8_t rotation_flip_hv = rotation & Transform::ROT_180;
-        if (rotation_rot_90 & hw_rot_90) {
-            rotation_flip_hv = (~rotation_flip_hv) & Transform::ROT_180;
-        }
-        rotation = static_cast<Transform::orientation_flags>
-                   ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
-    }
 
     // set-up our viewport
     engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, raHeight, yswap,
