@@ -684,6 +684,7 @@ private:
      * to prepare the hardware composer
      */
     void prepareFrame(const sp<DisplayDevice>& display);
+    void setUpHWComposer(const CompositionInfo& compositionInfo);
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void doTracing(const char* where);
@@ -802,6 +803,11 @@ private:
 
     // access must be protected by mInvalidateLock
     volatile int32_t mRepaintEverything;
+
+    // helper methods
+    void configureHwcCommonData(const CompositionInfo& compositionInfo) const;
+    void configureDeviceComposition(const CompositionInfo& compositionInfo) const;
+    void configureSidebandComposition(const CompositionInfo& compositionInfo) const;
 
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;

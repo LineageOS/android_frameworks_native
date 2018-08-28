@@ -1476,8 +1476,13 @@ void SurfaceFlinger::handleMessageRefresh() {
     preComposition();
     rebuildLayerStacks();
     calculateWorkingSet();
+
     for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
         beginFrame(display);
+        for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
+            setUpHWComposer(compositionInfo);
+        }
         prepareFrame(display);
         doDebugFlashRegions(display, repaintEverything);
         doComposition(display, repaintEverything);
@@ -2005,6 +2010,125 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
+void SurfaceFlinger::configureSidebandComposition(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+    LOG_ALWAYS_FATAL_IF(compositionInfo.hwc.sidebandStream == nullptr,
+                        "CompositionType is sideband, but sideband stream is nullptr");
+    error = (compositionInfo.hwc.hwcLayer)
+                    ->setSidebandStream(compositionInfo.hwc.sidebandStream->handle());
+    if (error != HWC2::Error::None) {
+        ALOGE("[SF] Failed to set sideband stream %p: %s (%d)",
+                compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
+                static_cast<int32_t>(error));
+    }
+}
+
+void SurfaceFlinger::configureHwcCommonData(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+
+    if (!compositionInfo.hwc.skipGeometry) {
+        error = (compositionInfo.hwc.hwcLayer)->setBlendMode(compositionInfo.hwc.blendMode);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set blend mode %s:"
+                 " %s (%d)",
+                 to_string(compositionInfo.hwc.blendMode).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setDisplayFrame(compositionInfo.hwc.displayFrame);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set the display frame [%d, %d, %d, %d] %s (%d)",
+                compositionInfo.hwc.displayFrame.left,
+                compositionInfo.hwc.displayFrame.right,
+                compositionInfo.hwc.displayFrame.top,
+                compositionInfo.hwc.displayFrame.bottom,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setSourceCrop(compositionInfo.hwc.sourceCrop);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: %s (%d)",
+                compositionInfo.hwc.sourceCrop.left,
+                compositionInfo.hwc.sourceCrop.right,
+                compositionInfo.hwc.sourceCrop.top,
+                compositionInfo.hwc.sourceCrop.bottom,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setPlaneAlpha(compositionInfo.hwc.alpha);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set plane alpha %.3f: "
+                 "%s (%d)",
+                 compositionInfo.hwc.alpha,
+                 to_string(error).c_str(), static_cast<int32_t>(error));
+
+
+        error = (compositionInfo.hwc.hwcLayer)->setZOrder(compositionInfo.hwc.z);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set Z %u: %s (%d)",
+                compositionInfo.hwc.z,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)
+                        ->setInfo(compositionInfo.hwc.type, compositionInfo.hwc.appId);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set info (%d)",
+                static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setTransform(compositionInfo.hwc.transform);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set transform %s: "
+                 "%s (%d)",
+                 to_string(compositionInfo.hwc.transform).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
+    }
+
+    error = (compositionInfo.hwc.hwcLayer)->setCompositionType(compositionInfo.compositionType);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set composition type: %s (%d)",
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setDataspace(compositionInfo.hwc.dataspace);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set dataspace: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setPerFrameMetadata(
+            compositionInfo.hwc.supportedPerFrameMetadata, compositionInfo.hwc.hdrMetadata);
+    ALOGE_IF(error != HWC2::Error::None && error != HWC2::Error::Unsupported,
+            "[SF] Failed to set hdrMetadata: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    if (compositionInfo.compositionType == HWC2::Composition::SolidColor) {
+        error = (compositionInfo.hwc.hwcLayer)->setColor(compositionInfo.hwc.color);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set color: %s (%d)",
+                to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    error = (compositionInfo.hwc.hwcLayer)->setVisibleRegion(compositionInfo.hwc.visibleRegion);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set visible region: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setSurfaceDamage(compositionInfo.hwc.surfaceDamage);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set surface damage: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+}
+
+void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+
+    if (compositionInfo.hwc.fence) {
+        error = (compositionInfo.hwc.hwcLayer)->setBuffer(compositionInfo.mBufferSlot,
+                compositionInfo.mBuffer, compositionInfo.hwc.fence);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set buffer: %s (%d)",
+                to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+}
+
 void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 {
     bool dirty = !display->getDirtyRegion(false).isEmpty();
@@ -2050,6 +2174,33 @@ void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
              display->getId(), result, strerror(-result));
 }
 
+void SurfaceFlinger::setUpHWComposer(const CompositionInfo& compositionInfo) {
+    ATRACE_CALL();
+    ALOGV("setUpHWComposer");
+
+    switch (compositionInfo.compositionType)
+    {
+        case HWC2::Composition::Invalid:
+        case HWC2::Composition::Client:
+            break;
+
+        case HWC2::Composition::Sideband:
+            configureHwcCommonData(compositionInfo);
+            configureSidebandComposition(compositionInfo);
+            break;
+
+        case HWC2::Composition::SolidColor:
+            configureHwcCommonData(compositionInfo);
+            break;
+
+        case HWC2::Composition::Device:
+        case HWC2::Composition::Cursor:
+            configureHwcCommonData(compositionInfo);
+            configureDeviceComposition(compositionInfo);
+            break;
+    }
+}
+
 void SurfaceFlinger::doComposition(const sp<DisplayDevice>& display, bool repaintEverything) {
     ATRACE_CALL();
     ALOGV("doComposition");
@@ -2092,15 +2243,14 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
         }
         display->onSwapBuffersCompleted();
         display->makeCurrent();
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+        for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
-
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
-            auto hwcLayer = layer->getHwcLayer(displayId);
-            if (displayId >= 0) {
-                releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer);
+            auto hwcLayer = compositionInfo.hwc.hwcLayer;
+            if ((displayId >= 0) && hwcLayer) {
+                releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer.get());
             }
 
             // If the layer was client composited in the previous frame, we
@@ -2108,12 +2258,14 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
             // Since we do not track that, always merge with the current
             // client target acquire fence when it is available, even though
             // this is suboptimal.
-            if (layer->getCompositionType(displayId) == HWC2::Composition::Client) {
+            if (compositionInfo.compositionType == HWC2::Composition::Client) {
                 releaseFence = Fence::merge("LayerRelease", releaseFence,
                                             display->getClientTargetAcquireFence());
             }
 
-            layer->getBE().onLayerDisplayed(releaseFence);
+            if (compositionInfo.layer) {
+                compositionInfo.layer->onLayerDisplayed(releaseFence);
+            }
         }
 
         // We've got a list of layers needing fences, that are disjoint with
@@ -2988,7 +3140,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
                             opaque && (state.color.a == 1.0f) && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        compositionInfo.layer->mLayer->clearWithOpenGL(renderArea);
+                        compositionInfo.layer->clear(getRenderEngine());
                     }
                     break;
                 }

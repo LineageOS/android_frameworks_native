@@ -498,7 +498,6 @@ status_t HWComposer::prepare(DisplayDevice& display,
             validateChange(compositionInfo.compositionType,
                     changedTypes[&*hwcLayer]);
             compositionInfo.compositionType = changedTypes[&*hwcLayer];
-            compositionInfo.layer->mLayer->setCompositionType(displayId, compositionInfo.compositionType, false);
         }
 
         switch (compositionInfo.compositionType) {

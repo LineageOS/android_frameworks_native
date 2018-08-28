@@ -337,22 +337,8 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
-    const auto displayId = display->getId();
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
-
-    uint32_t hwcSlot = 0;
-    sp<GraphicBuffer> hwcBuffer;
-    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
-
+void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>&) {
     auto acquireFence = mConsumer->getCurrentFence();
-    auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),
-              static_cast<int32_t>(error));
-    }
     getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
     getBE().compositionInfo.mBuffer = mActiveBuffer;
     getBE().compositionInfo.hwc.fence = acquireFence;

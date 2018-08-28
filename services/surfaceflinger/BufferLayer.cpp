@@ -242,65 +242,27 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     const auto& viewport = display->getViewport();
     Region visible = tr.transform(visibleRegion.intersect(viewport));
     const auto displayId = display->getId();
-    if (!hasHwcLayer(displayId)) {
-        ALOGE("[%s] failed to setPerFrameData: no HWC layer found (%d)",
-              mName.string(), displayId);
-        return;
-    }
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
-    auto error = hwcLayer->setVisibleRegion(visible);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        visible.dump(LOG_TAG);
-    }
     getBE().compositionInfo.hwc.visibleRegion = visible;
-
-    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        surfaceDamageRegion.dump(LOG_TAG);
-    }
     getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
 
     // Sideband layers
     if (getBE().compositionInfo.hwc.sidebandStream.get()) {
         setCompositionType(displayId, HWC2::Composition::Sideband);
-        ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
-        if (error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
         getBE().compositionInfo.compositionType = HWC2::Composition::Sideband;
         return;
     }
 
-    // Device or Cursor layers
-    if (mPotentialCursor) {
-        ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(displayId, HWC2::Composition::Cursor);
-    } else {
-        ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(displayId, HWC2::Composition::Device);
+    if (getBE().compositionInfo.hwc.skipGeometry) {
+        // Device or Cursor layers
+        if (mPotentialCursor) {
+            ALOGV("[%s] Requesting Cursor composition", mName.string());
+            setCompositionType(displayId, HWC2::Composition::Cursor);
+        } else {
+            ALOGV("[%s] Requesting Device composition", mName.string());
+            setCompositionType(displayId, HWC2::Composition::Device);
+        }
     }
 
-    ALOGV("setPerFrameData: dataspace = %d", mCurrentDataSpace);
-    error = hwcLayer->setDataspace(mCurrentDataSpace);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), mCurrentDataSpace,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    const HdrMetadata& metadata = getDrawingHdrMetadata();
-    error = hwcLayer->setPerFrameMetadata(display->getSupportedPerFrameMetadata(), metadata);
-    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
     getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
     getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
     getBE().compositionInfo.hwc.supportedPerFrameMetadata = display->getSupportedPerFrameMetadata();
