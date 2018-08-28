@@ -88,7 +88,6 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
         mCurrentOpacity(true),
         mCurrentFrameNumber(0),
         mFrameLatencyNeeded(false),
-        mFiltering(false),
         mNeedsFiltering(false),
         mProtectedByApp(false),
         mClientRef(client),
@@ -788,14 +787,6 @@ bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
     Mutex::Autolock lock(mLocalSyncPointMutex);
     mLocalSyncPoints.push_back(point);
     return true;
-}
-
-void Layer::setFiltering(bool filtering) {
-    mFiltering = filtering;
-}
-
-bool Layer::getFiltering() const {
-    return mFiltering;
 }
 
 // ----------------------------------------------------------------------------

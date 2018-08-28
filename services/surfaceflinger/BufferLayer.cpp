@@ -206,7 +206,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
 
     if (!blackOutLayer) {
         // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = getFiltering() || needsFiltering(renderArea) || isFixedSize();
+        const bool useFiltering = needsFiltering(renderArea) || isFixedSize();
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];

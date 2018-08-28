@@ -4923,6 +4923,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
               : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR),
                 mLayer(layer),
                 mCrop(crop),
+                mNeedsFiltering(false),
                 mFlinger(flinger),
                 mChildrenOnly(childrenOnly) {}
         const Transform& getTransform() const override { return mTransform; }
@@ -4933,7 +4934,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         int getHeight() const override { return mLayer->getDrawingState().active.h; }
         int getWidth() const override { return mLayer->getDrawingState().active.w; }
         bool isSecure() const override { return false; }
-        bool needsFiltering() const override { return false; }
+        bool needsFiltering() const override { return mNeedsFiltering; }
         Rect getSourceCrop() const override {
             if (mCrop.isEmpty()) {
                 return getBounds();
@@ -4954,6 +4955,11 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         };
 
         void render(std::function<void()> drawLayers) override {
+            const Rect sourceCrop = getSourceCrop();
+            // no need to check rotation because there is none
+            mNeedsFiltering = sourceCrop.width() != getReqWidth() ||
+                sourceCrop.height() != getReqHeight();
+
             if (!mChildrenOnly) {
                 mTransform = mLayer->getTransform().inverse();
                 drawLayers();
@@ -4976,6 +4982,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         // layer which has no properties set and which does not draw.
         sp<ContainerLayer> screenshotParentLayer;
         Transform mTransform;
+        bool mNeedsFiltering;
 
         SurfaceFlinger* mFlinger;
         const bool mChildrenOnly;
@@ -5114,22 +5121,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     auto& engine(getRenderEngine());
 
     // get screen geometry
-    const auto raWidth = renderArea.getWidth();
     const auto raHeight = renderArea.getHeight();
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
     const auto sourceCrop = renderArea.getSourceCrop();
     const auto rotation = renderArea.getRotationFlags();
-
-    bool filtering = false;
-    if (primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
-        filtering = static_cast<int32_t>(reqWidth) != raHeight ||
-                static_cast<int32_t>(reqHeight) != raWidth;
-    } else {
-        filtering = static_cast<int32_t>(reqWidth) != raWidth ||
-                static_cast<int32_t>(reqHeight) != raHeight;
-    }
 
     // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
     engine.setOutputDataSpace(Dataspace::SRGB);
@@ -5148,9 +5145,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     engine.clearWithColor(0, 0, 0, alpha);
 
     traverseLayers([&](Layer* layer) {
-        if (filtering) layer->setFiltering(true);
         layer->draw(renderArea, useIdentityTransform);
-        if (filtering) layer->setFiltering(false);
     });
 }
 
