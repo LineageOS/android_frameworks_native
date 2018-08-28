@@ -56,7 +56,7 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
-void GraphicsEnv::setLayerPaths(android_namespace_t* appNamespace, const std::string layerPaths) {
+void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths) {
     if (mLayerPaths.empty()) {
         mLayerPaths = layerPaths;
         mAppNamespace = appNamespace;
@@ -66,7 +66,7 @@ void GraphicsEnv::setLayerPaths(android_namespace_t* appNamespace, const std::st
     }
 }
 
-android_namespace_t* GraphicsEnv::getAppNamespace() {
+NativeLoaderNamespace* GraphicsEnv::getAppNamespace() {
     return mAppNamespace;
 }
 
