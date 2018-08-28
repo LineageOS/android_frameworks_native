@@ -16,17 +16,20 @@
 
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <renderengine/ProgramCache.h>
+#include "ProgramCache.h"
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include <renderengine/Description.h>
-#include <renderengine/Program.h>
+#include <renderengine/private/Description.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
+#include "Program.h"
+
+ANDROID_SINGLETON_STATIC_INSTANCE(android::renderengine::gl::ProgramCache)
 
 namespace android {
-// -----------------------------------------------------------------------------------------------
+namespace renderengine {
+namespace gl {
 
 /*
  * A simple formatter class to automatically add the endl and
@@ -72,10 +75,6 @@ Formatter& dedent(Formatter& f) {
     f.mIndent--;
     return f;
 }
-
-// -----------------------------------------------------------------------------------------------
-
-ANDROID_SINGLETON_STATIC_INSTANCE(ProgramCache)
 
 ProgramCache::ProgramCache() {}
 
@@ -685,4 +684,6 @@ void ProgramCache::useProgram(const Description& description) {
     }
 }
 
-} /* namespace android */
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android

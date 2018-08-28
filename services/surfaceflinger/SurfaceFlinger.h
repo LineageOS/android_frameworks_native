@@ -106,7 +106,7 @@ namespace impl {
 class EventThread;
 } // namespace impl
 
-namespace RE {
+namespace renderengine {
 class RenderEngine;
 }
 
@@ -175,7 +175,7 @@ public:
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
 
     // constant members (no synchronization needed for access)
-    std::unique_ptr<RE::RenderEngine> mRenderEngine;
+    std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
     EGLContext mEGLContext;
     EGLDisplay mEGLDisplay;
 
@@ -345,7 +345,7 @@ public:
     // TODO: this should be made accessible only to HWComposer
     const Vector< sp<Layer> >& getLayerSortedByZForHwcDisplay(int id);
 
-    RE::RenderEngine& getRenderEngine() const { return *getBE().mRenderEngine; }
+    renderengine::RenderEngine& getRenderEngine() const { return *getBE().mRenderEngine; }
 
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;

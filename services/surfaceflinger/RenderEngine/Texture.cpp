@@ -16,9 +16,8 @@
 
 #include <renderengine/Texture.h>
 
-#include <string.h>
-
 namespace android {
+namespace renderengine {
 
 Texture::Texture()
       : mTextureName(0), mTextureTarget(TEXTURE_2D), mWidth(0), mHeight(0), mFiltering(false) {}
@@ -74,4 +73,5 @@ size_t Texture::getHeight() const {
     return mHeight;
 }
 
-} /* namespace android */
+}  // namespace renderengine
+}  // namespace android

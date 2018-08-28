@@ -23,7 +23,7 @@ namespace android {
 
 class EventThread;
 
-namespace RE {
+namespace renderengine {
 class RenderEngine;
 }
 
@@ -36,7 +36,7 @@ public:
     // Extend this as needed for accessing SurfaceFlinger private (and public)
     // functions.
 
-    void setupRenderEngine(std::unique_ptr<RE::RenderEngine> renderEngine) {
+    void setupRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
         mFlinger->getBE().mRenderEngine = std::move(renderEngine);
     }
 
@@ -313,7 +313,7 @@ public:
             return *this;
         }
 
-        auto& setRenderSurface(std::unique_ptr<RE::Surface> renderSurface) {
+        auto& setRenderSurface(std::unique_ptr<renderengine::Surface> renderSurface) {
             mRenderSurface = std::move(renderSurface);
             return *this;
         }
@@ -352,7 +352,7 @@ public:
         const int32_t mDisplayId;
         sp<ANativeWindow> mNativeWindow;
         sp<DisplaySurface> mDisplaySurface;
-        std::unique_ptr<RE::Surface> mRenderSurface;
+        std::unique_ptr<renderengine::Surface> mRenderSurface;
         bool mSecure = false;
     };
 

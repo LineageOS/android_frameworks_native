@@ -20,12 +20,15 @@
 #include <stdint.h>
 
 #include <GLES2/gl2.h>
-#include <renderengine/Description.h>
-#include <renderengine/ProgramCache.h>
+#include <renderengine/private/Description.h>
+#include "ProgramCache.h"
 
 namespace android {
 
 class String8;
+
+namespace renderengine {
+namespace gl {
 
 /*
  * Abstracts a GLSL program comprising a vertex and fragment shader
@@ -85,6 +88,8 @@ private:
     GLint mOutputTransformMatrixLoc;
 };
 
-} /* namespace android */
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android
 
 #endif /* SF_RENDER_ENGINE_PROGRAM_H */

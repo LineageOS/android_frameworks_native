@@ -19,12 +19,11 @@
 #include <vector>
 
 #include <log/log.h>
-
-#include <renderengine/GLExtensions.h>
 #include <renderengine/RenderEngine.h>
+#include "gl/GLExtensions.h"
 
 namespace android {
-namespace RE {
+namespace renderengine {
 
 Image::~Image() = default;
 
@@ -43,7 +42,7 @@ static std::vector<EGLint> buildAttributeList(bool isProtected) {
     attrs.push_back(EGL_IMAGE_PRESERVED_KHR);
     attrs.push_back(EGL_TRUE);
 
-    if (isProtected && GLExtensions::getInstance().hasProtectedContent()) {
+    if (isProtected && gl::GLExtensions::getInstance().hasProtectedContent()) {
         attrs.push_back(EGL_PROTECTED_CONTENT_EXT);
         attrs.push_back(EGL_TRUE);
     }
@@ -74,6 +73,6 @@ bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected)
     return true;
 }
 
-} // namespace impl
-} // namespace RE
-} // namespace android
+}  // namespace impl
+}  // namespace renderengine
+}  // namespace android

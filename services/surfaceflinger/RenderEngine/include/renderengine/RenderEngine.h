@@ -17,10 +17,9 @@
 #ifndef SF_RENDERENGINE_H_
 #define SF_RENDERENGINE_H_
 
-#include <memory>
-
 #include <stdint.h>
 #include <sys/types.h>
+#include <memory>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -33,21 +32,19 @@
 
 struct ANativeWindowBuffer;
 
-// ---------------------------------------------------------------------------
 namespace android {
-// ---------------------------------------------------------------------------
 
 class String8;
 class Rect;
 class Region;
+
+namespace renderengine {
+
+class BindNativeBufferAsFramebuffer;
 class Mesh;
-class Texture;
-
-namespace RE {
-
 class Image;
 class Surface;
-class BindNativeBufferAsFramebuffer;
+class Texture;
 
 namespace impl {
 class RenderEngine;
@@ -61,8 +58,8 @@ public:
 
     virtual ~RenderEngine() = 0;
 
-    virtual std::unique_ptr<RE::Surface> createSurface() = 0;
-    virtual std::unique_ptr<RE::Image> createImage() = 0;
+    virtual std::unique_ptr<renderengine::Surface> createSurface() = 0;
+    virtual std::unique_ptr<renderengine::Image> createImage() = 0;
 
     virtual void primeCache() const = 0;
 
@@ -73,7 +70,7 @@ public:
     virtual bool useWaitSync() const = 0;
 
     virtual bool isCurrent() const = 0;
-    virtual bool setCurrentSurface(const RE::Surface& surface) = 0;
+    virtual bool setCurrentSurface(const renderengine::Surface& surface) = 0;
     virtual void resetCurrentSurface() = 0;
 
     // helpers
@@ -97,11 +94,11 @@ public:
     virtual void disableScissor() = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
-    virtual void bindExternalTextureImage(uint32_t texName, const RE::Image& image) = 0;
+    virtual void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) = 0;
     virtual void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) = 0;
     virtual void bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
-                                               RE::BindNativeBufferAsFramebuffer* bindHelper) = 0;
-    virtual void unbindNativeBufferAsFrameBuffer(RE::BindNativeBufferAsFramebuffer* bindHelper) = 0;
+                                               BindNativeBufferAsFramebuffer* bindHelper) = 0;
+    virtual void unbindNativeBufferAsFrameBuffer(BindNativeBufferAsFramebuffer* bindHelper) = 0;
 
     // set-up
     virtual void checkErrors() const;
@@ -155,7 +152,7 @@ namespace impl {
 class Image;
 class Surface;
 
-class RenderEngine : public RE::RenderEngine {
+class RenderEngine : public renderengine::RenderEngine {
     enum GlesVersion {
         GLES_VERSION_1_0 = 0x10000,
         GLES_VERSION_1_1 = 0x10001,
@@ -185,8 +182,8 @@ public:
 
     // RenderEngine interface implementation
 
-    std::unique_ptr<RE::Surface> createSurface() override;
-    std::unique_ptr<RE::Image> createImage() override;
+    std::unique_ptr<renderengine::Surface> createSurface() override;
+    std::unique_ptr<renderengine::Image> createImage() override;
 
     void primeCache() const override;
 
@@ -197,7 +194,7 @@ public:
     bool useWaitSync() const override;
 
     bool isCurrent() const;
-    bool setCurrentSurface(const RE::Surface& surface) override;
+    bool setCurrentSurface(const renderengine::Surface& surface) override;
     void resetCurrentSurface() override;
 
     // synchronization
@@ -223,7 +220,7 @@ public:
     void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    void bindExternalTextureImage(uint32_t texName, const RE::Image& image) override;
+    void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) override;
     void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) override;
 
     void checkErrors() const override;
@@ -235,12 +232,14 @@ public:
     EGLConfig getEGLConfig() const;
 
     // Common implementation
-    bool setCurrentSurface(const RE::impl::Surface& surface);
-    void bindExternalTextureImage(uint32_t texName, const RE::impl::Image& image);
+    bool setCurrentSurface(const renderengine::impl::Surface& surface);
+    void bindExternalTextureImage(uint32_t texName, const renderengine::impl::Image& image);
 
-    void bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
-                                       RE::BindNativeBufferAsFramebuffer* bindHelper) override;
-    void unbindNativeBufferAsFrameBuffer(RE::BindNativeBufferAsFramebuffer* bindHelper) override;
+    void bindNativeBufferAsFrameBuffer(
+            ANativeWindowBuffer* buffer,
+            renderengine::BindNativeBufferAsFramebuffer* bindHelper) override;
+    void unbindNativeBufferAsFrameBuffer(
+            renderengine::BindNativeBufferAsFramebuffer* bindHelper) override;
 
     // Overriden by each specialization
     virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName,
@@ -248,8 +247,8 @@ public:
     virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName) = 0;
 };
 
-} // namespace impl
-} // namespace RE
-} // namespace android
+}  // namespace impl
+}  // namespace renderengine
+}  // namespace android
 
 #endif /* SF_RENDERENGINE_H_ */

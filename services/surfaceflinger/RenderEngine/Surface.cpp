@@ -21,7 +21,7 @@
 #include <ui/PixelFormat.h>
 
 namespace android {
-namespace RE {
+namespace renderengine {
 
 Surface::~Surface() = default;
 
@@ -106,6 +106,6 @@ int32_t Surface::queryHeight() const {
     return querySurface(EGL_HEIGHT);
 }
 
-} // namespace impl
-} // namespace RE
-} // namespace android
+}  // namespace impl
+}  // namespace renderengine
+}  // namespace android

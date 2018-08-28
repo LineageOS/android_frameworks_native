@@ -19,28 +19,26 @@
 #define LOG_TAG "RenderEngine"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <renderengine/GLES20RenderEngine.h>
+#include "GLES20RenderEngine.h"
+
+#include <math.h>
+#include <fstream>
+#include <sstream>
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
-#include <renderengine/Description.h>
+#include <cutils/compiler.h>
 #include <renderengine/Mesh.h>
-#include <renderengine/Program.h>
-#include <renderengine/ProgramCache.h>
 #include <renderengine/Texture.h>
+#include <renderengine/private/Description.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
+#include "Program.h"
+#include "ProgramCache.h"
 
-#include <cutils/compiler.h>
-#include <math.h>
-
-#include <fstream>
-#include <sstream>
-
-// ---------------------------------------------------------------------------
 bool checkGlError(const char* op, int lineNumber) {
     bool errorFound = false;
     GLint error = glGetError();
@@ -100,11 +98,9 @@ void writePPM(const char* basename, GLuint width, GLuint height) {
     file.write(reinterpret_cast<char*>(outBuffer.data()), outBuffer.size());
 }
 
-// ---------------------------------------------------------------------------
 namespace android {
-namespace RE {
-namespace impl {
-// ---------------------------------------------------------------------------
+namespace renderengine {
+namespace gl {
 
 using ui::Dataspace;
 
@@ -463,11 +459,9 @@ bool GLES20RenderEngine::needsXYZTransformMatrix() const {
     return (isInputHdrDataSpace || isOutputHdrDataSpace) && inputTransfer != outputTransfer;
 }
 
-// ---------------------------------------------------------------------------
-} // namespace impl
-} // namespace RE
-} // namespace android
-// ---------------------------------------------------------------------------
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android
 
 #if defined(__gl_h_)
 #error "don't include gl/gl.h in this file"

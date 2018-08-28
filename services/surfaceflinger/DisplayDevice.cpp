@@ -215,7 +215,7 @@ DisplayDevice::DisplayDevice(
         const wp<IBinder>& displayToken,
         const sp<ANativeWindow>& nativeWindow,
         const sp<DisplaySurface>& displaySurface,
-        std::unique_ptr<RE::Surface> renderSurface,
+        std::unique_ptr<renderengine::Surface> renderSurface,
         int displayWidth,
         int displayHeight,
         bool hasWideColorGamut,
