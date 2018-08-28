@@ -40,6 +40,30 @@
       "revId": "bf423f7e8fe3d705a0777bd1bd374bf62abecef6",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "d157996d_60ec2e6e",
+        "filename": "libs/ui/Android.bp",
+        "patchSetId": 4
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2018-08-28T13:58:57Z",
+      "side": 1,
+      "message": "Done.\n\nSo the problem was in our pattern of ALWAYS writing out a soong variable in soong_config.mk, instead of conditionally writing only when the associated makefile var is set. We should probably go back and fix the additional camera params stuff now too.",
+      "parentUuid": "9f621d2c_f56a1bd5",
+      "range": {
+        "startLine": 54,
+        "startChar": 12,
+        "endLine": 54,
+        "endChar": 48
+      },
+      "revId": "bf423f7e8fe3d705a0777bd1bd374bf62abecef6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
