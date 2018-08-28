@@ -22,6 +22,24 @@
       "revId": "bf423f7e8fe3d705a0777bd1bd374bf62abecef6",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": false
+    },
+    {
+      "key": {
+        "uuid": "94441a8e_9be90230",
+        "filename": "libs/ui/Android.bp",
+        "patchSetId": 4
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2018-08-28T11:53:58Z",
+      "side": 1,
+      "message": "additional_gralloc_10_usage_bits is a string variable. It\u0027s always set, even to an empty value. Meaning the preprocessor macro is always defined, even with an empty value. Maybe you know blueprint magic much better than I (docs say conditionals are only allowed in go), but I can find no way to do this as a compile time and use a single variable.\n\nSimilar pattern was used for additional camera parameters code. Alternatively, we can go back to runtime comparison from the previous patchset",
+      "parentUuid": "",
+      "revId": "bf423f7e8fe3d705a0777bd1bd374bf62abecef6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
     }
   ]
 }
