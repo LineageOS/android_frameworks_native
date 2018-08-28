@@ -143,6 +143,21 @@ bool isWideColorMode(const ColorMode colorMode) {
     return false;
 }
 
+ui::Transform::orientation_flags fromSurfaceComposerRotation(ISurfaceComposer::Rotation rotation) {
+    switch (rotation) {
+        case ISurfaceComposer::eRotateNone:
+            return ui::Transform::ROT_0;
+        case ISurfaceComposer::eRotate90:
+            return ui::Transform::ROT_90;
+        case ISurfaceComposer::eRotate180:
+            return ui::Transform::ROT_180;
+        case ISurfaceComposer::eRotate270:
+            return ui::Transform::ROT_270;
+    }
+    ALOGE("Invalid rotation passed to captureScreen(): %d\n", rotation);
+    return ui::Transform::ROT_0;
+}
+
 #pragma clang diagnostic pop
 
 class ConditionalLock {
@@ -1461,8 +1476,13 @@ void SurfaceFlinger::handleMessageRefresh() {
     preComposition();
     rebuildLayerStacks();
     calculateWorkingSet();
+
     for (const auto& [token, display] : mDisplays) {
+        const auto displayId = display->getId();
         beginFrame(display);
+        for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
+            setUpHWComposer(compositionInfo);
+        }
         prepareFrame(display);
         doDebugFlashRegions(display, repaintEverything);
         doComposition(display, repaintEverything);
@@ -1594,6 +1614,7 @@ void SurfaceFlinger::calculateWorkingSet() {
 
 void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)
 {
+    const auto displayId = display->getId();
     // is debugging enabled
     if (CC_LIKELY(!mDebugRegion))
         return;
@@ -1621,7 +1642,8 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
     }
 
     if (display->isPoweredOn()) {
-        status_t result = display->prepareFrame(*getBE().mHwc);
+        status_t result = display->prepareFrame(
+                *getBE().mHwc, getBE().mCompositionInfo[displayId]);
         ALOGE_IF(result != NO_ERROR,
                  "prepareFrame for display %d failed:"
                  " %d (%s)",
@@ -1988,6 +2010,125 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
+void SurfaceFlinger::configureSidebandComposition(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+    LOG_ALWAYS_FATAL_IF(compositionInfo.hwc.sidebandStream == nullptr,
+                        "CompositionType is sideband, but sideband stream is nullptr");
+    error = (compositionInfo.hwc.hwcLayer)
+                    ->setSidebandStream(compositionInfo.hwc.sidebandStream->handle());
+    if (error != HWC2::Error::None) {
+        ALOGE("[SF] Failed to set sideband stream %p: %s (%d)",
+                compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
+                static_cast<int32_t>(error));
+    }
+}
+
+void SurfaceFlinger::configureHwcCommonData(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+
+    if (!compositionInfo.hwc.skipGeometry) {
+        error = (compositionInfo.hwc.hwcLayer)->setBlendMode(compositionInfo.hwc.blendMode);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set blend mode %s:"
+                 " %s (%d)",
+                 to_string(compositionInfo.hwc.blendMode).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setDisplayFrame(compositionInfo.hwc.displayFrame);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set the display frame [%d, %d, %d, %d] %s (%d)",
+                compositionInfo.hwc.displayFrame.left,
+                compositionInfo.hwc.displayFrame.right,
+                compositionInfo.hwc.displayFrame.top,
+                compositionInfo.hwc.displayFrame.bottom,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setSourceCrop(compositionInfo.hwc.sourceCrop);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: %s (%d)",
+                compositionInfo.hwc.sourceCrop.left,
+                compositionInfo.hwc.sourceCrop.right,
+                compositionInfo.hwc.sourceCrop.top,
+                compositionInfo.hwc.sourceCrop.bottom,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setPlaneAlpha(compositionInfo.hwc.alpha);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set plane alpha %.3f: "
+                 "%s (%d)",
+                 compositionInfo.hwc.alpha,
+                 to_string(error).c_str(), static_cast<int32_t>(error));
+
+
+        error = (compositionInfo.hwc.hwcLayer)->setZOrder(compositionInfo.hwc.z);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set Z %u: %s (%d)",
+                compositionInfo.hwc.z,
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)
+                        ->setInfo(compositionInfo.hwc.type, compositionInfo.hwc.appId);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set info (%d)",
+                static_cast<int32_t>(error));
+
+        error = (compositionInfo.hwc.hwcLayer)->setTransform(compositionInfo.hwc.transform);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[SF] Failed to set transform %s: "
+                 "%s (%d)",
+                 to_string(compositionInfo.hwc.transform).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
+    }
+
+    error = (compositionInfo.hwc.hwcLayer)->setCompositionType(compositionInfo.compositionType);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set composition type: %s (%d)",
+                to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setDataspace(compositionInfo.hwc.dataspace);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set dataspace: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setPerFrameMetadata(
+            compositionInfo.hwc.supportedPerFrameMetadata, compositionInfo.hwc.hdrMetadata);
+    ALOGE_IF(error != HWC2::Error::None && error != HWC2::Error::Unsupported,
+            "[SF] Failed to set hdrMetadata: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    if (compositionInfo.compositionType == HWC2::Composition::SolidColor) {
+        error = (compositionInfo.hwc.hwcLayer)->setColor(compositionInfo.hwc.color);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set color: %s (%d)",
+                to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    error = (compositionInfo.hwc.hwcLayer)->setVisibleRegion(compositionInfo.hwc.visibleRegion);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set visible region: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setSurfaceDamage(compositionInfo.hwc.surfaceDamage);
+    ALOGE_IF(error != HWC2::Error::None,
+            "[SF] Failed to set surface damage: %s (%d)",
+            to_string(error).c_str(), static_cast<int32_t>(error));
+}
+
+void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositionInfo) const
+{
+    HWC2::Error error;
+
+    if (compositionInfo.hwc.fence) {
+        error = (compositionInfo.hwc.hwcLayer)->setBuffer(compositionInfo.mBufferSlot,
+                compositionInfo.mBuffer, compositionInfo.hwc.fence);
+        ALOGE_IF(error != HWC2::Error::None,
+                "[SF] Failed to set buffer: %s (%d)",
+                to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+}
+
 void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 {
     bool dirty = !display->getDirtyRegion(false).isEmpty();
@@ -2020,15 +2161,44 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 
 void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
 {
+    const auto displayId = display->getId();
     if (!display->isPoweredOn()) {
         return;
     }
 
-    status_t result = display->prepareFrame(*getBE().mHwc);
+    status_t result = display->prepareFrame(
+            *getBE().mHwc, getBE().mCompositionInfo[displayId]);
     ALOGE_IF(result != NO_ERROR,
              "prepareFrame for display %d failed:"
              " %d (%s)",
              display->getId(), result, strerror(-result));
+}
+
+void SurfaceFlinger::setUpHWComposer(const CompositionInfo& compositionInfo) {
+    ATRACE_CALL();
+    ALOGV("setUpHWComposer");
+
+    switch (compositionInfo.compositionType)
+    {
+        case HWC2::Composition::Invalid:
+        case HWC2::Composition::Client:
+            break;
+
+        case HWC2::Composition::Sideband:
+            configureHwcCommonData(compositionInfo);
+            configureSidebandComposition(compositionInfo);
+            break;
+
+        case HWC2::Composition::SolidColor:
+            configureHwcCommonData(compositionInfo);
+            break;
+
+        case HWC2::Composition::Device:
+        case HWC2::Composition::Cursor:
+            configureHwcCommonData(compositionInfo);
+            configureDeviceComposition(compositionInfo);
+            break;
+    }
 }
 
 void SurfaceFlinger::doComposition(const sp<DisplayDevice>& display, bool repaintEverything) {
@@ -2073,15 +2243,14 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
         }
         display->onSwapBuffersCompleted();
         display->makeCurrent();
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+        for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
-
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
-            auto hwcLayer = layer->getHwcLayer(displayId);
-            if (displayId >= 0) {
-                releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer);
+            auto hwcLayer = compositionInfo.hwc.hwcLayer;
+            if ((displayId >= 0) && hwcLayer) {
+                releaseFence = getBE().mHwc->getLayerReleaseFence(displayId, hwcLayer.get());
             }
 
             // If the layer was client composited in the previous frame, we
@@ -2089,12 +2258,14 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
             // Since we do not track that, always merge with the current
             // client target acquire fence when it is available, even though
             // this is suboptimal.
-            if (layer->getCompositionType(displayId) == HWC2::Composition::Client) {
+            if (compositionInfo.compositionType == HWC2::Composition::Client) {
                 releaseFence = Fence::merge("LayerRelease", releaseFence,
                                             display->getClientTargetAcquireFence());
             }
 
-            layer->getBE().onLayerDisplayed(releaseFence);
+            if (compositionInfo.layer) {
+                compositionInfo.layer->onLayerDisplayed(releaseFence);
+            }
         }
 
         // We've got a list of layers needing fences, that are disjoint with
@@ -2952,29 +3123,29 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     ALOGV("Rendering client layers");
     const ui::Transform& displayTransform = display->getTransform();
     bool firstLayer = true;
-    for (auto& layer : display->getVisibleLayersSortedByZ()) {
+    for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
+        const Region bounds(display->bounds());
         const Region clip(bounds.intersect(
-                displayTransform.transform(layer->visibleRegion)));
-        ALOGV("Layer: %s", layer->getName().string());
-        ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
+                displayTransform.transform(compositionInfo.layer->mLayer->visibleRegion)));
+        ALOGV("Layer: %s", compositionInfo.layerName.c_str());
         if (!clip.isEmpty()) {
-            switch (layer->getCompositionType(displayId)) {
+            switch (compositionInfo.compositionType) {
                 case HWC2::Composition::Cursor:
                 case HWC2::Composition::Device:
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
-                    const Layer::State& state(layer->getDrawingState());
-                    if (layer->getClearClientTarget(displayId) && !firstLayer &&
-                        layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
-                        hasClientComposition) {
+                    const Layer::State& state(compositionInfo.layer->mLayer->getDrawingState());
+                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state);
+                    if (compositionInfo.hwc.clearClientTarget && !firstLayer &&
+                            opaque && (state.color.a == 1.0f) && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        layer->clearWithOpenGL(renderArea);
+                        compositionInfo.layer->clear(getRenderEngine());
                     }
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    layer->draw(renderArea, clip);
+                    compositionInfo.layer->mLayer->draw(renderArea, clip);
                     break;
                 }
                 default:
@@ -4902,20 +5073,50 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
 
     if (!displayToken) return BAD_VALUE;
 
-    const auto display = getDisplayDeviceLocked(displayToken);
-    if (!display) return BAD_VALUE;
+    auto renderAreaRotation = fromSurfaceComposerRotation(rotation);
 
-    const Rect& dispScissor = display->getScissor();
-    if (!dispScissor.isEmpty()) {
-        sourceCrop.set(dispScissor);
-        // adb shell screencap will default reqWidth and reqHeight to zeros.
-        if (reqWidth == 0 || reqHeight == 0) {
-            reqWidth = uint32_t(display->getViewport().width());
-            reqHeight = uint32_t(display->getViewport().height());
+    sp<DisplayDevice> display;
+    {
+        Mutex::Autolock _l(mStateLock);
+
+        display = getDisplayDeviceLocked(displayToken);
+        if (!display) return BAD_VALUE;
+
+        const Rect& dispScissor = display->getScissor();
+        if (!dispScissor.isEmpty()) {
+            sourceCrop.set(dispScissor);
+            // adb shell screencap will default reqWidth and reqHeight to zeros.
+            if (reqWidth == 0 || reqHeight == 0) {
+                reqWidth = uint32_t(display->getViewport().width());
+                reqHeight = uint32_t(display->getViewport().height());
+            }
+        }
+
+        // get screen geometry
+        uint32_t width = display->getWidth();
+        uint32_t height = display->getHeight();
+
+        if (renderAreaRotation & ui::Transform::ROT_90) {
+            std::swap(width, height);
+        }
+
+        if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+            std::swap(width, height);
+        }
+
+        if ((reqWidth > width) || (reqHeight > height)) {
+            ALOGE("size mismatch (%d, %d) > (%d, %d)", reqWidth, reqHeight, width, height);
+        } else {
+            if (reqWidth == 0) {
+                reqWidth = width;
+            }
+            if (reqHeight == 0) {
+                reqHeight = height;
+            }
         }
     }
 
-    DisplayRenderArea renderArea(display, sourceCrop, reqHeight, reqWidth, rotation);
+    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     display, minLayerZ, maxLayerZ, std::placeholders::_1);
@@ -4931,7 +5132,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
                         int32_t reqWidth, int32_t reqHeight, bool childrenOnly)
-              : RenderArea(reqHeight, reqWidth, CaptureFill::CLEAR),
+              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR),
                 mLayer(layer),
                 mCrop(crop),
                 mFlinger(flinger),
@@ -5023,6 +5224,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     int32_t reqWidth = crop.width() * frameScale;
     int32_t reqHeight = crop.height() * frameScale;
 
+    // really small crop or frameScale
+    if (reqWidth <= 0) {
+        reqWidth = 1;
+    }
+    if (reqHeight <= 0) {
+        reqHeight = 1;
+    }
+
     LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, childrenOnly);
 
     auto traverseLayers = [parent, childrenOnly](const LayerVector::Visitor& visitor) {
@@ -5043,8 +5252,6 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              sp<GraphicBuffer>* outBuffer,
                                              bool useIdentityTransform) {
     ATRACE_CALL();
-
-    renderArea.updateDimensions(mPrimaryDisplayOrientation);
 
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
@@ -5222,7 +5429,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     traverseLayers([&](Layer* layer) {
         if (filtering) layer->setFiltering(true);
-        layer->drawNow(renderArea, useIdentityTransform);
+        layer->draw(renderArea, useIdentityTransform);
         if (filtering) layer->setFiltering(false);
     });
 }

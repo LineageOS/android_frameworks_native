@@ -25,7 +25,6 @@
 
 #include <binder/IBinder.h>
 #include <hardware/hwcomposer_defs.h>
-#include <gui/ISurfaceComposer.h>
 #include <math/mat4.h>
 #include <renderengine/Surface.h>
 #include <ui/GraphicTypes.h>
@@ -50,6 +49,7 @@ class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
 class HWComposer;
+struct CompositionInfo;
 
 class DisplayDevice : public LightRefBase<DisplayDevice>
 {
@@ -142,7 +142,7 @@ public:
     // We pass in mustRecompose so we can keep VirtualDisplaySurface's state
     // machine happy without actually queueing a buffer if nothing has changed
     status_t beginFrame(bool mustRecompose) const;
-    status_t prepareFrame(HWComposer& hwc);
+    status_t prepareFrame(HWComposer& hwc, std::vector<CompositionInfo>& compositionInfo);
 
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
     // Whether h/w composer has native support for specific HDR type.
@@ -334,12 +334,12 @@ private:
 class DisplayRenderArea : public RenderArea {
 public:
     DisplayRenderArea(const sp<const DisplayDevice> device,
-                      ISurfaceComposer::Rotation rotation = ISurfaceComposer::eRotateNone)
-          : DisplayRenderArea(device, device->getBounds(), device->getHeight(), device->getWidth(),
+                      ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
+          : DisplayRenderArea(device, device->getBounds(), device->getWidth(), device->getHeight(),
                               rotation) {}
-    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqHeight,
-                      uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
-          : RenderArea(reqHeight, reqWidth, CaptureFill::OPAQUE, rotation), mDevice(device),
+    DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
+                      uint32_t reqHeight, ui::Transform::orientation_flags rotation)
+          : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, rotation), mDevice(device),
                               mSourceCrop(sourceCrop) {}
 
     const ui::Transform& getTransform() const override { return mDevice->getTransform(); }
