@@ -4887,34 +4887,18 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
         device = getDisplayDeviceLocked(display);
         if (!device) return BAD_VALUE;
 
-        const Rect& dispScissor = device->getScissor();
-        if (!dispScissor.isEmpty()) {
-            sourceCrop.set(dispScissor);
-            // adb shell screencap will default reqWidth and reqHeight to zeros.
-            if (reqWidth == 0 || reqHeight == 0) {
-                reqWidth = uint32_t(device->getViewport().width());
-                reqHeight = uint32_t(device->getViewport().height());
-            }
+        // set the source crop to the (projected) logical display viewport
+        // unconditionally until the framework is fixed
+        sourceCrop.set(device->getScissor());
+
+        // set the requested width/height to the logical display viewport size
+        // by default
+        if (reqWidth == 0 || reqHeight == 0) {
+            reqWidth = uint32_t(device->getViewport().width());
+            reqHeight = uint32_t(device->getViewport().height());
         }
 
-        // get screen geometry
-        uint32_t width = device->getWidth();
-        uint32_t height = device->getHeight();
-
-        if (renderAreaRotation & Transform::ROT_90) {
-            std::swap(width, height);
-        }
-
-        if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
-            std::swap(width, height);
-        }
-
-        if (reqWidth == 0) {
-            reqWidth = width;
-        }
-        if (reqHeight == 0) {
-            reqHeight = height;
-        }
+        // XXX mPrimaryDisplayOrientation is ignored
     }
 
     DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
