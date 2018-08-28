@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "9f621d2c_f56a1bd5",
+        "filename": "libs/ui/Android.bp",
+        "patchSetId": 4
+      },
+      "lineNbr": 54,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-08-28T07:05:06Z",
+      "side": 1,
+      "message": "Errr, do you need to set both options to make this work? Can\u0027t the second -DHAS_ADDNL_GRALLOC_10_USAGE_BITS be added to line 52? (Alternately, can\u0027t you #ifdef off ADDNL_GRALLOC_10_USAGE_BITS?)",
+      "range": {
+        "startLine": 54,
+        "startChar": 12,
+        "endLine": 54,
+        "endChar": 48
+      },
+      "revId": "bf423f7e8fe3d705a0777bd1bd374bf62abecef6",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
