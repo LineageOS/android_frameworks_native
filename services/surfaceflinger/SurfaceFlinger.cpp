@@ -1609,6 +1609,7 @@ void SurfaceFlinger::calculateWorkingSet() {
 
 void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)
 {
+    const auto displayId = display->getId();
     // is debugging enabled
     if (CC_LIKELY(!mDebugRegion))
         return;
@@ -1636,7 +1637,8 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
     }
 
     if (display->isPoweredOn()) {
-        status_t result = display->prepareFrame(*getBE().mHwc);
+        status_t result = display->prepareFrame(
+                *getBE().mHwc, getBE().mCompositionInfo[displayId]);
         ALOGE_IF(result != NO_ERROR,
                  "prepareFrame for display %d failed:"
                  " %d (%s)",
@@ -2035,11 +2037,13 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 
 void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
 {
+    const auto displayId = display->getId();
     if (!display->isPoweredOn()) {
         return;
     }
 
-    status_t result = display->prepareFrame(*getBE().mHwc);
+    status_t result = display->prepareFrame(
+            *getBE().mHwc, getBE().mCompositionInfo[displayId]);
     ALOGE_IF(result != NO_ERROR,
              "prepareFrame for display %d failed:"
              " %d (%s)",
@@ -2967,29 +2971,29 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     ALOGV("Rendering client layers");
     const ui::Transform& displayTransform = display->getTransform();
     bool firstLayer = true;
-    for (auto& layer : display->getVisibleLayersSortedByZ()) {
+    for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
+        const Region bounds(display->bounds());
         const Region clip(bounds.intersect(
-                displayTransform.transform(layer->visibleRegion)));
-        ALOGV("Layer: %s", layer->getName().string());
-        ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
+                displayTransform.transform(compositionInfo.layer->mLayer->visibleRegion)));
+        ALOGV("Layer: %s", compositionInfo.layerName.c_str());
         if (!clip.isEmpty()) {
-            switch (layer->getCompositionType(displayId)) {
+            switch (compositionInfo.compositionType) {
                 case HWC2::Composition::Cursor:
                 case HWC2::Composition::Device:
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
-                    const Layer::State& state(layer->getDrawingState());
-                    if (layer->getClearClientTarget(displayId) && !firstLayer &&
-                        layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
-                        hasClientComposition) {
+                    const Layer::State& state(compositionInfo.layer->mLayer->getDrawingState());
+                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state);
+                    if (compositionInfo.hwc.clearClientTarget && !firstLayer &&
+                            opaque && (state.color.a == 1.0f) && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        layer->clearWithOpenGL(renderArea);
+                        compositionInfo.layer->mLayer->clearWithOpenGL(renderArea);
                     }
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    layer->draw(renderArea, clip);
+                    compositionInfo.layer->mLayer->draw(renderArea, clip);
                     break;
                 }
                 default:
@@ -5273,7 +5277,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     traverseLayers([&](Layer* layer) {
         if (filtering) layer->setFiltering(true);
-        layer->drawNow(renderArea, useIdentityTransform);
+        layer->draw(renderArea, useIdentityTransform);
         if (filtering) layer->setFiltering(false);
     });
 }

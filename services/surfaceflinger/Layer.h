@@ -76,6 +76,7 @@ class Layer : public virtual RefBase {
     static int32_t sSequence;
 
 public:
+    friend class LayerBE;
     LayerBE& getBE() { return mBE; }
     LayerBE& getBE() const { return mBE; }
     mutable bool contentDirty;
@@ -413,16 +414,6 @@ public:
     void draw(const RenderArea& renderArea, const Region& clip);
     void draw(const RenderArea& renderArea, bool useIdentityTransform);
     void draw(const RenderArea& renderArea);
-
-    /*
-     * drawNow uses the renderEngine to draw the layer.  This is different than the
-     * draw function as with the FE/BE split, the draw function runs in the FE and
-     * sets up state for the BE to do the actual drawing.  drawNow is used to tell
-     * the layer to skip the state setup and just go ahead and draw the layer.  This
-     * is used for screen captures which happens separately from the frame
-     * compositing path.
-     */
-    virtual void drawNow(const RenderArea& renderArea, bool useIdentityTransform) = 0;
 
     /*
      * doTransaction - process the transaction. This is a good place to figure

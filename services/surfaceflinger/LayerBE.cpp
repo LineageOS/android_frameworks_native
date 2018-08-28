@@ -46,6 +46,11 @@ void LayerBE::onLayerDisplayed(const sp<Fence>& releaseFence) {
     mLayer->onLayerDisplayed(releaseFence);
 }
 
+void LayerBE::clear(RE::RenderEngine& engine) {
+    engine.setupFillWithColor(0, 0, 0, 0);
+    engine.drawMesh(mMesh);
+}
+
 void CompositionInfo::dump(const char* tag) const
 {
     std::string logString;
@@ -89,22 +94,12 @@ void CompositionInfo::dumpRe(std::string& result, const char* tag) const {
         result += base::StringPrintf("[%s]RenderEngine parameters:\n", tag);
     }
 
-    Mesh& mesh = layer->getMesh();
     result += base::StringPrintf("\tblackoutLayer=%d\n", re.blackoutLayer);
     result += base::StringPrintf("\tclearArea=%d\n", re.clearArea);
     result += base::StringPrintf("\tpreMultipliedAlpha=%d\n", re.preMultipliedAlpha);
     result += base::StringPrintf("\topaque=%d\n", re.opaque);
     result += base::StringPrintf("\tdisableTexture=%d\n", re.disableTexture);
-    result += base::StringPrintf("\ttexture:name(%d), target(%d), size(%d/%d)\n", re.texture.getTextureName(), re.texture.getTextureTarget(), (unsigned int)re.texture.getWidth(), (unsigned int)re.texture.getHeight());
     result += base::StringPrintf("\tuseIdentityTransform=%d\n", re.useIdentityTransform);
-    Mesh::VertexArray<vec2> positions(mesh.getPositionArray<vec2>());
-    result += base::StringPrintf("\tpositions[(%6.1f,%6.1f), (%6.1f,%6.1f), (%6.1f,%6.1f), (%6.1f,%6.1f)]\n",
-            positions[0][0], positions[0][1], positions[1][0], positions[1][1],
-            positions[2][0], positions[2][1], positions[3][0], positions[3][1]);
-    Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
-    result += base::StringPrintf("\ttexCoords[(%6.1f,%6.1f), (%6.1f,%6.1f),(%6.1f,%6.1f),(%6.1f,%6.1f)]\n",
-        texCoords[0][0], texCoords[0][1], texCoords[1][0], texCoords[1][1],
-        texCoords[2][0], texCoords[2][1], texCoords[3][0], texCoords[3][1]);
 }
 
 void CompositionInfo::dump(std::string& result, const char* tag) const
@@ -133,7 +128,5 @@ void CompositionInfo::dump(std::string& result, const char* tag) const
             break;
     }
 }
-
-
 
 }; // namespace android

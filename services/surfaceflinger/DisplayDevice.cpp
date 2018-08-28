@@ -334,8 +334,9 @@ status_t DisplayDevice::beginFrame(bool mustRecompose) const {
     return mDisplaySurface->beginFrame(mustRecompose);
 }
 
-status_t DisplayDevice::prepareFrame(HWComposer& hwc) {
-    status_t error = hwc.prepare(*this);
+status_t DisplayDevice::prepareFrame(HWComposer& hwc,
+        std::vector<CompositionInfo>& compositionData) {
+    status_t error = hwc.prepare(*this, compositionData);
     if (error != NO_ERROR) {
         return error;
     }
