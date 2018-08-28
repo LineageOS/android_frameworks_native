@@ -23,6 +23,8 @@ struct android_namespace_t;
 
 namespace android {
 
+class NativeLoaderNamespace;
+
 class GraphicsEnv {
 public:
     static GraphicsEnv& getInstance();
@@ -35,8 +37,8 @@ public:
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
 
-    void setLayerPaths(android_namespace_t* appNamespace, const std::string layerPaths);
-    android_namespace_t* getAppNamespace();
+    void setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths);
+    NativeLoaderNamespace* getAppNamespace();
     const std::string getLayerPaths();
 
     void setDebugLayers(const std::string layers);
@@ -48,7 +50,7 @@ private:
     std::string mDebugLayers;
     std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
-    android_namespace_t* mAppNamespace = nullptr;
+    NativeLoaderNamespace* mAppNamespace = nullptr;
 };
 
 } // namespace android
