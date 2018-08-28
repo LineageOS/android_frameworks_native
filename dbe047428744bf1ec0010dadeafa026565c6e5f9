@@ -25,6 +25,24 @@
     },
     {
       "key": {
+        "uuid": "64878099_5d54a22b",
+        "filename": "libs/ui/Gralloc2.cpp",
+        "patchSetId": 3
+      },
+      "lineNbr": 50,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2018-08-28T11:57:57Z",
+      "side": 1,
+      "message": "It is weakening the security posture from Google\u0027s baseline, so I personally feel it\u0027s an error state that should always get reported. But it\u0027s not a hill I want to die on... I can go either way.",
+      "parentUuid": "13047784_bf921f57",
+      "revId": "dbe047428744bf1ec0010dadeafa026565c6e5f9",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    },
+    {
+      "key": {
         "uuid": "7510fea0_031970a5",
         "filename": "libs/ui/Gralloc2.cpp",
         "patchSetId": 3
