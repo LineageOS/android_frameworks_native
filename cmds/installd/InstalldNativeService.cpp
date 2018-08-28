@@ -95,15 +95,6 @@ static constexpr int kVerityPageSize = 4096;
 static constexpr size_t kSha256Size = 32;
 static constexpr const char* kPropApkVerityMode = "ro.apk_verity.mode";
 
-// NOTE: keep in sync with Installer
-static constexpr int FLAG_CLEAR_CACHE_ONLY = 1 << 8;
-static constexpr int FLAG_CLEAR_CODE_CACHE_ONLY = 1 << 9;
-static constexpr int FLAG_USE_QUOTA = 1 << 12;
-static constexpr int FLAG_FREE_CACHE_V2 = 1 << 13;
-static constexpr int FLAG_FREE_CACHE_V2_DEFY_QUOTA = 1 << 14;
-static constexpr int FLAG_FREE_CACHE_NOOP = 1 << 15;
-static constexpr int FLAG_FORCE = 1 << 16;
-
 namespace {
 
 constexpr const char* kDump = "android.permission.DUMP";
@@ -613,6 +604,31 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
                 remove_path_xattr(path, kXattrInodeCodeCache);
             }
         }
+
+        auto extPath = findDataMediaPath(uuid, userId);
+        if (flags & FLAG_CLEAR_CACHE_ONLY) {
+            // Clear only cached data from shared storage
+            path = StringPrintf("%s/Android/data/%s/cache", extPath.c_str(), pkgname);
+            if (delete_dir_contents(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+        } else if (flags & FLAG_CLEAR_CODE_CACHE_ONLY) {
+            // No code cache on shared storage
+        } else {
+            // Clear everything on shared storage
+            path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+            path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+            path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
+        }
     }
     if (flags & FLAG_STORAGE_DE) {
         std::string suffix = "";
@@ -679,6 +695,20 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
     if (flags & FLAG_STORAGE_CE) {
         auto path = create_data_user_ce_package_path(uuid_, userId, pkgname, ceDataInode);
         if (delete_dir_contents_and_dir(path) != 0) {
+            res = error("Failed to delete " + path);
+        }
+
+        auto extPath = findDataMediaPath(uuid, userId);
+        path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
+        if (delete_dir_contents_and_dir(path, true) != 0) {
+            res = error("Failed to delete " + path);
+        }
+        path = StringPrintf("%s/Android/media/%s", extPath.c_str(), pkgname);
+        if (delete_dir_contents_and_dir(path, true) != 0) {
+            res = error("Failed to delete " + path);
+        }
+        path = StringPrintf("%s/Android/obb/%s", extPath.c_str(), pkgname);
+        if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
         }
     }
