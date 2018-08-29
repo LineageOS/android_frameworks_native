@@ -24,7 +24,7 @@
 struct ANativeWindowBuffer;
 
 namespace android {
-namespace RE {
+namespace renderengine {
 
 class Image {
 public:
@@ -36,7 +36,7 @@ namespace impl {
 
 class RenderEngine;
 
-class Image : public RE::Image {
+class Image : public renderengine::Image {
 public:
     explicit Image(const RenderEngine& engine);
     ~Image() override;
@@ -55,6 +55,6 @@ private:
     EGLImageKHR mEGLImage = EGL_NO_IMAGE_KHR;
 };
 
-} // namespace impl
-} // namespace RE
-} // namespace android
+}  // namespace impl
+}  // namespace renderengine
+}  // namespace android

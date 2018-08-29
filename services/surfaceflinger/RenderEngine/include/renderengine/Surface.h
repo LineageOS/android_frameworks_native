@@ -23,7 +23,7 @@
 struct ANativeWindow;
 
 namespace android {
-namespace RE {
+namespace renderengine {
 
 class Surface {
 public:
@@ -48,7 +48,7 @@ namespace impl {
 
 class RenderEngine;
 
-class Surface final : public RE::Surface {
+class Surface final : public renderengine::Surface {
 public:
     Surface(const RenderEngine& engine);
     ~Surface();
@@ -56,7 +56,7 @@ public:
     Surface(const Surface&) = delete;
     Surface& operator=(const Surface&) = delete;
 
-    // RE::Surface implementation
+    // renderengine::Surface implementation
     void setCritical(bool enable) override { mCritical = enable; }
     void setAsync(bool enable) override { mAsync = enable; }
 
@@ -90,6 +90,6 @@ private:
     EGLSurface mEGLSurface = EGL_NO_SURFACE;
 };
 
-} // namespace impl
-} // namespace RE
-} // namespace android
+}  // namespace impl
+}  // namespace renderengine
+}  // namespace android

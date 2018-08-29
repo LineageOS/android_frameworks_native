@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-#include <math/mat4.h>
-#include <stdint.h>
-
 #ifndef SF_RENDER_ENGINE_TEXTURE_H
 #define SF_RENDER_ENGINE_TEXTURE_H
 
+#include <stdint.h>
+
+#include <math/mat4.h>
+
 namespace android {
+namespace renderengine {
 
 class Texture {
     uint32_t mTextureName;
@@ -52,5 +54,6 @@ public:
     size_t getHeight() const;
 };
 
-} /* namespace android */
+}  // namespace renderengine
+}  // namespace android
 #endif /* SF_RENDER_ENGINE_TEXTURE_H */

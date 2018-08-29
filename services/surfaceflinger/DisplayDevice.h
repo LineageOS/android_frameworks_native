@@ -84,7 +84,7 @@ public:
             const wp<IBinder>& displayToken,
             const sp<ANativeWindow>& nativeWindow,
             const sp<DisplaySurface>& displaySurface,
-            std::unique_ptr<RE::Surface> renderSurface,
+            std::unique_ptr<renderengine::Surface> renderSurface,
             int displayWidth,
             int displayHeight,
             bool hasWideColorGamut,
@@ -231,7 +231,7 @@ private:
     sp<ANativeWindow> mNativeWindow;
     sp<DisplaySurface> mDisplaySurface;
 
-    std::unique_ptr<RE::Surface> mSurface;
+    std::unique_ptr<renderengine::Surface> mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
     mutable uint32_t mPageFlipCount;

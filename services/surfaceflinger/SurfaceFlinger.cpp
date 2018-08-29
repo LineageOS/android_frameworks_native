@@ -618,9 +618,10 @@ void SurfaceFlinger::init() {
 
     // Get a RenderEngine for the given display / config (can't fail)
     int32_t renderEngineFeature = 0;
-    renderEngineFeature |= (useColorManagement ? RE::RenderEngine::USE_COLOR_MANAGEMENT : 0);
-    getBE().mRenderEngine =
-            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888, renderEngineFeature);
+    renderEngineFeature |= (useColorManagement ?
+                            renderengine::RenderEngine::USE_COLOR_MANAGEMENT : 0);
+    getBE().mRenderEngine = renderengine::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                      renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -2420,7 +2421,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     /*
      * Create our display's surface
      */
-    std::unique_ptr<RE::Surface> renderSurface = getRenderEngine().createSurface();
+    std::unique_ptr<renderengine::Surface> renderSurface = getRenderEngine().createSurface();
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
@@ -5473,7 +5474,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
 
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    RE::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    renderengine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
     if (bufferBond.getStatus() != NO_ERROR) {
         ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;

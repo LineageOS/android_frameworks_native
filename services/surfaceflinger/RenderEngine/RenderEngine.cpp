@@ -16,29 +16,30 @@
 
 #include <renderengine/RenderEngine.h>
 
+#include <vector>
+
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 #include <log/log.h>
 #include <private/gui/SyncFeatures.h>
-#include <renderengine/GLES20RenderEngine.h>
-#include <renderengine/GLExtensions.h>
 #include <renderengine/Image.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/Surface.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
-
-#include <vector>
+#include <utils/KeyedVector.h>
+#include "gl/GLES20RenderEngine.h"
+#include "gl/GLExtensions.h"
+#include "gl/ProgramCache.h"
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using namespace android::renderengine::gl;
 
 extern "C" EGLAPI const char* eglQueryStringImplementationANDROID(EGLDisplay dpy, EGLint name);
 
-// ---------------------------------------------------------------------------
 namespace android {
-namespace RE {
-// ---------------------------------------------------------------------------
+namespace renderengine {
 
 RenderEngine::~RenderEngine() = default;
 
@@ -187,22 +188,22 @@ bool RenderEngine::isCurrent() const {
     return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
 }
 
-std::unique_ptr<RE::Surface> RenderEngine::createSurface() {
+std::unique_ptr<renderengine::Surface> RenderEngine::createSurface() {
     return std::make_unique<Surface>(*this);
 }
 
-std::unique_ptr<RE::Image> RenderEngine::createImage() {
+std::unique_ptr<renderengine::Image> RenderEngine::createImage() {
     return std::make_unique<Image>(*this);
 }
 
-bool RenderEngine::setCurrentSurface(const android::RE::Surface& surface) {
-    // Note: RE::Surface is an abstract interface. This implementation only ever
-    // creates RE::impl::Surface's, so it is safe to just cast to the actual
+bool RenderEngine::setCurrentSurface(const android::renderengine::Surface& surface) {
+    // Note: renderengine::Surface is an abstract interface. This implementation only ever
+    // creates renderengine::impl::Surface's, so it is safe to just cast to the actual
     // type.
-    return setCurrentSurface(static_cast<const android::RE::impl::Surface&>(surface));
+    return setCurrentSurface(static_cast<const android::renderengine::impl::Surface&>(surface));
 }
 
-bool RenderEngine::setCurrentSurface(const android::RE::impl::Surface& surface) {
+bool RenderEngine::setCurrentSurface(const android::renderengine::impl::Surface& surface) {
     bool success = true;
     EGLSurface eglSurface = surface.getEGLSurface();
     if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
@@ -374,14 +375,16 @@ void RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
     glDeleteTextures(count, names);
 }
 
-void RenderEngine::bindExternalTextureImage(uint32_t texName, const android::RE::Image& image) {
-    // Note: RE::Image is an abstract interface. This implementation only ever
-    // creates RE::impl::Image's, so it is safe to just cast to the actual type.
-    return bindExternalTextureImage(texName, static_cast<const android::RE::impl::Image&>(image));
+void RenderEngine::bindExternalTextureImage(uint32_t texName,
+                                            const android::renderengine::Image& image) {
+    // Note: renderengine::Image is an abstract interface. This implementation only ever
+    // creates renderengine::impl::Image's, so it is safe to just cast to the actual type.
+    return bindExternalTextureImage(texName,
+                                    static_cast<const android::renderengine::impl::Image&>(image));
 }
 
 void RenderEngine::bindExternalTextureImage(uint32_t texName,
-                                            const android::RE::impl::Image& image) {
+                                            const android::renderengine::impl::Image& image) {
     const GLenum target = GL_TEXTURE_EXTERNAL_OES;
 
     glBindTexture(target, texName);
@@ -405,10 +408,9 @@ void RenderEngine::dump(String8& result) {
     result.appendFormat("%s\n", extensions.getExtensions());
 }
 
-// ---------------------------------------------------------------------------
-
-void RenderEngine::bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
-                                                 RE::BindNativeBufferAsFramebuffer* bindHelper) {
+void RenderEngine::bindNativeBufferAsFrameBuffer(
+        ANativeWindowBuffer* buffer,
+        renderengine::BindNativeBufferAsFramebuffer* bindHelper) {
     bindHelper->mImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
                                            buffer, nullptr);
     if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
@@ -426,7 +428,8 @@ void RenderEngine::bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
     bindHelper->mStatus = glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
 
-void RenderEngine::unbindNativeBufferAsFrameBuffer(RE::BindNativeBufferAsFramebuffer* bindHelper) {
+void RenderEngine::unbindNativeBufferAsFrameBuffer(
+        renderengine::BindNativeBufferAsFramebuffer* bindHelper) {
     if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
         return;
     }
@@ -598,8 +601,7 @@ void RenderEngine::primeCache() const {
     ProgramCache::getInstance().primeCache(mFeatureFlags & USE_COLOR_MANAGEMENT);
 }
 
-// ---------------------------------------------------------------------------
 
-} // namespace impl
-} // namespace RE
-} // namespace android
+}  // namespace impl
+}  // namespace renderengine
+}  // namespace android

@@ -178,7 +178,7 @@ private:
     bool mBufferLatched; // TODO: Use mActiveBuffer?
 
     // The texture used to draw the layer in GLES composition mode
-    mutable Texture mTexture;
+    mutable renderengine::Texture mTexture;
 
     bool mRefreshPending;
 };

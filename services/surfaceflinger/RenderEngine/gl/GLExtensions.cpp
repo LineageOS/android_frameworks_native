@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
-#include <renderengine/GLExtensions.h>
+#include "GLExtensions.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-namespace android {
-// ---------------------------------------------------------------------------
+ANDROID_SINGLETON_STATIC_INSTANCE(android::renderengine::gl::GLExtensions)
 
-ANDROID_SINGLETON_STATIC_INSTANCE(GLExtensions)
+namespace android {
+namespace renderengine {
+namespace gl {
 
 SortedVector<String8> GLExtensions::parseExtensionString(char const* extensions) {
     SortedVector<String8> list;
@@ -120,5 +121,6 @@ bool GLExtensions::hasEGLExtension(char const* extension) const {
     return mEGLExtensionList.indexOf(s) >= 0;
 }
 
-// ---------------------------------------------------------------------------
-}; // namespace android
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android

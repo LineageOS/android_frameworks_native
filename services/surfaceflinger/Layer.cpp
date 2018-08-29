@@ -795,7 +795,8 @@ static void boundPoint(vec2* point, const Rect& crop) {
     }
 }
 
-void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
+void Layer::computeGeometry(const RenderArea& renderArea,
+                            renderengine::Mesh& mesh,
                             bool useIdentityTransform) const {
     const Layer::State& s(getDrawingState());
     const ui::Transform renderAreaTransform(renderArea.getTransform());
@@ -823,7 +824,7 @@ void Layer::computeGeometry(const RenderArea& renderArea, Mesh& mesh,
         boundPoint(&rt, finalCrop);
     }
 
-    Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
+    renderengine::Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
     position[0] = renderAreaTransform.transform(lt);
     position[1] = renderAreaTransform.transform(lb);
     position[2] = renderAreaTransform.transform(rb);
