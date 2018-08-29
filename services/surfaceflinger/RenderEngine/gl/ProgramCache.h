@@ -18,17 +18,23 @@
 #define SF_RENDER_ENGINE_PROGRAMCACHE_H
 
 #include <GLES2/gl2.h>
-#include <renderengine/Description.h>
+#include <renderengine/private/Description.h>
 #include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/TypeHelpers.h>
 
 namespace android {
 
+class String8;
+
+namespace renderengine {
+
 class Description;
+
+namespace gl {
+
 class Formatter;
 class Program;
-class String8;
 
 /*
  * This class generates GLSL programs suitable to handle a given
@@ -188,8 +194,11 @@ private:
     DefaultKeyedVector<Key, Program*> mCache;
 };
 
-ANDROID_BASIC_TYPES_TRAITS(ProgramCache::Key)
+}  // namespace gl
+}  // namespace renderengine
 
-} /* namespace android */
+ANDROID_BASIC_TYPES_TRAITS(renderengine::gl::ProgramCache::Key)
+
+}  // namespace android
 
 #endif /* SF_RENDER_ENGINE_PROGRAMCACHE_H */

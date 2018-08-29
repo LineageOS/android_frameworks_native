@@ -91,13 +91,13 @@ public:
     explicit LayerBE(const LayerBE& layer);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
-    void clear(RE::RenderEngine& renderEngine);
-    Mesh& getMesh() { return mMesh; }
+    void clear(renderengine::RenderEngine& renderEngine);
+    renderengine::Mesh& getMesh() { return mMesh; }
 
 private:
     Layer*const mLayer;
     // The mesh used to draw the layer in GLES composition mode
-    Mesh mMesh;
+    renderengine::Mesh mMesh;
 
     // HWC items, accessed from the main thread
     struct HWCInfo {

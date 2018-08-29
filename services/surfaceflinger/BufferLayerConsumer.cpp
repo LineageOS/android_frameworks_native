@@ -54,7 +54,8 @@ namespace android {
 static const mat4 mtxIdentity;
 
 BufferLayerConsumer::BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq,
-                                         RE::RenderEngine& engine, uint32_t tex, Layer* layer)
+                                         renderengine::RenderEngine& engine, uint32_t tex,
+                                         Layer* layer)
       : ConsumerBase(bq, false),
         mCurrentCrop(Rect::EMPTY_RECT),
         mCurrentTransform(0),
@@ -592,7 +593,8 @@ void BufferLayerConsumer::dumpLocked(String8& result, const char* prefix) const 
     ConsumerBase::dumpLocked(result, prefix);
 }
 
-BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEngine& engine)
+BufferLayerConsumer::Image::Image(sp<GraphicBuffer> graphicBuffer,
+                                  renderengine::RenderEngine& engine)
       : mGraphicBuffer(graphicBuffer),
         mImage{engine.createImage()},
         mCreated(false),

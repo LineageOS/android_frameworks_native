@@ -58,7 +58,7 @@ BufferLayer::BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, cons
         mRefreshPending(false) {
     ALOGV("Creating Layer %s", name.string());
 
-    mTexture.init(Texture::TEXTURE_EXTERNAL, mTextureName);
+    mTexture.init(renderengine::Texture::TEXTURE_EXTERNAL, mTextureName);
 
     mPremultipliedAlpha = !(flags & ISurfaceComposerClient::eNonPremultiplied);
 
@@ -608,7 +608,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 
     // TODO: we probably want to generate the texture coords with the mesh
     // here we assume that we only have 4 vertices
-    Mesh::VertexArray<vec2> texCoords(getBE().mMesh.getTexCoordArray<vec2>());
+    renderengine::Mesh::VertexArray<vec2> texCoords(getBE().mMesh.getTexCoordArray<vec2>());
     texCoords[0] = vec2(left, 1.0f - top);
     texCoords[1] = vec2(left, 1.0f - bottom);
     texCoords[2] = vec2(right, 1.0f - bottom);

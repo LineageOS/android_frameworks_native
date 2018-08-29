@@ -41,15 +41,21 @@ filegroup {
     name: "librenderengine_sources",
     srcs: [
         "Description.cpp",
-        "GLES20RenderEngine.cpp",
-        "GLExtensions.cpp",
         "Image.cpp",
         "Mesh.cpp",
-        "Program.cpp",
-        "ProgramCache.cpp",
         "RenderEngine.cpp",
         "Surface.cpp",
         "Texture.cpp",
+    ],
+}
+
+filegroup {
+    name: "librenderengine_gl_sources",
+    srcs: [
+        "gl/GLES20RenderEngine.cpp",
+        "gl/GLExtensions.cpp",
+        "gl/Program.cpp",
+        "gl/ProgramCache.cpp",
     ],
 }
 
@@ -68,6 +74,7 @@ cc_library_static {
     ],
     srcs: [
         ":librenderengine_sources",
+        ":librenderengine_gl_sources",
     ],
     lto: {
         thin: true,

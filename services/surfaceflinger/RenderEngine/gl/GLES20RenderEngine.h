@@ -21,22 +21,21 @@
 #include <sys/types.h>
 
 #include <GLES2/gl2.h>
-#include <renderengine/Description.h>
-#include <renderengine/ProgramCache.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/private/Description.h>
 
-// ---------------------------------------------------------------------------
 namespace android {
-// ---------------------------------------------------------------------------
 
 class String8;
+
+namespace renderengine {
+
 class Mesh;
 class Texture;
 
-namespace RE {
-namespace impl {
+namespace gl {
 
-class GLES20RenderEngine : public RenderEngine {
+class GLES20RenderEngine : public impl::RenderEngine {
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
@@ -52,7 +51,6 @@ class GLES20RenderEngine : public RenderEngine {
     };
 
     Description mState;
-    Vector<Group> mGroupStack;
 
     virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName,
                                         uint32_t* status);
@@ -112,10 +110,8 @@ private:
     bool needsXYZTransformMatrix() const;
 };
 
-// ---------------------------------------------------------------------------
-} // namespace impl
-} // namespace RE
-} // namespace android
-// ---------------------------------------------------------------------------
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android
 
 #endif /* SF_GLES20RENDERENGINE_H_ */

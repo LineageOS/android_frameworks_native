@@ -25,22 +25,22 @@
 #include <renderengine/Texture.h>
 
 namespace android {
-namespace RE {
+namespace renderengine {
 namespace mock {
 
-class RenderEngine : public RE::RenderEngine {
+class RenderEngine : public renderengine::RenderEngine {
 public:
     RenderEngine();
     ~RenderEngine() override;
 
-    MOCK_METHOD0(createSurface, std::unique_ptr<RE::Surface>());
-    MOCK_METHOD0(createImage, std::unique_ptr<RE::Image>());
+    MOCK_METHOD0(createSurface, std::unique_ptr<renderengine::Surface>());
+    MOCK_METHOD0(createImage, std::unique_ptr<renderengine::Image>());
     MOCK_CONST_METHOD0(primeCache, void());
     MOCK_METHOD1(dump, void(String8&));
     MOCK_CONST_METHOD0(useNativeFenceSync, bool());
     MOCK_CONST_METHOD0(useWaitSync, bool());
     MOCK_CONST_METHOD0(isCurrent, bool());
-    MOCK_METHOD1(setCurrentSurface, bool(const RE::Surface&));
+    MOCK_METHOD1(setCurrentSurface, bool(const renderengine::Surface&));
     MOCK_METHOD0(resetCurrentSurface, void());
     MOCK_METHOD0(flush, base::unique_fd());
     MOCK_METHOD0(finish, bool());
@@ -52,7 +52,7 @@ public:
     MOCK_METHOD0(disableScissor, void());
     MOCK_METHOD2(genTextures, void(size_t, uint32_t*));
     MOCK_METHOD2(deleteTextures, void(size_t, uint32_t const*));
-    MOCK_METHOD2(bindExternalTextureImage, void(uint32_t, const RE::Image&));
+    MOCK_METHOD2(bindExternalTextureImage, void(uint32_t, const renderengine::Image&));
     MOCK_METHOD5(readPixels, void(size_t, size_t, size_t, size_t, uint32_t*));
     MOCK_CONST_METHOD0(checkErrors, void());
     MOCK_METHOD6(setViewportAndProjection,
@@ -70,14 +70,16 @@ public:
     MOCK_METHOD1(setOutputDataSpace, void(ui::Dataspace));
     MOCK_METHOD1(setDisplayMaxLuminance, void(const float));
     MOCK_METHOD2(bindNativeBufferAsFrameBuffer,
-                 void(ANativeWindowBuffer*, RE::BindNativeBufferAsFramebuffer*));
-    MOCK_METHOD1(unbindNativeBufferAsFrameBuffer, void(RE::BindNativeBufferAsFramebuffer*));
+                 void(ANativeWindowBuffer*,
+                      renderengine::BindNativeBufferAsFramebuffer*));
+    MOCK_METHOD1(unbindNativeBufferAsFrameBuffer,
+                 void(renderengine::BindNativeBufferAsFramebuffer*));
     MOCK_METHOD1(drawMesh, void(const Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());
 };
 
-class Surface : public RE::Surface {
+class Surface : public renderengine::Surface {
 public:
     Surface();
     ~Surface() override;
@@ -94,7 +96,7 @@ public:
     MOCK_CONST_METHOD0(queryHeight, int32_t());
 };
 
-class Image : public RE::Image {
+class Image : public renderengine::Image {
 public:
     Image();
     ~Image() override;
@@ -104,5 +106,5 @@ public:
 };
 
 } // namespace mock
-} // namespace RE
+} // namespace renderengine
 } // namespace android

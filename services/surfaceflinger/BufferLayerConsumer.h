@@ -37,10 +37,10 @@ class DispSync;
 class Layer;
 class String8;
 
-namespace RE {
+namespace renderengine {
 class RenderEngine;
 class Image;
-} // namespace RE
+} // namespace renderengine
 
 /*
  * BufferLayerConsumer consumes buffers of graphics data from a BufferQueue,
@@ -73,7 +73,7 @@ public:
     // BufferLayerConsumer constructs a new BufferLayerConsumer object.  The
     // tex parameter indicates the name of the RenderEngine texture to which
     // images are to be streamed.
-    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, RE::RenderEngine& engine,
+    BufferLayerConsumer(const sp<IGraphicBufferConsumer>& bq, renderengine::RenderEngine& engine,
                         uint32_t tex, Layer* layer);
 
     // Sets the contents changed listener. This should be used instead of
@@ -216,19 +216,19 @@ protected:
     status_t bindTextureImageLocked();
 
 private:
-    // Image is a utility class for tracking and creating RE::Images. There
+    // Image is a utility class for tracking and creating renderengine::Images. There
     // is primarily just one image per slot, but there is also special cases:
     //  - After freeBuffer, we must still keep the current image/buffer
-    // Reference counting RE::Images lets us handle all these cases easily while
-    // also only creating new RE::Images from buffers when required.
+    // Reference counting renderengine::Images lets us handle all these cases easily while
+    // also only creating new renderengine::Images from buffers when required.
     class Image : public LightRefBase<Image> {
     public:
-        Image(sp<GraphicBuffer> graphicBuffer, RE::RenderEngine& engine);
+        Image(sp<GraphicBuffer> graphicBuffer, renderengine::RenderEngine& engine);
 
         Image(const Image& rhs) = delete;
         Image& operator=(const Image& rhs) = delete;
 
-        // createIfNeeded creates an RE::Image if we haven't created one yet.
+        // createIfNeeded creates an renderengine::Image if we haven't created one yet.
         status_t createIfNeeded();
 
         const sp<GraphicBuffer>& graphicBuffer() { return mGraphicBuffer; }
@@ -236,7 +236,7 @@ private:
             return mGraphicBuffer == nullptr ? nullptr : mGraphicBuffer->handle;
         }
 
-        const RE::Image& image() const { return *mImage; }
+        const renderengine::Image& image() const { return *mImage; }
 
     private:
         // Only allow instantiation using ref counting.
@@ -247,7 +247,7 @@ private:
         sp<GraphicBuffer> mGraphicBuffer;
 
         // mImage is the image created from mGraphicBuffer.
-        std::unique_ptr<RE::Image> mImage;
+        std::unique_ptr<renderengine::Image> mImage;
         bool mCreated;
         int32_t mCropWidth;
         int32_t mCropHeight;
@@ -255,7 +255,7 @@ private:
 
     // freeBufferLocked frees up the given buffer slot. If the slot has been
     // initialized this will release the reference to the GraphicBuffer in
-    // that slot and destroy the RE::Image in that slot.  Otherwise it has no
+    // that slot and destroy the renderengine::Image in that slot.  Otherwise it has no
     // effect.
     //
     // This method must be called with mMutex locked.
@@ -351,7 +351,7 @@ private:
     // setFilteringEnabled().
     bool mFilteringEnabled;
 
-    RE::RenderEngine& mRE;
+    renderengine::RenderEngine& mRE;
 
     // mTexName is the name of the RenderEngine texture to which streamed
     // images will be bound when bindTexImage is called. It is set at

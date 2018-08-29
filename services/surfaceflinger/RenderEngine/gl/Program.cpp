@@ -14,17 +14,19 @@
  * limitations under the License.
  */
 
-#include <renderengine/Program.h>
+#include "Program.h"
 
 #include <stdint.h>
 
 #include <log/log.h>
 #include <math/mat4.h>
-#include <renderengine/Description.h>
-#include <renderengine/ProgramCache.h>
+#include <renderengine/private/Description.h>
 #include <utils/String8.h>
+#include "ProgramCache.h"
 
 namespace android {
+namespace renderengine {
+namespace gl {
 
 Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const char* fragment)
       : mInitialized(false) {
@@ -152,4 +154,6 @@ void Program::setUniforms(const Description& desc) {
     glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.mProjectionMatrix.asArray());
 }
 
-} /* namespace android */
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android

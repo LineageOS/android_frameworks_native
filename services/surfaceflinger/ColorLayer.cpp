@@ -45,7 +45,7 @@ void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
                         bool useIdentityTransform) {
     half4 color = getColor();
     if (color.a > 0) {
-        Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
+        renderengine::Mesh mesh(renderengine::Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(renderArea, mesh, useIdentityTransform);
         auto& engine(mFlinger->getRenderEngine());
         engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,

@@ -116,7 +116,7 @@ public:
     // These mocks are created by the test, but are destroyed by SurfaceFlinger
     // by virtue of being stored into a std::unique_ptr. However we still need
     // to keep a reference to them for use in setting up call expectations.
-    RE::mock::RenderEngine* mRenderEngine = new RE::mock::RenderEngine();
+    renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     Hwc2::mock::Composer* mComposer = nullptr;
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::SurfaceInterceptor* mSurfaceInterceptor = new mock::SurfaceInterceptor();
@@ -127,7 +127,7 @@ public:
     sp<mock::GraphicBufferProducer> mProducer;
     mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
     sp<mock::NativeWindow> mNativeWindow;
-    RE::mock::Surface* mRenderSurface = nullptr;
+    renderengine::mock::Surface* mRenderSurface = nullptr;
 };
 
 DisplayTransactionTest::DisplayTransactionTest() {
@@ -155,7 +155,7 @@ DisplayTransactionTest::DisplayTransactionTest() {
     mFlinger.mutableEventControlThread().reset(mEventControlThread);
     mFlinger.mutableEventThread().reset(mEventThread);
     mFlinger.mutableEventQueue().reset(mMessageQueue);
-    mFlinger.setupRenderEngine(std::unique_ptr<RE::RenderEngine>(mRenderEngine));
+    mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
     mFlinger.mutableInterceptor().reset(mSurfaceInterceptor);
     mFlinger.mutablePrimaryDispSync().reset(mPrimaryDispSync);
 
@@ -277,9 +277,10 @@ struct DisplayVariant {
         // For simplicity, we only expect to create a single render surface for
         // each test.
         ASSERT_TRUE(test->mRenderSurface == nullptr);
-        test->mRenderSurface = new RE::mock::Surface();
+        test->mRenderSurface = new renderengine::mock::Surface();
         EXPECT_CALL(*test->mRenderEngine, createSurface())
-                .WillOnce(Return(ByMove(std::unique_ptr<RE::Surface>(test->mRenderSurface))));
+                .WillOnce(Return(ByMove(
+                        std::unique_ptr<renderengine::Surface>(test->mRenderSurface))));
         EXPECT_CALL(*test->mRenderSurface, setAsync(static_cast<bool>(ASYNC))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setCritical(static_cast<bool>(CRITICAL))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setNativeWindow(test->mNativeWindow.get())).Times(1);
@@ -1735,11 +1736,11 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     // A display is set up
     auto nativeWindow = new mock::NativeWindow();
     auto displaySurface = new mock::DisplaySurface();
-    auto renderSurface = new RE::mock::Surface();
+    auto renderSurface = new renderengine::mock::Surface();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
-    display.setRenderSurface(std::unique_ptr<RE::Surface>(renderSurface));
+    display.setRenderSurface(std::unique_ptr<renderengine::Surface>(renderSurface));
     display.inject();
 
     // There is a change to the viewport state
@@ -1776,11 +1777,11 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // A display is set up
     auto nativeWindow = new mock::NativeWindow();
     auto displaySurface = new mock::DisplaySurface();
-    auto renderSurface = new RE::mock::Surface();
+    auto renderSurface = new renderengine::mock::Surface();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
-    display.setRenderSurface(std::unique_ptr<RE::Surface>(renderSurface));
+    display.setRenderSurface(std::unique_ptr<renderengine::Surface>(renderSurface));
     display.inject();
 
     // There is a change to the viewport state

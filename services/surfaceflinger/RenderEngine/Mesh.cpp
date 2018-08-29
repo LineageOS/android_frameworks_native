@@ -19,6 +19,7 @@
 #include <utils/Log.h>
 
 namespace android {
+namespace renderengine {
 
 Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t texCoordSize)
       : mVertexCount(vertexCount),
@@ -94,4 +95,5 @@ size_t Mesh::getStride() const {
     return mStride;
 }
 
-} /* namespace android */
+}  // namespace renderengine
+}  // namespace android

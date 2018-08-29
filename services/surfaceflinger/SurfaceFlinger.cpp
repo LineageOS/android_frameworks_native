@@ -618,9 +618,10 @@ void SurfaceFlinger::init() {
 
     // Get a RenderEngine for the given display / config (can't fail)
     int32_t renderEngineFeature = 0;
-    renderEngineFeature |= (useColorManagement ? RE::RenderEngine::USE_COLOR_MANAGEMENT : 0);
-    getBE().mRenderEngine =
-            RE::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888, renderEngineFeature);
+    renderEngineFeature |= (useColorManagement ?
+                            renderengine::RenderEngine::USE_COLOR_MANAGEMENT : 0);
+    getBE().mRenderEngine = renderengine::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
+                                                                      renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -2420,7 +2421,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     /*
      * Create our display's surface
      */
-    std::unique_ptr<RE::Surface> renderSurface = getRenderEngine().createSurface();
+    std::unique_ptr<renderengine::Surface> renderSurface = getRenderEngine().createSurface();
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
@@ -3717,6 +3718,11 @@ status_t SurfaceFlinger::createLayer(
                     uniqueName, w, h, flags,
                     handle, &layer);
             break;
+        case ISurfaceComposerClient::eFXSurfaceContainer:
+            result = createContainerLayer(client,
+                    uniqueName, w, h, flags,
+                    handle, &layer);
+            break;
         default:
             result = BAD_VALUE;
             break;
@@ -3819,6 +3825,16 @@ status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
+
+status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
+        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
+        sp<IBinder>* handle, sp<Layer>* outLayer)
+{
+    *outLayer = new ContainerLayer(this, client, name, w, h, flags);
+    *handle = (*outLayer)->getHandle();
+    return NO_ERROR;
+}
+
 
 status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle)
 {
@@ -5458,7 +5474,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
 
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    RE::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    renderengine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
     if (bufferBond.getStatus() != NO_ERROR) {
         ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;

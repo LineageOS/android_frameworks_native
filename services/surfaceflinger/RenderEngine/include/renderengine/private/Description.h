@@ -14,15 +14,18 @@
  * limitations under the License.
  */
 
-#include <GLES2/gl2.h>
-#include <renderengine/Texture.h>
-
 #ifndef SF_RENDER_ENGINE_DESCRIPTION_H_
 #define SF_RENDER_ENGINE_DESCRIPTION_H_
 
-namespace android {
+#include <renderengine/Texture.h>
 
+namespace android {
+namespace renderengine {
+
+namespace gl {
 class Program;
+class ProgramCache;
+}
 
 /*
  * This holds the state of the rendering engine. This class is used
@@ -63,8 +66,8 @@ public:
     void setDisplayMaxLuminance(const float maxLuminance);
 
 private:
-    friend class Program;
-    friend class ProgramCache;
+    friend class gl::Program;
+    friend class gl::ProgramCache;
 
     // whether textures are premultiplied
     bool mPremultipliedAlpha = false;
@@ -94,6 +97,7 @@ private:
     mat4 mOutputTransformMatrix;
 };
 
-} /* namespace android */
+}  // namespace renderengine
+}  // namespace android
 
 #endif /* SF_RENDER_ENGINE_DESCRIPTION_H_ */

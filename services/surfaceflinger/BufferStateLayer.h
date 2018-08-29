@@ -127,7 +127,7 @@ private:
 private:
     void onFirstRef() override;
 
-    std::unique_ptr<RE::Image> mTextureImage;
+    std::unique_ptr<renderengine::Image> mTextureImage;
 
     std::array<float, 16> mTransformMatrix;
 

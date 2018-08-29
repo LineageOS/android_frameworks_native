@@ -24,13 +24,13 @@
 #include <EGL/eglext.h>
 #include <GLES/gl.h>
 #include <GLES/glext.h>
-
 #include <utils/Singleton.h>
 #include <utils/SortedVector.h>
 #include <utils/String8.h>
 
 namespace android {
-// ---------------------------------------------------------------------------
+namespace renderengine {
+namespace gl {
 
 class GLExtensions : public Singleton<GLExtensions> {
     friend class Singleton<GLExtensions>;
@@ -82,7 +82,8 @@ public:
     bool hasEGLExtension(char const* extension) const;
 };
 
-// ---------------------------------------------------------------------------
-}; // namespace android
+}  // namespace gl
+}  // namespace renderengine
+}  // namespace android
 
 #endif // ANDROID_SF_GLEXTENSION_H
