@@ -486,12 +486,15 @@ static void* load_angle(const char* kind, egl_connection_t* cnx) {
 
     android_namespace_t* ns = android_getAngleNamespace();
     const char* app_name = android_getAngleAppName();
+    const char* app_pref = android_getAngleAppPref();
     bool developer_opt_in = android_getAngleDeveloperOptIn();
 
     if (ns) {
         // If we got a namespce for ANGLE, check any other conditions
         // before loading from it.
-        if (developer_opt_in) {
+        // TODO: Call opt-in logic rather than use pref directly
+        //       app_pref will be "angle", "native", or "dontcare"
+        if ((developer_opt_in || !strcmp(app_pref, "angle"))) {
             so = load_angle_from_namespace(kind, ns);
         }
     }
