@@ -288,6 +288,8 @@ public:
     // found on devices with wide color gamut (e.g. Display-P3) display.
     static bool hasWideColorDisplay;
 
+    static int primaryDisplayOrientation;
+
     // Indicate if device wants color management on its display.
     static bool useColorManagement;
 
@@ -349,8 +351,6 @@ public:
 
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
-
-    int getPrimaryDisplayOrientation() const { return mPrimaryDisplayOrientation; }
 
 private:
     friend class Client;
@@ -881,7 +881,6 @@ private:
     mutable std::unique_ptr<MessageQueue> mEventQueue{std::make_unique<impl::MessageQueue>()};
     FrameTracker mAnimFrameTracker;
     std::unique_ptr<DispSync> mPrimaryDispSync;
-    int mPrimaryDisplayOrientation = DisplayState::eOrientationDefault;
 
     // protected by mDestroyedLayerLock;
     mutable Mutex mDestroyedLayerLock;
