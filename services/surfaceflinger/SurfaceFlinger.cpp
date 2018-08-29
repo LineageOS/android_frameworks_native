@@ -2182,7 +2182,16 @@ void SurfaceFlinger::setUpHWComposer(const CompositionInfo& compositionInfo) {
     switch (compositionInfo.compositionType)
     {
         case HWC2::Composition::Invalid:
+            break;
+
         case HWC2::Composition::Client:
+            if (compositionInfo.hwc.hwcLayer) {
+                auto error = (compositionInfo.hwc.hwcLayer)->
+                    setCompositionType(compositionInfo.compositionType);
+                ALOGE_IF(error != HWC2::Error::None,
+                        "[SF] Failed to set composition type: %s (%d)",
+                            to_string(error).c_str(), static_cast<int32_t>(error));
+            }
             break;
 
         case HWC2::Composition::Sideband:
