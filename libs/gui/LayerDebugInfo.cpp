@@ -42,7 +42,6 @@ status_t LayerDebugInfo::writeToParcel(Parcel* parcel) const {
     RETURN_ON_ERROR(parcel->writeInt32(mWidth));
     RETURN_ON_ERROR(parcel->writeInt32(mHeight));
     RETURN_ON_ERROR(parcel->write(mCrop));
-    RETURN_ON_ERROR(parcel->write(mFinalCrop));
     RETURN_ON_ERROR(parcel->writeFloat(mColor.r));
     RETURN_ON_ERROR(parcel->writeFloat(mColor.g));
     RETURN_ON_ERROR(parcel->writeFloat(mColor.b));
@@ -81,7 +80,6 @@ status_t LayerDebugInfo::readFromParcel(const Parcel* parcel) {
     RETURN_ON_ERROR(parcel->readInt32(&mWidth));
     RETURN_ON_ERROR(parcel->readInt32(&mHeight));
     RETURN_ON_ERROR(parcel->read(mCrop));
-    RETURN_ON_ERROR(parcel->read(mFinalCrop));
     mColor.r = parcel->readFloat();
     RETURN_ON_ERROR(parcel->errorCheck());
     mColor.g = parcel->readFloat();
@@ -121,8 +119,7 @@ std::string to_string(const LayerDebugInfo& info) {
             info.mLayerStack, info.mZ, static_cast<double>(info.mX), static_cast<double>(info.mY),
             info.mWidth, info.mHeight);
 
-    result.appendFormat("crop=%s, finalCrop=%s, ",
-            to_string(info.mCrop).c_str(), to_string(info.mFinalCrop).c_str());
+    result.appendFormat("crop=%s, ", to_string(info.mCrop).c_str());
     result.appendFormat("isOpaque=%1d, invalidate=%1d, ", info.mIsOpaque, info.mContentDirty);
     result.appendFormat("dataspace=%s, ", dataspaceDetails(info.mDataSpace).c_str());
     result.appendFormat("pixelformat=%s, ", decodePixelFormat(info.mPixelFormat).c_str());

@@ -101,7 +101,6 @@ LayerProtoParser::Layer* LayerProtoParser::generateLayer(const LayerProto& layer
                                 layerProto.requested_position().y()};
     layer->size = {layerProto.size().w(), layerProto.size().h()};
     layer->crop = generateRect(layerProto.crop());
-    layer->finalCrop = generateRect(layerProto.final_crop());
     layer->isOpaque = layerProto.is_opaque();
     layer->invalidate = layerProto.invalidate();
     layer->dataspace = layerProto.dataspace();
@@ -299,8 +298,7 @@ std::string LayerProtoParser::Layer::to_string() const {
                   z, static_cast<double>(position.x), static_cast<double>(position.y), size.x,
                   size.y);
 
-    StringAppendF(&result, "crop=%s, finalCrop=%s, ", crop.to_string().c_str(),
-                  finalCrop.to_string().c_str());
+    StringAppendF(&result, "crop=%s, ", crop.to_string().c_str());
     StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
     StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
     StringAppendF(&result, "defaultPixelFormat=%s, ", pixelFormat.c_str());

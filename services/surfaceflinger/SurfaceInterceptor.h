@@ -146,7 +146,6 @@ private:
     void addCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addDeferTransactionLocked(Transaction* transaction, int32_t layerId,
             const sp<const Layer>& layer, uint64_t frameNumber);
-    void addFinalCropLocked(Transaction* transaction, int32_t layerId, const Rect& rect);
     void addOverrideScalingModeLocked(Transaction* transaction, int32_t layerId,
             int32_t overrideScalingMode);
     void addSurfaceChangesLocked(Transaction* transaction, const layer_state_t& state);

@@ -167,7 +167,6 @@ public:
     bool alphaUpdateFound(const SurfaceChange& change, bool foundAlpha);
     bool layerUpdateFound(const SurfaceChange& change, bool foundLayer);
     bool cropUpdateFound(const SurfaceChange& change, bool foundCrop);
-    bool finalCropUpdateFound(const SurfaceChange& change, bool foundFinalCrop);
     bool matrixUpdateFound(const SurfaceChange& change, bool foundMatrix);
     bool scalingModeUpdateFound(const SurfaceChange& change, bool foundScalingMode);
     bool transparentRegionHintUpdateFound(const SurfaceChange& change, bool foundTransparentRegion);
@@ -199,7 +198,6 @@ public:
     void alphaUpdate(Transaction&);
     void layerUpdate(Transaction&);
     void cropUpdate(Transaction&);
-    void finalCropUpdate(Transaction&);
     void matrixUpdate(Transaction&);
     void overrideScalingModeUpdate(Transaction&);
     void transparentRegionHintUpdate(Transaction&);
@@ -323,10 +321,6 @@ void SurfaceInterceptorTest::cropUpdate(Transaction& t) {
     t.setCrop_legacy(mBGSurfaceControl, CROP_UPDATE);
 }
 
-void SurfaceInterceptorTest::finalCropUpdate(Transaction& t) {
-    t.setFinalCrop_legacy(mBGSurfaceControl, CROP_UPDATE);
-}
-
 void SurfaceInterceptorTest::matrixUpdate(Transaction& t) {
     t.setMatrix(mBGSurfaceControl, M_SQRT1_2, M_SQRT1_2, -M_SQRT1_2, M_SQRT1_2);
 }
@@ -377,7 +371,6 @@ void SurfaceInterceptorTest::runAllUpdates() {
     runInTransaction(&SurfaceInterceptorTest::alphaUpdate);
     runInTransaction(&SurfaceInterceptorTest::layerUpdate);
     runInTransaction(&SurfaceInterceptorTest::cropUpdate);
-    runInTransaction(&SurfaceInterceptorTest::finalCropUpdate);
     runInTransaction(&SurfaceInterceptorTest::matrixUpdate);
     runInTransaction(&SurfaceInterceptorTest::overrideScalingModeUpdate);
     runInTransaction(&SurfaceInterceptorTest::transparentRegionHintUpdate);
@@ -458,20 +451,6 @@ bool SurfaceInterceptorTest::cropUpdateFound(const SurfaceChange& change, bool f
         [] () { FAIL(); }();
     }
     return foundCrop;
-}
-
-bool SurfaceInterceptorTest::finalCropUpdateFound(const SurfaceChange& change,
-        bool foundFinalCrop) {
-    bool hasLeft(change.final_crop().rectangle().left() == CROP_UPDATE.left);
-    bool hasTop(change.final_crop().rectangle().top() == CROP_UPDATE.top);
-    bool hasRight(change.final_crop().rectangle().right() == CROP_UPDATE.right);
-    bool hasBottom(change.final_crop().rectangle().bottom() == CROP_UPDATE.bottom);
-    if (hasLeft && hasRight && hasTop && hasBottom && !foundFinalCrop) {
-        foundFinalCrop = true;
-    } else if (hasLeft && hasRight && hasTop && hasBottom && foundFinalCrop) {
-        [] () { FAIL(); }();
-    }
-    return foundFinalCrop;
 }
 
 bool SurfaceInterceptorTest::matrixUpdateFound(const SurfaceChange& change, bool foundMatrix) {
@@ -593,9 +572,6 @@ bool SurfaceInterceptorTest::surfaceUpdateFound(const Trace& trace,
                         case SurfaceChange::SurfaceChangeCase::kCrop:
                             foundUpdate = cropUpdateFound(change, foundUpdate);
                             break;
-                        case SurfaceChange::SurfaceChangeCase::kFinalCrop:
-                            foundUpdate = finalCropUpdateFound(change, foundUpdate);
-                            break;
                         case SurfaceChange::SurfaceChangeCase::kMatrix:
                             foundUpdate = matrixUpdateFound(change, foundUpdate);
                             break;
@@ -636,7 +612,6 @@ void SurfaceInterceptorTest::assertAllUpdatesFound(const Trace& trace) {
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kAlpha));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kLayer));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kCrop));
-    ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kFinalCrop));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kMatrix));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kOverrideScalingMode));
     ASSERT_TRUE(surfaceUpdateFound(trace, SurfaceChange::SurfaceChangeCase::kTransparentRegionHint));
@@ -753,11 +728,6 @@ TEST_F(SurfaceInterceptorTest, InterceptLayerUpdateWorks) {
 
 TEST_F(SurfaceInterceptorTest, InterceptCropUpdateWorks) {
     captureTest(&SurfaceInterceptorTest::cropUpdate, SurfaceChange::SurfaceChangeCase::kCrop);
-}
-
-TEST_F(SurfaceInterceptorTest, InterceptFinalCropUpdateWorks) {
-    captureTest(&SurfaceInterceptorTest::finalCropUpdate,
-            SurfaceChange::SurfaceChangeCase::kFinalCrop);
 }
 
 TEST_F(SurfaceInterceptorTest, InterceptMatrixUpdateWorks) {

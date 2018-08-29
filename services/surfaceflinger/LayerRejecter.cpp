@@ -90,11 +90,6 @@ bool LayerRejecter::reject(const sp<GraphicBuffer>& buf, const BufferItem& item)
                 mCurrent.crop_legacy = mFront.requestedCrop_legacy;
                 mRecomputeVisibleRegions = true;
             }
-            if (mFront.finalCrop_legacy != mFront.requestedFinalCrop_legacy) {
-                mFront.finalCrop_legacy = mFront.requestedFinalCrop_legacy;
-                mCurrent.finalCrop_legacy = mFront.requestedFinalCrop_legacy;
-                mRecomputeVisibleRegions = true;
-            }
         }
 
         ALOGD_IF(DEBUG_RESIZE,

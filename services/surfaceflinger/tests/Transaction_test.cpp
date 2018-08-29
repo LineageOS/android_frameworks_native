@@ -1759,168 +1759,6 @@ TEST_F(LayerTransactionTest, SetCropWithNextResizeScaleToWindow_BufferState) {
     }
 }
 
-TEST_F(LayerTransactionTest, SetFinalCropBasic_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-    const Rect crop(8, 8, 24, 24);
-
-    // same as in SetCropBasic
-    Transaction().setFinalCrop_legacy(layer, crop).apply();
-    auto shot = screenshot();
-    shot->expectColor(crop, Color::RED);
-    shot->expectBorder(crop, Color::BLACK);
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropEmpty_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // same as in SetCropEmpty
-    {
-        SCOPED_TRACE("empty rect");
-        Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 8, 8)).apply();
-        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    {
-        SCOPED_TRACE("negative rect");
-        Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 0, 0)).apply();
-        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropOutOfBounds_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // same as in SetCropOutOfBounds
-    Transaction().setFinalCrop_legacy(layer, Rect(-128, -64, 128, 64)).apply();
-    auto shot = screenshot();
-    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropWithTranslation_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // final crop is applied post-translation
-    Transaction().setPosition(layer, 16, 16).setFinalCrop_legacy(layer, Rect(8, 8, 24, 24)).apply();
-    auto shot = screenshot();
-    shot->expectColor(Rect(16, 16, 24, 24), Color::RED);
-    shot->expectBorder(Rect(16, 16, 24, 24), Color::BLACK);
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropWithScale_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // final crop is not affected by matrix
-    Transaction()
-            .setMatrix(layer, 2.0f, 0.0f, 0.0f, 2.0f)
-            .setFinalCrop_legacy(layer, Rect(8, 8, 24, 24))
-            .apply();
-    auto shot = screenshot();
-    shot->expectColor(Rect(8, 8, 24, 24), Color::RED);
-    shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropWithResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // same as in SetCropWithResize
-    Transaction().setFinalCrop_legacy(layer, Rect(8, 8, 24, 24)).setSize(layer, 16, 16).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        auto shot = screenshot();
-        shot->expectColor(Rect(8, 8, 24, 24), Color::RED);
-        shot->expectBorder(Rect(8, 8, 24, 24), Color::BLACK);
-    }
-
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
-    {
-        SCOPED_TRACE("resize applied");
-        auto shot = screenshot();
-        shot->expectColor(Rect(8, 8, 16, 16), Color::RED);
-        shot->expectBorder(Rect(8, 8, 16, 16), Color::BLACK);
-    }
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropWithNextResize_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // same as in SetCropWithNextResize
-    Transaction()
-            .setFinalCrop_legacy(layer, Rect(8, 8, 24, 24))
-            .setGeometryAppliesWithResize(layer)
-            .apply();
-    {
-        SCOPED_TRACE("waiting for next resize");
-        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    Transaction().setFinalCrop_legacy(layer, Rect(4, 4, 12, 12)).apply();
-    {
-        SCOPED_TRACE("pending final crop modified");
-        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    Transaction().setSize(layer, 16, 16).apply();
-    {
-        SCOPED_TRACE("resize pending");
-        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
-    }
-
-    // finally resize
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
-    {
-        SCOPED_TRACE("new final crop applied");
-        auto shot = screenshot();
-        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
-        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
-    }
-}
-
-TEST_F(LayerTransactionTest, SetFinalCropWithNextResizeScaleToWindow_BufferQueue) {
-    sp<SurfaceControl> layer;
-    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
-
-    // same as in SetCropWithNextResizeScaleToWindow
-    Transaction()
-            .setFinalCrop_legacy(layer, Rect(4, 4, 12, 12))
-            .setSize(layer, 16, 16)
-            .setOverrideScalingMode(layer, NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW)
-            .setGeometryAppliesWithResize(layer)
-            .apply();
-    {
-        SCOPED_TRACE("new final crop pending");
-        auto shot = screenshot();
-        shot->expectColor(Rect(0, 0, 16, 16), Color::RED);
-        shot->expectBorder(Rect(0, 0, 16, 16), Color::BLACK);
-    }
-
-    // XXX final crop is never latched without other geometry change (b/69315677)
-    Transaction().setPosition(layer, 1, 0).setGeometryAppliesWithResize(layer).apply();
-    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 16, 16));
-    Transaction().setPosition(layer, 0, 0).apply();
-    {
-        SCOPED_TRACE("new final crop applied");
-        auto shot = screenshot();
-        shot->expectColor(Rect(4, 4, 12, 12), Color::RED);
-        shot->expectBorder(Rect(4, 4, 12, 12), Color::BLACK);
-    }
-}
-
 TEST_F(LayerTransactionTest, SetBufferBasic_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
@@ -2346,7 +2184,6 @@ protected:
             t.setSize(mFGSurfaceControl, 64, 64);
             t.setPosition(mFGSurfaceControl, 64, 64);
             t.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 64, 64));
-            t.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, -1, -1));
         });
 
         EXPECT_INITIAL_STATE("After restoring initial state");
@@ -2374,43 +2211,6 @@ protected:
         sc->expectBGColor(192, 192);
     }
 };
-
-// In this test we ensure that setGeometryAppliesWithResize actually demands
-// a buffer of the new size, and not just any size.
-TEST_F(CropLatchingTest, FinalCropLatchingBufferOldSize) {
-    EXPECT_INITIAL_STATE("before anything");
-    // Normally the crop applies immediately even while a resize is pending.
-    asTransaction([&](Transaction& t) {
-        t.setSize(mFGSurfaceControl, 128, 128);
-        t.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    });
-
-    EXPECT_CROPPED_STATE("after setting crop (without geometryAppliesWithResize)");
-
-    restoreInitialState();
-
-    // In order to prepare to submit a buffer at the wrong size, we acquire it prior to
-    // initiating the resize.
-    lockAndFillFGBuffer();
-
-    asTransaction([&](Transaction& t) {
-        t.setSize(mFGSurfaceControl, 128, 128);
-        t.setGeometryAppliesWithResize(mFGSurfaceControl);
-        t.setFinalCrop_legacy(mFGSurfaceControl, Rect(64, 64, 127, 127));
-    });
-
-    EXPECT_INITIAL_STATE("after setting crop (with geometryAppliesWithResize)");
-
-    // We now submit our old buffer, at the old size, and ensure it doesn't
-    // trigger geometry latching.
-    unlockFGBuffer();
-
-    EXPECT_INITIAL_STATE("after unlocking FG buffer (with geometryAppliesWithResize)");
-
-    completeFGResize();
-
-    EXPECT_CROPPED_STATE("after the resize finishes");
-}
 
 TEST_F(LayerUpdateTest, DeferredTransactionTest) {
     sp<ScreenCapture> sc;
@@ -2578,22 +2378,6 @@ TEST_F(ChildLayerTest, ChildLayerCropping) {
         t.setPosition(mChild, 0, 0);
         t.setPosition(mFGSurfaceControl, 0, 0);
         t.setCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
-    });
-
-    {
-        ScreenCapture::captureScreen(&mCapture);
-        mCapture->expectChildColor(0, 0);
-        mCapture->expectChildColor(4, 4);
-        mCapture->expectBGColor(5, 5);
-    }
-}
-
-TEST_F(ChildLayerTest, ChildLayerFinalCropping) {
-    asTransaction([&](Transaction& t) {
-        t.show(mChild);
-        t.setPosition(mChild, 0, 0);
-        t.setPosition(mFGSurfaceControl, 0, 0);
-        t.setFinalCrop_legacy(mFGSurfaceControl, Rect(0, 0, 5, 5));
     });
 
     {

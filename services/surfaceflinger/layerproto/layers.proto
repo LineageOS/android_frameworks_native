@@ -41,7 +41,7 @@ message LayerProto {
   // The layer's crop in it's own bounds.
   optional RectProto crop = 14;
   // The layer's crop in it's parent's bounds.
-  optional RectProto final_crop = 15;
+  optional RectProto final_crop = 15 [deprecated=true];
   optional bool is_opaque = 16;
   optional bool invalidate = 17;
   optional string dataspace = 18;
