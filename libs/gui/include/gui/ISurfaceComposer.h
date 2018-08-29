@@ -27,10 +27,11 @@
 
 #include <binder/IInterface.h>
 
+#include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
-#include <ui/PixelFormat.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
+#include <ui/PixelFormat.h>
 
 #include <vector>
 
@@ -308,6 +309,14 @@ public:
     virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                       uint8_t componentMask,
                                                       uint64_t maxFrames) const = 0;
+
+    /* Returns statistics on the color profile of the last frame displayed for a given display
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                               uint64_t timestamp,
+                                               DisplayedFrameStats* outStats) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -349,6 +358,7 @@ public:
         GET_COLOR_MANAGEMENT,
         GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
         SET_DISPLAY_CONTENT_SAMPLING_ENABLED,
+        GET_DISPLAYED_CONTENT_SAMPLE,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

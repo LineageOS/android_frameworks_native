@@ -30,6 +30,7 @@
 #include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
+#include <ui/DisplayedFrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/StrongPointer.h>
 
@@ -194,6 +195,8 @@ public:
                                                         uint8_t* outComponentMask) = 0;
     virtual Error setDisplayContentSamplingEnabled(Display display, bool enabled,
                                                    uint8_t componentMask, uint64_t maxFrames) = 0;
+    virtual Error getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
+                                            DisplayedFrameStats* outStats) = 0;
     virtual Error getDisplayCapabilities(Display display,
                                          std::vector<DisplayCapability>* outCapabilities) = 0;
 };
@@ -400,6 +403,8 @@ public:
                                                 uint8_t* outComponentMask) override;
     Error setDisplayContentSamplingEnabled(Display display, bool enabled, uint8_t componentMask,
                                            uint64_t maxFrames) override;
+    Error getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
+                                    DisplayedFrameStats* outStats) override;
     Error getDisplayCapabilities(Display display,
                                  std::vector<DisplayCapability>* outCapabilities) override;
 

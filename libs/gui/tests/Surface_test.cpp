@@ -652,6 +652,11 @@ public:
                                               uint64_t /*maxFrames*/) const override {
         return NO_ERROR;
     }
+    status_t getDisplayedContentSample(const sp<IBinder>& /*display*/, uint64_t /*maxFrames*/,
+                                       uint64_t /*timestamp*/,
+                                       DisplayedFrameStats* /*outStats*/) const override {
+        return NO_ERROR;
+    }
 
     virtual status_t getColorManagement(bool* /*outGetColorManagement*/) const { return NO_ERROR; }
 

@@ -486,6 +486,9 @@ private:
     virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                       uint8_t componentMask,
                                                       uint64_t maxFrames) const override;
+    virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                               uint64_t timestamp,
+                                               DisplayedFrameStats* outStats) const override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface

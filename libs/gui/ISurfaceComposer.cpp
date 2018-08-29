@@ -651,6 +651,49 @@ public:
                                    &reply);
         return result;
     }
+
+    virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                               uint64_t timestamp,
+                                               DisplayedFrameStats* outStats) const {
+        if (!outStats) return BAD_VALUE;
+
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(display);
+        data.writeUint64(maxFrames);
+        data.writeUint64(timestamp);
+
+        status_t result =
+                remote()->transact(BnSurfaceComposer::GET_DISPLAYED_CONTENT_SAMPLE, data, &reply);
+
+        if (result != NO_ERROR) {
+            return result;
+        }
+
+        result = reply.readUint64(&outStats->numFrames);
+        if (result != NO_ERROR) {
+            return result;
+        }
+
+        result = reply.readInt64Vector(
+                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_0_sample));
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt64Vector(
+                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_1_sample));
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt64Vector(
+                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_2_sample));
+        if (result != NO_ERROR) {
+            return result;
+        }
+        result = reply.readInt64Vector(
+                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_3_sample));
+        return result;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1054,6 +1097,40 @@ status_t BnSurfaceComposer::onTransact(
 
             return setDisplayContentSamplingEnabled(display, enable,
                                                     static_cast<uint8_t>(componentMask), maxFrames);
+        }
+        case GET_DISPLAYED_CONTENT_SAMPLE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+
+            sp<IBinder> display = data.readStrongBinder();
+            uint64_t maxFrames = 0;
+            uint64_t timestamp = 0;
+
+            status_t result = data.readUint64(&maxFrames);
+            if (result != NO_ERROR) {
+                ALOGE("getDisplayedContentSample failure in reading max frames: %d", result);
+                return result;
+            }
+
+            result = data.readUint64(&timestamp);
+            if (result != NO_ERROR) {
+                ALOGE("getDisplayedContentSample failure in reading timestamp: %d", result);
+                return result;
+            }
+
+            DisplayedFrameStats stats;
+            result = getDisplayedContentSample(display, maxFrames, timestamp, &stats);
+            if (result == NO_ERROR) {
+                reply->writeUint64(stats.numFrames);
+                reply->writeInt64Vector(
+                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_0_sample));
+                reply->writeInt64Vector(
+                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_1_sample));
+                reply->writeInt64Vector(
+                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_2_sample));
+                reply->writeInt64Vector(
+                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_3_sample));
+            }
+            return result;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

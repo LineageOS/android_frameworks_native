@@ -1079,6 +1079,31 @@ Error Composer::setDisplayContentSamplingEnabled(Display display, bool enabled,
                                                            maxFrames);
 }
 
+Error Composer::getDisplayedContentSample(Display display, uint64_t maxFrames, uint64_t timestamp,
+                                          DisplayedFrameStats* outStats) {
+    if (!outStats) {
+        return Error::BAD_PARAMETER;
+    }
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayedContentSample(display, maxFrames, timestamp,
+                                           [&](const auto tmpError, auto tmpNumFrames,
+                                               const auto& tmpSamples0, const auto& tmpSamples1,
+                                               const auto& tmpSamples2, const auto& tmpSamples3) {
+                                               error = tmpError;
+                                               if (error == Error::NONE) {
+                                                   outStats->numFrames = tmpNumFrames;
+                                                   outStats->component_0_sample = tmpSamples0;
+                                                   outStats->component_1_sample = tmpSamples1;
+                                                   outStats->component_2_sample = tmpSamples2;
+                                                   outStats->component_3_sample = tmpSamples3;
+                                               }
+                                           });
+    return error;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();
