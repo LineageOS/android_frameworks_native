@@ -357,10 +357,14 @@ public:
     bool isSecure() const override { return mDevice->isSecure(); }
 
     bool needsFiltering() const override {
+        // check if the projection from the logical display to the physical
+        // display needs filtering
         if (mDevice->needsFiltering()) {
             return true;
         }
 
+        // check if the projection from the logical render area (i.e., the
+        // physical display) to the physical render area requires filtering
         const Rect sourceCrop = getSourceCrop();
         int width = sourceCrop.width();
         int height = sourceCrop.height();
@@ -371,11 +375,17 @@ public:
     }
 
     Rect getSourceCrop() const override {
+        // use the (projected) logical display viewport by default
+        if (mSourceCrop.isEmpty()) {
+            return mDevice->getScissor();
+        }
+
         const int orientation = mDevice->getInstallOrientation();
         if (orientation == DisplayState::eOrientationDefault) {
             return mSourceCrop;
         }
 
+        // Install orientation is transparent to the callers.  Apply it now.
         uint32_t flags = 0x00;
         switch (orientation) {
             case DisplayState::eOrientation90:
@@ -394,6 +404,8 @@ public:
     }
 
 private:
+    // Install orientation is transparent to the callers.  We need to cancel
+    // it out by modifying rotation flags.
     static Transform::orientation_flags getDisplayRotation(
             Transform::orientation_flags rotation, int orientation) {
         if (orientation == DisplayState::eOrientationDefault) {

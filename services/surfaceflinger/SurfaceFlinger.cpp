@@ -4890,9 +4890,9 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
         device = getDisplayDeviceLocked(display);
         if (!device) return BAD_VALUE;
 
-        // set the source crop to the (projected) logical display viewport
-        // unconditionally until the framework is fixed
-        sourceCrop.set(device->getScissor());
+        // ignore sourceCrop (i.e., use the projected logical display
+        // viewport) until the framework is fixed
+        sourceCrop.clear();
 
         // set the requested width/height to the logical display viewport size
         // by default
@@ -4900,8 +4900,6 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
             reqWidth = uint32_t(device->getViewport().width());
             reqHeight = uint32_t(device->getViewport().height());
         }
-
-        // XXX display->getInstallOrientation() is ignored
     }
 
     DisplayRenderArea renderArea(device, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
