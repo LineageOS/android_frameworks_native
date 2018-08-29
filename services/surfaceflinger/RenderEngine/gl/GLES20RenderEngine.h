@@ -35,6 +35,9 @@ class Texture;
 
 namespace gl {
 
+class GLImage;
+class GLSurface;
+
 class GLES20RenderEngine : public impl::RenderEngine {
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
@@ -59,6 +62,18 @@ class GLES20RenderEngine : public impl::RenderEngine {
 public:
     GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
     virtual ~GLES20RenderEngine();
+
+    std::unique_ptr<renderengine::Surface> createSurface() override;
+    std::unique_ptr<renderengine::Image> createImage() override;
+
+    void primeCache() const override;
+
+    bool isCurrent() const;
+    bool setCurrentSurface(const Surface& surface) override;
+    void resetCurrentSurface() override;
+
+    void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) override;
+
 
 protected:
     virtual void dump(String8& result);

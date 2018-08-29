@@ -36,6 +36,9 @@
 #include <ui/Rect.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
+#include "GLExtensions.h"
+#include "GLImage.h"
+#include "GLSurface.h"
 #include "Program.h"
 #include "ProgramCache.h"
 
@@ -151,12 +154,51 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
 
 GLES20RenderEngine::~GLES20RenderEngine() {}
 
-size_t GLES20RenderEngine::getMaxTextureSize() const {
-    return mMaxTextureSize;
+std::unique_ptr<Surface> GLES20RenderEngine::createSurface() {
+    return std::make_unique<GLSurface>(*this);
 }
 
-size_t GLES20RenderEngine::getMaxViewportDims() const {
-    return mMaxViewportDims[0] < mMaxViewportDims[1] ? mMaxViewportDims[0] : mMaxViewportDims[1];
+std::unique_ptr<Image> GLES20RenderEngine::createImage() {
+    return std::make_unique<GLImage>(*this);
+}
+
+void GLES20RenderEngine::primeCache() const {
+    ProgramCache::getInstance().primeCache(mFeatureFlags & USE_COLOR_MANAGEMENT);
+}
+
+bool GLES20RenderEngine::isCurrent() const {
+    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
+}
+
+bool GLES20RenderEngine::setCurrentSurface(const Surface& surface) {
+    // Surface is an abstract interface. GLES20RenderEngine only ever
+    // creates GLSurface's, so it is safe to just cast to the actual
+    // type.
+    bool success = true;
+    const GLSurface& glSurface = static_cast<const GLSurface&>(surface);
+    EGLSurface eglSurface = glSurface.getEGLSurface();
+    if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
+        success = eglMakeCurrent(mEGLDisplay, eglSurface, eglSurface, mEGLContext) == EGL_TRUE;
+        if (success && glSurface.getAsync()) {
+            eglSwapInterval(mEGLDisplay, 0);
+        }
+    }
+    return success;
+}
+
+void GLES20RenderEngine::resetCurrentSurface() {
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+}
+
+void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
+                                                  const Image& image) {
+    const GLImage& glImage = static_cast<const GLImage&>(image);
+    const GLenum target = GL_TEXTURE_EXTERNAL_OES;
+
+    glBindTexture(target, texName);
+    if (glImage.getEGLImage() != EGL_NO_IMAGE_KHR) {
+        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(glImage.getEGLImage()));
+    }
 }
 
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
@@ -425,6 +467,14 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     }
 }
 
+size_t GLES20RenderEngine::getMaxTextureSize() const {
+    return mMaxTextureSize;
+}
+
+size_t GLES20RenderEngine::getMaxViewportDims() const {
+    return mMaxViewportDims[0] < mMaxViewportDims[1] ? mMaxViewportDims[0] : mMaxViewportDims[1];
+}
+
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
     result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
@@ -462,7 +512,3 @@ bool GLES20RenderEngine::needsXYZTransformMatrix() const {
 }  // namespace gl
 }  // namespace renderengine
 }  // namespace android
-
-#if defined(__gl_h_)
-#error "don't include gl/gl.h in this file"
-#endif
