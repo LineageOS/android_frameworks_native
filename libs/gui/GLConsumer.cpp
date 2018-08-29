@@ -834,10 +834,10 @@ void GLConsumer::computeTransformMatrix(float outTransform[16],
         xform = crop * xform;
     }
 
-    // SurfaceFlinger expects the top of its window textures to be at a Y
-    // coordinate of 0, so GLConsumer must behave the same way.  We don't
-    // want to expose this to applications, however, so we must add an
-    // additional vertical flip to the transform after all the other transforms.
+    // GLConsumer uses the GL convention where (0, 0) is the bottom-left
+    // corner and (1, 1) is the top-right corner.  Add an additional vertical
+    // flip after all other transforms to map from GL convention to buffer
+    // queue memory layout, where (0, 0) is the top-left corner.
     xform = mtxFlipV * xform;
 
     memcpy(outTransform, xform.asArray(), sizeof(xform));

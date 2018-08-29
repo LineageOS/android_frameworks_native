@@ -96,14 +96,15 @@ public:
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) = 0;
     virtual void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) = 0;
+    // When binding a native buffer, it must be done before setViewportAndProjection
     virtual void bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
                                                BindNativeBufferAsFramebuffer* bindHelper) = 0;
     virtual void unbindNativeBufferAsFrameBuffer(BindNativeBufferAsFramebuffer* bindHelper) = 0;
 
     // set-up
     virtual void checkErrors() const;
-    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
-                                          bool yswap, ui::Transform::orientation_flags rotation) = 0;
+    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
+                                          ui::Transform::orientation_flags rotation) = 0;
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                                     const half4& color) = 0;
     virtual void setupLayerTexturing(const Texture& texture) = 0;

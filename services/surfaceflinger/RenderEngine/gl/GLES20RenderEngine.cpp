@@ -160,21 +160,15 @@ size_t GLES20RenderEngine::getMaxViewportDims() const {
 }
 
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                                  size_t hwh, bool yswap,
                                                   ui::Transform::orientation_flags rotation) {
     int32_t l = sourceCrop.left;
     int32_t r = sourceCrop.right;
-
-    // In GL, (0, 0) is the bottom-left corner, so flip y coordinates
-    int32_t t = hwh - sourceCrop.top;
-    int32_t b = hwh - sourceCrop.bottom;
-
-    mat4 m;
-    if (yswap) {
-        m = mat4::ortho(l, r, t, b, 0, 1);
-    } else {
-        m = mat4::ortho(l, r, b, t, 0, 1);
+    int32_t b = sourceCrop.bottom;
+    int32_t t = sourceCrop.top;
+    if (mRenderToFbo) {
+        std::swap(t, b);
     }
+    mat4 m = mat4::ortho(l, r, b, t, 0, 1);
 
     // Apply custom rotation to the projection.
     float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
@@ -284,9 +278,13 @@ void GLES20RenderEngine::bindImageAsFramebuffer(EGLImageKHR image, uint32_t* tex
     *status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     *texName = tname;
     *fbName = name;
+
+    mRenderToFbo = true;
 }
 
 void GLES20RenderEngine::unbindFramebuffer(uint32_t texName, uint32_t fbName) {
+    mRenderToFbo = false;
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteFramebuffers(1, &fbName);
     glDeleteTextures(1, &texName);

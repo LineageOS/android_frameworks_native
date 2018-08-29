@@ -5326,14 +5326,11 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 }
 
 void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
-                                            TraverseLayersFunction traverseLayers, bool yswap,
+                                            TraverseLayersFunction traverseLayers,
                                             bool useIdentityTransform) {
     ATRACE_CALL();
 
     auto& engine(getRenderEngine());
-
-    // get screen geometry
-    const auto raHeight = renderArea.getHeight();
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
@@ -5348,8 +5345,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     engine.checkErrors();
 
     // set-up our viewport
-    engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, raHeight, yswap,
-                                    rotation);
+    engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, rotation);
     engine.disableTexturing();
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
@@ -5395,7 +5391,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     // via an FBO, which means we didn't have to create
     // an EGLSurface and therefore we're not
     // dependent on the context's EGLConfig.
-    renderScreenImplLocked(renderArea, traverseLayers, true, useIdentityTransform);
+    renderScreenImplLocked(renderArea, traverseLayers, useIdentityTransform);
 
     if (DEBUG_SCREENSHOTS) {
         getRenderEngine().finish();

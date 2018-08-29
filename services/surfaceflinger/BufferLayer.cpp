@@ -609,6 +609,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     // TODO: we probably want to generate the texture coords with the mesh
     // here we assume that we only have 4 vertices
     renderengine::Mesh::VertexArray<vec2> texCoords(getBE().mMesh.getTexCoordArray<vec2>());
+    // flip texcoords vertically because BufferLayerConsumer expects them to be in GL convention
     texCoords[0] = vec2(left, 1.0f - top);
     texCoords[1] = vec2(left, 1.0f - bottom);
     texCoords[2] = vec2(right, 1.0f - bottom);
