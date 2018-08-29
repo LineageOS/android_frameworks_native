@@ -37,7 +37,7 @@ namespace installd {
 
 constexpr const char* kTestUuid = "TEST";
 
-static constexpr int FLAG_FORCE = 1 << 16;
+static constexpr int FLAG_FORCE = 0x2000;
 
 int get_property(const char *key, char *value, const char *default_value) {
     return property_get(key, value, default_value);
