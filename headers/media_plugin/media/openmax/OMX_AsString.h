@@ -907,6 +907,9 @@ inline static const char *asString(OMX_VIDEO_AVCLEVELTYPE i, const char *def = "
         case OMX_VIDEO_AVCLevel5:  return "Level5";
         case OMX_VIDEO_AVCLevel51: return "Level51";
         case OMX_VIDEO_AVCLevel52: return "Level52";
+        case OMX_VIDEO_AVCLevel6:  return "Level6";
+        case OMX_VIDEO_AVCLevel61: return "Level61";
+        case OMX_VIDEO_AVCLevel62: return "Level62";
         default:                   return def;
     }
 }
