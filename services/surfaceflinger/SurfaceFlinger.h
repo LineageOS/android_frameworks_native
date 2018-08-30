@@ -580,7 +580,7 @@ private:
     void startBootAnim();
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                bool yswap, bool useIdentityTransform);
+                                bool useIdentityTransform);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer,
                                  bool useIdentityTransform);

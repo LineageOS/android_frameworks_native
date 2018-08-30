@@ -748,7 +748,6 @@ void Layer::computeGeometry(const RenderArea& renderArea,
                             renderengine::Mesh& mesh,
                             bool useIdentityTransform) const {
     const ui::Transform renderAreaTransform(renderArea.getTransform());
-    const uint32_t height = renderArea.getHeight();
     FloatRect win = computeBounds();
 
     vec2 lt = vec2(win.left, win.top);
@@ -769,9 +768,6 @@ void Layer::computeGeometry(const RenderArea& renderArea,
     position[1] = renderAreaTransform.transform(lb);
     position[2] = renderAreaTransform.transform(rb);
     position[3] = renderAreaTransform.transform(rt);
-    for (size_t i = 0; i < 4; i++) {
-        position[i].y = height - position[i].y;
-    }
 }
 
 bool Layer::isSecure() const {

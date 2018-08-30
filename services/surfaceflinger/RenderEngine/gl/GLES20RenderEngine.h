@@ -77,8 +77,8 @@ public:
 
 protected:
     virtual void dump(String8& result);
-    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
-                                          bool yswap, ui::Transform::orientation_flags rotation);
+    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
+                                          ui::Transform::orientation_flags rotation);
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                                     const half4& color) override;
 
@@ -123,6 +123,8 @@ private:
     // with PQ or HLG transfer function.
     bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
     bool needsXYZTransformMatrix() const;
+
+    bool mRenderToFbo = false;
 };
 
 }  // namespace gl
