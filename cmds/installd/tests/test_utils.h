@@ -3,6 +3,7 @@
 #include <sys/capability.h>
 
 #include <android-base/logging.h>
+#include <android-base/stringprintf.h>
 #include <selinux/android.h>
 
 uint8_t kBase64Map[256] = {
@@ -74,7 +75,7 @@ uint8_t* DecodeBase64(const char* src, size_t* dst_size) {
 }
 
 bool WriteBase64ToFile(const char* base64, const std::string& file,
-        uid_t uid, gid_t gid, int mode) {
+        uid_t uid, gid_t gid, int mode, std::string* error_msg) {
     CHECK(base64 != nullptr);
     size_t length;
     std::unique_ptr<uint8_t[]> bytes(DecodeBase64(base64, &length));
@@ -83,8 +84,10 @@ bool WriteBase64ToFile(const char* base64, const std::string& file,
 
     int fd = open(file.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
 
+    using android::base::StringPrintf;
+
     if (fd < 0) {
-        PLOG(ERROR) << "Could not open file " << file;
+        *error_msg = StringPrintf("Could not open file %s: %s", file.c_str(), strerror(errno));
         return false;
     }
 
@@ -92,18 +95,18 @@ bool WriteBase64ToFile(const char* base64, const std::string& file,
     while (wrote < length) {
         ssize_t cur = write(fd, bytes.get() + wrote, length - wrote);
         if (cur == -1) {
-            PLOG(ERROR) << "Could not write file " << file;
+            *error_msg = StringPrintf("Could not write file %s: %s", file.c_str(), strerror(errno));
             return false;
         }
         wrote += cur;
     }
 
     if (::chown(file.c_str(), uid, gid) != 0) {
-        PLOG(ERROR) << "Could not chown file " << file;
+        *error_msg = StringPrintf("Could not chown file %s: %s", file.c_str(), strerror(errno));
         return false;
     }
     if (::chmod(file.c_str(), mode) != 0) {
-        PLOG(ERROR) << "Could not chmod file " << file;
+        *error_msg = StringPrintf("Could not chmod file %s: %s", file.c_str(), strerror(errno));
         return false;
     }
     return true;
