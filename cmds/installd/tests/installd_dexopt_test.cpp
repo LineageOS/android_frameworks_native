@@ -84,10 +84,16 @@ static void run_cmd(const std::string& cmd) {
     system(cmd.c_str());
 }
 
-static void mkdir(const std::string& path, uid_t owner, gid_t group, mode_t mode) {
-    ::mkdir(path.c_str(), mode);
-    ::chown(path.c_str(), owner, group);
-    ::chmod(path.c_str(), mode);
+static int mkdir(const std::string& path, uid_t owner, gid_t group, mode_t mode) {
+    int ret = ::mkdir(path.c_str(), mode);
+    if (ret != 0) {
+        return ret;
+    }
+    ret = ::chown(path.c_str(), owner, group);
+    if (ret != 0) {
+        return ret;
+    }
+    return ::chmod(path.c_str(), mode);
 }
 
 static int log_callback(int type, const char *fmt, ...) { // NOLINT
@@ -184,7 +190,7 @@ protected:
         se_info_ = "default";
         app_apk_dir_ = android_app_dir + package_name_;
 
-        create_mock_app();
+        ASSERT_TRUE(create_mock_app());
     }
 
     virtual void TearDown() {
@@ -198,33 +204,56 @@ protected:
         delete service_;
     }
 
-    void create_mock_app() {
+    ::testing::AssertionResult create_mock_app() {
         // Create the oat dir.
         app_oat_dir_ = app_apk_dir_ + "/oat";
-        mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755);
-        service_->createOatDir(app_oat_dir_, kRuntimeIsa);
+        if (mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755) != 0) {
+            return ::testing::AssertionFailure() << "Could not create app dir " << app_apk_dir_
+                                                 << " : " << strerror(errno);
+        }
+        binder::Status status = service_->createOatDir(app_oat_dir_, kRuntimeIsa);
+        if (!status.isOk()) {
+            return ::testing::AssertionFailure() << "Could not create oat dir: "
+                                                 << status.toString8().c_str();
+        }
 
         // Copy the primary apk.
         apk_path_ = app_apk_dir_ + "/base.jar";
-        ASSERT_TRUE(WriteBase64ToFile(kDexFile, apk_path_, kSystemUid, kSystemGid, 0644));
+        std::string error_msg;
+        if (!WriteBase64ToFile(kDexFile, apk_path_, kSystemUid, kSystemGid, 0644, &error_msg)) {
+            return ::testing::AssertionFailure() << "Could not write base64 file to " << apk_path_
+                                                 << " : " << error_msg;
+        }
 
         // Create the app user data.
-        ASSERT_TRUE(service_->createAppData(
-            volume_uuid_,
-            package_name_,
-            kTestUserId,
-            kAppDataFlags,
-            kTestAppUid,
-            se_info_,
-            kOSdkVersion,
-            &ce_data_inode_).isOk());
+        status = service_->createAppData(
+                volume_uuid_,
+                package_name_,
+                kTestUserId,
+                kAppDataFlags,
+                kTestAppUid,
+                se_info_,
+                kOSdkVersion,
+                &ce_data_inode_);
+        if (!status.isOk()) {
+            return ::testing::AssertionFailure() << "Could not create app data: "
+                                                 << status.toString8().c_str();
+        }
 
         // Create a secondary dex file on CE storage
         const char* volume_uuid_cstr = volume_uuid_ == nullptr ? nullptr : volume_uuid_->c_str();
         app_private_dir_ce_ = create_data_user_ce_package_path(
                 volume_uuid_cstr, kTestUserId, package_name_.c_str());
         secondary_dex_ce_ = app_private_dir_ce_ + "/secondary_ce.jar";
-        ASSERT_TRUE(WriteBase64ToFile(kDexFile, secondary_dex_ce_, kTestAppUid, kTestAppGid, 0600));
+        if (!WriteBase64ToFile(kDexFile,
+                               secondary_dex_ce_,
+                               kTestAppUid,
+                               kTestAppGid,
+                               0600,
+                               &error_msg)) {
+            return ::testing::AssertionFailure() << "Could not write base64 file to "
+                                                 << secondary_dex_ce_ << " : " << error_msg;
+        }
         std::string app_private_dir_ce_link = create_data_user_ce_package_path_as_user_link(
                 volume_uuid_cstr, kTestUserId, package_name_.c_str());
         secondary_dex_ce_link_ = app_private_dir_ce_link + "/secondary_ce.jar";
@@ -233,10 +262,24 @@ protected:
         app_private_dir_de_ = create_data_user_de_package_path(
                 volume_uuid_cstr, kTestUserId, package_name_.c_str());
         secondary_dex_de_ = app_private_dir_de_ + "/secondary_de.jar";
-        ASSERT_TRUE(WriteBase64ToFile(kDexFile, secondary_dex_de_, kTestAppUid, kTestAppGid, 0600));
+        if (!WriteBase64ToFile(kDexFile,
+                               secondary_dex_de_,
+                               kTestAppUid,
+                               kTestAppGid,
+                               0600,
+                               &error_msg)) {
+            return ::testing::AssertionFailure() << "Could not write base64 file to "
+                                                 << secondary_dex_de_ << " : " << error_msg;
+        }
 
         // Fix app data uid.
-        ASSERT_TRUE(service_->fixupAppData(volume_uuid_, kTestUserId).isOk());
+        status = service_->fixupAppData(volume_uuid_, kTestUserId);
+        if (!status.isOk()) {
+            return ::testing::AssertionFailure() << "Could not fixup app data: "
+                                                 << status.toString8().c_str();
+        }
+
+        return ::testing::AssertionSuccess();
     }
 
 
