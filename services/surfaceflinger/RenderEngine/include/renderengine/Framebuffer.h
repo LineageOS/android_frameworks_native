@@ -18,35 +18,17 @@
 
 #include <cstdint>
 
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-#include <android-base/macros.h>
-#include <renderengine/Image.h>
-
 struct ANativeWindowBuffer;
 
 namespace android {
 namespace renderengine {
-namespace gl {
 
-class GLES20RenderEngine;
-
-class GLImage : public renderengine::Image {
+class Framebuffer {
 public:
-    explicit GLImage(const GLES20RenderEngine& engine);
-    ~GLImage() override;
+    virtual ~Framebuffer() = default;
 
-    bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) override;
-
-    EGLImageKHR getEGLImage() const { return mEGLImage; }
-
-private:
-    EGLDisplay mEGLDisplay;
-    EGLImageKHR mEGLImage = EGL_NO_IMAGE_KHR;
-
-    DISALLOW_COPY_AND_ASSIGN(GLImage);
+    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) = 0;
 };
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+}   // namespace renderengine
+}   // namespace android

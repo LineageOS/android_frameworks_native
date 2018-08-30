@@ -33,6 +33,7 @@ public:
     RenderEngine();
     ~RenderEngine() override;
 
+    MOCK_METHOD0(createFramebuffer, std::unique_ptr<Framebuffer>());
     MOCK_METHOD0(createSurface, std::unique_ptr<renderengine::Surface>());
     MOCK_METHOD0(createImage, std::unique_ptr<renderengine::Image>());
     MOCK_CONST_METHOD0(primeCache, void());
@@ -69,11 +70,8 @@ public:
     MOCK_METHOD1(setSourceDataSpace, void(ui::Dataspace));
     MOCK_METHOD1(setOutputDataSpace, void(ui::Dataspace));
     MOCK_METHOD1(setDisplayMaxLuminance, void(const float));
-    MOCK_METHOD2(bindNativeBufferAsFrameBuffer,
-                 void(ANativeWindowBuffer*,
-                      renderengine::BindNativeBufferAsFramebuffer*));
-    MOCK_METHOD1(unbindNativeBufferAsFrameBuffer,
-                 void(renderengine::BindNativeBufferAsFramebuffer*));
+    MOCK_METHOD1(bindFrameBuffer, status_t(Framebuffer*));
+    MOCK_METHOD1(unbindFrameBuffer, void(Framebuffer*));
     MOCK_METHOD1(drawMesh, void(const Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());

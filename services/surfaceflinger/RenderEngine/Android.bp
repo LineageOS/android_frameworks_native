@@ -52,6 +52,7 @@ filegroup {
     srcs: [
         "gl/GLES20RenderEngine.cpp",
         "gl/GLExtensions.cpp",
+        "gl/GLFramebuffer.cpp",
         "gl/GLImage.cpp",
         "gl/GLSurface.cpp",
         "gl/Program.cpp",

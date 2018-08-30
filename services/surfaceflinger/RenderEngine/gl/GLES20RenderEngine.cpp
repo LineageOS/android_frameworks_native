@@ -37,6 +37,7 @@
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include "GLExtensions.h"
+#include "GLFramebuffer.h"
 #include "GLImage.h"
 #include "GLSurface.h"
 #include "Program.h"
@@ -154,6 +155,10 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
 
 GLES20RenderEngine::~GLES20RenderEngine() {}
 
+std::unique_ptr<Framebuffer> GLES20RenderEngine::createFramebuffer() {
+    return std::make_unique<GLFramebuffer>(*this);
+}
+
 std::unique_ptr<Surface> GLES20RenderEngine::createSurface() {
     return std::make_unique<GLSurface>(*this);
 }
@@ -197,8 +202,47 @@ void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
 
     glBindTexture(target, texName);
     if (glImage.getEGLImage() != EGL_NO_IMAGE_KHR) {
-        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(glImage.getEGLImage()));
+        glEGLImageTargetTexture2DOES(target,
+                                     static_cast<GLeglImageOES>(glImage.getEGLImage()));
     }
+}
+
+status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
+    GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
+    EGLImageKHR eglImage = glFramebuffer->getEGLImage();
+    uint32_t textureName = glFramebuffer->getTextureName();
+    uint32_t framebufferName = glFramebuffer->getFramebufferName();
+
+    // Bind the texture and turn our EGLImage into a texture
+    glBindTexture(GL_TEXTURE_2D, textureName);
+    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)eglImage);
+
+    // Bind the Framebuffer to render into
+    glBindFramebuffer(GL_FRAMEBUFFER, framebufferName);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+                           GL_TEXTURE_2D, textureName, 0);
+
+    mRenderToFbo = true;
+
+    uint32_t glStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+    ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES,
+             "glCheckFramebufferStatusOES error %d", glStatus);
+
+    return glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
+}
+
+void GLES20RenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
+    mRenderToFbo = false;
+
+    // back to main framebuffer
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Workaround for b/77935566 to force the EGL driver to release the
+    // screenshot buffer
+    setScissor(0, 0, 0, 0);
+    clearWithColor(0.0, 0.0, 0.0, 0.0);
+    disableScissor();
 }
 
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
@@ -302,34 +346,6 @@ void GLES20RenderEngine::disableTexturing() {
 
 void GLES20RenderEngine::disableBlending() {
     glDisable(GL_BLEND);
-}
-
-void GLES20RenderEngine::bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName,
-                                                uint32_t* fbName, uint32_t* status) {
-    GLuint tname, name;
-    // turn our EGLImage into a texture
-    glGenTextures(1, &tname);
-    glBindTexture(GL_TEXTURE_2D, tname);
-    glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)image);
-
-    // create a Framebuffer Object to render into
-    glGenFramebuffers(1, &name);
-    glBindFramebuffer(GL_FRAMEBUFFER, name);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tname, 0);
-
-    *status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    *texName = tname;
-    *fbName = name;
-
-    mRenderToFbo = true;
-}
-
-void GLES20RenderEngine::unbindFramebuffer(uint32_t texName, uint32_t fbName) {
-    mRenderToFbo = false;
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glDeleteFramebuffers(1, &fbName);
-    glDeleteTextures(1, &texName);
 }
 
 void GLES20RenderEngine::setupFillWithColor(float r, float g, float b, float a) {
