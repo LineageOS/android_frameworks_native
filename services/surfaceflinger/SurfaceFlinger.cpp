@@ -193,8 +193,8 @@ bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 // TODO(courtneygo): Rename hasWideColorDisplay to clarify its actual meaning.
 bool SurfaceFlinger::hasWideColorDisplay;
+int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 bool SurfaceFlinger::useColorManagement;
-
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -329,19 +329,19 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
 
     switch (primaryDisplayOrientation) {
         case V1_1::DisplayOrientation::ORIENTATION_90:
-            mPrimaryDisplayOrientation = DisplayState::eOrientation90;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation90;
             break;
         case V1_1::DisplayOrientation::ORIENTATION_180:
-            mPrimaryDisplayOrientation = DisplayState::eOrientation180;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation180;
             break;
         case V1_1::DisplayOrientation::ORIENTATION_270:
-            mPrimaryDisplayOrientation = DisplayState::eOrientation270;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation270;
             break;
         default:
-            mPrimaryDisplayOrientation = DisplayState::eOrientationDefault;
+            SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
             break;
     }
-    ALOGV("Primary Display Orientation is set to %2d.", mPrimaryDisplayOrientation);
+    ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
     // Note: We create a local temporary with the real DispSync implementation
     // type temporarily so we can initialize it with the configured values,
@@ -872,7 +872,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.secure = true;
 
         if (type == DisplayDevice::DISPLAY_PRIMARY &&
-            mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
+            primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
             std::swap(info.w, info.h);
         }
 
@@ -2439,14 +2439,18 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
+    const int displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY ?
+        primaryDisplayOrientation : DisplayState::eOrientationDefault;
+
     // virtual displays are always considered enabled
     auto initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
     sp<DisplayDevice> display =
             new DisplayDevice(this, state.type, displayId, state.isSecure, displayToken,
                               nativeWindow, dispSurface, std::move(renderSurface), displayWidth,
-                              displayHeight, hasWideColorGamut, hdrCapabilities,
-                              supportedPerFrameMetadata, hwcColorModes, initialPowerMode);
+                              displayHeight, displayInstallOrientation, hasWideColorGamut,
+                              hdrCapabilities, supportedPerFrameMetadata, hwcColorModes,
+                              initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -3568,10 +3572,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     }
     if (what & layer_state_t::eCropChanged_legacy) {
         if (layer->setCrop_legacy(s.crop_legacy, !geometryAppliesWithResize))
-            flags |= eTraversalNeeded;
-    }
-    if (what & layer_state_t::eFinalCropChanged_legacy) {
-        if (layer->setFinalCrop_legacy(s.finalCrop_legacy, !geometryAppliesWithResize))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eLayerStackChanged) {
@@ -5098,37 +5098,15 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         display = getDisplayDeviceLocked(displayToken);
         if (!display) return BAD_VALUE;
 
-        const Rect& dispScissor = display->getScissor();
-        if (!dispScissor.isEmpty()) {
-            sourceCrop.set(dispScissor);
-            // adb shell screencap will default reqWidth and reqHeight to zeros.
-            if (reqWidth == 0 || reqHeight == 0) {
-                reqWidth = uint32_t(display->getViewport().width());
-                reqHeight = uint32_t(display->getViewport().height());
-            }
-        }
+        // ignore sourceCrop (i.e., use the projected logical display
+        // viewport) until the framework is fixed
+        sourceCrop.clear();
 
-        // get screen geometry
-        uint32_t width = display->getWidth();
-        uint32_t height = display->getHeight();
-
-        if (renderAreaRotation & ui::Transform::ROT_90) {
-            std::swap(width, height);
-        }
-
-        if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
-            std::swap(width, height);
-        }
-
-        if ((reqWidth > width) || (reqHeight > height)) {
-            ALOGE("size mismatch (%d, %d) > (%d, %d)", reqWidth, reqHeight, width, height);
-        } else {
-            if (reqWidth == 0) {
-                reqWidth = width;
-            }
-            if (reqHeight == 0) {
-                reqHeight = height;
-            }
+        // set the requested width/height to the logical display viewport size
+        // by default
+        if (reqWidth == 0 || reqHeight == 0) {
+            reqWidth = uint32_t(display->getViewport().width());
+            reqHeight = uint32_t(display->getViewport().height());
         }
     }
 
@@ -5151,6 +5129,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
               : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR),
                 mLayer(layer),
                 mCrop(crop),
+                mNeedsFiltering(false),
                 mFlinger(flinger),
                 mChildrenOnly(childrenOnly) {}
         const ui::Transform& getTransform() const override { return mTransform; }
@@ -5163,7 +5142,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         }
         int getWidth() const override { return mLayer->getActiveWidth(mLayer->getDrawingState()); }
         bool isSecure() const override { return false; }
-        bool needsFiltering() const override { return false; }
+        bool needsFiltering() const override { return mNeedsFiltering; }
         Rect getSourceCrop() const override {
             if (mCrop.isEmpty()) {
                 return getBounds();
@@ -5184,6 +5163,11 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         };
 
         void render(std::function<void()> drawLayers) override {
+            const Rect sourceCrop = getSourceCrop();
+            // no need to check rotation because there is none
+            mNeedsFiltering = sourceCrop.width() != getReqWidth() ||
+                sourceCrop.height() != getReqHeight();
+
             if (!mChildrenOnly) {
                 mTransform = mLayer->getTransform().inverse();
                 drawLayers();
@@ -5206,6 +5190,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         // layer which has no properties set and which does not draw.
         sp<ContainerLayer> screenshotParentLayer;
         ui::Transform mTransform;
+        bool mNeedsFiltering;
 
         SurfaceFlinger* mFlinger;
         const bool mChildrenOnly;
@@ -5344,57 +5329,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     auto& engine(getRenderEngine());
 
     // get screen geometry
-    const auto raWidth = renderArea.getWidth();
     const auto raHeight = renderArea.getHeight();
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
-    Rect sourceCrop = renderArea.getSourceCrop();
-
-    bool filtering = false;
-    if (mPrimaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
-        filtering = static_cast<int32_t>(reqWidth) != raHeight ||
-                static_cast<int32_t>(reqHeight) != raWidth;
-    } else {
-        filtering = static_cast<int32_t>(reqWidth) != raWidth ||
-                static_cast<int32_t>(reqHeight) != raHeight;
-    }
-
-    // if a default or invalid sourceCrop is passed in, set reasonable values
-    if (sourceCrop.width() == 0 || sourceCrop.height() == 0 || !sourceCrop.isValid()) {
-        sourceCrop.setLeftTop(Point(0, 0));
-        sourceCrop.setRightBottom(Point(raWidth, raHeight));
-    } else if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
-        ui::Transform tr;
-        uint32_t flags = 0x00;
-        switch (mPrimaryDisplayOrientation) {
-            case DisplayState::eOrientation90:
-                flags = ui::Transform::ROT_90;
-                break;
-            case DisplayState::eOrientation180:
-                flags = ui::Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation270:
-                flags = ui::Transform::ROT_270;
-                break;
-        }
-        tr.set(flags, raWidth, raHeight);
-        sourceCrop = tr.transform(sourceCrop);
-    }
-
-    // ensure that sourceCrop is inside screen
-    if (sourceCrop.left < 0) {
-        ALOGE("Invalid crop rect: l = %d (< 0)", sourceCrop.left);
-    }
-    if (sourceCrop.right > raWidth) {
-        ALOGE("Invalid crop rect: r = %d (> %d)", sourceCrop.right, raWidth);
-    }
-    if (sourceCrop.top < 0) {
-        ALOGE("Invalid crop rect: t = %d (< 0)", sourceCrop.top);
-    }
-    if (sourceCrop.bottom > raHeight) {
-        ALOGE("Invalid crop rect: b = %d (> %d)", sourceCrop.bottom, raHeight);
-    }
+    const auto sourceCrop = renderArea.getSourceCrop();
+    const auto rotation = renderArea.getRotationFlags();
 
     // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
     engine.setOutputDataSpace(Dataspace::SRGB);
@@ -5402,37 +5342,6 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
 
     // make sure to clear all GL error flags
     engine.checkErrors();
-
-    ui::Transform::orientation_flags rotation = renderArea.getRotationFlags();
-    if (mPrimaryDisplayOrientation != DisplayState::eOrientationDefault) {
-        // convert hw orientation into flag presentation
-        // here inverse transform needed
-        uint8_t hw_rot_90  = 0x00;
-        uint8_t hw_flip_hv = 0x00;
-        switch (mPrimaryDisplayOrientation) {
-            case DisplayState::eOrientation90:
-                hw_rot_90 = ui::Transform::ROT_90;
-                hw_flip_hv = ui::Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation180:
-                hw_flip_hv = ui::Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation270:
-                hw_rot_90  = ui::Transform::ROT_90;
-                break;
-        }
-
-        // transform flags operation
-        // 1) flip H V if both have ROT_90 flag
-        // 2) XOR these flags
-        uint8_t rotation_rot_90  = rotation & ui::Transform::ROT_90;
-        uint8_t rotation_flip_hv = rotation & ui::Transform::ROT_180;
-        if (rotation_rot_90 & hw_rot_90) {
-            rotation_flip_hv = (~rotation_flip_hv) & ui::Transform::ROT_180;
-        }
-        rotation = static_cast<ui::Transform::orientation_flags>
-                   ((rotation_rot_90 ^ hw_rot_90) | (rotation_flip_hv ^ hw_flip_hv));
-    }
 
     // set-up our viewport
     engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, raHeight, yswap,
@@ -5444,9 +5353,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     engine.clearWithColor(0, 0, 0, alpha);
 
     traverseLayers([&](Layer* layer) {
-        if (filtering) layer->setFiltering(true);
         layer->draw(renderArea, useIdentityTransform);
-        if (filtering) layer->setFiltering(false);
     });
 }
 

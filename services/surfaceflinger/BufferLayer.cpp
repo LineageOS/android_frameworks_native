@@ -180,7 +180,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
 
     if (!blackOutLayer) {
         // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = getFiltering() || needsFiltering(renderArea) || isFixedSize();
+        const bool useFiltering = needsFiltering(renderArea) || isFixedSize();
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
@@ -589,17 +589,6 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 
     ui::Transform t = getTransform();
     Rect win = bounds;
-    Rect finalCrop = getFinalCrop(s);
-    if (!finalCrop.isEmpty()) {
-        win = t.transform(win);
-        if (!win.intersect(finalCrop, &win)) {
-            win.clear();
-        }
-        win = t.inverse().transform(win);
-        if (!win.intersect(bounds, &win)) {
-            win.clear();
-        }
-    }
 
     float left = float(win.left) / float(getActiveWidth(s));
     float top = float(win.top) / float(getActiveHeight(s));

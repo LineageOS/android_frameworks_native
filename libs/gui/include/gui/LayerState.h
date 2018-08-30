@@ -54,25 +54,24 @@ struct layer_state_t {
         eLayerStackChanged = 0x00000080,
         eCropChanged_legacy = 0x00000100,
         eDeferTransaction_legacy = 0x00000200,
-        eFinalCropChanged_legacy = 0x00000400,
-        eOverrideScalingModeChanged = 0x00000800,
-        eGeometryAppliesWithResize = 0x00001000,
-        eReparentChildren = 0x00002000,
-        eDetachChildren = 0x00004000,
-        eRelativeLayerChanged = 0x00008000,
-        eReparent = 0x00010000,
-        eColorChanged = 0x00020000,
-        eDestroySurface = 0x00040000,
-        eTransformChanged = 0x00100000,
-        eTransformToDisplayInverseChanged = 0x00200000,
-        eCropChanged = 0x00400000,
-        eBufferChanged = 0x00800000,
-        eAcquireFenceChanged = 0x01000000,
-        eDataspaceChanged = 0x02000000,
-        eHdrMetadataChanged = 0x04000000,
-        eSurfaceDamageRegionChanged = 0x08000000,
-        eApiChanged = 0x10000000,
-        eSidebandStreamChanged = 0x20000000,
+        eOverrideScalingModeChanged = 0x00000400,
+        eGeometryAppliesWithResize = 0x00000800,
+        eReparentChildren = 0x00001000,
+        eDetachChildren = 0x00002000,
+        eRelativeLayerChanged = 0x00004000,
+        eReparent = 0x00008000,
+        eColorChanged = 0x00010000,
+        eDestroySurface = 0x00020000,
+        eTransformChanged = 0x00040000,
+        eTransformToDisplayInverseChanged = 0x00080000,
+        eCropChanged = 0x00100000,
+        eBufferChanged = 0x00200000,
+        eAcquireFenceChanged = 0x00400000,
+        eDataspaceChanged = 0x00800000,
+        eHdrMetadataChanged = 0x01000000,
+        eSurfaceDamageRegionChanged = 0x02000000,
+        eApiChanged = 0x04000000,
+        eSidebandStreamChanged = 0x08000000,
     };
 
     layer_state_t()
@@ -88,7 +87,6 @@ struct layer_state_t {
             mask(0),
             reserved(0),
             crop_legacy(Rect::INVALID_RECT),
-            finalCrop_legacy(Rect::INVALID_RECT),
             frameNumber_legacy(0),
             overrideScalingMode(-1),
             transform(0),
@@ -126,7 +124,6 @@ struct layer_state_t {
     uint8_t reserved;
     matrix22_t matrix;
     Rect crop_legacy;
-    Rect finalCrop_legacy;
     sp<IBinder> barrierHandle_legacy;
     sp<IBinder> reparentHandle;
     uint64_t frameNumber_legacy;

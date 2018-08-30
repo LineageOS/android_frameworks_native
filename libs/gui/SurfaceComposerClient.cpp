@@ -353,18 +353,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop_
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFinalCrop_legacy(
-        const sp<SurfaceControl>& sc, const Rect& crop) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eFinalCropChanged_legacy;
-    s->finalCrop_legacy = crop;
-    return *this;
-}
-
 SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::deferTransactionUntil_legacy(const sp<SurfaceControl>& sc,
                                                                  const sp<IBinder>& handle,
