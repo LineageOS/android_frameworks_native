@@ -184,42 +184,6 @@ bool RenderEngine::useWaitSync() const {
     return SyncFeatures::getInstance().useWaitSync();
 }
 
-bool RenderEngine::isCurrent() const {
-    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
-}
-
-std::unique_ptr<renderengine::Surface> RenderEngine::createSurface() {
-    return std::make_unique<Surface>(*this);
-}
-
-std::unique_ptr<renderengine::Image> RenderEngine::createImage() {
-    return std::make_unique<Image>(*this);
-}
-
-bool RenderEngine::setCurrentSurface(const android::renderengine::Surface& surface) {
-    // Note: renderengine::Surface is an abstract interface. This implementation only ever
-    // creates renderengine::impl::Surface's, so it is safe to just cast to the actual
-    // type.
-    return setCurrentSurface(static_cast<const android::renderengine::impl::Surface&>(surface));
-}
-
-bool RenderEngine::setCurrentSurface(const android::renderengine::impl::Surface& surface) {
-    bool success = true;
-    EGLSurface eglSurface = surface.getEGLSurface();
-    if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
-        success = eglMakeCurrent(mEGLDisplay, eglSurface, eglSurface, mEGLContext) == EGL_TRUE;
-        if (success && surface.getAsync()) {
-            eglSwapInterval(mEGLDisplay, 0);
-        }
-    }
-
-    return success;
-}
-
-void RenderEngine::resetCurrentSurface() {
-    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
-}
-
 base::unique_fd RenderEngine::flush() {
     if (!GLExtensions::getInstance().hasNativeFenceSync()) {
         return base::unique_fd();
@@ -373,24 +337,6 @@ void RenderEngine::genTextures(size_t count, uint32_t* names) {
 
 void RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
     glDeleteTextures(count, names);
-}
-
-void RenderEngine::bindExternalTextureImage(uint32_t texName,
-                                            const android::renderengine::Image& image) {
-    // Note: renderengine::Image is an abstract interface. This implementation only ever
-    // creates renderengine::impl::Image's, so it is safe to just cast to the actual type.
-    return bindExternalTextureImage(texName,
-                                    static_cast<const android::renderengine::impl::Image&>(image));
-}
-
-void RenderEngine::bindExternalTextureImage(uint32_t texName,
-                                            const android::renderengine::impl::Image& image) {
-    const GLenum target = GL_TEXTURE_EXTERNAL_OES;
-
-    glBindTexture(target, texName);
-    if (image.getEGLImage() != EGL_NO_IMAGE_KHR) {
-        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(image.getEGLImage()));
-    }
 }
 
 void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
@@ -596,11 +542,6 @@ EGLConfig RenderEngine::chooseEglConfig(EGLDisplay display, int format, bool log
 
     return config;
 }
-
-void RenderEngine::primeCache() const {
-    ProgramCache::getInstance().primeCache(mFeatureFlags & USE_COLOR_MANAGEMENT);
-}
-
 
 }  // namespace impl
 }  // namespace renderengine
