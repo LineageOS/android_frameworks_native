@@ -22,6 +22,7 @@ cc_test {
         "DisplayTransactionTest.cpp",
         "EventControlThreadTest.cpp",
         "EventThreadTest.cpp",
+        "SchedulerTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplaySurface.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",

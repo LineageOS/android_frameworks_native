@@ -29,7 +29,14 @@
 
 namespace android {
 
+#define RETURN_VALUE_IF_INVALID(value) \
+    if (handle == nullptr || mConnections.count(handle->id) == 0) return value
+#define RETURN_IF_INVALID() \
+    if (handle == nullptr || mConnections.count(handle->id) == 0) return
+
 std::atomic<int64_t> Scheduler::sNextId = 0;
+
+Scheduler::~Scheduler() = default;
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
         const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
@@ -38,11 +45,9 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
     const int64_t id = sNextId++;
     ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
 
-    std::unique_ptr<VSyncSource> eventThreadSource =
-            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, connectionName);
     std::unique_ptr<EventThread> eventThread =
-            std::make_unique<impl::EventThread>(std::move(eventThreadSource), resyncCallback,
-                                                interceptCallback, connectionName);
+            makeEventThread(connectionName, dispSync, phaseOffsetNs, resyncCallback,
+                            interceptCallback);
     auto connection = std::make_unique<Connection>(new ConnectionHandle(id),
                                                    eventThread->createEventConnection(),
                                                    std::move(eventThread));
@@ -50,56 +55,55 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
     return mConnections[id]->handle;
 }
 
+std::unique_ptr<EventThread> Scheduler::makeEventThread(
+        const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+        impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
+        impl::EventThread::InterceptVSyncsCallback interceptCallback) {
+    std::unique_ptr<VSyncSource> eventThreadSource =
+            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, connectionName);
+    return std::make_unique<impl::EventThread>(std::move(eventThreadSource), resyncCallback,
+                                               interceptCallback, connectionName);
+}
+
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
         const sp<Scheduler::ConnectionHandle>& handle) {
-    if (mConnections.count(handle->id) != 0) {
-        return mConnections[handle->id]->thread->createEventConnection();
-    }
-    return nullptr;
+    RETURN_VALUE_IF_INVALID(nullptr);
+    return mConnections[handle->id]->thread->createEventConnection();
 }
 
 EventThread* Scheduler::getEventThread(const sp<Scheduler::ConnectionHandle>& handle) {
-    if (mConnections.count(handle->id) != 0) {
-        return mConnections[handle->id]->thread.get();
-    }
-    return nullptr;
+    RETURN_VALUE_IF_INVALID(nullptr);
+    return mConnections[handle->id]->thread.get();
 }
 
 sp<BnDisplayEventConnection> Scheduler::getEventConnection(const sp<ConnectionHandle>& handle) {
-    if (mConnections.find(handle->id) != mConnections.end()) {
-        return mConnections[handle->id]->eventConnection;
-    }
-    return nullptr;
+    RETURN_VALUE_IF_INVALID(nullptr);
+    return mConnections[handle->id]->eventConnection;
 }
 
 void Scheduler::hotplugReceived(const sp<Scheduler::ConnectionHandle>& handle,
                                 EventThread::DisplayType displayType, bool connected) {
-    if (mConnections.find(handle->id) != mConnections.end()) {
-        mConnections[handle->id]->thread->onHotplugReceived(displayType, connected);
-    }
+    RETURN_IF_INVALID();
+    mConnections[handle->id]->thread->onHotplugReceived(displayType, connected);
 }
 
 void Scheduler::onScreenAcquired(const sp<Scheduler::ConnectionHandle>& handle) {
-    if (mConnections.find(handle->id) != mConnections.end()) {
-        mConnections[handle->id]->thread->onScreenAcquired();
-    }
+    RETURN_IF_INVALID();
+    mConnections[handle->id]->thread->onScreenAcquired();
 }
 
 void Scheduler::onScreenReleased(const sp<Scheduler::ConnectionHandle>& handle) {
-    if (mConnections.find(handle->id) != mConnections.end()) {
-        mConnections[handle->id]->thread->onScreenReleased();
-    }
+    RETURN_IF_INVALID();
+    mConnections[handle->id]->thread->onScreenReleased();
 }
 
 void Scheduler::dump(const sp<Scheduler::ConnectionHandle>& handle, String8& result) const {
-    if (mConnections.find(handle->id) != mConnections.end()) {
-        mConnections.at(handle->id)->thread->dump(result);
-    }
+    RETURN_IF_INVALID();
+    mConnections.at(handle->id)->thread->dump(result);
 }
 
 void Scheduler::setPhaseOffset(const sp<Scheduler::ConnectionHandle>& handle, nsecs_t phaseOffset) {
-    if (mConnections.find(handle->id) != mConnections.end()) {
-        mConnections[handle->id]->thread->setPhaseOffset(phaseOffset);
-    }
+    RETURN_IF_INVALID();
+    mConnections[handle->id]->thread->setPhaseOffset(phaseOffset);
 }
 } // namespace android
