@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "5bf97c84_d23b6038",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 438,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-08-31T01:56:58Z",
+      "side": 0,
+      "message": "shouldn\u0027t you just try to unset the client composition flag instead of doing this?",
+      "revId": "d62837ea7d41be3c6f77a2ddbb54837ce052e3d3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
