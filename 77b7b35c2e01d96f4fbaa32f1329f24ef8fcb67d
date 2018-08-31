@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "73c20add_479d547b",
+        "filename": "/COMMIT_MSG",
+        "patchSetId": 5
+      },
+      "lineNbr": 9,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2018-08-31T11:20:16Z",
+      "side": 1,
+      "message": "Can we replace it with \"Commit e6ecb92\"? This is not trackable via github (or even in our gerrit in case of this particular change), while the commit sha1 is.",
+      "range": {
+        "startLine": 9,
+        "startChar": 2,
+        "endLine": 9,
+        "endChar": 50
+      },
+      "revId": "77b7b35c2e01d96f4fbaa32f1329f24ef8fcb67d",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": false
+    }
+  ]
+}
