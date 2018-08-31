@@ -197,6 +197,8 @@ bool SurfaceFlinger::hasWideColorDisplay;
 int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 bool SurfaceFlinger::useColorManagement;
 bool SurfaceFlinger::useContextPriority;
+Dataspace SurfaceFlinger::compositionDataSpace = Dataspace::V0_SRGB;
+ui::PixelFormat SurfaceFlinger::compositionPixelFormat = ui::PixelFormat::RGBA_8888;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -323,13 +325,24 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     hasWideColorDisplay =
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
     useColorManagement =
-            getBool<V1_2::ISurfaceFlingerConfigs, &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
+            getBool<V1_2::ISurfaceFlingerConfigs,
+                    &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
+
+    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
+    if (surfaceFlingerConfigsServiceV1_2) {
+        surfaceFlingerConfigsServiceV1_2->getCompositionPreference(
+            [&](Dataspace tmpDataSpace, ui::PixelFormat tmpPixelFormat) {
+                compositionDataSpace = tmpDataSpace;
+                compositionPixelFormat = tmpPixelFormat;
+            });
+    }
 
     useContextPriority = getBool<ISurfaceFlingerConfigs,
                                  &ISurfaceFlingerConfigs::useContextPriority>(true);
 
     V1_1::DisplayOrientation primaryDisplayOrientation =
-        getDisplayOrientation< V1_1::ISurfaceFlingerConfigs, &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
+        getDisplayOrientation<V1_1::ISurfaceFlingerConfigs,
+                              &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
             V1_1::DisplayOrientation::ORIENTATION_0);
 
     switch (primaryDisplayOrientation) {
@@ -651,8 +664,11 @@ void SurfaceFlinger::init() {
                             renderengine::RenderEngine::USE_COLOR_MANAGEMENT : 0);
     renderEngineFeature |= (useContextPriority ?
                             renderengine::RenderEngine::USE_HIGH_PRIORITY_CONTEXT : 0);
-    getBE().mRenderEngine = renderengine::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                     renderEngineFeature);
+
+    // TODO(b/77156734): We need to stop casting and use HAL types when possible.
+    getBE().mRenderEngine =
+        renderengine::impl::RenderEngine::create(static_cast<int32_t>(compositionPixelFormat),
+                                                 renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -1167,6 +1183,13 @@ status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayer
     });
 
     mStateLock.unlock();
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getCompositionPreference(Dataspace* outDataSpace,
+                                                  ui::PixelFormat* outPixelFormat) const {
+    *outDataSpace = compositionDataSpace;
+    *outPixelFormat = compositionPixelFormat;
     return NO_ERROR;
 }
 
@@ -4824,7 +4847,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // granted a reference to Client* and Handle* to do anything with it.
         case SET_TRANSACTION_STATE:
         // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
-        case CREATE_SCOPED_CONNECTION: {
+        case CREATE_SCOPED_CONNECTION:
+        case GET_COMPOSITION_PREFERENCE: {
             return OK;
         }
         case CAPTURE_LAYERS:

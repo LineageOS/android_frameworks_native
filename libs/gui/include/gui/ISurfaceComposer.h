@@ -214,6 +214,9 @@ public:
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const = 0;
+
+    virtual status_t getCompositionPreference(ui::Dataspace* dataSpace,
+                                              ui::PixelFormat* pixelFormat) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -250,7 +253,8 @@ public:
         ENABLE_VSYNC_INJECTIONS,
         INJECT_VSYNC,
         GET_LAYER_DEBUG_INFO,
-        CREATE_SCOPED_CONNECTION
+        CREATE_SCOPED_CONNECTION,
+        GET_COMPOSITION_PREFERENCE,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

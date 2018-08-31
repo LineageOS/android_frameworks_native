@@ -296,6 +296,12 @@ public:
 
     static bool useContextPriority;
 
+    // The data space and pixel format that SurfaceFlinger expects hardware composer
+    // to composite efficiently. Meaning under most scenarios, hardware composer
+    // will accept layers with the data space and pixel format.
+    static ui::Dataspace compositionDataSpace;
+    static ui::PixelFormat compositionPixelFormat;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
@@ -454,6 +460,8 @@ private:
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
+    status_t getCompositionPreference(ui::Dataspace* outDataSpace,
+                                      ui::PixelFormat* outPixelFormat) const override;
 
 
     /* ------------------------------------------------------------------------

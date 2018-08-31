@@ -101,6 +101,10 @@ public:
     /* Triggers screen on/off or low power mode and waits for it to complete */
     static void setDisplayPowerMode(const sp<IBinder>& display, int mode);
 
+    //
+    static status_t getCompositionPreference(ui::Dataspace* dataSpace,
+                                             ui::PixelFormat* pixelFormat);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
