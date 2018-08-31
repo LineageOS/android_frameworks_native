@@ -108,7 +108,11 @@ public:
     using ResyncWithRateLimitCallback = std::function<void()>;
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
 
+    // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
     EventThread(VSyncSource* src, ResyncWithRateLimitCallback resyncWithRateLimitCallback,
+                InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
+    EventThread(std::unique_ptr<VSyncSource> src,
+                ResyncWithRateLimitCallback resyncWithRateLimitCallback,
                 InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
     ~EventThread();
 
@@ -134,6 +138,11 @@ public:
 private:
     friend EventThreadTest;
 
+    // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
+    EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
+                ResyncWithRateLimitCallback resyncWithRateLimitCallback,
+                InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
+
     void threadMain();
     Vector<sp<EventThread::Connection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
                                                            DisplayEventReceiver::Event* event)
@@ -146,8 +155,10 @@ private:
     // Implements VSyncSource::Callback
     void onVSyncEvent(nsecs_t timestamp) override;
 
+    // TODO(b/113612090): Once the Scheduler is complete this pointer will become obsolete.
+    VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
+    std::unique_ptr<VSyncSource> mVSyncSourceUnique GUARDED_BY(mMutex) = nullptr;
     // constants
-    VSyncSource* const mVSyncSource GUARDED_BY(mMutex) = nullptr;
     const ResyncWithRateLimitCallback mResyncWithRateLimitCallback;
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
 

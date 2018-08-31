@@ -85,7 +85,9 @@ public:
     virtual ~MessageQueue();
 
     virtual void init(const sp<SurfaceFlinger>& flinger) = 0;
+    // TODO(akrulec): Remove this function once everything is migrated to Scheduler.
     virtual void setEventThread(EventThread* events) = 0;
+    virtual void setEventConnection(const sp<BnDisplayEventConnection>& connection) = 0;
     virtual void waitMessage() = 0;
     virtual status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0) = 0;
     virtual void invalidate() = 0;
@@ -125,6 +127,7 @@ public:
     ~MessageQueue() override = default;
     void init(const sp<SurfaceFlinger>& flinger) override;
     void setEventThread(android::EventThread* events) override;
+    void setEventConnection(const sp<BnDisplayEventConnection>& connection) override;
 
     void waitMessage() override;
     status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0) override;

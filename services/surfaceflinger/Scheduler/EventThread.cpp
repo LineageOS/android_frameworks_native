@@ -45,11 +45,27 @@ EventThread::~EventThread() = default;
 
 namespace impl {
 
+EventThread::EventThread(std::unique_ptr<VSyncSource> src,
+                         ResyncWithRateLimitCallback resyncWithRateLimitCallback,
+                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
+      : EventThread(nullptr, std::move(src), resyncWithRateLimitCallback, interceptVSyncsCallback,
+                    threadName) {}
+
 EventThread::EventThread(VSyncSource* src, ResyncWithRateLimitCallback resyncWithRateLimitCallback,
                          InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
+      : EventThread(src, nullptr, resyncWithRateLimitCallback, interceptVSyncsCallback,
+                    threadName) {}
+
+EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
+                         ResyncWithRateLimitCallback resyncWithRateLimitCallback,
+                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
       : mVSyncSource(src),
+        mVSyncSourceUnique(std::move(uniqueSrc)),
         mResyncWithRateLimitCallback(resyncWithRateLimitCallback),
         mInterceptVSyncsCallback(interceptVSyncsCallback) {
+    if (src == nullptr) {
+        mVSyncSource = mVSyncSourceUnique.get();
+    }
     for (auto& event : mVSyncEvent) {
         event.header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
         event.header.id = 0;

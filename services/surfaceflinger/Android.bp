@@ -125,6 +125,7 @@ filegroup {
         "Scheduler/EventControlThread.cpp",
         "Scheduler/EventThread.cpp",
         "Scheduler/MessageQueue.cpp",
+        "Scheduler/Scheduler.cpp",
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
         "SurfaceInterceptor.cpp",

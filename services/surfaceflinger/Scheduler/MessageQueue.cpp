@@ -101,6 +101,17 @@ void MessageQueue::setEventThread(android::EventThread* eventThread) {
                    this);
 }
 
+void MessageQueue::setEventConnection(const sp<BnDisplayEventConnection>& connection) {
+    if (mEventTube.getFd() >= 0) {
+        mLooper->removeFd(mEventTube.getFd());
+    }
+
+    mEvents = connection;
+    mEvents->stealReceiveChannel(&mEventTube);
+    mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
+                   this);
+}
+
 void MessageQueue::waitMessage() {
     do {
         IPCThreadState::self()->flushCommands();
