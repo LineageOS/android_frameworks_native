@@ -672,21 +672,12 @@ void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) {
     onDraw(renderArea, Region(renderArea.getBounds()), useIdentityTransform);
 }
 
-void Layer::draw(const RenderArea& renderArea) {
-    onDraw(renderArea, Region(renderArea.getBounds()), false);
-}
-
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,
                             float alpha) const {
     auto& engine(mFlinger->getRenderEngine());
     computeGeometry(renderArea, getBE().mMesh, false);
     engine.setupFillWithColor(red, green, blue, alpha);
     engine.drawMesh(getBE().mMesh);
-}
-
-void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
-    getBE().compositionInfo.firstClear = true;
-    computeGeometry(renderArea, getBE().mMesh, false);
 }
 
 void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool /*callIntoHwc*/) {
