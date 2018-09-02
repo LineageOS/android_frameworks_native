@@ -58,8 +58,8 @@ public:
 
     virtual ~RenderEngine() = 0;
 
-    virtual std::unique_ptr<renderengine::Surface> createSurface() = 0;
-    virtual std::unique_ptr<renderengine::Image> createImage() = 0;
+    virtual std::unique_ptr<Surface> createSurface() = 0;
+    virtual std::unique_ptr<Image> createImage() = 0;
 
     virtual void primeCache() const = 0;
 
@@ -70,7 +70,7 @@ public:
     virtual bool useWaitSync() const = 0;
 
     virtual bool isCurrent() const = 0;
-    virtual bool setCurrentSurface(const renderengine::Surface& surface) = 0;
+    virtual bool setCurrentSurface(const Surface& surface) = 0;
     virtual void resetCurrentSurface() = 0;
 
     // helpers
@@ -96,14 +96,15 @@ public:
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) = 0;
     virtual void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) = 0;
+    // When binding a native buffer, it must be done before setViewportAndProjection
     virtual void bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
                                                BindNativeBufferAsFramebuffer* bindHelper) = 0;
     virtual void unbindNativeBufferAsFrameBuffer(BindNativeBufferAsFramebuffer* bindHelper) = 0;
 
     // set-up
     virtual void checkErrors() const;
-    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop, size_t hwh,
-                                          bool yswap, ui::Transform::orientation_flags rotation) = 0;
+    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
+                                          ui::Transform::orientation_flags rotation) = 0;
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                                     const half4& color) = 0;
     virtual void setupLayerTexturing(const Texture& texture) = 0;
@@ -149,10 +150,8 @@ protected:
 
 namespace impl {
 
-class Image;
-class Surface;
-
 class RenderEngine : public renderengine::RenderEngine {
+protected:
     enum GlesVersion {
         GLES_VERSION_1_0 = 0x10000,
         GLES_VERSION_1_1 = 0x10001,
@@ -168,7 +167,6 @@ class RenderEngine : public renderengine::RenderEngine {
 
     static bool overrideUseContextPriorityFromConfig(bool useContextPriority);
 
-protected:
     RenderEngine(uint32_t featureFlags);
 
     const uint32_t mFeatureFlags;
@@ -180,22 +178,11 @@ public:
 
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
-    // RenderEngine interface implementation
-
-    std::unique_ptr<renderengine::Surface> createSurface() override;
-    std::unique_ptr<renderengine::Image> createImage() override;
-
-    void primeCache() const override;
-
     // dump the extension strings. always call the base class.
     void dump(String8& result) override;
 
     bool useNativeFenceSync() const override;
     bool useWaitSync() const override;
-
-    bool isCurrent() const;
-    bool setCurrentSurface(const renderengine::Surface& surface) override;
-    void resetCurrentSurface() override;
 
     // synchronization
 
@@ -220,7 +207,6 @@ public:
     void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
-    void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) override;
     void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) override;
 
     void checkErrors() const override;
@@ -232,9 +218,6 @@ public:
     EGLConfig getEGLConfig() const;
 
     // Common implementation
-    bool setCurrentSurface(const renderengine::impl::Surface& surface);
-    void bindExternalTextureImage(uint32_t texName, const renderengine::impl::Image& image);
-
     void bindNativeBufferAsFrameBuffer(
             ANativeWindowBuffer* buffer,
             renderengine::BindNativeBufferAsFramebuffer* bindHelper) override;

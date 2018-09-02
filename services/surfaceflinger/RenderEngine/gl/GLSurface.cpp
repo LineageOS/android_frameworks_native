@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 The Android Open Source Project
+ * Copyright 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,32 +14,30 @@
  * limitations under the License.
  */
 
-#include <renderengine/Surface.h>
+#include "GLSurface.h"
 
 #include <log/log.h>
-#include <renderengine/RenderEngine.h>
 #include <ui/PixelFormat.h>
+#include "GLES20RenderEngine.h"
 
 namespace android {
 namespace renderengine {
+namespace gl {
 
-Surface::~Surface() = default;
-
-namespace impl {
-
-Surface::Surface(const RenderEngine& engine)
+GLSurface::GLSurface(const GLES20RenderEngine& engine)
       : mEGLDisplay(engine.getEGLDisplay()), mEGLConfig(engine.getEGLConfig()) {
     // RE does not assume any config when EGL_KHR_no_config_context is supported
     if (mEGLConfig == EGL_NO_CONFIG_KHR) {
-        mEGLConfig = RenderEngine::chooseEglConfig(mEGLDisplay, PIXEL_FORMAT_RGBA_8888, false);
+        mEGLConfig = GLES20RenderEngine::chooseEglConfig(mEGLDisplay,
+                                                         PIXEL_FORMAT_RGBA_8888, false);
     }
 }
 
-Surface::~Surface() {
+GLSurface::~GLSurface() {
     setNativeWindow(nullptr);
 }
 
-void Surface::setNativeWindow(ANativeWindow* window) {
+void GLSurface::setNativeWindow(ANativeWindow* window) {
     if (mEGLSurface != EGL_NO_SURFACE) {
         eglDestroySurface(mEGLDisplay, mEGLSurface);
         mEGLSurface = EGL_NO_SURFACE;
@@ -51,7 +49,7 @@ void Surface::setNativeWindow(ANativeWindow* window) {
     }
 }
 
-void Surface::swapBuffers() const {
+void GLSurface::swapBuffers() const {
     if (!eglSwapBuffers(mEGLDisplay, mEGLSurface)) {
         EGLint error = eglGetError();
 
@@ -64,7 +62,7 @@ void Surface::swapBuffers() const {
     }
 }
 
-EGLint Surface::queryConfig(EGLint attrib) const {
+EGLint GLSurface::queryConfig(EGLint attrib) const {
     EGLint value;
     if (!eglGetConfigAttrib(mEGLDisplay, mEGLConfig, attrib, &value)) {
         value = 0;
@@ -73,7 +71,7 @@ EGLint Surface::queryConfig(EGLint attrib) const {
     return value;
 }
 
-EGLint Surface::querySurface(EGLint attrib) const {
+EGLint GLSurface::querySurface(EGLint attrib) const {
     EGLint value;
     if (!eglQuerySurface(mEGLDisplay, mEGLSurface, attrib, &value)) {
         value = 0;
@@ -82,30 +80,30 @@ EGLint Surface::querySurface(EGLint attrib) const {
     return value;
 }
 
-int32_t Surface::queryRedSize() const {
+int32_t GLSurface::queryRedSize() const {
     return queryConfig(EGL_RED_SIZE);
 }
 
-int32_t Surface::queryGreenSize() const {
+int32_t GLSurface::queryGreenSize() const {
     return queryConfig(EGL_GREEN_SIZE);
 }
 
-int32_t Surface::queryBlueSize() const {
+int32_t GLSurface::queryBlueSize() const {
     return queryConfig(EGL_BLUE_SIZE);
 }
 
-int32_t Surface::queryAlphaSize() const {
+int32_t GLSurface::queryAlphaSize() const {
     return queryConfig(EGL_ALPHA_SIZE);
 }
 
-int32_t Surface::queryWidth() const {
+int32_t GLSurface::queryWidth() const {
     return querySurface(EGL_WIDTH);
 }
 
-int32_t Surface::queryHeight() const {
+int32_t GLSurface::queryHeight() const {
     return querySurface(EGL_HEIGHT);
 }
 
-}  // namespace impl
+}  // namespace gl
 }  // namespace renderengine
 }  // namespace android

@@ -36,6 +36,9 @@
 #include <ui/Rect.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
+#include "GLExtensions.h"
+#include "GLImage.h"
+#include "GLSurface.h"
 #include "Program.h"
 #include "ProgramCache.h"
 
@@ -151,30 +154,63 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
 
 GLES20RenderEngine::~GLES20RenderEngine() {}
 
-size_t GLES20RenderEngine::getMaxTextureSize() const {
-    return mMaxTextureSize;
+std::unique_ptr<Surface> GLES20RenderEngine::createSurface() {
+    return std::make_unique<GLSurface>(*this);
 }
 
-size_t GLES20RenderEngine::getMaxViewportDims() const {
-    return mMaxViewportDims[0] < mMaxViewportDims[1] ? mMaxViewportDims[0] : mMaxViewportDims[1];
+std::unique_ptr<Image> GLES20RenderEngine::createImage() {
+    return std::make_unique<GLImage>(*this);
+}
+
+void GLES20RenderEngine::primeCache() const {
+    ProgramCache::getInstance().primeCache(mFeatureFlags & USE_COLOR_MANAGEMENT);
+}
+
+bool GLES20RenderEngine::isCurrent() const {
+    return mEGLDisplay == eglGetCurrentDisplay() && mEGLContext == eglGetCurrentContext();
+}
+
+bool GLES20RenderEngine::setCurrentSurface(const Surface& surface) {
+    // Surface is an abstract interface. GLES20RenderEngine only ever
+    // creates GLSurface's, so it is safe to just cast to the actual
+    // type.
+    bool success = true;
+    const GLSurface& glSurface = static_cast<const GLSurface&>(surface);
+    EGLSurface eglSurface = glSurface.getEGLSurface();
+    if (eglSurface != eglGetCurrentSurface(EGL_DRAW)) {
+        success = eglMakeCurrent(mEGLDisplay, eglSurface, eglSurface, mEGLContext) == EGL_TRUE;
+        if (success && glSurface.getAsync()) {
+            eglSwapInterval(mEGLDisplay, 0);
+        }
+    }
+    return success;
+}
+
+void GLES20RenderEngine::resetCurrentSurface() {
+    eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+}
+
+void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
+                                                  const Image& image) {
+    const GLImage& glImage = static_cast<const GLImage&>(image);
+    const GLenum target = GL_TEXTURE_EXTERNAL_OES;
+
+    glBindTexture(target, texName);
+    if (glImage.getEGLImage() != EGL_NO_IMAGE_KHR) {
+        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(glImage.getEGLImage()));
+    }
 }
 
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                                  size_t hwh, bool yswap,
                                                   ui::Transform::orientation_flags rotation) {
     int32_t l = sourceCrop.left;
     int32_t r = sourceCrop.right;
-
-    // In GL, (0, 0) is the bottom-left corner, so flip y coordinates
-    int32_t t = hwh - sourceCrop.top;
-    int32_t b = hwh - sourceCrop.bottom;
-
-    mat4 m;
-    if (yswap) {
-        m = mat4::ortho(l, r, t, b, 0, 1);
-    } else {
-        m = mat4::ortho(l, r, b, t, 0, 1);
+    int32_t b = sourceCrop.bottom;
+    int32_t t = sourceCrop.top;
+    if (mRenderToFbo) {
+        std::swap(t, b);
     }
+    mat4 m = mat4::ortho(l, r, b, t, 0, 1);
 
     // Apply custom rotation to the projection.
     float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
@@ -284,9 +320,13 @@ void GLES20RenderEngine::bindImageAsFramebuffer(EGLImageKHR image, uint32_t* tex
     *status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
     *texName = tname;
     *fbName = name;
+
+    mRenderToFbo = true;
 }
 
 void GLES20RenderEngine::unbindFramebuffer(uint32_t texName, uint32_t fbName) {
+    mRenderToFbo = false;
+
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     glDeleteFramebuffers(1, &fbName);
     glDeleteTextures(1, &texName);
@@ -425,6 +465,14 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
     }
 }
 
+size_t GLES20RenderEngine::getMaxTextureSize() const {
+    return mMaxTextureSize;
+}
+
+size_t GLES20RenderEngine::getMaxViewportDims() const {
+    return mMaxViewportDims[0] < mMaxViewportDims[1] ? mMaxViewportDims[0] : mMaxViewportDims[1];
+}
+
 void GLES20RenderEngine::dump(String8& result) {
     RenderEngine::dump(result);
     result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
@@ -462,7 +510,3 @@ bool GLES20RenderEngine::needsXYZTransformMatrix() const {
 }  // namespace gl
 }  // namespace renderengine
 }  // namespace android
-
-#if defined(__gl_h_)
-#error "don't include gl/gl.h in this file"
-#endif

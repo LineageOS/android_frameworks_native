@@ -16,11 +16,6 @@
 
 #pragma once
 
-#include <cstdint>
-
-#include <EGL/egl.h>
-#include <EGL/eglext.h>
-
 struct ANativeWindowBuffer;
 
 namespace android {
@@ -28,33 +23,10 @@ namespace renderengine {
 
 class Image {
 public:
-    virtual ~Image() = 0;
+    virtual ~Image() = default;
     virtual bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) = 0;
 };
 
-namespace impl {
-
-class RenderEngine;
-
-class Image : public renderengine::Image {
-public:
-    explicit Image(const RenderEngine& engine);
-    ~Image() override;
-
-    Image(const Image&) = delete;
-    Image& operator=(const Image&) = delete;
-
-    bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) override;
-
-private:
-    // methods internal to RenderEngine
-    friend class RenderEngine;
-    EGLSurface getEGLImage() const { return mEGLImage; }
-
-    EGLDisplay mEGLDisplay;
-    EGLImageKHR mEGLImage = EGL_NO_IMAGE_KHR;
-};
-
-}  // namespace impl
 }  // namespace renderengine
 }  // namespace android
+

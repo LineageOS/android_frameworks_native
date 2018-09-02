@@ -407,7 +407,6 @@ public:
      */
     void draw(const RenderArea& renderArea, const Region& clip);
     void draw(const RenderArea& renderArea, bool useIdentityTransform);
-    void draw(const RenderArea& renderArea);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -504,8 +503,6 @@ public:
     }
 
     // -----------------------------------------------------------------------
-
-    void clearWithOpenGL(const RenderArea& renderArea) const;
 
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }

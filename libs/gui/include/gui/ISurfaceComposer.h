@@ -157,9 +157,6 @@ public:
     virtual status_t getDisplayStats(const sp<IBinder>& display,
             DisplayStatInfo* stats) = 0;
 
-    /* returns display viewport information of the given display */
-    virtual status_t getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) = 0;
-
     /* indicates which of the configurations returned by getDisplayInfo is
      * currently active */
     virtual int getActiveConfig(const sp<IBinder>& display) = 0;
@@ -253,8 +250,7 @@ public:
         ENABLE_VSYNC_INJECTIONS,
         INJECT_VSYNC,
         GET_LAYER_DEBUG_INFO,
-        CREATE_SCOPED_CONNECTION,
-        GET_DISPLAY_VIEWPORT
+        CREATE_SCOPED_CONNECTION
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

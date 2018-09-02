@@ -672,21 +672,12 @@ void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) {
     onDraw(renderArea, Region(renderArea.getBounds()), useIdentityTransform);
 }
 
-void Layer::draw(const RenderArea& renderArea) {
-    onDraw(renderArea, Region(renderArea.getBounds()), false);
-}
-
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,
                             float alpha) const {
     auto& engine(mFlinger->getRenderEngine());
     computeGeometry(renderArea, getBE().mMesh, false);
     engine.setupFillWithColor(red, green, blue, alpha);
     engine.drawMesh(getBE().mMesh);
-}
-
-void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
-    getBE().compositionInfo.firstClear = true;
-    computeGeometry(renderArea, getBE().mMesh, false);
 }
 
 void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool /*callIntoHwc*/) {
@@ -748,7 +739,6 @@ void Layer::computeGeometry(const RenderArea& renderArea,
                             renderengine::Mesh& mesh,
                             bool useIdentityTransform) const {
     const ui::Transform renderAreaTransform(renderArea.getTransform());
-    const uint32_t height = renderArea.getHeight();
     FloatRect win = computeBounds();
 
     vec2 lt = vec2(win.left, win.top);
@@ -769,9 +759,6 @@ void Layer::computeGeometry(const RenderArea& renderArea,
     position[1] = renderAreaTransform.transform(lb);
     position[2] = renderAreaTransform.transform(rb);
     position[3] = renderAreaTransform.transform(rt);
-    for (size_t i = 0; i < 4; i++) {
-        position[i].y = height - position[i].y;
-    }
 }
 
 bool Layer::isSecure() const {

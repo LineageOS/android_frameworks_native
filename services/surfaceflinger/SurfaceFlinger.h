@@ -69,6 +69,7 @@
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
 #include "TimeStats/TimeStats.h"
 
@@ -435,7 +436,6 @@ private:
     virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
                                    const Rect& sourceCrop, float frameScale, bool childrenOnly);
     virtual status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
-    virtual status_t getDisplayViewport(const sp<IBinder>& display, Rect* outViewport);
     virtual status_t getDisplayConfigs(const sp<IBinder>& displayToken,
                                        Vector<DisplayInfo>* configs);
     virtual int getActiveConfig(const sp<IBinder>& displayToken);
@@ -581,7 +581,7 @@ private:
     void startBootAnim();
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                bool yswap, bool useIdentityTransform);
+                                bool useIdentityTransform);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer,
                                  bool useIdentityTransform);
@@ -936,6 +936,11 @@ private:
     CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
 
     SurfaceFlingerBE mBE;
+
+    bool mUseScheduler = false;
+    std::unique_ptr<Scheduler> mScheduler;
+    sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
+    sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
 };
 }; // namespace android
 

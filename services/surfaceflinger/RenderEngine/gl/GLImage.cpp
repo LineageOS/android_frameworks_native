@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 The Android Open Source Project
+ * Copyright 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,26 +14,17 @@
  * limitations under the License.
  */
 
-#include <renderengine/Image.h>
+#include "GLImage.h"
 
 #include <vector>
 
 #include <log/log.h>
-#include <renderengine/RenderEngine.h>
-#include "gl/GLExtensions.h"
+#include "GLExtensions.h"
+#include "GLES20RenderEngine.h"
 
 namespace android {
 namespace renderengine {
-
-Image::~Image() = default;
-
-namespace impl {
-
-Image::Image(const RenderEngine& engine) : mEGLDisplay(engine.getEGLDisplay()) {}
-
-Image::~Image() {
-    setNativeWindowBuffer(nullptr, false);
-}
+namespace gl {
 
 static std::vector<EGLint> buildAttributeList(bool isProtected) {
     std::vector<EGLint> attrs;
@@ -42,7 +33,7 @@ static std::vector<EGLint> buildAttributeList(bool isProtected) {
     attrs.push_back(EGL_IMAGE_PRESERVED_KHR);
     attrs.push_back(EGL_TRUE);
 
-    if (isProtected && gl::GLExtensions::getInstance().hasProtectedContent()) {
+    if (isProtected && GLExtensions::getInstance().hasProtectedContent()) {
         attrs.push_back(EGL_PROTECTED_CONTENT_EXT);
         attrs.push_back(EGL_TRUE);
     }
@@ -52,7 +43,13 @@ static std::vector<EGLint> buildAttributeList(bool isProtected) {
     return attrs;
 }
 
-bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) {
+GLImage::GLImage(const GLES20RenderEngine& engine) : mEGLDisplay(engine.getEGLDisplay()) {}
+
+GLImage::~GLImage() {
+    setNativeWindowBuffer(nullptr, false);
+}
+
+bool GLImage::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) {
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
         if (!eglDestroyImageKHR(mEGLDisplay, mEGLImage)) {
             ALOGE("failed to destroy image: %#x", eglGetError());
@@ -73,6 +70,6 @@ bool Image::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected)
     return true;
 }
 
-}  // namespace impl
+}  // namespace gl
 }  // namespace renderengine
 }  // namespace android

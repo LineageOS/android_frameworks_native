@@ -18,8 +18,6 @@
 
 #include <cstdint>
 
-#include <EGL/egl.h>
-
 struct ANativeWindow;
 
 namespace android {
@@ -27,7 +25,7 @@ namespace renderengine {
 
 class Surface {
 public:
-    virtual ~Surface() = 0;
+    virtual ~Surface() = default;
 
     virtual void setCritical(bool enable) = 0;
     virtual void setAsync(bool enable) = 0;
@@ -44,52 +42,5 @@ public:
     virtual int32_t queryHeight() const = 0;
 };
 
-namespace impl {
-
-class RenderEngine;
-
-class Surface final : public renderengine::Surface {
-public:
-    Surface(const RenderEngine& engine);
-    ~Surface();
-
-    Surface(const Surface&) = delete;
-    Surface& operator=(const Surface&) = delete;
-
-    // renderengine::Surface implementation
-    void setCritical(bool enable) override { mCritical = enable; }
-    void setAsync(bool enable) override { mAsync = enable; }
-
-    void setNativeWindow(ANativeWindow* window) override;
-    void swapBuffers() const override;
-
-    int32_t queryRedSize() const override;
-    int32_t queryGreenSize() const override;
-    int32_t queryBlueSize() const override;
-    int32_t queryAlphaSize() const override;
-
-    int32_t queryWidth() const override;
-    int32_t queryHeight() const override;
-
-private:
-    EGLint queryConfig(EGLint attrib) const;
-    EGLint querySurface(EGLint attrib) const;
-
-    // methods internal to RenderEngine
-    friend class RenderEngine;
-    bool getAsync() const { return mAsync; }
-    EGLSurface getEGLSurface() const { return mEGLSurface; }
-
-    EGLDisplay mEGLDisplay;
-    EGLConfig mEGLConfig;
-
-    bool mCritical = false;
-    bool mAsync = false;
-
-    ANativeWindow* mWindow = nullptr;
-    EGLSurface mEGLSurface = EGL_NO_SURFACE;
-};
-
-}  // namespace impl
 }  // namespace renderengine
 }  // namespace android
