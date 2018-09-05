@@ -294,6 +294,8 @@ public:
     // Indicate if device wants color management on its display.
     static bool useColorManagement;
 
+    static bool useContextPriority;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }

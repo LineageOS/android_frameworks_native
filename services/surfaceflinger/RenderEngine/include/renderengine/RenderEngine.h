@@ -56,6 +56,7 @@ class RenderEngine {
 public:
     enum FeatureFlag {
         USE_COLOR_MANAGEMENT = 1 << 0, // Device manages color
+        USE_HIGH_PRIORITY_CONTEXT = 1 << 1, // Use high priority context
     };
 
     virtual ~RenderEngine() = 0;
@@ -168,8 +169,6 @@ protected:
     EGLConfig mEGLConfig;
     EGLContext mEGLContext;
     void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
-
-    static bool overrideUseContextPriorityFromConfig(bool useContextPriority);
 
     RenderEngine(uint32_t featureFlags);
 

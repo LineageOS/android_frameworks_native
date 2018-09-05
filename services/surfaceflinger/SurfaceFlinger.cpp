@@ -196,6 +196,7 @@ int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 bool SurfaceFlinger::hasWideColorDisplay;
 int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 bool SurfaceFlinger::useColorManagement;
+bool SurfaceFlinger::useContextPriority;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -323,6 +324,9 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
     useColorManagement =
             getBool<V1_2::ISurfaceFlingerConfigs, &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
+
+    useContextPriority = getBool<ISurfaceFlingerConfigs,
+                                 &ISurfaceFlingerConfigs::useContextPriority>(true);
 
     V1_1::DisplayOrientation primaryDisplayOrientation =
         getDisplayOrientation< V1_1::ISurfaceFlingerConfigs, &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
@@ -645,8 +649,10 @@ void SurfaceFlinger::init() {
     int32_t renderEngineFeature = 0;
     renderEngineFeature |= (useColorManagement ?
                             renderengine::RenderEngine::USE_COLOR_MANAGEMENT : 0);
+    renderEngineFeature |= (useContextPriority ?
+                            renderengine::RenderEngine::USE_HIGH_PRIORITY_CONTEXT : 0);
     getBE().mRenderEngine = renderengine::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                      renderEngineFeature);
+                                                                     renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,

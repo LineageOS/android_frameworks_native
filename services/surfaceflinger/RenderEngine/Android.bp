@@ -20,10 +20,6 @@ cc_defaults {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
-        "android.hardware.configstore-utils",
-        "android.hardware.configstore@1.0",
-        "android.hardware.configstore@1.1",
-        "android.hardware.configstore@1.2",
         "libcutils",
         "libEGL",
         "libGLESv1_CM",
