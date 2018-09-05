@@ -114,6 +114,7 @@ bool BufferLayer::isFixedSize() const {
 }
 
 status_t BufferLayer::setBuffers(uint32_t w, uint32_t h, PixelFormat format, uint32_t flags) {
+#ifndef ALLOW_TOO_LARGE_DIMENSIONS
     uint32_t const maxSurfaceDims =
             min(mFlinger->getMaxTextureSize(), mFlinger->getMaxViewportDims());
 
@@ -123,6 +124,7 @@ status_t BufferLayer::setBuffers(uint32_t w, uint32_t h, PixelFormat format, uin
         ALOGE("dimensions too large %u x %u", uint32_t(w), uint32_t(h));
         return BAD_VALUE;
     }
+#endif
 
     mFormat = format;
 
