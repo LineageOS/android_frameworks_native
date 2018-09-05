@@ -117,12 +117,14 @@ status_t BufferLayer::setBuffers(uint32_t w, uint32_t h, PixelFormat format, uin
     uint32_t const maxSurfaceDims =
             min(mFlinger->getMaxTextureSize(), mFlinger->getMaxViewportDims());
 
+#ifndef ALLOW_TOO_LARGE_DIMENSIONS
     // never allow a surface larger than what our underlying GL implementation
     // can handle.
     if ((uint32_t(w) > maxSurfaceDims) || (uint32_t(h) > maxSurfaceDims)) {
         ALOGE("dimensions too large %u x %u", uint32_t(w), uint32_t(h));
         return BAD_VALUE;
     }
+#endif
 
     mFormat = format;
 

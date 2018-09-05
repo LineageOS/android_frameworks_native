@@ -155,6 +155,13 @@ cc_library_shared {
     lto: {
         thin: true,
     },
+    product_variables: {
+        lineage: {
+            apply_msm8974_1440p_egl_workaround: {
+                cflags: ["-DALLOW_TOO_LARGE_DIMENSIONS"],
+            },
+        },
+    },
 }
 
 cc_binary {
