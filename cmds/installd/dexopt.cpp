@@ -1692,15 +1692,12 @@ static bool process_secondary_dexoptanalyzer_result(const std::string& dex_path,
             *dexopt_needed_out = NO_DEXOPT_NEEDED; return true;
         case 1:  // dexoptanalyzer: dex2oat_from_scratch
             *dexopt_needed_out = DEX2OAT_FROM_SCRATCH; return true;
-        case 5:  // dexoptanalyzer: dex2oat_for_bootimage_odex
+        case 4:  // dexoptanalyzer: dex2oat_for_bootimage_odex
             *dexopt_needed_out = -DEX2OAT_FOR_BOOT_IMAGE; return true;
-        case 6:  // dexoptanalyzer: dex2oat_for_filter_odex
+        case 5:  // dexoptanalyzer: dex2oat_for_filter_odex
             *dexopt_needed_out = -DEX2OAT_FOR_FILTER; return true;
-        case 7:  // dexoptanalyzer: dex2oat_for_relocation_odex
-            *dexopt_needed_out = -DEX2OAT_FOR_RELOCATION; return true;
         case 2:  // dexoptanalyzer: dex2oat_for_bootimage_oat
         case 3:  // dexoptanalyzer: dex2oat_for_filter_oat
-        case 4:  // dexoptanalyzer: dex2oat_for_relocation_oat
             *error_msg = StringPrintf("Dexoptanalyzer return the status of an oat file."
                                       " Expected odex file status for secondary dex %s"
                                       " : dexoptanalyzer result=%d",
