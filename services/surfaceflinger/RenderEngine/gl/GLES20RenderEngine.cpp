@@ -34,6 +34,7 @@
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/Rect.h>
+#include <ui/Region.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include "GLExtensions.h"
@@ -195,6 +196,134 @@ void GLES20RenderEngine::resetCurrentSurface() {
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 }
 
+base::unique_fd GLES20RenderEngine::flush() {
+    if (!GLExtensions::getInstance().hasNativeFenceSync()) {
+        return base::unique_fd();
+    }
+
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, nullptr);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGW("failed to create EGL native fence sync: %#x", eglGetError());
+        return base::unique_fd();
+    }
+
+    // native fence fd will not be populated until flush() is done.
+    glFlush();
+
+    // get the fence fd
+    base::unique_fd fenceFd(eglDupNativeFenceFDANDROID(mEGLDisplay, sync));
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (fenceFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
+        ALOGW("failed to dup EGL native fence sync: %#x", eglGetError());
+    }
+
+    return fenceFd;
+}
+
+bool GLES20RenderEngine::finish() {
+    if (!GLExtensions::getInstance().hasFenceSync()) {
+        ALOGW("no synchronization support");
+        return false;
+    }
+
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, nullptr);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGW("failed to create EGL fence sync: %#x", eglGetError());
+        return false;
+    }
+
+    EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
+                                         2000000000 /*2 sec*/);
+    EGLint error = eglGetError();
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (result != EGL_CONDITION_SATISFIED_KHR) {
+        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
+            ALOGW("fence wait timed out");
+        } else {
+            ALOGW("error waiting on EGL fence: %#x", error);
+        }
+        return false;
+    }
+
+    return true;
+}
+
+bool GLES20RenderEngine::waitFence(base::unique_fd fenceFd) {
+    if (!GLExtensions::getInstance().hasNativeFenceSync() ||
+        !GLExtensions::getInstance().hasWaitSync()) {
+        return false;
+    }
+
+    EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
+    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
+    if (sync == EGL_NO_SYNC_KHR) {
+        ALOGE("failed to create EGL native fence sync: %#x", eglGetError());
+        return false;
+    }
+
+    // fenceFd is now owned by EGLSync
+    (void)fenceFd.release();
+
+    // XXX: The spec draft is inconsistent as to whether this should return an
+    // EGLint or void.  Ignore the return value for now, as it's not strictly
+    // needed.
+    eglWaitSyncKHR(mEGLDisplay, sync, 0);
+    EGLint error = eglGetError();
+    eglDestroySyncKHR(mEGLDisplay, sync);
+    if (error != EGL_SUCCESS) {
+        ALOGE("failed to wait for EGL native fence sync: %#x", error);
+        return false;
+    }
+
+    return true;
+}
+
+void GLES20RenderEngine::fillRegionWithColor(const Region& region, uint32_t height, float red,
+                                             float green, float blue, float alpha) {
+    size_t c;
+    Rect const* r = region.getArray(&c);
+    Mesh mesh(Mesh::TRIANGLES, c * 6, 2);
+    Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
+    for (size_t i = 0; i < c; i++, r++) {
+        position[i * 6 + 0].x = r->left;
+        position[i * 6 + 0].y = height - r->top;
+        position[i * 6 + 1].x = r->left;
+        position[i * 6 + 1].y = height - r->bottom;
+        position[i * 6 + 2].x = r->right;
+        position[i * 6 + 2].y = height - r->bottom;
+        position[i * 6 + 3].x = r->left;
+        position[i * 6 + 3].y = height - r->top;
+        position[i * 6 + 4].x = r->right;
+        position[i * 6 + 4].y = height - r->bottom;
+        position[i * 6 + 5].x = r->right;
+        position[i * 6 + 5].y = height - r->top;
+    }
+    setupFillWithColor(red, green, blue, alpha);
+    drawMesh(mesh);
+}
+
+void GLES20RenderEngine::clearWithColor(float red, float green, float blue, float alpha) {
+    glClearColor(red, green, blue, alpha);
+    glClear(GL_COLOR_BUFFER_BIT);
+}
+
+void GLES20RenderEngine::setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) {
+    glScissor(left, bottom, right, top);
+    glEnable(GL_SCISSOR_TEST);
+}
+
+void GLES20RenderEngine::disableScissor() {
+    glDisable(GL_SCISSOR_TEST);
+}
+
+void GLES20RenderEngine::genTextures(size_t count, uint32_t* names) {
+    glGenTextures(count, names);
+}
+
+void GLES20RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
+    glDeleteTextures(count, names);
+}
+
 void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
                                                   const Image& image) {
     const GLImage& glImage = static_cast<const GLImage&>(image);
@@ -205,6 +334,10 @@ void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
         glEGLImageTargetTexture2DOES(target,
                                      static_cast<GLeglImageOES>(glImage.getEGLImage()));
     }
+}
+
+void GLES20RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
+    glReadPixels(l, b, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 }
 
 status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
@@ -243,6 +376,15 @@ void GLES20RenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
     setScissor(0, 0, 0, 0);
     clearWithColor(0.0, 0.0, 0.0, 0.0);
     disableScissor();
+}
+
+void GLES20RenderEngine::checkErrors() const {
+    do {
+        // there could be more than one error flag
+        GLenum error = glGetError();
+        if (error == GL_NO_ERROR) break;
+        ALOGE("GL error 0x%04x", int(error));
+    } while (true);
 }
 
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,

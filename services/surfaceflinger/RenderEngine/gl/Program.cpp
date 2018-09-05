@@ -20,7 +20,6 @@
 
 #include <log/log.h>
 #include <math/mat4.h>
-#include <renderengine/private/Description.h>
 #include <utils/String8.h>
 #include "ProgramCache.h"
 
