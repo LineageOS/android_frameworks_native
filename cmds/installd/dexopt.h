@@ -31,7 +31,6 @@ static constexpr int NO_DEXOPT_NEEDED            = 0;
 static constexpr int DEX2OAT_FROM_SCRATCH        = 1;
 static constexpr int DEX2OAT_FOR_BOOT_IMAGE      = 2;
 static constexpr int DEX2OAT_FOR_FILTER          = 3;
-static constexpr int DEX2OAT_FOR_RELOCATION      = 4;
 
 // Clear the reference profile identified by the given profile name.
 bool clear_primary_reference_profile(const std::string& pkgname, const std::string& profile_name);
