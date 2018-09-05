@@ -25,8 +25,8 @@
 #include <EGL/eglext.h>
 #include <android-base/unique_fd.h>
 #include <math/mat4.h>
-#include <renderengine/Image.h>
 #include <renderengine/Framebuffer.h>
+#include <renderengine/Image.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
@@ -105,7 +105,7 @@ public:
     virtual void unbindFrameBuffer(Framebuffer* framebuffer) = 0;
 
     // set-up
-    virtual void checkErrors() const;
+    virtual void checkErrors() const = 0;
     virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                           ui::Transform::orientation_flags rotation) = 0;
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
@@ -187,33 +187,6 @@ public:
 
     bool useNativeFenceSync() const override;
     bool useWaitSync() const override;
-
-    // synchronization
-
-    // flush submits RenderEngine command stream for execution and returns a
-    // native fence fd that is signaled when the execution has completed.  It
-    // returns -1 on errors.
-    base::unique_fd flush() override;
-    // finish waits until RenderEngine command stream has been executed.  It
-    // returns false on errors.
-    bool finish() override;
-    // waitFence inserts a wait on an external fence fd to RenderEngine
-    // command stream.  It returns false on errors.
-    bool waitFence(base::unique_fd fenceFd) override;
-
-    // helpers
-    void clearWithColor(float red, float green, float blue, float alpha) override;
-    void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
-                             float blue, float alpha) override;
-
-    // common to all GL versions
-    void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) override;
-    void disableScissor() override;
-    void genTextures(size_t count, uint32_t* names) override;
-    void deleteTextures(size_t count, uint32_t const* names) override;
-    void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) override;
-
-    void checkErrors() const override;
 
     void setupColorTransform(const mat4& /* colorTransform */) override {}
 
