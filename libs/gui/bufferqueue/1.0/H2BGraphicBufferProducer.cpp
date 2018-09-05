@@ -100,7 +100,12 @@ inline int native_handle_read_fd(native_handle_t const* nh, int index = 0) {
  */
 // convert: Return<Status> -> status_t
 inline status_t toStatusT(Return<Status> const& t) {
-    return t.isOk() ? static_cast<status_t>(static_cast<Status>(t)) : UNKNOWN_ERROR;
+    if (t.isOk()) {
+        return static_cast<status_t>(static_cast<Status>(t));
+    } else if (t.isDeadObject()) {
+        return DEAD_OBJECT;
+    }
+    return UNKNOWN_ERROR;
 }
 
 /**
@@ -111,7 +116,7 @@ inline status_t toStatusT(Return<Status> const& t) {
  */
 // convert: Return<void> -> status_t
 inline status_t toStatusT(Return<void> const& t) {
-    return t.isOk() ? OK : UNKNOWN_ERROR;
+    return t.isOk() ? OK : (t.isDeadObject() ? DEAD_OBJECT : UNKNOWN_ERROR);
 }
 
 /**
