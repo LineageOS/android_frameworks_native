@@ -121,7 +121,9 @@ status_t BufferLayer::setBuffers(uint32_t w, uint32_t h, PixelFormat format, uin
     // can handle.
     if ((uint32_t(w) > maxSurfaceDims) || (uint32_t(h) > maxSurfaceDims)) {
         ALOGE("dimensions too large %u x %u", uint32_t(w), uint32_t(h));
+#ifndef ALLOW_TOO_LARGE_DIMENSIONS
         return BAD_VALUE;
+#endif
     }
 
     mFormat = format;
