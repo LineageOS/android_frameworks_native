@@ -662,7 +662,7 @@ using NonHwcVirtualDisplayCase =
 using SimpleHwcVirtualDisplayVariant = HwcVirtualDisplayVariant<1024, 768, Secure::TRUE>;
 using HwcVirtualDisplayCase =
         Case<SimpleHwcVirtualDisplayVariant, WideColorSupportNotConfiguredVariant,
-             HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>, 
+             HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>,
              NoPerFrameMetadataSupportVariant<SimpleHwcVirtualDisplayVariant>>;
 using WideColorP3ColorimetricDisplayCase =
         Case<PrimaryDisplayVariant, WideColorP3ColorimetricSupportedVariant<PrimaryDisplayVariant>,
@@ -1304,6 +1304,8 @@ void HandleTransactionLockedTest::processesHotplugDisconnectCommon() {
     // Call Expectations
 
     EXPECT_CALL(*mComposer, isUsingVrComposer()).WillRepeatedly(Return(false));
+    EXPECT_CALL(*mComposer, getDisplayIdentificationData(Case::Display::HWC_DISPLAY_ID, _, _))
+            .Times(0);
 
     setupCommonCallExpectationsForDisconnectProcessing<Case>();
 
