@@ -667,8 +667,8 @@ void SurfaceFlinger::init() {
 
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
     getBE().mRenderEngine =
-        renderengine::impl::RenderEngine::create(static_cast<int32_t>(compositionPixelFormat),
-                                                 renderEngineFeature);
+        renderengine::RenderEngine::create(static_cast<int32_t>(compositionPixelFormat),
+                                           renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
