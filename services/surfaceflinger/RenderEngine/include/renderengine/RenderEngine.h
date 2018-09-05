@@ -25,6 +25,8 @@
 #include <EGL/eglext.h>
 #include <android-base/unique_fd.h>
 #include <math/mat4.h>
+#include <renderengine/Image.h>
+#include <renderengine/Framebuffer.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
@@ -41,8 +43,8 @@ class Region;
 namespace renderengine {
 
 class BindNativeBufferAsFramebuffer;
-class Mesh;
 class Image;
+class Mesh;
 class Surface;
 class Texture;
 
@@ -58,6 +60,7 @@ public:
 
     virtual ~RenderEngine() = 0;
 
+    virtual std::unique_ptr<Framebuffer> createFramebuffer() = 0;
     virtual std::unique_ptr<Surface> createSurface() = 0;
     virtual std::unique_ptr<Image> createImage() = 0;
 
@@ -94,12 +97,12 @@ public:
     virtual void disableScissor() = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
-    virtual void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) = 0;
+    virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
     virtual void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) = 0;
     // When binding a native buffer, it must be done before setViewportAndProjection
-    virtual void bindNativeBufferAsFrameBuffer(ANativeWindowBuffer* buffer,
-                                               BindNativeBufferAsFramebuffer* bindHelper) = 0;
-    virtual void unbindNativeBufferAsFrameBuffer(BindNativeBufferAsFramebuffer* bindHelper) = 0;
+    // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
+    virtual status_t bindFrameBuffer(Framebuffer* framebuffer) = 0;
+    virtual void unbindFrameBuffer(Framebuffer* framebuffer) = 0;
 
     // set-up
     virtual void checkErrors() const;
@@ -110,13 +113,11 @@ public:
     virtual void setupLayerTexturing(const Texture& texture) = 0;
     virtual void setupLayerBlackedOut() = 0;
     virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
-
     virtual void setupColorTransform(const mat4& /* colorTransform */) = 0;
-
     virtual void disableTexturing() = 0;
     virtual void disableBlending() = 0;
 
-    // HDR and wide color gamut support
+    // HDR and color management support
     virtual void setSourceY410BT2020(bool enable) = 0;
     virtual void setSourceDataSpace(ui::Dataspace source) = 0;
     virtual void setOutputDataSpace(ui::Dataspace dataspace) = 0;
@@ -133,18 +134,21 @@ public:
 class BindNativeBufferAsFramebuffer {
 public:
     BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer)
-          : mEngine(engine) {
-        mEngine.bindNativeBufferAsFrameBuffer(buffer, this);
+          : mEngine(engine),
+            mFramebuffer(mEngine.createFramebuffer()),
+            mStatus(NO_ERROR) {
+        mStatus = mFramebuffer->setNativeWindowBuffer(buffer) ?
+                  mEngine.bindFrameBuffer(mFramebuffer.get()) : NO_MEMORY;
     }
-    ~BindNativeBufferAsFramebuffer() { mEngine.unbindNativeBufferAsFrameBuffer(this); }
+    ~BindNativeBufferAsFramebuffer() {
+        mFramebuffer->setNativeWindowBuffer(nullptr);
+        mEngine.unbindFrameBuffer(mFramebuffer.get());
+    }
     status_t getStatus() const { return mStatus; }
 
-protected:
-    friend impl::RenderEngine;
-
+private:
     RenderEngine& mEngine;
-    EGLImageKHR mImage;
-    uint32_t mTexName, mFbName;
+    std::unique_ptr<Framebuffer> mFramebuffer;
     status_t mStatus;
 };
 
@@ -216,18 +220,6 @@ public:
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const;
     EGLConfig getEGLConfig() const;
-
-    // Common implementation
-    void bindNativeBufferAsFrameBuffer(
-            ANativeWindowBuffer* buffer,
-            renderengine::BindNativeBufferAsFramebuffer* bindHelper) override;
-    void unbindNativeBufferAsFrameBuffer(
-            renderengine::BindNativeBufferAsFramebuffer* bindHelper) override;
-
-    // Overriden by each specialization
-    virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName,
-                                        uint32_t* status) = 0;
-    virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName) = 0;
 };
 
 }  // namespace impl

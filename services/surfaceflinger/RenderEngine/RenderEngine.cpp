@@ -354,45 +354,6 @@ void RenderEngine::dump(String8& result) {
     result.appendFormat("%s\n", extensions.getExtensions());
 }
 
-void RenderEngine::bindNativeBufferAsFrameBuffer(
-        ANativeWindowBuffer* buffer,
-        renderengine::BindNativeBufferAsFramebuffer* bindHelper) {
-    bindHelper->mImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
-                                           buffer, nullptr);
-    if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
-        bindHelper->mStatus = NO_MEMORY;
-        return;
-    }
-
-    uint32_t glStatus;
-    bindImageAsFramebuffer(bindHelper->mImage, &bindHelper->mTexName, &bindHelper->mFbName,
-                           &glStatus);
-
-    ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
-             glStatus);
-
-    bindHelper->mStatus = glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
-}
-
-void RenderEngine::unbindNativeBufferAsFrameBuffer(
-        renderengine::BindNativeBufferAsFramebuffer* bindHelper) {
-    if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
-        return;
-    }
-
-    // back to main framebuffer
-    unbindFramebuffer(bindHelper->mTexName, bindHelper->mFbName);
-    eglDestroyImageKHR(mEGLDisplay, bindHelper->mImage);
-
-    // Workaround for b/77935566 to force the EGL driver to release the
-    // screenshot buffer
-    setScissor(0, 0, 0, 0);
-    clearWithColor(0.0, 0.0, 0.0, 0.0);
-    disableScissor();
-}
-
-// ---------------------------------------------------------------------------
-
 static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
                                          EGLint wanted, EGLConfig* outConfig) {
     EGLint numConfigs = -1, n = 0;
