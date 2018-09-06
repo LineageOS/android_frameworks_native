@@ -523,6 +523,9 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     const char* app_name = android_getAngleAppName();
     const char* app_pref = android_getAngleAppPref();
     bool developer_opt_in = android_getAngleDeveloperOptIn();
+    const int rules_fd = android_getAngleRulesFd();
+    const long rules_offset = android_getAngleRulesOffset();
+    const long rules_length = android_getAngleRulesLength();
 
     // Determine whether or not to use ANGLE:
     ANGLEPreference developer_option = developer_opt_in ? ANGLE_PREFER_ANGLE : ANGLE_NO_PREFERENCE;
