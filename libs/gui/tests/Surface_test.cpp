@@ -622,6 +622,10 @@ public:
     status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) const override {
         return NO_ERROR;
     }
+    status_t getCompositionPreference(ui::Dataspace* /*outDataSpace*/,
+                                      ui::PixelFormat* /*outPixelFormat*/) const override {
+        return NO_ERROR;
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
