@@ -39,48 +39,40 @@ class GLImage;
 class GLSurface;
 
 class GLES20RenderEngine : public impl::RenderEngine {
-    GLuint mProtectedTexName;
-    GLint mMaxViewportDims[2];
-    GLint mMaxTextureSize;
-    GLuint mVpWidth;
-    GLuint mVpHeight;
-
-    struct Group {
-        GLuint texture;
-        GLuint fbo;
-        GLuint width;
-        GLuint height;
-        mat4 colorTransform;
-    };
-
-    Description mState;
-
-    virtual void bindImageAsFramebuffer(EGLImageKHR image, uint32_t* texName, uint32_t* fbName,
-                                        uint32_t* status);
-    virtual void unbindFramebuffer(uint32_t texName, uint32_t fbName);
-
 public:
     GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
-    virtual ~GLES20RenderEngine();
+    ~GLES20RenderEngine() override;
 
-    std::unique_ptr<renderengine::Surface> createSurface() override;
-    std::unique_ptr<renderengine::Image> createImage() override;
+    std::unique_ptr<Framebuffer> createFramebuffer() override;
+    std::unique_ptr<Surface> createSurface() override;
+    std::unique_ptr<Image> createImage() override;
 
     void primeCache() const override;
-
-    bool isCurrent() const;
+    bool isCurrent() const override;
     bool setCurrentSurface(const Surface& surface) override;
     void resetCurrentSurface() override;
-
-    void bindExternalTextureImage(uint32_t texName, const renderengine::Image& image) override;
-
+    base::unique_fd flush() override;
+    bool finish() override;
+    bool waitFence(base::unique_fd fenceFd) override;
+    void clearWithColor(float red, float green, float blue, float alpha) override;
+    void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
+                                     float blue, float alpha) override;
+    void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) override;
+    void disableScissor() override;
+    void genTextures(size_t count, uint32_t* names) override;
+    void deleteTextures(size_t count, uint32_t const* names) override;
+    void bindExternalTextureImage(uint32_t texName, const Image& image) override;
+    void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) override;
+    status_t bindFrameBuffer(Framebuffer* framebuffer) override;
+    void unbindFrameBuffer(Framebuffer* framebuffer) override;
+    void checkErrors() const override;
 
 protected:
-    virtual void dump(String8& result);
-    virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
-                                          ui::Transform::orientation_flags rotation);
-    virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
-                                    const half4& color) override;
+    void dump(String8& result) override;
+    void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
+                                  ui::Transform::orientation_flags rotation) override;
+    void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
+                            const half4& color) override;
 
     // Color management related functions and state
     void setSourceY410BT2020(bool enable) override;
@@ -88,17 +80,41 @@ protected:
     void setOutputDataSpace(ui::Dataspace dataspace) override;
     void setDisplayMaxLuminance(const float maxLuminance) override;
 
-    virtual void setupLayerTexturing(const Texture& texture);
-    virtual void setupLayerBlackedOut();
-    virtual void setupFillWithColor(float r, float g, float b, float a);
-    virtual void setupColorTransform(const mat4& colorTransform);
-    virtual void disableTexturing();
-    virtual void disableBlending();
+    void setupLayerTexturing(const Texture& texture) override;
+    void setupLayerBlackedOut() override;
+    void setupFillWithColor(float r, float g, float b, float a) override;
+    void setupColorTransform(const mat4& colorTransform) override;
+    void disableTexturing() override;
+    void disableBlending() override;
 
-    virtual void drawMesh(const Mesh& mesh);
+    void drawMesh(const Mesh& mesh) override;
 
-    virtual size_t getMaxTextureSize() const;
-    virtual size_t getMaxViewportDims() const;
+    size_t getMaxTextureSize() const override;
+    size_t getMaxViewportDims() const override;
+
+private:
+    // A data space is considered HDR data space if it has BT2020 color space
+    // with PQ or HLG transfer function.
+    bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
+    bool needsXYZTransformMatrix() const;
+
+    GLuint mProtectedTexName;
+    GLint mMaxViewportDims[2];
+    GLint mMaxTextureSize;
+    GLuint mVpWidth;
+    GLuint mVpHeight;
+    Description mState;
+
+    mat4 mSrgbToDisplayP3;
+    mat4 mDisplayP3ToSrgb;
+    mat3 mSrgbToXyz;
+    mat3 mBt2020ToXyz;
+    mat3 mDisplayP3ToXyz;
+    mat4 mXyzToSrgb;
+    mat4 mXyzToDisplayP3;
+    mat4 mXyzToBt2020;
+
+    bool mRenderToFbo = false;
 
     // Current dataspace of layer being rendered
     ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;
@@ -109,22 +125,6 @@ protected:
     // Whether device supports color management, currently color management
     // supports sRGB, DisplayP3 color spaces.
     const bool mUseColorManagement = false;
-    mat4 mSrgbToDisplayP3;
-    mat4 mDisplayP3ToSrgb;
-    mat3 mSrgbToXyz;
-    mat3 mBt2020ToXyz;
-    mat3 mDisplayP3ToXyz;
-    mat4 mXyzToSrgb;
-    mat4 mXyzToDisplayP3;
-    mat4 mXyzToBt2020;
-
-private:
-    // A data space is considered HDR data space if it has BT2020 color space
-    // with PQ or HLG transfer function.
-    bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
-    bool needsXYZTransformMatrix() const;
-
-    bool mRenderToFbo = false;
 };
 
 }  // namespace gl

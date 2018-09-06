@@ -144,7 +144,7 @@ __attribute__((warn_unused_result)) AIBinder* AIBinder_new(const AIBinder_Class*
 /**
  * If this is hosted in a process other than the current one.
  */
-bool AIBinder_isRemote(AIBinder* binder);
+bool AIBinder_isRemote(const AIBinder* binder);
 
 /**
  * This can only be called if a strong reference to this object already exists in process.
@@ -167,11 +167,10 @@ int32_t AIBinder_debugGetRefCount(AIBinder* binder);
  * However, if an object is just intended to be passed through to another process or used as a
  * handle this need not be called.
  *
- * The binder parameter may or may not be updated. If it is updated, the ownership of the original
- * object is transferred to the new object. If the class association fails, ownership of the binder
- * is lost, and it is set to nullptr.
+ * This returns true if the class association succeeds. If it fails, no change is made to the
+ * binder object.
  */
-void AIBinder_associateClass(AIBinder** binder, const AIBinder_Class* clazz);
+bool AIBinder_associateClass(AIBinder* binder, const AIBinder_Class* clazz);
 
 /*
  * Returns the class that this binder was constructed with or associated with.
@@ -187,10 +186,9 @@ void* AIBinder_getUserData(AIBinder* binder);
 /**
  * A transaction is a series of calls to these functions which looks this
  * - call AIBinder_prepareTransaction
- * - fill out parcel with in parameters (lifetime of the 'in' variable)
+ * - fill out the in parcel with parameters (lifetime of the 'in' variable)
  * - call AIBinder_transact
- * - fill out parcel with out parameters (lifetime of the 'out' variable)
- * - call AIBinder_finalizeTransaction
+ * - read results from the out parcel (lifetime of the 'out' variable)
  */
 
 /**
@@ -201,7 +199,10 @@ void* AIBinder_getUserData(AIBinder* binder);
  * can be avoided. This AIBinder must be either built with a class or associated with a class before
  * using this API.
  *
- * This does not affect the ownership of binder.
+ * This does not affect the ownership of binder. When this function succeeds, the in parcel's
+ * ownership is passed to the caller. At this point, the parcel can be filled out and passed to
+ * AIBinder_transact. Alternatively, if there is an error while filling out the parcel, it can be
+ * deleted with AParcel_delete.
  */
 binder_status_t AIBinder_prepareTransaction(AIBinder* binder, AParcel** in);
 
@@ -214,18 +215,11 @@ binder_status_t AIBinder_prepareTransaction(AIBinder* binder, AParcel** in);
  * remote process has processed the transaction, and the out parcel will contain the output data
  * from transaction.
  *
- * This does not affect the ownership of binder.
+ * This does not affect the ownership of binder. The out parcel's ownership is passed to the caller
+ * and must be released with AParcel_delete when finished reading.
  */
 binder_status_t AIBinder_transact(AIBinder* binder, transaction_code_t code, AParcel** in,
                                   AParcel** out, binder_flags_t flags);
-
-/**
- * This takes ownership of the out parcel and automatically deletes it. Additional checks for
- * security or debugging maybe performed internally.
- *
- * This does not affect the ownership of binder.
- */
-binder_status_t AIBinder_finalizeTransaction(AIBinder* binder, AParcel** out);
 
 /*
  * This does not take any ownership of the input binder, but it can be used to retrieve it if
@@ -236,7 +230,7 @@ __attribute__((warn_unused_result)) AIBinder_Weak* AIBinder_Weak_new(AIBinder* b
 /*
  * Deletes the weak reference. This will have no impact on the lifetime of the binder.
  */
-void AIBinder_Weak_delete(AIBinder_Weak* weakBinder);
+void AIBinder_Weak_delete(AIBinder_Weak** weakBinder);
 
 /**
  * If promotion succeeds, result will have one strong refcount added to it. Otherwise, this returns

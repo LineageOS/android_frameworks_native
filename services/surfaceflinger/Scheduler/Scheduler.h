@@ -52,7 +52,7 @@ public:
     };
 
     Scheduler() = default;
-    ~Scheduler() = default;
+    virtual ~Scheduler();
 
     /** Creates an EventThread connection. */
     sp<ConnectionHandle> createConnection(
@@ -76,6 +76,12 @@ public:
     void dump(const sp<ConnectionHandle>& handle, String8& result) const;
     // Offers ability to modify phase offset in the event thread.
     void setPhaseOffset(const sp<ConnectionHandle>& handle, nsecs_t phaseOffset);
+
+protected:
+    virtual std::unique_ptr<EventThread> makeEventThread(
+            const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+            impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
+            impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
     static std::atomic<int64_t> sNextId;

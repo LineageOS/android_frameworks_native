@@ -35,23 +35,16 @@ struct AIBinder : public virtual ::android::RefBase {
     AIBinder(const AIBinder_Class* clazz);
     virtual ~AIBinder();
 
-    // This returns an AIBinder object with this class associated. If the class is already
-    // associated, 'this' will be returned. If there is a local AIBinder implementation, that will
-    // be returned. If this is a remote object, the class will be associated and this will be ready
-    // to be used for transactions.
-    ::android::sp<AIBinder> associateClass(const AIBinder_Class* clazz);
+    bool associateClass(const AIBinder_Class* clazz);
     const AIBinder_Class* getClass() const { return mClazz; }
 
-    // This does not create the binder if it does not exist in the process.
     virtual ::android::sp<::android::IBinder> getBinder() = 0;
     virtual ABBinder* asABBinder() { return nullptr; }
     virtual ABpBinder* asABpBinder() { return nullptr; }
 
-    bool isRemote() {
-        auto binder = getBinder();
-        // if the binder is nullptr, then it is a local object which hasn't been sent out of process
-        // yet.
-        return binder != nullptr && binder->remoteBinder() != nullptr;
+    bool isRemote() const {
+        ::android::sp<::android::IBinder> binder = const_cast<AIBinder*>(this)->getBinder();
+        return binder->remoteBinder() != nullptr;
     }
 
 private:
@@ -63,7 +56,6 @@ private:
 
 // This is a local AIBinder object with a known class.
 struct ABBinder : public AIBinder, public ::android::BBinder {
-    ABBinder(const AIBinder_Class* clazz, void* userData);
     virtual ~ABBinder();
 
     void* getUserData() { return mUserData; }
@@ -76,6 +68,11 @@ struct ABBinder : public AIBinder, public ::android::BBinder {
                                ::android::Parcel* reply, binder_flags_t flags) override;
 
 private:
+    ABBinder(const AIBinder_Class* clazz, void* userData);
+
+    // only thing that should create an ABBinder
+    friend AIBinder* AIBinder_new(const AIBinder_Class*, void*);
+
     // Can contain implementation if this is a local binder. This can still be nullptr for a local
     // binder. If it is nullptr, the implication is the implementation state is entirely external to
     // this object and the functionality provided in the AIBinder_Class is sufficient.
@@ -85,11 +82,15 @@ private:
 // This binder object may be remote or local (even though it is 'Bp'). It is not yet associated with
 // a class.
 struct ABpBinder : public AIBinder, public ::android::BpRefBase {
-    ABpBinder(::android::sp<::android::IBinder> binder);
+    static ::android::sp<AIBinder> fromBinder(const ::android::sp<::android::IBinder>& binder);
+
     virtual ~ABpBinder();
 
     ::android::sp<::android::IBinder> getBinder() override { return remote(); }
     ABpBinder* asABpBinder() override { return this; }
+
+private:
+    ABpBinder(const ::android::sp<::android::IBinder>& binder);
 };
 
 struct AIBinder_Class {

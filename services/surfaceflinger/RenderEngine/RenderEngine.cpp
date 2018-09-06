@@ -184,97 +184,6 @@ bool RenderEngine::useWaitSync() const {
     return SyncFeatures::getInstance().useWaitSync();
 }
 
-base::unique_fd RenderEngine::flush() {
-    if (!GLExtensions::getInstance().hasNativeFenceSync()) {
-        return base::unique_fd();
-    }
-
-    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, nullptr);
-    if (sync == EGL_NO_SYNC_KHR) {
-        ALOGW("failed to create EGL native fence sync: %#x", eglGetError());
-        return base::unique_fd();
-    }
-
-    // native fence fd will not be populated until flush() is done.
-    glFlush();
-
-    // get the fence fd
-    base::unique_fd fenceFd(eglDupNativeFenceFDANDROID(mEGLDisplay, sync));
-    eglDestroySyncKHR(mEGLDisplay, sync);
-    if (fenceFd == EGL_NO_NATIVE_FENCE_FD_ANDROID) {
-        ALOGW("failed to dup EGL native fence sync: %#x", eglGetError());
-    }
-
-    return fenceFd;
-}
-
-bool RenderEngine::finish() {
-    if (!GLExtensions::getInstance().hasFenceSync()) {
-        ALOGW("no synchronization support");
-        return false;
-    }
-
-    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_FENCE_KHR, nullptr);
-    if (sync == EGL_NO_SYNC_KHR) {
-        ALOGW("failed to create EGL fence sync: %#x", eglGetError());
-        return false;
-    }
-
-    EGLint result = eglClientWaitSyncKHR(mEGLDisplay, sync, EGL_SYNC_FLUSH_COMMANDS_BIT_KHR,
-                                         2000000000 /*2 sec*/);
-    EGLint error = eglGetError();
-    eglDestroySyncKHR(mEGLDisplay, sync);
-    if (result != EGL_CONDITION_SATISFIED_KHR) {
-        if (result == EGL_TIMEOUT_EXPIRED_KHR) {
-            ALOGW("fence wait timed out");
-        } else {
-            ALOGW("error waiting on EGL fence: %#x", error);
-        }
-        return false;
-    }
-
-    return true;
-}
-
-bool RenderEngine::waitFence(base::unique_fd fenceFd) {
-    if (!GLExtensions::getInstance().hasNativeFenceSync() ||
-        !GLExtensions::getInstance().hasWaitSync()) {
-        return false;
-    }
-
-    EGLint attribs[] = {EGL_SYNC_NATIVE_FENCE_FD_ANDROID, fenceFd, EGL_NONE};
-    EGLSyncKHR sync = eglCreateSyncKHR(mEGLDisplay, EGL_SYNC_NATIVE_FENCE_ANDROID, attribs);
-    if (sync == EGL_NO_SYNC_KHR) {
-        ALOGE("failed to create EGL native fence sync: %#x", eglGetError());
-        return false;
-    }
-
-    // fenceFd is now owned by EGLSync
-    (void)fenceFd.release();
-
-    // XXX: The spec draft is inconsistent as to whether this should return an
-    // EGLint or void.  Ignore the return value for now, as it's not strictly
-    // needed.
-    eglWaitSyncKHR(mEGLDisplay, sync, 0);
-    EGLint error = eglGetError();
-    eglDestroySyncKHR(mEGLDisplay, sync);
-    if (error != EGL_SUCCESS) {
-        ALOGE("failed to wait for EGL native fence sync: %#x", error);
-        return false;
-    }
-
-    return true;
-}
-
-void RenderEngine::checkErrors() const {
-    do {
-        // there could be more than one error flag
-        GLenum error = glGetError();
-        if (error == GL_NO_ERROR) break;
-        ALOGE("GL error 0x%04x", int(error));
-    } while (true);
-}
-
 RenderEngine::GlesVersion RenderEngine::parseGlesVersion(const char* str) {
     int major, minor;
     if (sscanf(str, "OpenGL ES-CM %d.%d", &major, &minor) != 2) {
@@ -293,56 +202,6 @@ RenderEngine::GlesVersion RenderEngine::parseGlesVersion(const char* str) {
     return GLES_VERSION_1_0;
 }
 
-void RenderEngine::fillRegionWithColor(const Region& region, uint32_t height, float red,
-                                       float green, float blue, float alpha) {
-    size_t c;
-    Rect const* r = region.getArray(&c);
-    Mesh mesh(Mesh::TRIANGLES, c * 6, 2);
-    Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
-    for (size_t i = 0; i < c; i++, r++) {
-        position[i * 6 + 0].x = r->left;
-        position[i * 6 + 0].y = height - r->top;
-        position[i * 6 + 1].x = r->left;
-        position[i * 6 + 1].y = height - r->bottom;
-        position[i * 6 + 2].x = r->right;
-        position[i * 6 + 2].y = height - r->bottom;
-        position[i * 6 + 3].x = r->left;
-        position[i * 6 + 3].y = height - r->top;
-        position[i * 6 + 4].x = r->right;
-        position[i * 6 + 4].y = height - r->bottom;
-        position[i * 6 + 5].x = r->right;
-        position[i * 6 + 5].y = height - r->top;
-    }
-    setupFillWithColor(red, green, blue, alpha);
-    drawMesh(mesh);
-}
-
-void RenderEngine::clearWithColor(float red, float green, float blue, float alpha) {
-    glClearColor(red, green, blue, alpha);
-    glClear(GL_COLOR_BUFFER_BIT);
-}
-
-void RenderEngine::setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) {
-    glScissor(left, bottom, right, top);
-    glEnable(GL_SCISSOR_TEST);
-}
-
-void RenderEngine::disableScissor() {
-    glDisable(GL_SCISSOR_TEST);
-}
-
-void RenderEngine::genTextures(size_t count, uint32_t* names) {
-    glGenTextures(count, names);
-}
-
-void RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
-    glDeleteTextures(count, names);
-}
-
-void RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
-    glReadPixels(l, b, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-}
-
 void RenderEngine::dump(String8& result) {
     const GLExtensions& extensions = GLExtensions::getInstance();
 
@@ -353,45 +212,6 @@ void RenderEngine::dump(String8& result) {
                         extensions.getVersion());
     result.appendFormat("%s\n", extensions.getExtensions());
 }
-
-void RenderEngine::bindNativeBufferAsFrameBuffer(
-        ANativeWindowBuffer* buffer,
-        renderengine::BindNativeBufferAsFramebuffer* bindHelper) {
-    bindHelper->mImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
-                                           buffer, nullptr);
-    if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
-        bindHelper->mStatus = NO_MEMORY;
-        return;
-    }
-
-    uint32_t glStatus;
-    bindImageAsFramebuffer(bindHelper->mImage, &bindHelper->mTexName, &bindHelper->mFbName,
-                           &glStatus);
-
-    ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
-             glStatus);
-
-    bindHelper->mStatus = glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
-}
-
-void RenderEngine::unbindNativeBufferAsFrameBuffer(
-        renderengine::BindNativeBufferAsFramebuffer* bindHelper) {
-    if (bindHelper->mImage == EGL_NO_IMAGE_KHR) {
-        return;
-    }
-
-    // back to main framebuffer
-    unbindFramebuffer(bindHelper->mTexName, bindHelper->mFbName);
-    eglDestroyImageKHR(mEGLDisplay, bindHelper->mImage);
-
-    // Workaround for b/77935566 to force the EGL driver to release the
-    // screenshot buffer
-    setScissor(0, 0, 0, 0);
-    clearWithColor(0.0, 0.0, 0.0, 0.0);
-    disableScissor();
-}
-
-// ---------------------------------------------------------------------------
 
 static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
                                          EGLint wanted, EGLConfig* outConfig) {

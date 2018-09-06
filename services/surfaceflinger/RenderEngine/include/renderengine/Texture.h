@@ -25,13 +25,6 @@ namespace android {
 namespace renderengine {
 
 class Texture {
-    uint32_t mTextureName;
-    uint32_t mTextureTarget;
-    size_t mWidth;
-    size_t mHeight;
-    bool mFiltering;
-    mat4 mTextureMatrix;
-
 public:
     enum Target { TEXTURE_2D = 0x0DE1, TEXTURE_EXTERNAL = 0x8D65 };
 
@@ -52,6 +45,14 @@ public:
     bool getFiltering() const;
     size_t getWidth() const;
     size_t getHeight() const;
+
+private:
+    uint32_t mTextureName;
+    uint32_t mTextureTarget;
+    size_t mWidth;
+    size_t mHeight;
+    bool mFiltering;
+    mat4 mTextureMatrix;
 };
 
 }  // namespace renderengine

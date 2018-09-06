@@ -17,6 +17,8 @@
 #ifndef _UI_INPUT_APPLICATION_H
 #define _UI_INPUT_APPLICATION_H
 
+#include <string>
+
 #include <input/Input.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>

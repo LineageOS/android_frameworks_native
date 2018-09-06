@@ -31,7 +31,6 @@
 #include <utils/Vector.h>
 #include <utils/Timers.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 
 namespace android {
 

@@ -28,14 +28,29 @@ using ::android::sp;
 using ::android::String16;
 using ::android::wp;
 
+namespace ABBinderTag {
+
+static const void* kId = "ABBinder";
+static void* kValue = static_cast<void*>(new bool{true});
+void cleanId(const void* /*id*/, void* /*obj*/, void* /*cookie*/){/* do nothing */};
+
+static void attach(const sp<IBinder>& binder) {
+    binder->attachObject(kId, kValue, nullptr /*cookie*/, cleanId);
+}
+static bool has(const sp<IBinder>& binder) {
+    return binder != nullptr && binder->findObject(kId) == kValue;
+}
+
+} // namespace ABBinderTag
+
 AIBinder::AIBinder(const AIBinder_Class* clazz) : mClazz(clazz) {}
 AIBinder::~AIBinder() {}
 
-sp<AIBinder> AIBinder::associateClass(const AIBinder_Class* clazz) {
+bool AIBinder::associateClass(const AIBinder_Class* clazz) {
     using ::android::String8;
 
-    if (clazz == nullptr) return nullptr;
-    if (mClazz == clazz) return this;
+    if (clazz == nullptr) return false;
+    if (mClazz == clazz) return true;
 
     String8 newDescriptor(clazz->getInterfaceDescriptor());
 
@@ -45,42 +60,31 @@ sp<AIBinder> AIBinder::associateClass(const AIBinder_Class* clazz) {
             LOG(ERROR) << __func__ << ": Class descriptors '" << currentDescriptor
                        << "' match during associateClass, but they are different class objects. "
                           "Class descriptor collision?";
-            return nullptr;
+        } else {
+            LOG(ERROR) << __func__
+                       << ": Class cannot be associated on object which already has a class. "
+                          "Trying to associate to '"
+                       << newDescriptor.c_str() << "' but already set to '"
+                       << currentDescriptor.c_str() << "'.";
         }
 
-        LOG(ERROR) << __func__
-                   << ": Class cannot be associated on object which already has a class. Trying to "
-                      "associate to '"
-                   << newDescriptor.c_str() << "' but already set to '" << currentDescriptor.c_str()
-                   << "'.";
-        return nullptr;
+        // always a failure because we know mClazz != clazz
+        return false;
     }
+
+    CHECK(asABpBinder() != nullptr); // ABBinder always has a descriptor
 
     String8 descriptor(getBinder()->getInterfaceDescriptor());
     if (descriptor != newDescriptor) {
         LOG(ERROR) << __func__ << ": Expecting binder to have class '" << newDescriptor.c_str()
                    << "' but descriptor is actually '" << descriptor.c_str() << "'.";
-        return nullptr;
+        return false;
     }
 
-    // The descriptor matches, so if it is local, this is guaranteed to be the libbinder_ndk class.
-    // An error here can occur if there is a conflict between descriptors (two unrelated classes
-    // define the same descriptor), but this should never happen.
-
-    // if this is a local ABBinder, mClazz should be non-null
-    CHECK(asABBinder() == nullptr);
-    CHECK(asABpBinder() != nullptr);
-
-    if (!isRemote()) {
-        // ABpBinder but proxy to a local object. Therefore that local object must be an ABBinder.
-        ABBinder* binder = static_cast<ABBinder*>(getBinder().get());
-        return binder;
-    }
-
-    // This is a remote object
+    // if this is a local object, it's not one known to libbinder_ndk
     mClazz = clazz;
 
-    return this;
+    return true;
 }
 
 ABBinder::ABBinder(const AIBinder_Class* clazz, void* userData)
@@ -111,24 +115,45 @@ binder_status_t ABBinder::onTransact(transaction_code_t code, const Parcel& data
     }
 }
 
-ABpBinder::ABpBinder(::android::sp<::android::IBinder> binder)
+ABpBinder::ABpBinder(const ::android::sp<::android::IBinder>& binder)
       : AIBinder(nullptr /*clazz*/), BpRefBase(binder) {
     CHECK(binder != nullptr);
 }
 ABpBinder::~ABpBinder() {}
 
+sp<AIBinder> ABpBinder::fromBinder(const ::android::sp<::android::IBinder>& binder) {
+    if (binder == nullptr) {
+        return nullptr;
+    }
+    if (ABBinderTag::has(binder)) {
+        return static_cast<ABBinder*>(binder.get());
+    }
+    return new ABpBinder(binder);
+}
+
 struct AIBinder_Weak {
     wp<AIBinder> binder;
 };
 AIBinder_Weak* AIBinder_Weak_new(AIBinder* binder) {
-    if (binder == nullptr) return nullptr;
+    if (binder == nullptr) {
+        return nullptr;
+    }
+
     return new AIBinder_Weak{wp<AIBinder>(binder)};
 }
-void AIBinder_Weak_delete(AIBinder_Weak* weakBinder) {
-    delete weakBinder;
+void AIBinder_Weak_delete(AIBinder_Weak** weakBinder) {
+    if (weakBinder == nullptr) {
+        return;
+    }
+
+    delete *weakBinder;
+    *weakBinder = nullptr;
 }
 AIBinder* AIBinder_Weak_promote(AIBinder_Weak* weakBinder) {
-    if (weakBinder == nullptr) return nullptr;
+    if (weakBinder == nullptr) {
+        return nullptr;
+    }
+
     sp<AIBinder> binder = weakBinder->binder.promote();
     AIBinder_incStrong(binder.get());
     return binder.get();
@@ -162,12 +187,14 @@ AIBinder* AIBinder_new(const AIBinder_Class* clazz, void* args) {
 
     void* userData = clazz->onCreate(args);
 
-    AIBinder* ret = new ABBinder(clazz, userData);
-    AIBinder_incStrong(ret);
-    return ret;
+    sp<AIBinder> ret = new ABBinder(clazz, userData);
+    ABBinderTag::attach(ret->getBinder());
+
+    AIBinder_incStrong(ret.get());
+    return ret.get();
 }
 
-bool AIBinder_isRemote(AIBinder* binder) {
+bool AIBinder_isRemote(const AIBinder* binder) {
     if (binder == nullptr) {
         return true;
     }
@@ -200,23 +227,12 @@ int32_t AIBinder_debugGetRefCount(AIBinder* binder) {
     return binder->getStrongCount();
 }
 
-void AIBinder_associateClass(AIBinder** binder, const AIBinder_Class* clazz) {
-    if (binder == nullptr || *binder == nullptr) {
-        return;
+bool AIBinder_associateClass(AIBinder* binder, const AIBinder_Class* clazz) {
+    if (binder == nullptr) {
+        return false;
     }
 
-    sp<AIBinder> result = (*binder)->associateClass(clazz);
-
-    // This function takes one refcount of 'binder' and delivers one refcount of 'result' to the
-    // callee. First we give the callee their refcount and then take it away from binder. This is
-    // done in this order in order to handle the case that the result and the binder are the same
-    // object.
-    if (result != nullptr) {
-        AIBinder_incStrong(result.get());
-    }
-    AIBinder_decStrong(*binder);
-
-    *binder = result.get(); // Maybe no-op
+    return binder->associateClass(clazz);
 }
 
 const AIBinder_Class* AIBinder_getClass(AIBinder* binder) {
@@ -263,12 +279,6 @@ binder_status_t AIBinder_prepareTransaction(AIBinder* binder, AParcel** in) {
     return status;
 }
 
-using AutoParcelDestroyer = std::unique_ptr<AParcel*, void (*)(AParcel**)>;
-static void destroy_parcel(AParcel** parcel) {
-    delete *parcel;
-    *parcel = nullptr;
-}
-
 binder_status_t AIBinder_transact(AIBinder* binder, transaction_code_t code, AParcel** in,
                                   AParcel** out, binder_flags_t flags) {
     if (in == nullptr) {
@@ -276,9 +286,10 @@ binder_status_t AIBinder_transact(AIBinder* binder, transaction_code_t code, APa
         return EX_NULL_POINTER;
     }
 
+    using AutoParcelDestroyer = std::unique_ptr<AParcel*, void (*)(AParcel**)>;
     // This object is the input to the transaction. This function takes ownership of it and deletes
     // it.
-    AutoParcelDestroyer forIn(in, destroy_parcel);
+    AutoParcelDestroyer forIn(in, AParcel_delete);
 
     if (!isUserCommand(code)) {
         LOG(ERROR) << __func__ << ": Only user-defined transactions can be made from the NDK.";
@@ -312,34 +323,4 @@ binder_status_t AIBinder_transact(AIBinder* binder, transaction_code_t code, APa
     }
 
     return parcelStatus;
-}
-
-binder_status_t AIBinder_finalizeTransaction(AIBinder* binder, AParcel** out) {
-    if (out == nullptr) {
-        LOG(ERROR) << __func__ << ": requires non-null out parameter";
-        return EX_NULL_POINTER;
-    }
-
-    // This object is the input to the transaction. This function takes ownership of it and deletes
-    // it.
-    AutoParcelDestroyer forOut(out, destroy_parcel);
-
-    if (binder == nullptr || *out == nullptr) {
-        LOG(ERROR) << __func__ << ": requires non-null parameters.";
-        return EX_NULL_POINTER;
-    }
-
-    if ((*out)->getBinder() != binder) {
-        LOG(ERROR) << __func__ << ": parcel is associated with binder object " << binder
-                   << " but called with " << (*out)->getBinder();
-        return EX_ILLEGAL_STATE;
-    }
-
-    if ((**out)->dataAvail() != 0) {
-        LOG(ERROR) << __func__
-                   << ": Only part of this transaction was read. There is remaining data left.";
-        return EX_ILLEGAL_STATE;
-    }
-
-    return EX_NONE;
 }

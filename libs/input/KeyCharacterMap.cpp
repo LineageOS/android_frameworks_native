@@ -106,14 +106,14 @@ KeyCharacterMap::~KeyCharacterMap() {
     }
 }
 
-status_t KeyCharacterMap::load(const String8& filename,
+status_t KeyCharacterMap::load(const std::string& filename,
         Format format, sp<KeyCharacterMap>* outMap) {
     outMap->clear();
 
     Tokenizer* tokenizer;
-    status_t status = Tokenizer::open(filename, &tokenizer);
+    status_t status = Tokenizer::open(String8(filename.c_str()), &tokenizer);
     if (status) {
-        ALOGE("Error %d opening key character map file %s.", status, filename.string());
+        ALOGE("Error %d opening key character map file %s.", status, filename.c_str());
     } else {
         status = load(tokenizer, format, outMap);
         delete tokenizer;
@@ -121,12 +121,12 @@ status_t KeyCharacterMap::load(const String8& filename,
     return status;
 }
 
-status_t KeyCharacterMap::loadContents(const String8& filename, const char* contents,
+status_t KeyCharacterMap::loadContents(const std::string& filename, const char* contents,
         Format format, sp<KeyCharacterMap>* outMap) {
     outMap->clear();
 
     Tokenizer* tokenizer;
-    status_t status = Tokenizer::fromContents(filename, contents, &tokenizer);
+    status_t status = Tokenizer::fromContents(String8(filename.c_str()), contents, &tokenizer);
     if (status) {
         ALOGE("Error %d opening key character map.", status);
     } else {
@@ -944,7 +944,7 @@ status_t KeyCharacterMap::Parser::parseKeyProperty() {
             properties.add(Property(PROPERTY_NUMBER));
         } else {
             int32_t metaState;
-            status_t status = parseModifier(token, &metaState);
+            status_t status = parseModifier(token.string(), &metaState);
             if (status) {
                 ALOGE("%s: Expected a property name or modifier, got '%s'.",
                         mTokenizer->getLocation().string(), token.string());
@@ -1137,7 +1137,7 @@ status_t KeyCharacterMap::Parser::finishKey(Key* key) {
     return NO_ERROR;
 }
 
-status_t KeyCharacterMap::Parser::parseModifier(const String8& token, int32_t* outMetaState) {
+status_t KeyCharacterMap::Parser::parseModifier(const std::string& token, int32_t* outMetaState) {
     if (token == "base") {
         *outMetaState = 0;
         return NO_ERROR;
@@ -1145,7 +1145,7 @@ status_t KeyCharacterMap::Parser::parseModifier(const String8& token, int32_t* o
 
     int32_t combinedMeta = 0;
 
-    const char* str = token.string();
+    const char* str = token.c_str();
     const char* start = str;
     for (const char* cur = str; ; cur++) {
         char ch = *cur;
@@ -1164,7 +1164,7 @@ status_t KeyCharacterMap::Parser::parseModifier(const String8& token, int32_t* o
             }
             if (combinedMeta & metaState) {
                 ALOGE("%s: Duplicate modifier combination '%s'.",
-                        mTokenizer->getLocation().string(), token.string());
+                        mTokenizer->getLocation().string(), token.c_str());
                 return BAD_VALUE;
             }
 

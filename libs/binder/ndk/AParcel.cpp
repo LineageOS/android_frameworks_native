@@ -25,6 +25,15 @@ using ::android::IBinder;
 using ::android::Parcel;
 using ::android::sp;
 
+void AParcel_delete(AParcel** parcel) {
+    if (parcel == nullptr) {
+        return;
+    }
+
+    delete *parcel;
+    *parcel = nullptr;
+}
+
 binder_status_t AParcel_writeStrongBinder(AParcel* parcel, AIBinder* binder) {
     return (*parcel)->writeStrongBinder(binder->getBinder());
 }
@@ -34,8 +43,9 @@ binder_status_t AParcel_readStrongBinder(const AParcel* parcel, AIBinder** binde
     if (status != EX_NONE) {
         return status;
     }
-    *binder = new ABpBinder(readBinder);
-    AIBinder_incStrong(*binder);
+    sp<AIBinder> ret = ABpBinder::fromBinder(readBinder);
+    AIBinder_incStrong(ret.get());
+    *binder = ret.get();
     return status;
 }
 binder_status_t AParcel_readNullableStrongBinder(const AParcel* parcel, AIBinder** binder) {
@@ -44,8 +54,9 @@ binder_status_t AParcel_readNullableStrongBinder(const AParcel* parcel, AIBinder
     if (status != EX_NONE) {
         return status;
     }
-    *binder = new ABpBinder(readBinder);
-    AIBinder_incStrong(*binder);
+    sp<AIBinder> ret = ABpBinder::fromBinder(readBinder);
+    AIBinder_incStrong(ret.get());
+    *binder = ret.get();
     return status;
 }
 
