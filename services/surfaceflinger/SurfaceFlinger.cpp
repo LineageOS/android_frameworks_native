@@ -632,8 +632,8 @@ void SurfaceFlinger::init() {
                                              });
 
         mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
-        mVsyncModulator.setEventThreads(mScheduler->getEventThread(mSfConnectionHandle),
-                                        mScheduler->getEventThread(mAppConnectionHandle));
+        mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
+                                               mSfConnectionHandle.get());
     } else {
         mEventThreadSource =
                 std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
