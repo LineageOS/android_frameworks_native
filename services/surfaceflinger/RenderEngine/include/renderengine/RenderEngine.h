@@ -59,6 +59,8 @@ public:
         USE_HIGH_PRIORITY_CONTEXT = 1 << 1, // Use high priority context
     };
 
+    static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags);
+
     virtual ~RenderEngine() = 0;
 
     virtual std::unique_ptr<Framebuffer> createFramebuffer() = 0;
@@ -155,43 +157,18 @@ private:
 
 namespace impl {
 
+// impl::RenderEngine contains common implementation that is graphics back-end agnostic.
 class RenderEngine : public renderengine::RenderEngine {
-protected:
-    enum GlesVersion {
-        GLES_VERSION_1_0 = 0x10000,
-        GLES_VERSION_1_1 = 0x10001,
-        GLES_VERSION_2_0 = 0x20000,
-        GLES_VERSION_3_0 = 0x30000,
-    };
-    static GlesVersion parseGlesVersion(const char* str);
-
-    EGLDisplay mEGLDisplay;
-    EGLConfig mEGLConfig;
-    EGLContext mEGLContext;
-    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
-
-    RenderEngine(uint32_t featureFlags);
-
-    const uint32_t mFeatureFlags;
-
 public:
     virtual ~RenderEngine() = 0;
 
-    static std::unique_ptr<RenderEngine> create(int hwcFormat, uint32_t featureFlags);
-
-    static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
-
-    // dump the extension strings. always call the base class.
-    void dump(String8& result) override;
-
     bool useNativeFenceSync() const override;
     bool useWaitSync() const override;
-
     void setupColorTransform(const mat4& /* colorTransform */) override {}
 
-    // internal to RenderEngine
-    EGLDisplay getEGLDisplay() const;
-    EGLConfig getEGLConfig() const;
+protected:
+    RenderEngine(uint32_t featureFlags);
+    const uint32_t mFeatureFlags;
 };
 
 }  // namespace impl
