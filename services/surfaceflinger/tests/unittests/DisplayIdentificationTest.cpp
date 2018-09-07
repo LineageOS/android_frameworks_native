@@ -77,20 +77,23 @@ TEST(DisplayIdentificationTest, isEdid) {
 }
 
 TEST(DisplayIdentificationTest, parseEdid) {
-    auto edid = parseEdid(asDisplayIdentificationData(kInternalEdid));
+    auto data = asDisplayIdentificationData(kInternalEdid);
+    auto edid = parseEdid(data);
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x4ca3u, edid->manufacturerId);
     EXPECT_STREQ("SEC", edid->pnpId.data());
     // ASCII text should be used as fallback if display name and serial number are missing.
     EXPECT_EQ("121AT11-801", edid->displayName);
 
-    edid = parseEdid(asDisplayIdentificationData(kExternalEdid));
+    data = asDisplayIdentificationData(kExternalEdid);
+    edid = parseEdid(data);
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x22f0u, edid->manufacturerId);
     EXPECT_STREQ("HWP", edid->pnpId.data());
     EXPECT_EQ("HP ZR30w", edid->displayName);
 
-    edid = parseEdid(asDisplayIdentificationData(kExternalEedid));
+    data = asDisplayIdentificationData(kExternalEedid);
+    edid = parseEdid(data);
     ASSERT_TRUE(edid);
     EXPECT_EQ(0x4c2du, edid->manufacturerId);
     EXPECT_STREQ("SAM", edid->pnpId.data());
