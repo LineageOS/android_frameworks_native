@@ -3231,9 +3231,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
                     const Layer::State& state(compositionInfo.layer->mLayer->getDrawingState());
-                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state);
-                    if (compositionInfo.hwc.clearClientTarget && !firstLayer &&
-                            opaque && (state.color.a == 1.0f) && hasClientComposition) {
+                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state) &&
+                                        compositionInfo.layer->mLayer->getAlpha() == 1.0f;
+                    if (compositionInfo.hwc.clearClientTarget && !firstLayer && opaque &&
+                            hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
                         compositionInfo.layer->clear(getRenderEngine());
