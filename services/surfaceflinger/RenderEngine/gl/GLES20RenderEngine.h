@@ -62,8 +62,8 @@ public:
     bool finish() override;
     bool waitFence(base::unique_fd fenceFd) override;
     void clearWithColor(float red, float green, float blue, float alpha) override;
-    void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
-                             float blue, float alpha) override;
+    void fillRegionWithColor(const Region& region, float red, float green, float blue,
+                             float alpha) override;
     void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) override;
     void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;

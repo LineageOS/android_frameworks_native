@@ -539,25 +539,25 @@ void GLES20RenderEngine::clearWithColor(float red, float green, float blue, floa
     glClear(GL_COLOR_BUFFER_BIT);
 }
 
-void GLES20RenderEngine::fillRegionWithColor(const Region& region, uint32_t height, float red,
-                                             float green, float blue, float alpha) {
+void GLES20RenderEngine::fillRegionWithColor(const Region& region, float red, float green,
+                                             float blue, float alpha) {
     size_t c;
     Rect const* r = region.getArray(&c);
     Mesh mesh(Mesh::TRIANGLES, c * 6, 2);
     Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
     for (size_t i = 0; i < c; i++, r++) {
         position[i * 6 + 0].x = r->left;
-        position[i * 6 + 0].y = height - r->top;
+        position[i * 6 + 0].y = r->top;
         position[i * 6 + 1].x = r->left;
-        position[i * 6 + 1].y = height - r->bottom;
+        position[i * 6 + 1].y = r->bottom;
         position[i * 6 + 2].x = r->right;
-        position[i * 6 + 2].y = height - r->bottom;
+        position[i * 6 + 2].y = r->bottom;
         position[i * 6 + 3].x = r->left;
-        position[i * 6 + 3].y = height - r->top;
+        position[i * 6 + 3].y = r->top;
         position[i * 6 + 4].x = r->right;
-        position[i * 6 + 4].y = height - r->bottom;
+        position[i * 6 + 4].y = r->bottom;
         position[i * 6 + 5].x = r->right;
-        position[i * 6 + 5].y = height - r->top;
+        position[i * 6 + 5].y = r->top;
     }
     setupFillWithColor(red, green, blue, alpha);
     drawMesh(mesh);
