@@ -486,6 +486,9 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& hw) const {
 void Layer::setGeometry(const sp<const DisplayDevice>& displayDevice, uint32_t z)
 {
     const auto hwcId = displayDevice->getHwcDisplayId();
+    if (!hasHwcLayer(hwcId)) {
+        return;
+    }
     auto& hwcInfo = getBE().mHwcLayers[hwcId];
 
     // enable this layer
@@ -1977,6 +1980,9 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, int32_t hwcId) {
+    if (!hasHwcLayer(hwcId)) {
+        return;
+    }
     writeToProto(layerInfo, LayerVector::StateSet::Drawing);
 
     const auto& hwcInfo = getBE().mHwcLayers.at(hwcId);
