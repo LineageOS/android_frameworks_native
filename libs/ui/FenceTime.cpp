@@ -33,18 +33,6 @@ namespace android {
 
 const auto FenceTime::NO_FENCE = std::make_shared<FenceTime>(Fence::NO_FENCE);
 
-void* FenceTime::operator new(size_t byteCount) noexcept {
-    void *p = nullptr;
-    if (posix_memalign(&p, alignof(FenceTime), byteCount)) {
-        return nullptr;
-    }
-    return p;
-}
-
-void FenceTime::operator delete(void *p) {
-    free(p);
-}
-
 FenceTime::FenceTime(const sp<Fence>& fence)
   : mState(((fence.get() != nullptr) && fence->isValid()) ?
             State::VALID : State::INVALID),
