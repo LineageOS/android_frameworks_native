@@ -1688,9 +1688,8 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
             doComposeSurfaces(display);
 
             // and draw the dirty region
-            const int32_t height = display->getHeight();
             auto& engine(getRenderEngine());
-            engine.fillRegionWithColor(dirtyRegion, height, 1, 0, 1, 1);
+            engine.fillRegionWithColor(dirtyRegion, 1, 0, 1, 1);
 
             display->swapBuffers(getHwComposer());
         }
@@ -3194,7 +3193,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
             // screen is already cleared here
             if (!region.isEmpty()) {
                 // can happen with SurfaceView
-                drawWormhole(display, region);
+                drawWormhole(region);
             }
         }
 
@@ -3263,11 +3262,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     return true;
 }
 
-void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& display,
-                                  const Region& region) const {
-    const int32_t height = display->getHeight();
+void SurfaceFlinger::drawWormhole(const Region& region) const {
     auto& engine(getRenderEngine());
-    engine.fillRegionWithColor(region, height, 0, 0, 0, 0);
+    engine.fillRegionWithColor(region, 0, 0, 0, 0);
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,

@@ -93,7 +93,7 @@ public:
     virtual bool waitFence(base::unique_fd fenceFd) = 0;
 
     virtual void clearWithColor(float red, float green, float blue, float alpha) = 0;
-    virtual void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
+    virtual void fillRegionWithColor(const Region& region, float red, float green,
                                      float blue, float alpha) = 0;
 
     virtual void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) = 0;
