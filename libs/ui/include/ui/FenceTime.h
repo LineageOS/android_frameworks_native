@@ -113,11 +113,6 @@ public:
 
     void signalForTest(nsecs_t signalTime);
 
-    // Override new and delete since this needs 8-byte alignment, which
-    // is not guaranteed on x86.
-    static void* operator new(size_t nbytes) noexcept;
-    static void operator delete(void *p);
-
 private:
     // For tests only. If forceValidForTest is true, then getSignalTime will
     // never return SIGNAL_TIME_INVALID and isValid will always return true.

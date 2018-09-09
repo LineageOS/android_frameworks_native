@@ -196,6 +196,9 @@ int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
 bool SurfaceFlinger::hasWideColorDisplay;
 int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 bool SurfaceFlinger::useColorManagement;
+bool SurfaceFlinger::useContextPriority;
+Dataspace SurfaceFlinger::compositionDataSpace = Dataspace::V0_SRGB;
+ui::PixelFormat SurfaceFlinger::compositionPixelFormat = ui::PixelFormat::RGBA_8888;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -322,10 +325,24 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     hasWideColorDisplay =
             getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
     useColorManagement =
-            getBool<V1_2::ISurfaceFlingerConfigs, &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
+            getBool<V1_2::ISurfaceFlingerConfigs,
+                    &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
+
+    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
+    if (surfaceFlingerConfigsServiceV1_2) {
+        surfaceFlingerConfigsServiceV1_2->getCompositionPreference(
+            [&](Dataspace tmpDataSpace, ui::PixelFormat tmpPixelFormat) {
+                compositionDataSpace = tmpDataSpace;
+                compositionPixelFormat = tmpPixelFormat;
+            });
+    }
+
+    useContextPriority = getBool<ISurfaceFlingerConfigs,
+                                 &ISurfaceFlingerConfigs::useContextPriority>(true);
 
     V1_1::DisplayOrientation primaryDisplayOrientation =
-        getDisplayOrientation< V1_1::ISurfaceFlingerConfigs, &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
+        getDisplayOrientation<V1_1::ISurfaceFlingerConfigs,
+                              &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
             V1_1::DisplayOrientation::ORIENTATION_0);
 
     switch (primaryDisplayOrientation) {
@@ -645,8 +662,13 @@ void SurfaceFlinger::init() {
     int32_t renderEngineFeature = 0;
     renderEngineFeature |= (useColorManagement ?
                             renderengine::RenderEngine::USE_COLOR_MANAGEMENT : 0);
-    getBE().mRenderEngine = renderengine::impl::RenderEngine::create(HAL_PIXEL_FORMAT_RGBA_8888,
-                                                                      renderEngineFeature);
+    renderEngineFeature |= (useContextPriority ?
+                            renderengine::RenderEngine::USE_HIGH_PRIORITY_CONTEXT : 0);
+
+    // TODO(b/77156734): We need to stop casting and use HAL types when possible.
+    getBE().mRenderEngine =
+        renderengine::RenderEngine::create(static_cast<int32_t>(compositionPixelFormat),
+                                           renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -1164,6 +1186,13 @@ status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayer
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getCompositionPreference(Dataspace* outDataSpace,
+                                                  ui::PixelFormat* outPixelFormat) const {
+    *outDataSpace = compositionDataSpace;
+    *outPixelFormat = compositionPixelFormat;
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1659,9 +1688,8 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
             doComposeSurfaces(display);
 
             // and draw the dirty region
-            const int32_t height = display->getHeight();
             auto& engine(getRenderEngine());
-            engine.fillRegionWithColor(dirtyRegion, height, 1, 0, 1, 1);
+            engine.fillRegionWithColor(dirtyRegion, 1, 0, 1, 1);
 
             display->swapBuffers(getHwComposer());
         }
@@ -3165,7 +3193,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
             // screen is already cleared here
             if (!region.isEmpty()) {
                 // can happen with SurfaceView
-                drawWormhole(display, region);
+                drawWormhole(region);
             }
         }
 
@@ -3202,9 +3230,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
                     const Layer::State& state(compositionInfo.layer->mLayer->getDrawingState());
-                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state);
-                    if (compositionInfo.hwc.clearClientTarget && !firstLayer &&
-                            opaque && (state.color.a == 1.0f) && hasClientComposition) {
+                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state) &&
+                                        compositionInfo.layer->mLayer->getAlpha() == 1.0f;
+                    if (compositionInfo.hwc.clearClientTarget && !firstLayer && opaque &&
+                            hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
                         compositionInfo.layer->clear(getRenderEngine());
@@ -3233,11 +3262,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     return true;
 }
 
-void SurfaceFlinger::drawWormhole(const sp<const DisplayDevice>& display,
-                                  const Region& region) const {
-    const int32_t height = display->getHeight();
+void SurfaceFlinger::drawWormhole(const Region& region) const {
     auto& engine(getRenderEngine());
-    engine.fillRegionWithColor(region, height, 0, 0, 0, 0);
+    engine.fillRegionWithColor(region, 0, 0, 0, 0);
 }
 
 status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
@@ -4818,7 +4845,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // granted a reference to Client* and Handle* to do anything with it.
         case SET_TRANSACTION_STATE:
         // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
-        case CREATE_SCOPED_CONNECTION: {
+        case CREATE_SCOPED_CONNECTION:
+        case GET_COMPOSITION_PREFERENCE: {
             return OK;
         }
         case CAPTURE_LAYERS:

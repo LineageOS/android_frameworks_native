@@ -558,6 +558,25 @@ public:
         outLayers->clear();
         return reply.readParcelableVector(outLayers);
     }
+
+    virtual status_t getCompositionPreference(ui::Dataspace* dataSpace,
+                                              ui::PixelFormat* pixelFormat) const {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::GET_COMPOSITION_PREFERENCE, data, &reply);
+        if (error != NO_ERROR) {
+            return error;
+        }
+        error = static_cast<status_t>(reply.readInt32());
+        if (error == NO_ERROR) {
+            *dataSpace = static_cast<ui::Dataspace>(reply.readInt32());
+            *pixelFormat = static_cast<ui::PixelFormat>(reply.readInt32());
+        }
+        return error;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -880,6 +899,18 @@ status_t BnSurfaceComposer::onTransact(
                 result = reply->writeParcelableVector(outLayers);
             }
             return result;
+        }
+        case GET_COMPOSITION_PREFERENCE: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            ui::Dataspace dataSpace;
+            ui::PixelFormat pixelFormat;
+            status_t error = getCompositionPreference(&dataSpace, &pixelFormat);
+            reply->writeInt32(error);
+            if (error == NO_ERROR) {
+                reply->writeInt32(static_cast<int32_t>(dataSpace));
+                reply->writeInt32(static_cast<int32_t>(pixelFormat));
+            }
+            return NO_ERROR;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

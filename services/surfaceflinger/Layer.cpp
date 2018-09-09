@@ -284,7 +284,7 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
 }
 
 Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
-    const Layer::State& s(getDrawingState());
+    const State& s(getDrawingState());
     Rect win(getActiveWidth(s), getActiveHeight(s));
 
     Rect crop = getCrop(s);
@@ -319,12 +319,12 @@ Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
 }
 
 FloatRect Layer::computeBounds() const {
-    const Layer::State& s(getDrawingState());
+    const State& s(getDrawingState());
     return computeBounds(getActiveTransparentRegion(s));
 }
 
 FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
-    const Layer::State& s(getDrawingState());
+    const State& s(getDrawingState());
     Rect win(getActiveWidth(s), getActiveHeight(s));
 
     Rect crop = getCrop(s);
@@ -762,7 +762,7 @@ void Layer::computeGeometry(const RenderArea& renderArea,
 }
 
 bool Layer::isSecure() const {
-    const Layer::State& s(mDrawingState);
+    const State& s(mDrawingState);
     return (s.flags & layer_state_t::eLayerSecure);
 }
 
@@ -885,7 +885,7 @@ bool Layer::applyPendingStates(State* stateToCommit) {
 }
 
 uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
-    const Layer::State& s(getDrawingState());
+    const State& s(getDrawingState());
 
     const bool sizeChanged = (stateToCommit->requested_legacy.w != s.requested_legacy.w) ||
             (stateToCommit->requested_legacy.h != s.requested_legacy.h);
@@ -941,7 +941,7 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
     // latching configuration. See Layer.h for a detailed discussion of
     // how geometry latching is controlled.
     if (!(flags & eDontUpdateGeometryState)) {
-        Layer::State& editCurrentState(getCurrentState());
+        State& editCurrentState(getCurrentState());
 
         // If mFreezeGeometryUpdates is true we are in the setGeometryAppliesWithResize
         // mode, which causes attributes which normally latch regardless of scaling mode,
@@ -974,14 +974,14 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
     pushPendingState();
-    Layer::State c = getCurrentState();
+    State c = getCurrentState();
     if (!applyPendingStates(&c)) {
         return 0;
     }
 
     flags = doTransactionResize(flags, &c);
 
-    const Layer::State& s(getDrawingState());
+    const State& s(getDrawingState());
 
     if (getActiveGeometry(c) != getActiveGeometry(s)) {
         // invalidate and recompute the visible regions if needed
@@ -1272,7 +1272,7 @@ void Layer::deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle, uint6
 // ----------------------------------------------------------------------------
 
 bool Layer::isHiddenByPolicy() const {
-    const Layer::State& s(mDrawingState);
+    const State& s(mDrawingState);
     const auto& parent = mDrawingParent.promote();
     if (parent != nullptr && parent->isHiddenByPolicy()) {
         return true;
@@ -1315,7 +1315,7 @@ void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
 // TODO(marissaw): add new layer state info to layer debugging
 LayerDebugInfo Layer::getLayerDebugInfo() const {
     LayerDebugInfo info;
-    const Layer::State& ds = getDrawingState();
+    const State& ds = getDrawingState();
     info.mName = getName();
     sp<Layer> parent = getParent();
     info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
@@ -1392,7 +1392,7 @@ void Layer::miniDump(String8& result, int32_t displayId) const {
 
     result.appendFormat(" %s\n", name.string());
 
-    const Layer::State& layerState(getDrawingState());
+    const State& layerState(getDrawingState());
     const LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers.at(displayId);
     if (layerState.zOrderRelativeOf != nullptr || mDrawingParent != nullptr) {
         result.appendFormat("  rel %6d | ", layerState.z);

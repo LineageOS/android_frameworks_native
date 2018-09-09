@@ -202,6 +202,22 @@ bool AIBinder_isRemote(const AIBinder* binder) {
     return binder->isRemote();
 }
 
+bool AIBinder_isAlive(const AIBinder* binder) {
+    if (binder == nullptr) {
+        return false;
+    }
+
+    return const_cast<AIBinder*>(binder)->getBinder()->isBinderAlive();
+}
+
+binder_status_t AIBinder_ping(AIBinder* binder) {
+    if (binder == nullptr) {
+        return EX_NULL_POINTER;
+    }
+
+    return binder->getBinder()->pingBinder();
+}
+
 void AIBinder_incStrong(AIBinder* binder) {
     if (binder == nullptr) {
         LOG(ERROR) << __func__ << ": on null binder";
@@ -267,6 +283,13 @@ binder_status_t AIBinder_prepareTransaction(AIBinder* binder, AParcel** in) {
                    << ": Class must be defined for a remote binder transaction. See "
                       "AIBinder_associateClass.";
         return EX_ILLEGAL_STATE;
+    }
+
+    if (!binder->isRemote()) {
+        LOG(WARNING) << "A binder object at " << binder
+                     << " is being transacted on, however, this object is in the same process as "
+                        "its proxy. Transacting with this binder is expensive compared to just "
+                        "calling the corresponding functionality in the same process.";
     }
 
     *in = new AParcel(binder);

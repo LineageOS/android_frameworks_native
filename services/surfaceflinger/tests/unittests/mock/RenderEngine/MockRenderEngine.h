@@ -48,7 +48,7 @@ public:
     MOCK_METHOD1(waitFence, bool(base::unique_fd*));
     bool waitFence(base::unique_fd fd) override { return waitFence(&fd); };
     MOCK_METHOD4(clearWithColor, void(float, float, float, float));
-    MOCK_METHOD6(fillRegionWithColor, void(const Region&, uint32_t, float, float, float, float));
+    MOCK_METHOD5(fillRegionWithColor, void(const Region&, float, float, float, float));
     MOCK_METHOD4(setScissor, void(uint32_t, uint32_t, uint32_t, uint32_t));
     MOCK_METHOD0(disableScissor, void());
     MOCK_METHOD2(genTextures, void(size_t, uint32_t*));

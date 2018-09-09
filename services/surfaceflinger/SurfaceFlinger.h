@@ -294,6 +294,14 @@ public:
     // Indicate if device wants color management on its display.
     static bool useColorManagement;
 
+    static bool useContextPriority;
+
+    // The data space and pixel format that SurfaceFlinger expects hardware composer
+    // to composite efficiently. Meaning under most scenarios, hardware composer
+    // will accept layers with the data space and pixel format.
+    static ui::Dataspace compositionDataSpace;
+    static ui::PixelFormat compositionPixelFormat;
+
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
     }
@@ -452,6 +460,8 @@ private:
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
+    status_t getCompositionPreference(ui::Dataspace* outDataSpace,
+                                      ui::PixelFormat* outPixelFormat) const override;
 
 
     /* ------------------------------------------------------------------------
@@ -700,7 +710,7 @@ private:
 
     void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();
-    void drawWormhole(const sp<const DisplayDevice>& display, const Region& region) const;
+    void drawWormhole(const Region& region) const;
 
     /* ------------------------------------------------------------------------
      * Display management

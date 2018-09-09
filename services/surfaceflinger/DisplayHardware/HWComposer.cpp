@@ -160,11 +160,13 @@ std::optional<DisplayId> HWComposer::onHotplug(hwc2_display_t hwcDisplayId, int3
 
     std::optional<DisplayId> displayId;
 
-    uint8_t port;
-    DisplayIdentificationData data;
-    if (getDisplayIdentificationData(hwcDisplayId, &port, &data)) {
-        displayId = generateDisplayId(port, data);
-        ALOGE_IF(!displayId, "Failed to generate stable ID for display %" PRIu64, hwcDisplayId);
+    if (connection == HWC2::Connection::Connected) {
+        uint8_t port;
+        DisplayIdentificationData data;
+        if (getDisplayIdentificationData(hwcDisplayId, &port, &data)) {
+            displayId = generateDisplayId(port, data);
+            ALOGE_IF(!displayId, "Failed to generate stable ID for display %" PRIu64, hwcDisplayId);
+        }
     }
 
     // Disconnect is handled through HWComposer::disconnectDisplay via

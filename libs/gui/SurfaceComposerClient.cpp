@@ -854,6 +854,11 @@ void SurfaceComposerClient::setDisplayPowerMode(const sp<IBinder>& token,
     ComposerService::getComposerService()->setPowerMode(token, mode);
 }
 
+status_t SurfaceComposerClient::getCompositionPreference(ui::Dataspace* dataSpace,
+                                                         ui::PixelFormat* pixelFormat) {
+    return ComposerService::getComposerService()->getCompositionPreference(dataSpace, pixelFormat);
+}
+
 status_t SurfaceComposerClient::clearAnimationFrameStats() {
     return ComposerService::getComposerService()->clearAnimationFrameStats();
 }

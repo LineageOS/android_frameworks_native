@@ -20,9 +20,13 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
 #include <GLES2/gl2.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/private/Description.h>
+
+#define EGL_NO_CONFIG ((EGLConfig)0)
 
 namespace android {
 
@@ -40,6 +44,9 @@ class GLSurface;
 
 class GLES20RenderEngine : public impl::RenderEngine {
 public:
+    static std::unique_ptr<GLES20RenderEngine> create(int hwcFormat, uint32_t featureFlags);
+    static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
+
     GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
     ~GLES20RenderEngine() override;
 
@@ -55,8 +62,8 @@ public:
     bool finish() override;
     bool waitFence(base::unique_fd fenceFd) override;
     void clearWithColor(float red, float green, float blue, float alpha) override;
-    void fillRegionWithColor(const Region& region, uint32_t height, float red, float green,
-                                     float blue, float alpha) override;
+    void fillRegionWithColor(const Region& region, float red, float green, float blue,
+                             float alpha) override;
     void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) override;
     void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;
@@ -67,19 +74,16 @@ public:
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
 
+    // internal to RenderEngine
+    EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
+    EGLConfig getEGLConfig() const { return mEGLConfig; }
+
 protected:
     void dump(String8& result) override;
     void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                   ui::Transform::orientation_flags rotation) override;
     void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
                             const half4& color) override;
-
-    // Color management related functions and state
-    void setSourceY410BT2020(bool enable) override;
-    void setSourceDataSpace(ui::Dataspace source) override;
-    void setOutputDataSpace(ui::Dataspace dataspace) override;
-    void setDisplayMaxLuminance(const float maxLuminance) override;
-
     void setupLayerTexturing(const Texture& texture) override;
     void setupLayerBlackedOut() override;
     void setupFillWithColor(float r, float g, float b, float a) override;
@@ -87,17 +91,37 @@ protected:
     void disableTexturing() override;
     void disableBlending() override;
 
+    // HDR and color management related functions and state
+    void setSourceY410BT2020(bool enable) override;
+    void setSourceDataSpace(ui::Dataspace source) override;
+    void setOutputDataSpace(ui::Dataspace dataspace) override;
+    void setDisplayMaxLuminance(const float maxLuminance) override;
+
+    // drawing
     void drawMesh(const Mesh& mesh) override;
 
     size_t getMaxTextureSize() const override;
     size_t getMaxViewportDims() const override;
 
 private:
+    enum GlesVersion {
+        GLES_VERSION_1_0 = 0x10000,
+        GLES_VERSION_1_1 = 0x10001,
+        GLES_VERSION_2_0 = 0x20000,
+        GLES_VERSION_3_0 = 0x30000,
+    };
+
+    static GlesVersion parseGlesVersion(const char* str);
+
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.
     bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
     bool needsXYZTransformMatrix() const;
+    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
 
+    EGLDisplay mEGLDisplay;
+    EGLConfig mEGLConfig;
+    EGLContext mEGLContext;
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
