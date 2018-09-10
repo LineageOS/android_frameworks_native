@@ -5199,8 +5199,8 @@ private:
 
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
                                        sp<GraphicBuffer>* outBuffer, Rect sourceCrop,
-                                       uint32_t reqWidth, uint32_t reqHeight, int32_t minLayerZ,
-                                       int32_t maxLayerZ, bool useIdentityTransform,
+                                       uint32_t reqWidth, uint32_t reqHeight,
+                                       bool useIdentityTransform,
                                        ISurfaceComposer::Rotation rotation) {
     ATRACE_CALL();
 
@@ -5230,7 +5230,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
     DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
-                                    display, minLayerZ, maxLayerZ, std::placeholders::_1);
+                                    display, std::placeholders::_1);
     return captureScreenCommon(renderArea, traverseLayers, outBuffer, useIdentityTransform);
 }
 
@@ -5562,19 +5562,14 @@ void SurfaceFlinger::State::traverseInReverseZOrder(const LayerVector::Visitor& 
 }
 
 void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& display,
-                                             int32_t minLayerZ, int32_t maxLayerZ,
                                              const LayerVector::Visitor& visitor) {
     // We loop through the first level of layers without traversing,
-    // as we need to interpret min/max layer Z in the top level Z space.
+    // as we need to determine which layers belong to the requested display.
     for (const auto& layer : mDrawingState.layersSortedByZ) {
         if (!layer->belongsToDisplay(display->getLayerStack(), false)) {
             continue;
         }
-        const Layer::State& state(layer->getDrawingState());
         // relative layers are traversed in Layer::traverseInZOrder
-        if (state.zOrderRelativeOf != nullptr || state.z < minLayerZ || state.z > maxLayerZ) {
-            continue;
-        }
         layer->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
             if (!layer->belongsToDisplay(display->getLayerStack(), false)) {
                 return;

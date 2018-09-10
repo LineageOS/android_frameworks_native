@@ -121,10 +121,9 @@ public:
                                                  useIdentityTransform, forSystem, outSyncFd);
     }
 
-    auto traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
-                                 int32_t maxLayerZ, const LayerVector::Visitor& visitor) {
-        return mFlinger->SurfaceFlinger::traverseLayersInDisplay(display, minLayerZ, maxLayerZ,
-                                                                 visitor);
+    auto traverseLayersInDisplay(const sp<const DisplayDevice>& display,
+                                 const LayerVector::Visitor& visitor) {
+        return mFlinger->SurfaceFlinger::traverseLayersInDisplay(display, visitor);
     }
 
     /* ------------------------------------------------------------------------

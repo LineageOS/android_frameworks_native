@@ -186,17 +186,15 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g,
 // individual pixel values for testing purposes.
 class ScreenCapture : public RefBase {
 public:
-    static void captureScreen(sp<ScreenCapture>* sc, int32_t minLayerZ = 0,
-                              int32_t maxLayerZ = std::numeric_limits<int32_t>::max()) {
+    static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
         SurfaceComposerClient::Transaction().apply(true);
 
         sp<GraphicBuffer> outBuffer;
         ASSERT_EQ(NO_ERROR,
-                  sf->captureScreen(display, &outBuffer, Rect(), 0, 0, minLayerZ, maxLayerZ,
-                                    false));
-        *sc = new ScreenCapture(outBuffer);
+                  sf->captureScreen(display, &outBuffer, Rect(), 0, 0, false));
+        *sc = std::make_unique<ScreenCapture>(outBuffer);
     }
 
     static void captureLayers(std::unique_ptr<ScreenCapture>* sc, sp<IBinder>& parentHandle,
@@ -316,6 +314,12 @@ protected:
         ASSERT_EQ(NO_ERROR, mClient->initCheck()) << "failed to create SurfaceComposerClient";
 
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
+    }
+
+    virtual void TearDown() {
+        mBlackBgSurface = 0;
+        mClient->dispose();
+        mClient = 0;
     }
 
     virtual sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
@@ -445,9 +449,9 @@ protected:
         Transaction().setBuffer(layer, buffer).setSize(layer, bufferWidth, bufferHeight).apply();
     }
 
-    sp<ScreenCapture> screenshot() {
-        sp<ScreenCapture> screenshot;
-        ScreenCapture::captureScreen(&screenshot, mLayerZBase);
+    std::unique_ptr<ScreenCapture> screenshot() {
+        std::unique_ptr<ScreenCapture> screenshot;
+        ScreenCapture::captureScreen(&screenshot);
         return screenshot;
     }
 
@@ -465,6 +469,7 @@ protected:
     void setSizeBasicHelper(uint32_t layerType);
     void setMatrixWithResizeHelper(uint32_t layerType);
 
+    sp<SurfaceControl> mBlackBgSurface;
 private:
     void SetUpDisplay() {
         mDisplay = mClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
@@ -482,13 +487,26 @@ private:
         mBufferPostDelay = int32_t(1e6 / info.fps) * 3;
 
         mDisplayLayerStack = 0;
+
+        mBlackBgSurface = mClient->createSurface(String8("BaseSurface"), mDisplayWidth,
+                                                 mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
+                                                 ISurfaceComposerClient::eFXSurfaceColor);
+
         // set layer stack (b/68888219)
         Transaction t;
         t.setDisplayLayerStack(mDisplay, mDisplayLayerStack);
+        t.setLayerStack(mBlackBgSurface, mDisplayLayerStack);
+        t.setColor(mBlackBgSurface, half3{0, 0, 0});
+        t.setLayer(mBlackBgSurface, mLayerZBase);
         t.apply();
     }
 
-    void waitForLayerBuffers() { usleep(mBufferPostDelay); }
+    void waitForLayerBuffers() {
+        // Request an empty transaction to get applied synchronously to ensure the buffer is
+        // latched.
+        Transaction().apply(true);
+        usleep(mBufferPostDelay);
+    }
 
     int32_t mBufferPostDelay;
 };
@@ -793,6 +811,9 @@ TEST_P(LayerTypeTransactionTest, SetZBasic) {
 }
 
 TEST_P(LayerTypeTransactionTest, SetZNegative) {
+    sp<SurfaceControl> parent =
+            LayerTransactionTest::createLayer("Parent", mDisplayWidth, mDisplayHeight,
+                                              ISurfaceComposerClient::eFXSurfaceContainer);
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
@@ -800,20 +821,22 @@ TEST_P(LayerTypeTransactionTest, SetZNegative) {
     ASSERT_NO_FATAL_FAILURE(layerG = createLayer("test G", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerG, Color::GREEN, 32, 32));
 
+    Transaction()
+            .reparent(layerR, parent->getHandle())
+            .reparent(layerG, parent->getHandle())
+            .apply();
     Transaction().setLayer(layerR, -1).setLayer(layerG, -2).apply();
     {
         SCOPED_TRACE("layerR");
-        sp<ScreenCapture> screenshot;
-        ScreenCapture::captureScreen(&screenshot, -2, -1);
-        screenshot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
     }
 
     Transaction().setLayer(layerR, -3).apply();
     {
         SCOPED_TRACE("layerG");
-        sp<ScreenCapture> screenshot;
-        ScreenCapture::captureScreen(&screenshot, -3, -1);
-        screenshot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
     }
 }
 
@@ -846,6 +869,9 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZBasic) {
 }
 
 TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
+    sp<SurfaceControl> parent =
+            LayerTransactionTest::createLayer("Parent", mDisplayWidth, mDisplayHeight,
+                                              ISurfaceComposerClient::eFXSurfaceContainer);
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     sp<SurfaceControl> layerB;
@@ -856,12 +882,17 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
     ASSERT_NO_FATAL_FAILURE(layerB = createLayer("test B", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layerB, Color::BLUE, 32, 32));
 
+    Transaction()
+            .reparent(layerB, parent->getHandle())
+            .apply();
+
     // layerR = mLayerZBase, layerG = layerR - 1, layerB = -2
     Transaction().setRelativeLayer(layerG, layerR->getHandle(), -1).setLayer(layerB, -2).apply();
 
-    sp<ScreenCapture> screenshot;
+    std::unique_ptr<ScreenCapture> screenshot;
     // only layerB is in this range
-    ScreenCapture::captureScreen(&screenshot, -2, -1);
+    sp<IBinder> parentHandle = parent->getHandle();
+    ScreenCapture::captureLayers(&screenshot, parentHandle);
     screenshot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
 }
 
@@ -1006,13 +1037,11 @@ TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
             .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
             .apply(true);
     ASSERT_EQ(PERMISSION_DENIED,
-              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
-                                      false));
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
 
     Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
     ASSERT_EQ(NO_ERROR,
-              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
-                                      false));
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
 }
 
 TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic_BufferQueue) {
@@ -2038,8 +2067,8 @@ TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
 class LayerUpdateTest : public LayerTransactionTest {
 protected:
     virtual void SetUp() {
-        mComposerClient = new SurfaceComposerClient;
-        ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
+        LayerTransactionTest::SetUp();
+        ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
         sp<IBinder> display(
                 SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
@@ -2050,24 +2079,22 @@ protected:
         ssize_t displayHeight = info.h;
 
         // Background surface
-        mBGSurfaceControl =
-                mComposerClient->createSurface(String8("BG Test Surface"), displayWidth,
-                                               displayHeight, PIXEL_FORMAT_RGBA_8888, 0);
+        mBGSurfaceControl = createLayer(String8("BG Test Surface"), displayWidth,
+                                               displayHeight, 0);
         ASSERT_TRUE(mBGSurfaceControl != nullptr);
         ASSERT_TRUE(mBGSurfaceControl->isValid());
         fillSurfaceRGBA8(mBGSurfaceControl, 63, 63, 195);
 
         // Foreground surface
-        mFGSurfaceControl = mComposerClient->createSurface(String8("FG Test Surface"), 64, 64,
-                                                           PIXEL_FORMAT_RGBA_8888, 0);
+        mFGSurfaceControl = createLayer(String8("FG Test Surface"), 64, 64, 0);
+
         ASSERT_TRUE(mFGSurfaceControl != nullptr);
         ASSERT_TRUE(mFGSurfaceControl->isValid());
 
         fillSurfaceRGBA8(mFGSurfaceControl, 195, 63, 63);
 
         // Synchronization surface
-        mSyncSurfaceControl = mComposerClient->createSurface(String8("Sync Test Surface"), 1, 1,
-                                                             PIXEL_FORMAT_RGBA_8888, 0);
+        mSyncSurfaceControl = createLayer(String8("Sync Test Surface"), 1, 1, 0);
         ASSERT_TRUE(mSyncSurfaceControl != nullptr);
         ASSERT_TRUE(mSyncSurfaceControl->isValid());
 
@@ -2089,11 +2116,10 @@ protected:
     }
 
     virtual void TearDown() {
-        mComposerClient->dispose();
+        LayerTransactionTest::TearDown();
         mBGSurfaceControl = 0;
         mFGSurfaceControl = 0;
         mSyncSurfaceControl = 0;
-        mComposerClient = 0;
     }
 
     void waitForPostedBuffers() {
@@ -2112,7 +2138,6 @@ protected:
         t.apply(true);
     }
 
-    sp<SurfaceComposerClient> mComposerClient;
     sp<SurfaceControl> mBGSurfaceControl;
     sp<SurfaceControl> mFGSurfaceControl;
 
@@ -2122,10 +2147,10 @@ protected:
 };
 
 TEST_F(LayerUpdateTest, RelativesAreNotDetached) {
-    sp<ScreenCapture> sc;
 
-    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("relativeTestSurface"), 10,
-                                                                 10, PIXEL_FORMAT_RGBA_8888, 0);
+    std::unique_ptr<ScreenCapture> sc;
+
+    sp<SurfaceControl> relative = createLayer(String8("relativeTestSurface"), 10, 10, 0);
     fillSurfaceRGBA8(relative, 10, 10, 10);
     waitForPostedBuffers();
 
@@ -2188,7 +2213,7 @@ protected:
 
         EXPECT_INITIAL_STATE("After restoring initial state");
     }
-    sp<ScreenCapture> sc;
+    std::unique_ptr<ScreenCapture> sc;
 };
 
 class CropLatchingTest : public GeometryLatchingTest {
@@ -2213,7 +2238,7 @@ protected:
 };
 
 TEST_F(LayerUpdateTest, DeferredTransactionTest) {
-    sp<ScreenCapture> sc;
+    std::unique_ptr<ScreenCapture> sc;
     {
         SCOPED_TRACE("before anything");
         ScreenCapture::captureScreen(&sc);
@@ -2268,13 +2293,13 @@ TEST_F(LayerUpdateTest, DeferredTransactionTest) {
 }
 
 TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
-    sp<ScreenCapture> sc;
+    std::unique_ptr<ScreenCapture> sc;
 
     sp<SurfaceControl> childNoBuffer =
-            mComposerClient->createSurface(String8("Bufferless child"), 10, 10,
+            mClient->createSurface(String8("Bufferless child"), 10, 10,
                                            PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     sp<SurfaceControl> childBuffer =
-            mComposerClient->createSurface(String8("Buffered child"), 20, 20,
+            mClient->createSurface(String8("Buffered child"), 20, 20,
                                            PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
     fillSurfaceRGBA8(childBuffer, 200, 200, 200);
 
@@ -2296,7 +2321,7 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
 }
 
 TEST_F(LayerUpdateTest, MergingTransactions) {
-    sp<ScreenCapture> sc;
+    std::unique_ptr<ScreenCapture> sc;
     {
         SCOPED_TRACE("before move");
         ScreenCapture::captureScreen(&sc);
@@ -2323,13 +2348,13 @@ class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {
         LayerUpdateTest::SetUp();
-        mChild = mComposerClient->createSurface(String8("Child surface"), 10, 10,
+        mChild = mClient->createSurface(String8("Child surface"), 10, 10,
                                                 PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
         fillSurfaceRGBA8(mChild, 200, 200, 200);
 
         {
             SCOPED_TRACE("before anything");
-            ScreenCapture::captureScreen(&mCapture);
+            mCapture = screenshot();
             mCapture->expectChildColor(64, 64);
         }
     }
@@ -2339,7 +2364,7 @@ protected:
     }
 
     sp<SurfaceControl> mChild;
-    sp<ScreenCapture> mCapture;
+    std::unique_ptr<ScreenCapture> mCapture;
 };
 
 TEST_F(ChildLayerTest, ChildLayerPositioning) {
@@ -2350,7 +2375,7 @@ TEST_F(ChildLayerTest, ChildLayerPositioning) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // But 10 pixels in we should see the child surface
@@ -2362,7 +2387,7 @@ TEST_F(ChildLayerTest, ChildLayerPositioning) {
     asTransaction([&](Transaction& t) { t.setPosition(mFGSurfaceControl, 0, 0); });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground should now be at 0, 0
         mCapture->expectFGColor(0, 0);
         // But 10 pixels in we should see the child surface
@@ -2381,7 +2406,7 @@ TEST_F(ChildLayerTest, ChildLayerCropping) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectChildColor(0, 0);
         mCapture->expectChildColor(4, 4);
         mCapture->expectBGColor(5, 5);
@@ -2396,7 +2421,7 @@ TEST_F(ChildLayerTest, ChildLayerConstraints) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectFGColor(0, 0);
         // Last pixel in foreground should now be the child.
         mCapture->expectChildColor(63, 63);
@@ -2411,7 +2436,7 @@ TEST_F(ChildLayerTest, ChildLayerScaling) {
 
     // Find the boundary between the parent and child
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectChildColor(9, 9);
         mCapture->expectFGColor(10, 10);
     }
@@ -2421,7 +2446,7 @@ TEST_F(ChildLayerTest, ChildLayerScaling) {
     // The boundary should be twice as far from the origin now.
     // The pixels from the last test should all be child now
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectChildColor(9, 9);
         mCapture->expectChildColor(10, 10);
         mCapture->expectChildColor(19, 19);
@@ -2442,7 +2467,7 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Unblended child color
         mCapture->checkPixel(0, 0, 0, 254, 0);
     }
@@ -2450,7 +2475,7 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
     asTransaction([&](Transaction& t) { t.setAlpha(mChild, 0.5); });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Child and BG blended.
         mCapture->checkPixel(0, 0, 127, 127, 0);
     }
@@ -2458,7 +2483,7 @@ TEST_F(ChildLayerTest, ChildLayerAlpha) {
     asTransaction([&](Transaction& t) { t.setAlpha(mFGSurfaceControl, 0.5); });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Child and BG blended.
         mCapture->checkPixel(0, 0, 95, 64, 95);
     }
@@ -2472,7 +2497,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // But 10 pixels in we should see the child surface
@@ -2486,7 +2511,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectFGColor(64, 64);
         // In reparenting we should have exposed the entire foreground surface.
         mCapture->expectFGColor(74, 74);
@@ -2505,7 +2530,7 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // But 10 pixels in we should see the child surface
@@ -2514,6 +2539,7 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
         mCapture->expectFGColor(84, 84);
     }
 
+
     asTransaction([&](Transaction& t) { t.detachChildren(mFGSurfaceControl); });
 
     asTransaction([&](Transaction& t) { t.hide(mChild); });
@@ -2521,7 +2547,7 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     // Since the child has the same client as the parent, it will not get
     // detached and will be hidden.
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectFGColor(64, 64);
         mCapture->expectFGColor(74, 74);
         mCapture->expectFGColor(84, 84);
@@ -2547,7 +2573,7 @@ TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // But 10 pixels in we should see the child surface
@@ -2562,7 +2588,7 @@ TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
 
     // Nothing should have changed.
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectFGColor(64, 64);
         mCapture->expectChildColor(74, 74);
         mCapture->expectFGColor(84, 84);
@@ -2577,7 +2603,7 @@ TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // We've positioned the child in the top left.
         mCapture->expectChildColor(0, 0);
         // But it's only 10x10.
@@ -2591,7 +2617,7 @@ TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // We've positioned the child in the top left.
         mCapture->expectChildColor(0, 0);
         mCapture->expectChildColor(10, 10);
@@ -2610,7 +2636,7 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // We've positioned the child in the top left.
         mCapture->expectChildColor(0, 0);
         // But it's only 10x10.
@@ -2629,7 +2655,7 @@ TEST_F(ChildLayerTest, ChildrenWithParentBufferTransform) {
     {
         // The child should still be in the same place and not have any strange scaling as in
         // b/37673612.
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectChildColor(0, 0);
         mCapture->expectFGColor(10, 10);
     }
@@ -2640,7 +2666,7 @@ TEST_F(ChildLayerTest, Bug36858924) {
     mChild.clear();
 
     // Now recreate it as hidden
-    mChild = mComposerClient->createSurface(String8("Child surface"), 10, 10,
+    mChild = mClient->createSurface(String8("Child surface"), 10, 10,
                                             PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eHidden,
                                             mFGSurfaceControl.get());
 
@@ -2674,7 +2700,7 @@ TEST_F(ChildLayerTest, Reparent) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // But 10 pixels in we should see the child surface
@@ -2686,7 +2712,7 @@ TEST_F(ChildLayerTest, Reparent) {
     asTransaction([&](Transaction& t) { t.reparent(mChild, mBGSurfaceControl->getHandle()); });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectFGColor(64, 64);
         // In reparenting we should have exposed the entire foreground surface.
         mCapture->expectFGColor(74, 74);
@@ -2705,7 +2731,7 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // But 10 pixels in we should see the child surface
@@ -2715,7 +2741,7 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
     }
     asTransaction([&](Transaction& t) { t.reparent(mChild, nullptr); });
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Nothing should have changed.
         mCapture->expectFGColor(64, 64);
         mCapture->expectChildColor(74, 74);
@@ -2724,8 +2750,7 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
 }
 
 TEST_F(ChildLayerTest, ReparentFromNoParent) {
-    sp<SurfaceControl> newSurface = mComposerClient->createSurface(String8("New Surface"), 10, 10,
-                                                                   PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> newSurface = createLayer(String8("New Surface"), 10, 10, 0);
     ASSERT_TRUE(newSurface != nullptr);
     ASSERT_TRUE(newSurface->isValid());
 
@@ -2739,7 +2764,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
     });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Top left of foreground must now be visible
         mCapture->expectFGColor(64, 64);
         // At 10, 10 we should see the new surface
@@ -2749,7 +2774,7 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
     asTransaction([&](Transaction& t) { t.reparent(newSurface, mFGSurfaceControl->getHandle()); });
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // newSurface will now be a child of mFGSurface so it will be 10, 10 offset from
         // mFGSurface, putting it at 74, 74.
         mCapture->expectFGColor(64, 64);
@@ -2760,12 +2785,12 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
 
 TEST_F(ChildLayerTest, NestedChildren) {
     sp<SurfaceControl> grandchild =
-            mComposerClient->createSurface(String8("Grandchild surface"), 10, 10,
+            mClient->createSurface(String8("Grandchild surface"), 10, 10,
                                            PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         // Expect the grandchild to begin at 64, 64 because it's a child of mChild layer
         // which begins at 64, 64
         mCapture->checkPixel(64, 64, 50, 50, 50);
@@ -2773,8 +2798,7 @@ TEST_F(ChildLayerTest, NestedChildren) {
 }
 
 TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
-    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"), 128,
-                                                                 128, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> relative = createLayer(String8("Relative surface"), 128, 128, 0);
     fillSurfaceRGBA8(relative, 255, 255, 255);
 
     Transaction t;
@@ -2786,7 +2810,7 @@ TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
     // We expect that the child should have been elevated above our
     // INT_MAX layer even though it's not a child of it.
     {
-        ScreenCapture::captureScreen(&mCapture);
+        mCapture = screenshot();
         mCapture->expectChildColor(0, 0);
         mCapture->expectChildColor(9, 9);
         mCapture->checkPixel(10, 10, 255, 255, 255);
@@ -2810,7 +2834,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
@@ -2826,7 +2850,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
@@ -2840,7 +2864,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
 
 TEST_F(ScreenCaptureTest, CaptureTransparent) {
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
 
     fillSurfaceRGBA8(child, 200, 200, 200);
@@ -2860,10 +2884,9 @@ TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
-    sp<SurfaceControl> relative = mComposerClient->createSurface(String8("Relative surface"), 10,
-                                                                 10, PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> relative = createLayer(String8("Relative surface"), 10, 10, 0);
     fillSurfaceRGBA8(child, 200, 200, 200);
     fillSurfaceRGBA8(relative, 100, 100, 100);
 
@@ -2884,10 +2907,10 @@ TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
     sp<SurfaceControl> relative =
-            mComposerClient->createSurface(String8("Relative surface"), 10, 10,
+            mClient->createSurface(String8("Relative surface"), 10, 10,
                                            PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     fillSurfaceRGBA8(relative, 100, 100, 100);
@@ -2918,7 +2941,7 @@ public:
         LayerUpdateTest::SetUp();
 
         mChild =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                     0, mFGSurfaceControl.get());
         fillSurfaceRGBA8(mChild, 200, 200, 200);
 
@@ -2976,12 +2999,12 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
     sp<SurfaceControl> grandchild =
-            mComposerClient->createSurface(String8("Grandchild surface"), 5, 5,
+            mClient->createSurface(String8("Grandchild surface"), 5, 5,
                                            PIXEL_FORMAT_RGBA_8888, 0, child.get());
 
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
@@ -3000,7 +3023,7 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
 
 TEST_F(ScreenCaptureTest, CaptureChildOnly) {
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
@@ -3015,13 +3038,13 @@ TEST_F(ScreenCaptureTest, CaptureChildOnly) {
 
 TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
     sp<SurfaceControl> child =
-            mComposerClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
                                            0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
     sp<SurfaceControl> grandchild =
-            mComposerClient->createSurface(String8("Grandchild surface"), 5, 5,
+            mClient->createSurface(String8("Grandchild surface"), 5, 5,
                                            PIXEL_FORMAT_RGBA_8888, 0, child.get());
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
@@ -3040,10 +3063,9 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureCrop) {
-    sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
-                                                                 PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
     sp<SurfaceControl> blueLayer =
-            mComposerClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
                                            0, redLayer.get());
 
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
@@ -3074,10 +3096,9 @@ TEST_F(ScreenCaptureTest, CaptureCrop) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureSize) {
-    sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
-                                                                 PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
     sp<SurfaceControl> blueLayer =
-            mComposerClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
+            mClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
                                            0, redLayer.get());
 
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
@@ -3110,13 +3131,12 @@ TEST_F(ScreenCaptureTest, CaptureSize) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
-    sp<SurfaceControl> redLayer = mComposerClient->createSurface(String8("Red surface"), 60, 60,
-                                                                 PIXEL_FORMAT_RGBA_8888, 0);
+    sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
 
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
 
     auto redLayerHandle = redLayer->getHandle();
-    mComposerClient->destroySurface(redLayerHandle);
+    mClient->destroySurface(redLayerHandle);
     SurfaceComposerClient::Transaction().apply(true);
 
     sp<GraphicBuffer> outBuffer;

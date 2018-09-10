@@ -185,8 +185,6 @@ void CompositionTest::captureScreenComposition() {
     LayerCase::setupForScreenCapture(this);
 
     const Rect sourceCrop(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
-    constexpr int32_t minLayerZ = -1;
-    constexpr int32_t maxLayerZ = 1000;
     constexpr bool useIdentityTransform = true;
     constexpr bool forSystem = true;
 
@@ -194,7 +192,7 @@ void CompositionTest::captureScreenComposition() {
                                  DEFAULT_DISPLAY_HEIGHT, ui::Transform::ROT_0);
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
-        return mFlinger.traverseLayersInDisplay(mDisplay, minLayerZ, maxLayerZ, visitor);
+        return mFlinger.traverseLayersInDisplay(mDisplay, visitor);
     };
 
     // TODO: Eliminate expensive/real allocation if possible.
