@@ -39,7 +39,7 @@ std::atomic<int64_t> Scheduler::sNextId = 0;
 Scheduler::~Scheduler() = default;
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
-        const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+        const std::string& connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
         impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const int64_t id = sNextId++;
@@ -56,13 +56,15 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
 }
 
 std::unique_ptr<EventThread> Scheduler::makeEventThread(
-        const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+        const std::string& connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
         impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
+    const std::string sourceName = connectionName + "Source";
     std::unique_ptr<VSyncSource> eventThreadSource =
-            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, connectionName);
+            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, sourceName.c_str());
+    const std::string threadName = connectionName + "Thread";
     return std::make_unique<impl::EventThread>(std::move(eventThreadSource), resyncCallback,
-                                               interceptCallback, connectionName);
+                                               interceptCallback, threadName.c_str());
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
