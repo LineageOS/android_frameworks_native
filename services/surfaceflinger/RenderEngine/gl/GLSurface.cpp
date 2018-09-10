@@ -16,6 +16,7 @@
 
 #include "GLSurface.h"
 
+#include <android/native_window.h>
 #include <log/log.h>
 #include <ui/PixelFormat.h>
 #include "GLES20RenderEngine.h"
@@ -41,11 +42,15 @@ void GLSurface::setNativeWindow(ANativeWindow* window) {
     if (mEGLSurface != EGL_NO_SURFACE) {
         eglDestroySurface(mEGLDisplay, mEGLSurface);
         mEGLSurface = EGL_NO_SURFACE;
+        mSurfaceWidth = 0;
+        mSurfaceHeight = 0;
     }
 
     mWindow = window;
     if (mWindow) {
         mEGLSurface = eglCreateWindowSurface(mEGLDisplay, mEGLConfig, mWindow, nullptr);
+        mSurfaceWidth = ANativeWindow_getWidth(window);
+        mSurfaceHeight = ANativeWindow_getHeight(window);
     }
 }
 
@@ -71,15 +76,6 @@ EGLint GLSurface::queryConfig(EGLint attrib) const {
     return value;
 }
 
-EGLint GLSurface::querySurface(EGLint attrib) const {
-    EGLint value;
-    if (!eglQuerySurface(mEGLDisplay, mEGLSurface, attrib, &value)) {
-        value = 0;
-    }
-
-    return value;
-}
-
 int32_t GLSurface::queryRedSize() const {
     return queryConfig(EGL_RED_SIZE);
 }
@@ -96,12 +92,12 @@ int32_t GLSurface::queryAlphaSize() const {
     return queryConfig(EGL_ALPHA_SIZE);
 }
 
-int32_t GLSurface::queryWidth() const {
-    return querySurface(EGL_WIDTH);
+int32_t GLSurface::getWidth() const {
+    return mSurfaceWidth;
 }
 
-int32_t GLSurface::queryHeight() const {
-    return querySurface(EGL_HEIGHT);
+int32_t GLSurface::getHeight() const {
+    return mSurfaceHeight;
 }
 
 }  // namespace gl

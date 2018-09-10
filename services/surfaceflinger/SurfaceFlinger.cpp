@@ -2493,8 +2493,8 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
-    const int displayWidth = renderSurface->queryWidth();
-    const int displayHeight = renderSurface->queryHeight();
+    const int displayWidth = renderSurface->getWidth();
+    const int displayHeight = renderSurface->getHeight();
 
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
@@ -3205,9 +3205,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
             // the GL scissor so we don't draw anything where we shouldn't
 
             // enable scissor for this frame
-            const uint32_t height = display->getHeight();
-            getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
-                                              scissor.getWidth(), scissor.getHeight());
+            getBE().mRenderEngine->setScissor(scissor);
         }
     }
 

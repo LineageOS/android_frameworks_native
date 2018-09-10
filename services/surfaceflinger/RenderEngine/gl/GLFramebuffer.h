@@ -39,11 +39,16 @@ public:
     EGLImageKHR getEGLImage() const { return mEGLImage; }
     uint32_t getTextureName() const { return mTextureName; }
     uint32_t getFramebufferName() const { return mFramebufferName; }
+    int32_t getBufferHeight() const { return mBufferHeight; }
+    int32_t getBufferWidth() const { return mBufferWidth; }
 
 private:
     EGLDisplay mEGLDisplay;
     EGLImageKHR mEGLImage;
     uint32_t mTextureName, mFramebufferName;
+
+    int32_t mBufferHeight = 0;
+    int32_t mBufferWidth = 0;
 };
 
 }  // namespace gl
