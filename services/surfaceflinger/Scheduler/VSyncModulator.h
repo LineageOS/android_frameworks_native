@@ -67,6 +67,14 @@ public:
         mAppEventThread = appEventThread;
     }
 
+    void setSchedulerAndHandles(Scheduler* scheduler,
+                                Scheduler::ConnectionHandle* appConnectionHandle,
+                                Scheduler::ConnectionHandle* sfConnectionHandle) {
+        mScheduler = scheduler;
+        mAppConnectionHandle = appConnectionHandle;
+        mSfConnectionHandle = sfConnectionHandle;
+    }
+
     void setTransactionStart(TransactionStart transactionStart) {
         if (transactionStart == TransactionStart::EARLY) {
             mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT;
@@ -108,11 +116,19 @@ private:
 
         bool changed = false;
         if (desired.sf != current.sf) {
-            mSfEventThread->setPhaseOffset(desired.sf);
+            if (mSfConnectionHandle != nullptr) {
+                mScheduler->setPhaseOffset(mSfConnectionHandle, desired.sf);
+            } else {
+                mSfEventThread->setPhaseOffset(desired.sf);
+            }
             changed = true;
         }
         if (desired.app != current.app) {
-            mAppEventThread->setPhaseOffset(desired.app);
+            if (mSfConnectionHandle != nullptr) {
+                mScheduler->setPhaseOffset(mAppConnectionHandle, desired.app);
+            } else {
+                mAppEventThread->setPhaseOffset(desired.app);
+            }
             changed = true;
         }
 
@@ -137,6 +153,10 @@ private:
 
     EventThread* mSfEventThread = nullptr;
     EventThread* mAppEventThread = nullptr;
+
+    Scheduler* mScheduler = nullptr;
+    Scheduler::ConnectionHandle* mAppConnectionHandle = nullptr;
+    Scheduler::ConnectionHandle* mSfConnectionHandle = nullptr;
 
     std::atomic<Offsets> mOffsets;
 
