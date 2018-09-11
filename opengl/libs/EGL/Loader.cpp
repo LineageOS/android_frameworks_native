@@ -511,7 +511,7 @@ static ANGLEPreference getAnglePref(const char* app_pref) {
     return ANGLE_NO_PREFERENCE;
 }
 
-static void* load_angle(const char* kind, egl_connection_t* cnx) {
+static void* load_angle(const char* kind, android_namespace_t* ns, egl_connection_t* cnx) {
     // Only attempt to load ANGLE libs
     if (strcmp(kind, "EGL") != 0 && strcmp(kind, "GLESv2") != 0 && strcmp(kind, "GLESv1_CM") != 0)
         return nullptr;
@@ -520,7 +520,6 @@ static void* load_angle(const char* kind, egl_connection_t* cnx) {
     std::string name;
     char prop[PROPERTY_VALUE_MAX];
 
-    android_namespace_t* ns = android_getAngleNamespace();
     const char* app_name = android_getAngleAppName();
     const char* app_pref = android_getAngleAppPref();
     bool developer_opt_in = android_getAngleDeveloperOptIn();
@@ -620,7 +619,10 @@ void *Loader::load_driver(const char* kind,
     ATRACE_CALL();
 
     void* dso = nullptr;
-    dso = load_angle(kind, cnx);
+    android_namespace_t* ns = android_getAngleNamespace();
+    if (ns) {
+        dso = load_angle(kind, ns, cnx);
+    }
 #ifndef __ANDROID_VNDK__
     if (!dso) {
         android_namespace_t* ns = android_getDriverNamespace();
