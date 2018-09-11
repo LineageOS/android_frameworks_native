@@ -756,8 +756,6 @@ private:
     void dumpAllLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     bool startDdmConnection();
     void appendSfConfigString(String8& result) const;
-    void checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
-                         TraverseLayersFunction traverseLayers);
 
     void logFrameStats();
 
