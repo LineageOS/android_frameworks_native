@@ -403,7 +403,11 @@ int main(int argc, char** argv)
 
     cb.func_audit = audit_callback;
     selinux_set_callback(SELINUX_CB_AUDIT, cb);
+#ifdef VENDORSERVICEMANAGER
+    cb.func_log = selinux_vendor_log_callback;
+#else
     cb.func_log = selinux_log_callback;
+#endif
     selinux_set_callback(SELINUX_CB_LOG, cb);
 
 #ifdef VENDORSERVICEMANAGER
