@@ -3218,30 +3218,29 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     ALOGV("Rendering client layers");
     const ui::Transform& displayTransform = display->getTransform();
     bool firstLayer = true;
-    for (auto& compositionInfo : getBE().mCompositionInfo[displayId]) {
-        const Region bounds(display->bounds());
+    for (auto& layer : display->getVisibleLayersSortedByZ()) {
         const Region clip(bounds.intersect(
-                displayTransform.transform(compositionInfo.layer->mLayer->visibleRegion)));
-        ALOGV("Layer: %s", compositionInfo.layerName.c_str());
+                displayTransform.transform(layer->visibleRegion)));
+        ALOGV("Layer: %s", layer->getName().string());
+        ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
         if (!clip.isEmpty()) {
-            switch (compositionInfo.compositionType) {
+            switch (layer->getCompositionType(displayId)) {
                 case HWC2::Composition::Cursor:
                 case HWC2::Composition::Device:
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
-                    const Layer::State& state(compositionInfo.layer->mLayer->getDrawingState());
-                    const bool opaque = compositionInfo.layer->mLayer->isOpaque(state) &&
-                                        compositionInfo.layer->mLayer->getAlpha() == 1.0f;
-                    if (compositionInfo.hwc.clearClientTarget && !firstLayer && opaque &&
-                            hasClientComposition) {
+                    const Layer::State& state(layer->getDrawingState());
+                    if (layer->getClearClientTarget(displayId) && !firstLayer &&
+                        layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
+                        hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        compositionInfo.layer->clear(getRenderEngine());
+                        layer->clearWithOpenGL(renderArea);
                     }
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    compositionInfo.layer->mLayer->draw(renderArea, clip);
+                    layer->draw(renderArea, clip);
                     break;
                 }
                 default:
