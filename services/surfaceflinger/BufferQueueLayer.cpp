@@ -433,6 +433,10 @@ void BufferQueueLayer::onFirstRef() {
     if (mFlinger->isLayerTripleBufferingDisabled()) {
         mProducer->setMaxDequeuedBufferCount(2);
     }
+
+    if (const auto display = mFlinger->getDefaultDisplayDevice()) {
+        updateTransformHint(display);
+    }
 }
 
 status_t BufferQueueLayer::setDefaultBufferProperties(uint32_t w, uint32_t h, PixelFormat format) {
