@@ -4620,10 +4620,12 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
                         mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);
 
-    LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
-    auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
-    result.append(LayerProtoParser::layersToString(std::move(layerTree)).c_str());
-    result.append("\n");
+    {
+        LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
+        auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
+        result.append(LayerProtoParser::layerTreeToString(layerTree).c_str());
+        result.append("\n");
+    }
 
     result.append("\nFrame-Composition information:\n");
     dumpFrameCompositionInfo(result);
