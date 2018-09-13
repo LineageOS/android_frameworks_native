@@ -484,7 +484,7 @@ Status<std::vector<size_t>> ProducerQueue::AllocateBuffers(
   if (buffer_slots.size() == 0) {
     // Error out if no buffer is allocated and improted.
     ALOGE_IF(TRACE, "ProducerQueue::AllocateBuffers: no buffer allocated.");
-    return ErrorStatus(ENOMEM);
+    ErrorStatus(ENOMEM);
   }
 
   return {std::move(buffer_slots)};
@@ -505,7 +505,7 @@ Status<size_t> ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
 
   if (status.get().size() == 0) {
     ALOGE_IF(TRACE, "ProducerQueue::AllocateBuffer: no buffer allocated.");
-    return ErrorStatus(ENOMEM);
+    ErrorStatus(ENOMEM);
   }
 
   return {status.get()[0]};
