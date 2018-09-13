@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "LayerState"
+
 #include <utils/Errors.h>
 #include <binder/Parcel.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -313,8 +315,10 @@ void layer_state_t::merge(const layer_state_t& other) {
         sidebandStream = other.sidebandStream;
     }
 
-    if (other.what != what) {
-        ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating?");
+    if ((other.what & what) != other.what) {
+        ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
+              "other.what=0x%X what=0x%X",
+              other.what, what);
     }
 }
 
