@@ -18,46 +18,40 @@
 #define ANDROID_BARRIER_H
 
 #include <stdint.h>
-#include <sys/types.h>
-#include <utils/threads.h>
+#include <condition_variable>
+#include <mutex>
 
 namespace android {
 
 class Barrier
 {
 public:
-    inline Barrier() : state(CLOSED) { }
-    inline ~Barrier() { }
-
     // Release any threads waiting at the Barrier.
     // Provides release semantics: preceding loads and stores will be visible
     // to other threads before they wake up.
     void open() {
-        Mutex::Autolock _l(lock);
-        state = OPENED;
-        cv.broadcast();
+        std::lock_guard<std::mutex> lock(mMutex);
+        mIsOpen = true;
+        mCondition.notify_all();
     }
 
     // Reset the Barrier, so wait() will block until open() has been called.
     void close() {
-        Mutex::Autolock _l(lock);
-        state = CLOSED;
+        std::lock_guard<std::mutex> lock(mMutex);
+        mIsOpen = false;
     }
 
     // Wait until the Barrier is OPEN.
     // Provides acquire semantics: no subsequent loads or stores will occur
     // until wait() returns.
     void wait() const {
-        Mutex::Autolock _l(lock);
-        while (state == CLOSED) {
-            cv.wait(lock);
-        }
+        std::unique_lock<std::mutex> lock(mMutex);
+        mCondition.wait(lock, [this]() NO_THREAD_SAFETY_ANALYSIS { return mIsOpen; });
     }
 private:
-    enum { OPENED, CLOSED };
-    mutable     Mutex       lock;
-    mutable     Condition   cv;
-    volatile    int         state;
+    mutable std::mutex mMutex;
+    mutable std::condition_variable mCondition;
+    int mIsOpen GUARDED_BY(mMutex){false};
 };
 
 }; // namespace android

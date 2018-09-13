@@ -96,8 +96,9 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
         const sp<const Layer>& layer)
 {
     Transaction* transaction(increment->mutable_transaction());
-    transaction->set_synchronous(layer->mTransactionFlags & BnSurfaceComposer::eSynchronous);
-    transaction->set_animation(layer->mTransactionFlags & BnSurfaceComposer::eAnimation);
+    const uint32_t layerFlags = layer->getTransactionFlags();
+    transaction->set_synchronous(layerFlags & BnSurfaceComposer::eSynchronous);
+    transaction->set_animation(layerFlags & BnSurfaceComposer::eAnimation);
 
     const int32_t layerId(getLayerId(layer));
     addPositionLocked(transaction, layerId, layer->mCurrentState.active_legacy.transform.tx(),

@@ -137,8 +137,8 @@ private:
     int mActiveBufferSlot;
 
     // thread-safe
-    volatile int32_t mQueuedFrames;
-    volatile int32_t mSidebandStreamChanged; // used like an atomic boolean
+    std::atomic<int32_t> mQueuedFrames{0};
+    std::atomic<bool> mSidebandStreamChanged{false};
 };
 
 } // namespace android
