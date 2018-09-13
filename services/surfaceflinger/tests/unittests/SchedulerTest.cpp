@@ -40,7 +40,7 @@ protected:
               : mEventThread(std::move(eventThread)) {}
 
         std::unique_ptr<EventThread> makeEventThread(
-                const char* /* connectionName */, DispSync* /* dispSync */,
+                const std::string& /* connectionName */, DispSync* /* dispSync */,
                 nsecs_t /* phaseOffsetNs */,
                 impl::EventThread::ResyncWithRateLimitCallback /* resyncCallback */,
                 impl::EventThread::InterceptVSyncsCallback /* interceptCallback */) override {
