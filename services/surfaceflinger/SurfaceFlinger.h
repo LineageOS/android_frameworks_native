@@ -117,6 +117,10 @@ namespace dvr {
 class VrFlinger;
 } // namespace dvr
 
+namespace surfaceflinger {
+class NativeWindowSurface;
+} // namespace surfaceflinger
+
 // ---------------------------------------------------------------------------
 
 enum {
@@ -133,18 +137,6 @@ enum class DisplayColorSetting : int32_t {
     ENHANCED = 2,
 };
 
-// A thin interface to abstract creating instances of Surface (gui/Surface.h) to
-// use as a NativeWindow.
-class NativeWindowSurface {
-public:
-    virtual ~NativeWindowSurface();
-
-    // Gets the NativeWindow to use for the surface.
-    virtual sp<ANativeWindow> getNativeWindow() const = 0;
-
-    // Indicates that the surface should allocate its buffers now.
-    virtual void preallocateBuffers() = 0;
-};
 
 class SurfaceFlingerBE
 {
@@ -939,7 +931,8 @@ private:
     CreateBufferQueueFunction mCreateBufferQueue;
 
     using CreateNativeWindowSurfaceFunction =
-            std::function<std::unique_ptr<NativeWindowSurface>(const sp<IGraphicBufferProducer>&)>;
+            std::function<std::unique_ptr<surfaceflinger::NativeWindowSurface>(
+                    const sp<IGraphicBufferProducer>&)>;
     CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
 
     SurfaceFlingerBE mBE;

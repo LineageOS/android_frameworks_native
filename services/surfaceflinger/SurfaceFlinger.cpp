@@ -74,6 +74,7 @@
 #include "Layer.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
+#include "NativeWindowSurface.h"
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/ComposerHal.h"
@@ -222,32 +223,6 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     }
 }
 
-NativeWindowSurface::~NativeWindowSurface() = default;
-
-namespace impl {
-
-class NativeWindowSurface final : public android::NativeWindowSurface {
-public:
-    static std::unique_ptr<android::NativeWindowSurface> create(
-            const sp<IGraphicBufferProducer>& producer) {
-        return std::make_unique<NativeWindowSurface>(producer);
-    }
-
-    explicit NativeWindowSurface(const sp<IGraphicBufferProducer>& producer)
-          : surface(new Surface(producer, false)) {}
-
-    ~NativeWindowSurface() override = default;
-
-private:
-    sp<ANativeWindow> getNativeWindow() const override { return surface; }
-
-    void preallocateBuffers() override { surface->allocateBuffers(); }
-
-    sp<Surface> surface;
-};
-
-} // namespace impl
-
 SurfaceFlingerBE::SurfaceFlingerBE()
       : mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
@@ -284,7 +259,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
         mCreateBufferQueue(&BufferQueue::createBufferQueue),
-        mCreateNativeWindowSurface(&impl::NativeWindowSurface::create) {}
+        mCreateNativeWindowSurface(&surfaceflinger::impl::createNativeWindowSurface) {}
 
 SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");

@@ -125,7 +125,7 @@ public:
     // These mocks are created only when expected to be created via a factory.
     sp<mock::GraphicBufferConsumer> mConsumer;
     sp<mock::GraphicBufferProducer> mProducer;
-    mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
+    surfaceflinger::mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
     sp<mock::NativeWindow> mNativeWindow;
     renderengine::mock::Surface* mRenderSurface = nullptr;
 };
@@ -195,11 +195,12 @@ void DisplayTransactionTest::injectFakeNativeWindowSurfaceFactory() {
     // This setup is only expected once per test.
     ASSERT_TRUE(mNativeWindowSurface == nullptr);
 
-    mNativeWindowSurface = new mock::NativeWindowSurface();
+    mNativeWindowSurface = new surfaceflinger::mock::NativeWindowSurface();
     mNativeWindow = new mock::NativeWindow();
 
-    mFlinger.setCreateNativeWindowSurface(
-            [this](auto) { return std::unique_ptr<NativeWindowSurface>(mNativeWindowSurface); });
+    mFlinger.setCreateNativeWindowSurface([this](auto) {
+        return std::unique_ptr<surfaceflinger::NativeWindowSurface>(mNativeWindowSurface);
+    });
 }
 
 bool DisplayTransactionTest::hasHwcDisplay(hwc2_display_t displayId) {
