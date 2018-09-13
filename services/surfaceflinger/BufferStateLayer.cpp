@@ -26,18 +26,17 @@
 
 namespace android {
 
-static const std::array<float, 16> IDENTITY_MATRIX{1, 0, 0, 0,
-                                                   0, 1, 0, 0,
-                                                   0, 0, 1, 0,
-                                                   0, 0, 0, 1};
+// clang-format off
+const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+};
+// clang-format on
 
-BufferStateLayer::BufferStateLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-                                   const String8& name, uint32_t w, uint32_t h, uint32_t flags)
-      : BufferLayer(flinger, client, name, w, h, flags),
-        mSidebandStreamChanged(false),
-        mFrameNumber(0) {
-    mTransformMatrix = IDENTITY_MATRIX;
-}
+BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args) : BufferLayer(args) {}
+BufferStateLayer::~BufferStateLayer() = default;
 
 // -----------------------------------------------------------------------
 // Interface implementation for Layer

@@ -3873,7 +3873,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
         break;
     }
 
-    sp<BufferQueueLayer> layer = new BufferQueueLayer(this, client, name, w, h, flags);
+    sp<BufferQueueLayer> layer =
+            new BufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -3888,7 +3889,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 sp<IBinder>* handle, sp<Layer>* outLayer) {
-    sp<BufferStateLayer> layer = new BufferStateLayer(this, client, name, w, h, flags);
+    sp<BufferStateLayer> layer =
+            new BufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = layer->getHandle();
     *outLayer = layer;
 
@@ -3899,7 +3901,7 @@ status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ColorLayer(this, client, name, w, h, flags);
+    *outLayer = new ColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -3908,7 +3910,7 @@ status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ContainerLayer(this, client, name, w, h, flags);
+    *outLayer = new ContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -5280,9 +5282,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 drawLayers();
             } else {
                 Rect bounds = getBounds();
-                screenshotParentLayer =
-                        new ContainerLayer(mFlinger, nullptr, String8("Screenshot Parent"),
-                                           bounds.getWidth(), bounds.getHeight(), 0);
+                screenshotParentLayer = new ContainerLayer(
+                        LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
+                                          bounds.getWidth(), bounds.getHeight(), 0));
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer);
                 drawLayers();

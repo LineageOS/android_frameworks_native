@@ -25,9 +25,8 @@ namespace android {
 
 class ColorLayer : public Layer {
 public:
-    ColorLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
-               uint32_t h, uint32_t flags);
-    virtual ~ColorLayer() = default;
+    explicit ColorLayer(const LayerCreationArgs&);
+    ~ColorLayer() override;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
     virtual void onDraw(const RenderArea& renderArea, const Region& clip,

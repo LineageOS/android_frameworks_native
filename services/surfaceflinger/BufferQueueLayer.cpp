@@ -21,24 +21,9 @@
 
 namespace android {
 
-BufferQueueLayer::BufferQueueLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-                                   const String8& name, uint32_t w, uint32_t h, uint32_t flags)
-      : BufferLayer(flinger, client, name, w, h, flags),
-        mConsumer(nullptr),
-        mProducer(nullptr),
-        mFormat(PIXEL_FORMAT_NONE),
-        mPreviousFrameNumber(0),
-        mUpdateTexImageFailed(false),
-        mQueueItemLock(),
-        mQueueItemCondition(),
-        mQueueItems(),
-        mLastFrameNumberReceived(0),
-        mAutoRefresh(false),
-        mActiveBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
-        mQueuedFrames(0),
-        mSidebandStreamChanged(false) {
-    mCurrentState.requested_legacy = mCurrentState.active_legacy;
-}
+BufferQueueLayer::BufferQueueLayer(const LayerCreationArgs& args) : BufferLayer(args) {}
+
+BufferQueueLayer::~BufferQueueLayer() = default;
 
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
