@@ -74,8 +74,6 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
     }
 }
 
-Program::~Program() {}
-
 bool Program::isValid() const {
     return mInitialized;
 }

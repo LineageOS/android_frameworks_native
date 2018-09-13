@@ -17,6 +17,7 @@
 #ifndef SF_RENDER_ENGINE_PROGRAMCACHE_H
 #define SF_RENDER_ENGINE_PROGRAMCACHE_H
 
+#include <memory>
 #include <unordered_map>
 
 #include <GLES2/gl2.h>
@@ -169,8 +170,8 @@ public:
         };
     };
 
-    ProgramCache();
-    ~ProgramCache();
+    ProgramCache() = default;
+    ~ProgramCache() = default;
 
     // Generate shaders to populate the cache
     void primeCache(bool useColorManagement);
@@ -193,15 +194,15 @@ private:
     // Generate OETF based from Key.
     static void generateOETF(Formatter& fs, const Key& needs);
     // generates a program from the Key
-    static Program* generateProgram(const Key& needs);
+    static std::unique_ptr<Program> generateProgram(const Key& needs);
     // generates the vertex shader from the Key
     static String8 generateVertexShader(const Key& needs);
     // generates the fragment shader from the Key
     static String8 generateFragmentShader(const Key& needs);
 
     // Key/Value map used for caching Programs. Currently the cache
-    // is never shrunk.
-    std::unordered_map<Key, Program*, Key::Hash> mCache;
+    // is never shrunk (and the GL program objects are never deleted).
+    std::unordered_map<Key, std::unique_ptr<Program>, Key::Hash> mCache;
 };
 
 }  // namespace gl

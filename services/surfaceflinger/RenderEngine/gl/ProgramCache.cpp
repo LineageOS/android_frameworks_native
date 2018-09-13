@@ -77,10 +77,6 @@ Formatter& dedent(Formatter& f) {
     return f;
 }
 
-ProgramCache::ProgramCache() {}
-
-ProgramCache::~ProgramCache() {}
-
 void ProgramCache::primeCache(bool useColorManagement) {
     uint32_t shaderCount = 0;
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK;
@@ -646,7 +642,7 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     return fs.getString();
 }
 
-Program* ProgramCache::generateProgram(const Key& needs) {
+std::unique_ptr<Program> ProgramCache::generateProgram(const Key& needs) {
     ATRACE_CALL();
 
     // vertex shader
@@ -655,8 +651,7 @@ Program* ProgramCache::generateProgram(const Key& needs) {
     // fragment shader
     String8 fs = generateFragmentShader(needs);
 
-    Program* program = new Program(needs, vs.string(), fs.string());
-    return program;
+    return std::make_unique<Program>(needs, vs.string(), fs.string());
 }
 
 void ProgramCache::useProgram(const Description& description) {
@@ -676,7 +671,7 @@ void ProgramCache::useProgram(const Description& description) {
     }
 
     // here we have a suitable program for this description
-    Program* program = it->second;
+    std::unique_ptr<Program>& program = it->second;
     if (program->isValid()) {
         program->use();
         program->setUniforms(description);

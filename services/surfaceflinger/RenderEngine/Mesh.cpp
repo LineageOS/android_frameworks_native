@@ -27,7 +27,7 @@ Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t te
         mTexCoordsSize(texCoordSize),
         mPrimitive(primitive) {
     if (vertexCount == 0) {
-        mVertices = new float[1];
+        mVertices.resize(1);
         mVertices[0] = 0.0f;
         mStride = 0;
         return;
@@ -40,7 +40,7 @@ Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t te
     // will be equal to stride as long as stride * vertexCount doesn't overflow.
     if ((stride < vertexSize) || (remainder != stride)) {
         ALOGE("Overflow in Mesh(..., %zu, %zu, %zu)", vertexCount, vertexSize, texCoordSize);
-        mVertices = new float[1];
+        mVertices.resize(1);
         mVertices[0] = 0.0f;
         mVertexCount = 0;
         mVertexSize = 0;
@@ -49,12 +49,8 @@ Mesh::Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t te
         return;
     }
 
-    mVertices = new float[stride * vertexCount];
+    mVertices.resize(stride * vertexCount);
     mStride = stride;
-}
-
-Mesh::~Mesh() {
-    delete[] mVertices;
 }
 
 Mesh::Primitive Mesh::getPrimitive() const {
@@ -62,17 +58,17 @@ Mesh::Primitive Mesh::getPrimitive() const {
 }
 
 float const* Mesh::getPositions() const {
-    return mVertices;
+    return mVertices.data();
 }
 float* Mesh::getPositions() {
-    return mVertices;
+    return mVertices.data();
 }
 
 float const* Mesh::getTexCoords() const {
-    return mVertices + mVertexSize;
+    return mVertices.data() + mVertexSize;
 }
 float* Mesh::getTexCoords() {
-    return mVertices + mVertexSize;
+    return mVertices.data() + mVertexSize;
 }
 
 size_t Mesh::getVertexCount() const {
