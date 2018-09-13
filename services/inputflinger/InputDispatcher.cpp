@@ -852,7 +852,8 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
         return true;
     }
 
-    addMonitoringTargetsLocked(inputTargets);
+    // Add monitor channels from event's or focused display.
+    addMonitoringTargetsLocked(inputTargets, getTargetDisplayId(entry));
 
     // Dispatch the key.
     dispatchEventLocked(currentTime, entry, inputTargets);
@@ -919,7 +920,8 @@ bool InputDispatcher::dispatchMotionLocked(
         return true;
     }
 
-    addMonitoringTargetsLocked(inputTargets);
+    // Add monitor channels from event's or focused display.
+    addMonitoringTargetsLocked(inputTargets, getTargetDisplayId(entry));
 
     // Dispatch the motion.
     if (conflictingPointerActions) {
@@ -1665,17 +1667,29 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
     target.pointerIds = pointerIds;
 }
 
-void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets) {
-    for (size_t i = 0; i < mMonitoringChannels.size(); i++) {
-        inputTargets.push();
+void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets,
+        int32_t displayId) {
+    std::unordered_map<int32_t, Vector<sp<InputChannel>>>::const_iterator it =
+            mMonitoringChannelsByDisplay.find(displayId);
 
-        InputTarget& target = inputTargets.editTop();
-        target.inputChannel = mMonitoringChannels[i];
-        target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-        target.xOffset = 0;
-        target.yOffset = 0;
-        target.pointerIds.clear();
-        target.scaleFactor = 1.0f;
+    if (it != mMonitoringChannelsByDisplay.end()) {
+        const Vector<sp<InputChannel>>& monitoringChannels = it->second;
+        const size_t numChannels = monitoringChannels.size();
+        for (size_t i = 0; i < numChannels; i++) {
+            inputTargets.push();
+
+            InputTarget& target = inputTargets.editTop();
+            target.inputChannel = monitoringChannels[i];
+            target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
+            target.xOffset = 0;
+            target.yOffset = 0;
+            target.pointerIds.clear();
+            target.scaleFactor = 1.0f;
+        }
+    } else {
+        // If there is no monitor channel registered or all monitor channel unregistered,
+        // the display can't detect the extra system gesture by a copy of input events.
+        ALOGW("There is no monitor channel found in display=%" PRId32, displayId);
     }
 }
 
@@ -2294,8 +2308,12 @@ void InputDispatcher::synthesizeCancelationEventsForAllConnectionsLocked(
 
 void InputDispatcher::synthesizeCancelationEventsForMonitorsLocked(
         const CancelationOptions& options) {
-    for (size_t i = 0; i < mMonitoringChannels.size(); i++) {
-        synthesizeCancelationEventsForInputChannelLocked(mMonitoringChannels[i], options);
+    for (auto& it : mMonitoringChannelsByDisplay) {
+        const Vector<sp<InputChannel>>& monitoringChannels = it.second;
+        const size_t numChannels = monitoringChannels.size();
+        for (size_t i = 0; i < numChannels; i++) {
+            synthesizeCancelationEventsForInputChannelLocked(monitoringChannels[i], options);
+        }
     }
 }
 
@@ -3486,12 +3504,16 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
         dump += INDENT "Displays: <none>\n";
     }
 
-    if (!mMonitoringChannels.isEmpty()) {
-        dump += INDENT "MonitoringChannels:\n";
-        for (size_t i = 0; i < mMonitoringChannels.size(); i++) {
-            const sp<InputChannel>& channel = mMonitoringChannels[i];
-            dump += StringPrintf(INDENT2 "%zu: '%s'\n", i, channel->getName().c_str());
-        }
+    if (!mMonitoringChannelsByDisplay.empty()) {
+       for (auto& it : mMonitoringChannelsByDisplay) {
+            const Vector<sp<InputChannel>>& monitoringChannels = it.second;
+            dump += INDENT "MonitoringChannels in Display %d:\n";
+            const size_t numChannels = monitoringChannels.size();
+            for (size_t i = 0; i < numChannels; i++) {
+                const sp<InputChannel>& channel = monitoringChannels[i];
+                dump += StringPrintf(INDENT2 "%zu: '%s'\n", i, channel->getName().c_str());
+            }
+       }
     } else {
         dump += INDENT "MonitoringChannels: <none>\n";
     }
@@ -3609,10 +3631,10 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
 }
 
 status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel,
-        const sp<InputWindowHandle>& inputWindowHandle, bool monitor) {
+        const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId) {
 #if DEBUG_REGISTRATION
-    ALOGD("channel '%s' ~ registerInputChannel - monitor=%s", inputChannel->getName().c_str(),
-            toString(monitor));
+    ALOGD("channel '%s' ~ registerInputChannel - displayId=%" PRId32,
+            inputChannel->getName().c_str(), displayId);
 #endif
 
     { // acquire lock
@@ -3624,13 +3646,20 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
             return BAD_VALUE;
         }
 
+        // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
+        // treat inputChannel as monitor channel for displayId.
+        bool monitor = inputWindowHandle == nullptr && displayId != ADISPLAY_ID_NONE;
+
         sp<Connection> connection = new Connection(inputChannel, inputWindowHandle, monitor);
 
         int fd = inputChannel->getFd();
         mConnectionsByFd.add(fd, connection);
 
+        // Store monitor channel by displayId.
         if (monitor) {
-            mMonitoringChannels.push(inputChannel);
+            Vector<sp<InputChannel>>& monitoringChannels =
+                    mMonitoringChannelsByDisplay[displayId];
+            monitoringChannels.push(inputChannel);
         }
 
         mLooper->addFd(fd, 0, ALOOPER_EVENT_INPUT, handleReceiveCallback, this);
@@ -3687,11 +3716,21 @@ status_t InputDispatcher::unregisterInputChannelLocked(const sp<InputChannel>& i
 }
 
 void InputDispatcher::removeMonitorChannelLocked(const sp<InputChannel>& inputChannel) {
-    for (size_t i = 0; i < mMonitoringChannels.size(); i++) {
-         if (mMonitoringChannels[i] == inputChannel) {
-             mMonitoringChannels.removeAt(i);
-             break;
-         }
+    for (auto it = mMonitoringChannelsByDisplay.begin();
+            it != mMonitoringChannelsByDisplay.end(); ) {
+        Vector<sp<InputChannel>>& monitoringChannels = it->second;
+        const size_t numChannels = monitoringChannels.size();
+        for (size_t i = 0; i < numChannels; i++) {
+             if (monitoringChannels[i] == inputChannel) {
+                 monitoringChannels.removeAt(i);
+                 break;
+             }
+        }
+        if (monitoringChannels.empty()) {
+            it = mMonitoringChannelsByDisplay.erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 
