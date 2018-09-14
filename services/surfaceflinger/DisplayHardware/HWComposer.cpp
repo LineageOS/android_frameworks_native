@@ -500,6 +500,8 @@ status_t HWComposer::prepare(DisplayDevice& display,
             validateChange(compositionInfo.compositionType,
                     changedTypes[&*hwcLayer]);
             compositionInfo.compositionType = changedTypes[&*hwcLayer];
+            compositionInfo.layer->mLayer->setCompositionType(displayId,
+                    compositionInfo.compositionType, false);
         }
 
         switch (compositionInfo.compositionType) {
@@ -520,6 +522,7 @@ status_t HWComposer::prepare(DisplayDevice& display,
                 layerRequests[&*hwcLayer] ==
                         HWC2::LayerRequest::ClearClientTarget) {
             compositionInfo.hwc.clearClientTarget = true;
+            compositionInfo.layer->mLayer->setClearClientTarget(displayId, true);
         } else {
             if (layerRequests.count(&*hwcLayer) != 0) {
                 LOG_DISPLAY_ERROR(displayId,
@@ -527,6 +530,7 @@ status_t HWComposer::prepare(DisplayDevice& display,
                                           .c_str());
             }
             compositionInfo.hwc.clearClientTarget = false;
+            compositionInfo.layer->mLayer->setClearClientTarget(displayId, false);
         }
     }
 
