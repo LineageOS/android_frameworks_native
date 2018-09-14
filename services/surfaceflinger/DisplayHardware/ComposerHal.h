@@ -27,7 +27,7 @@
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/composer/2.3/IComposer.h>
 #include <android/hardware/graphics/composer/2.3/IComposerClient.h>
-#include <composer-command-buffer/2.2/ComposerCommandBuffer.h>
+#include <composer-command-buffer/2.3/ComposerCommandBuffer.h>
 #include <gui/HdrMetadata.h>
 #include <math/mat4.h>
 #include <ui/GraphicBuffer.h>
@@ -60,8 +60,8 @@ using V2_1::Error;
 using V2_1::IComposerCallback;
 using V2_1::Layer;
 
-using V2_2::CommandReaderBase;
-using V2_2::CommandWriterBase;
+using V2_3::CommandReaderBase;
+using V2_3::CommandWriterBase;
 
 using V2_3::IComposer;
 using V2_3::IComposerClient;
@@ -191,6 +191,8 @@ public:
     // Composer HAL 2.3
     virtual Error getDisplayIdentificationData(Display display, uint8_t* outPort,
                                                std::vector<uint8_t>* outData) = 0;
+    virtual Error setLayerColorTransform(Display display, Layer layer,
+                                         const float* matrix) = 0;
 };
 
 namespace impl {
@@ -389,6 +391,7 @@ public:
     // Composer HAL 2.3
     Error getDisplayIdentificationData(Display display, uint8_t* outPort,
                                        std::vector<uint8_t>* outData) override;
+    Error setLayerColorTransform(Display display, Layer layer, const float* matrix) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

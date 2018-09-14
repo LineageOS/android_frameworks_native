@@ -991,6 +991,18 @@ Error Composer::getDisplayIdentificationData(Display display, uint8_t* outPort,
     return error;
 }
 
+Error Composer::setLayerColorTransform(Display display, Layer layer, const float* matrix)
+{
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerColorTransform(matrix);
+    return Error::NONE;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();

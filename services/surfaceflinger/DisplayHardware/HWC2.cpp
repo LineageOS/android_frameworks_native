@@ -781,7 +781,8 @@ Layer::Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capabil
   : mComposer(composer),
     mCapabilities(capabilities),
     mDisplayId(displayId),
-    mId(layerId)
+    mId(layerId),
+    mColorMatrix(android::mat4())
 {
     ALOGV("Created layer %" PRIu64 " on display %" PRIu64, layerId, displayId);
 }
@@ -986,6 +987,16 @@ Error Layer::setInfo(uint32_t type, uint32_t appId)
 {
   auto intError = mComposer.setLayerInfo(mDisplayId, mId, type, appId);
   return static_cast<Error>(intError);
+}
+
+// Composer HAL 2.3
+Error Layer::setColorTransform(const android::mat4& matrix) {
+    if (matrix == mColorMatrix) {
+        return Error::None;
+    }
+    mColorMatrix = matrix;
+    auto intError = mComposer.setLayerColorTransform(mDisplayId, mId, matrix.asArray());
+    return static_cast<Error>(intError);
 }
 
 } // namespace HWC2

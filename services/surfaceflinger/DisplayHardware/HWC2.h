@@ -355,6 +355,9 @@ public:
     [[clang::warn_unused_result]] Error setZOrder(uint32_t z);
     [[clang::warn_unused_result]] Error setInfo(uint32_t type, uint32_t appId);
 
+    // Composer HAL 2.3
+    [[clang::warn_unused_result]] Error setColorTransform(const android::mat4& matrix);
+
 private:
     // These are references to data owned by HWC2::Device, which will outlive
     // this HWC2::Layer, so these references are guaranteed to be valid for
@@ -367,6 +370,7 @@ private:
     android::ui::Dataspace mDataSpace = android::ui::Dataspace::UNKNOWN;
     android::HdrMetadata mHdrMetadata;
     std::function<void(Layer*)> mLayerDestroyedListener;
+    android::mat4 mColorMatrix;
 };
 
 } // namespace HWC2
