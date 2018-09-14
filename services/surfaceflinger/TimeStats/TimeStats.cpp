@@ -32,11 +32,8 @@
 namespace android {
 
 TimeStats& TimeStats::getInstance() {
-    static std::unique_ptr<TimeStats> sInstance;
-    static std::once_flag sOnceFlag;
-
-    std::call_once(sOnceFlag, [] { sInstance.reset(new TimeStats); });
-    return *sInstance.get();
+    static TimeStats sInstance;
+    return sInstance;
 }
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, size_t& index,
