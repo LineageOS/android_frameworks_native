@@ -24,6 +24,7 @@
 #include <mutex>
 #include <queue>
 #include <thread>
+#include <vector>
 
 #include <android-base/thread_annotations.h>
 
@@ -32,7 +33,6 @@
 #include <private/gui/BitTube.h>
 
 #include <utils/Errors.h>
-#include <utils/SortedVector.h>
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -118,7 +118,6 @@ public:
     ~EventThread();
 
     sp<BnDisplayEventConnection> createEventConnection() const override;
-    status_t registerDisplayEventConnection(const sp<Connection>& connection);
 
     void setVsyncRate(uint32_t count, const sp<Connection>& connection);
     void requestNextVsync(const sp<Connection>& connection);
@@ -144,6 +143,8 @@ private:
                 ResyncWithRateLimitCallback resyncWithRateLimitCallback,
                 InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
 
+    status_t registerDisplayEventConnection(const sp<Connection>& connection);
+
     void threadMain();
     Vector<sp<EventThread::Connection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
                                                            DisplayEventReceiver::Event* event)
@@ -168,7 +169,7 @@ private:
     mutable std::condition_variable mCondition;
 
     // protected by mLock
-    SortedVector<wp<Connection>> mDisplayEventConnections GUARDED_BY(mMutex);
+    std::vector<wp<Connection>> mDisplayEventConnections GUARDED_BY(mMutex);
     std::queue<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
     std::array<DisplayEventReceiver::Event, 2> mVSyncEvent GUARDED_BY(mMutex);
     bool mUseSoftwareVSync GUARDED_BY(mMutex) = false;
