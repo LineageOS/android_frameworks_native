@@ -19,6 +19,7 @@
 
 #include "SensorDeviceUtils.h"
 #include "SensorServiceUtils.h"
+#include "SensorsWrapper.h"
 
 #include <sensor/Sensor.h>
 #include <stdint.h>
@@ -30,8 +31,6 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm> //std::max std::min
-
-#include "android/hardware/sensors/1.0/ISensors.h"
 
 #include "RingBuffer.h"
 
@@ -103,7 +102,7 @@ public:
 private:
     friend class Singleton<SensorDevice>;
 
-    sp<hardware::sensors::V1_0::ISensors> mSensors;
+    sp<SensorServiceUtil::ISensorsWrapper> mSensors;
     Vector<sensor_t> mSensorList;
     std::unordered_map<int32_t, sensor_t*> mConnectedDynamicSensors;
 
@@ -163,6 +162,8 @@ private:
     SortedVector<void *> mDisabledClients;
     SensorDevice();
     bool connectHidlService();
+    bool connectHidlServiceV1_0();
+    bool connectHidlServiceV2_0();
 
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
