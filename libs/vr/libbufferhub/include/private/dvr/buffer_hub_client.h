@@ -212,11 +212,10 @@ class BufferProducer : public pdx::ClientBase<BufferProducer, BufferHubBuffer> {
   int Post(const LocalHandle& ready_fence, const void* meta,
            size_t user_metadata_size);
 
-  template <typename Meta,
-            typename = typename std::enable_if<std::is_void<Meta>::value>::type>
   int Post(const LocalHandle& ready_fence) {
     return Post(ready_fence, nullptr, 0);
   }
+
   template <typename Meta, typename = typename std::enable_if<
                                !std::is_void<Meta>::value>::type>
   int Post(const LocalHandle& ready_fence, const Meta& meta) {

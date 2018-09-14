@@ -593,7 +593,7 @@ TEST_F(LibBufferHubTest, TestWithNoMeta) {
 
   LocalHandle fence;
 
-  EXPECT_EQ(0, p->Post<void>(LocalHandle()));
+  EXPECT_EQ(0, p->Post(LocalHandle()));
   EXPECT_EQ(0, c->Acquire(&fence));
 }
 
