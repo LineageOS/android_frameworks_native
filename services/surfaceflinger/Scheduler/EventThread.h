@@ -22,6 +22,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <mutex>
+#include <queue>
 #include <thread>
 
 #include <android-base/thread_annotations.h>
@@ -168,7 +169,7 @@ private:
 
     // protected by mLock
     SortedVector<wp<Connection>> mDisplayEventConnections GUARDED_BY(mMutex);
-    Vector<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
+    std::queue<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
     std::array<DisplayEventReceiver::Event, 2> mVSyncEvent GUARDED_BY(mMutex);
     bool mUseSoftwareVSync GUARDED_BY(mMutex) = false;
     bool mVsyncEnabled GUARDED_BY(mMutex) = false;

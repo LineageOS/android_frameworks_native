@@ -181,7 +181,7 @@ void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
     event.header.timestamp = systemTime();
     event.hotplug.connected = connected;
 
-    mPendingEvents.add(event);
+    mPendingEvents.push(event);
     mCondition.notify_all();
 }
 
@@ -244,11 +244,11 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
 
         if (!timestamp) {
             // no vsync event, see if there are some other event
-            eventPending = !mPendingEvents.isEmpty();
+            eventPending = !mPendingEvents.empty();
             if (eventPending) {
                 // we have some other event to dispatch
-                *outEvent = mPendingEvents[0];
-                mPendingEvents.removeAt(0);
+                *outEvent = mPendingEvents.front();
+                mPendingEvents.pop();
             }
         }
 
@@ -384,6 +384,7 @@ void EventThread::dump(String8& result) const {
         result.appendFormat("    %p: count=%d\n", connection.get(),
                             connection != nullptr ? connection->count : 0);
     }
+    result.appendFormat("  other-events-pending: %zu\n", mPendingEvents.size());
 }
 
 // ---------------------------------------------------------------------------
