@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 82
+define VERSION_PATCH 84
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -220,6 +220,10 @@ define NULL_HANDLE 0
 // 66
 @extension("VK_EXT_shader_subgroup_vote") define VK_EXT_SHADER_SUBGROUP_VOTE_SPEC_VERSION 1
 @extension("VK_EXT_shader_subgroup_vote") define VK_EXT_SHADER_SUBGROUP_VOTE_EXTENSION_NAME "VK_EXT_shader_subgroup_vote"
+
+// 68
+@extension("VK_EXT_astc_decode_mode") define VK_EXT_ASTC_DECODE_MODE_SPEC_VERSION 1
+@extension("VK_EXT_astc_decode_mode") define VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME "VK_EXT_astc_decode_mode"
 
 // 70
 @extension("VK_KHR_maintenance1") define VK_KHR_MAINTENANCE1_SPEC_VERSION 2
@@ -437,6 +441,10 @@ define NULL_HANDLE 0
 @extension("VK_AMD_shader_fragment_mask") define VK_AMD_SHADER_FRAGMENT_MASK_SPEC_VERSION 1
 @extension("VK_AMD_shader_fragment_mask") define VK_AMD_SHADER_FRAGMENT_MASK_EXTENSION_NAME "VK_AMD_shader_fragment_mask"
 
+// 139
+@extension("VK_EXT_inline_uniform_block") define VK_EXT_INLINE_UNIFORM_BLOCK_SPEC_VERSION 1
+@extension("VK_EXT_inline_uniform_block") define VK_EXT_INLINE_UNIFORM_BLOCK_EXTENSION_NAME "VK_EXT_inline_uniform_block"
+
 // 141
 @extension("VK_EXT_shader_stencil_export") define VK_EXT_SHADER_STENCIL_EXPORT_SPEC_VERSION 1
 @extension("VK_EXT_shader_stencil_export") define VK_EXT_SHADER_STENCIL_EXPORT_EXTENSION_NAME "VK_EXT_shader_stencil_export"
@@ -526,8 +534,8 @@ define NULL_HANDLE 0
 @extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME "VK_AMD_shader_core_properties"
 
 // 191
-@extension("VK_EXT_vertex_attribute_divisor") define VK_AMD_SHADER_CORE_PROPERTIES_SPEC_VERSION 1
-@extension("VK_EXT_vertex_attribute_divisor") define VK_AMD_BUFFER_MARKER_EXTENSION_NAME "VK_EXT_vertex_attribute_divisor"
+@extension("VK_EXT_vertex_attribute_divisor") define VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_SPEC_VERSION 2
+@extension("VK_EXT_vertex_attribute_divisor") define VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME "VK_EXT_vertex_attribute_divisor"
 
 // 199
 @extension("VK_NV_shader_subgroup_partitioned") define VK_NV_SHADER_SUBGROUP_PARTITIONED_SPEC_VERSION 1
@@ -536,6 +544,10 @@ define NULL_HANDLE 0
 // 207
 @extension("VK_NV_device_diagnostic_checkpoints") define VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_SPEC_VERSION 2
 @extension("VK_NV_device_diagnostic_checkpoints") define VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME "VK_NV_device_diagnostic_checkpoints"
+
+// 212
+@extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_SPEC_VERSION 2
+@extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME "VK_KHR_vulkan_memory_model"
 
 /////////////
 //  Types  //
@@ -697,6 +709,9 @@ enum VkDescriptorType {
     VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC               = 0x00000008,
     VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC               = 0x00000009,
     VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT                     = 0x0000000a,
+
+    //@extension("VK_EXT_inline_uniform_block") // 139
+    VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT             = 1000138000,
 }
 
 enum VkQueryType {
@@ -1416,6 +1431,10 @@ enum VkStructureType {
     //@extension("VK_NN_vi_surface") // 63
     VK_STRUCTURE_TYPE_VI_SURFACE_CREATE_INFO_NN                 = 1000062000,
 
+    //@extension("VK_EXT_astc_decode_mode") // 68
+    VK_STRUCTURE_TYPE_IMAGE_VIEW_ASTC_DECODE_MODE_EXT           = 1000067000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ASTC_DECODE_FEATURES_EXT  = 1000067001,
+
     //@extension("VK_KHR_device_group_creation") // 71
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES_KHR      = 1000070000,
     VK_STRUCTURE_TYPE_DEVICE_GROUP_DEVICE_CREATE_INFO_KHR       = 1000070001,
@@ -1595,6 +1614,12 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_FILTER_MINMAX_PROPERTIES_EXT = 1000130000,
     VK_STRUCTURE_TYPE_SAMPLER_REDUCTION_MODE_CREATE_INFO_EXT = 1000130001,
 
+    //@extension("VK_EXT_inline_uniform_block") // 139
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INLINE_UNIFORM_BLOCK_FEATURES_EXT     = 1000138000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_INLINE_UNIFORM_BLOCK_PROPERTIES_EXT   = 1000138001,
+    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_INLINE_UNIFORM_BLOCK_EXT         = 1000138002,
+    VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_INLINE_UNIFORM_BLOCK_CREATE_INFO_EXT  = 1000138003,
+
     //@extension("VK_EXT_sample_locations") // 144
     VK_STRUCTURE_TYPE_SAMPLE_LOCATIONS_INFO_EXT                         = 1000143000,
     VK_STRUCTURE_TYPE_RENDER_PASS_SAMPLE_LOCATIONS_BEGIN_INFO_EXT       = 1000143001,
@@ -1667,10 +1692,14 @@ enum VkStructureType {
     //@extension("VK_EXT_vertex_attribute_divisor") // 191
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_EXT   = 1000190000,
     VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_DIVISOR_STATE_CREATE_INFO_EXT       = 1000190001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT     = 1000190002,
 
     //@extension("VK_NV_device_diagnostic_checkpoints") // 207
     VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV                        = 1000206000,
     VK_STRUCTURE_TYPE_QUEUE_FAMILY_CHECKPOINT_PROPERTIES_NV     = 1000206001,
+
+    //@extension("VK_KHR_vulkan_memory_model") // 212
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES_KHR = 1000211000,
 }
 
 enum VkSubpassContents {
@@ -5354,6 +5383,20 @@ class VkViSurfaceCreateInfoNN {
     void*                                       window
 }
 
+@extension("VK_EXT_astc_decode_mode") // 68
+class VkImageViewASTCDecodeModeEXT {
+    VkStructureType                             sType
+    const void*                                 pNext
+    VkFormat                                    decodeMode
+}
+
+@extension("VK_EXT_astc_decode_mode") // 68
+class VkPhysicalDeviceASTCDecodeFeaturesEXT {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkBool32                                    decodeModeSharedExponent
+}
+
 @extension("VK_KHR_device_group_creation") // 71
 class VkPhysicalDeviceGroupPropertiesKHR {
     VkStructureType                                 sType
@@ -6386,6 +6429,40 @@ class VkPhysicalDeviceSamplerFilterMinmaxPropertiesEXT {
     VkBool32                                        filterMinmaxImageComponentMapping
 }
 
+@extension("VK_EXT_inline_uniform_block") // 139
+class VkPhysicalDeviceInlineUniformBlockFeaturesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        inlineUniformBlock
+    VkBool32                                        descriptorBindingInlineUniformBlockUpdateAfterBind
+}
+
+@extension("VK_EXT_inline_uniform_block") // 139
+class VkPhysicalDeviceInlineUniformBlockPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             maxInlineUniformBlockSize
+    u32                                             maxPerStageDescriptorInlineUniformBlocks
+    u32                                             maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks
+    u32                                             maxDescriptorSetInlineUniformBlocks
+    u32                                             maxDescriptorSetUpdateAfterBindInlineUniformBlocks
+}
+
+@extension("VK_EXT_inline_uniform_block") // 139
+class VkWriteDescriptorSetInlineUniformBlockEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             dataSize
+    const void*                                     pData
+}
+
+@extension("VK_EXT_inline_uniform_block") // 139
+class VkDescriptorPoolInlineUniformBlockCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             maxInlineUniformBlockBindings
+}
+
 @extension("VK_EXT_sample_locations") // 144
 class VkSampleLocationEXT {
     f32                                             x
@@ -6796,6 +6873,14 @@ class VkPipelineVertexInputDivisorStateCreateInfoEXT {
     const VkVertexInputBindingDivisorDescriptionEXT*    pVertexBindingDivisors
 }
 
+@extension("VK_EXT_vertex_attribute_divisor") // 191
+class VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        vertexAttributeInstanceRateDivisor
+    VkBool32                                        vertexAttributeInstanceRateZeroDivisor
+}
+
 @extension("VK_NV_device_diagnostic_checkpoints") // 207
 class VkQueueFamilyCheckpointPropertiesNV {
     VkStructureType                                 sType
@@ -6809,6 +6894,14 @@ class VkCheckpointDataNV {
     void*                                           pNext
     VkPipelineStageFlagBits                         stage
     void*                                           pCheckpointMarker
+}
+
+@extension("VK_KHR_vulkan_memory_model") // 212
+class VkPhysicalDeviceVulkanMemoryModelFeaturesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        vulkanMemoryModel
+    VkBool32                                        vulkanMemoryModelDeviceScope
 }
 
 
