@@ -101,7 +101,6 @@ void add_mountinfo();
 #define ALT_PSTORE_LAST_KMSG "/sys/fs/pstore/console-ramoops-0"
 #define BLK_DEV_SYS_DIR "/sys/block"
 
-#define RAFT_DIR "/data/misc/raft"
 #define RECOVERY_DIR "/cache/recovery"
 #define RECOVERY_DATA_DIR "/data/misc/recovery"
 #define UPDATE_ENGINE_LOG_DIR "/data/misc/update_engine_log"
@@ -451,40 +450,6 @@ static void dump_systrace() {
     } else {
         if (remove(systrace_path.c_str())) {
             MYLOGE("Error removing systrace file %s: %s", systrace_path.c_str(), strerror(errno));
-        }
-    }
-}
-
-static void dump_raft() {
-    if (PropertiesHelper::IsUserBuild()) {
-        return;
-    }
-
-    std::string raft_path = ds.GetPath("-raft_log.txt");
-    if (raft_path.empty()) {
-        MYLOGD("raft_path is empty\n");
-        return;
-    }
-
-    struct stat s;
-    if (stat(RAFT_DIR, &s) != 0 || !S_ISDIR(s.st_mode)) {
-        MYLOGD("%s does not exist or is not a directory\n", RAFT_DIR);
-        return;
-    }
-
-    CommandOptions options = CommandOptions::WithTimeout(600).Build();
-    if (!ds.IsZipping()) {
-        // Write compressed and encoded raft logs to stdout if it's not a zipped bugreport.
-        RunCommand("RAFT LOGS", {"logcompressor", "-r", RAFT_DIR}, options);
-        return;
-    }
-
-    RunCommand("RAFT LOGS", {"logcompressor", "-n", "-r", RAFT_DIR, "-o", raft_path}, options);
-    if (!ds.AddZipEntry("raft_log.txt", raft_path)) {
-        MYLOGE("Unable to add raft log %s to zip file\n", raft_path.c_str());
-    } else {
-        if (remove(raft_path.c_str())) {
-            MYLOGE("Error removing raft file %s: %s\n", raft_path.c_str(), strerror(errno));
         }
     }
 }
@@ -2078,9 +2043,6 @@ int run_main(int argc, char* argv[]) {
         // Invoking the following dumpsys calls before dump_traces() to try and
         // keep the system stats as close to its initial state as possible.
         RunDumpsysCritical();
-
-        // TODO: Drop root user and move into dumpstate() once b/28633932 is fixed.
-        dump_raft();
 
         /* collect stack traces from Dalvik and native processes (needs root) */
         dump_traces_path = dump_traces();
