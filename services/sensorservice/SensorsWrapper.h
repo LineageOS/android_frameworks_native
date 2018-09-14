@@ -95,6 +95,95 @@ public:
     }
 };
 
+template<typename T>
+class SensorsWrapperBase : public ISensorsWrapper {
+public:
+    SensorsWrapperBase(sp<T> sensors) :
+        mSensors(sensors) { };
+
+    Return<void> getSensorsList(ISensors::getSensorsList_cb _hidl_cb) override {
+        return mSensors->getSensorsList(_hidl_cb);
+    }
+
+    Return<Result> setOperationMode(OperationMode mode) override {
+        return mSensors->setOperationMode(mode);
+    }
+
+    Return<Result> activate(int32_t sensorHandle, bool enabled) override {
+        return mSensors->activate(sensorHandle, enabled);
+    }
+
+    Return<Result> batch(int32_t sensorHandle, int64_t samplingPeriodNs,
+                         int64_t maxReportLatencyNs) override {
+        return mSensors->batch(sensorHandle, samplingPeriodNs, maxReportLatencyNs);
+    }
+
+    Return<Result> flush(int32_t sensorHandle) override {
+        return mSensors->flush(sensorHandle);
+    }
+
+    Return<Result> injectSensorData(const Event& event) override {
+        return mSensors->injectSensorData(event);
+    }
+
+    Return<void> registerDirectChannel(const SharedMemInfo& mem,
+                                       ISensors::registerDirectChannel_cb _hidl_cb) override {
+        return mSensors->registerDirectChannel(mem, _hidl_cb);
+    }
+
+    Return<Result> unregisterDirectChannel(int32_t channelHandle) override {
+        return mSensors->unregisterDirectChannel(channelHandle);
+    }
+
+    Return<void> configDirectReport(int32_t sensorHandle, int32_t channelHandle,
+                                    RateLevel rate,
+                                    ISensors::configDirectReport_cb _hidl_cb) override {
+        return mSensors->configDirectReport(sensorHandle, channelHandle, rate, _hidl_cb);
+    }
+
+protected:
+    sp<T> mSensors;
+};
+
+class SensorsWrapperV1_0 : public SensorsWrapperBase<hardware::sensors::V1_0::ISensors> {
+public:
+    SensorsWrapperV1_0(sp<hardware::sensors::V1_0::ISensors> sensors) :
+        SensorsWrapperBase(sensors) { };
+
+    bool supportsPolling() const override {
+        return true;
+    }
+
+    bool supportsMessageQueues() const override {
+        return false;
+    }
+
+    Return<void> poll(int32_t maxCount,
+                      hardware::sensors::V1_0::ISensors::poll_cb _hidl_cb) override {
+        return mSensors->poll(maxCount, _hidl_cb);
+    }
+};
+
+class SensorsWrapperV2_0 : public SensorsWrapperBase<hardware::sensors::V2_0::ISensors> {
+public:
+    SensorsWrapperV2_0(sp<hardware::sensors::V2_0::ISensors> sensors)
+        : SensorsWrapperBase(sensors) { };
+
+    bool supportsPolling() const override {
+        return false;
+    }
+
+    bool supportsMessageQueues() const override {
+        return true;
+    }
+
+    Return<Result> initializeMessageQueues(
+            const MQDescriptorSync<Event>& eventQueueDesc,
+            const MQDescriptorSync<uint32_t>& wakeLockDesc) override {
+        return mSensors->initializeMessageQueues(eventQueueDesc, wakeLockDesc);
+    }
+};
+
 }; // namespace SensorServiceUtil
 }; // namespace android
 
