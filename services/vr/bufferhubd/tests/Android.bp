@@ -1,0 +1,16 @@
+cc_test {
+    name: "buffer_hub_binder_service-test",
+    srcs: ["buffer_hub_binder_service-test.cpp"],
+    cflags: [
+        "-DLOG_TAG=\"buffer_hub_binder_service-test\"",
+        "-DTRACE=0",
+        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
+    ],
+    static_libs: ["libbufferhubd"],
+    shared_libs: [
+        "libbase",
+        "libbinder",
+        "liblog",
+        "libutils",
+    ],
+}

@@ -6,6 +6,7 @@
 
 #include <dvr/performance_client_api.h>
 #include <pdx/service_dispatcher.h>
+#include <private/dvr/buffer_hub_binder.h>
 
 #include "buffer_hub.h"
 
@@ -34,11 +35,14 @@ int main(int, char**) {
   else
     ALOGI("New nofile limit is %llu/%llu.", rlim.rlim_cur, rlim.rlim_max);
 
+  CHECK_ERROR(android::dvr::BufferHubBinderService::start() != android::OK,
+              error, "Failed to create bufferhub binder service\n");
+
   dispatcher = android::pdx::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher, error, "Failed to create service dispatcher\n");
 
   service = android::dvr::BufferHubService::Create();
-  CHECK_ERROR(!service, error, "Failed to create buffer hub service\n");
+  CHECK_ERROR(!service, error, "Failed to create bufferhubd service\n");
   dispatcher->AddService(service);
 
   ret = dvrSetSchedulerClass(0, "graphics");
