@@ -2638,6 +2638,7 @@ void CursorInputMapper::configure(nsecs_t when,
                 mOrientation = internalViewport->orientation;
             }
         }
+        getPolicy()->updatePointerDisplay();
         bumpGeneration();
     }
 }
@@ -2783,7 +2784,7 @@ void CursorInputMapper::sync(nsecs_t when) {
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_RELATIVE_Y, deltaY);
-        displayId = ADISPLAY_ID_DEFAULT;
+        displayId = mPointerController->getDisplayId();
     } else {
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, deltaX);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, deltaY);
@@ -3601,6 +3602,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             (mDeviceMode == DEVICE_MODE_DIRECT && mConfig.showTouches)) {
         if (mPointerController == nullptr) {
             mPointerController = getPolicy()->obtainPointerController(getDeviceId());
+            getPolicy()->updatePointerDisplay();
+        } else if (viewportChanged) {
+            getPolicy()->updatePointerDisplay();
         }
     } else {
         mPointerController.clear();
@@ -5387,7 +5391,8 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_X, x);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+        int32_t displayId = mPointerController->getDisplayId();
+        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
                 metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
@@ -6294,6 +6299,7 @@ void TouchInputMapper::abortPointerMouse(nsecs_t when, uint32_t policyFlags) {
 void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         bool down, bool hovering) {
     int32_t metaState = getContext()->getGlobalMetaState();
+    int32_t displayId = mViewport.displayId;
 
     if (mPointerController != nullptr) {
         if (down || hovering) {
@@ -6304,13 +6310,14 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         } else if (!down && !hovering && (mPointerSimple.down || mPointerSimple.hovering)) {
             mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
         }
+        displayId = mPointerController->getDisplayId();
     }
 
     if (mPointerSimple.down && !down) {
         mPointerSimple.down = false;
 
         // Send up.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                  AMOTION_EVENT_ACTION_UP, 0, 0, metaState, mLastRawState.buttonState, 0,
                  /* deviceTimestamp */ 0,
                  1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
@@ -6323,7 +6330,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         mPointerSimple.hovering = false;
 
         // Send hover exit.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState, mLastRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
                 1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
@@ -6338,7 +6345,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.downTime = when;
 
             // Send down.
-            NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+            NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState, mCurrentRawState.buttonState, 0,
                     /* deviceTimestamp */ 0,
                     1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
@@ -6348,7 +6355,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         }
 
         // Send move.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, mCurrentRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
@@ -6362,7 +6369,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.hovering = true;
 
             // Send hover enter.
-            NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+            NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_HOVER_ENTER, 0, 0, metaState,
                     mCurrentRawState.buttonState, 0,
                     /* deviceTimestamp */ 0,
@@ -6373,7 +6380,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         }
 
         // Send hover move.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
                 mCurrentRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
@@ -6395,7 +6402,7 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, mViewport.displayId, policyFlags,
+        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, mCurrentRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &pointerCoords,
@@ -6457,8 +6464,9 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
             ALOG_ASSERT(false);
         }
     }
-
-    NotifyMotionArgs args(when, getDeviceId(), source, mViewport.displayId, policyFlags,
+    int32_t displayId = mPointerController != nullptr ?
+            mPointerController->getDisplayId() : mViewport.displayId;
+    NotifyMotionArgs args(when, getDeviceId(), source, displayId, policyFlags,
             action, actionButton, flags, metaState, buttonState, edgeFlags,
             deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
             xPrecision, yPrecision, downTime);
