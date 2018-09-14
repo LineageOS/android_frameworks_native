@@ -146,8 +146,8 @@ private:
     status_t registerDisplayEventConnection(const sp<Connection>& connection);
 
     void threadMain();
-    Vector<sp<EventThread::Connection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
-                                                           DisplayEventReceiver::Event* event)
+    std::vector<sp<EventThread::Connection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
+                                                                DisplayEventReceiver::Event* event)
             REQUIRES(mMutex);
 
     void removeDisplayEventConnectionLocked(const wp<Connection>& connection) REQUIRES(mMutex);

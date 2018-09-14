@@ -203,13 +203,11 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
     std::unique_lock<std::mutex> lock(mMutex);
     while (mKeepRunning) {
         DisplayEventReceiver::Event event;
-        Vector<sp<EventThread::Connection> > signalConnections;
+        std::vector<sp<EventThread::Connection>> signalConnections;
         signalConnections = waitForEventLocked(&lock, &event);
 
         // dispatch events to listeners...
-        const size_t count = signalConnections.size();
-        for (size_t i = 0; i < count; i++) {
-            const sp<Connection>& conn(signalConnections[i]);
+        for (const sp<Connection>& conn : signalConnections) {
             // now see if we still need to report this event
             status_t err = conn->postEvent(event);
             if (err == -EAGAIN || err == -EWOULDBLOCK) {
@@ -224,7 +222,7 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
                 // handle any other error on the pipe as fatal. the only
                 // reasonable thing to do is to clean-up this connection.
                 // The most common error we'll get here is -EPIPE.
-                removeDisplayEventConnectionLocked(signalConnections[i]);
+                removeDisplayEventConnectionLocked(conn);
             }
         }
     }
@@ -232,11 +230,11 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 
 // This will return when (1) a vsync event has been received, and (2) there was
 // at least one connection interested in receiving it when we started waiting.
-Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
+std::vector<sp<EventThread::Connection>> EventThread::waitForEventLocked(
         std::unique_lock<std::mutex>* lock, DisplayEventReceiver::Event* outEvent) {
-    Vector<sp<EventThread::Connection> > signalConnections;
+    std::vector<sp<EventThread::Connection>> signalConnections;
 
-    while (signalConnections.isEmpty() && mKeepRunning) {
+    while (signalConnections.empty() && mKeepRunning) {
         bool eventPending = false;
         bool waitForVSync = false;
 
@@ -282,12 +280,12 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
                         if (connection->count == 0) {
                             // fired this time around
                             connection->count = -1;
-                            signalConnections.add(connection);
+                            signalConnections.push_back(connection);
                             added = true;
                         } else if (connection->count == 1 ||
                                    (vsyncCount % connection->count) == 0) {
                             // continuous event, and time to report it
-                            signalConnections.add(connection);
+                            signalConnections.push_back(connection);
                             added = true;
                         }
                     }
@@ -297,7 +295,7 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
                     // we don't have a vsync event to process
                     // (timestamp==0), but we have some pending
                     // messages.
-                    signalConnections.add(connection);
+                    signalConnections.push_back(connection);
                 }
                 ++it;
             } else {
