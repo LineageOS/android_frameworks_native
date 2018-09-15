@@ -26,8 +26,6 @@ cc_library_static {
     ],
     shared_libs: [
         "libbinder",
-    ],
-    whole_static_libs: [
         "libselinux",
     ],
 }
@@ -57,5 +55,6 @@ cc_test {
         "liblog",
         "libutils",
         "libbinder",
+        "libselinux",
     ],
 }
