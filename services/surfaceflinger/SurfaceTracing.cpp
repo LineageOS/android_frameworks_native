@@ -52,7 +52,7 @@ status_t SurfaceTracing::disable() {
     return err;
 }
 
-bool SurfaceTracing::isEnabled() {
+bool SurfaceTracing::isEnabled() const {
     return mEnabled;
 }
 
@@ -65,6 +65,15 @@ void SurfaceTracing::traceLayers(const char* where, LayersProto layers) {
     entry->set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry->set_where(where);
     entry->mutable_layers()->Swap(&layers);
+
+    constexpr int maxBufferedEntryCount = 3600;
+    if (mTrace.entry_size() >= maxBufferedEntryCount) {
+        // TODO: flush buffered entries without disabling tracing
+        ALOGE("too many buffered frames; force disable tracing");
+        mEnabled = false;
+        writeProtoFileLocked();
+        mTrace.Clear();
+    }
 }
 
 status_t SurfaceTracing::writeProtoFileLocked() {
@@ -82,6 +91,13 @@ status_t SurfaceTracing::writeProtoFileLocked() {
     }
 
     return NO_ERROR;
+}
+
+void SurfaceTracing::dump(String8& result) const {
+    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+
+    result.appendFormat("Tracing state: %s\n", mEnabled ? "enabled" : "disabled");
+    result.appendFormat("  number of entries: %d\n", mTrace.entry_size());
 }
 
 } // namespace android
