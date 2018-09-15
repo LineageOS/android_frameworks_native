@@ -1,34 +1,3 @@
-subdirs = [
-    "libthermalcallback"
-]
-
-cc_library {
-    name: "libthermalservice",
-
-    srcs: [
-        "aidl/android/os/IThermalEventListener.aidl",
-        "aidl/android/os/IThermalService.aidl",
-        "aidl/android/os/Temperature.cpp",
-    ],
-    aidl: {
-      include_dirs: ["frameworks/native/services/thermalservice/aidl"],
-      export_aidl_headers: true,
-    },
-    export_include_dirs: ["aidl"],
-
-    shared_libs: [
-        "libbinder",
-        "libutils",
-    ],
-
-    cflags: [
-        "-Wall",
-        "-Werror",
-        "-Wunused",
-        "-Wunreachable-code",
-    ],
-}
-
 cc_binary {
     name: "thermalserviced",
 
