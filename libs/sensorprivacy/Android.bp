@@ -28,8 +28,7 @@ cc_library_shared {
     ],
 
     srcs: [
-        "aidl/android/hardware/ISensorPrivacyListener.aidl",
-        "aidl/android/hardware/ISensorPrivacyManager.aidl",
+        ":libsensorprivacy_aidl",
         "SensorPrivacyManager.cpp",
     ],
 
@@ -44,4 +43,13 @@ cc_library_shared {
     export_include_dirs: ["include"],
 
     export_shared_lib_headers: ["libbinder"],
+}
+
+filegroup {
+    name: "libsensorprivacy_aidl",
+    srcs: [
+        "aidl/android/hardware/ISensorPrivacyListener.aidl",
+        "aidl/android/hardware/ISensorPrivacyManager.aidl",
+    ],
+    path: "aidl",
 }
