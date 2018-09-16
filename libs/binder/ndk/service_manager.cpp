@@ -15,7 +15,7 @@
  */
 
 #include <android/binder_manager.h>
-#include "AIBinder_internal.h"
+#include "ibinder_internal.h"
 
 #include <binder/IServiceManager.h>
 
@@ -41,7 +41,7 @@ AIBinder* AServiceManager_getService(const char* instance) {
     sp<IServiceManager> sm = defaultServiceManager();
     sp<IBinder> binder = sm->getService(String16(instance));
 
-    sp<AIBinder> ret = ABpBinder::fromBinder(binder);
+    sp<AIBinder> ret = ABpBinder::lookupOrCreateFromBinder(binder);
     AIBinder_incStrong(ret.get());
     return ret.get();
 }

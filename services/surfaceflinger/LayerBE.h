@@ -87,6 +87,9 @@ public:
     friend class ColorLayer;
     friend class SurfaceFlinger;
 
+    // For unit tests
+    friend class TestableSurfaceFlinger;
+
     LayerBE(Layer* layer, std::string layerName);
     explicit LayerBE(const LayerBE& layer);
 
@@ -94,8 +97,8 @@ public:
     void clear(renderengine::RenderEngine& renderEngine);
     renderengine::Mesh& getMesh() { return mMesh; }
 
-private:
     Layer*const mLayer;
+private:
     // The mesh used to draw the layer in GLES composition mode
     renderengine::Mesh mMesh;
 

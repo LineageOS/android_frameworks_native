@@ -680,6 +680,10 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green
     engine.drawMesh(getBE().mMesh);
 }
 
+void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
+    clearWithOpenGL(renderArea, 0, 0, 0, 0);
+}
+
 void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool /*callIntoHwc*/) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         ALOGE("setCompositionType called without a valid HWC layer");

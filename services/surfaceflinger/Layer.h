@@ -503,6 +503,7 @@ public:
     }
 
     // -----------------------------------------------------------------------
+    void clearWithOpenGL(const RenderArea& renderArea) const;
 
     inline const State& getDrawingState() const { return mDrawingState; }
     inline const State& getCurrentState() const { return mCurrentState; }
@@ -589,6 +590,9 @@ protected:
     };
 
     friend class impl::SurfaceInterceptor;
+
+    // For unit tests
+    friend class TestableSurfaceFlinger;
 
     void commitTransaction(const State& stateToCommit);
 
