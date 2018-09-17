@@ -134,8 +134,9 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
     sp<IBinder> display(sf->getBuiltInDisplay(
             ISurfaceComposer::eDisplayIdMain));
     sp<GraphicBuffer> outBuffer;
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
-            64, 64, false));
+    ASSERT_EQ(NO_ERROR,
+              sf->captureScreen(display, &outBuffer, ui::Dataspace::V0_SRGB,
+                                ui::PixelFormat::RGBA_8888, Rect(), 64, 64, false));
 
     ASSERT_EQ(NO_ERROR, native_window_api_connect(anw.get(),
             NATIVE_WINDOW_API_CPU));
@@ -165,8 +166,9 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
                 &buf));
         ASSERT_EQ(NO_ERROR, anw->queueBuffer(anw.get(), buf, -1));
     }
-    ASSERT_EQ(NO_ERROR, sf->captureScreen(display, &outBuffer, Rect(),
-            64, 64, false));
+    ASSERT_EQ(NO_ERROR,
+              sf->captureScreen(display, &outBuffer, ui::Dataspace::V0_SRGB,
+                                ui::PixelFormat::RGBA_8888, Rect(), 64, 64, false));
 }
 
 TEST_F(SurfaceTest, ConcreteTypeIsSurface) {
@@ -596,14 +598,19 @@ public:
     }
     status_t setActiveColorMode(const sp<IBinder>& /*display*/,
         ColorMode /*colorMode*/) override { return NO_ERROR; }
-    status_t captureScreen(const sp<IBinder>& /*display*/,
-            sp<GraphicBuffer>* /*outBuffer*/,
-            Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
-            bool /*useIdentityTransform*/,
-            Rotation /*rotation*/) override { return NO_ERROR; }
+    status_t captureScreen(const sp<IBinder>& /*display*/, sp<GraphicBuffer>* /*outBuffer*/,
+                           const ui::Dataspace /*reqDataspace*/,
+                           const ui::PixelFormat /*reqPixelFormat*/, Rect /*sourceCrop*/,
+                           uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
+                           bool /*useIdentityTransform*/, Rotation /*rotation*/) override {
+        return NO_ERROR;
+    }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
-                                   sp<GraphicBuffer>* /*outBuffer*/, const Rect& /*sourceCrop*/,
-                                   float /*frameScale*/, bool /*childrenOnly*/) override {
+                                   sp<GraphicBuffer>* /*outBuffer*/,
+                                   const ui::Dataspace /*reqDataspace*/,
+                                   const ui::PixelFormat /*reqPixelFormat*/,
+                                   const Rect& /*sourceCrop*/, float /*frameScale*/,
+                                   bool /*childrenOnly*/) override {
         return NO_ERROR;
     }
     status_t clearAnimationFrameStats() override { return NO_ERROR; }

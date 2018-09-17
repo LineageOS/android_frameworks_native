@@ -887,13 +887,14 @@ status_t SurfaceComposerClient::getHdrCapabilities(const sp<IBinder>& display,
 
 // ----------------------------------------------------------------------------
 
-status_t ScreenshotClient::capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
-                                   uint32_t reqHeight, bool useIdentityTransform, uint32_t rotation,
-                                   sp<GraphicBuffer>* outBuffer) {
+status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
+                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
+                                   uint32_t rotation, sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-    status_t ret = s->captureScreen(display, outBuffer, sourceCrop, reqWidth, reqHeight,
-                                    useIdentityTransform,
+    status_t ret = s->captureScreen(display, outBuffer, reqDataSpace, reqPixelFormat, sourceCrop,
+                                    reqWidth, reqHeight, useIdentityTransform,
                                     static_cast<ISurfaceComposer::Rotation>(rotation));
     if (ret != NO_ERROR) {
         return ret;
@@ -901,21 +902,25 @@ status_t ScreenshotClient::capture(const sp<IBinder>& display, Rect sourceCrop, 
     return ret;
 }
 
-status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,
+status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,
+                                         const ui::Dataspace reqDataSpace,
+                                         const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                          float frameScale, sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-    status_t ret = s->captureLayers(layerHandle, outBuffer, sourceCrop, frameScale,
-                                    false /* childrenOnly */);
+    status_t ret = s->captureLayers(layerHandle, outBuffer, reqDataSpace, reqPixelFormat,
+                                    sourceCrop, frameScale, false /* childrenOnly */);
     return ret;
 }
 
-status_t ScreenshotClient::captureChildLayers(const sp<IBinder>& layerHandle, Rect sourceCrop,
+status_t ScreenshotClient::captureChildLayers(const sp<IBinder>& layerHandle,
+                                              const ui::Dataspace reqDataSpace,
+                                              const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                               float frameScale, sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-    status_t ret = s->captureLayers(layerHandle, outBuffer, sourceCrop, frameScale,
-                                    true /* childrenOnly */);
+    status_t ret = s->captureLayers(layerHandle, outBuffer, reqDataSpace, reqPixelFormat,
+                                    sourceCrop, frameScale, true /* childrenOnly */);
     return ret;
 }
 // ----------------------------------------------------------------------------

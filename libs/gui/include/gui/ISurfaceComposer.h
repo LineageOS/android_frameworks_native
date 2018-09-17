@@ -180,6 +180,36 @@ public:
      * The subregion can be optionally rotated.  It will also be scaled to
      * match the size of the output buffer.
      *
+     * reqDataspace and reqPixelFormat specify the data space and pixel format
+     * of the buffer. The caller should pick the data space and pixel format
+     * that it can consume.
+     *
+     * At the moment, sourceCrop is ignored and is always set to the visible
+     * region (projected display viewport) of the screen.
+     *
+     * reqWidth and reqHeight specifies the size of the buffer.  When either
+     * of them is 0, they are set to the size of the logical display viewport.
+     *
+     * When useIdentityTransform is true, layer transformations are disabled.
+     *
+     * rotation specifies the rotation of the source crop (and the pixels in
+     * it) around its center.
+     */
+    virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
+                                   const ui::Dataspace reqDataspace,
+                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
+                                   Rotation rotation = eRotateNone) = 0;
+    /**
+     * Capture the specified screen. This requires READ_FRAME_BUFFER
+     * permission.  This function will fail if there is a secure window on
+     * screen.
+     *
+     * This function can capture a subregion (the source crop) of the screen
+     * into an sRGB buffer with RGBA_8888 pixel format.
+     * The subregion can be optionally rotated.  It will also be scaled to
+     * match the size of the output buffer.
+     *
      * At the moment, sourceCrop is ignored and is always set to the visible
      * region (projected display viewport) of the screen.
      *
@@ -193,14 +223,33 @@ public:
      */
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
                                    Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   bool useIdentityTransform, Rotation rotation = eRotateNone) = 0;
+                                   bool useIdentityTransform, Rotation rotation = eRotateNone) {
+        return captureScreen(display, outBuffer, ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
+                             sourceCrop, reqWidth, reqHeight, useIdentityTransform, rotation);
+    }
 
     /**
      * Capture a subtree of the layer hierarchy, potentially ignoring the root node.
+     *
+     * reqDataspace and reqPixelFormat specify the data space and pixel format
+     * of the buffer. The caller should pick the data space and pixel format
+     * that it can consume.
      */
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
-                                   sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                   sp<GraphicBuffer>* outBuffer, const ui::Dataspace reqDataspace,
+                                   const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                    float frameScale = 1.0, bool childrenOnly = false) = 0;
+
+    /**
+     * Capture a subtree of the layer hierarchy into an sRGB buffer with RGBA_8888 pixel format,
+     * potentially ignoring the root node.
+     */
+    status_t captureLayers(const sp<IBinder>& layerHandleBinder, sp<GraphicBuffer>* outBuffer,
+                           const Rect& sourceCrop, float frameScale = 1.0,
+                           bool childrenOnly = false) {
+        return captureLayers(layerHandleBinder, outBuffer, ui::Dataspace::V0_SRGB,
+                             ui::PixelFormat::RGBA_8888, sourceCrop, frameScale, childrenOnly);
+    }
 
     /* Clears the frame statistics for animations.
      *

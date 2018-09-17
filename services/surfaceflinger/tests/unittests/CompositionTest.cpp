@@ -189,7 +189,8 @@ void CompositionTest::captureScreenComposition() {
     constexpr bool forSystem = true;
 
     DisplayRenderArea renderArea(mDisplay, sourceCrop, DEFAULT_DISPLAY_WIDTH,
-                                 DEFAULT_DISPLAY_HEIGHT, ui::Transform::ROT_0);
+                                 DEFAULT_DISPLAY_HEIGHT, ui::Dataspace::V0_SRGB,
+                                 ui::Transform::ROT_0);
 
     auto traverseLayers = [this](const LayerVector::Visitor& visitor) {
         return mFlinger.traverseLayersInDisplay(mDisplay, visitor);
@@ -287,7 +288,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, flush()).WillOnce(Return(ByMove(base::unique_fd())));
         EXPECT_CALL(*test->mRenderEngine, finish()).WillOnce(Return(true));
 
-        EXPECT_CALL(*test->mRenderEngine, setOutputDataSpace(ui::Dataspace::SRGB)).Times(1);
+        EXPECT_CALL(*test->mRenderEngine, setOutputDataSpace(_)).Times(1);
         EXPECT_CALL(*test->mRenderEngine, setDisplayMaxLuminance(DEFAULT_DISPLAY_MAX_LUMINANCE))
                 .Times(1);
         // This expectation retires on saturation as setViewportAndProjection is
