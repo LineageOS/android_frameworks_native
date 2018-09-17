@@ -23,9 +23,11 @@
 // Log debug messages about the progress of the algorithm itself.
 #define DEBUG_STRATEGY 0
 
+#include <array>
 #include <inttypes.h>
 #include <limits.h>
 #include <math.h>
+#include <optional>
 
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
@@ -564,7 +566,9 @@ static bool solveLeastSquares(const float* x, const float* y,
  * Optimized unweighted second-order least squares fit. About 2x speed improvement compared to
  * the default implementation
  */
-static float solveUnweightedLeastSquaresDeg2(const float* x, const float* y, size_t count) {
+static std::optional<std::array<float, 3>> solveUnweightedLeastSquaresDeg2(
+        const float* x, const float* y, size_t count) {
+    // Solving y = a*x^2 + b*x + c
     float sxi = 0, sxiyi = 0, syi = 0, sxi2 = 0, sxi3 = 0, sxi2yi = 0, sxi4 = 0;
 
     for (size_t i = 0; i < count; i++) {
@@ -573,8 +577,8 @@ static float solveUnweightedLeastSquaresDeg2(const float* x, const float* y, siz
         float xi2 = xi*xi;
         float xi3 = xi2*xi;
         float xi4 = xi3*xi;
-        float xi2yi = xi2*yi;
         float xiyi = xi*yi;
+        float xi2yi = xi2*yi;
 
         sxi += xi;
         sxi2 += xi2;
@@ -591,13 +595,23 @@ static float solveUnweightedLeastSquaresDeg2(const float* x, const float* y, siz
     float Sx2y = sxi2yi - sxi2*syi / count;
     float Sx2x2 = sxi4 - sxi2*sxi2 / count;
 
-    float numerator = Sxy*Sx2x2 - Sx2y*Sxx2;
     float denominator = Sxx*Sx2x2 - Sxx2*Sxx2;
     if (denominator == 0) {
         ALOGW("division by 0 when computing velocity, Sxx=%f, Sx2x2=%f, Sxx2=%f", Sxx, Sx2x2, Sxx2);
-        return 0;
+        return std::nullopt;
     }
-    return numerator/denominator;
+    // Compute a
+    float numerator = Sx2y*Sxx - Sxy*Sxx2;
+    float a = numerator / denominator;
+
+    // Compute b
+    numerator = Sxy*Sx2x2 - Sx2y*Sxx2;
+    float b = numerator / denominator;
+
+    // Compute c
+    float c = syi/count - b * sxi/count - a * sxi2/count;
+
+    return std::make_optional(std::array<float, 3>({c, b, a}));
 }
 
 bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
@@ -640,20 +654,23 @@ bool LeastSquaresVelocityTrackerStrategy::getEstimator(uint32_t id,
     if (degree > m - 1) {
         degree = m - 1;
     }
-    if (degree >= 1) {
-        if (degree == 2 && mWeighting == WEIGHTING_NONE) { // optimize unweighted, degree=2 fit
+
+    if (degree == 2 && mWeighting == WEIGHTING_NONE) {
+        // Optimize unweighted, quadratic polynomial fit
+        std::optional<std::array<float, 3>> xCoeff = solveUnweightedLeastSquaresDeg2(time, x, m);
+        std::optional<std::array<float, 3>> yCoeff = solveUnweightedLeastSquaresDeg2(time, y, m);
+        if (xCoeff && yCoeff) {
             outEstimator->time = newestMovement.eventTime;
             outEstimator->degree = 2;
             outEstimator->confidence = 1;
-            outEstimator->xCoeff[0] = 0; // only slope is calculated, set rest of coefficients = 0
-            outEstimator->yCoeff[0] = 0;
-            outEstimator->xCoeff[1] = solveUnweightedLeastSquaresDeg2(time, x, m);
-            outEstimator->yCoeff[1] = solveUnweightedLeastSquaresDeg2(time, y, m);
-            outEstimator->xCoeff[2] = 0;
-            outEstimator->yCoeff[2] = 0;
+            for (size_t i = 0; i <= outEstimator->degree; i++) {
+                outEstimator->xCoeff[i] = (*xCoeff)[i];
+                outEstimator->yCoeff[i] = (*yCoeff)[i];
+            }
             return true;
         }
-
+    } else if (degree >= 1) {
+        // General case for an Nth degree polynomial fit
         float xdet, ydet;
         uint32_t n = degree + 1;
         if (solveLeastSquares(time, x, w, m, n, outEstimator->xCoeff, &xdet)
