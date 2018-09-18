@@ -65,7 +65,7 @@ static void usage() {
             "         -l: only list services, do not dump them\n"
             "         -t TIMEOUT_SEC: TIMEOUT to use in seconds instead of default 10 seconds\n"
             "         -T TIMEOUT_MS: TIMEOUT to use in milliseconds instead of default 10 seconds\n"
-            "         --proto: filter services that support dumping data in proto format. Dumps"
+            "         --proto: filter services that support dumping data in proto format. Dumps\n"
             "               will be in proto format.\n"
             "         --priority LEVEL: filter services based on specified priority\n"
             "               LEVEL must be one of CRITICAL | HIGH | NORMAL\n"
