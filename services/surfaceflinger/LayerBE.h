@@ -60,6 +60,7 @@ struct CompositionInfo {
         bool clearClientTarget = false;
         bool supportedPerFrameMetadata = false;
         HdrMetadata hdrMetadata;
+        mat4 colorTransform;
     } hwc;
     struct {
         bool blackoutLayer = false;

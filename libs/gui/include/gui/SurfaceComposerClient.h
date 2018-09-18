@@ -269,6 +269,10 @@ public:
 
         Transaction& destroySurface(const sp<SurfaceControl>& sc);
 
+        // Set a color transform matrix on the given layer on the built-in display.
+        Transaction& setColorTransform(const sp<SurfaceControl>& sc, const mat3& matrix,
+                                       const vec3& translation);
+
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
 

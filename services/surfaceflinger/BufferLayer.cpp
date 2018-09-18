@@ -258,6 +258,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
     getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
     getBE().compositionInfo.hwc.supportedPerFrameMetadata = display->getSupportedPerFrameMetadata();
+    getBE().compositionInfo.hwc.colorTransform = getColorTransform();
 
     setHwcLayerBuffer(display);
 }

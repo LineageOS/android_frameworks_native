@@ -86,7 +86,7 @@ protected:
     void setupLayerTexturing(const Texture& texture) override;
     void setupLayerBlackedOut() override;
     void setupFillWithColor(float r, float g, float b, float a) override;
-    void setupColorTransform(const mat4& colorTransform) override;
+    void setColorTransform(const mat4& colorTransform) override;
     void disableTexturing() override;
     void disableBlending() override;
 

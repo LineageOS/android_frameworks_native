@@ -112,6 +112,20 @@ void CompositionInfo::dumpHwc(std::string& result, const char* tag) const {
         hwc.surfaceDamage.dump(regionString, "surfaceDamage");
         result += regionString.string();
     }
+
+    result += base::StringPrintf("\tcolor transform matrix:\n"
+                                 "\t\t[%f, %f, %f, %f,\n"
+                                 "\t\t %f, %f, %f, %f,\n"
+                                 "\t\t %f, %f, %f, %f,\n"
+                                 "\t\t %f, %f, %f, %f]\n",
+                                 hwc.colorTransform[0][0], hwc.colorTransform[1][0],
+                                 hwc.colorTransform[2][0], hwc.colorTransform[3][0],
+                                 hwc.colorTransform[0][1], hwc.colorTransform[1][1],
+                                 hwc.colorTransform[2][1], hwc.colorTransform[3][1],
+                                 hwc.colorTransform[0][2], hwc.colorTransform[1][2],
+                                 hwc.colorTransform[2][2], hwc.colorTransform[3][2],
+                                 hwc.colorTransform[0][3], hwc.colorTransform[1][3],
+                                 hwc.colorTransform[2][3], hwc.colorTransform[3][3]);
 }
 
 void CompositionInfo::dumpRe(std::string& result, const char* tag) const {

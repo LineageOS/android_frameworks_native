@@ -75,6 +75,7 @@ void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
 
     // Clear out the transform, because it doesn't make sense absent a source buffer
     getBE().compositionInfo.hwc.transform = HWC2::Transform::None;
+    getBE().compositionInfo.hwc.colorTransform = getColorTransform();
 }
 
 // ---------------------------------------------------------------------------

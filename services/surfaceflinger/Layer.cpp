@@ -1546,6 +1546,25 @@ bool Layer::detachChildren() {
     return true;
 }
 
+bool Layer::setColorTransform(const mat4& matrix) {
+    if (mCurrentState.colorTransform == matrix) {
+        return false;
+    }
+    ++mCurrentState.sequence;
+    mCurrentState.colorTransform = matrix;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+const mat4& Layer::getColorTransform() const {
+    return getDrawingState().colorTransform;
+}
+
+bool Layer::hasColorTransform() const {
+    static const mat4 identityMatrix = mat4();
+    return getDrawingState().colorTransform != identityMatrix;
+}
+
 bool Layer::isLegacyDataSpace() const {
     // return true when no higher bits are set
     return !(mCurrentDataSpace & (ui::Dataspace::STANDARD_MASK |

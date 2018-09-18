@@ -77,6 +77,9 @@ status_t layer_state_t::write(Parcel& output) const
         output.writeBool(false);
     }
 
+    memcpy(output.writeInplace(16 * sizeof(float)),
+           colorTransform.asArray(), 16 * sizeof(float));
+
     return NO_ERROR;
 }
 
@@ -129,6 +132,8 @@ status_t layer_state_t::read(const Parcel& input)
     if (input.readBool()) {
         sidebandStream = NativeHandle::create(input.readNativeHandle(), true);
     }
+
+    colorTransform = mat4(static_cast<const float*>(input.readInplace(16 * sizeof(float))));
 
     return NO_ERROR;
 }
@@ -313,6 +318,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eSidebandStreamChanged) {
         what |= eSidebandStreamChanged;
         sidebandStream = other.sidebandStream;
+    }
+    if (other.what & eColorTransformChanged) {
+        what |= eColorTransformChanged;
+        colorTransform = other.colorTransform;
     }
 
     if ((other.what & what) != other.what) {

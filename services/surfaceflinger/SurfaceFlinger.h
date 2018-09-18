@@ -454,7 +454,6 @@ private:
     status_t getCompositionPreference(ui::Dataspace* outDataSpace,
                                       ui::PixelFormat* outPixelFormat) const override;
 
-
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */

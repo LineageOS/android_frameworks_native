@@ -325,7 +325,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, setOutputDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
         EXPECT_CALL(*test->mRenderEngine, setDisplayMaxLuminance(DEFAULT_DISPLAY_MAX_LUMINANCE))
                 .Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setupColorTransform(_)).Times(2);
+        EXPECT_CALL(*test->mRenderEngine, setColorTransform(_)).Times(2);
         // These expectations retire on saturation as the code path these
         // expectations are for appears to make an extra call to them.
         // TODO: Investigate this extra call

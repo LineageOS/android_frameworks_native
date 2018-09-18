@@ -1604,6 +1604,11 @@ void SurfaceFlinger::calculateWorkingSet() {
                 layer->forceClientComposition(displayId);
             }
 
+            // TODO(b/111562338) remove when composer 2.3 is shipped.
+            if (layer->hasColorTransform()) {
+                layer->forceClientComposition(displayId);
+            }
+
             if (layer->getForceClientComposition(displayId)) {
                 ALOGV("[%s] Requesting Client composition", layer->getName().string());
                 layer->setCompositionType(displayId, HWC2::Composition::Client);
@@ -2141,6 +2146,8 @@ void SurfaceFlinger::configureHwcCommonData(const CompositionInfo& compositionIn
     ALOGE_IF(error != HWC2::Error::None,
             "[SF] Failed to set surface damage: %s (%d)",
             to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setColorTransform(compositionInfo.hwc.colorTransform);
 }
 
 void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositionInfo) const
@@ -3091,6 +3098,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     const bool hasClientComposition = getBE().mHwc->hasClientComposition(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
+    mat4 colorMatrix;
     bool applyColorMatrix = false;
     bool needsEnhancedColorMatrix = false;
 
@@ -3109,7 +3117,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         const bool skipClientColorTransform = getBE().mHwc->hasCapability(
             HWC2::Capability::SkipClientColorTransform);
 
-        mat4 colorMatrix;
+        // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
             colorMatrix = mDrawingState.colorMatrix;
@@ -3124,8 +3132,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         if (needsEnhancedColorMatrix) {
             colorMatrix *= mEnhancedSaturationMatrix;
         }
-
-        getRenderEngine().setupColorTransform(colorMatrix);
 
         if (!display->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -3205,6 +3211,19 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
                     break;
                 }
                 case HWC2::Composition::Client: {
+                    if (layer->hasColorTransform()) {
+                        mat4 tmpMatrix;
+                        if (applyColorMatrix) {
+                            tmpMatrix = mDrawingState.colorMatrix;
+                        }
+                        tmpMatrix *= layer->getColorTransform();
+                        if (needsEnhancedColorMatrix) {
+                            tmpMatrix *= mEnhancedSaturationMatrix;
+                        }
+                        getRenderEngine().setColorTransform(tmpMatrix);
+                    } else {
+                        getRenderEngine().setColorTransform(colorMatrix);
+                    }
                     layer->draw(renderArea, clip);
                     break;
                 }
@@ -3217,9 +3236,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         firstLayer = false;
     }
 
-    if (applyColorMatrix || needsEnhancedColorMatrix) {
-        getRenderEngine().setupColorTransform(mat4());
-    }
+    // Clear color transform matrix at the end of the frame.
+    getRenderEngine().setColorTransform(mat4());
 
     // disable scissor at the end of the frame
     getBE().mRenderEngine->disableScissor();
@@ -3595,6 +3613,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     if (what & layer_state_t::eColorChanged) {
         if (layer->setColor(s.color))
             flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eColorTransformChanged) {
+        if (layer->setColorTransform(s.colorTransform)) {
+            flags |= eTraversalNeeded;
+        }
     }
     if (what & layer_state_t::eMatrixChanged) {
         // TODO: b/109894387
@@ -5441,7 +5464,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     engine.clearWithColor(0, 0, 0, alpha);
 
     traverseLayers([&](Layer* layer) {
+        engine.setColorTransform(layer->getColorTransform());
         layer->draw(renderArea, useIdentityTransform);
+        engine.setColorTransform(mat4());
     });
 }
 

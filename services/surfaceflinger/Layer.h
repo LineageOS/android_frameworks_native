@@ -181,6 +181,7 @@ public:
         int32_t api;
 
         sp<NativeHandle> sidebandStream;
+        mat4 colorTransform;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -255,6 +256,9 @@ public:
     virtual void setChildrenDrawingParent(const sp<Layer>& layer);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
     virtual bool detachChildren();
+    virtual bool setColorTransform(const mat4& matrix);
+    virtual const mat4& getColorTransform() const;
+    virtual bool hasColorTransform() const;
 
     // Used only to set BufferStateLayer state
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
