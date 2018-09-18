@@ -26,6 +26,28 @@
 
 #include <string>
 
+namespace {
+
+const char* getCompositionName(HWC2::Composition compositionType) {
+    switch (compositionType) {
+        case HWC2::Composition::Invalid:
+            return "Invalid";
+        case HWC2::Composition::Client:
+            return "Client";
+        case HWC2::Composition::Device:
+            return "Device";
+        case HWC2::Composition::SolidColor:
+            return "Solid Color";
+        case HWC2::Composition::Cursor:
+            return "Cursor";
+        case HWC2::Composition::Sideband:
+            return "Sideband";
+    }
+    return "Invalid";
+}
+
+}  // namespace anonymous
+
 namespace android {
 
 LayerBE::LayerBE(Layer* layer, std::string layerName)
@@ -74,9 +96,12 @@ void CompositionInfo::dumpHwc(std::string& result, const char* tag) const {
     result += base::StringPrintf("\tz=%d\n", hwc.z);
     result += base::StringPrintf("\ttype=%d\n", hwc.type);
     result += base::StringPrintf("\tappId=%d\n", hwc.appId);
-    result += base::StringPrintf("\tdisplayFrame=%4d %4d %4d %4d\n", hwc.displayFrame.left, hwc.displayFrame.top, hwc.displayFrame.right, hwc.displayFrame.bottom);
+    result += base::StringPrintf("\tdisplayFrame=%4d %4d %4d %4d\n", hwc.displayFrame.left,
+                                 hwc.displayFrame.top, hwc.displayFrame.right,
+                                 hwc.displayFrame.bottom);
     result += base::StringPrintf("\talpha=%.3f", hwc.alpha);
-    result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left, hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
+    result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left,
+                                 hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
 
     {
         //
@@ -112,12 +137,16 @@ void CompositionInfo::dump(std::string& result, const char* tag) const
         result += base::StringPrintf("[%s]CompositionInfo\n", tag);
     }
     result += base::StringPrintf("\tLayerName: %s\n", layerName.c_str());
-    result += base::StringPrintf("\tCompositionType: %d\n", compositionType);
+    result += base::StringPrintf("\tCompositionType: %s\n",
+                                 getCompositionName(compositionType));
     result += base::StringPrintf("\tmBuffer = %p\n", mBuffer.get());
     result += base::StringPrintf("\tmBufferSlot=%d\n", mBufferSlot);
-    result += base::StringPrintf("\tdisplayFrame=%4d %4d %4d %4d\n", hwc.displayFrame.left, hwc.displayFrame.top, hwc.displayFrame.right, hwc.displayFrame.bottom);
+    result += base::StringPrintf("\tdisplayFrame=%4d %4d %4d %4d\n", hwc.displayFrame.left,
+                                 hwc.displayFrame.top, hwc.displayFrame.right,
+                                 hwc.displayFrame.bottom);
     result += base::StringPrintf("\talpha=%f\n", hwc.alpha);
-    result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left, hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
+    result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left,
+                                 hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
 
     switch (compositionType) {
         case HWC2::Composition::Device:
