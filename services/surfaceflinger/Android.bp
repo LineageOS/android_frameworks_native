@@ -65,6 +65,7 @@ cc_defaults {
     header_libs: [
         "android.hardware.graphics.composer@2.1-command-buffer",
         "android.hardware.graphics.composer@2.2-command-buffer",
+        "android.hardware.graphics.composer@2.3-command-buffer",
     ],
     export_static_lib_headers: [
         "librenderengine",
