@@ -59,7 +59,6 @@
 namespace android {
 // ---------------------------------------------------------------------------
 class SensorInterface;
-using namespace SensorServiceUtil;
 
 class SensorService :
         public BinderService<SensorService>,
@@ -277,7 +276,7 @@ private:
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
 
-    SensorList mSensors;
+    SensorServiceUtil::SensorList mSensors;
     status_t mInitCheck;
 
     // Socket buffersize used to initialize BitTube. This size depends on whether batching is
@@ -294,7 +293,7 @@ private:
     bool mWakeLockAcquired;
     sensors_event_t *mSensorEventBuffer, *mSensorEventScratch;
     wp<const SensorEventConnection> * mMapFlushEventsToConnections;
-    std::unordered_map<int, RecentEventLogger*> mRecentEvent;
+    std::unordered_map<int, SensorServiceUtil::RecentEventLogger*> mRecentEvent;
     SortedVector< wp<SensorDirectConnection> > mDirectConnections;
     Mode mCurrentOperatingMode;
 
