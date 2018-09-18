@@ -20,14 +20,24 @@
 #include <cstdint>
 #include <memory>
 
+#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
+#include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
+#include <configstore/Utils.h>
+
 #include <gui/ISurfaceComposer.h>
+#include <ui/DisplayStatInfo.h>
 
 #include "DispSync.h"
 #include "DispSyncSource.h"
+#include "EventControlThread.h"
 #include "EventThread.h"
 #include "InjectVSyncSource.h"
 
 namespace android {
+
+using namespace android::hardware::configstore;
+using namespace android::hardware::configstore::V1_0;
 
 #define RETURN_VALUE_IF_INVALID(value) \
     if (handle == nullptr || mConnections.count(handle->id) == 0) return value
@@ -36,17 +46,34 @@ namespace android {
 
 std::atomic<int64_t> Scheduler::sNextId = 0;
 
+Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
+      : mHasSyncFramework(
+                getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasSyncFramework>(true)),
+        mDispSyncPresentTimeOffset(
+                getInt64<ISurfaceFlingerConfigs,
+                         &ISurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs>(0)),
+        mPrimaryHWVsyncEnabled(false),
+        mHWVsyncAvailable(false) {
+    // Note: We create a local temporary with the real DispSync implementation
+    // type temporarily so we can initialize it with the configured values,
+    // before storing it for more generic use using the interface type.
+    auto primaryDispSync = std::make_unique<impl::DispSync>("SchedulerDispSync");
+    primaryDispSync->init(mHasSyncFramework, mDispSyncPresentTimeOffset);
+    mPrimaryDispSync = std::move(primaryDispSync);
+    mEventControlThread = std::make_unique<impl::EventControlThread>(function);
+}
+
 Scheduler::~Scheduler() = default;
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
-        const std::string& connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+        const std::string& connectionName, int64_t phaseOffsetNs,
         impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const int64_t id = sNextId++;
     ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
 
     std::unique_ptr<EventThread> eventThread =
-            makeEventThread(connectionName, dispSync, phaseOffsetNs, resyncCallback,
+            makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs, resyncCallback,
                             interceptCallback);
     auto connection = std::make_unique<Connection>(new ConnectionHandle(id),
                                                    eventThread->createEventConnection(),
@@ -108,4 +135,65 @@ void Scheduler::setPhaseOffset(const sp<Scheduler::ConnectionHandle>& handle, ns
     RETURN_IF_INVALID();
     mConnections[handle->id]->thread->setPhaseOffset(phaseOffset);
 }
+
+void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
+    stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
+    stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
+}
+
+void Scheduler::enableHardwareVsync() {
+    std::lock_guard<std::mutex> lock(mHWVsyncLock);
+    if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
+        mPrimaryDispSync->beginResync();
+        mEventControlThread->setVsyncEnabled(true);
+        mPrimaryHWVsyncEnabled = true;
+    }
+}
+
+void Scheduler::disableHardwareVsync(bool makeUnavailable) {
+    std::lock_guard<std::mutex> lock(mHWVsyncLock);
+    if (mPrimaryHWVsyncEnabled) {
+        mEventControlThread->setVsyncEnabled(false);
+        mPrimaryDispSync->endResync();
+        mPrimaryHWVsyncEnabled = false;
+    }
+    if (makeUnavailable) {
+        mHWVsyncAvailable = false;
+    }
+}
+
+void Scheduler::setVsyncPeriod(const nsecs_t period) {
+    mPrimaryDispSync->reset();
+    mPrimaryDispSync->setPeriod(period);
+    enableHardwareVsync();
+}
+
+void Scheduler::addResyncSample(const nsecs_t timestamp) {
+    bool needsHwVsync = false;
+    { // Scope for the lock
+        std::lock_guard<std::mutex> lock(mHWVsyncLock);
+        if (mPrimaryHWVsyncEnabled) {
+            needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp);
+        }
+    }
+
+    if (needsHwVsync) {
+        enableHardwareVsync();
+    } else {
+        disableHardwareVsync(false);
+    }
+}
+
+void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
+    if (mPrimaryDispSync->addPresentFence(fenceTime)) {
+        enableHardwareVsync();
+    } else {
+        disableHardwareVsync(false);
+    }
+}
+
+void Scheduler::setIgnorePresentFences(bool ignore) {
+    mPrimaryDispSync->setIgnorePresentFences(ignore);
+}
+
 } // namespace android

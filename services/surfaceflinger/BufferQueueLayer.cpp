@@ -230,10 +230,13 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
+
+    const nsecs_t expectedPresentTime = mFlinger->mUseScheduler
+            ? mFlinger->mScheduler->mPrimaryDispSync->expectedPresentTime()
+            : mFlinger->mPrimaryDispSync->expectedPresentTime();
     status_t updateResult =
-            mConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync->expectedPresentTime(),
-                                      &mAutoRefresh, &queuedBuffer, mLastFrameNumberReceived,
-                                      releaseFence);
+            mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh, &queuedBuffer,
+                                      mLastFrameNumberReceived, releaseFence);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.

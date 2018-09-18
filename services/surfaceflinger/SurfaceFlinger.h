@@ -662,12 +662,10 @@ private:
 
     void preComposition();
     void postComposition();
-    void updateCompositorTiming(
-            nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
-            std::shared_ptr<FenceTime>& presentFenceTime);
-    void setCompositorTimingSnapped(
-            nsecs_t vsyncPhase, nsecs_t vsyncInterval,
-            nsecs_t compositeToPresentLatency);
+    void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
+                                std::shared_ptr<FenceTime>& presentFenceTime);
+    void setCompositorTimingSnapped(const DisplayStatInfo& stats,
+                                    nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
     ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& display,
