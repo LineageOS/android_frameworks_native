@@ -108,10 +108,8 @@ cc_library_static {
         "-Wall",
         "-Werror"
     ],
-    clang: true,
 
-    srcs: [
-        "otapreopt_parameters.cpp"],
+    srcs: ["otapreopt_parameters.cpp"],
 
     export_include_dirs: ["."],
 
@@ -123,4 +121,39 @@ cc_library_static {
     ],
 }
 
-subdirs = ["tests"]
+//
+//  OTA Executable
+//
+
+cc_binary {
+    name: "otapreopt",
+    cflags: [
+        "-Wall",
+        "-Werror"
+    ],
+
+    srcs: [
+        "dexopt.cpp",
+        "globals.cpp",
+        "otapreopt.cpp",
+        "utils.cpp",
+    ],
+
+    header_libs: ["dex2oat_headers"],
+
+    static_libs: [
+        "libartimagevalues",
+        "libdiskusage",
+        "libotapreoptparameters",
+    ],
+
+    shared_libs: [
+        "libbase",
+        "libcrypto",
+        "libcutils",
+        "liblog",
+        "liblogwrap",
+        "libselinux",
+        "libutils",
+    ],
+}
