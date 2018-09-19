@@ -59,7 +59,7 @@
 #include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
-#include "StartPropertySetThread.h"
+#include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
 
@@ -303,8 +303,8 @@ public:
 
     struct SkipInitializationTag {};
     static constexpr SkipInitializationTag SkipInitialization;
-    explicit SurfaceFlinger(SkipInitializationTag) ANDROID_API;
-    SurfaceFlinger() ANDROID_API;
+    SurfaceFlinger(surfaceflinger::Factory&, SkipInitializationTag) ANDROID_API;
+    explicit SurfaceFlinger(surfaceflinger::Factory&) ANDROID_API;
 
     // must be called before clients can connect
     void init() ANDROID_API;
@@ -324,6 +324,8 @@ public:
 
     // force full composition on all displays
     void repaintEverything();
+
+    surfaceflinger::Factory& getFactory() { return mFactory; }
 
     // returns the default Display
     sp<const DisplayDevice> getDefaultDisplayDevice() const {
@@ -599,7 +601,7 @@ private:
     void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
                                  const LayerVector::Visitor& visitor);
 
-    sp<StartPropertySetThread> mStartPropertySetThread = nullptr;
+    sp<StartPropertySetThread> mStartPropertySetThread;
 
     /* ------------------------------------------------------------------------
      * Properties
@@ -785,6 +787,8 @@ private:
      * Attributes
      */
 
+    surfaceflinger::Factory& mFactory;
+
     // access must be protected by mStateLock
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
@@ -862,8 +866,7 @@ private:
     nsecs_t mPostFramebufferTime;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
-    std::unique_ptr<SurfaceInterceptor> mInterceptor =
-            std::make_unique<impl::SurfaceInterceptor>(this);
+    std::unique_ptr<SurfaceInterceptor> mInterceptor{mFactory.createSurfaceInterceptor(this)};
     SurfaceTracing mTracing;
     LayerStats mLayerStats;
     TimeStats& mTimeStats = TimeStats::getInstance();
@@ -874,7 +877,7 @@ private:
     bool mLayerTripleBufferingDisabled = false;
 
     // these are thread safe
-    mutable std::unique_ptr<MessageQueue> mEventQueue{std::make_unique<impl::MessageQueue>()};
+    mutable std::unique_ptr<MessageQueue> mEventQueue{mFactory.createMessageQueue()};
     FrameTracker mAnimFrameTracker;
     std::unique_ptr<DispSync> mPrimaryDispSync;
 
@@ -920,17 +923,6 @@ private:
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
     // Applied on Display P3 layers when the render intent is non-colorimetric.
     mat4 mEnhancedSaturationMatrix;
-
-    using CreateBufferQueueFunction =
-            std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
-                               sp<IGraphicBufferConsumer>* /* outConsumer */,
-                               bool /* consumerIsSurfaceFlinger */)>;
-    CreateBufferQueueFunction mCreateBufferQueue;
-
-    using CreateNativeWindowSurfaceFunction =
-            std::function<std::unique_ptr<surfaceflinger::NativeWindowSurface>(
-                    const sp<IGraphicBufferProducer>&)>;
-    CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
 
     SurfaceFlingerBE mBE;
 
