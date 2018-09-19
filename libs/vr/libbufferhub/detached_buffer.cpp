@@ -162,22 +162,5 @@ Status<LocalChannelHandle> DetachedBuffer::Duplicate() {
   return status_or_handle;
 }
 
-sp<GraphicBuffer> DetachedBuffer::TakeGraphicBuffer() {
-  if (!client_.IsValid() || !buffer_.buffer()) {
-    ALOGE("DetachedBuffer::TakeGraphicBuffer: Invalid buffer.");
-    return nullptr;
-  }
-
-  // Technically this should never happen.
-  LOG_FATAL_IF(
-      buffer_.buffer()->isDetachedBuffer(),
-      "DetachedBuffer::TakeGraphicBuffer: GraphicBuffer is already detached.");
-
-  sp<GraphicBuffer> buffer = std::move(buffer_.buffer());
-  buffer->setDetachedBufferHandle(
-      DetachedBufferHandle::Create(client_.TakeChannelHandle()));
-  return buffer;
-}
-
 }  // namespace dvr
 }  // namespace android
