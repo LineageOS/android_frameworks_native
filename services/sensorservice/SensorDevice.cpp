@@ -17,6 +17,7 @@
 #include "SensorService.h"
 
 #include <android-base/logging.h>
+#include <sensor/SensorEventQueue.h>
 #include <sensors/convert.h>
 #include <cutils/atomic.h>
 #include <utils/Errors.h>
@@ -88,21 +89,23 @@ SensorDevice::SensorDevice()
 }
 
 bool SensorDevice::connectHidlService() {
-    bool connected = connectHidlServiceV2_0();
-    if (!connected) {
-        connected = connectHidlServiceV1_0();
+    HalConnectionStatus status = connectHidlServiceV2_0();
+    if (status == HalConnectionStatus::DOES_NOT_EXIST) {
+        status = connectHidlServiceV1_0();
     }
-    return connected;
+    return (status == HalConnectionStatus::CONNECTED);
 }
 
-bool SensorDevice::connectHidlServiceV1_0() {
+SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV1_0() {
     // SensorDevice will wait for HAL service to start if HAL is declared in device manifest.
     size_t retry = 10;
+    HalConnectionStatus connectionStatus = HalConnectionStatus::UNKNOWN;
 
     while (retry-- > 0) {
         sp<V1_0::ISensors> sensors = V1_0::ISensors::getService();
         if (sensors == nullptr) {
             // no sensor hidl service found
+            connectionStatus = HalConnectionStatus::DOES_NOT_EXIST;
             break;
         }
 
@@ -113,25 +116,53 @@ bool SensorDevice::connectHidlServiceV1_0() {
         // which will be done since the size is 0.
         if(mSensors->poll(0, [](auto, const auto &, const auto &) {}).isOk()) {
             // ok to continue
+            connectionStatus = HalConnectionStatus::CONNECTED;
             break;
         }
 
         // hidl service is restarting, pointer is invalid.
         mSensors = nullptr;
+        connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
         ALOGI("%s unsuccessful, remaining retry %zu.", __FUNCTION__, retry);
         mRestartWaiter->wait();
     }
-    return (mSensors != nullptr);
+
+    return connectionStatus;
 }
 
-bool SensorDevice::connectHidlServiceV2_0() {
+SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
+    HalConnectionStatus connectionStatus = HalConnectionStatus::UNKNOWN;
     sp<V2_0::ISensors> sensors = V2_0::ISensors::getService();
-    if (sensors != nullptr) {
+
+    if (sensors == nullptr) {
+        connectionStatus = HalConnectionStatus::DOES_NOT_EXIST;
+    } else {
         mSensors = new SensorServiceUtil::SensorsWrapperV2_0(sensors);
 
-        // TODO: initialize message queues
+        mEventQueue = std::make_unique<EventMessageQueue>(
+                SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
+                true /* configureEventFlagWord */);
+
+        mWakeLockQueue = std::make_unique<WakeLockQueue>(
+                SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
+                true /* configureEventFlagWord */);
+
+        CHECK(mSensors != nullptr && mEventQueue != nullptr &&
+              mWakeLockQueue != nullptr);
+
+        status_t status = StatusFromResult(checkReturn(mSensors->initializeMessageQueues(
+                *mEventQueue->getDesc(),
+                *mWakeLockQueue->getDesc())));
+
+        if (status != NO_ERROR) {
+            connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
+            ALOGE("Failed to initialize message queues (%s)", strerror(-status));
+        } else {
+            connectionStatus = HalConnectionStatus::CONNECTED;
+        }
     }
-    return (mSensors != nullptr);
+
+    return connectionStatus;
 }
 
 void SensorDevice::handleDynamicSensorConnection(int handle, bool connected) {

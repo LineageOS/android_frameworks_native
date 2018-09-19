@@ -21,6 +21,7 @@
 #include "SensorServiceUtils.h"
 #include "SensorsWrapper.h"
 
+#include <fmq/MessageQueue.h>
 #include <sensor/Sensor.h>
 #include <stdint.h>
 #include <sys/types.h>
@@ -162,8 +163,15 @@ private:
     SortedVector<void *> mDisabledClients;
     SensorDevice();
     bool connectHidlService();
-    bool connectHidlServiceV1_0();
-    bool connectHidlServiceV2_0();
+
+    enum HalConnectionStatus {
+        CONNECTED, // Successfully connected to the HAL
+        DOES_NOT_EXIST, // Could not find the HAL
+        FAILED_TO_CONNECT, // Found the HAL but failed to connect/initialize
+        UNKNOWN,
+    };
+    HalConnectionStatus connectHidlServiceV1_0();
+    HalConnectionStatus connectHidlServiceV2_0();
 
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
@@ -190,6 +198,11 @@ private:
             sensors_event_t *dst);
 
     bool mIsDirectReportSupported;
+
+    typedef hardware::MessageQueue<Event, hardware::kSynchronizedReadWrite> EventMessageQueue;
+    typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
+    std::unique_ptr<EventMessageQueue> mEventQueue;
+    std::unique_ptr<WakeLockQueue> mWakeLockQueue;
 };
 
 // ---------------------------------------------------------------------------
