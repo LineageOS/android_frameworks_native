@@ -16,6 +16,8 @@
 
 #include "otapreopt_parameters.h"
 
+#include <cstring>
+
 #include <android-base/logging.h>
 
 #include "dexopt.h"
@@ -248,6 +250,8 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
         case 8: num_args_expected = 16; break;
         // Version 9 adds a new dexopt flag: DEXOPT_GENERATE_APP_IMAGE
         case 9: num_args_expected = 16; break;
+        // Version 10 is a compatibility bump.
+        case 10: num_args_expected = 16; break;
         default:
             LOG(ERROR) << "Don't know how to read arguments for version " << version;
             return false;
@@ -357,6 +361,15 @@ bool OTAPreoptParameters::ReadArgumentsPostV1(uint32_t version, const char** arg
                         << "with the right expectation? index=" << param_index
                         << " num_args=" << num_args_actual;
                 return false;
+        }
+    }
+
+    if (version < 10) {
+        // Do not accept '&' as shared libraries from versions prior to 10. These may lead
+        // to runtime crashes. The server side of version 10+ should send the correct
+        // context in almost all cases (e.g., only for actual shared packages).
+        if (shared_libraries != nullptr && std::string("&") == shared_libraries) {
+            return false;
         }
     }
 
