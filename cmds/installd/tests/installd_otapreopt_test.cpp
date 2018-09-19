@@ -114,11 +114,14 @@ protected:
             case 7: return "7";
             case 8: return "8";
             case 9: return "9";
+            case 10: return "10";
         }
         return nullptr;
     }
 
-    std::vector<const char*> getArgs(uint32_t version, bool versioned) {
+    std::vector<const char*> getArgs(uint32_t version,
+                                     bool versioned,
+                                     const char* shared_libs = "shared.lib") {
         std::vector<const char*> args;
         args.push_back("otapreopt");  // "otapreopt"
         args.push_back("a");  // slot
@@ -135,7 +138,7 @@ protected:
         args.push_back("0");  // dexopt_flags
         args.push_back("speed");  // filter
         args.push_back("!");  // volume
-        args.push_back("shared.lib");  // libs
+        args.push_back(shared_libs);  // libs
 
         if (version > 1) {
             args.push_back("!");  // seinfo
@@ -159,9 +162,11 @@ protected:
         return args;
     }
 
-    void VerifyReadArguments(uint32_t version, bool versioned) {
+    void VerifyReadArguments(uint32_t version,
+                             bool versioned,
+                             const char* shared_libs = "shared.lib") {
         OTAPreoptParameters params;
-        std::vector<const char*> args = getArgs(version, versioned);
+        std::vector<const char*> args = getArgs(version, versioned, shared_libs);
         ASSERT_TRUE(params.ReadArguments(args.size() - 1, args.data()));
         verifyPackageParameters(params, version, versioned, args.data());
     }
@@ -197,6 +202,18 @@ TEST_F(OTAPreoptTest, ReadArgumentsV6) {
 
 TEST_F(OTAPreoptTest, ReadArgumentsV7) {
     VerifyReadArguments(7, true);
+}
+
+TEST_F(OTAPreoptTest, ReadArgumentsV9SharedLibsAmpersand) {
+    OTAPreoptParameters params;
+    std::vector<const char*> args = getArgs(9, true, "&");
+    ASSERT_FALSE(params.ReadArguments(args.size() - 1, args.data()));
+}
+
+TEST_F(OTAPreoptTest, ReadArgumentsV10SharedLibsAmpersand) {
+    OTAPreoptParameters params;
+    std::vector<const char*> args = getArgs(10, true, "&");
+    ASSERT_TRUE(params.ReadArguments(args.size() - 1, args.data()));
 }
 
 TEST_F(OTAPreoptTest, ReadArgumentsFailToManyArgs) {
