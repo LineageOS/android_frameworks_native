@@ -22,12 +22,14 @@
 #include "SensorsWrapper.h"
 
 #include <fmq/MessageQueue.h>
+#include <sensor/SensorEventQueue.h>
 #include <sensor/Sensor.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
+#include <utils/Timers.h>
 
 #include <string>
 #include <unordered_map>
@@ -68,6 +70,8 @@ public:
         time_t mTs; // timestamp of the error
         int mCount;   // number of transport errors observed
     };
+
+    ~SensorDevice();
 
     ssize_t getSensorList(sensor_t const** list);
 
@@ -173,6 +177,9 @@ private:
     HalConnectionStatus connectHidlServiceV1_0();
     HalConnectionStatus connectHidlServiceV2_0();
 
+    ssize_t pollHal(sensors_event_t* buffer, size_t count);
+    ssize_t pollFmq(sensors_event_t* buffer, size_t count);
+
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
     static Return<T> checkReturn(Return<T> &&ret) {
@@ -203,6 +210,10 @@ private:
     typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
     std::unique_ptr<EventMessageQueue> mEventQueue;
     std::unique_ptr<WakeLockQueue> mWakeLockQueue;
+
+    hardware::EventFlag* mEventQueueFlag;
+
+    std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
 };
 
 // ---------------------------------------------------------------------------

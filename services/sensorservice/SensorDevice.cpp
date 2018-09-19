@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include "SensorDevice.h"
+
+#include "android/hardware/sensors/2.0/types.h"
 #include "SensorService.h"
 
 #include <android-base/logging.h>
-#include <sensor/SensorEventQueue.h>
 #include <sensors/convert.h>
 #include <cutils/atomic.h>
 #include <utils/Errors.h>
@@ -30,6 +32,7 @@
 using namespace android::hardware::sensors;
 using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
+using android::hardware::sensors::V2_0::EventQueueFlagBits;
 using android::hardware::hidl_vec;
 using android::SensorDeviceUtils::HidlServiceRegistrationWaiter;
 
@@ -86,6 +89,13 @@ SensorDevice::SensorDevice()
 
     mIsDirectReportSupported =
            (checkReturn(mSensors->unregisterDirectChannel(-1)) != Result::INVALID_OPERATION);
+}
+
+SensorDevice::~SensorDevice() {
+    if (mEventQueueFlag != nullptr) {
+        hardware::EventFlag::deleteEventFlag(&mEventQueueFlag);
+        mEventQueueFlag = nullptr;
+    }
 }
 
 bool SensorDevice::connectHidlService() {
@@ -147,8 +157,10 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
                 SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
                 true /* configureEventFlagWord */);
 
+        hardware::EventFlag::createEventFlag(mEventQueue->getEventFlagWord(), &mEventQueueFlag);
+
         CHECK(mSensors != nullptr && mEventQueue != nullptr &&
-              mWakeLockQueue != nullptr);
+                mWakeLockQueue != nullptr && mEventQueueFlag != nullptr);
 
         status_t status = StatusFromResult(checkReturn(mSensors->initializeMessageQueues(
                 *mEventQueue->getDesc(),
@@ -222,6 +234,19 @@ status_t SensorDevice::initCheck() const {
 }
 
 ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
+    ssize_t eventsRead = 0;
+    if (mSensors->supportsMessageQueues()) {
+        eventsRead = pollFmq(buffer, count);
+    } else if (mSensors->supportsPolling()) {
+        eventsRead = pollHal(buffer, count);
+    } else {
+        ALOGE("Must support polling or FMQ");
+        eventsRead = -1;
+    }
+    return eventsRead;
+}
+
+ssize_t SensorDevice::pollHal(sensors_event_t* buffer, size_t count) {
     if (mSensors == nullptr) return NO_INIT;
 
     ssize_t err;
@@ -265,6 +290,46 @@ ssize_t SensorDevice::poll(sensors_event_t* buffer, size_t count) {
     }
 
     return err;
+}
+
+ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead) {
+    if (mSensors == nullptr) {
+        return NO_INIT;
+    }
+
+    ssize_t eventsRead = 0;
+    size_t availableEvents = mEventQueue->availableToRead();
+
+    if (availableEvents == 0) {
+        uint32_t eventFlagState = 0;
+
+        // Wait for events to become available. This is necessary so that the Event FMQ's read() is
+        // able to be called with the correct number of events to read. If the specified number of
+        // events is not available, then read() would return no events, possibly introducing
+        // additional latency in delivering events to applications.
+        mEventQueueFlag->wait(static_cast<uint32_t>(EventQueueFlagBits::READ_AND_PROCESS),
+                              &eventFlagState);
+        availableEvents = mEventQueue->availableToRead();
+
+        if (availableEvents == 0) {
+            ALOGW("Event FMQ wake without any events");
+        }
+    }
+
+    size_t eventsToRead = std::min({availableEvents, maxNumEventsToRead, mEventBuffer.size()});
+    if (eventsToRead > 0) {
+        if (mEventQueue->read(mEventBuffer.data(), eventsToRead)) {
+            for (size_t i = 0; i < eventsToRead; i++) {
+                convertToSensorEvent(mEventBuffer[i], &buffer[i]);
+            }
+            eventsRead = eventsToRead;
+        } else {
+            ALOGW("Failed to read %zu events, currently %zu events available",
+                    eventsToRead, availableEvents);
+        }
+    }
+
+    return eventsRead;
 }
 
 void SensorDevice::autoDisable(void *ident, int handle) {
