@@ -2554,6 +2554,37 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
     }
 }
 
+TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
+    sp<SurfaceControl> mGrandChild =
+        mClient->createSurface(String8("Grand Child"), 10, 10,
+                PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
+    fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
+
+    {
+        SCOPED_TRACE("Grandchild visible");
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->checkPixel(64, 64, 111, 111, 111);
+    }
+
+    mChild->clear();
+
+    {
+        SCOPED_TRACE("After destroying child");
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->expectFGColor(64, 64);
+    }
+
+    asTransaction([&](Transaction& t) {
+         t.reparent(mGrandChild, mFGSurfaceControl->getHandle());
+    });
+
+    {
+        SCOPED_TRACE("After reparenting grandchild");
+        ScreenCapture::captureScreen(&mCapture);
+        mCapture->checkPixel(64, 64, 111, 111, 111);
+    }
+}
+
 TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
     sp<SurfaceComposerClient> mNewComposerClient = new SurfaceComposerClient;
     sp<SurfaceControl> mChildNewClient =
