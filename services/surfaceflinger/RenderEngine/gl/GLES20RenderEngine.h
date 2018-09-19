@@ -131,9 +131,9 @@ private:
 
     mat4 mSrgbToDisplayP3;
     mat4 mDisplayP3ToSrgb;
-    mat3 mSrgbToXyz;
-    mat3 mBt2020ToXyz;
-    mat3 mDisplayP3ToXyz;
+    mat4 mSrgbToXyz;
+    mat4 mBt2020ToXyz;
+    mat4 mDisplayP3ToXyz;
     mat4 mXyzToSrgb;
     mat4 mXyzToDisplayP3;
     mat4 mXyzToBt2020;

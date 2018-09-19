@@ -29,7 +29,7 @@ class String8;
 
 namespace renderengine {
 
-class Description;
+struct Description;
 
 namespace gl {
 
