@@ -96,7 +96,7 @@ public:
     virtual void fillRegionWithColor(const Region& region, float red, float green,
                                      float blue, float alpha) = 0;
 
-    virtual void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) = 0;
+    virtual void setScissor(const Rect& region) = 0;
     virtual void disableScissor() = 0;
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;

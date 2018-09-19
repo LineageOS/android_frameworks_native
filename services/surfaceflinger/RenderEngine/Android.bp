@@ -26,6 +26,7 @@ cc_defaults {
         "libGLESv2",
         "libgui",
         "liblog",
+    	"libnativewindow",
         "libui",
         "libutils",
     ],

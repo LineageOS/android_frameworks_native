@@ -47,21 +47,23 @@ public:
     int32_t queryBlueSize() const override;
     int32_t queryAlphaSize() const override;
 
-    int32_t queryWidth() const override;
-    int32_t queryHeight() const override;
-
     bool getAsync() const { return mAsync; }
     EGLSurface getEGLSurface() const { return mEGLSurface; }
 
+    int32_t getWidth() const override;
+    int32_t getHeight() const override;
+
 private:
     EGLint queryConfig(EGLint attrib) const;
-    EGLint querySurface(EGLint attrib) const;
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
 
     bool mCritical = false;
     bool mAsync = false;
+
+    int32_t mSurfaceWidth = 0;
+    int32_t mSurfaceHeight = 0;
 
     ANativeWindow* mWindow = nullptr;
     EGLSurface mEGLSurface = EGL_NO_SURFACE;

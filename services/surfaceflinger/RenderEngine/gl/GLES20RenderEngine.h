@@ -64,7 +64,7 @@ public:
     void clearWithColor(float red, float green, float blue, float alpha) override;
     void fillRegionWithColor(const Region& region, float red, float green, float blue,
                              float alpha) override;
-    void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) override;
+    void setScissor(const Rect& region) override;
     void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
@@ -139,6 +139,8 @@ private:
     mat4 mXyzToBt2020;
 
     bool mRenderToFbo = false;
+    int32_t mSurfaceHeight = 0;
+    int32_t mFboHeight = 0;
 
     // Current dataspace of layer being rendered
     ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;
