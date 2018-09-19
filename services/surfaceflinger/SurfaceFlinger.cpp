@@ -2427,31 +2427,34 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const wp<IBinder>& displayToken, int32_t displayId, const DisplayDeviceState& state,
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
-    bool hasWideColorGamut = false;
-    std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
-    HdrCapabilities hdrCapabilities;
-    int32_t supportedPerFrameMetadata = 0;
+    DisplayDeviceCreationArgs creationArgs(this, displayToken, state.type, displayId);
+    creationArgs.isSecure = state.isSecure;
+    creationArgs.displaySurface = dispSurface;
+    creationArgs.hasWideColorGamut = false;
+    creationArgs.supportedPerFrameMetadata = 0;
 
     if (useColorManagement && displayId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (ColorMode colorMode : modes) {
             if (isWideColorMode(colorMode)) {
-                hasWideColorGamut = true;
+                creationArgs.hasWideColorGamut = true;
             }
 
             std::vector<RenderIntent> renderIntents =
                     getHwComposer().getRenderIntents(displayId, colorMode);
-            hwcColorModes.emplace(colorMode, renderIntents);
+            creationArgs.hwcColorModes.emplace(colorMode, renderIntents);
         }
     }
 
     if (displayId >= 0) {
-        getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
-        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(displayId);
+        getHwComposer().getHdrCapabilities(displayId, &creationArgs.hdrCapabilities);
+        creationArgs.supportedPerFrameMetadata =
+                getHwComposer().getSupportedPerFrameMetadata(displayId);
     }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
+    creationArgs.nativeWindow = nativeWindow;
 
     /*
      * Create our display's surface
@@ -2460,8 +2463,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
-    const int displayWidth = renderSurface->getWidth();
-    const int displayHeight = renderSurface->getHeight();
+    creationArgs.displayWidth = renderSurface->getWidth();
+    creationArgs.displayHeight = renderSurface->getHeight();
+    creationArgs.renderSurface = std::move(renderSurface);
 
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
@@ -2474,18 +2478,14 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
-    const int displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY ?
-        primaryDisplayOrientation : DisplayState::eOrientationDefault;
+    creationArgs.displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY
+            ? primaryDisplayOrientation
+            : DisplayState::eOrientationDefault;
 
     // virtual displays are always considered enabled
-    auto initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
+    creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
-    sp<DisplayDevice> display =
-            new DisplayDevice(this, state.type, displayId, state.isSecure, displayToken,
-                              nativeWindow, dispSurface, std::move(renderSurface), displayWidth,
-                              displayHeight, displayInstallOrientation, hasWideColorGamut,
-                              hdrCapabilities, supportedPerFrameMetadata, hwcColorModes,
-                              initialPowerMode);
+    sp<DisplayDevice> display = new DisplayDevice(std::move(creationArgs));
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2493,7 +2493,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     ColorMode defaultColorMode = ColorMode::NATIVE;
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
-    if (hasWideColorGamut) {
+    if (display->hasWideColorGamut()) {
         defaultColorMode = ColorMode::SRGB;
         defaultDataSpace = Dataspace::SRGB;
     }
