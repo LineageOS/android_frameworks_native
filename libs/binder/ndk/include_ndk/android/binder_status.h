@@ -89,6 +89,96 @@ enum {
  */
 typedef int32_t binder_exception_t;
 
+/**
+ * This is a helper class that encapsulates a standard way to keep track of and chain binder errors
+ * along with service specific errors.
+ *
+ * It is not required to be used in order to parcel/receive transactions, but it is required in
+ * order to be compatible with standard AIDL transactions.
+ */
+struct AStatus;
+typedef struct AStatus AStatus;
+
+/**
+ * New status which is considered a success.
+ */
+__attribute__((warn_unused_result)) AStatus* AStatus_newOk();
+
+/**
+ * New status with exception code.
+ */
+__attribute__((warn_unused_result)) AStatus* AStatus_fromExceptionCode(
+        binder_exception_t exception);
+
+/**
+ * New status with exception code and message.
+ */
+__attribute__((warn_unused_result)) AStatus* AStatus_fromExceptionCodeWithMessage(
+        binder_exception_t exception, const char* message);
+
+/**
+ * New status with a service speciic error.
+ *
+ * This is considered to be EX_TRANSACTION_FAILED with extra information.
+ */
+__attribute__((warn_unused_result)) AStatus* AStatus_fromServiceSpecificError(
+        int32_t serviceSpecific);
+
+/**
+ * New status with a service specific error and message.
+ *
+ * This is considered to be EX_TRANSACTION_FAILED with extra information.
+ */
+__attribute__((warn_unused_result)) AStatus* AStatus_fromServiceSpecificErrorWithMessage(
+        int32_t serviceSpecific, const char* message);
+
+/**
+ * New status with binder_status_t. This is typically for low level failures when a binder_status_t
+ * is returned by an API on AIBinder or AParcel, and that is to be returned from a method returning
+ * an AStatus instance.
+ */
+__attribute__((warn_unused_result)) AStatus* AStatus_fromStatus(binder_status_t status);
+
+/**
+ * Whether this object represents a successful transaction. If this function returns true, then
+ * AStatus_getExceptionCode will return EX_NONE.
+ */
+bool AStatus_isOk(const AStatus* status);
+
+/**
+ * The exception that this status object represents.
+ */
+binder_exception_t AStatus_getExceptionCode(const AStatus* status);
+
+/**
+ * The service specific error if this object represents one. This function will only ever return a
+ * non-zero result if AStatus_getExceptionCode returns EX_SERVICE_SPECIFIC. If this function returns
+ * 0, the status object may still represent a different exception or status. To find out if this
+ * transaction as a whole is okay, use AStatus_isOk instead.
+ */
+int32_t AStatus_getServiceSpecificError(const AStatus* status);
+
+/**
+ * The status if this object represents one. This function will only ever return a non-zero result
+ * if AStatus_getExceptionCode returns EX_TRANSACTION_FAILED. If this function return 0, the status
+ * object may represent a different exception or a service specific error. To find out if this
+ * transaction as a whole is okay, use AStatus_isOk instead.
+ */
+binder_status_t AStatus_getStatus(const AStatus* status);
+
+/**
+ * If there is a message associated with this status, this will return that message. If there is no
+ * message, this will return an empty string.
+ *
+ * The returned string has the lifetime of the status object passed into this function.
+ */
+const char* AStatus_getMessage(const AStatus* status);
+
+/**
+ * Deletes memory associated with the status instance.
+ */
+void AStatus_delete(AStatus** status);
+
 __END_DECLS
 
 /** @} */

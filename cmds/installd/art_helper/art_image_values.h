@@ -14,26 +14,21 @@
  * limitations under the License.
  */
 
-#pragma once
+#ifndef FRAMEWORKS_NATIVE_CMDS_INSTALLD_ART_HELPER_ART_IMAGE_VALUES_H
+#define FRAMEWORKS_NATIVE_CMDS_INSTALLD_ART_HELPER_ART_IMAGE_VALUES_H
 
-#include <android/binder_status.h>
+#include <cstdint>
 
-#include <binder/Status.h>
-#include <utils/Errors.h>
+namespace android {
+namespace installd {
+namespace art {
 
-struct AStatus {
-    AStatus() {} // ok
-    AStatus(::android::binder::Status&& status) : mStatus(std::move(status)) {}
+uint32_t GetImageBaseAddress();
+int32_t GetImageMinBaseAddressDelta();
+int32_t GetImageMaxBaseAddressDelta();
 
-    ::android::binder::Status* get() { return &mStatus; }
-    const ::android::binder::Status* get() const { return &mStatus; }
+}  // namespace art
+}  // namespace installd
+}  // namespace android
 
-private:
-    ::android::binder::Status mStatus;
-};
-
-// This collapses the statuses into the declared range.
-binder_status_t PruneStatusT(android::status_t status);
-
-// This collapses the exception into the declared range.
-binder_exception_t PruneException(int32_t exception);
+#endif  // FRAMEWORKS_NATIVE_CMDS_INSTALLD_ART_HELPER_ART_IMAGE_VALUES_H
