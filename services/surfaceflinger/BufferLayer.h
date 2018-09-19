@@ -136,6 +136,7 @@ public:
 
     bool isOpaque(const Layer::State& s) const override;
     virtual bool isHDRLayer() const { return false; }
+    virtual bool hasHdrDisplay() const { return false; }
     virtual bool canAllowGPUForProtected() const { return false; }
     virtual bool isScreenshot() const { return false; }
 
