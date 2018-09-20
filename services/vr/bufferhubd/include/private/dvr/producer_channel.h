@@ -1,8 +1,6 @@
 #ifndef ANDROID_DVR_BUFFERHUBD_PRODUCER_CHANNEL_H_
 #define ANDROID_DVR_BUFFERHUBD_PRODUCER_CHANNEL_H_
 
-#include "buffer_hub.h"
-
 #include <functional>
 #include <memory>
 #include <vector>
@@ -11,6 +9,7 @@
 #include <pdx/file_handle.h>
 #include <pdx/rpc/buffer_wrapper.h>
 #include <private/dvr/bufferhub_rpc.h>
+#include <private/dvr/buffer_hub.h>
 #include <private/dvr/ion_buffer.h>
 
 namespace android {

@@ -1,5 +1,5 @@
-#include "buffer_channel.h"
-#include "producer_channel.h"
+#include <private/dvr/buffer_channel.h>
+#include <private/dvr/producer_channel.h>
 
 using android::pdx::BorrowedHandle;
 using android::pdx::ErrorStatus;

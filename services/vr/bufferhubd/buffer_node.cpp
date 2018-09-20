@@ -1,6 +1,5 @@
-#include "buffer_node.h"
-
 #include <private/dvr/buffer_hub_defs.h>
+#include <private/dvr/buffer_node.h>
 
 namespace android {
 namespace dvr {

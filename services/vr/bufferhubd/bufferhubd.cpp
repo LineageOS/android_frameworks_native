@@ -1,14 +1,12 @@
 #include <sched.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
-#include <log/log.h>
-#include <sys/resource.h>
-
 #include <dvr/performance_client_api.h>
+#include <log/log.h>
 #include <pdx/service_dispatcher.h>
+#include <private/dvr/buffer_hub.h>
 #include <private/dvr/buffer_hub_binder.h>
-
-#include "buffer_hub.h"
 
 int main(int, char**) {
   int ret = -1;

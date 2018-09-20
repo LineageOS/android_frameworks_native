@@ -1,11 +1,10 @@
 #ifndef ANDROID_DVR_BUFFERHUBD_BUFFER_CHANNEL_H_
 #define ANDROID_DVR_BUFFERHUBD_BUFFER_CHANNEL_H_
 
-#include "buffer_hub.h"
-#include "buffer_node.h"
-
 #include <pdx/channel_handle.h>
 #include <pdx/file_handle.h>
+#include <private/dvr/buffer_hub.h>
+#include <private/dvr/buffer_node.h>
 
 namespace android {
 namespace dvr {

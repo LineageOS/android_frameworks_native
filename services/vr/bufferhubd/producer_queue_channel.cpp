@@ -1,9 +1,8 @@
-#include "producer_queue_channel.h"
-
 #include <inttypes.h>
 
-#include "consumer_queue_channel.h"
-#include "producer_channel.h"
+#include <private/dvr/consumer_queue_channel.h>
+#include <private/dvr/producer_channel.h>
+#include <private/dvr/producer_queue_channel.h>
 
 using android::pdx::ErrorStatus;
 using android::pdx::Message;

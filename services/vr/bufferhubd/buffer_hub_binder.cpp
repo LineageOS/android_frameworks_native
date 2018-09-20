@@ -1,8 +1,7 @@
-#include <private/dvr/buffer_hub_binder.h>
-
 #include <stdio.h>
 
 #include <log/log.h>
+#include <private/dvr/buffer_hub_binder.h>
 
 namespace android {
 namespace dvr {

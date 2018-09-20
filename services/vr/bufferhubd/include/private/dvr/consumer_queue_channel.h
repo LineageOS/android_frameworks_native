@@ -1,14 +1,12 @@
 #ifndef ANDROID_DVR_BUFFERHUBD_CONSUMER_QUEUE_CHANNEL_H_
 #define ANDROID_DVR_BUFFERHUBD_CONSUMER_QUEUE_CHANNEL_H_
 
-#include "buffer_hub.h"
-
-#include <private/dvr/bufferhub_rpc.h>
-
 #include <queue>
 
-#include "consumer_channel.h"
-#include "producer_queue_channel.h"
+#include <private/dvr/bufferhub_rpc.h>
+#include <private/dvr/buffer_hub.h>
+#include <private/dvr/consumer_channel.h>
+#include <private/dvr/producer_queue_channel.h>
 
 namespace android {
 namespace dvr {
