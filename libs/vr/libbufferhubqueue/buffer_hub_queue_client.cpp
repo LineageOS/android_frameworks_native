@@ -440,6 +440,10 @@ ProducerQueue::ProducerQueue(const ProducerQueueConfig& config,
 Status<std::vector<size_t>> ProducerQueue::AllocateBuffers(
     uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
     uint64_t usage, size_t buffer_count) {
+  if (buffer_count == 0) {
+    return {std::vector<size_t>()};
+  }
+
   if (capacity() + buffer_count > kMaxQueueCapacity) {
     ALOGE(
         "ProducerQueue::AllocateBuffers: queue is at capacity: %zu, cannot "
@@ -481,10 +485,13 @@ Status<std::vector<size_t>> ProducerQueue::AllocateBuffers(
     }
   }
 
-  if (buffer_slots.size() == 0) {
-    // Error out if no buffer is allocated and improted.
-    ALOGE_IF(TRACE, "ProducerQueue::AllocateBuffers: no buffer allocated.");
-    ErrorStatus(ENOMEM);
+  if (buffer_slots.size() != buffer_count) {
+    // Error out if the count of imported buffer(s) is not correct.
+    ALOGE(
+        "ProducerQueue::AllocateBuffers: requested to import %zu "
+        "buffers, but actually imported %zu buffers.",
+        buffer_count, buffer_slots.size());
+    return ErrorStatus(ENOMEM);
   }
 
   return {std::move(buffer_slots)};
@@ -501,11 +508,6 @@ Status<size_t> ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
     ALOGE("ProducerQueue::AllocateBuffer: Failed to allocate buffer: %s",
           status.GetErrorMessage().c_str());
     return status.error_status();
-  }
-
-  if (status.get().size() == 0) {
-    ALOGE_IF(TRACE, "ProducerQueue::AllocateBuffer: no buffer allocated.");
-    ErrorStatus(ENOMEM);
   }
 
   return {status.get()[0]};
