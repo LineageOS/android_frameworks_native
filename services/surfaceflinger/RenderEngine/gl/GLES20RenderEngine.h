@@ -64,12 +64,11 @@ public:
     void clearWithColor(float red, float green, float blue, float alpha) override;
     void fillRegionWithColor(const Region& region, float red, float green, float blue,
                              float alpha) override;
-    void setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) override;
+    void setScissor(const Rect& region) override;
     void disableScissor() override;
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
-    void readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) override;
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
@@ -139,6 +138,8 @@ private:
     mat4 mXyzToBt2020;
 
     bool mRenderToFbo = false;
+    int32_t mSurfaceHeight = 0;
+    int32_t mFboHeight = 0;
 
     // Current dataspace of layer being rendered
     ui::Dataspace mDataSpace = ui::Dataspace::UNKNOWN;

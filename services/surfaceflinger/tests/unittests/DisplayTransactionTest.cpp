@@ -284,8 +284,8 @@ struct DisplayVariant {
         EXPECT_CALL(*test->mRenderSurface, setAsync(static_cast<bool>(ASYNC))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setCritical(static_cast<bool>(CRITICAL))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setNativeWindow(test->mNativeWindow.get())).Times(1);
-        EXPECT_CALL(*test->mRenderSurface, queryWidth()).WillOnce(Return(WIDTH));
-        EXPECT_CALL(*test->mRenderSurface, queryHeight()).WillOnce(Return(HEIGHT));
+        EXPECT_CALL(*test->mRenderSurface, getWidth()).WillOnce(Return(WIDTH));
+        EXPECT_CALL(*test->mRenderSurface, getHeight()).WillOnce(Return(HEIGHT));
     }
 
     static void setupFramebufferConsumerBufferQueueCallExpectations(DisplayTransactionTest* test) {
@@ -1757,8 +1757,8 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
     EXPECT_CALL(*displaySurface, resizeBuffers(newWidth, oldHeight)).Times(1);
     EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
-    EXPECT_CALL(*renderSurface, queryWidth()).WillOnce(Return(newWidth));
-    EXPECT_CALL(*renderSurface, queryHeight()).WillOnce(Return(oldHeight));
+    EXPECT_CALL(*renderSurface, getWidth()).WillOnce(Return(newWidth));
+    EXPECT_CALL(*renderSurface, getHeight()).WillOnce(Return(oldHeight));
 
     // --------------------------------------------------------------------
     // Invocation
@@ -1798,8 +1798,8 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
     EXPECT_CALL(*displaySurface, resizeBuffers(oldWidth, newHeight)).Times(1);
     EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
-    EXPECT_CALL(*renderSurface, queryWidth()).WillOnce(Return(oldWidth));
-    EXPECT_CALL(*renderSurface, queryHeight()).WillOnce(Return(newHeight));
+    EXPECT_CALL(*renderSurface, getWidth()).WillOnce(Return(oldWidth));
+    EXPECT_CALL(*renderSurface, getHeight()).WillOnce(Return(newHeight));
 
     // --------------------------------------------------------------------
     // Invocation

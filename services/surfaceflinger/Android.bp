@@ -46,6 +46,7 @@ cc_defaults {
         "libhwbinder",
         "liblayers_proto",
         "liblog",
+    	"libnativewindow",
         "libpdx_default_transport",
         "libprotobuf-cpp-lite",
         "libsync",

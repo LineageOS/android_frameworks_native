@@ -543,8 +543,8 @@ void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
 
     ANativeWindow* const window = mNativeWindow.get();
     mSurface->setNativeWindow(window);
-    mDisplayWidth = mSurface->queryWidth();
-    mDisplayHeight = mSurface->queryHeight();
+    mDisplayWidth = mSurface->getWidth();
+    mDisplayHeight = mSurface->getHeight();
 
     LOG_FATAL_IF(mDisplayWidth != newWidth,
                 "Unable to set new width to %d", newWidth);

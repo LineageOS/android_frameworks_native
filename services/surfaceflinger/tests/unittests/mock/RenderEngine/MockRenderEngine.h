@@ -50,12 +50,11 @@ public:
     bool waitFence(base::unique_fd fd) override { return waitFence(&fd); };
     MOCK_METHOD4(clearWithColor, void(float, float, float, float));
     MOCK_METHOD5(fillRegionWithColor, void(const Region&, float, float, float, float));
-    MOCK_METHOD4(setScissor, void(uint32_t, uint32_t, uint32_t, uint32_t));
+    MOCK_METHOD1(setScissor, void(const Rect&));
     MOCK_METHOD0(disableScissor, void());
     MOCK_METHOD2(genTextures, void(size_t, uint32_t*));
     MOCK_METHOD2(deleteTextures, void(size_t, uint32_t const*));
     MOCK_METHOD2(bindExternalTextureImage, void(uint32_t, const renderengine::Image&));
-    MOCK_METHOD5(readPixels, void(size_t, size_t, size_t, size_t, uint32_t*));
     MOCK_CONST_METHOD0(checkErrors, void());
     MOCK_METHOD4(setViewportAndProjection,
                  void(size_t, size_t, Rect, ui::Transform::orientation_flags));
@@ -91,8 +90,8 @@ public:
     MOCK_CONST_METHOD0(queryGreenSize, int32_t());
     MOCK_CONST_METHOD0(queryBlueSize, int32_t());
     MOCK_CONST_METHOD0(queryAlphaSize, int32_t());
-    MOCK_CONST_METHOD0(queryWidth, int32_t());
-    MOCK_CONST_METHOD0(queryHeight, int32_t());
+    MOCK_CONST_METHOD0(getWidth, int32_t());
+    MOCK_CONST_METHOD0(getHeight, int32_t());
 };
 
 class Image : public renderengine::Image {

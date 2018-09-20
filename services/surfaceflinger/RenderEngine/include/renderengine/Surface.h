@@ -38,8 +38,8 @@ public:
     virtual int32_t queryBlueSize() const = 0;
     virtual int32_t queryAlphaSize() const = 0;
 
-    virtual int32_t queryWidth() const = 0;
-    virtual int32_t queryHeight() const = 0;
+    virtual int32_t getWidth() const = 0;
+    virtual int32_t getHeight() const = 0;
 };
 
 }  // namespace renderengine

@@ -444,12 +444,17 @@ bool GLES20RenderEngine::setCurrentSurface(const Surface& surface) {
         if (success && glSurface.getAsync()) {
             eglSwapInterval(mEGLDisplay, 0);
         }
+        if (success) {
+            mSurfaceHeight = glSurface.getHeight();
+        }
     }
+
     return success;
 }
 
 void GLES20RenderEngine::resetCurrentSurface() {
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    mSurfaceHeight = 0;
 }
 
 base::unique_fd GLES20RenderEngine::flush() {
@@ -563,8 +568,12 @@ void GLES20RenderEngine::fillRegionWithColor(const Region& region, float red, fl
     drawMesh(mesh);
 }
 
-void GLES20RenderEngine::setScissor(uint32_t left, uint32_t bottom, uint32_t right, uint32_t top) {
-    glScissor(left, bottom, right, top);
+void GLES20RenderEngine::setScissor(const Rect& region) {
+    // Invert y-coordinate to map to GL-space.
+    int32_t canvasHeight = mRenderToFbo ? mFboHeight : mSurfaceHeight;
+    int32_t glBottom = canvasHeight - region.bottom;
+
+    glScissor(region.left, glBottom, region.getWidth(), region.getHeight());
     glEnable(GL_SCISSOR_TEST);
 }
 
@@ -592,10 +601,6 @@ void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
     }
 }
 
-void GLES20RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
-    glReadPixels(l, b, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-}
-
 status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
     EGLImageKHR eglImage = glFramebuffer->getEGLImage();
@@ -612,6 +617,7 @@ status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
                            GL_TEXTURE_2D, textureName, 0);
 
     mRenderToFbo = true;
+    mFboHeight = glFramebuffer->getBufferHeight();
 
     uint32_t glStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 
@@ -623,13 +629,14 @@ status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
 
 void GLES20RenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
     mRenderToFbo = false;
+    mFboHeight = 0;
 
     // back to main framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
     // Workaround for b/77935566 to force the EGL driver to release the
     // screenshot buffer
-    setScissor(0, 0, 0, 0);
+    setScissor(Rect::EMPTY_RECT);
     clearWithColor(0.0, 0.0, 0.0, 0.0);
     disableScissor();
 }

@@ -20,6 +20,7 @@
 #include <GLES/glext.h>
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <nativebase/nativebase.h>
 #include "GLES20RenderEngine.h"
 
 namespace android {
@@ -43,6 +44,8 @@ bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) {
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
         eglDestroyImageKHR(mEGLDisplay, mEGLImage);
         mEGLImage = EGL_NO_IMAGE_KHR;
+        mBufferWidth = 0;
+        mBufferHeight = 0;
     }
 
     if (nativeBuffer) {
@@ -52,6 +55,8 @@ bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) {
         if (mEGLImage == EGL_NO_IMAGE_KHR) {
             return false;
         }
+        mBufferWidth = nativeBuffer->width;
+        mBufferHeight = nativeBuffer->height;
     }
     return true;
 }

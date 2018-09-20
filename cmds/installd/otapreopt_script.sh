@@ -18,9 +18,6 @@
 
 # This script will run as a postinstall step to drive otapreopt.
 
-# Temporarily disable for b/115853663.
-exit 0
-
 TARGET_SLOT="$1"
 STATUS_FD="$2"
 
