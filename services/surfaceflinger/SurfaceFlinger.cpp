@@ -103,12 +103,6 @@
 
 #define DISPLAY_COUNT       1
 
-/*
- * DEBUG_SCREENSHOTS: set to true to check that screenshots are not all
- * black pixels.
- */
-#define DEBUG_SCREENSHOTS   false
-
 namespace android {
 
 using namespace android::hardware::configstore;
@@ -5504,49 +5498,13 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     // dependent on the context's EGLConfig.
     renderScreenImplLocked(renderArea, traverseLayers, useIdentityTransform);
 
-    if (DEBUG_SCREENSHOTS) {
+    base::unique_fd syncFd = getRenderEngine().flush();
+    if (syncFd < 0) {
         getRenderEngine().finish();
-        *outSyncFd = -1;
-
-        const auto reqWidth = renderArea.getReqWidth();
-        const auto reqHeight = renderArea.getReqHeight();
-
-        uint32_t* pixels = new uint32_t[reqWidth*reqHeight];
-        getRenderEngine().readPixels(0, 0, reqWidth, reqHeight, pixels);
-        checkScreenshot(reqWidth, reqHeight, reqWidth, pixels, traverseLayers);
-        delete [] pixels;
-    } else {
-        base::unique_fd syncFd = getRenderEngine().flush();
-        if (syncFd < 0) {
-            getRenderEngine().finish();
-        }
-        *outSyncFd = syncFd.release();
     }
+    *outSyncFd = syncFd.release();
 
     return NO_ERROR;
-}
-
-void SurfaceFlinger::checkScreenshot(size_t w, size_t s, size_t h, void const* vaddr,
-                                     TraverseLayersFunction traverseLayers) {
-    if (DEBUG_SCREENSHOTS) {
-        for (size_t y = 0; y < h; y++) {
-            uint32_t const* p = (uint32_t const*)vaddr + y * s;
-            for (size_t x = 0; x < w; x++) {
-                if (p[x] != 0xFF000000) return;
-            }
-        }
-        ALOGE("*** we just took a black screenshot ***");
-
-        size_t i = 0;
-        traverseLayers([&](Layer* layer) {
-            const Layer::State& state(layer->getDrawingState());
-            ALOGE("%c index=%zu, name=%s, layerStack=%d, z=%d, visible=%d, flags=%x, alpha=%.3f",
-                  layer->isVisible() ? '+' : '-', i, layer->getName().string(),
-                  layer->getLayerStack(), state.z, layer->isVisible(), state.flags,
-                  static_cast<float>(state.color.a));
-            i++;
-        });
-    }
 }
 
 // ---------------------------------------------------------------------------

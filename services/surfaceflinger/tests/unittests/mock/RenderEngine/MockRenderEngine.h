@@ -55,7 +55,6 @@ public:
     MOCK_METHOD2(genTextures, void(size_t, uint32_t*));
     MOCK_METHOD2(deleteTextures, void(size_t, uint32_t const*));
     MOCK_METHOD2(bindExternalTextureImage, void(uint32_t, const renderengine::Image&));
-    MOCK_METHOD5(readPixels, void(size_t, size_t, size_t, size_t, uint32_t*));
     MOCK_CONST_METHOD0(checkErrors, void());
     MOCK_METHOD4(setViewportAndProjection,
                  void(size_t, size_t, Rect, ui::Transform::orientation_flags));

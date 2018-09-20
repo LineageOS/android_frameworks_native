@@ -601,10 +601,6 @@ void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
     }
 }
 
-void GLES20RenderEngine::readPixels(size_t l, size_t b, size_t w, size_t h, uint32_t* pixels) {
-    glReadPixels(l, b, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-}
-
 status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
     EGLImageKHR eglImage = glFramebuffer->getEGLImage();
