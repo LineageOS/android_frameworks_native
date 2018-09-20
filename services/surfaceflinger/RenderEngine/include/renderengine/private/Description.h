@@ -17,84 +17,60 @@
 #ifndef SF_RENDER_ENGINE_DESCRIPTION_H_
 #define SF_RENDER_ENGINE_DESCRIPTION_H_
 
+#include <ui/GraphicTypes.h>
 #include <renderengine/Texture.h>
 
 namespace android {
 namespace renderengine {
 
-namespace gl {
-class Program;
-class ProgramCache;
-}
-
 /*
- * This holds the state of the rendering engine. This class is used
- * to generate a corresponding GLSL program and set the appropriate
- * uniform.
- *
- * Program and ProgramCache are friends and access the state directly
+ * This is the structure that holds the state of the rendering engine.
+ * This class is used to generate a corresponding GLSL program and set the
+ * appropriate uniform.
  */
-class Description {
-public:
-    Description() = default;
-    ~Description() = default;
-
-    void setPremultipliedAlpha(bool premultipliedAlpha);
-    void setOpaque(bool opaque);
-    void setTexture(const Texture& texture);
-    void disableTexture();
-    void setColor(const half4& color);
-    void setProjectionMatrix(const mat4& mtx);
-    void setColorMatrix(const mat4& mtx);
-    void setInputTransformMatrix(const mat3& matrix);
-    void setOutputTransformMatrix(const mat4& matrix);
-    bool hasInputTransformMatrix() const;
-    bool hasOutputTransformMatrix() const;
-    bool hasColorMatrix() const;
-    const mat4& getColorMatrix() const;
-
-    void setY410BT2020(bool enable);
-
+struct Description {
     enum class TransferFunction : int {
         LINEAR,
         SRGB,
         ST2084,
         HLG,  // Hybrid Log-Gamma for HDR.
     };
-    void setInputTransferFunction(TransferFunction transferFunction);
-    void setOutputTransferFunction(TransferFunction transferFunction);
-    void setDisplayMaxLuminance(const float maxLuminance);
 
-private:
-    friend class gl::Program;
-    friend class gl::ProgramCache;
+    static TransferFunction dataSpaceToTransferFunction(ui::Dataspace dataSpace);
+
+    Description() = default;
+    ~Description() = default;
+
+    bool hasInputTransformMatrix() const;
+    bool hasOutputTransformMatrix() const;
+    bool hasColorMatrix() const;
 
     // whether textures are premultiplied
-    bool mPremultipliedAlpha = false;
+    bool isPremultipliedAlpha = false;
     // whether this layer is marked as opaque
-    bool mOpaque = true;
+    bool isOpaque = true;
 
     // Texture this layer uses
-    Texture mTexture;
-    bool mTextureEnabled = false;
+    Texture texture;
+    bool textureEnabled = false;
 
     // color used when texturing is disabled or when setting alpha.
-    half4 mColor;
+    half4 color;
 
     // true if the sampled pixel values are in Y410/BT2020 rather than RGBA
-    bool mY410BT2020 = false;
+    bool isY410BT2020 = false;
 
     // transfer functions for the input/output
-    TransferFunction mInputTransferFunction = TransferFunction::LINEAR;
-    TransferFunction mOutputTransferFunction = TransferFunction::LINEAR;
+    TransferFunction inputTransferFunction = TransferFunction::LINEAR;
+    TransferFunction outputTransferFunction = TransferFunction::LINEAR;
 
-    float mDisplayMaxLuminance;
+    float displayMaxLuminance;
 
     // projection matrix
-    mat4 mProjectionMatrix;
-    mat4 mColorMatrix;
-    mat3 mInputTransformMatrix;
-    mat4 mOutputTransformMatrix;
+    mat4 projectionMatrix;
+    mat4 colorMatrix;
+    mat4 inputTransformMatrix;
+    mat4 outputTransformMatrix;
 };
 
 }  // namespace renderengine

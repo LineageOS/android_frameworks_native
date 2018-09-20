@@ -129,28 +129,28 @@ void Program::setUniforms(const Description& desc) {
 
     if (mSamplerLoc >= 0) {
         glUniform1i(mSamplerLoc, 0);
-        glUniformMatrix4fv(mTextureMatrixLoc, 1, GL_FALSE, desc.mTexture.getMatrix().asArray());
+        glUniformMatrix4fv(mTextureMatrixLoc, 1, GL_FALSE, desc.texture.getMatrix().asArray());
     }
     if (mColorLoc >= 0) {
-        const float color[4] = {desc.mColor.r, desc.mColor.g, desc.mColor.b, desc.mColor.a};
+        const float color[4] = {desc.color.r, desc.color.g, desc.color.b, desc.color.a};
         glUniform4fv(mColorLoc, 1, color);
     }
     if (mInputTransformMatrixLoc >= 0) {
-        mat4 inputTransformMatrix = mat4(desc.mInputTransformMatrix);
+        mat4 inputTransformMatrix = desc.inputTransformMatrix;
         glUniformMatrix4fv(mInputTransformMatrixLoc, 1, GL_FALSE, inputTransformMatrix.asArray());
     }
     if (mOutputTransformMatrixLoc >= 0) {
         // The output transform matrix and color matrix can be combined as one matrix
         // that is applied right before applying OETF.
-        mat4 outputTransformMatrix = desc.mColorMatrix * desc.mOutputTransformMatrix;
+        mat4 outputTransformMatrix = desc.colorMatrix * desc.outputTransformMatrix;
         glUniformMatrix4fv(mOutputTransformMatrixLoc, 1, GL_FALSE,
                            outputTransformMatrix.asArray());
     }
     if (mDisplayMaxLuminanceLoc >= 0) {
-        glUniform1f(mDisplayMaxLuminanceLoc, desc.mDisplayMaxLuminance);
+        glUniform1f(mDisplayMaxLuminanceLoc, desc.displayMaxLuminance) ;
     }
     // these uniforms are always present
-    glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.mProjectionMatrix.asArray());
+    glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.projectionMatrix.asArray());
 }
 
 }  // namespace gl
