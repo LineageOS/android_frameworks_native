@@ -306,7 +306,7 @@ const Sensor& SensorService::registerSensor(SensorInterface* s, bool isDebug, bo
     int handle = s->getSensor().getHandle();
     int type = s->getSensor().getType();
     if (mSensors.add(handle, s, isDebug, isVirtual)){
-        mRecentEvent.emplace(handle, new RecentEventLogger(type));
+        mRecentEvent.emplace(handle, new SensorServiceUtil::RecentEventLogger(type));
         return s->getSensor();
     } else {
         return mSensors.getNonSensor();
