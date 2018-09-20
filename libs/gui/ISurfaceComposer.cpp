@@ -104,16 +104,13 @@ public:
 
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
                                    Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
-                                   ISurfaceComposer::Rotation rotation) {
+                                   bool useIdentityTransform, ISurfaceComposer::Rotation rotation) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
         data.write(sourceCrop);
         data.writeUint32(reqWidth);
         data.writeUint32(reqHeight);
-        data.writeInt32(minLayerZ);
-        data.writeInt32(maxLayerZ);
         data.writeInt32(static_cast<int32_t>(useIdentityTransform));
         data.writeInt32(static_cast<int32_t>(rotation));
         status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
@@ -653,13 +650,11 @@ status_t BnSurfaceComposer::onTransact(
             data.read(sourceCrop);
             uint32_t reqWidth = data.readUint32();
             uint32_t reqHeight = data.readUint32();
-            int32_t minLayerZ = data.readInt32();
-            int32_t maxLayerZ = data.readInt32();
             bool useIdentityTransform = static_cast<bool>(data.readInt32());
             int32_t rotation = data.readInt32();
 
             status_t res = captureScreen(display, &outBuffer, sourceCrop, reqWidth, reqHeight,
-                                         minLayerZ, maxLayerZ, useIdentityTransform,
+                                         useIdentityTransform,
                                          static_cast<ISurfaceComposer::Rotation>(rotation));
             reply->writeInt32(res);
             if (res == NO_ERROR) {

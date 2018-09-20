@@ -439,8 +439,7 @@ private:
             ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
     virtual status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
                                    Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   int32_t minLayerZ, int32_t maxLayerZ, bool useIdentityTransform,
-                                   ISurfaceComposer::Rotation rotation);
+                                   bool useIdentityTransform, ISurfaceComposer::Rotation rotation);
     virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
                                    const Rect& sourceCrop, float frameScale, bool childrenOnly);
     virtual status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
@@ -599,8 +598,8 @@ private:
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
                                      bool forSystem, int* outSyncFd);
-    void traverseLayersInDisplay(const sp<const DisplayDevice>& display, int32_t minLayerZ,
-                                 int32_t maxLayerZ, const LayerVector::Visitor& visitor);
+    void traverseLayersInDisplay(const sp<const DisplayDevice>& display,
+                                 const LayerVector::Visitor& visitor);
 
     sp<StartPropertySetThread> mStartPropertySetThread = nullptr;
 
