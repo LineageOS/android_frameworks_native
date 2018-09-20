@@ -115,7 +115,7 @@ void Task::ReadStatusFields() {
     std::istream file_stream(&filebuf);
 
     for (std::string line; std::getline(file_stream, line);) {
-      auto offset = line.find(":");
+      auto offset = line.find(':');
       if (offset == std::string::npos) {
         ALOGW("ReadStatusFields: Failed to find delimiter \":\" in line=\"%s\"",
               line.c_str());
