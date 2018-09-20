@@ -20,6 +20,7 @@
 #include <utils/Errors.h>
 #include <utils/String8.h>
 
+#include <memory>
 #include <mutex>
 
 using namespace android::surfaceflinger;
@@ -46,7 +47,7 @@ private:
     bool mEnabled = false;
     std::string mOutputFileName = DEFAULT_FILENAME;
     mutable std::mutex mTraceMutex;
-    LayersTraceFileProto mTrace;
+    std::unique_ptr<LayersTraceFileProto> mTrace;
 };
 
 } // namespace android
