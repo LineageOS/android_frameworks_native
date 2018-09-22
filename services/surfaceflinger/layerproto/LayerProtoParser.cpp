@@ -31,7 +31,7 @@ bool sortLayers(LayerProtoParser::Layer* lhs, const LayerProtoParser::Layer* rhs
     int32_t lz = lhs->z;
     int32_t rz = rhs->z;
     if (lz != rz) {
-        return (lz > rz) ? 1 : -1;
+        return lz < rz;
     }
 
     return lhs->id < rhs->id;
