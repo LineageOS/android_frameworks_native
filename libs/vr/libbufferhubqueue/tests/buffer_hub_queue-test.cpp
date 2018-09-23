@@ -562,6 +562,30 @@ TEST_F(BufferHubQueueTest, TestAllocateBuffer) {
   ASSERT_EQ(cs2, ps2);
 }
 
+TEST_F(BufferHubQueueTest, TestAllocateTwoBuffers) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+  ASSERT_EQ(producer_queue_->capacity(), 0);
+  auto status = producer_queue_->AllocateBuffers(
+      kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
+      kBufferUsage, /*buffer_count=*/2);
+  ASSERT_TRUE(status.ok());
+  std::vector<size_t> buffer_slots = status.take();
+  ASSERT_EQ(buffer_slots.size(), 2);
+  ASSERT_EQ(producer_queue_->capacity(), 2);
+}
+
+TEST_F(BufferHubQueueTest, TestAllocateZeroBuffers) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+  ASSERT_EQ(producer_queue_->capacity(), 0);
+  auto status = producer_queue_->AllocateBuffers(
+      kBufferWidth, kBufferHeight, kBufferLayerCount, kBufferFormat,
+      kBufferUsage, /*buffer_count=*/0);
+  ASSERT_TRUE(status.ok());
+  std::vector<size_t> buffer_slots = status.take();
+  ASSERT_EQ(buffer_slots.size(), 0);
+  ASSERT_EQ(producer_queue_->capacity(), 0);
+}
+
 TEST_F(BufferHubQueueTest, TestUsageSetMask) {
   const uint32_t set_mask = GRALLOC_USAGE_SW_WRITE_OFTEN;
   ASSERT_TRUE(

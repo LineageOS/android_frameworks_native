@@ -130,19 +130,19 @@ void ProgramCache::primeCache(bool useColorManagement) {
 ProgramCache::Key ProgramCache::computeKey(const Description& description) {
     Key needs;
     needs.set(Key::TEXTURE_MASK,
-              !description.mTextureEnabled
+              !description.textureEnabled
                       ? Key::TEXTURE_OFF
-                      : description.mTexture.getTextureTarget() == GL_TEXTURE_EXTERNAL_OES
+                      : description.texture.getTextureTarget() == GL_TEXTURE_EXTERNAL_OES
                               ? Key::TEXTURE_EXT
-                              : description.mTexture.getTextureTarget() == GL_TEXTURE_2D
+                              : description.texture.getTextureTarget() == GL_TEXTURE_2D
                                       ? Key::TEXTURE_2D
                                       : Key::TEXTURE_OFF)
             .set(Key::ALPHA_MASK,
-                 (description.mColor.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
+                 (description.color.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
             .set(Key::BLEND_MASK,
-                 description.mPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
+                 description.isPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
             .set(Key::OPACITY_MASK,
-                 description.mOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
+                 description.isOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
             .set(Key::Key::INPUT_TRANSFORM_MATRIX_MASK,
                  description.hasInputTransformMatrix() ?
                      Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
@@ -151,10 +151,10 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                      Key::OUTPUT_TRANSFORM_MATRIX_ON : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
 
     needs.set(Key::Y410_BT2020_MASK,
-              description.mY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
+              description.isY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
 
     if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
-        switch (description.mInputTransferFunction) {
+        switch (description.inputTransferFunction) {
             case Description::TransferFunction::LINEAR:
             default:
                 needs.set(Key::INPUT_TF_MASK, Key::INPUT_TF_LINEAR);
@@ -170,7 +170,7 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                 break;
         }
 
-        switch (description.mOutputTransferFunction) {
+        switch (description.outputTransferFunction) {
             case Description::TransferFunction::LINEAR:
             default:
                 needs.set(Key::OUTPUT_TF_MASK, Key::OUTPUT_TF_LINEAR);

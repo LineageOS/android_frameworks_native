@@ -18,6 +18,7 @@
 
 #include <layerproto/LayerProtoHeader.h>
 #include <utils/Errors.h>
+#include <utils/String8.h>
 
 #include <mutex>
 
@@ -32,9 +33,10 @@ class SurfaceTracing {
 public:
     void enable();
     status_t disable();
-    bool isEnabled();
+    bool isEnabled() const;
 
     void traceLayers(const char* where, LayersProto);
+    void dump(String8& result) const;
 
 private:
     static constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/layers_trace.pb";
@@ -43,7 +45,7 @@ private:
 
     bool mEnabled = false;
     std::string mOutputFileName = DEFAULT_FILENAME;
-    std::mutex mTraceMutex;
+    mutable std::mutex mTraceMutex;
     LayersTraceFileProto mTrace;
 };
 

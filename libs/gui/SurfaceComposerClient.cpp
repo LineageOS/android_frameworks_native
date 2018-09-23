@@ -876,13 +876,12 @@ status_t SurfaceComposerClient::getHdrCapabilities(const sp<IBinder>& display,
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
-                                   uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
-                                   bool useIdentityTransform, uint32_t rotation,
+                                   uint32_t reqHeight, bool useIdentityTransform, uint32_t rotation,
                                    sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
-    status_t ret = s->captureScreen(display, outBuffer, sourceCrop, reqWidth, reqHeight, minLayerZ,
-                                    maxLayerZ, useIdentityTransform,
+    status_t ret = s->captureScreen(display, outBuffer, sourceCrop, reqWidth, reqHeight,
+                                    useIdentityTransform,
                                     static_cast<ISurfaceComposer::Rotation>(rotation));
     if (ret != NO_ERROR) {
         return ret;

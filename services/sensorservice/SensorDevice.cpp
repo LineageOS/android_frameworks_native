@@ -26,6 +26,7 @@
 #include <cinttypes>
 #include <thread>
 
+using namespace android::hardware::sensors;
 using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
 using android::hardware::hidl_vec;
@@ -87,16 +88,25 @@ SensorDevice::SensorDevice()
 }
 
 bool SensorDevice::connectHidlService() {
+    bool connected = connectHidlServiceV2_0();
+    if (!connected) {
+        connected = connectHidlServiceV1_0();
+    }
+    return connected;
+}
+
+bool SensorDevice::connectHidlServiceV1_0() {
     // SensorDevice will wait for HAL service to start if HAL is declared in device manifest.
     size_t retry = 10;
 
     while (retry-- > 0) {
-        mSensors = ISensors::getService();
-        if (mSensors == nullptr) {
+        sp<V1_0::ISensors> sensors = V1_0::ISensors::getService();
+        if (sensors == nullptr) {
             // no sensor hidl service found
             break;
         }
 
+        mSensors = new SensorServiceUtil::SensorsWrapperV1_0(sensors);
         mRestartWaiter->reset();
         // Poke ISensor service. If it has lingering connection from previous generation of
         // system server, it will kill itself. There is no intention to handle the poll result,
@@ -110,6 +120,16 @@ bool SensorDevice::connectHidlService() {
         mSensors = nullptr;
         ALOGI("%s unsuccessful, remaining retry %zu.", __FUNCTION__, retry);
         mRestartWaiter->wait();
+    }
+    return (mSensors != nullptr);
+}
+
+bool SensorDevice::connectHidlServiceV2_0() {
+    sp<V2_0::ISensors> sensors = V2_0::ISensors::getService();
+    if (sensors != nullptr) {
+        mSensors = new SensorServiceUtil::SensorsWrapperV2_0(sensors);
+
+        // TODO: initialize message queues
     }
     return (mSensors != nullptr);
 }

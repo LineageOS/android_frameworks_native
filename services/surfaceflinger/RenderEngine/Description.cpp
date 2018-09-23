@@ -23,76 +23,33 @@
 namespace android {
 namespace renderengine {
 
-void Description::setPremultipliedAlpha(bool premultipliedAlpha) {
-    mPremultipliedAlpha = premultipliedAlpha;
-}
-
-void Description::setOpaque(bool opaque) {
-    mOpaque = opaque;
-}
-
-void Description::setTexture(const Texture& texture) {
-    mTexture = texture;
-    mTextureEnabled = true;
-}
-
-void Description::disableTexture() {
-    mTextureEnabled = false;
-}
-
-void Description::setColor(const half4& color) {
-    mColor = color;
-}
-
-void Description::setProjectionMatrix(const mat4& mtx) {
-    mProjectionMatrix = mtx;
-}
-
-void Description::setColorMatrix(const mat4& mtx) {
-    mColorMatrix = mtx;
-}
-
-void Description::setInputTransformMatrix(const mat3& matrix) {
-    mInputTransformMatrix = matrix;
-}
-
-void Description::setOutputTransformMatrix(const mat4& matrix) {
-    mOutputTransformMatrix = matrix;
+Description::TransferFunction Description::dataSpaceToTransferFunction(ui::Dataspace dataSpace) {
+    ui::Dataspace transfer = static_cast<ui::Dataspace>(dataSpace & ui::Dataspace::TRANSFER_MASK);
+    switch (transfer) {
+        case ui::Dataspace::TRANSFER_ST2084:
+            return Description::TransferFunction::ST2084;
+        case ui::Dataspace::TRANSFER_HLG:
+            return Description::TransferFunction::HLG;
+        case ui::Dataspace::TRANSFER_LINEAR:
+            return Description::TransferFunction::LINEAR;
+        default:
+            return Description::TransferFunction::SRGB;
+    }
 }
 
 bool Description::hasInputTransformMatrix() const {
-    const mat3 identity;
-    return mInputTransformMatrix != identity;
+    const mat4 identity;
+    return inputTransformMatrix != identity;
 }
 
 bool Description::hasOutputTransformMatrix() const {
     const mat4 identity;
-    return mOutputTransformMatrix != identity;
+    return outputTransformMatrix != identity;
 }
 
 bool Description::hasColorMatrix() const {
     const mat4 identity;
-    return mColorMatrix != identity;
-}
-
-const mat4& Description::getColorMatrix() const {
-    return mColorMatrix;
-}
-
-void Description::setY410BT2020(bool enable) {
-    mY410BT2020 = enable;
-}
-
-void Description::setInputTransferFunction(TransferFunction transferFunction) {
-    mInputTransferFunction = transferFunction;
-}
-
-void Description::setOutputTransferFunction(TransferFunction transferFunction) {
-    mOutputTransferFunction = transferFunction;
-}
-
-void Description::setDisplayMaxLuminance(const float maxLuminance) {
-    mDisplayMaxLuminance = maxLuminance;
+    return colorMatrix != identity;
 }
 
 }  // namespace renderengine

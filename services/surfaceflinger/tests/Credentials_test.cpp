@@ -23,8 +23,6 @@ using Transaction = SurfaceComposerClient::Transaction;
 namespace {
 const String8 DISPLAY_NAME("Credentials Display Test");
 const String8 SURFACE_NAME("Test Surface Name");
-const int32_t MIN_LAYER_Z = 0;
-const int32_t MAX_LAYER_Z = std::numeric_limits<int32_t>::max();
 const uint32_t ROTATION = 0;
 const float FRAME_SCALE = 1.0f;
 } // namespace
@@ -269,8 +267,8 @@ TEST_F(CredentialsTest, CaptureTest) {
     sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::capture(display, Rect(), 0 /*reqWidth*/, 0 /*reqHeight*/,
-                                         MIN_LAYER_Z, MAX_LAYER_Z, false, ROTATION, &outBuffer);
+        return ScreenshotClient::capture(display, Rect(), 0 /*reqWidth*/, 0 /*reqHeight*/, false,
+                                         ROTATION, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
