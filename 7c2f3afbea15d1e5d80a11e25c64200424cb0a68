@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "20b8a647_041f9f3e",
+        "filename": "libs/binder/IServiceManager.cpp",
+        "patchSetId": 4
+      },
+      "lineNbr": 168,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-09-23T01:40:15Z",
+      "side": 1,
+      "message": "Isn\u0027t this being read above on line 161?",
+      "range": {
+        "startLine": 168,
+        "startChar": 16,
+        "endLine": 168,
+        "endChar": 68
+      },
+      "revId": "7c2f3afbea15d1e5d80a11e25c64200424cb0a68",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
