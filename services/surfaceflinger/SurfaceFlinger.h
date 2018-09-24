@@ -199,6 +199,9 @@ public:
     nsecs_t mTotalTime;
     std::atomic<nsecs_t> mLastSwapTime;
 
+    // Synchronization fence from a GL composition.
+    sp<Fence> flushFence = Fence::NO_FENCE;
+
     // Double- vs. triple-buffering stats
     struct BufferingStats {
         BufferingStats()

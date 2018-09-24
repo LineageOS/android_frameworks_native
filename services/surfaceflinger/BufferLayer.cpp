@@ -327,7 +327,8 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     return true;
 }
 
-Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
+Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                                const sp<Fence>& releaseFence) {
     ATRACE_CALL();
 
     std::optional<Region> sidebandStreamDirtyRegion = latchSidebandStream(recomputeVisibleRegions);
@@ -368,7 +369,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         return dirtyRegion;
     }
 
-    status_t err = updateTexImage(recomputeVisibleRegions, latchTime);
+    status_t err = updateTexImage(recomputeVisibleRegions, latchTime, releaseFence);
     if (err != NO_ERROR) {
         return dirtyRegion;
     }

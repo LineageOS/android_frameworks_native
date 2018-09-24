@@ -479,7 +479,7 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, createImage())
                 .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
         bool ignoredRecomputeVisibleRegions;
-        layer->latchBuffer(ignoredRecomputeVisibleRegions, 0);
+        layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, Fence::NO_FENCE);
         Mock::VerifyAndClear(test->mRenderEngine);
         Mock::VerifyAndClear(test->mReImage);
     }
