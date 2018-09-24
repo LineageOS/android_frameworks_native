@@ -34,6 +34,7 @@ using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
 using android::hardware::sensors::V2_0::EventQueueFlagBits;
 using android::hardware::hidl_vec;
+using android::hardware::Return;
 using android::SensorDeviceUtils::HidlServiceRegistrationWaiter;
 
 namespace android {
@@ -162,13 +163,14 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
         CHECK(mSensors != nullptr && mEventQueue != nullptr &&
                 mWakeLockQueue != nullptr && mEventQueueFlag != nullptr);
 
-        status_t status = StatusFromResult(checkReturn(mSensors->initializeMessageQueues(
+        status_t status = StatusFromResult(checkReturn(mSensors->initialize(
                 *mEventQueue->getDesc(),
-                *mWakeLockQueue->getDesc())));
+                *mWakeLockQueue->getDesc(),
+                this)));
 
         if (status != NO_ERROR) {
             connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
-            ALOGE("Failed to initialize message queues (%s)", strerror(-status));
+            ALOGE("Failed to initialize Sensors HAL (%s)", strerror(-status));
         } else {
             connectionStatus = HalConnectionStatus::CONNECTED;
         }
@@ -330,6 +332,33 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
     }
 
     return eventsRead;
+}
+
+Return<void> SensorDevice::onDynamicSensorsConnected(
+        const hidl_vec<SensorInfo> &dynamicSensorsAdded) {
+    // Allocate a sensor_t structure for each dynamic sensor added and insert
+    // it into the dictionary of connected dynamic sensors keyed by handle.
+    for (size_t i = 0; i < dynamicSensorsAdded.size(); ++i) {
+        const SensorInfo &info = dynamicSensorsAdded[i];
+
+        auto it = mConnectedDynamicSensors.find(info.sensorHandle);
+        CHECK(it == mConnectedDynamicSensors.end());
+
+        sensor_t *sensor = new sensor_t();
+        convertToSensor(info, sensor);
+
+        mConnectedDynamicSensors.insert(
+                std::make_pair(sensor->handle, sensor));
+    }
+
+    return Return<void>();
+}
+
+Return<void> SensorDevice::onDynamicSensorsDisconnected(
+        const hidl_vec<int32_t> &dynamicSensorHandlesRemoved) {
+    (void) dynamicSensorHandlesRemoved;
+    // TODO: Currently dynamic sensors do not seem to be removed
+    return Return<void>();
 }
 
 void SensorDevice::autoDisable(void *ident, int handle) {
@@ -767,19 +796,9 @@ void SensorDevice::convertToSensorEvents(
         const hidl_vec<Event> &src,
         const hidl_vec<SensorInfo> &dynamicSensorsAdded,
         sensors_event_t *dst) {
-    // Allocate a sensor_t structure for each dynamic sensor added and insert
-    // it into the dictionary of connected dynamic sensors keyed by handle.
-    for (size_t i = 0; i < dynamicSensorsAdded.size(); ++i) {
-        const SensorInfo &info = dynamicSensorsAdded[i];
 
-        auto it = mConnectedDynamicSensors.find(info.sensorHandle);
-        CHECK(it == mConnectedDynamicSensors.end());
-
-        sensor_t *sensor = new sensor_t;
-        convertToSensor(info, sensor);
-
-        mConnectedDynamicSensors.insert(
-                std::make_pair(sensor->handle, sensor));
+    if (dynamicSensorsAdded.size() > 0) {
+        onDynamicSensorsConnected(dynamicSensorsAdded);
     }
 
     for (size_t i = 0; i < src.size(); ++i) {

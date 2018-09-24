@@ -43,7 +43,9 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-class SensorDevice : public Singleton<SensorDevice>, public SensorServiceUtil::Dumpable {
+class SensorDevice : public Singleton<SensorDevice>,
+                     public android::hardware::sensors::V2_0::ISensorsCallback,
+                     public SensorServiceUtil::Dumpable {
 public:
     class HidlTransportErrorLog {
      public:
@@ -101,6 +103,12 @@ public:
 
     status_t injectSensorData(const sensors_event_t *event);
     void notifyConnectionDestroyed(void *ident);
+
+    using Result = ::android::hardware::sensors::V1_0::Result;
+    hardware::Return<void> onDynamicSensorsConnected(
+            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded) override;
+    hardware::Return<void> onDynamicSensorsDisconnected(
+            const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved) override;
 
     // Dumpable
     virtual std::string dump() const;
