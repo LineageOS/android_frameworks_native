@@ -21,8 +21,12 @@
 #include "InputManager.h"
 #include "InputReaderFactory.h"
 
+#include <binder/IPCThreadState.h>
+
 #include <log/log.h>
 #include <unordered_map>
+
+#include <private/android_filesystem_config.h>
 
 namespace android {
 
@@ -116,6 +120,22 @@ void InputManager::setInputWindows(const Vector<InputWindowInfo>& infos) {
     for (auto const& i : handlesPerDisplay) {
         mDispatcher->setInputWindows(i.second, i.first);
     }
+}
+
+// Used by tests only.
+void InputManager::registerInputChannel(const sp<InputChannel>& channel) {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int uid = ipc->getCallingUid();
+    if (uid != AID_SHELL && uid != AID_ROOT) {
+        ALOGE("Invalid attempt to register input channel over IPC"
+                "from non shell/root entity (PID: %d)", ipc->getCallingPid());
+        return;
+    }
+    mDispatcher->registerInputChannel(channel, false);
+}
+
+void InputManager::unregisterInputChannel(const sp<InputChannel>& channel) {
+    mDispatcher->unregisterInputChannel(channel);
 }
 
 } // namespace android

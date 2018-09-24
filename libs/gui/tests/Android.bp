@@ -16,6 +16,7 @@ cc_test {
         "BufferItemConsumer_test.cpp",
         "BufferQueue_test.cpp",
         "CpuConsumer_test.cpp",
+        "EndToEndNativeInputTest.cpp",
         "FillBuffer.cpp",
         "GLTest.cpp",
         "IGraphicBufferProducer_test.cpp",
