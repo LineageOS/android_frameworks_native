@@ -26,6 +26,7 @@ namespace SensorServiceUtil {
 
 namespace {
     constexpr size_t LOG_SIZE = 10;
+    constexpr size_t LOG_SIZE_MED = 30;  // debugging for slower sensors
     constexpr size_t LOG_SIZE_LARGE = 50;  // larger samples for debugging
 }// unnamed namespace
 
@@ -98,10 +99,16 @@ bool RecentEventLogger::populateLastEvent(sensors_event_t *event) const {
 
 
 size_t RecentEventLogger::logSizeBySensorType(int sensorType) {
-    return (sensorType == SENSOR_TYPE_STEP_COUNTER ||
-            sensorType == SENSOR_TYPE_SIGNIFICANT_MOTION ||
-            sensorType == SENSOR_TYPE_ACCELEROMETER ||
-            sensorType == SENSOR_TYPE_LIGHT) ? LOG_SIZE_LARGE : LOG_SIZE;
+    if (sensorType == SENSOR_TYPE_STEP_COUNTER ||
+        sensorType == SENSOR_TYPE_SIGNIFICANT_MOTION ||
+        sensorType == SENSOR_TYPE_ACCELEROMETER ||
+        sensorType == SENSOR_TYPE_LIGHT) {
+        return LOG_SIZE_LARGE;
+    }
+    if (sensorType == SENSOR_TYPE_PROXIMITY) {
+        return LOG_SIZE_MED;
+    }
+    return LOG_SIZE;
 }
 
 RecentEventLogger::SensorEventLog::SensorEventLog(const sensors_event_t& e) : mEvent(e) {
