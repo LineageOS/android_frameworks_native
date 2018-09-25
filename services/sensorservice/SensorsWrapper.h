@@ -19,6 +19,7 @@
 
 #include "android/hardware/sensors/1.0/ISensors.h"
 #include "android/hardware/sensors/2.0/ISensors.h"
+#include "android/hardware/sensors/2.0/ISensorsCallback.h"
 
 #include <utils/LightRefBase.h>
 
@@ -33,6 +34,7 @@ using ::android::hardware::sensors::V1_0::OperationMode;
 using ::android::hardware::sensors::V1_0::RateLevel;
 using ::android::hardware::sensors::V1_0::Result;
 using ::android::hardware::sensors::V1_0::SharedMemInfo;
+using ::android::hardware::sensors::V2_0::ISensorsCallback;
 
 /*
  * The ISensorsWrapper interface includes all function from supported Sensors HAL versions. This
@@ -85,10 +87,12 @@ public:
         return Return<void>();
     }
 
-    virtual Return<Result> initializeMessageQueues(const MQDescriptorSync<Event>& eventQueueDesc,
-                                                   const MQDescriptorSync<uint32_t>& wakeLockDesc) {
+    virtual Return<Result> initialize(const MQDescriptorSync<Event>& eventQueueDesc,
+                                      const MQDescriptorSync<uint32_t>& wakeLockDesc,
+                                      const ::android::sp<ISensorsCallback>& callback) {
         (void)eventQueueDesc;
         (void)wakeLockDesc;
+        (void)callback;
         // TODO (b/111070257): Generate an assert-level error since this should never be called
         // directly
         return Result::INVALID_OPERATION;
@@ -177,10 +181,10 @@ public:
         return true;
     }
 
-    Return<Result> initializeMessageQueues(
-            const MQDescriptorSync<Event>& eventQueueDesc,
-            const MQDescriptorSync<uint32_t>& wakeLockDesc) override {
-        return mSensors->initializeMessageQueues(eventQueueDesc, wakeLockDesc);
+    Return<Result> initialize(const MQDescriptorSync<Event>& eventQueueDesc,
+                              const MQDescriptorSync<uint32_t>& wakeLockDesc,
+                              const ::android::sp<ISensorsCallback>& callback) override {
+        return mSensors->initialize(eventQueueDesc, wakeLockDesc, callback);
     }
 };
 
