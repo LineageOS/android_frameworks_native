@@ -82,6 +82,7 @@ public:
     int getHalDeviceVersion() const;
 
     ssize_t poll(sensors_event_t* buffer, size_t count);
+    void writeWakeLockHandled(uint32_t count);
 
     status_t activate(void* ident, int handle, int enabled);
     status_t batch(void* ident, int handle, int flags, int64_t samplingPeriodNs,

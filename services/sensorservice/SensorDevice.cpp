@@ -361,6 +361,12 @@ Return<void> SensorDevice::onDynamicSensorsDisconnected(
     return Return<void>();
 }
 
+void SensorDevice::writeWakeLockHandled(uint32_t count) {
+    if (mSensors->supportsMessageQueues() && !mWakeLockQueue->write(&count)) {
+        ALOGW("Failed to write wake lock handled");
+    }
+}
+
 void SensorDevice::autoDisable(void *ident, int handle) {
     Mutex::Autolock _l(mLock);
     ssize_t activationIndex = mActivationCount.indexOfKey(handle);
