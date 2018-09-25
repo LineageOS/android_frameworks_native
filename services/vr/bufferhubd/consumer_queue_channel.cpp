@@ -1,8 +1,6 @@
-#include "consumer_queue_channel.h"
-
 #include <pdx/channel_handle.h>
-
-#include "producer_channel.h"
+#include <private/dvr/consumer_queue_channel.h>
+#include <private/dvr/producer_channel.h>
 
 using android::pdx::ErrorStatus;
 using android::pdx::RemoteChannelHandle;

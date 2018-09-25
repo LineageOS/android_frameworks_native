@@ -1,12 +1,10 @@
-#include "consumer_channel.h"
-
-#include <log/log.h>
-#include <utils/Trace.h>
-
 #include <thread>
 
+#include <log/log.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include "producer_channel.h"
+#include <private/dvr/consumer_channel.h>
+#include <private/dvr/producer_channel.h>
+#include <utils/Trace.h>
 
 using android::pdx::BorrowedHandle;
 using android::pdx::Channel;

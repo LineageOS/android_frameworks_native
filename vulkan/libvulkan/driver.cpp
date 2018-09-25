@@ -1165,27 +1165,28 @@ VkResult EnumeratePhysicalDeviceGroups(
         result = EnumeratePhysicalDevices(instance, &device_count, nullptr);
         if (result < 0)
             return result;
+
         if (!pPhysicalDeviceGroupProperties) {
             *pPhysicalDeviceGroupCount = device_count;
             return result;
         }
 
-        device_count = std::min(device_count, *pPhysicalDeviceGroupCount);
         if (!device_count) {
             *pPhysicalDeviceGroupCount = 0;
             return result;
         }
+        device_count = std::min(device_count, *pPhysicalDeviceGroupCount);
+        if (!device_count)
+            return VK_INCOMPLETE;
 
         android::Vector<VkPhysicalDevice> devices;
         devices.resize(device_count);
-
+        *pPhysicalDeviceGroupCount = device_count;
         result = EnumeratePhysicalDevices(instance, &device_count,
                                           devices.editArray());
         if (result < 0)
             return result;
 
-        devices.resize(device_count);
-        *pPhysicalDeviceGroupCount = device_count;
         for (uint32_t i = 0; i < device_count; ++i) {
             pPhysicalDeviceGroupProperties[i].physicalDeviceCount = 1;
             pPhysicalDeviceGroupProperties[i].physicalDevices[0] = devices[i];

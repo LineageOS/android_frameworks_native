@@ -1,9 +1,5 @@
-#include "buffer_hub.h"
-
 #include <inttypes.h>
-#include <log/log.h>
 #include <poll.h>
-#include <utils/Trace.h>
 
 #include <iomanip>
 #include <memory>
@@ -11,12 +7,15 @@
 #include <string>
 #include <thread>
 
+#include <log/log.h>
 #include <pdx/default_transport/service_endpoint.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include "buffer_channel.h"
-#include "consumer_channel.h"
-#include "producer_channel.h"
-#include "producer_queue_channel.h"
+#include <private/dvr/buffer_channel.h>
+#include <private/dvr/buffer_hub.h>
+#include <private/dvr/consumer_channel.h>
+#include <private/dvr/producer_channel.h>
+#include <private/dvr/producer_queue_channel.h>
+#include <utils/Trace.h>
 
 using android::pdx::Channel;
 using android::pdx::ErrorStatus;

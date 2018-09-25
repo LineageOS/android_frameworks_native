@@ -57,7 +57,7 @@ bool LayerStats::isEnabled() {
 }
 
 void LayerStats::traverseLayerTreeStatsLocked(
-        const std::vector<std::unique_ptr<LayerProtoParser::Layer>>& layerTree,
+        const std::vector<LayerProtoParser::Layer*>& layerTree,
         const LayerProtoParser::LayerGlobal& layerGlobal,
         std::vector<std::string>* const outLayerShapeVec) {
     for (const auto& layer : layerTree) {
@@ -82,7 +82,7 @@ void LayerStats::traverseLayerTreeStatsLocked(
         base::StringAppendF(&key, ",%s",
                             destinationSize(layer->hwcFrame.bottom - layer->hwcFrame.top,
                                             layerGlobal.resolution[1], false));
-        base::StringAppendF(&key, ",%s", scaleRatioWH(layer.get()).c_str());
+        base::StringAppendF(&key, ",%s", scaleRatioWH(layer).c_str());
         base::StringAppendF(&key, ",%s", alpha(static_cast<float>(layer->color.a)));
 
         outLayerShapeVec->push_back(key);
@@ -98,7 +98,7 @@ void LayerStats::logLayerStats(const LayersProto& layersProto) {
     std::vector<std::string> layerShapeVec;
 
     std::lock_guard<std::mutex> lock(mMutex);
-    traverseLayerTreeStatsLocked(layerTree, layerGlobal, &layerShapeVec);
+    traverseLayerTreeStatsLocked(layerTree.topLevelLayers, layerGlobal, &layerShapeVec);
 
     std::string layerShapeKey =
             base::StringPrintf("%d,%s,%s,%s", static_cast<int32_t>(layerShapeVec.size()),

@@ -1,19 +1,18 @@
-#include "producer_channel.h"
-
-#include <log/log.h>
-#include <sync/sync.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <sys/poll.h>
-#include <utils/Trace.h>
 
 #include <algorithm>
 #include <atomic>
 #include <thread>
 
+#include <log/log.h>
 #include <private/dvr/bufferhub_rpc.h>
-#include "buffer_channel.h"
-#include "consumer_channel.h"
+#include <private/dvr/buffer_channel.h>
+#include <private/dvr/consumer_channel.h>
+#include <private/dvr/producer_channel.h>
+#include <sync/sync.h>
+#include <utils/Trace.h>
 
 using android::pdx::BorrowedHandle;
 using android::pdx::ErrorStatus;

@@ -101,10 +101,7 @@ TEST(LayerProtoStress, mem_info) {
     for (int i = 0; i < 100000; i++) {
         surfaceflinger::LayersProto layersProto = generateLayerProto();
         auto layerTree = surfaceflinger::LayerProtoParser::generateLayerTree(layersProto);
-        // Allow some layerTrees to just fall out of scope (instead of std::move)
-        if (i % 2) {
-            surfaceflinger::LayerProtoParser::layersToString(std::move(layerTree));
-        }
+        surfaceflinger::LayerProtoParser::layerTreeToString(layerTree);
     }
     system(cmd.c_str());
 }
