@@ -27,52 +27,67 @@
 namespace android {
 
 void SurfaceTracing::enable() {
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+
     if (mEnabled) {
         return;
     }
-    ATRACE_CALL();
     mEnabled = true;
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
 
-    mTrace.set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
-                            LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
+    mTrace = std::make_unique<LayersTraceFileProto>();
+    mTrace->set_magic_number(uint64_t(LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_H) << 32 |
+                             LayersTraceFileProto_MagicNumber_MAGIC_NUMBER_L);
 }
 
 status_t SurfaceTracing::disable() {
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+
     if (!mEnabled) {
         return NO_ERROR;
     }
-    ATRACE_CALL();
-    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
     mEnabled = false;
     status_t err(writeProtoFileLocked());
     ALOGE_IF(err == PERMISSION_DENIED, "Could not save the proto file! Permission denied");
     ALOGE_IF(err == NOT_ENOUGH_DATA, "Could not save the proto file! There are missing fields");
-    mTrace.Clear();
+    mTrace.reset();
     return err;
 }
 
-bool SurfaceTracing::isEnabled() {
+bool SurfaceTracing::isEnabled() const {
+    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
     return mEnabled;
 }
 
 void SurfaceTracing::traceLayers(const char* where, LayersProto layers) {
     std::lock_guard<std::mutex> protoGuard(mTraceMutex);
-
-    LayersTraceProto* entry = mTrace.add_entry();
+    if (!mEnabled) {
+        return;
+    }
+    LayersTraceProto* entry = mTrace->add_entry();
     entry->set_elapsed_realtime_nanos(elapsedRealtimeNano());
     entry->set_where(where);
     entry->mutable_layers()->Swap(&layers);
+
+    constexpr int maxBufferedEntryCount = 3600;
+    if (mTrace->entry_size() >= maxBufferedEntryCount) {
+        // TODO: flush buffered entries without disabling tracing
+        ALOGE("too many buffered frames; force disable tracing");
+        mEnabled = false;
+        writeProtoFileLocked();
+        mTrace.reset();
+    }
 }
 
 status_t SurfaceTracing::writeProtoFileLocked() {
     ATRACE_CALL();
 
-    if (!mTrace.IsInitialized()) {
+    if (!mTrace->IsInitialized()) {
         return NOT_ENOUGH_DATA;
     }
     std::string output;
-    if (!mTrace.SerializeToString(&output)) {
+    if (!mTrace->SerializeToString(&output)) {
         return PERMISSION_DENIED;
     }
     if (!android::base::WriteStringToFile(output, mOutputFileName, true)) {
@@ -80,6 +95,13 @@ status_t SurfaceTracing::writeProtoFileLocked() {
     }
 
     return NO_ERROR;
+}
+
+void SurfaceTracing::dump(String8& result) const {
+    std::lock_guard<std::mutex> protoGuard(mTraceMutex);
+
+    result.appendFormat("Tracing state: %s\n", mEnabled ? "enabled" : "disabled");
+    result.appendFormat("  number of entries: %d\n", mTrace ? mTrace->entry_size() : 0);
 }
 
 } // namespace android
