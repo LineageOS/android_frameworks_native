@@ -49,6 +49,7 @@ struct egl_connection_t {
     void*               libGles2;
 
     bool                useAngle;
+    EGLint              angleBackend;
     void*               vendorEGL;
 };
 
