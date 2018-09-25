@@ -78,7 +78,7 @@ class LayerLibrary {
           native_bridge_(false),
           refcount_(0) {}
 
-    LayerLibrary(LayerLibrary&& other)
+    LayerLibrary(LayerLibrary&& other) noexcept
         : path_(std::move(other.path_)),
           filename_(std::move(other.filename_)),
           dlhandle_(other.dlhandle_),
@@ -545,7 +545,7 @@ LayerRef::~LayerRef() {
     }
 }
 
-LayerRef::LayerRef(LayerRef&& other) : layer_(other.layer_) {
+LayerRef::LayerRef(LayerRef&& other) noexcept : layer_(other.layer_) {
     other.layer_ = nullptr;
 }
 

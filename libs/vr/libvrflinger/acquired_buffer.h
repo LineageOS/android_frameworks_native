@@ -31,7 +31,7 @@ class AcquiredBuffer {
   AcquiredBuffer(const std::shared_ptr<BufferConsumer>& buffer, int* error);
 
   // Move constructor. Behaves similarly to the move assignment operator below.
-  AcquiredBuffer(AcquiredBuffer&& other);
+  AcquiredBuffer(AcquiredBuffer&& other) noexcept;
 
   ~AcquiredBuffer();
 
@@ -39,7 +39,7 @@ class AcquiredBuffer {
   // |other| into this instance after RELEASING the current BufferConsumer and
   // closing the acquire fence. After the move |other| is left in the empty
   // state.
-  AcquiredBuffer& operator=(AcquiredBuffer&& other);
+  AcquiredBuffer& operator=(AcquiredBuffer&& other) noexcept;
 
   // Accessors for the underlying BufferConsumer, the acquire fence, and the
   // use-case specific sequence value from the acquisition (see

@@ -33,7 +33,7 @@ class ByteBuffer {
     return *this;
   }
 
-  ByteBuffer& operator=(ByteBuffer&& other) {
+  ByteBuffer& operator=(ByteBuffer&& other) noexcept {
     std::swap(data_, other.data_);
     std::swap(size_, other.size_);
     std::swap(capacity_, other.capacity_);

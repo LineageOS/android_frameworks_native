@@ -44,7 +44,7 @@ class StringWrapper {
 
   StringWrapper(const StringWrapper& other) { *this = other; }
 
-  StringWrapper(StringWrapper&& other) { *this = std::move(other); }
+  StringWrapper(StringWrapper&& other) noexcept { *this = std::move(other); }
 
   StringWrapper& operator=(const StringWrapper& other) {
     if (&other == this) {
@@ -58,7 +58,7 @@ class StringWrapper {
     return *this;
   }
 
-  StringWrapper& operator=(StringWrapper&& other) {
+  StringWrapper& operator=(StringWrapper&& other) noexcept {
     if (&other == this) {
       return *this;
     } else {

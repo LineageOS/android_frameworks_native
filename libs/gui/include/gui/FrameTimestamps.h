@@ -311,7 +311,7 @@ public:
 
     // Movable.
     FrameEventHistoryDelta(FrameEventHistoryDelta&& src) = default;
-    FrameEventHistoryDelta& operator=(FrameEventHistoryDelta&& src);
+    FrameEventHistoryDelta& operator=(FrameEventHistoryDelta&& src) noexcept;
     // Not copyable.
     FrameEventHistoryDelta(const FrameEventHistoryDelta& src) = delete;
     FrameEventHistoryDelta& operator=(

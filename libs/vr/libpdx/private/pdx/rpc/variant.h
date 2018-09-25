@@ -447,7 +447,7 @@ class Variant {
 
   Variant(const Variant& other)
       : index_{other.index_}, value_{other.value_, other.index_} {}
-  Variant(Variant&& other)
+  Variant(Variant&& other) noexcept
       : index_{other.index_}, value_{std::move(other.value_), other.index_} {}
 
 // Recent Clang versions has a regression that produces bogus
@@ -472,7 +472,7 @@ class Variant {
     other.Visit([this](const auto& value) { *this = value; });
     return *this;
   }
-  Variant& operator=(Variant&& other) {
+  Variant& operator=(Variant&& other) noexcept {
     other.Visit([this](auto&& value) { *this = std::move(value); });
     return *this;
   }
