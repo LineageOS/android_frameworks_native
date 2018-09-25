@@ -793,7 +793,7 @@ private:
     // access must be protected by mStateLock
     mutable Mutex mStateLock;
     State mCurrentState{LayerVector::StateSet::Current};
-    volatile int32_t mTransactionFlags;
+    std::atomic<int32_t> mTransactionFlags{0};
     Condition mTransactionCV;
     bool mTransactionPending;
     bool mAnimTransactionPending;
@@ -812,8 +812,7 @@ private:
     bool mLayersRemoved;
     bool mLayersAdded;
 
-    // access must be protected by mInvalidateLock
-    volatile int32_t mRepaintEverything;
+    std::atomic<bool> mRepaintEverything{false};
 
     // helper methods
     void configureHwcCommonData(const CompositionInfo& compositionInfo) const;

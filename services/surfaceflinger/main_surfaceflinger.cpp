@@ -21,16 +21,16 @@
 #include <android/frameworks/displayservice/1.0/IDisplayService.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
-#include <cutils/sched_policy.h>
-#include <binder/IServiceManager.h>
 #include <binder/IPCThreadState.h>
-#include <binder/ProcessState.h>
 #include <binder/IServiceManager.h>
+#include <binder/ProcessState.h>
+#include <configstore/Utils.h>
+#include <cutils/sched_policy.h>
 #include <displayservice/DisplayService.h>
 #include <hidl/LegacySupport.h>
-#include <configstore/Utils.h>
 #include "GpuService.h"
 #include "SurfaceFlinger.h"
+#include "SurfaceFlingerFactory.h"
 
 using namespace android;
 
@@ -85,7 +85,7 @@ int main(int, char**) {
     ps->startThreadPool();
 
     // instantiate surfaceflinger
-    sp<SurfaceFlinger> flinger = new SurfaceFlinger();
+    sp<SurfaceFlinger> flinger = surfaceflinger::createSurfaceFlinger();
 
     setpriority(PRIO_PROCESS, 0, PRIORITY_URGENT_DISPLAY);
 

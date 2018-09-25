@@ -62,12 +62,11 @@
 
 namespace android {
 
-int32_t Layer::sSequence = 1;
+std::atomic<int32_t> Layer::sSequence{1};
 
 Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
              uint32_t h, uint32_t flags)
       : contentDirty(false),
-        sequence(uint32_t(android_atomic_inc(&sSequence))),
         mFlinger(flinger),
         mPremultipliedAlpha(true),
         mName(name),
@@ -1019,11 +1018,11 @@ void Layer::commitTransaction(const State& stateToCommit) {
 }
 
 uint32_t Layer::getTransactionFlags(uint32_t flags) {
-    return android_atomic_and(~flags, &mTransactionFlags) & flags;
+    return mTransactionFlags.fetch_and(~flags) & flags;
 }
 
 uint32_t Layer::setTransactionFlags(uint32_t flags) {
-    return android_atomic_or(flags, &mTransactionFlags);
+    return mTransactionFlags.fetch_or(flags);
 }
 
 bool Layer::setPosition(float x, float y, bool immediate) {
