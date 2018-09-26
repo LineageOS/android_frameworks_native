@@ -42,8 +42,10 @@ public:
     // (libraries must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
-    void setAnglePath(const std::string path);
+    void setAngleInfo(const std::string path, const std::string appName, const bool optIn);
     android_namespace_t* getAngleNamespace();
+    const char* getAngleAppName();
+    bool getAngleDeveloperOptIn();
 
     void setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths);
     NativeLoaderNamespace* getAppNamespace();
@@ -57,6 +59,8 @@ private:
     GraphicsEnv() = default;
     std::string mDriverPath;
     std::string mAnglePath;
+    std::string mAngleAppName;
+    bool mAngleDeveloperOptIn;
     std::string mDebugLayers;
     std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
@@ -77,7 +81,11 @@ private:
  *  - the EGLsyncKHR synchronization in BufferQueue, which is deprecated and
  *    will be removed soon.
  */
-extern "C" android_namespace_t* android_getDriverNamespace();
-extern "C" android_namespace_t* android_getAngleNamespace();
+extern "C" {
+android_namespace_t* android_getDriverNamespace();
+android_namespace_t* android_getAngleNamespace();
+const char* android_getAngleAppName();
+bool android_getAngleDeveloperOptIn();
+}
 
 #endif // ANDROID_UI_GRAPHICS_ENV_H
