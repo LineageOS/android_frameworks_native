@@ -19,6 +19,7 @@ cc_binary {
         "libz",
         "libbase",
         "libpdx_default_transport",
+        "android.hardware.atrace@1.0",
     ],
 
     init_rc: ["atrace.rc"],
