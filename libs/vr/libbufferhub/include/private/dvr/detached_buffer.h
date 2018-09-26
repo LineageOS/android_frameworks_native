@@ -28,8 +28,6 @@ class DetachedBuffer {
   DetachedBuffer(const DetachedBuffer&) = delete;
   void operator=(const DetachedBuffer&) = delete;
 
-  const sp<GraphicBuffer>& buffer() const { return buffer_.buffer(); }
-
   // Gets ID of the buffer client. All DetachedBuffer clients derived from the
   // same buffer in bufferhubd share the same buffer id.
   int id() const { return id_; }
@@ -68,11 +66,6 @@ class DetachedBuffer {
 
   // Creates a DetachedBuffer from an existing one.
   pdx::Status<pdx::LocalChannelHandle> Duplicate();
-
-  // Takes the underlying graphic buffer out of this DetachedBuffer. This call
-  // immediately invalidates this DetachedBuffer object and transfers the
-  // underlying pdx::LocalChannelHandle into the GraphicBuffer.
-  sp<GraphicBuffer> TakeGraphicBuffer();
 
  private:
   DetachedBuffer(uint32_t width, uint32_t height, uint32_t layer_count,
