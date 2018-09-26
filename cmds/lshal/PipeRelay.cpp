@@ -77,12 +77,13 @@ void PipeRelay::CloseFd(int *fd) {
 
 PipeRelay::~PipeRelay() {
     CloseFd(&mFds[1]);
-    CloseFd(&mFds[0]);
 
     if (mThread != nullptr) {
         mThread->join();
         mThread.clear();
     }
+
+    CloseFd(&mFds[0]);
 }
 
 status_t PipeRelay::initCheck() const {
