@@ -569,6 +569,7 @@ VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
     switch (native_format) {
         case HAL_PIXEL_FORMAT_RGBA_8888:
         case HAL_PIXEL_FORMAT_RGB_565:
+        case HAL_PIXEL_FORMAT_RGBA_FP16:
             format_supported = true;
             break;
         default:
@@ -695,6 +696,10 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
          VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
         {VK_FORMAT_R8G8B8A8_SRGB,
          VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
+        {VK_FORMAT_R16G16B16A16_SFLOAT,
+         VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT},
+        {VK_FORMAT_R16G16B16A16_SFLOAT,
+         VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT},
     };
     const uint32_t kNumWideColorFormats =
         sizeof(kWideColorFormats) / sizeof(kWideColorFormats[0]);
