@@ -21,12 +21,15 @@
 #include "SensorServiceUtils.h"
 #include "SensorsWrapper.h"
 
+#include <fmq/MessageQueue.h>
+#include <sensor/SensorEventQueue.h>
 #include <sensor/Sensor.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/String8.h>
+#include <utils/Timers.h>
 
 #include <string>
 #include <unordered_map>
@@ -40,7 +43,9 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-class SensorDevice : public Singleton<SensorDevice>, public SensorServiceUtil::Dumpable {
+class SensorDevice : public Singleton<SensorDevice>,
+                     public android::hardware::sensors::V2_0::ISensorsCallback,
+                     public SensorServiceUtil::Dumpable {
 public:
     class HidlTransportErrorLog {
      public:
@@ -67,6 +72,8 @@ public:
         time_t mTs; // timestamp of the error
         int mCount;   // number of transport errors observed
     };
+
+    ~SensorDevice();
 
     ssize_t getSensorList(sensor_t const** list);
 
@@ -96,6 +103,12 @@ public:
 
     status_t injectSensorData(const sensors_event_t *event);
     void notifyConnectionDestroyed(void *ident);
+
+    using Result = ::android::hardware::sensors::V1_0::Result;
+    hardware::Return<void> onDynamicSensorsConnected(
+            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded) override;
+    hardware::Return<void> onDynamicSensorsDisconnected(
+            const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved) override;
 
     // Dumpable
     virtual std::string dump() const;
@@ -162,8 +175,18 @@ private:
     SortedVector<void *> mDisabledClients;
     SensorDevice();
     bool connectHidlService();
-    bool connectHidlServiceV1_0();
-    bool connectHidlServiceV2_0();
+
+    enum HalConnectionStatus {
+        CONNECTED, // Successfully connected to the HAL
+        DOES_NOT_EXIST, // Could not find the HAL
+        FAILED_TO_CONNECT, // Found the HAL but failed to connect/initialize
+        UNKNOWN,
+    };
+    HalConnectionStatus connectHidlServiceV1_0();
+    HalConnectionStatus connectHidlServiceV2_0();
+
+    ssize_t pollHal(sensors_event_t* buffer, size_t count);
+    ssize_t pollFmq(sensors_event_t* buffer, size_t count);
 
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
@@ -190,6 +213,15 @@ private:
             sensors_event_t *dst);
 
     bool mIsDirectReportSupported;
+
+    typedef hardware::MessageQueue<Event, hardware::kSynchronizedReadWrite> EventMessageQueue;
+    typedef hardware::MessageQueue<uint32_t, hardware::kSynchronizedReadWrite> WakeLockQueue;
+    std::unique_ptr<EventMessageQueue> mEventQueue;
+    std::unique_ptr<WakeLockQueue> mWakeLockQueue;
+
+    hardware::EventFlag* mEventQueueFlag;
+
+    std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
 };
 
 // ---------------------------------------------------------------------------

@@ -73,7 +73,7 @@ class SurfaceInterceptor;
 // ---------------------------------------------------------------------------
 
 class Layer : public virtual RefBase {
-    static int32_t sSequence;
+    static std::atomic<int32_t> sSequence;
 
 public:
     friend class LayerBE;
@@ -89,7 +89,7 @@ public:
     // Layer serial number.  This gives layers an explicit ordering, so we
     // have a stable sort order when their layer stack and Z-order are
     // the same.
-    int32_t sequence;
+    int32_t sequence{sSequence++};
 
     enum { // flags for doTransaction()
         eDontUpdateGeometryState = 0x00000001,
@@ -271,6 +271,7 @@ public:
     virtual void useSurfaceDamage() {}
     virtual void useEmptyDamage() {}
 
+    uint32_t getTransactionFlags() const { return mTransactionFlags; }
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
 
@@ -696,7 +697,7 @@ protected:
     // these are protected by an external lock
     State mCurrentState;
     State mDrawingState;
-    volatile int32_t mTransactionFlags;
+    std::atomic<uint32_t> mTransactionFlags{0};
 
     // Accessed from main thread and binder threads
     Mutex mPendingStateMutex;

@@ -259,12 +259,10 @@ SurfaceFlingerBE::SurfaceFlingerBE()
 
 SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
       : BnSurfaceComposer(),
-        mTransactionFlags(0),
         mTransactionPending(false),
         mAnimTransactionPending(false),
         mLayersRemoved(false),
         mLayersAdded(false),
-        mRepaintEverything(0),
         mBootTime(systemTime()),
         mDisplayTokens(),
         mVisibleRegionsDirty(false),
@@ -1468,7 +1466,7 @@ void SurfaceFlinger::updateVrFlinger() {
 
     resyncToHardwareVsync(false);
 
-    android_atomic_or(1, &mRepaintEverything);
+    mRepaintEverything = true;
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
@@ -1527,7 +1525,7 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mRefreshPending = false;
 
-    const bool repaintEverything = android_atomic_and(0, &mRepaintEverything);
+    const bool repaintEverything = mRepaintEverything.exchange(false);
     preComposition();
     rebuildLayerStacks();
     calculateWorkingSet();
@@ -3355,11 +3353,11 @@ status_t SurfaceFlinger::removeLayerLocked(const Mutex&, const sp<Layer>& layer,
 }
 
 uint32_t SurfaceFlinger::peekTransactionFlags() {
-    return android_atomic_release_load(&mTransactionFlags);
+    return mTransactionFlags;
 }
 
 uint32_t SurfaceFlinger::getTransactionFlags(uint32_t flags) {
-    return android_atomic_and(~flags, &mTransactionFlags) & flags;
+    return mTransactionFlags.fetch_and(~flags) & flags;
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
@@ -3368,7 +3366,7 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
         VSyncModulator::TransactionStart transactionStart) {
-    uint32_t old = android_atomic_or(flags, &mTransactionFlags);
+    uint32_t old = mTransactionFlags.fetch_or(flags);
     mVsyncModulator.setTransactionStart(transactionStart);
     if ((old & flags)==0) { // wake the server up
         signalTransaction();
@@ -4663,7 +4661,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     }
     result.appendFormat("  transaction-flags         : %08x\n"
                         "  gpu_to_cpu_unsupported    : %d\n",
-                        mTransactionFlags, !mGpuToCpuSupported);
+                        mTransactionFlags.load(), !mGpuToCpuSupported);
 
     if (display) {
         const auto activeConfig = getHwComposer().getActiveConfig(display->getId());
@@ -5180,7 +5178,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 }
 
 void SurfaceFlinger::repaintEverything() {
-    android_atomic_or(1, &mRepaintEverything);
+    mRepaintEverything = true;
     signalTransaction();
 }
 
