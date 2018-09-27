@@ -133,6 +133,7 @@ cc_test {
     name: "dumpstate_test",
     defaults: ["dumpstate_defaults"],
     srcs: [
+        "dumpstate.cpp",
         "tests/dumpstate_test.cpp",
     ],
     static_libs: ["libgmock"],
