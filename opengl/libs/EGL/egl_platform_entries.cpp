@@ -748,13 +748,14 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx,
         }
 
         android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
-        if (dataSpace != HAL_DATASPACE_UNKNOWN) {
-            err = native_window_set_buffers_data_space(window, dataSpace);
-            if (err != 0) {
-                ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err), err);
-                native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
-                return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-            }
+        // Set dataSpace even if it could be HAL_DATASPACE_UNKNOWN.
+        // HAL_DATASPACE_UNKNOWN is the default value, but it may have changed
+        // at this point.
+        err = native_window_set_buffers_data_space(window, dataSpace);
+        if (err != 0) {
+            ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err), err);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
     }
 
