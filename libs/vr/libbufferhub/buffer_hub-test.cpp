@@ -795,8 +795,6 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   EXPECT_TRUE(d->IsConnected());
   EXPECT_TRUE(d->IsValid());
 
-  ASSERT_TRUE(d->buffer() != nullptr);
-  EXPECT_EQ(d->buffer()->initCheck(), 0);
   EXPECT_EQ(d->id(), p_id);
 }
 
@@ -808,7 +806,6 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
 
   EXPECT_FALSE(b1->IsConnected());
   EXPECT_FALSE(b1->IsValid());
-  EXPECT_TRUE(b1->buffer() == nullptr);
 
   // Buffer Creation will fail: user metadata size too large.
   auto b2 = DetachedBuffer::Create(
@@ -817,7 +814,6 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
 
   EXPECT_FALSE(b2->IsConnected());
   EXPECT_FALSE(b2->IsValid());
-  EXPECT_TRUE(b2->buffer() == nullptr);
 
   // Buffer Creation will fail: user metadata size too large.
   auto b3 = DetachedBuffer::Create(
@@ -827,50 +823,14 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
 
   EXPECT_FALSE(b3->IsConnected());
   EXPECT_FALSE(b3->IsValid());
-  EXPECT_TRUE(b3->buffer() == nullptr);
 }
 
 TEST_F(LibBufferHubTest, TestCreateDetachedBuffer) {
   auto b1 = DetachedBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
                                    kUsage, kUserMetadataSize);
-  int b1_id = b1->id();
-
   EXPECT_TRUE(b1->IsConnected());
   EXPECT_TRUE(b1->IsValid());
-  ASSERT_TRUE(b1->buffer() != nullptr);
   EXPECT_NE(b1->id(), 0);
-  EXPECT_EQ(b1->buffer()->initCheck(), 0);
-  EXPECT_FALSE(b1->buffer()->isDetachedBuffer());
-
-  // Takes a standalone GraphicBuffer which still holds on an
-  // PDX::LocalChannelHandle towards BufferHub.
-  sp<GraphicBuffer> g1 = b1->TakeGraphicBuffer();
-  ASSERT_TRUE(g1 != nullptr);
-  EXPECT_TRUE(g1->isDetachedBuffer());
-
-  EXPECT_FALSE(b1->IsConnected());
-  EXPECT_FALSE(b1->IsValid());
-  EXPECT_TRUE(b1->buffer() == nullptr);
-
-  sp<GraphicBuffer> g2 = b1->TakeGraphicBuffer();
-  ASSERT_TRUE(g2 == nullptr);
-
-  auto h1 = g1->takeDetachedBufferHandle();
-  ASSERT_TRUE(h1 != nullptr);
-  ASSERT_TRUE(h1->isValid());
-  EXPECT_FALSE(g1->isDetachedBuffer());
-
-  auto b2 = DetachedBuffer::Import(std::move(h1->handle()));
-  ASSERT_FALSE(h1->isValid());
-  EXPECT_TRUE(b2->IsConnected());
-  EXPECT_TRUE(b2->IsValid());
-
-  ASSERT_TRUE(b2->buffer() != nullptr);
-  EXPECT_EQ(b2->buffer()->initCheck(), 0);
-
-  // The newly created DetachedBuffer should share the original buffer_id.
-  EXPECT_EQ(b2->id(), b1_id);
-  EXPECT_FALSE(b2->buffer()->isDetachedBuffer());
 }
 
 TEST_F(LibBufferHubTest, TestPromoteDetachedBuffer) {

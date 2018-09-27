@@ -651,16 +651,18 @@ bool SensorService::threadLoop() {
         // sending events to clients (incrementing SensorEventConnection::mWakeLockRefCount) should
         // not be interleaved with decrementing SensorEventConnection::mWakeLockRefCount and
         // releasing the wakelock.
-        bool bufferHasWakeUpEvent = false;
+        uint32_t wakeEvents = 0;
         for (int i = 0; i < count; i++) {
             if (isWakeUpSensorEvent(mSensorEventBuffer[i])) {
-                bufferHasWakeUpEvent = true;
-                break;
+                wakeEvents++;
             }
         }
 
-        if (bufferHasWakeUpEvent && !mWakeLockAcquired) {
-            setWakeLockAcquiredLocked(true);
+        if (wakeEvents > 0) {
+            if (!mWakeLockAcquired) {
+                setWakeLockAcquiredLocked(true);
+            }
+            device.writeWakeLockHandled(wakeEvents);
         }
         recordLastValueLocked(mSensorEventBuffer, count);
 
