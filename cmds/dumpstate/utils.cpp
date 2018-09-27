@@ -916,7 +916,7 @@ void Dumpstate::UpdateProgress(int32_t delta_sec) {
     bool max_changed = progress_->Inc(delta_sec);
 
     // ...but only notifiy listeners when necessary.
-    if (!update_progress_) return;
+    if (!options_->do_progress_updates) return;
 
     int progress = progress_->Get();
     int max = progress_->GetMax();
