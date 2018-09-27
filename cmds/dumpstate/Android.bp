@@ -57,10 +57,21 @@ cc_library_shared {
         export_aidl_headers: true,
     },
     srcs: [
-        "binder/android/os/IDumpstate.aidl",
+        "binder/android/os/DumpstateOptions.cpp",
+        ":dumpstate_aidl",
+    ],
+    export_include_dirs: ["binder"],
+}
+
+filegroup {
+    name: "dumpstate_aidl",
+    srcs: [
         "binder/android/os/IDumpstateListener.aidl",
         "binder/android/os/IDumpstateToken.aidl",
+        //"binder/android/os/DumpstateOptions.aidl",
+        "binder/android/os/IDumpstate.aidl",
     ],
+    path: "binder",
 }
 
 cc_defaults {
