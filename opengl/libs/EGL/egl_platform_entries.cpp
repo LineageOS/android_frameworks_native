@@ -732,6 +732,9 @@ EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx,
     std::vector<AttrType> strippedAttribList;
     if (!processAttributes<AttrType>(dp, window, attrib_list, &colorSpace, &strippedAttribList)) {
         ALOGE("error invalid colorspace: %d", colorSpace);
+        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+        }
         return EGL_NO_SURFACE;
     }
     attrib_list = strippedAttribList.data();
