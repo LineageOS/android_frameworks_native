@@ -720,6 +720,7 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         if (!processAttributes(dp, window, attrib_list, &colorSpace,
                                &strippedAttribList)) {
             ALOGE("error invalid colorspace: %d", colorSpace);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return EGL_NO_SURFACE;
         }
         attrib_list = strippedAttribList.data();
