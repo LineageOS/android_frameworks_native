@@ -736,14 +736,14 @@ EGLSurface eglCreateWindowSurface(  EGLDisplay dpy, EGLConfig config,
         }
 
         android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
-        if (dataSpace != HAL_DATASPACE_UNKNOWN) {
-            int err = native_window_set_buffers_data_space(window, dataSpace);
-            if (err != 0) {
-                ALOGE("error setting native window pixel dataSpace: %s (%d)",
-                      strerror(-err), err);
-                native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
-                return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-            }
+        // Set dataSpace even if it could be HAL_DATASPACE_UNKNOWN. HAL_DATASPACE_UNKNOWN
+        // is the default value, but it may have changed at this point.
+        int err = native_window_set_buffers_data_space(window, dataSpace);
+        if (err != 0) {
+            ALOGE("error setting native window pixel dataSpace: %s (%d)",
+                  strerror(-err), err);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
 
         // the EGL spec requires that a new EGLSurface default to swap interval
