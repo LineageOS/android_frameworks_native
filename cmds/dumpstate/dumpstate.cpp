@@ -1745,24 +1745,118 @@ static void Vibrate(int duration_ms) {
     // clang-format on
 }
 
-/** Main entry point for dumpstate. */
-int run_main(int argc, char* argv[]) {
-    int do_add_date = 0;
-    int do_zip_file = 0;
-    int do_vibrate = 1;
-    char* use_outfile = nullptr;
-    int use_socket = 0;
-    int use_control_socket = 0;
-    int do_fb = 0;
-    int do_broadcast = 0;
-    int is_remote_mode = 0;
-    bool show_header_only = false;
-    bool do_start_service = false;
-    bool telephony_only = false;
-    bool wifi_only = false;
-    int dup_stdout_fd;
-    int dup_stderr_fd;
+int Dumpstate::ParseCommandlineOptions(int argc, char* argv[]) {
+    int ret = -1;  // success
+    int c;
+    while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
+        switch (c) {
+            // clang-format off
+            case 'd': options_.do_add_date = true;            break;
+            case 'z': options_.do_zip_file = true;            break;
+            case 'o': options_.use_outfile = optarg;          break;
+            case 's': options_.use_socket = true;             break;
+            case 'S': options_.use_control_socket = true;     break;
+            case 'v': options_.show_header_only = true;       break;
+            case 'q': options_.do_vibrate = false;            break;
+            case 'p': options_.do_fb = true;                  break;
+            case 'P': update_progress_ = true;                break;
+            case 'R': options_.is_remote_mode = true;         break;
+            case 'B': options_.do_broadcast = true;           break;
+            case 'V':                                         break;  // compatibility no-op
+            case 'h':
+                ret = 0;
+                break;
+            default:
+                fprintf(stderr, "Invalid option: %c\n", c);
+                ret = 1;
+                break;
+                // clang-format on
+        }
+    }
 
+    // TODO: use helper function to convert argv into a string
+    for (int i = 0; i < argc; i++) {
+        args_ += argv[i];
+        if (i < argc - 1) {
+            args_ += " ";
+        }
+    }
+
+    // Reset next index used by getopt so this can be called multiple times, for eg, in tests.
+    optind = 1;
+    return ret;
+}
+
+// TODO: Move away from system properties when we have binder.
+void Dumpstate::SetOptionsFromProperties() {
+    extra_options_ = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
+    if (!extra_options_.empty()) {
+        // Framework uses a system property to override some command-line args.
+        // Currently, it contains the type of the requested bugreport.
+        if (extra_options_ == "bugreportplus") {
+            // Currently, the dumpstate binder is only used by Shell to update progress.
+            options_.do_start_service = true;
+            update_progress_ = true;
+            options_.do_fb = false;
+        } else if (extra_options_ == "bugreportremote") {
+            options_.do_vibrate = false;
+            options_.is_remote_mode = true;
+            options_.do_fb = false;
+        } else if (extra_options_ == "bugreportwear") {
+            options_.do_start_service = true;
+            update_progress_ = true;
+            options_.do_zip_file = true;
+        } else if (extra_options_ == "bugreporttelephony") {
+            options_.telephony_only = true;
+        } else if (extra_options_ == "bugreportwifi") {
+            options_.wifi_only = true;
+            options_.do_zip_file = true;
+        } else {
+            MYLOGE("Unknown extra option: %s\n", extra_options_.c_str());
+        }
+        // Reset the property
+        android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
+    }
+
+    notification_title = android::base::GetProperty(PROPERTY_EXTRA_TITLE, "");
+    if (!notification_title.empty()) {
+        // Reset the property
+        android::base::SetProperty(PROPERTY_EXTRA_TITLE, "");
+
+        notification_description = android::base::GetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
+        if (!notification_description.empty()) {
+            // Reset the property
+            android::base::SetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
+        }
+        MYLOGD("notification (title:  %s, description: %s)\n", notification_title.c_str(),
+               notification_description.c_str());
+    }
+}
+
+bool Dumpstate::ValidateOptions() {
+    if ((options_.do_zip_file || options_.do_add_date || ds.update_progress_ ||
+         options_.do_broadcast) &&
+        options_.use_outfile.empty()) {
+        return false;
+    }
+
+    if (options_.use_control_socket && !options_.do_zip_file) {
+        return false;
+    }
+
+    if (ds.update_progress_ && !options_.do_broadcast) {
+        return false;
+    }
+
+    if (options_.is_remote_mode && (ds.update_progress_ || !options_.do_broadcast ||
+                                    !options_.do_zip_file || !options_.do_add_date)) {
+        return false;
+    }
+    return true;
+}
+
+/* Main entry point for dumpstate. */
+int run_main(int argc, char* argv[]) {
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
 
@@ -1779,97 +1873,12 @@ int run_main(int argc, char* argv[]) {
         }
     }
 
-    /* parse arguments */
-    int c;
-    while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
-        switch (c) {
-            // clang-format off
-            case 'd': do_add_date = 1;            break;
-            case 'z': do_zip_file = 1;            break;
-            case 'o': use_outfile = optarg;       break;
-            case 's': use_socket = 1;             break;
-            case 'S': use_control_socket = 1;     break;
-            case 'v': show_header_only = true;    break;
-            case 'q': do_vibrate = 0;             break;
-            case 'p': do_fb = 1;                  break;
-            case 'P': ds.update_progress_ = true; break;
-            case 'R': is_remote_mode = 1;         break;
-            case 'B': do_broadcast = 1;           break;
-            case 'V':                             break; // compatibility no-op
-            case 'h':
-                ShowUsageAndExit(0);
-                break;
-            default:
-                fprintf(stderr, "Invalid option: %c\n", c);
-                ShowUsageAndExit();
-                // clang-format on
-        }
+    int status = ds.ParseCommandlineOptions(argc, argv);
+    if (status != -1) {
+        ShowUsageAndExit(status);
     }
-
-    // TODO: use helper function to convert argv into a string
-    for (int i = 0; i < argc; i++) {
-        ds.args_ += argv[i];
-        if (i < argc - 1) {
-            ds.args_ += " ";
-        }
-    }
-
-    ds.extra_options_ = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    if (!ds.extra_options_.empty()) {
-        // Framework uses a system property to override some command-line args.
-        // Currently, it contains the type of the requested bugreport.
-        if (ds.extra_options_ == "bugreportplus") {
-            // Currently, the dumpstate binder is only used by Shell to update progress.
-            do_start_service = true;
-            ds.update_progress_ = true;
-            do_fb = 0;
-        } else if (ds.extra_options_ == "bugreportremote") {
-            do_vibrate = 0;
-            is_remote_mode = 1;
-            do_fb = 0;
-        } else if (ds.extra_options_ == "bugreportwear") {
-            do_start_service = true;
-            ds.update_progress_ = true;
-            do_zip_file = 1;
-        } else if (ds.extra_options_ == "bugreporttelephony") {
-            telephony_only = true;
-        } else if (ds.extra_options_ == "bugreportwifi") {
-            wifi_only = true;
-            do_zip_file = 1;
-        } else {
-            MYLOGE("Unknown extra option: %s\n", ds.extra_options_.c_str());
-        }
-        // Reset the property
-        android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    }
-
-    ds.notification_title = android::base::GetProperty(PROPERTY_EXTRA_TITLE, "");
-    if (!ds.notification_title.empty()) {
-        // Reset the property
-        android::base::SetProperty(PROPERTY_EXTRA_TITLE, "");
-
-        ds.notification_description = android::base::GetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
-        if (!ds.notification_description.empty()) {
-            // Reset the property
-            android::base::SetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
-        }
-        MYLOGD("notification (title:  %s, description: %s)\n",
-               ds.notification_title.c_str(), ds.notification_description.c_str());
-    }
-
-    if ((do_zip_file || do_add_date || ds.update_progress_ || do_broadcast) && !use_outfile) {
-        ExitOnInvalidArgs();
-    }
-
-    if (use_control_socket && !do_zip_file) {
-        ExitOnInvalidArgs();
-    }
-
-    if (ds.update_progress_ && !do_broadcast) {
-        ExitOnInvalidArgs();
-    }
-
-    if (is_remote_mode && (ds.update_progress_ || !do_broadcast || !do_zip_file || !do_add_date)) {
+    ds.SetOptionsFromProperties();
+    if (!ds.ValidateOptions()) {
         ExitOnInvalidArgs();
     }
 
@@ -1884,18 +1893,21 @@ int run_main(int argc, char* argv[]) {
         exit(1);
     }
 
-    if (show_header_only) {
+    // TODO: make const reference, but first avoid setting do_zip_file below.
+    Dumpstate::DumpOptions& options = ds.options_;
+    if (options.show_header_only) {
         ds.PrintHeader();
         exit(0);
     }
 
-    /* redirect output if needed */
-    bool is_redirecting = !use_socket && use_outfile;
+    // Redirect output if needed
+    bool is_redirecting = !options.use_socket && !options.use_outfile.empty();
 
     // TODO: temporarily set progress until it's part of the Dumpstate constructor
-    std::string stats_path =
-        is_redirecting ? android::base::StringPrintf("%s/dumpstate-stats.txt", dirname(use_outfile))
-                       : "";
+    std::string stats_path = is_redirecting
+                                 ? android::base::StringPrintf("%s/dumpstate-stats.txt",
+                                                               dirname(options.use_outfile.c_str()))
+                                 : "";
     ds.progress_.reset(new Progress(stats_path));
 
     /* gets the sequential id */
@@ -1907,7 +1919,7 @@ int run_main(int argc, char* argv[]) {
 
     register_sig_handler();
 
-    if (do_start_service) {
+    if (options.do_start_service) {
         MYLOGI("Starting 'dumpstate' service\n");
         android::status_t ret;
         if ((ret = android::os::DumpstateService::Start()) != android::OK) {
@@ -1928,23 +1940,24 @@ int run_main(int argc, char* argv[]) {
 
     // If we are going to use a socket, do it as early as possible
     // to avoid timeouts from bugreport.
-    if (use_socket) {
+    if (options.use_socket) {
         redirect_to_socket(stdout, "dumpstate");
     }
 
-    if (use_control_socket) {
+    if (options.use_control_socket) {
         MYLOGD("Opening control socket\n");
         ds.control_socket_fd_ = open_socket("dumpstate");
         ds.update_progress_ = 1;
     }
 
     if (is_redirecting) {
-        ds.bugreport_dir_ = dirname(use_outfile);
+        ds.bugreport_dir_ = dirname(options.use_outfile.c_str());
         std::string build_id = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
         std::string device_name = android::base::GetProperty("ro.product.name", "UNKNOWN_DEVICE");
-        ds.base_name_ = android::base::StringPrintf("%s-%s-%s", basename(use_outfile),
-                                                    device_name.c_str(), build_id.c_str());
-        if (do_add_date) {
+        ds.base_name_ =
+            android::base::StringPrintf("%s-%s-%s", basename(options.use_outfile.c_str()),
+                                        device_name.c_str(), build_id.c_str());
+        if (options.do_add_date) {
             char date[80];
             strftime(date, sizeof(date), "%Y-%m-%d-%H-%M-%S", localtime(&ds.now_));
             ds.name_ = date;
@@ -1952,13 +1965,13 @@ int run_main(int argc, char* argv[]) {
             ds.name_ = "undated";
         }
 
-        if (telephony_only) {
+        if (options.telephony_only) {
             ds.base_name_ += "-telephony";
-        } else if (wifi_only) {
+        } else if (options.wifi_only) {
             ds.base_name_ += "-wifi";
         }
 
-        if (do_fb) {
+        if (options.do_fb) {
             ds.screenshot_path_ = ds.GetPath(".png");
         }
         ds.tmp_path_ = ds.GetPath(".tmp");
@@ -1974,14 +1987,14 @@ int run_main(int argc, char* argv[]) {
             ds.bugreport_dir_.c_str(), ds.base_name_.c_str(), ds.name_.c_str(),
             ds.log_path_.c_str(), ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
 
-        if (do_zip_file) {
+        if (options.do_zip_file) {
             ds.path_ = ds.GetPath(".zip");
             MYLOGD("Creating initial .zip file (%s)\n", ds.path_.c_str());
             create_parent_dirs(ds.path_.c_str());
             ds.zip_file.reset(fopen(ds.path_.c_str(), "wb"));
             if (ds.zip_file == nullptr) {
                 MYLOGE("fopen(%s, 'wb'): %s\n", ds.path_.c_str(), strerror(errno));
-                do_zip_file = 0;
+                options.do_zip_file = false;
             } else {
                 ds.zip_writer_.reset(new ZipWriter(ds.zip_file.get()));
             }
@@ -1989,7 +2002,7 @@ int run_main(int argc, char* argv[]) {
         }
 
         if (ds.update_progress_) {
-            if (do_broadcast) {
+            if (options.do_broadcast) {
                 // clang-format off
 
                 std::vector<std::string> am_args = {
@@ -2002,7 +2015,7 @@ int run_main(int argc, char* argv[]) {
                 // clang-format on
                 SendBroadcast("com.android.internal.intent.action.BUGREPORT_STARTED", am_args);
             }
-            if (use_control_socket) {
+            if (options.use_control_socket) {
                 dprintf(ds.control_socket_fd_, "BEGIN:%s\n", ds.path_.c_str());
             }
         }
@@ -2015,11 +2028,11 @@ int run_main(int argc, char* argv[]) {
         fclose(cmdline);
     }
 
-    if (do_vibrate) {
+    if (options.do_vibrate) {
         Vibrate(150);
     }
 
-    if (do_fb && ds.do_early_screenshot_) {
+    if (options.do_fb && ds.do_early_screenshot_) {
         if (ds.screenshot_path_.empty()) {
             // should not have happened
             MYLOGE("INTERNAL ERROR: skipping early screenshot because path was not set\n");
@@ -2029,13 +2042,15 @@ int run_main(int argc, char* argv[]) {
         }
     }
 
-    if (do_zip_file) {
+    if (options.do_zip_file) {
         if (chown(ds.path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of zip file %s: %s\n", ds.path_.c_str(),
                    strerror(errno));
         }
     }
 
+    int dup_stdout_fd;
+    int dup_stderr_fd;
     if (is_redirecting) {
         TEMP_FAILURE_RETRY(dup_stderr_fd = dup(fileno(stderr)));
         redirect_to_file(stderr, const_cast<char*>(ds.log_path_.c_str()));
@@ -2062,10 +2077,10 @@ int run_main(int argc, char* argv[]) {
     // duration is logged into MYLOG instead.
     ds.PrintHeader();
 
-    if (telephony_only) {
+    if (options.telephony_only) {
         DumpstateTelephonyOnly();
         ds.DumpstateBoard();
-    } else if (wifi_only) {
+    } else if (options.wifi_only) {
         DumpstateWifiOnly();
     } else {
         // Dumps systrace right away, otherwise it will be filled with unnecessary events.
@@ -2124,12 +2139,11 @@ int run_main(int argc, char* argv[]) {
     }
 
     /* rename or zip the (now complete) .tmp file to its final location */
-    if (use_outfile) {
-
+    if (!options.use_outfile.empty()) {
         /* check if user changed the suffix using system properties */
         std::string name = android::base::GetProperty(
             android::base::StringPrintf("dumpstate.%d.name", ds.pid_), "");
-        bool change_suffix= false;
+        bool change_suffix = false;
         if (!name.empty()) {
             /* must whitelist which characters are allowed, otherwise it could cross directories */
             std::regex valid_regex("^[-_a-zA-Z0-9]+$");
@@ -2154,7 +2168,7 @@ int run_main(int argc, char* argv[]) {
         }
 
         bool do_text_file = true;
-        if (do_zip_file) {
+        if (options.do_zip_file) {
             if (!ds.FinishZipFile()) {
                 MYLOGE("Failed to finish zip file; sending text bugreport instead\n");
                 do_text_file = true;
@@ -2183,7 +2197,7 @@ int run_main(int argc, char* argv[]) {
                 ds.path_.clear();
             }
         }
-        if (use_control_socket) {
+        if (options.use_control_socket) {
             if (do_text_file) {
                 dprintf(ds.control_socket_fd_,
                         "FAIL:could not create zip file, check %s "
@@ -2196,7 +2210,7 @@ int run_main(int argc, char* argv[]) {
     }
 
     /* vibrate a few but shortly times to let user know it's finished */
-    if (do_vibrate) {
+    if (options.do_vibrate) {
         for (int i = 0; i < 3; i++) {
             Vibrate(75);
             usleep((75 + 50) * 1000);
@@ -2204,7 +2218,7 @@ int run_main(int argc, char* argv[]) {
     }
 
     /* tell activity manager we're done */
-    if (do_broadcast) {
+    if (options.do_broadcast) {
         if (!ds.path_.empty()) {
             MYLOGI("Final bugreport path: %s\n", ds.path_.c_str());
             // clang-format off
@@ -2218,7 +2232,7 @@ int run_main(int argc, char* argv[]) {
                  "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path_
             };
             // clang-format on
-            if (do_fb) {
+            if (options.do_fb) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.SCREENSHOT");
                 am_args.push_back(ds.screenshot_path_);
@@ -2233,7 +2247,7 @@ int run_main(int argc, char* argv[]) {
                     am_args.push_back(ds.notification_description);
                 }
             }
-            if (is_remote_mode) {
+            if (options.is_remote_mode) {
                 am_args.push_back("--es");
                 am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
                 am_args.push_back(SHA256_file_hash(ds.path_));
@@ -2256,7 +2270,7 @@ int run_main(int argc, char* argv[]) {
         TEMP_FAILURE_RETRY(dup2(dup_stderr_fd, fileno(stderr)));
     }
 
-    if (use_control_socket && ds.control_socket_fd_ != -1) {
+    if (options.use_control_socket && ds.control_socket_fd_ != -1) {
         MYLOGD("Closing control socket\n");
         close(ds.control_socket_fd_);
     }
