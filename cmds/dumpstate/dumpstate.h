@@ -290,13 +290,50 @@ class Dumpstate {
     /* Returns true if the current version supports priority dump feature. */
     bool CurrentVersionSupportsPriorityDumps() const;
 
-    // TODO: initialize fields on constructor
+    // TODO: revisit the return values later.
+    /*
+     * Parses commandline arguments and sets runtime options accordingly.
+     *
+     * Returns 0 or positive number if the caller should exit with returned value as
+     * exit code, or returns -1 if caller should proceed with execution.
+     */
+    int ParseCommandlineOptions(int argc, char* argv[]);
 
+    /* Sets runtime options from the system properties. */
+    void SetOptionsFromProperties();
+
+    /* Returns true if the options set so far are consistent. */
+    bool ValidateOptions();
+
+    // TODO: add update_progress_ & other options from DumpState.
+    /*
+     * Structure to hold options that determine the behavior of dumpstate.
+     */
+    struct DumpOptions {
+        bool do_add_date = false;
+        bool do_zip_file = false;
+        bool do_vibrate = true;
+        bool use_socket = false;
+        bool use_control_socket = false;
+        bool do_fb = false;
+        bool do_broadcast = false;
+        bool is_remote_mode = false;
+        bool show_header_only = false;
+        bool do_start_service = false;
+        bool telephony_only = false;
+        bool wifi_only = false;
+        std::string use_outfile;
+    };
+
+    // TODO: initialize fields on constructor
     // dumpstate id - unique after each device reboot.
     uint32_t id_;
 
     // dumpstate pid
     pid_t pid_;
+
+    // Runtime options.
+    DumpOptions options_;
 
     // Whether progress updates should be published.
     bool update_progress_ = false;
