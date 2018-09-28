@@ -16,19 +16,36 @@
 
 #include "PipeRelay.h"
 
+#include <sys/select.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <atomic>
+
+#include <android-base/logging.h>
 #include <utils/Thread.h>
 
 namespace android {
 namespace lshal {
 
+static constexpr struct timeval READ_TIMEOUT { .tv_sec = 1, .tv_usec = 0 };
+
 struct PipeRelay::RelayThread : public Thread {
     explicit RelayThread(int fd, std::ostream &os);
 
     bool threadLoop() override;
+    void setFinished();
 
 private:
     int mFd;
     std::ostream &mOutStream;
+
+    // If we were to use requestExit() and exitPending() instead, threadLoop()
+    // may not run at all by the time ~PipeRelay is called (i.e. debug() has
+    // returned from HAL). By using our own flag, we ensure that select() and
+    // read() are executed until data are drained.
+    std::atomic_bool mFinished;
 
     DISALLOW_COPY_AND_ASSIGN(RelayThread);
 };
@@ -36,13 +53,38 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 PipeRelay::RelayThread::RelayThread(int fd, std::ostream &os)
-    : mFd(fd),
-      mOutStream(os) {
-}
+      : mFd(fd), mOutStream(os), mFinished(false) {}
 
 bool PipeRelay::RelayThread::threadLoop() {
     char buffer[1024];
-    ssize_t n = read(mFd, buffer, sizeof(buffer));
+
+    fd_set set;
+    FD_ZERO(&set);
+    FD_SET(mFd, &set);
+
+    struct timeval timeout = READ_TIMEOUT;
+
+    int res = TEMP_FAILURE_RETRY(select(mFd + 1, &set, nullptr, nullptr, &timeout));
+    if (res < 0) {
+        PLOG(INFO) << "select() failed";
+        return false;
+    }
+
+    if (res == 0 || !FD_ISSET(mFd, &set)) {
+        if (mFinished) {
+            LOG(WARNING) << "debug: timeout reading from pipe, output may be truncated.";
+            return false;
+        }
+        // timeout, but debug() has not returned, so wait for HAL to finish.
+        return true;
+    }
+
+    // FD_ISSET(mFd, &set) == true. Data available, start reading
+    ssize_t n = TEMP_FAILURE_RETRY(read(mFd, buffer, sizeof(buffer)));
+
+    if (n < 0) {
+        PLOG(ERROR) << "read() failed";
+    }
 
     if (n <= 0) {
         return false;
@@ -51,6 +93,10 @@ bool PipeRelay::RelayThread::threadLoop() {
     mOutStream.write(buffer, n);
 
     return true;
+}
+
+void PipeRelay::RelayThread::setFinished() {
+    mFinished = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,12 +123,14 @@ void PipeRelay::CloseFd(int *fd) {
 
 PipeRelay::~PipeRelay() {
     CloseFd(&mFds[1]);
-    CloseFd(&mFds[0]);
 
     if (mThread != nullptr) {
+        mThread->setFinished();
         mThread->join();
         mThread.clear();
     }
+
+    CloseFd(&mFds[0]);
 }
 
 status_t PipeRelay::initCheck() const {
