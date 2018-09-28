@@ -478,9 +478,6 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
         EXPECT_CALL(*test->mRenderEngine, createImage())
                 .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
-        EXPECT_CALL(*test->mRenderEngine, bindExternalTextureImage(DEFAULT_TEXTURE_ID, _)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, checkErrors()).Times(1);
-        EXPECT_CALL(*test->mReImage, setNativeWindowBuffer(_, false)).WillOnce(Return(true));
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0);
         Mock::VerifyAndClear(test->mRenderEngine);

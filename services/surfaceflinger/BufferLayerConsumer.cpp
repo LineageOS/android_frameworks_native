@@ -203,7 +203,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return err;
     }
 
-    if (mRE.useNativeFenceSync()) {
+    if (!mRE.useNativeFenceSync()) {
         // Bind the new buffer to the GL texture.
         //
         // Older devices require the "implicit" synchronization provided
