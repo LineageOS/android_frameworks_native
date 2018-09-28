@@ -192,7 +192,7 @@ public:
     public:
         FakePowerAdvisor() = default;
         ~FakePowerAdvisor() override = default;
-        void setExpensiveRenderingExpected(hwc2_display_t, bool) override { }
+        void setExpensiveRenderingExpected(hwc2_display_t, bool) override {}
     };
 
     struct HWC2Display : public HWC2::Display {
@@ -315,7 +315,8 @@ public:
     public:
         FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger, DisplayDevice::DisplayType type,
                                   int32_t displayId)
-              : mFlinger(flinger), mType(type), mDisplayId(displayId) {}
+              : mFlinger(flinger),
+                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, type, displayId) {}
 
         sp<IBinder> token() const { return mDisplayToken; }
 
@@ -338,54 +339,49 @@ public:
         auto& mutableDisplayDevice() { return mFlinger.mutableDisplays()[mDisplayToken]; }
 
         auto& setNativeWindow(const sp<ANativeWindow>& nativeWindow) {
-            mNativeWindow = nativeWindow;
+            mCreationArgs.nativeWindow = nativeWindow;
             return *this;
         }
 
         auto& setDisplaySurface(const sp<DisplaySurface>& displaySurface) {
-            mDisplaySurface = displaySurface;
+            mCreationArgs.displaySurface = displaySurface;
             return *this;
         }
 
         auto& setRenderSurface(std::unique_ptr<renderengine::Surface> renderSurface) {
-            mRenderSurface = std::move(renderSurface);
+            mCreationArgs.renderSurface = std::move(renderSurface);
             return *this;
         }
 
         auto& setSecure(bool secure) {
-            mSecure = secure;
+            mCreationArgs.isSecure = secure;
             return *this;
         }
 
         auto& setDisplaySize(int width, int height) {
-            mWidth = width;
-            mHeight = height;
+            mCreationArgs.displayWidth = width;
+            mCreationArgs.displayHeight = height;
             return *this;
         }
 
         auto& setPowerMode(int mode) {
-            mPowerMode = mode;
+            mCreationArgs.initialPowerMode = mode;
             return *this;
         }
 
         sp<DisplayDevice> inject() {
-            std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hdrAndRenderIntents;
-            sp<DisplayDevice> device =
-                    new DisplayDevice(mFlinger.mFlinger.get(), mType, mDisplayId, mSecure,
-                                      mDisplayToken, mNativeWindow, mDisplaySurface,
-                                      std::move(mRenderSurface), mWidth, mHeight,
-                                      DisplayState::eOrientationDefault, false, HdrCapabilities(),
-                                      0, hdrAndRenderIntents, mPowerMode);
-            mFlinger.mutableDisplays().emplace(mDisplayToken, device);
-
             DisplayDeviceState state;
-            state.type = mType;
-            state.isSecure = mSecure;
+            state.type = mCreationArgs.type;
+            state.isSecure = mCreationArgs.isSecure;
+
+            sp<DisplayDevice> device = new DisplayDevice(std::move(mCreationArgs));
+            mFlinger.mutableDisplays().emplace(mDisplayToken, device);
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
-            if (mType >= DisplayDevice::DISPLAY_PRIMARY && mType < DisplayDevice::DISPLAY_VIRTUAL) {
-                mFlinger.mutableDisplayTokens()[mType] = mDisplayToken;
+            if (state.type >= DisplayDevice::DISPLAY_PRIMARY &&
+                state.type < DisplayDevice::DISPLAY_VIRTUAL) {
+                mFlinger.mutableDisplayTokens()[state.type] = mDisplayToken;
             }
 
             return device;
@@ -394,15 +390,7 @@ public:
     private:
         TestableSurfaceFlinger& mFlinger;
         sp<BBinder> mDisplayToken = new BBinder();
-        DisplayDevice::DisplayType mType;
-        const int32_t mDisplayId;
-        sp<ANativeWindow> mNativeWindow;
-        sp<DisplaySurface> mDisplaySurface;
-        std::unique_ptr<renderengine::Surface> mRenderSurface;
-        bool mSecure = false;
-        int mWidth = 0;
-        int mHeight = 0;
-        int mPowerMode = HWC_POWER_MODE_NORMAL;
+        DisplayDeviceCreationArgs mCreationArgs;
     };
 
     sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(SurfaceFlinger::SkipInitialization);

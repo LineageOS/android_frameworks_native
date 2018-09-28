@@ -39,6 +39,8 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
+#include <system/window.h> // For NATIVE_WINDOW_SCALING_MODE_FREEZE
+
 #include <stdint.h>
 #include <sys/types.h>
 #include <list>
@@ -47,9 +49,7 @@ namespace android {
 
 class BufferLayer : public Layer {
 public:
-    BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
-                uint32_t h, uint32_t flags);
-
+    explicit BufferLayer(const LayerCreationArgs& args);
     ~BufferLayer() override;
 
     // -----------------------------------------------------------------------
@@ -172,15 +172,15 @@ private:
 
     uint64_t getHeadFrameNumber() const;
 
-    uint32_t mCurrentScalingMode;
+    uint32_t mCurrentScalingMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
 
     // main thread.
-    bool mBufferLatched; // TODO: Use mActiveBuffer?
+    bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
     // The texture used to draw the layer in GLES composition mode
     mutable renderengine::Texture mTexture;
 
-    bool mRefreshPending;
+    bool mRefreshPending{false};
 };
 
 } // namespace android

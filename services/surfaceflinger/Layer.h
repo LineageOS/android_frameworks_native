@@ -72,6 +72,19 @@ class SurfaceInterceptor;
 
 // ---------------------------------------------------------------------------
 
+struct LayerCreationArgs {
+    LayerCreationArgs(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
+                      uint32_t w, uint32_t h, uint32_t flags)
+          : flinger(flinger), client(client), name(name), w(w), h(h), flags(flags) {}
+
+    SurfaceFlinger* flinger;
+    const sp<Client>& client;
+    const String8& name;
+    uint32_t w;
+    uint32_t h;
+    uint32_t flags;
+};
+
 class Layer : public virtual RefBase {
     static std::atomic<int32_t> sSequence;
 
@@ -79,7 +92,7 @@ public:
     friend class LayerBE;
     LayerBE& getBE() { return mBE; }
     LayerBE& getBE() const { return mBE; }
-    mutable bool contentDirty;
+    mutable bool contentDirty{false};
     // regions below are in window-manager space
     Region visibleRegion;
     Region coveredRegion;
@@ -170,8 +183,7 @@ public:
         sp<NativeHandle> sidebandStream;
     };
 
-    Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name, uint32_t w,
-          uint32_t h, uint32_t flags);
+    explicit Layer(const LayerCreationArgs& args);
     virtual ~Layer();
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
@@ -688,7 +700,7 @@ protected:
     // -----------------------------------------------------------------------
     bool usingRelativeZ(LayerVector::StateSet stateSet);
 
-    bool mPremultipliedAlpha;
+    bool mPremultipliedAlpha{true};
     String8 mName;
     String8 mTransactionName; // A cached version of "TX - " + mName for systraces
 
@@ -719,18 +731,18 @@ protected:
     sp<GraphicBuffer> mActiveBuffer;
     ui::Dataspace mCurrentDataSpace = ui::Dataspace::UNKNOWN;
     Rect mCurrentCrop;
-    uint32_t mCurrentTransform;
+    uint32_t mCurrentTransform{0};
     // We encode unset as -1.
-    int32_t mOverrideScalingMode;
-    std::atomic<uint64_t> mCurrentFrameNumber;
-    bool mFrameLatencyNeeded;
+    int32_t mOverrideScalingMode{-1};
+    std::atomic<uint64_t> mCurrentFrameNumber{0};
+    bool mFrameLatencyNeeded{false};
     // Whether filtering is needed b/c of the drawingstate
-    bool mNeedsFiltering;
+    bool mNeedsFiltering{false};
 
-    bool mPendingRemoval = false;
+    bool mPendingRemoval{false};
 
     // page-flip thread (currently main thread)
-    bool mProtectedByApp; // application requires protected path to external sink
+    bool mProtectedByApp{false}; // application requires protected path to external sink
 
     // protected by mLock
     mutable Mutex mLock;
@@ -738,14 +750,14 @@ protected:
     const wp<Client> mClientRef;
 
     // This layer can be a cursor on some displays.
-    bool mPotentialCursor;
+    bool mPotentialCursor{false};
 
-    bool mFreezeGeometryUpdates;
+    bool mFreezeGeometryUpdates{false};
 
     // Child list about to be committed/used for editing.
-    LayerVector mCurrentChildren;
+    LayerVector mCurrentChildren{LayerVector::StateSet::Current};
     // Child list used for rendering.
-    LayerVector mDrawingChildren;
+    LayerVector mDrawingChildren{LayerVector::StateSet::Drawing};
 
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;

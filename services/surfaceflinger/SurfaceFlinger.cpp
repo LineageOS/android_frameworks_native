@@ -74,6 +74,7 @@
 #include "Layer.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
+#include "NativeWindowSurface.h"
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/ComposerHal.h"
@@ -222,32 +223,6 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     }
 }
 
-NativeWindowSurface::~NativeWindowSurface() = default;
-
-namespace impl {
-
-class NativeWindowSurface final : public android::NativeWindowSurface {
-public:
-    static std::unique_ptr<android::NativeWindowSurface> create(
-            const sp<IGraphicBufferProducer>& producer) {
-        return std::make_unique<NativeWindowSurface>(producer);
-    }
-
-    explicit NativeWindowSurface(const sp<IGraphicBufferProducer>& producer)
-          : surface(new Surface(producer, false)) {}
-
-    ~NativeWindowSurface() override = default;
-
-private:
-    sp<ANativeWindow> getNativeWindow() const override { return surface; }
-
-    void preallocateBuffers() override { surface->allocateBuffers(); }
-
-    sp<Surface> surface;
-};
-
-} // namespace impl
-
 SurfaceFlingerBE::SurfaceFlingerBE()
       : mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
@@ -284,7 +259,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
         mCreateBufferQueue(&BufferQueue::createBufferQueue),
-        mCreateNativeWindowSurface(&impl::NativeWindowSurface::create) {}
+        mCreateNativeWindowSurface(&surfaceflinger::impl::createNativeWindowSurface) {}
 
 SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
@@ -2452,31 +2427,34 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const wp<IBinder>& displayToken, int32_t displayId, const DisplayDeviceState& state,
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
-    bool hasWideColorGamut = false;
-    std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
-    HdrCapabilities hdrCapabilities;
-    int32_t supportedPerFrameMetadata = 0;
+    DisplayDeviceCreationArgs creationArgs(this, displayToken, state.type, displayId);
+    creationArgs.isSecure = state.isSecure;
+    creationArgs.displaySurface = dispSurface;
+    creationArgs.hasWideColorGamut = false;
+    creationArgs.supportedPerFrameMetadata = 0;
 
     if (useColorManagement && displayId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (ColorMode colorMode : modes) {
             if (isWideColorMode(colorMode)) {
-                hasWideColorGamut = true;
+                creationArgs.hasWideColorGamut = true;
             }
 
             std::vector<RenderIntent> renderIntents =
                     getHwComposer().getRenderIntents(displayId, colorMode);
-            hwcColorModes.emplace(colorMode, renderIntents);
+            creationArgs.hwcColorModes.emplace(colorMode, renderIntents);
         }
     }
 
     if (displayId >= 0) {
-        getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
-        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(displayId);
+        getHwComposer().getHdrCapabilities(displayId, &creationArgs.hdrCapabilities);
+        creationArgs.supportedPerFrameMetadata =
+                getHwComposer().getSupportedPerFrameMetadata(displayId);
     }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
+    creationArgs.nativeWindow = nativeWindow;
 
     /*
      * Create our display's surface
@@ -2485,8 +2463,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
-    const int displayWidth = renderSurface->getWidth();
-    const int displayHeight = renderSurface->getHeight();
+    creationArgs.displayWidth = renderSurface->getWidth();
+    creationArgs.displayHeight = renderSurface->getHeight();
+    creationArgs.renderSurface = std::move(renderSurface);
 
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
@@ -2499,18 +2478,14 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
-    const int displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY ?
-        primaryDisplayOrientation : DisplayState::eOrientationDefault;
+    creationArgs.displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY
+            ? primaryDisplayOrientation
+            : DisplayState::eOrientationDefault;
 
     // virtual displays are always considered enabled
-    auto initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
+    creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
-    sp<DisplayDevice> display =
-            new DisplayDevice(this, state.type, displayId, state.isSecure, displayToken,
-                              nativeWindow, dispSurface, std::move(renderSurface), displayWidth,
-                              displayHeight, displayInstallOrientation, hasWideColorGamut,
-                              hdrCapabilities, supportedPerFrameMetadata, hwcColorModes,
-                              initialPowerMode);
+    sp<DisplayDevice> display = new DisplayDevice(std::move(creationArgs));
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2518,7 +2493,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     ColorMode defaultColorMode = ColorMode::NATIVE;
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
-    if (hasWideColorGamut) {
+    if (display->hasWideColorGamut()) {
         defaultColorMode = ColorMode::SRGB;
         defaultDataSpace = Dataspace::SRGB;
     }
@@ -3873,7 +3848,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
         break;
     }
 
-    sp<BufferQueueLayer> layer = new BufferQueueLayer(this, client, name, w, h, flags);
+    sp<BufferQueueLayer> layer =
+            new BufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -3888,7 +3864,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 sp<IBinder>* handle, sp<Layer>* outLayer) {
-    sp<BufferStateLayer> layer = new BufferStateLayer(this, client, name, w, h, flags);
+    sp<BufferStateLayer> layer =
+            new BufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = layer->getHandle();
     *outLayer = layer;
 
@@ -3899,7 +3876,7 @@ status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ColorLayer(this, client, name, w, h, flags);
+    *outLayer = new ColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -3908,7 +3885,7 @@ status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ContainerLayer(this, client, name, w, h, flags);
+    *outLayer = new ContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -5288,9 +5265,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 drawLayers();
             } else {
                 Rect bounds = getBounds();
-                screenshotParentLayer =
-                        new ContainerLayer(mFlinger, nullptr, String8("Screenshot Parent"),
-                                           bounds.getWidth(), bounds.getHeight(), 0);
+                screenshotParentLayer = new ContainerLayer(
+                        LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
+                                          bounds.getWidth(), bounds.getHeight(), 0));
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer);
                 drawLayers();

@@ -138,6 +138,7 @@ filegroup {
         "LayerStats.cpp",
         "LayerVector.cpp",
         "MonitoredProducer.cpp",
+        "NativeWindowSurface.cpp",
         "RenderArea.cpp",
         "Scheduler/DispSync.cpp",
         "Scheduler/DispSyncSource.cpp",

@@ -43,14 +43,16 @@ struct ANativeWindow;
 
 namespace android {
 
-struct DisplayInfo;
 class DisplaySurface;
 class Fence;
+class HWComposer;
 class IGraphicBufferProducer;
 class Layer;
 class SurfaceFlinger;
-class HWComposer;
+
 struct CompositionInfo;
+struct DisplayDeviceCreationArgs;
+struct DisplayInfo;
 
 class DisplayDevice : public LightRefBase<DisplayDevice>
 {
@@ -76,25 +78,7 @@ public:
         NO_LAYER_STACK = 0xFFFFFFFF,
     };
 
-    // clang-format off
-    DisplayDevice(
-            const sp<SurfaceFlinger>& flinger,
-            DisplayType type,
-            int32_t id,
-            bool isSecure,
-            const wp<IBinder>& displayToken,
-            const sp<ANativeWindow>& nativeWindow,
-            const sp<DisplaySurface>& displaySurface,
-            std::unique_ptr<renderengine::Surface> renderSurface,
-            int displayWidth,
-            int displayHeight,
-            int displayInstallOrientation,
-            bool hasWideColorGamut,
-            const HdrCapabilities& hdrCapabilities,
-            const int32_t supportedPerFrameMetadata,
-            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
-            int initialPowerMode);
-    // clang-format on
+    explicit DisplayDevice(DisplayDeviceCreationArgs&& args);
 
     ~DisplayDevice();
 
@@ -333,6 +317,31 @@ struct DisplayDeviceState {
 
 private:
     static std::atomic<int32_t> sNextSequenceId;
+};
+
+struct DisplayDeviceCreationArgs {
+    // We use a constructor to ensure some of the values are set, without
+    // assuming a default value.
+    DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger, const wp<IBinder>& displayToken,
+                              DisplayDevice::DisplayType type, int32_t id);
+
+    const sp<SurfaceFlinger> flinger;
+    const wp<IBinder> displayToken;
+    const DisplayDevice::DisplayType type;
+    const int32_t id;
+
+    bool isSecure{false};
+    sp<ANativeWindow> nativeWindow;
+    sp<DisplaySurface> displaySurface;
+    std::unique_ptr<renderengine::Surface> renderSurface;
+    int displayWidth{0};
+    int displayHeight{0};
+    int displayInstallOrientation{DisplayState::eOrientationDefault};
+    bool hasWideColorGamut{false};
+    HdrCapabilities hdrCapabilities;
+    int32_t supportedPerFrameMetadata{0};
+    std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
+    int initialPowerMode{HWC_POWER_MODE_NORMAL};
 };
 
 class DisplayRenderArea : public RenderArea {
