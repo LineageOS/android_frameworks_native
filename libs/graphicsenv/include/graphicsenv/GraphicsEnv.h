@@ -37,8 +37,17 @@ public:
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
 
+    // Set a search path for loading ANGLE libraries. The path is a list of
+    // directories separated by ':'. A directory can be contained in a zip file
+    // (libraries must be stored uncompressed and page aligned); such elements
+    // in the search path must have a '!' after the zip filename, e.g.
+    //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
+    void setAnglePath(const std::string path);
+    android_namespace_t* getAngleNamespace();
+
     void setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths);
     NativeLoaderNamespace* getAppNamespace();
+
     const std::string getLayerPaths();
 
     void setDebugLayers(const std::string layers);
@@ -47,9 +56,11 @@ public:
 private:
     GraphicsEnv() = default;
     std::string mDriverPath;
+    std::string mAnglePath;
     std::string mDebugLayers;
     std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
+    android_namespace_t* mAngleNamespace = nullptr;
     NativeLoaderNamespace* mAppNamespace = nullptr;
 };
 
@@ -67,5 +78,6 @@ private:
  *    will be removed soon.
  */
 extern "C" android_namespace_t* android_getDriverNamespace();
+extern "C" android_namespace_t* android_getAngleNamespace();
 
 #endif // ANDROID_UI_GRAPHICS_ENV_H

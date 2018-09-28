@@ -455,6 +455,50 @@ static void* load_system_driver(const char* kind) {
     return dso;
 }
 
+static void* load_angle_from_namespace(const char* kind, android_namespace_t* ns) {
+    const android_dlextinfo dlextinfo = {
+            .flags = ANDROID_DLEXT_USE_NAMESPACE,
+            .library_namespace = ns,
+    };
+
+    std::string name = std::string("lib") + kind + "_angle.so";
+
+    void* so = do_android_dlopen_ext(name.c_str(), RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+
+    if (so) {
+        ALOGD("dlopen_ext from APK (%s) success at %p", name.c_str(), so);
+        return so;
+    } else {
+        ALOGE("dlopen_ext(\"%s\") failed: %s", name.c_str(), dlerror());
+    }
+
+    return nullptr;
+}
+
+static void* load_angle(const char* kind, android_namespace_t* ns, egl_connection_t* cnx) {
+    // Only attempt to load ANGLE libs
+    if (strcmp(kind, "EGL") != 0 && strcmp(kind, "GLESv2") != 0 && strcmp(kind, "GLESv1_CM") != 0)
+        return nullptr;
+
+    void* so = nullptr;
+    std::string name;
+
+    if (ns) {
+        so = load_angle_from_namespace(kind, ns);
+    }
+
+    if (so) {
+        cnx->useAngle = true;
+        // Find and load vendor libEGL for ANGLE
+        if (!cnx->vendorEGL) {
+            cnx->vendorEGL = load_system_driver("EGL");
+        }
+        return so;
+    }
+
+    return nullptr;
+}
+
 static const char* HAL_SUBNAME_KEY_PROPERTIES[2] = {
     "ro.hardware.egl",
     "ro.board.platform",
@@ -486,10 +530,14 @@ void *Loader::load_driver(const char* kind,
     ATRACE_CALL();
 
     void* dso = nullptr;
+    android_namespace_t* ns = android_getAngleNamespace();
+    dso = load_angle(kind, ns, cnx);
 #ifndef __ANDROID_VNDK__
-    android_namespace_t* ns = android_getDriverNamespace();
-    if (ns) {
-        dso = load_updated_driver(kind, ns);
+    if (!dso) {
+        ns = android_getDriverNamespace();
+        if (ns) {
+            dso = load_updated_driver(kind, ns);
+        }
     }
 #endif
     if (!dso) {
