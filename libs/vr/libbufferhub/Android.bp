@@ -13,10 +13,13 @@
 // limitations under the License.
 
 sourceFiles = [
+    "buffer_hub_base.cpp",
     "buffer_hub_client.cpp",
     "buffer_hub_rpc.cpp",
+    "consumer_buffer.cpp",
     "detached_buffer.cpp",
     "ion_buffer.cpp",
+    "producer_buffer.cpp",
 ]
 
 localIncludeFiles = [

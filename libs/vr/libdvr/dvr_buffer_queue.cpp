@@ -9,7 +9,7 @@
 
 using namespace android;
 using android::dvr::BufferConsumer;
-using android::dvr::BufferHubBuffer;
+using android::dvr::BufferHubBase;
 using android::dvr::BufferProducer;
 using android::dvr::ConsumerQueue;
 using android::dvr::ProducerQueue;
@@ -439,7 +439,7 @@ void DvrReadBufferQueue::SetBufferRemovedCallback(
     consumer_queue_->SetBufferRemovedCallback(nullptr);
   } else {
     consumer_queue_->SetBufferRemovedCallback(
-        [callback, context](const std::shared_ptr<BufferHubBuffer>& buffer) {
+        [callback, context](const std::shared_ptr<BufferHubBase>& buffer) {
           // When buffer is removed from the queue, the slot is already invalid.
           auto read_buffer = std::make_unique<DvrReadBuffer>();
           read_buffer->read_buffer =

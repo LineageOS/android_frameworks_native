@@ -278,7 +278,7 @@ Status<void> BufferHubQueue::HandleQueueEvent(int poll_event) {
 }
 
 Status<void> BufferHubQueue::AddBuffer(
-    const std::shared_ptr<BufferHubBuffer>& buffer, size_t slot) {
+    const std::shared_ptr<BufferHubBase>& buffer, size_t slot) {
   ALOGD_IF(TRACE, "BufferHubQueue::AddBuffer: buffer_id=%d slot=%zu",
            buffer->id(), slot);
 
@@ -356,8 +356,8 @@ Status<void> BufferHubQueue::Enqueue(Entry entry) {
   }
 }
 
-Status<std::shared_ptr<BufferHubBuffer>> BufferHubQueue::Dequeue(int timeout,
-                                                                 size_t* slot) {
+Status<std::shared_ptr<BufferHubBase>> BufferHubQueue::Dequeue(int timeout,
+                                                               size_t* slot) {
   ALOGD_IF(TRACE, "BufferHubQueue::Dequeue: count=%zu, timeout=%d", count(),
            timeout);
 
@@ -372,7 +372,7 @@ Status<std::shared_ptr<BufferHubBuffer>> BufferHubQueue::Dequeue(int timeout,
   PDX_TRACE_FORMAT("buffer|buffer_id=%d;slot=%zu|", entry.buffer->id(),
                    entry.slot);
 
-  std::shared_ptr<BufferHubBuffer> buffer = std::move(entry.buffer);
+  std::shared_ptr<BufferHubBase> buffer = std::move(entry.buffer);
   *slot = entry.slot;
 
   available_buffers_.pop();
