@@ -37,6 +37,7 @@
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
 
+#include <android/hardware/atrace/1.0/IAtraceDevice.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
 #include <hidl/ServiceManagement.h>
 
@@ -52,6 +53,12 @@
 
 using namespace android;
 using pdx::default_transport::ServiceUtility;
+using hardware::hidl_vec;
+using hardware::hidl_string;
+using hardware::Return;
+using hardware::atrace::V1_0::IAtraceDevice;
+using hardware::atrace::V1_0::Status;
+using hardware::atrace::V1_0::toString;
 
 using std::string;
 
@@ -92,11 +99,7 @@ struct TracingCategory {
 
 /* Tracing categories */
 static const TracingCategory k_categories[] = {
-    { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, {
-        { OPT,      "events/mdss/enable" },
-        { OPT,      "events/sde/enable" },
-        { OPT,      "events/mali_systrace/enable" },
-    } },
+    { "gfx",        "Graphics",         ATRACE_TAG_GRAPHICS, { } },
     { "input",      "Input",            ATRACE_TAG_INPUT, { } },
     { "view",       "View System",      ATRACE_TAG_VIEW, { } },
     { "webview",    "WebView",          ATRACE_TAG_WEBVIEW, { } },
@@ -223,6 +226,23 @@ static const TracingCategory k_categories[] = {
     } },
 };
 
+struct TracingVendorCategory {
+    // The name identifying the category.
+    std::string name;
+
+    // A longer description of the category.
+    std::string description;
+
+    // If the category is enabled through command.
+    bool enabled;
+
+    TracingVendorCategory(string &&name, string &&description, bool enabled)
+            : name(std::move(name))
+            , description(std::move(description))
+            , enabled(enabled)
+    {}
+};
+
 /* Command line options */
 static int g_traceDurationSeconds = 5;
 static bool g_traceOverwrite = false;
@@ -240,6 +260,8 @@ static bool g_tracePdx = false;
 static bool g_traceAborted = false;
 static bool g_categoryEnables[arraysize(k_categories)] = {};
 static std::string g_traceFolder;
+static sp<IAtraceDevice> g_atraceHal;
+static std::vector<TracingVendorCategory> g_vendorCategories;
 
 /* Sys file paths */
 static const char* k_traceClockPath =
@@ -755,13 +777,20 @@ static bool setKernelTraceFuncs(const char* funcs)
     return ok;
 }
 
-static bool setCategoryEnable(const char* name, bool enable)
+static bool setCategoryEnable(const char* name)
 {
+    bool vendor_found = false;
+    for (auto &c : g_vendorCategories) {
+        if (strcmp(name, c.name.c_str()) == 0) {
+            c.enabled = true;
+            vendor_found = true;
+        }
+    }
     for (size_t i = 0; i < arraysize(k_categories); i++) {
         const TracingCategory& c = k_categories[i];
         if (strcmp(name, c.name) == 0) {
             if (isCategorySupported(c)) {
-                g_categoryEnables[i] = enable;
+                g_categoryEnables[i] = true;
                 return true;
             } else {
                 if (isCategorySupportedForRoot(c)) {
@@ -774,6 +803,9 @@ static bool setCategoryEnable(const char* name, bool enable)
                 return false;
             }
         }
+    }
+    if (vendor_found) {
+        return true;
     }
     fprintf(stderr, "error: unknown tracing category \"%s\"\n", name);
     return false;
@@ -795,7 +827,7 @@ static bool setCategoriesEnableFromFile(const char* categories_file)
             tokenizer->skipDelimiters(" ");
             continue;
         }
-        ok &= setCategoryEnable(token.string(), true);
+        ok &= setCategoryEnable(token.string());
     }
     delete tokenizer;
     return ok;
@@ -1083,6 +1115,9 @@ static void listSupportedCategories()
             printf("  %10s - %s\n", c.name, c.longname);
         }
     }
+    for (const auto &c : g_vendorCategories) {
+        printf("  %10s - %s (HAL)\n", c.name.c_str(), c.description.c_str());
+    }
 }
 
 // Print the command usage help to stderr.
@@ -1139,6 +1174,79 @@ bool findTraceFiles()
     return true;
 }
 
+void initVendorCategories()
+{
+    g_atraceHal = IAtraceDevice::getService();
+
+    if (g_atraceHal == nullptr) {
+        // No atrace HAL
+        return;
+    }
+
+    Return<void> ret = g_atraceHal->listCategories(
+        [](const auto& list) {
+            g_vendorCategories.reserve(list.size());
+            for (const auto& category : list) {
+                g_vendorCategories.emplace_back(category.name, category.description, false);
+            }
+        });
+    if (!ret.isOk()) {
+        fprintf(stderr, "calling atrace HAL failed: %s\n", ret.description().c_str());
+    }
+}
+
+static bool setUpVendorTracing()
+{
+    if (g_atraceHal == nullptr) {
+        // No atrace HAL
+        return true;
+    }
+
+    std::vector<hidl_string> categories;
+    for (const auto &c : g_vendorCategories) {
+        if (c.enabled) {
+            categories.emplace_back(c.name);
+        }
+    }
+
+    if (!categories.size()) {
+        return true;
+    }
+
+    auto ret = g_atraceHal->enableCategories(categories);
+    if (!ret.isOk()) {
+        fprintf(stderr, "calling atrace HAL failed: %s\n", ret.description().c_str());
+        return false;
+    } else if (ret != Status::SUCCESS) {
+        fprintf(stderr, "calling atrace HAL failed: %s\n", toString(ret).c_str());
+        return false;
+    }
+    return true;
+}
+
+static bool cleanUpVendorTracing()
+{
+    if (g_atraceHal == nullptr) {
+        // No atrace HAL
+        return true;
+    }
+
+    if (!g_vendorCategories.size()) {
+        // No vendor categories
+        return true;
+    }
+
+    auto ret = g_atraceHal->disableAllCategories();
+    if (!ret.isOk()) {
+        fprintf(stderr, "calling atrace HAL failed: %s\n", ret.description().c_str());
+        return false;
+    } else if (ret != Status::SUCCESS) {
+        fprintf(stderr, "calling atrace HAL failed: %s\n", toString(ret).c_str());
+        return false;
+    }
+    return true;
+}
+
 int main(int argc, char **argv)
 {
     bool async = false;
@@ -1158,6 +1266,8 @@ int main(int argc, char **argv)
         exit(-1);
     }
 
+    initVendorCategories();
+
     for (;;) {
         int ret;
         int option_index = 0;
@@ -1176,7 +1286,7 @@ int main(int argc, char **argv)
 
         if (ret < 0) {
             for (int i = optind; i < argc; i++) {
-                if (!setCategoryEnable(argv[i], true)) {
+                if (!setCategoryEnable(argv[i])) {
                     fprintf(stderr, "error enabling tracing category \"%s\"\n", argv[i]);
                     exit(1);
                 }
@@ -1279,6 +1389,7 @@ int main(int argc, char **argv)
 
     if (ok && traceStart && !onlyUserspace) {
         ok &= setUpKernelTracing();
+        ok &= setUpVendorTracing();
         ok &= startTrace();
     }
 
@@ -1347,6 +1458,7 @@ int main(int argc, char **argv)
 
     // Reset the trace buffer size to 1.
     if (traceStop) {
+        cleanUpVendorTracing();
         cleanUpUserspaceTracing();
         if (!onlyUserspace)
             cleanUpKernelTracing();
