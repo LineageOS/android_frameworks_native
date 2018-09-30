@@ -17,13 +17,15 @@
 #pragma once
 
 #include <gmock/gmock.h>
-
+#include <renderengine/DisplaySettings.h>
 #include <renderengine/Framebuffer.h>
 #include <renderengine/Image.h>
+#include <renderengine/LayerSettings.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/Surface.h>
 #include <renderengine/Texture.h>
+#include <ui/GraphicBuffer.h>
 
 namespace android {
 namespace renderengine {
@@ -75,6 +77,9 @@ public:
     MOCK_METHOD1(drawMesh, void(const Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());
+    MOCK_CONST_METHOD4(drawLayers,
+                       status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
+                                ANativeWindowBuffer* const, base::unique_fd*));
 };
 
 class Surface : public renderengine::Surface {

@@ -23,8 +23,10 @@
 
 #include <android-base/unique_fd.h>
 #include <math/mat4.h>
+#include <renderengine/DisplaySettings.h>
 #include <renderengine/Framebuffer.h>
 #include <renderengine/Image.h>
+#include <renderengine/LayerSettings.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
@@ -63,6 +65,11 @@ public:
     static std::unique_ptr<impl::RenderEngine> create(int hwcFormat, uint32_t featureFlags);
 
     virtual ~RenderEngine() = 0;
+
+    // ----- BEGIN DEPRECATED INTERFACE -----
+    // This interface, while still in use until a suitable replacement is built,
+    // should be considered deprecated, minus some methods which still may be
+    // used to support legacy behavior.
 
     virtual std::unique_ptr<Framebuffer> createFramebuffer() = 0;
     virtual std::unique_ptr<Surface> createSurface() = 0;
@@ -133,6 +140,37 @@ public:
     // queries
     virtual size_t getMaxTextureSize() const = 0;
     virtual size_t getMaxViewportDims() const = 0;
+
+    // ----- END DEPRECATED INTERFACE -----
+
+    // ----- BEGIN NEW INTERFACE -----
+
+    // Renders layers for a particular display via GPU composition. This method
+    // should be called for every display that needs to be rendered via the GPU.
+    // @param settings The display-wide settings that should be applied prior to
+    // drawing any layers.
+    // @param layers The layers to draw onto the display, in Z-order.
+    // @param buffer The buffer which will be drawn to. This buffer will be
+    // ready once displayFence fires.
+    // @param displayFence A pointer to a fence, which will fire when the buffer
+    // has been drawn to and is ready to be examined. The fence will be
+    // initialized by this method. The caller will be responsible for owning the
+    // fence.
+    // @return An error code indicating whether drawing was successful. For
+    // now, this always returns NO_ERROR.
+    // TODO(alecmouri): Consider making this a multi-display API, so that the
+    // caller deoes not need to handle multiple fences.
+    virtual status_t drawLayers(const DisplaySettings& settings,
+                                const std::vector<LayerSettings>& layers,
+                                ANativeWindowBuffer* const buffer,
+                                base::unique_fd* displayFence) const = 0;
+
+    // TODO(alecmouri): Expose something like bindTexImage() so that devices
+    // that don't support native sync fences can get rid of code duplicated
+    // between BufferStateLayer and BufferQueueLayer for binding an external
+    // texture.
+
+    // TODO(alecmouri): Add API to help with managing a texture pool.
 };
 
 class BindNativeBufferAsFramebuffer {
