@@ -49,24 +49,16 @@
 
 namespace android {
 
-BufferLayer::BufferLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
-                         uint32_t w, uint32_t h, uint32_t flags)
-      : Layer(flinger, client, name, w, h, flags),
-        mTextureName(mFlinger->getNewTexture()),
-        mCurrentScalingMode(NATIVE_WINDOW_SCALING_MODE_FREEZE),
-        mBufferLatched(false),
-        mRefreshPending(false) {
-    ALOGV("Creating Layer %s", name.string());
+BufferLayer::BufferLayer(const LayerCreationArgs& args)
+      : Layer(args), mTextureName(args.flinger->getNewTexture()) {
+    ALOGV("Creating Layer %s", args.name.string());
 
     mTexture.init(renderengine::Texture::TEXTURE_EXTERNAL, mTextureName);
 
-    mPremultipliedAlpha = !(flags & ISurfaceComposerClient::eNonPremultiplied);
+    mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
 
-    mPotentialCursor = flags & ISurfaceComposerClient::eCursorWindow;
-    mProtectedByApp = flags & ISurfaceComposerClient::eProtectedByApp;
-
-    // drawing state & current state are identical
-    mDrawingState = mCurrentState;
+    mPotentialCursor = args.flags & ISurfaceComposerClient::eCursorWindow;
+    mProtectedByApp = args.flags & ISurfaceComposerClient::eProtectedByApp;
 }
 
 BufferLayer::~BufferLayer() {
@@ -266,6 +258,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
     getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
     getBE().compositionInfo.hwc.supportedPerFrameMetadata = display->getSupportedPerFrameMetadata();
+    getBE().compositionInfo.hwc.colorTransform = getColorTransform();
 
     setHwcLayerBuffer(display);
 }

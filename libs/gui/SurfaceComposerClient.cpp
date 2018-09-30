@@ -602,6 +602,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroyS
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorTransform(
+    const sp<SurfaceControl>& sc, const mat3& matrix, const vec3& translation) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eColorTransformChanged;
+    s->colorTransform = mat4(matrix, translation);
+    return *this;
+}
+
 // ---------------------------------------------------------------------------
 
 DisplayState& SurfaceComposerClient::Transaction::getDisplayState(const sp<IBinder>& token) {

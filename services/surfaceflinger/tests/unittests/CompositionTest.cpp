@@ -325,7 +325,7 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, setOutputDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
         EXPECT_CALL(*test->mRenderEngine, setDisplayMaxLuminance(DEFAULT_DISPLAY_MAX_LUMINANCE))
                 .Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setupColorTransform(_)).Times(2);
+        EXPECT_CALL(*test->mRenderEngine, setColorTransform(_)).Times(2);
         // These expectations retire on saturation as the code path these
         // expectations are for appears to make an extra call to them.
         // TODO: Investigate this extra call
@@ -774,9 +774,10 @@ struct ColorLayerVariant : public BaseLayerVariant<LayerProperties> {
 
     static FlingerLayerType createLayer(CompositionTest* test) {
         FlingerLayerType layer = Base::template createLayerWithFactory<ColorLayer>(test, [test]() {
-            return new ColorLayer(test->mFlinger.mFlinger.get(), sp<Client>(),
-                                  String8("test-layer"), LayerProperties::WIDTH,
-                                  LayerProperties::HEIGHT, LayerProperties::LAYER_FLAGS);
+            return new ColorLayer(LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(),
+                                                    String8("test-layer"), LayerProperties::WIDTH,
+                                                    LayerProperties::HEIGHT,
+                                                    LayerProperties::LAYER_FLAGS));
         });
         return layer;
     }
@@ -811,10 +812,11 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
 
         FlingerLayerType layer =
                 Base::template createLayerWithFactory<BufferQueueLayer>(test, [test]() {
-                    return new BufferQueueLayer(test->mFlinger.mFlinger.get(), sp<Client>(),
-                                                String8("test-layer"), LayerProperties::WIDTH,
-                                                LayerProperties::HEIGHT,
-                                                LayerProperties::LAYER_FLAGS);
+                    return new BufferQueueLayer(
+                            LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(),
+                                              String8("test-layer"), LayerProperties::WIDTH,
+                                              LayerProperties::HEIGHT,
+                                              LayerProperties::LAYER_FLAGS));
                 });
 
         LayerProperties::setupLayerState(test, layer);

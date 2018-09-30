@@ -16,8 +16,11 @@ typedef struct DvrWriteBuffer DvrWriteBuffer;
 namespace android {
 namespace dvr {
 
-class BufferProducer;
-class BufferConsumer;
+// TODO(b/116855254): Remove this typedef once rename is complete in libdvr.
+// Note that the dvr::BufferProducer and dvr::BufferConsumer were poorly named,
+// they should really be named as ProducerBuffer and ConsumerBuffer.
+typedef class ProducerBuffer BufferProducer;
+typedef class ConsumerBuffer BufferConsumer;
 class IonBuffer;
 
 DvrBuffer* CreateDvrBufferFromIonBuffer(

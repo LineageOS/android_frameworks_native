@@ -113,13 +113,15 @@ class BufferDescription {
   BufferDescription(BufferDescription&& other) = default;
   BufferDescription& operator=(BufferDescription&& other) = default;
 
-  // ID of the buffer client. All BufferHubBuffer clients derived from the same
-  // buffer in bufferhubd share the same buffer id.
+  // ID of the buffer client. All BufferHub clients derived from the same buffer
+  // in bufferhubd share the same buffer id.
   int id() const { return id_; }
-  // Channel ID of the buffer client. Each BufferHubBuffer client has its system
+
+  // Channel ID of the buffer client. Each BufferHub client has its system
   // unique channel id.
   int buffer_cid() const { return buffer_cid_; }
-  // State mask of the buffer client. Each BufferHubBuffer client backed by the
+
+  // State mask of the buffer client. Each BufferHub client backed by the
   // same buffer channel has uniqued state bit among its siblings. For a
   // producer buffer the bit must be kProducerStateBit; for a consumer the bit
   // must be one of the kConsumerStateMask.

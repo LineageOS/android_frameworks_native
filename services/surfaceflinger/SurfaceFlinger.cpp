@@ -74,6 +74,7 @@
 #include "Layer.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
+#include "NativeWindowSurface.h"
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/ComposerHal.h"
@@ -222,32 +223,6 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
     }
 }
 
-NativeWindowSurface::~NativeWindowSurface() = default;
-
-namespace impl {
-
-class NativeWindowSurface final : public android::NativeWindowSurface {
-public:
-    static std::unique_ptr<android::NativeWindowSurface> create(
-            const sp<IGraphicBufferProducer>& producer) {
-        return std::make_unique<NativeWindowSurface>(producer);
-    }
-
-    explicit NativeWindowSurface(const sp<IGraphicBufferProducer>& producer)
-          : surface(new Surface(producer, false)) {}
-
-    ~NativeWindowSurface() override = default;
-
-private:
-    sp<ANativeWindow> getNativeWindow() const override { return surface; }
-
-    void preallocateBuffers() override { surface->allocateBuffers(); }
-
-    sp<Surface> surface;
-};
-
-} // namespace impl
-
 SurfaceFlingerBE::SurfaceFlingerBE()
       : mHwcServiceName(getHwcServiceName()),
         mRenderEngine(nullptr),
@@ -284,7 +259,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
         mCreateBufferQueue(&BufferQueue::createBufferQueue),
-        mCreateNativeWindowSurface(&impl::NativeWindowSurface::create) {}
+        mCreateNativeWindowSurface(&surfaceflinger::impl::createNativeWindowSurface) {}
 
 SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
@@ -1629,6 +1604,11 @@ void SurfaceFlinger::calculateWorkingSet() {
                 layer->forceClientComposition(displayId);
             }
 
+            // TODO(b/111562338) remove when composer 2.3 is shipped.
+            if (layer->hasColorTransform()) {
+                layer->forceClientComposition(displayId);
+            }
+
             if (layer->getForceClientComposition(displayId)) {
                 ALOGV("[%s] Requesting Client composition", layer->getName().string());
                 layer->setCompositionType(displayId, HWC2::Composition::Client);
@@ -2166,6 +2146,8 @@ void SurfaceFlinger::configureHwcCommonData(const CompositionInfo& compositionIn
     ALOGE_IF(error != HWC2::Error::None,
             "[SF] Failed to set surface damage: %s (%d)",
             to_string(error).c_str(), static_cast<int32_t>(error));
+
+    error = (compositionInfo.hwc.hwcLayer)->setColorTransform(compositionInfo.hwc.colorTransform);
 }
 
 void SurfaceFlinger::configureDeviceComposition(const CompositionInfo& compositionInfo) const
@@ -2452,31 +2434,34 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const wp<IBinder>& displayToken, int32_t displayId, const DisplayDeviceState& state,
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
-    bool hasWideColorGamut = false;
-    std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
-    HdrCapabilities hdrCapabilities;
-    int32_t supportedPerFrameMetadata = 0;
+    DisplayDeviceCreationArgs creationArgs(this, displayToken, state.type, displayId);
+    creationArgs.isSecure = state.isSecure;
+    creationArgs.displaySurface = dispSurface;
+    creationArgs.hasWideColorGamut = false;
+    creationArgs.supportedPerFrameMetadata = 0;
 
     if (useColorManagement && displayId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(displayId);
         for (ColorMode colorMode : modes) {
             if (isWideColorMode(colorMode)) {
-                hasWideColorGamut = true;
+                creationArgs.hasWideColorGamut = true;
             }
 
             std::vector<RenderIntent> renderIntents =
                     getHwComposer().getRenderIntents(displayId, colorMode);
-            hwcColorModes.emplace(colorMode, renderIntents);
+            creationArgs.hwcColorModes.emplace(colorMode, renderIntents);
         }
     }
 
     if (displayId >= 0) {
-        getHwComposer().getHdrCapabilities(displayId, &hdrCapabilities);
-        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(displayId);
+        getHwComposer().getHdrCapabilities(displayId, &creationArgs.hdrCapabilities);
+        creationArgs.supportedPerFrameMetadata =
+                getHwComposer().getSupportedPerFrameMetadata(displayId);
     }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
+    creationArgs.nativeWindow = nativeWindow;
 
     /*
      * Create our display's surface
@@ -2485,8 +2470,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     renderSurface->setCritical(state.type == DisplayDevice::DISPLAY_PRIMARY);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
-    const int displayWidth = renderSurface->getWidth();
-    const int displayHeight = renderSurface->getHeight();
+    creationArgs.displayWidth = renderSurface->getWidth();
+    creationArgs.displayHeight = renderSurface->getHeight();
+    creationArgs.renderSurface = std::move(renderSurface);
 
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
@@ -2499,18 +2485,14 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
 
-    const int displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY ?
-        primaryDisplayOrientation : DisplayState::eOrientationDefault;
+    creationArgs.displayInstallOrientation = state.type == DisplayDevice::DISPLAY_PRIMARY
+            ? primaryDisplayOrientation
+            : DisplayState::eOrientationDefault;
 
     // virtual displays are always considered enabled
-    auto initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
+    creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
-    sp<DisplayDevice> display =
-            new DisplayDevice(this, state.type, displayId, state.isSecure, displayToken,
-                              nativeWindow, dispSurface, std::move(renderSurface), displayWidth,
-                              displayHeight, displayInstallOrientation, hasWideColorGamut,
-                              hdrCapabilities, supportedPerFrameMetadata, hwcColorModes,
-                              initialPowerMode);
+    sp<DisplayDevice> display = new DisplayDevice(std::move(creationArgs));
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2518,7 +2500,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
 
     ColorMode defaultColorMode = ColorMode::NATIVE;
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
-    if (hasWideColorGamut) {
+    if (display->hasWideColorGamut()) {
         defaultColorMode = ColorMode::SRGB;
         defaultDataSpace = Dataspace::SRGB;
     }
@@ -3116,6 +3098,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     const bool hasClientComposition = getBE().mHwc->hasClientComposition(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
+    mat4 colorMatrix;
     bool applyColorMatrix = false;
     bool needsEnhancedColorMatrix = false;
 
@@ -3134,7 +3117,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         const bool skipClientColorTransform = getBE().mHwc->hasCapability(
             HWC2::Capability::SkipClientColorTransform);
 
-        mat4 colorMatrix;
+        // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
             colorMatrix = mDrawingState.colorMatrix;
@@ -3149,8 +3132,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         if (needsEnhancedColorMatrix) {
             colorMatrix *= mEnhancedSaturationMatrix;
         }
-
-        getRenderEngine().setupColorTransform(colorMatrix);
 
         if (!display->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -3230,6 +3211,19 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
                     break;
                 }
                 case HWC2::Composition::Client: {
+                    if (layer->hasColorTransform()) {
+                        mat4 tmpMatrix;
+                        if (applyColorMatrix) {
+                            tmpMatrix = mDrawingState.colorMatrix;
+                        }
+                        tmpMatrix *= layer->getColorTransform();
+                        if (needsEnhancedColorMatrix) {
+                            tmpMatrix *= mEnhancedSaturationMatrix;
+                        }
+                        getRenderEngine().setColorTransform(tmpMatrix);
+                    } else {
+                        getRenderEngine().setColorTransform(colorMatrix);
+                    }
                     layer->draw(renderArea, clip);
                     break;
                 }
@@ -3242,9 +3236,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
         firstLayer = false;
     }
 
-    if (applyColorMatrix || needsEnhancedColorMatrix) {
-        getRenderEngine().setupColorTransform(mat4());
-    }
+    // Clear color transform matrix at the end of the frame.
+    getRenderEngine().setColorTransform(mat4());
 
     // disable scissor at the end of the frame
     getBE().mRenderEngine->disableScissor();
@@ -3621,6 +3614,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setColor(s.color))
             flags |= eTraversalNeeded;
     }
+    if (what & layer_state_t::eColorTransformChanged) {
+        if (layer->setColorTransform(s.colorTransform)) {
+            flags |= eTraversalNeeded;
+        }
+    }
     if (what & layer_state_t::eMatrixChanged) {
         // TODO: b/109894387
         //
@@ -3873,7 +3871,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
         break;
     }
 
-    sp<BufferQueueLayer> layer = new BufferQueueLayer(this, client, name, w, h, flags);
+    sp<BufferQueueLayer> layer =
+            new BufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -3888,7 +3887,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 sp<IBinder>* handle, sp<Layer>* outLayer) {
-    sp<BufferStateLayer> layer = new BufferStateLayer(this, client, name, w, h, flags);
+    sp<BufferStateLayer> layer =
+            new BufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = layer->getHandle();
     *outLayer = layer;
 
@@ -3899,7 +3899,7 @@ status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ColorLayer(this, client, name, w, h, flags);
+    *outLayer = new ColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -3908,7 +3908,7 @@ status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ContainerLayer(this, client, name, w, h, flags);
+    *outLayer = new ContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -5288,9 +5288,9 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 drawLayers();
             } else {
                 Rect bounds = getBounds();
-                screenshotParentLayer =
-                        new ContainerLayer(mFlinger, nullptr, String8("Screenshot Parent"),
-                                           bounds.getWidth(), bounds.getHeight(), 0);
+                screenshotParentLayer = new ContainerLayer(
+                        LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
+                                          bounds.getWidth(), bounds.getHeight(), 0));
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer);
                 drawLayers();
@@ -5464,7 +5464,9 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     engine.clearWithColor(0, 0, 0, alpha);
 
     traverseLayers([&](Layer* layer) {
+        engine.setColorTransform(layer->getColorTransform());
         layer->draw(renderArea, useIdentityTransform);
+        engine.setColorTransform(mat4());
     });
 }
 

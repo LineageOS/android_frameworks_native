@@ -2064,6 +2064,34 @@ TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
     Transaction().setSidebandStream(layer, nullptr).apply();
 }
 
+TEST_F(LayerTransactionTest, SetColorTransformBasic) {
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(
+            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+
+    Transaction().setLayer(colorLayer, mLayerZBase + 1).apply();
+    {
+        SCOPED_TRACE("default color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    const half3 color(50.0f / 255.0f, 100.0f / 255.0f, 150.0f / 255.0f);
+    const Color expected = {90, 90, 90, 255};
+    // this is handwavy, but the precison loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+    mat3 matrix;
+    matrix[0][0] = 0.3; matrix[1][0] = 0.59; matrix[2][0] = 0.11;
+    matrix[0][1] = 0.3; matrix[1][1] = 0.59; matrix[2][1] = 0.11;
+    matrix[0][2] = 0.3; matrix[1][2] = 0.59; matrix[2][2] = 0.11;
+    Transaction().setColor(colorLayer, color)
+        .setColorTransform(colorLayer, matrix, vec3()).apply();
+    {
+        SCOPED_TRACE("new color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), expected, tolerance);
+    }
+}
+
 class LayerUpdateTest : public LayerTransactionTest {
 protected:
     virtual void SetUp() {

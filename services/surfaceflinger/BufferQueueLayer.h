@@ -31,8 +31,8 @@ namespace android {
  */
 class BufferQueueLayer : public BufferLayer, public BufferLayerConsumer::ContentsChangedListener {
 public:
-    BufferQueueLayer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& name,
-                     uint32_t w, uint32_t h, uint32_t flags);
+    explicit BufferQueueLayer(const LayerCreationArgs&);
+    ~BufferQueueLayer() override;
 
     // -----------------------------------------------------------------------
     // Interface implementation for Layer
@@ -121,20 +121,20 @@ private:
     sp<BufferLayerConsumer> mConsumer;
     sp<IGraphicBufferProducer> mProducer;
 
-    PixelFormat mFormat;
+    PixelFormat mFormat{PIXEL_FORMAT_NONE};
 
     // Only accessed on the main thread.
-    uint64_t mPreviousFrameNumber;
-    bool mUpdateTexImageFailed;
+    uint64_t mPreviousFrameNumber{0};
+    bool mUpdateTexImageFailed{false};
 
     // Local copy of the queued contents of the incoming BufferQueue
     mutable Mutex mQueueItemLock;
     Condition mQueueItemCondition;
     Vector<BufferItem> mQueueItems;
-    std::atomic<uint64_t> mLastFrameNumberReceived;
+    std::atomic<uint64_t> mLastFrameNumberReceived{0};
 
-    bool mAutoRefresh;
-    int mActiveBufferSlot;
+    bool mAutoRefresh{false};
+    int mActiveBufferSlot{BufferQueue::INVALID_BUFFER_SLOT};
 
     // thread-safe
     std::atomic<int32_t> mQueuedFrames{0};

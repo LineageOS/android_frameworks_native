@@ -115,7 +115,9 @@ public:
     virtual void setupLayerTexturing(const Texture& texture) = 0;
     virtual void setupLayerBlackedOut() = 0;
     virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
-    virtual void setupColorTransform(const mat4& /* colorTransform */) = 0;
+
+    // Set a color transform matrix that is applied in linear space right before OETF.
+    virtual void setColorTransform(const mat4& /* colorTransform */) = 0;
     virtual void disableTexturing() = 0;
     virtual void disableBlending() = 0;
 
@@ -163,7 +165,6 @@ public:
 
     bool useNativeFenceSync() const override;
     bool useWaitSync() const override;
-    void setupColorTransform(const mat4& /* colorTransform */) override {}
 
 protected:
     RenderEngine(uint32_t featureFlags);

@@ -23,6 +23,7 @@
 #include <utils/Errors.h>
 
 #include <gui/IGraphicBufferProducer.h>
+#include <math/mat4.h>
 #include <math/vec3.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -72,6 +73,7 @@ struct layer_state_t {
         eSurfaceDamageRegionChanged = 0x02000000,
         eApiChanged = 0x04000000,
         eSidebandStreamChanged = 0x08000000,
+        eColorTransformChanged = 0x10000000,
     };
 
     layer_state_t()
@@ -94,7 +96,8 @@ struct layer_state_t {
             crop(Rect::INVALID_RECT),
             dataspace(ui::Dataspace::UNKNOWN),
             surfaceDamageRegion(),
-            api(-1) {
+            api(-1),
+            colorTransform(mat4()) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -150,6 +153,7 @@ struct layer_state_t {
     Region surfaceDamageRegion;
     int32_t api;
     sp<NativeHandle> sidebandStream;
+    mat4 colorTransform;
 };
 
 struct ComposerState {

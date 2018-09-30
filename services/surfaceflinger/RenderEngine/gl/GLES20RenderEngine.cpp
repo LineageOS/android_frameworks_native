@@ -743,7 +743,7 @@ void GLES20RenderEngine::setupLayerBlackedOut() {
     mState.textureEnabled = true;
 }
 
-void GLES20RenderEngine::setupColorTransform(const mat4& colorTransform) {
+void GLES20RenderEngine::setColorTransform(const mat4& colorTransform) {
     mState.colorMatrix = colorTransform;
 }
 

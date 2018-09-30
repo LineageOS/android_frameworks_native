@@ -31,13 +31,13 @@ namespace dvr {
 
 class ConsumerQueue;
 
-// |BufferHubQueue| manages a queue of |BufferHubBuffer|s. Buffers are
+// |BufferHubQueue| manages a queue of |BufferHubBase|s. Buffers are
 // automatically re-requeued when released by the remote side.
 class BufferHubQueue : public pdx::Client {
  public:
   using BufferAvailableCallback = std::function<void()>;
   using BufferRemovedCallback =
-      std::function<void(const std::shared_ptr<BufferHubBuffer>&)>;
+      std::function<void(const std::shared_ptr<BufferHubBase>&)>;
 
   virtual ~BufferHubQueue() {}
 
@@ -93,7 +93,7 @@ class BufferHubQueue : public pdx::Client {
                                                       : -1;
   }
 
-  std::shared_ptr<BufferHubBuffer> GetBuffer(size_t slot) const {
+  std::shared_ptr<BufferHubBase> GetBuffer(size_t slot) const {
     return buffers_[slot];
   }
 
@@ -142,7 +142,7 @@ class BufferHubQueue : public pdx::Client {
 
   // Register a buffer for management by the queue. Used by subclasses to add a
   // buffer to internal bookkeeping.
-  pdx::Status<void> AddBuffer(const std::shared_ptr<BufferHubBuffer>& buffer,
+  pdx::Status<void> AddBuffer(const std::shared_ptr<BufferHubBase>& buffer,
                               size_t slot);
 
   // Called by ProducerQueue::RemoveBuffer and ConsumerQueue::RemoveBuffer only
@@ -158,8 +158,8 @@ class BufferHubQueue : public pdx::Client {
   // block. Specifying a timeout of -1 causes Dequeue() to block indefinitely,
   // while specifying a timeout equal to zero cause Dequeue() to return
   // immediately, even if no buffers are available.
-  pdx::Status<std::shared_ptr<BufferHubBuffer>> Dequeue(int timeout,
-                                                        size_t* slot);
+  pdx::Status<std::shared_ptr<BufferHubBase>> Dequeue(int timeout,
+                                                      size_t* slot);
 
   // Waits for buffers to become available and adds them to the available queue.
   bool WaitForBuffers(int timeout);
@@ -172,10 +172,10 @@ class BufferHubQueue : public pdx::Client {
   // per-buffer data.
   struct Entry {
     Entry() : slot(0) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer, size_t in_slot,
+    Entry(const std::shared_ptr<BufferHubBase>& in_buffer, size_t in_slot,
           uint64_t in_index)
         : buffer(in_buffer), slot(in_slot), index(in_index) {}
-    Entry(const std::shared_ptr<BufferHubBuffer>& in_buffer,
+    Entry(const std::shared_ptr<BufferHubBase>& in_buffer,
           std::unique_ptr<uint8_t[]> in_metadata, pdx::LocalHandle in_fence,
           size_t in_slot)
         : buffer(in_buffer),
@@ -185,7 +185,7 @@ class BufferHubQueue : public pdx::Client {
     Entry(Entry&&) = default;
     Entry& operator=(Entry&&) = default;
 
-    std::shared_ptr<BufferHubBuffer> buffer;
+    std::shared_ptr<BufferHubBase> buffer;
     std::unique_ptr<uint8_t[]> metadata;
     pdx::LocalHandle fence;
     size_t slot;
@@ -250,7 +250,7 @@ class BufferHubQueue : public pdx::Client {
   // Tracks the buffers belonging to this queue. Buffers are stored according to
   // "slot" in this vector. Each slot is a logical id of the buffer within this
   // queue regardless of its queue position or presence in the ring buffer.
-  std::array<std::shared_ptr<BufferHubBuffer>, kMaxQueueCapacity> buffers_;
+  std::array<std::shared_ptr<BufferHubBase>, kMaxQueueCapacity> buffers_;
 
   // Buffers and related data that are available for dequeue.
   std::priority_queue<Entry, std::vector<Entry>, EntryComparator>

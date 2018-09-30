@@ -22,11 +22,9 @@
 
 namespace android {
 
-ContainerLayer::ContainerLayer(SurfaceFlinger* flinger, const sp<Client>& client,
-                               const String8& name, uint32_t w, uint32_t h, uint32_t flags)
-      : Layer(flinger, client, name, w, h, flags) {
-    mDrawingState = mCurrentState;
-}
+ContainerLayer::ContainerLayer(const LayerCreationArgs& args) : Layer(args) {}
+
+ContainerLayer::~ContainerLayer() = default;
 
 void ContainerLayer::onDraw(const RenderArea&, const Region& /* clip */, bool) {}
 

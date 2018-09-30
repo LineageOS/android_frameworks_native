@@ -68,6 +68,8 @@ struct Description {
 
     // projection matrix
     mat4 projectionMatrix;
+
+    // The color matrix will be applied in linear space right before OETF.
     mat4 colorMatrix;
     mat4 inputTransformMatrix;
     mat4 outputTransformMatrix;
