@@ -20,6 +20,7 @@
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <log/log.h>
 #include <renderengine/private/Description.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
@@ -94,10 +95,8 @@ void ProgramCache::primeCache(bool useColorManagement) {
         if (tex != Key::TEXTURE_OFF && tex != Key::TEXTURE_EXT && tex != Key::TEXTURE_2D) {
             continue;
         }
-        Program* program = mCache.valueFor(shaderKey);
-        if (program == nullptr) {
-            program = generateProgram(shaderKey);
-            mCache.add(shaderKey, program);
+        if (mCache.count(shaderKey) == 0) {
+            mCache.emplace(shaderKey, generateProgram(shaderKey));
             shaderCount++;
         }
     }
@@ -113,10 +112,8 @@ void ProgramCache::primeCache(bool useColorManagement) {
             shaderKey.set(Key::OPACITY_MASK,
                           (i & 1) ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT);
             shaderKey.set(Key::ALPHA_MASK, (i & 2) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE);
-            Program* program = mCache.valueFor(shaderKey);
-            if (program == nullptr) {
-                program = generateProgram(shaderKey);
-                mCache.add(shaderKey, program);
+            if (mCache.count(shaderKey) == 0) {
+                mCache.emplace(shaderKey, generateProgram(shaderKey));
                 shaderCount++;
             }
         }
@@ -667,19 +664,19 @@ void ProgramCache::useProgram(const Description& description) {
     Key needs(computeKey(description));
 
     // look-up the program in the cache
-    Program* program = mCache.valueFor(needs);
-    if (program == nullptr) {
+    auto it = mCache.find(needs);
+    if (it == mCache.end()) {
         // we didn't find our program, so generate one...
-        nsecs_t time = -systemTime();
-        program = generateProgram(needs);
-        mCache.add(needs, program);
-        time += systemTime();
+        nsecs_t time = systemTime();
+        it = mCache.emplace(needs, generateProgram(needs)).first;
+        time = systemTime() - time;
 
         ALOGV(">>> generated new program: needs=%08X, time=%u ms (%zu programs)", needs.mKey,
               uint32_t(ns2ms(time)), mCache.size());
     }
 
     // here we have a suitable program for this description
+    Program* program = it->second;
     if (program->isValid()) {
         program->use();
         program->setUniforms(description);

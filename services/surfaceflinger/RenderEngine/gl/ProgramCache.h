@@ -17,9 +17,10 @@
 #ifndef SF_RENDER_ENGINE_PROGRAMCACHE_H
 #define SF_RENDER_ENGINE_PROGRAMCACHE_H
 
+#include <unordered_map>
+
 #include <GLES2/gl2.h>
 #include <renderengine/private/Description.h>
-#include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/TypeHelpers.h>
 
@@ -155,10 +156,17 @@ public:
         }
         inline bool isY410BT2020() const { return (mKey & Y410_BT2020_MASK) == Y410_BT2020_ON; }
 
-        // this is the definition of a friend function -- not a method of class Needs
-        friend inline int strictly_order_type(const Key& lhs, const Key& rhs) {
-            return (lhs.mKey < rhs.mKey) ? 1 : 0;
+        // for use by std::unordered_map
+
+        bool operator==(const Key& other) const {
+            return mKey == other.mKey;
         }
+
+        struct Hash {
+            size_t operator()(const Key& key) const {
+                return static_cast<size_t>(key.mKey);
+            }
+        };
     };
 
     ProgramCache();
@@ -166,6 +174,8 @@ public:
 
     // Generate shaders to populate the cache
     void primeCache(bool useColorManagement);
+
+    size_t getSize() const { return mCache.size(); }
 
     // useProgram lookup a suitable program in the cache or generates one
     // if none can be found.
@@ -191,7 +201,7 @@ private:
 
     // Key/Value map used for caching Programs. Currently the cache
     // is never shrunk.
-    DefaultKeyedVector<Key, Program*> mCache;
+    std::unordered_map<Key, Program*, Key::Hash> mCache;
 };
 
 }  // namespace gl

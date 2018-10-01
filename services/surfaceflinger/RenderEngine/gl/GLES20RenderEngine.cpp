@@ -35,6 +35,7 @@
 #include <ui/DebugUtils.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <utils/KeyedVector.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include "GLExtensions.h"
@@ -883,6 +884,10 @@ void GLES20RenderEngine::dump(String8& result) {
     result.appendFormat("GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
                         extensions.getVersion());
     result.appendFormat("%s\n", extensions.getExtensions());
+
+    result.appendFormat("RenderEngine program cache size: %zu\n",
+                        ProgramCache::getInstance().getSize());
+
     result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
                         dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
                         dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
