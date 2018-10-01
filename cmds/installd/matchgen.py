@@ -84,6 +84,8 @@ def dump(target, index):
                 print "%scase '%s':" % (prefix, k)
             dump(target[k], index + 1)
     print "%s}" % (prefix)
+    if index > 0:
+        print "%sbreak;" % (prefix)
 
 dump(trie, 0)
 
