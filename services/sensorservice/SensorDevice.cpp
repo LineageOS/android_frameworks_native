@@ -16,6 +16,7 @@
 
 #include "SensorDevice.h"
 
+#include "android/hardware/sensors/2.0/ISensorsCallback.h"
 #include "android/hardware/sensors/2.0/types.h"
 #include "SensorService.h"
 
@@ -32,6 +33,7 @@
 using namespace android::hardware::sensors;
 using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
+using android::hardware::sensors::V2_0::ISensorsCallback;
 using android::hardware::sensors::V2_0::EventQueueFlagBits;
 using android::hardware::hidl_vec;
 using android::hardware::Return;
@@ -56,6 +58,20 @@ static status_t StatusFromResult(Result result) {
             return NO_MEMORY;
     }
 }
+
+struct SensorsCallback : public ISensorsCallback {
+    using Result = ::android::hardware::sensors::V1_0::Result;
+    Return<void> onDynamicSensorsConnected(
+            const hidl_vec<SensorInfo> &dynamicSensorsAdded) override {
+        return SensorDevice::getInstance().onDynamicSensorsConnected(dynamicSensorsAdded);
+    }
+
+    Return<void> onDynamicSensorsDisconnected(
+            const hidl_vec<int32_t> &dynamicSensorHandlesRemoved) override {
+        return SensorDevice::getInstance().onDynamicSensorsDisconnected(
+                dynamicSensorHandlesRemoved);
+    }
+};
 
 SensorDevice::SensorDevice()
         : mHidlTransportErrors(20), mRestartWaiter(new HidlServiceRegistrationWaiter()) {
@@ -166,7 +182,7 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
         status_t status = StatusFromResult(checkReturn(mSensors->initialize(
                 *mEventQueue->getDesc(),
                 *mWakeLockQueue->getDesc(),
-                this)));
+                new SensorsCallback())));
 
         if (status != NO_ERROR) {
             connectionStatus = HalConnectionStatus::FAILED_TO_CONNECT;
