@@ -77,6 +77,8 @@ public:
     };
 
     ~SensorDevice();
+    void prepareForReconnect();
+    void reconnect();
 
     ssize_t getSensorList(sensor_t const** list);
 
@@ -113,6 +115,10 @@ public:
             const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded);
     hardware::Return<void> onDynamicSensorsDisconnected(
             const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved);
+
+    bool isReconnecting() const {
+        return mReconnecting;
+    }
 
     // Dumpable
     virtual std::string dump() const;
@@ -167,7 +173,7 @@ private:
         // the removed ident. If index >=0, ident is present and successfully removed.
         ssize_t removeBatchParamsForIdent(void* ident);
 
-        int numActiveClients();
+        int numActiveClients() const;
     };
     DefaultKeyedVector<int, Info> mActivationCount;
 
@@ -179,6 +185,11 @@ private:
     SortedVector<void *> mDisabledClients;
     SensorDevice();
     bool connectHidlService();
+    void initializeSensorList();
+    void reactivateSensors(const DefaultKeyedVector<int, Info>& previousActivations);
+    static bool sensorHandlesChanged(const Vector<sensor_t>& oldSensorList,
+                                     const Vector<sensor_t>& newSensorList);
+    static bool sensorIsEquivalent(const sensor_t& prevSensor, const sensor_t& newSensor);
 
     enum HalConnectionStatus {
         CONNECTED, // Successfully connected to the HAL
@@ -191,6 +202,9 @@ private:
 
     ssize_t pollHal(sensors_event_t* buffer, size_t count);
     ssize_t pollFmq(sensors_event_t* buffer, size_t count);
+    status_t activateLocked(void* ident, int handle, int enabled);
+    status_t batchLocked(void* ident, int handle, int flags, int64_t samplingPeriodNs,
+                         int64_t maxBatchReportLatencyNs);
 
     static void handleHidlDeath(const std::string &detail);
     template<typename T>
@@ -228,6 +242,7 @@ private:
     std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
 
     sp<SensorsHalDeathReceivier> mSensorsHalDeathReceiver;
+    std::atomic_bool mReconnecting;
 };
 
 // ---------------------------------------------------------------------------
