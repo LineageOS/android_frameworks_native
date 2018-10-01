@@ -1528,6 +1528,18 @@ void SurfaceFlinger::handleMessageRefresh() {
                 getBE().mHwc->hasClientComposition(display->getId());
     }
 
+    // Setup RenderEngine sync fences if native sync is supported.
+    if (getBE().mRenderEngine->useNativeFenceSync()) {
+        if (mHadClientComposition) {
+            base::unique_fd flushFence(getRenderEngine().flush());
+            ALOGE_IF(flushFence < 0, "Failed to flush RenderEngine!");
+            getBE().flushFence = new Fence(std::move(flushFence));
+        } else {
+            // Cleanup for hygiene.
+            getBE().flushFence = Fence::NO_FENCE;
+        }
+    }
+
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
@@ -3038,13 +3050,18 @@ bool SurfaceFlinger::handlePageFlip()
     });
 
     for (auto& layer : mLayersWithQueuedFrames) {
-        const Region dirty(layer->latchBuffer(visibleRegions, latchTime));
+        const Region dirty(layer->latchBuffer(visibleRegions, latchTime, getBE().flushFence));
         layer->useSurfaceDamage();
         invalidateLayerStack(layer, dirty);
         if (layer->isBufferLatched()) {
             newDataLatched = true;
         }
     }
+
+    // Clear the renderengine fence here...
+    // downstream code assumes that a cleared fence == NO_FENCE, so reassign to
+    // clear instead of sp::clear.
+    getBE().flushFence = Fence::NO_FENCE;
 
     mVisibleRegionsDirty |= visibleRegions;
 

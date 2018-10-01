@@ -221,7 +221,8 @@ status_t BufferQueueLayer::bindTextureImage() const {
     return mConsumer->bindTextureImage();
 }
 
-status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) {
+status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                                          const sp<Fence>& releaseFence) {
     // This boolean is used to make sure that SurfaceFlinger's shadow copy
     // of the buffer queue isn't modified when the buffer queue is returning
     // BufferItem's that weren't actually queued. This can happen in shared
@@ -232,7 +233,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
     status_t updateResult =
             mConsumer->updateTexImage(&r, *mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
-                                      mLastFrameNumberReceived);
+                                      mLastFrameNumberReceived, releaseFence);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.

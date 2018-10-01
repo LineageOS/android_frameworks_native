@@ -94,7 +94,8 @@ public:
     // used to reject the newly acquired buffer.  It also does not bind the
     // RenderEngine texture until bindTextureImage is called.
     status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync, bool* autoRefresh,
-                            bool* queuedBuffer, uint64_t maxFrameNumber);
+                            bool* queuedBuffer, uint64_t maxFrameNumber,
+                            const sp<Fence>& releaseFence);
 
     // See BufferLayerConsumer::bindTextureImageLocked().
     status_t bindTextureImage();
@@ -208,7 +209,8 @@ protected:
     // completion of the method will instead be returned to the caller, so that
     // it may call releaseBufferLocked itself later.
     status_t updateAndReleaseLocked(const BufferItem& item,
-                                    PendingRelease* pendingRelease = nullptr);
+                                    PendingRelease* pendingRelease = nullptr,
+                                    const sp<Fence>& releaseFence = Fence::NO_FENCE);
 
     // Binds mTexName and the current buffer to TEXTURE_EXTERNAL target.  Uses
     // mCurrentTexture if it's set, mCurrentTextureImage if not.  If the
@@ -282,7 +284,7 @@ private:
     // current slot from RenderEngine.  If needed it will set the current
     // slot's fence to guard against a producer accessing the buffer before
     // the outstanding accesses have completed.
-    status_t syncForReleaseLocked();
+    status_t syncForReleaseLocked(const sp<Fence>& releaseFence);
 
     // The default consumer usage flags that BufferLayerConsumer always sets on its
     // BufferQueue instance; these will be OR:d with any additional flags passed
