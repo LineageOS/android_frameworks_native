@@ -21,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include "InstalldNativeService.h"
+#include "MatchExtensionGen.h"
 #include "globals.h"
 #include "utils.h"
 
@@ -527,6 +528,20 @@ TEST_F(UtilsTest, ValidateApkPathSubdirs) {
     EXPECT_EQ(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir//file"));
     EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir/file"));
     EXPECT_NE(0, validate_apk_path_subdirs("/data/app/com.example/dir/dir/dir//file"));
+}
+
+TEST_F(UtilsTest, MatchExtension_Valid) {
+    EXPECT_EQ(AID_MEDIA_VIDEO, MatchExtension("mpg"));
+    EXPECT_EQ(AID_MEDIA_VIDEO, MatchExtension("mpeg"));
+    EXPECT_EQ(AID_MEDIA_VIDEO, MatchExtension("mPeG"));
+    EXPECT_EQ(AID_MEDIA_VIDEO, MatchExtension("MPEG"));
+}
+
+TEST_F(UtilsTest, MatchExtension_Invalid) {
+    EXPECT_EQ(0, MatchExtension("log"));
+    EXPECT_EQ(0, MatchExtension("3amp"));
+    EXPECT_EQ(0, MatchExtension("fpe"));
+    EXPECT_EQ(0, MatchExtension("docx"));
 }
 
 }  // namespace installd
