@@ -58,7 +58,6 @@ public:
 
 private:
     GLuint buildShader(const char* source, GLenum type);
-    String8& dumpShader(String8& result, GLenum type);
 
     // whether the initialization succeeded
     bool mInitialized;
