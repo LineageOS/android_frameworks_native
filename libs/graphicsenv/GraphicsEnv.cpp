@@ -56,14 +56,25 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
-void GraphicsEnv::setAnglePath(const std::string path) {
+void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName,
+                               bool developerOptIn) {
     if (!mAnglePath.empty()) {
         ALOGV("ignoring attempt to change ANGLE path from '%s' to '%s'", mAnglePath.c_str(),
               path.c_str());
-        return;
+    } else {
+        ALOGV("setting ANGLE path to '%s'", path.c_str());
+        mAnglePath = path;
     }
-    ALOGV("setting ANGLE path to '%s'", path.c_str());
-    mAnglePath = path;
+
+    if (!mAngleAppName.empty()) {
+        ALOGV("ignoring attempt to change ANGLE app name from '%s' to '%s'", mAngleAppName.c_str(),
+              appName.c_str());
+    } else {
+        ALOGV("setting ANGLE app name to '%s'", appName.c_str());
+        mAngleAppName = appName;
+    }
+
+    mAngleDeveloperOptIn = developerOptIn;
 }
 
 void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths) {
@@ -78,6 +89,15 @@ void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace, const std::
 
 NativeLoaderNamespace* GraphicsEnv::getAppNamespace() {
     return mAppNamespace;
+}
+
+const char* GraphicsEnv::getAngleAppName() {
+    if (mAngleAppName.empty()) return nullptr;
+    return mAngleAppName.c_str();
+}
+
+bool GraphicsEnv::getAngleDeveloperOptIn() {
+    return mAngleDeveloperOptIn;
 }
 
 const std::string GraphicsEnv::getLayerPaths(){
@@ -138,5 +158,11 @@ android_namespace_t* android_getDriverNamespace() {
 }
 android_namespace_t* android_getAngleNamespace() {
     return android::GraphicsEnv::getInstance().getAngleNamespace();
+}
+const char* android_getAngleAppName() {
+    return android::GraphicsEnv::getInstance().getAngleAppName();
+}
+bool android_getAngleDeveloperOptIn() {
+    return android::GraphicsEnv::getInstance().getAngleDeveloperOptIn();
 }
 }
