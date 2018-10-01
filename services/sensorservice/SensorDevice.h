@@ -42,6 +42,10 @@
 namespace android {
 
 // ---------------------------------------------------------------------------
+class SensorsHalDeathReceivier : public android::hardware::hidl_death_recipient {
+    virtual void serviceDied(uint64_t cookie,
+                             const wp<::android::hidl::base::V1_0::IBase>& service) override;
+};
 
 class SensorDevice : public Singleton<SensorDevice>,
                      public SensorServiceUtil::Dumpable {
@@ -222,6 +226,8 @@ private:
     hardware::EventFlag* mEventQueueFlag;
 
     std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
+
+    sp<SensorsHalDeathReceivier> mSensorsHalDeathReceiver;
 };
 
 // ---------------------------------------------------------------------------

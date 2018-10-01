@@ -59,6 +59,13 @@ static status_t StatusFromResult(Result result) {
     }
 }
 
+void SensorsHalDeathReceivier::serviceDied(
+        uint64_t /* cookie */,
+        const wp<::android::hidl::base::V1_0::IBase>& /* service */) {
+    ALOGW("Sensors HAL died, attempting to reconnect.");
+    // TODO: Attempt reconnect
+}
+
 struct SensorsCallback : public ISensorsCallback {
     using Result = ::android::hardware::sensors::V1_0::Result;
     Return<void> onDynamicSensorsConnected(
@@ -189,6 +196,8 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
             ALOGE("Failed to initialize Sensors HAL (%s)", strerror(-status));
         } else {
             connectionStatus = HalConnectionStatus::CONNECTED;
+            mSensorsHalDeathReceiver = new SensorsHalDeathReceivier();
+            sensors->linkToDeath(mSensorsHalDeathReceiver, 0 /* cookie */);
         }
     }
 
