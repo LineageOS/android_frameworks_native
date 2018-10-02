@@ -15,9 +15,9 @@ class PointerWrapper {
 
   PointerWrapper(T* pointer) : pointer_(pointer) {}
   PointerWrapper(const PointerWrapper&) = default;
-  PointerWrapper(PointerWrapper&&) = default;
+  PointerWrapper(PointerWrapper&&) noexcept = default;
   PointerWrapper& operator=(const PointerWrapper&) = default;
-  PointerWrapper& operator=(PointerWrapper&&) = default;
+  PointerWrapper& operator=(PointerWrapper&&) noexcept = default;
 
   T& Dereference() { return *pointer_; }
   const T& Dereference() const { return *pointer_; }

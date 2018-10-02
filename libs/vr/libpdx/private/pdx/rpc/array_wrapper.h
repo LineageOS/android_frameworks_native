@@ -39,7 +39,7 @@ class ArrayWrapper {
 
   ArrayWrapper(const ArrayWrapper& other) { *this = other; }
 
-  ArrayWrapper(ArrayWrapper&& other) { *this = std::move(other); }
+  ArrayWrapper(ArrayWrapper&& other) noexcept { *this = std::move(other); }
 
   ArrayWrapper& operator=(const ArrayWrapper& other) {
     if (&other == this) {
@@ -53,7 +53,7 @@ class ArrayWrapper {
     return *this;
   }
 
-  ArrayWrapper& operator=(ArrayWrapper&& other) {
+  ArrayWrapper& operator=(ArrayWrapper&& other) noexcept {
     if (&other == this) {
       return *this;
     } else {

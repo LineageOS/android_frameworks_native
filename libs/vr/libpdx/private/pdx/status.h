@@ -41,14 +41,14 @@ class Status {
   // Copy/move constructors. Move constructor leaves |other| object in empty
   // state.
   Status(const Status& other) = default;
-  Status(Status&& other)
+  Status(Status&& other) noexcept
       : value_{std::move(other.value_)}, error_{other.error_} {
     other.error_ = -1;
   }
 
   // Assignment operators.
   Status& operator=(const Status& other) = default;
-  Status& operator=(Status&& other) {
+  Status& operator=(Status&& other) noexcept {
     error_ = other.error_;
     value_ = std::move(other.value_);
     other.error_ = -1;

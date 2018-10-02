@@ -23,9 +23,9 @@ class RingBuffer {
   explicit RingBuffer(size_t capacity) { Reset(capacity); }
 
   RingBuffer(const RingBuffer& other) = default;
-  RingBuffer(RingBuffer&& other) = default;
+  RingBuffer(RingBuffer&& other) noexcept = default;
   RingBuffer& operator=(const RingBuffer& other) = default;
-  RingBuffer& operator=(RingBuffer&& other) = default;
+  RingBuffer& operator=(RingBuffer&& other) noexcept = default;
 
   void Append(const T& val) {
     if (IsFull())

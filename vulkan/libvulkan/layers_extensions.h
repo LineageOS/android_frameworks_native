@@ -27,7 +27,7 @@ struct Layer;
 class LayerRef {
    public:
     explicit LayerRef(const Layer* layer);
-    LayerRef(LayerRef&& other);
+    LayerRef(LayerRef&& other) noexcept;
     ~LayerRef();
     LayerRef(const LayerRef&) = delete;
     LayerRef& operator=(const LayerRef&) = delete;
