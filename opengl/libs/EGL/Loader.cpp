@@ -475,25 +475,46 @@ static void* load_angle_from_namespace(const char* kind, android_namespace_t* ns
     return nullptr;
 }
 
-static void* load_angle(const char* kind, android_namespace_t* ns, egl_connection_t* cnx) {
+static void* load_angle(const char* kind, egl_connection_t* cnx) {
     // Only attempt to load ANGLE libs
     if (strcmp(kind, "EGL") != 0 && strcmp(kind, "GLESv2") != 0 && strcmp(kind, "GLESv1_CM") != 0)
         return nullptr;
 
     void* so = nullptr;
     std::string name;
+    char prop[PROPERTY_VALUE_MAX];
+
+    android_namespace_t* ns = android_getAngleNamespace();
+    const char* app_name = android_getAngleAppName();
+    const char* app_pref = android_getAngleAppPref();
+    bool developer_opt_in = android_getAngleDeveloperOptIn();
 
     if (ns) {
-        so = load_angle_from_namespace(kind, ns);
+        // If we got a namespce for ANGLE, check any other conditions
+        // before loading from it.
+        // TODO: Call opt-in logic rather than use pref directly
+        //       app_pref will be "angle", "native", or "dontcare"
+        if ((developer_opt_in || !strcmp(app_pref, "angle"))) {
+            so = load_angle_from_namespace(kind, ns);
+        }
     }
 
     if (so) {
+        ALOGD("Loaded ANGLE %s library for %s (instead of native)",
+              kind, app_name ? app_name : "nullptr");
+        property_get("debug.angle.backend", prop, "UNSET");
+        ALOGD("ANGLE's backend set to %s", prop);
+        property_get("debug.hwui.renderer", prop, "UNSET");
+        ALOGD("Skia's renderer set to %s", prop);
         cnx->useAngle = true;
         // Find and load vendor libEGL for ANGLE
         if (!cnx->vendorEGL) {
             cnx->vendorEGL = load_system_driver("EGL");
         }
         return so;
+    } else {
+        ALOGD("Loaded native %s library for %s (instead of ANGLE)",
+              kind, app_name ? app_name : "nullptr");
     }
 
     return nullptr;
@@ -530,11 +551,10 @@ void *Loader::load_driver(const char* kind,
     ATRACE_CALL();
 
     void* dso = nullptr;
-    android_namespace_t* ns = android_getAngleNamespace();
-    dso = load_angle(kind, ns, cnx);
+    dso = load_angle(kind, cnx);
 #ifndef __ANDROID_VNDK__
     if (!dso) {
-        ns = android_getDriverNamespace();
+        android_namespace_t* ns = android_getDriverNamespace();
         if (ns) {
             dso = load_updated_driver(kind, ns);
         }
