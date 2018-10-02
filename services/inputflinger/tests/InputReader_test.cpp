@@ -132,6 +132,7 @@ class FakeInputReaderPolicy : public InputReaderPolicyInterface {
     InputReaderConfiguration mConfig;
     KeyedVector<int32_t, sp<FakePointerController> > mPointerControllers;
     Vector<InputDeviceInfo> mInputDevices;
+    std::vector<DisplayViewport> mViewports;
     TouchAffineTransformation transform;
 
 protected:
@@ -143,17 +144,20 @@ public:
 
     void setDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
             const std::string& uniqueId) {
-        DisplayViewport v = createDisplayViewport(displayId, width, height, orientation, uniqueId);
+        mViewports.clear();
         // Set the size of both the internal and external display at the same time.
-        mConfig.setPhysicalDisplayViewport(ViewportType::VIEWPORT_INTERNAL, v);
-        mConfig.setPhysicalDisplayViewport(ViewportType::VIEWPORT_EXTERNAL, v);
+        mViewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId,
+                ViewportType::VIEWPORT_INTERNAL));
+        mViewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId,
+                ViewportType::VIEWPORT_EXTERNAL));
+        mConfig.setDisplayViewports(mViewports);
     }
 
     void setVirtualDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
             const std::string& uniqueId) {
-        Vector<DisplayViewport> viewports;
-        viewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId));
-        mConfig.setVirtualDisplayViewports(viewports);
+        mViewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId,
+                ViewportType::VIEWPORT_VIRTUAL));
+        mConfig.setDisplayViewports(mViewports);
     }
 
     void addExcludedDeviceName(const std::string& deviceName) {
@@ -203,7 +207,7 @@ public:
 
 private:
     DisplayViewport createDisplayViewport(int32_t displayId, int32_t width, int32_t height,
-            int32_t orientation, const std::string& uniqueId) {
+            int32_t orientation, const std::string& uniqueId, ViewportType type) {
         bool isRotated = (orientation == DISPLAY_ORIENTATION_90
                 || orientation == DISPLAY_ORIENTATION_270);
         DisplayViewport v;
@@ -220,6 +224,7 @@ private:
         v.deviceWidth = isRotated ? height : width;
         v.deviceHeight = isRotated ? width : height;
         v.uniqueId = uniqueId;
+        v.type = type;
         return v;
     }
 

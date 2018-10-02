@@ -38,6 +38,7 @@
 #include <optional>
 #include <stddef.h>
 #include <unistd.h>
+#include <vector>
 
 // Maximum supported size of a vibration pattern.
 // Must be at least 2.
@@ -203,17 +204,14 @@ struct InputReaderConfiguration {
 
     bool getDisplayViewport(ViewportType viewportType, const std::string& uniqueDisplayId,
             DisplayViewport* outViewport) const;
-    void setPhysicalDisplayViewport(ViewportType viewportType, const DisplayViewport& viewport);
-    void setVirtualDisplayViewports(const Vector<DisplayViewport>& viewports);
+    void setDisplayViewports(const std::vector<DisplayViewport>& viewports);
 
 
     void dump(std::string& dump) const;
     void dumpViewport(std::string& dump, const DisplayViewport& viewport) const;
 
 private:
-    DisplayViewport mInternalDisplay;
-    DisplayViewport mExternalDisplay;
-    Vector<DisplayViewport> mVirtualDisplays;
+    std::vector<DisplayViewport> mDisplays;
 };
 
 
