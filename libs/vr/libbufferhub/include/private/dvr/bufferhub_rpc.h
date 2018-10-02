@@ -103,8 +103,8 @@ class NativeBufferHandle {
       opaque_ints_.push_back(buffer.handle()->data[fd_count + i]);
     }
   }
-  NativeBufferHandle(NativeBufferHandle&& other) = default;
-  NativeBufferHandle& operator=(NativeBufferHandle&& other) = default;
+  NativeBufferHandle(NativeBufferHandle&& other) noexcept = default;
+  NativeBufferHandle& operator=(NativeBufferHandle&& other) noexcept = default;
 
   // Imports the native handle into the given IonBuffer instance.
   int Import(IonBuffer* buffer) {
@@ -174,8 +174,8 @@ class BufferDescription {
         acquire_fence_fd_(acquire_fence_fd.Borrow()),
         release_fence_fd_(release_fence_fd.Borrow()) {}
 
-  BufferDescription(BufferDescription&& other) = default;
-  BufferDescription& operator=(BufferDescription&& other) = default;
+  BufferDescription(BufferDescription&& other) noexcept = default;
+  BufferDescription& operator=(BufferDescription&& other) noexcept = default;
 
   // ID of the buffer client. All BufferHubBuffer clients derived from the same
   // buffer in bufferhubd share the same buffer id.
@@ -219,8 +219,8 @@ class FenceHandle {
   FenceHandle() = default;
   explicit FenceHandle(int fence) : fence_{fence} {}
   explicit FenceHandle(FileHandleType&& fence) : fence_{std::move(fence)} {}
-  FenceHandle(FenceHandle&&) = default;
-  FenceHandle& operator=(FenceHandle&&) = default;
+  FenceHandle(FenceHandle&&) noexcept = default;
+  FenceHandle& operator=(FenceHandle&&) noexcept = default;
 
   explicit operator bool() const { return fence_.IsValid(); }
 

@@ -86,8 +86,8 @@ class Layer {
         const std::shared_ptr<IonBuffer>& buffer, HWC::BlendMode blending,
         HWC::Composition composition_type, size_t z_order);
 
-  Layer(Layer&&);
-  Layer& operator=(Layer&&);
+  Layer(Layer&&) noexcept;
+  Layer& operator=(Layer&&) noexcept;
 
   ~Layer();
 
