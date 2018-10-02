@@ -111,14 +111,28 @@ sp<BnDisplayEventConnection> EventThread::createEventConnection() const {
 status_t EventThread::registerDisplayEventConnection(
         const sp<EventThread::Connection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mDisplayEventConnections.add(connection);
+
+    // this should never happen
+    auto it = std::find(mDisplayEventConnections.cbegin(),
+            mDisplayEventConnections.cend(), connection);
+    if (it != mDisplayEventConnections.cend()) {
+        ALOGW("DisplayEventConnection %p already exists", connection.get());
+        mCondition.notify_all();
+        return ALREADY_EXISTS;
+    }
+
+    mDisplayEventConnections.push_back(connection);
     mCondition.notify_all();
     return NO_ERROR;
 }
 
 void EventThread::removeDisplayEventConnectionLocked(
         const wp<EventThread::Connection>& connection) {
-    mDisplayEventConnections.remove(connection);
+    auto it = std::find(mDisplayEventConnections.cbegin(),
+            mDisplayEventConnections.cend(), connection);
+    if (it != mDisplayEventConnections.cend()) {
+        mDisplayEventConnections.erase(it);
+    }
 }
 
 void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>& connection) {
@@ -181,7 +195,7 @@ void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
     event.header.timestamp = systemTime();
     event.hotplug.connected = connected;
 
-    mPendingEvents.add(event);
+    mPendingEvents.push(event);
     mCondition.notify_all();
 }
 
@@ -244,18 +258,18 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
 
         if (!timestamp) {
             // no vsync event, see if there are some other event
-            eventPending = !mPendingEvents.isEmpty();
+            eventPending = !mPendingEvents.empty();
             if (eventPending) {
                 // we have some other event to dispatch
-                *outEvent = mPendingEvents[0];
-                mPendingEvents.removeAt(0);
+                *outEvent = mPendingEvents.front();
+                mPendingEvents.pop();
             }
         }
 
         // find out connections waiting for events
-        size_t count = mDisplayEventConnections.size();
-        for (size_t i = 0; i < count;) {
-            sp<Connection> connection(mDisplayEventConnections[i].promote());
+        auto it = mDisplayEventConnections.begin();
+        while (it != mDisplayEventConnections.end()) {
+            sp<Connection> connection(it->promote());
             if (connection != nullptr) {
                 bool added = false;
                 if (connection->count >= 0) {
@@ -285,12 +299,11 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
                     // messages.
                     signalConnections.add(connection);
                 }
-                ++i;
+                ++it;
             } else {
                 // we couldn't promote this reference, the connection has
                 // died, so clean-up!
-                mDisplayEventConnections.removeAt(i);
-                --count;
+                it = mDisplayEventConnections.erase(it);
             }
         }
 
@@ -379,11 +392,12 @@ void EventThread::dump(String8& result) const {
     result.appendFormat("  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
     result.appendFormat("  numListeners=%zu,\n  events-delivered: %u\n",
                         mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
-    for (size_t i = 0; i < mDisplayEventConnections.size(); i++) {
-        sp<Connection> connection = mDisplayEventConnections.itemAt(i).promote();
+    for (const wp<Connection>& weak : mDisplayEventConnections) {
+        sp<Connection> connection = weak.promote();
         result.appendFormat("    %p: count=%d\n", connection.get(),
                             connection != nullptr ? connection->count : 0);
     }
+    result.appendFormat("  other-events-pending: %zu\n", mPendingEvents.size());
 }
 
 // ---------------------------------------------------------------------------
