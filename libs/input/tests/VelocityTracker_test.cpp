@@ -16,6 +16,7 @@
 
 #define LOG_TAG "VelocityTracker_test"
 
+#include <array>
 #include <math.h>
 
 #include <android-base/stringprintf.h>
@@ -32,29 +33,35 @@ constexpr int32_t DEFAULT_POINTER_ID = 0; // pointer ID used for manually define
 // here EV = expected value, tol = VELOCITY_TOLERANCE
 constexpr float VELOCITY_TOLERANCE = 0.2;
 
+// estimate coefficients must be within 0.001% of the target value
+constexpr float COEFFICIENT_TOLERANCE = 0.00001;
+
 // --- VelocityTrackerTest ---
 class VelocityTrackerTest : public testing::Test { };
 
-static void checkVelocity(float Vactual, float Vtarget) {
-    // Compare directions
-    if ((Vactual > 0 && Vtarget <= 0) || (Vactual < 0 && Vtarget >= 0)) {
-        FAIL() << StringPrintf("Velocity %f does not have the same direction"
-                " as the target velocity %f", Vactual, Vtarget);
-    }
+/*
+ * Similar to EXPECT_NEAR, but ensures that the difference between the two float values
+ * is at most a certain fraction of the target value.
+ * If fraction is zero, require exact match.
+ */
+static void EXPECT_NEAR_BY_FRACTION(float actual, float target, float fraction) {
+    float tolerance = fabsf(target * fraction);
 
-    // Compare magnitudes
-    const float Vlower = fabsf(Vtarget * (1 - VELOCITY_TOLERANCE));
-    const float Vupper = fabsf(Vtarget * (1 + VELOCITY_TOLERANCE));
-    if (fabsf(Vactual) < Vlower) {
-        FAIL() << StringPrintf("Velocity %f is more than %.0f%% below target velocity %f",
-                Vactual, VELOCITY_TOLERANCE * 100, Vtarget);
+    if (target == 0 && fraction != 0) {
+        // If target is zero, this would force actual == target, which is too harsh.
+        // Relax this requirement a little. The value is determined empirically from the
+        // coefficients computed by the quadratic least squares algorithms.
+        tolerance = 1E-6;
     }
-    if (fabsf(Vactual) > Vupper) {
-        FAIL() << StringPrintf("Velocity %f is more than %.0f%% above target velocity %f",
-                Vactual, VELOCITY_TOLERANCE * 100, Vtarget);
-    }
-    SUCCEED() << StringPrintf("Velocity %f within %.0f%% of target %f)",
-            Vactual, VELOCITY_TOLERANCE * 100, Vtarget);
+    EXPECT_NEAR(actual, target, tolerance);
+}
+
+static void checkVelocity(float Vactual, float Vtarget) {
+    EXPECT_NEAR_BY_FRACTION(Vactual, Vtarget, VELOCITY_TOLERANCE);
+}
+
+static void checkCoefficient(float actual, float target) {
+    EXPECT_NEAR_BY_FRACTION(actual, target, COEFFICIENT_TOLERANCE);
 }
 
 void failWithMessage(std::string message) {
@@ -121,6 +128,19 @@ static void computeAndCheckVelocity(const Position* positions, size_t numSamples
         FAIL() << "Axis must be either AMOTION_EVENT_AXIS_X or AMOTION_EVENT_AXIS_Y";
     }
     delete event;
+}
+
+static void computeAndCheckQuadraticEstimate(const Position* positions, size_t numSamples,
+        const std::array<float, 3>& coefficients) {
+    VelocityTracker vt("lsq2");
+    MotionEvent* event = createSimpleMotionEvent(positions, numSamples);
+    vt.addMovement(event);
+    VelocityTracker::Estimator estimator;
+    EXPECT_TRUE(vt.getEstimator(0, &estimator));
+    for (size_t i = 0; i< coefficients.size(); i++) {
+        checkCoefficient(estimator.xCoeff[i], coefficients[i]);
+        checkCoefficient(estimator.yCoeff[i], coefficients[i]);
+    }
 }
 
 /*
@@ -660,5 +680,114 @@ TEST_F(VelocityTrackerTest, SailfishFlingDownFast3) {
     computeAndCheckVelocity(values, count, AMOTION_EVENT_AXIS_Y, 28354.796875); // lsq2
 }
 
+/*
+ * Special care must be taken when constructing tests for LeastSquaresVelocityTrackerStrategy
+ * getEstimator function. In particular:
+ * - inside the function, time gets converted from nanoseconds to seconds
+ *   before being used in the fit.
+ * - any values that are older than 100 ms are being discarded.
+ * - the newest time gets subtracted from all of the other times before being used in the fit.
+ * So these tests have to be designed with those limitations in mind.
+ *
+ * General approach for the tests below:
+ * We only used timestamps in milliseconds, 0 ms, 1 ms, and 2 ms, to be sure that
+ * we are well within the HORIZON range.
+ * When specifying the expected values of the coefficients, we treat the x values as if
+ * they were in ms. Then, to adjust for the time units, the coefficients get progressively
+ * multiplied by powers of 1E3.
+ * For example:
+ * data: t(ms), x
+ *        1 ms, 1
+ *        2 ms, 4
+ *        3 ms, 9
+ * The coefficients are (0, 0, 1).
+ * In the test, we would convert these coefficients to (0*(1E3)^0, 0*(1E3)^1, 1*(1E3)^2).
+ */
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Constant) {
+    Position values[] = {
+        { 0000000, 1, 1 }, // 0 s
+        { 1000000, 1, 1 }, // 0.001 s
+        { 2000000, 1, 1 }, // 0.002 s
+    };
+    // The data used for the fit will be as follows:
+    // time(s), position
+    // -0.002, 1
+    // -0.001, 1
+    // -0.000, 1
+    size_t count = sizeof(values) / sizeof(Position);
+    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({1, 0, 0}));
+}
+
+/*
+ * Straight line y = x :: the constant and quadratic coefficients are zero.
+ */
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Linear) {
+    Position values[] = {
+        { 0000000, -2, -2 },
+        { 1000000, -1, -1 },
+        { 2000000, -0, -0 },
+    };
+    // The data used for the fit will be as follows:
+    // time(s), position
+    // -0.002, -2
+    // -0.001, -1
+    // -0.000,  0
+    size_t count = sizeof(values) / sizeof(Position);
+    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({0, 1E3, 0}));
+}
+
+/*
+ * Parabola
+ */
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic) {
+    Position values[] = {
+        { 0000000, 1, 1 },
+        { 1000000, 4, 4 },
+        { 2000000, 8, 8 },
+    };
+    // The data used for the fit will be as follows:
+    // time(s), position
+    // -0.002, 1
+    // -0.001, 4
+    // -0.000, 8
+    size_t count = sizeof(values) / sizeof(Position);
+    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({8, 4.5E3, 0.5E6}));
+}
+
+/*
+ * Parabola
+ */
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic2) {
+    Position values[] = {
+        { 0000000, 1, 1 },
+        { 1000000, 4, 4 },
+        { 2000000, 9, 9 },
+    };
+    // The data used for the fit will be as follows:
+    // time(s), position
+    // -0.002, 1
+    // -0.001, 4
+    // -0.000, 9
+    size_t count = sizeof(values) / sizeof(Position);
+    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({9, 6E3, 1E6}));
+}
+
+/*
+ * Parabola :: y = x^2 :: the constant and linear coefficients are zero.
+ */
+TEST_F(VelocityTrackerTest, LeastSquaresVelocityTrackerStrategyEstimator_Parabolic3) {
+    Position values[] = {
+        { 0000000, 4, 4 },
+        { 1000000, 1, 1 },
+        { 2000000, 0, 0 },
+    };
+    // The data used for the fit will be as follows:
+    // time(s), position
+    // -0.002, 4
+    // -0.001, 1
+    // -0.000, 0
+    size_t count = sizeof(values) / sizeof(Position);
+    computeAndCheckQuadraticEstimate(values, count, std::array<float, 3>({0, 0E3, 1E6}));
+}
 
 } // namespace android
