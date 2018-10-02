@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 85
+define VERSION_PATCH 86
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -45,6 +45,10 @@ define VK_LUID_SIZE                     8
 define VK_QUEUE_FAMILY_EXTERNAL         -2
 @extension("VK_EXT_queue_family_foreign")
 define VK_QUEUE_FAMILY_FOREIGN_EXT      -3
+@extension("VK_MAX_DRIVER_NAME_SIZE_KHR") // 197
+define VK_MAX_DRIVER_NAME_SIZE_KHR      256
+@extension("VK_MAX_DRIVER_NAME_SIZE_KHR") // 197
+define VK_MAX_DRIVER_INFO_SIZE_KHR      256
 
 // API keywords
 define VK_TRUE        1
@@ -545,6 +549,10 @@ define NULL_HANDLE 0
 @extension("VK_AMD_buffer_marker") define VK_AMD_BUFFER_MARKER_SPEC_VERSION 1
 @extension("VK_AMD_buffer_marker") define VK_AMD_BUFFER_MARKER_EXTENSION_NAME "VK_AMD_buffer_marker"
 
+// 181
+@extension("VK_KHR_shader_atomic_int64") define VK_KHR_SHADER_ATOMIC_INT64_SPEC_VERSION 1
+@extension("VK_KHR_shader_atomic_int64") define VK_KHR_SHADER_ATOMIC_INT64_EXTENSION_NAME "VK_KHR_shader_atomic_int64"
+
 // 186
 @extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_SPEC_VERSION 1
 @extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME "VK_AMD_shader_core_properties"
@@ -552,6 +560,10 @@ define NULL_HANDLE 0
 // 191
 @extension("VK_EXT_vertex_attribute_divisor") define VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_SPEC_VERSION 2
 @extension("VK_EXT_vertex_attribute_divisor") define VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME "VK_EXT_vertex_attribute_divisor"
+
+// 197
+@extension("VK_KHR_driver_properties") define VK_KHR_DRIVER_PROPERTIES_SPEC_VERSION 1
+@extension("VK_KHR_driver_properties") define VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME "VK_KHR_driver_properties"
 
 // 199
 @extension("VK_NV_shader_subgroup_partitioned") define VK_NV_SHADER_SUBGROUP_PARTITIONED_SPEC_VERSION 1
@@ -1763,6 +1775,12 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT                    = 1000178001,
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT   = 1000178002,
 
+    //@extension("VK_KHR_shader_atomic_int64") // 181
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_INT64_FEATURES_KHR  = 1000180000,
+
+    //@extension("VK_KHR_driver_properties") // 197
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES_KHR             = 1000196000,
+
     //@extension("VK_AMD_shader_core_properties") // 186
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD        = 1000185000,
 
@@ -2262,6 +2280,19 @@ enum VkQueueGlobalPriorityEXT {
     VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_EXT                     = 256,
     VK_QUEUE_GLOBAL_PRIORITY_HIGH_EXT                       = 512,
     VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT                   = 1024,
+}
+
+@extension("VK_KHR_driver_properties") // 197
+enum VkDriverIdKHR {
+    VK_DRIVER_ID_AMD_PROPRIETARY_KHR                        = 1,
+    VK_DRIVER_ID_AMD_OPEN_SOURCE_KHR                        = 2,
+    VK_DRIVER_ID_MESA_RADV_KHR                              = 3,
+    VK_DRIVER_ID_NVIDIA_PROPRIETARY_KHR                     = 4,
+    VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS_KHR              = 5,
+    VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA_KHR                 = 6,
+    VK_DRIVER_ID_IMAGINATION_PROPRIETARY_KHR                = 7,
+    VK_DRIVER_ID_QUALCOMM_PROPRIETARY_KHR                   = 8,
+    VK_DRIVER_ID_ARM_PROPRIETARY_KHR                        = 9,
 }
 
 /////////////////
@@ -7214,6 +7245,14 @@ class VkPhysicalDeviceExternalMemoryHostPropertiesEXT {
     VkDeviceSize                                    minImportedHostPointerAlignment
 }
 
+@extension("VK_KHR_shader_atomic_int64") // 181
+class VkPhysicalDeviceShaderAtomicInt64FeaturesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        shaderBufferInt64Atomics
+    VkBool32                                        shaderSharedInt64Atomics
+}
+
 @extension("VK_AMD_shader_core_properties") // 186
 class VkPhysicalDeviceShaderCorePropertiesAMD {
     VkStructureType                                 sType
@@ -7261,6 +7300,24 @@ class VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT {
     void*                                           pNext
     VkBool32                                        vertexAttributeInstanceRateDivisor
     VkBool32                                        vertexAttributeInstanceRateZeroDivisor
+}
+
+@extension("VK_KHR_driver_properties") // 197
+class VkConformanceVersionKHR {
+    u8                                              major
+    u8                                              minor
+    u8                                              subminor
+    u8                                              patch
+}
+
+@extension("VK_KHR_driver_properties") // 197
+class VkPhysicalDeviceDriverPropertiesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             driverID
+    char[VK_MAX_DRIVER_NAME_SIZE_KHR]               driverName
+    char[VK_MAX_DRIVER_INFO_SIZE_KHR]               driverInfo
+    VkConformanceVersionKHR                         conformanceVersion
 }
 
 @extension("VK_NV_compute_shader_derivatives") // 202
@@ -11168,42 +11225,42 @@ cmd VkResult vkBindAccelerationStructureMemoryNVX(
 
 @extension("VK_NVX_raytracing") // 166
 cmd void vkCmdBuildAccelerationStructureNVX(
-        VkCommandBuffer                         cmdBuf,
-        VkAccelerationStructureTypeNVX          type,
-        u32                                     instanceCount,
-        VkBuffer                                instanceData,
-        VkDeviceSize                            instanceOffset,
-        u32                                     geometryCount,
-        const VkGeometryNVX*                    pGeometries,
-        VkBuildAccelerationStructureFlagsNVX    flags,
-        VkBool32                                update,
-        VkAccelerationStructureNVX              dst,
-        VkAccelerationStructureNVX              src,
-        VkBuffer                                scratch,
-        VkDeviceSize                            scratchOffset) {
+        VkCommandBuffer                             commandBuffer,
+        VkAccelerationStructureTypeNVX              type,
+        u32                                         instanceCount,
+        VkBuffer                                    instanceData,
+        VkDeviceSize                                instanceOffset,
+        u32                                         geometryCount,
+        const VkGeometryNVX*                        pGeometries,
+        VkBuildAccelerationStructureFlagsNVX        flags,
+        VkBool32                                    update,
+        VkAccelerationStructureNVX                  dst,
+        VkAccelerationStructureNVX                  src,
+        VkBuffer                                    scratch,
+        VkDeviceSize                                scratchOffset) {
 }
 
 @extension("VK_NVX_raytracing") // 166
 cmd void vkCmdCopyAccelerationStructureNVX(
-        VkCommandBuffer                         cmdBuf,
-        VkAccelerationStructureNVX              dst,
-        VkAccelerationStructureNVX              src,
-        VkCopyAccelerationStructureModeNVX      mode) {
+        VkCommandBuffer                             commandBuffer,
+        VkAccelerationStructureNVX                  dst,
+        VkAccelerationStructureNVX                  src,
+        VkCopyAccelerationStructureModeNVX          mode) {
 }
 
 @extension("VK_NVX_raytracing") // 166
 cmd void vkCmdTraceRaysNVX(
-        VkCommandBuffer                         cmdBuf,
-        VkBuffer                                raygenShaderBindingTableBuffer,
-        VkDeviceSize                            raygenShaderBindingOffset,
-        VkBuffer                                missShaderBindingTableBuffer,
-        VkDeviceSize                            missShaderBindingOffset,
-        VkDeviceSize                            missShaderBindingStride,
-        VkBuffer                                hitShaderBindingTableBuffer,
-        VkDeviceSize                            hitShaderBindingOffset,
-        VkDeviceSize                            hitShaderBindingStride,
-        u32                                     width,
-        u32                                     height) {
+        VkCommandBuffer                             commandBuffer,
+        VkBuffer                                    raygenShaderBindingTableBuffer,
+        VkDeviceSize                                raygenShaderBindingOffset,
+        VkBuffer                                    missShaderBindingTableBuffer,
+        VkDeviceSize                                missShaderBindingOffset,
+        VkDeviceSize                                missShaderBindingStride,
+        VkBuffer                                    hitShaderBindingTableBuffer,
+        VkDeviceSize                                hitShaderBindingOffset,
+        VkDeviceSize                                hitShaderBindingStride,
+        u32                                         width,
+        u32                                         height) {
 }
 
 @extension("VK_NVX_raytracing") // 166
@@ -11219,38 +11276,38 @@ cmd VkResult vkCreateRaytracingPipelinesNVX(
 
 @extension("VK_NVX_raytracing") // 166
 cmd VkResult vkGetRaytracingShaderHandlesNVX(
-        VkDevice                                device,
-        VkPipeline                              pipeline,
-        u32                                     firstGroup,
-        u32                                     groupCount,
-        platform.size_t                         dataSize,
-        void*                                   pData) {
+        VkDevice                                    device,
+        VkPipeline                                  pipeline,
+        u32                                         firstGroup,
+        u32                                         groupCount,
+        platform.size_t                             dataSize,
+        void*                                       pData) {
     return ?
 }
 
 @extension("VK_NVX_raytracing") // 166
 cmd VkResult vkGetAccelerationStructureHandleNVX(
-        VkDevice                                device,
-        VkAccelerationStructureNVX              accelerationStructure,
-        platform.size_t                         dataSize,
-        void*                                   pData) {
+        VkDevice                                    device,
+        VkAccelerationStructureNVX                  accelerationStructure,
+        platform.size_t                             dataSize,
+        void*                                       pData) {
     return ?
 }
 
 @extension("VK_NVX_raytracing") // 166
 cmd void vkCmdWriteAccelerationStructurePropertiesNVX(
-        VkCommandBuffer                         cmdBuf,
-        VkAccelerationStructureNVX              accelerationStructure,
-        VkQueryType                             queryType,
-        VkQueryPool                             queryPool,
-        u32                                     query) {
+        VkCommandBuffer                             commandBuffer,
+        VkAccelerationStructureNVX                  accelerationStructure,
+        VkQueryType                                 queryType,
+        VkQueryPool                                 queryPool,
+        u32                                         query) {
 }
 
 @extension("VK_NVX_raytracing") // 166
 cmd VkResult vkCompileDeferredNVX(
-        VkDevice                                device,
-        VkPipeline                              pipeline,
-        u32                                     shader) {
+        VkDevice                                    device,
+        VkPipeline                                  pipeline,
+        u32                                         shader) {
     return ?
 }
 
