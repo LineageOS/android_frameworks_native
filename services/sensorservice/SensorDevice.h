@@ -42,9 +42,12 @@
 namespace android {
 
 // ---------------------------------------------------------------------------
+class SensorsHalDeathReceivier : public android::hardware::hidl_death_recipient {
+    virtual void serviceDied(uint64_t cookie,
+                             const wp<::android::hidl::base::V1_0::IBase>& service) override;
+};
 
 class SensorDevice : public Singleton<SensorDevice>,
-                     public android::hardware::sensors::V2_0::ISensorsCallback,
                      public SensorServiceUtil::Dumpable {
 public:
     class HidlTransportErrorLog {
@@ -107,9 +110,9 @@ public:
 
     using Result = ::android::hardware::sensors::V1_0::Result;
     hardware::Return<void> onDynamicSensorsConnected(
-            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded) override;
+            const hardware::hidl_vec<hardware::sensors::V1_0::SensorInfo> &dynamicSensorsAdded);
     hardware::Return<void> onDynamicSensorsDisconnected(
-            const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved) override;
+            const hardware::hidl_vec<int32_t> &dynamicSensorHandlesRemoved);
 
     // Dumpable
     virtual std::string dump() const;
@@ -223,6 +226,8 @@ private:
     hardware::EventFlag* mEventQueueFlag;
 
     std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
+
+    sp<SensorsHalDeathReceivier> mSensorsHalDeathReceiver;
 };
 
 // ---------------------------------------------------------------------------
