@@ -50,7 +50,7 @@ private:
     // Return the name of the composition type
     static const char* layerCompositionType(int32_t compositionType);
     // Return the name of the pixel format
-    static const char* layerPixelFormat(int32_t pixelFormat);
+    static std::string layerPixelFormat(int32_t pixelFormat);
     // Calculate scale ratios of layer's width/height with rotation information
     static std::string scaleRatioWH(const LayerProtoParser::Layer* layer);
     // Calculate scale ratio from source to destination and convert to string
