@@ -1272,9 +1272,9 @@ Layer::Layer(Hwc2::Composer* composer, const DisplayParams& display_params,
 
 Layer::~Layer() { Reset(); }
 
-Layer::Layer(Layer&& other) { *this = std::move(other); }
+Layer::Layer(Layer&& other) noexcept { *this = std::move(other); }
 
-Layer& Layer::operator=(Layer&& other) {
+Layer& Layer::operator=(Layer&& other) noexcept {
   if (this != &other) {
     Reset();
     using std::swap;

@@ -92,8 +92,8 @@ class Message : public OutputResourceMapper, public InputResourceMapper {
   /*
    * Message objects support move construction and assignment.
    */
-  Message(Message&& other);
-  Message& operator=(Message&& other);
+  Message(Message&& other) noexcept;
+  Message& operator=(Message&& other) noexcept;
 
   /*
    * Read/write payload, in either single buffer or iovec form.
