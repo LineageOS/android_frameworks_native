@@ -31,13 +31,13 @@ AcquiredBuffer::AcquiredBuffer(const std::shared_ptr<BufferConsumer>& buffer,
   }
 }
 
-AcquiredBuffer::AcquiredBuffer(AcquiredBuffer&& other) {
+AcquiredBuffer::AcquiredBuffer(AcquiredBuffer&& other) noexcept {
   *this = std::move(other);
 }
 
 AcquiredBuffer::~AcquiredBuffer() { Release(LocalHandle(kEmptyFence)); }
 
-AcquiredBuffer& AcquiredBuffer::operator=(AcquiredBuffer&& other) {
+AcquiredBuffer& AcquiredBuffer::operator=(AcquiredBuffer&& other) noexcept {
   if (this != &other) {
     Release();
 

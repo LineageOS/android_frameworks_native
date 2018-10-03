@@ -50,14 +50,14 @@ class ChannelHandle : public ChannelHandleBase {
  public:
   ChannelHandle() = default;
   using ChannelHandleBase::ChannelHandleBase;
-  ChannelHandle(ChannelHandle&& other) : ChannelHandleBase{other.value_} {
+  ChannelHandle(ChannelHandle&& other) noexcept : ChannelHandleBase{other.value_} {
     other.value_ = kEmptyHandle;
   }
   ~ChannelHandle() = default;
 
   ChannelHandle Duplicate() const { return ChannelHandle{value_}; }
 
-  ChannelHandle& operator=(ChannelHandle&& other) {
+  ChannelHandle& operator=(ChannelHandle&& other) noexcept {
     value_ = other.value_;
     other.value_ = kEmptyHandle;
     return *this;
@@ -74,13 +74,13 @@ class ChannelHandle<ChannelHandleMode::Local> : public ChannelHandleBase {
   ChannelHandle(const ChannelHandle&) = delete;
   ChannelHandle& operator=(const ChannelHandle&) = delete;
 
-  ChannelHandle(ChannelHandle&& other)
+  ChannelHandle(ChannelHandle&& other) noexcept
       : ChannelHandleBase{other.value_}, manager_{other.manager_} {
     other.manager_ = nullptr;
     other.value_ = kEmptyHandle;
   }
 
-  ChannelHandle& operator=(ChannelHandle&& other) {
+  ChannelHandle& operator=(ChannelHandle&& other) noexcept {
     value_ = other.value_;
     manager_ = other.manager_;
     other.value_ = kEmptyHandle;

@@ -43,7 +43,7 @@ class FileHandle {
 
   // Move constructor that assumes ownership of the file descriptor, leaving the
   // other FileHandle object empty.
-  FileHandle(FileHandle&& other) {
+  FileHandle(FileHandle&& other) noexcept {
     fd_ = other.fd_;
     other.fd_ = kEmptyFileHandle;
   }
@@ -62,7 +62,7 @@ class FileHandle {
 
   // Move assignment operator that assumes ownership of the underlying file
   // descriptor, leaving the other FileHandle object empty.
-  FileHandle& operator=(FileHandle&& other) {
+  FileHandle& operator=(FileHandle&& other) noexcept {
     if (this != &other) {
       Reset(other.fd_);
       other.fd_ = kEmptyFileHandle;
