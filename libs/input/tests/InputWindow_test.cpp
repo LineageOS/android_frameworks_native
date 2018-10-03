@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <binder/Binder.h>
 #include <binder/Parcel.h>
 
 #include <input/InputWindow.h>
@@ -24,24 +25,20 @@
 namespace android {
 namespace test {
 
-TEST(InputWindowInfo, ParcellingWithoutChannel) {
+TEST(InputWindowInfo, ParcellingWithoutToken) {
     InputWindowInfo i;
-    i.inputChannel = nullptr;
+    i.token = nullptr;
 
     Parcel p;
     ASSERT_EQ(OK, i.write(p));
     p.setDataPosition(0);
     InputWindowInfo i2 = InputWindowInfo::read(p);
-    ASSERT_TRUE(i2.inputChannel == nullptr);
+    ASSERT_TRUE(i2.token == nullptr);
 }
 
 TEST(InputWindowInfo, Parcelling) {
-    sp<InputChannel> channel, junkChannel;
-    status_t result = InputChannel::openInputChannelPair("name", channel, junkChannel);
-    ASSERT_EQ(OK, result) << "openInputChannelPair should have returned valid channels";
-
     InputWindowInfo i;
-    i.inputChannel = channel;
+    i.token = new BBinder();
     i.name = "Foobar";
     i.layoutParamsFlags = 7;
     i.layoutParamsType = 39;
@@ -67,7 +64,7 @@ TEST(InputWindowInfo, Parcelling) {
 
     p.setDataPosition(0);
     InputWindowInfo i2 = InputWindowInfo::read(p);
-    ASSERT_EQ(i.inputChannel->getName(), i2.inputChannel->getName());
+    ASSERT_EQ(i.token, i2.token);
     ASSERT_EQ(i.name, i2.name);
     ASSERT_EQ(i.layoutParamsFlags, i2.layoutParamsFlags);
     ASSERT_EQ(i.layoutParamsType, i2.layoutParamsType);

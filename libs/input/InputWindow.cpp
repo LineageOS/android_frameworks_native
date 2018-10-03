@@ -65,12 +65,12 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
 }
 
 status_t InputWindowInfo::write(Parcel& output) const {
-    if (inputChannel == nullptr) {
+    if (token == nullptr) {
         output.writeInt32(0);
         return OK;
     }
     output.writeInt32(1);
-    status_t s = inputChannel->write(output);
+    status_t s = output.writeStrongBinder(token);
     if (s != OK) return s;
 
     output.writeString8(String8(name.c_str()));
@@ -102,15 +102,14 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
 
     if (from.readInt32() == 0) {
         return ret;
-
     }
-    sp<InputChannel> inputChannel = new InputChannel();
-    status_t s = inputChannel->read(from);
-    if (s != OK) {
+
+    sp<IBinder> token = from.readStrongBinder();
+    if (token == nullptr) {
         return ret;
     }
 
-    ret.inputChannel = inputChannel;
+    ret.token = token;
     ret.name = from.readString8().c_str();
     ret.layoutParamsFlags = from.readInt32();
     ret.layoutParamsType = from.readInt32();
@@ -149,11 +148,11 @@ InputWindowHandle::~InputWindowHandle() {
 }
 
 void InputWindowHandle::releaseChannel() {
-    mInfo.inputChannel.clear();
+    mInfo.token.clear();
 }
 
-sp<InputChannel> InputWindowHandle::getInputChannel() const {
-    return mInfo.inputChannel;
+sp<IBinder> InputWindowHandle::getToken() const {
+    return mInfo.token;
 }
 
 } // namespace android

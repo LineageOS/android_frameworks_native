@@ -338,7 +338,6 @@ protected:
             const std::string name, int32_t displayId) :
                 mDispatcher(dispatcher), mName(name), mDisplayId(displayId) {
             InputChannel::openInputChannelPair(name, mServerChannel, mClientChannel);
-
             mConsumer = new InputConsumer(mClientChannel);
         }
 
@@ -352,6 +351,7 @@ protected:
 
         sp<InputDispatcher> mDispatcher;
         sp<InputChannel> mServerChannel, mClientChannel;
+        sp<IBinder> mToken;
         InputConsumer *mConsumer;
         PreallocatedInputEventFactory mEventFactory;
 
@@ -374,7 +374,7 @@ public:
     }
 
     virtual bool updateInfo() {
-        mInfo.inputChannel = mServerChannel;
+        mInfo.token = mServerChannel->getToken();
         mInfo.name = mName;
         mInfo.layoutParamsFlags = 0;
         mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;

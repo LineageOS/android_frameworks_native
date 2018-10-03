@@ -29,6 +29,7 @@
 #include <utils/Looper.h>
 #include <utils/BitSet.h>
 #include <cutils/atomic.h>
+#include <unordered_map>
 
 #include <stddef.h>
 #include <unistd.h>
@@ -916,6 +917,13 @@ private:
     // All registered connections mapped by channel file descriptor.
     KeyedVector<int, sp<Connection> > mConnectionsByFd;
 
+    struct IBinderHash {
+        std::size_t operator()(const sp<IBinder>& b) const {
+            return std::hash<IBinder *>{}(b.get());
+        }
+    };
+    std::unordered_map<sp<IBinder>, sp<InputChannel>, IBinderHash> mInputChannelsByToken;
+
     ssize_t getConnectionIndexLocked(const sp<InputChannel>& inputChannel);
 
     // Input channels that will receive a copy of all input events sent to the provided display.
@@ -979,6 +987,7 @@ private:
     // Get window handles by display, return an empty vector if not found.
     Vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const;
     sp<InputWindowHandle> getWindowHandleLocked(const sp<InputChannel>& inputChannel) const;
+    sp<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const;
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const;
 
     // Focus tracking for keys, trackball, etc.

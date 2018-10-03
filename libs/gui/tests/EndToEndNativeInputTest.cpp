@@ -135,7 +135,7 @@ private:
     }
 
     void populateInputInfo(int width, int height) {
-        mInputInfo.inputChannel = mServerChannel;
+        mInputInfo.token = mServerChannel->getToken();
         mInputInfo.name = "Test info";
         mInputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
         mInputInfo.layoutParamsType = InputWindowInfo::TYPE_BASE_APPLICATION;

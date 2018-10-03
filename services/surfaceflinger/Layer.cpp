@@ -2082,7 +2082,7 @@ InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
 }
 
 bool Layer::hasInput() const {
-    return mDrawingState.inputInfo.inputChannel != nullptr;
+    return mDrawingState.inputInfo.token != nullptr;
 }
 
 // ---------------------------------------------------------------------------

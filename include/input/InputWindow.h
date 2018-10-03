@@ -117,7 +117,7 @@ struct InputWindowInfo {
         INPUT_FEATURE_DISABLE_USER_ACTIVITY = 0x00000004,
     };
 
-    sp<InputChannel> inputChannel;
+    sp<IBinder> token;
     std::string name;
     int32_t layoutParamsFlags;
     int32_t layoutParamsType;
@@ -174,14 +174,14 @@ public:
         return &mInfo;
     }
 
-    sp<InputChannel> getInputChannel() const;
+    sp<IBinder> getToken() const;
 
     inline std::string getName() const {
-        return mInfo.inputChannel ? mInfo.name : "<invalid>";
+        return mInfo.token ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo.inputChannel? mInfo.dispatchingTimeout : defaultValue;
+        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
     /**
