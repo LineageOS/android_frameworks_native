@@ -68,7 +68,7 @@ void LayerStats::traverseLayerTreeStatsLocked(
         base::StringAppendF(&key, ",%s", layerCompositionType(layer->hwcCompositionType));
         base::StringAppendF(&key, ",%d", layer->isProtected);
         base::StringAppendF(&key, ",%s", layerTransform(layer->hwcTransform));
-        base::StringAppendF(&key, ",%s", layerPixelFormat(layer->activeBuffer.format));
+        base::StringAppendF(&key, ",%s", layerPixelFormat(layer->activeBuffer.format).c_str());
         base::StringAppendF(&key, ",%s", layer->dataspace.c_str());
         base::StringAppendF(&key, ",%s",
                             destinationLocation(layer->hwcFrame.left, layerGlobal.resolution[0],
@@ -162,8 +162,8 @@ const char* LayerStats::layerCompositionType(int32_t compositionType) {
     return getCompositionName(static_cast<hwc2_composition_t>(compositionType));
 }
 
-const char* LayerStats::layerPixelFormat(int32_t pixelFormat) {
-    return decodePixelFormat(pixelFormat).c_str();
+std::string LayerStats::layerPixelFormat(int32_t pixelFormat) {
+    return decodePixelFormat(pixelFormat);
 }
 
 std::string LayerStats::scaleRatioWH(const LayerProtoParser::Layer* layer) {
