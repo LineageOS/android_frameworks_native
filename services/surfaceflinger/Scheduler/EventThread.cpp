@@ -111,14 +111,28 @@ sp<BnDisplayEventConnection> EventThread::createEventConnection() const {
 status_t EventThread::registerDisplayEventConnection(
         const sp<EventThread::Connection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mDisplayEventConnections.add(connection);
+
+    // this should never happen
+    auto it = std::find(mDisplayEventConnections.cbegin(),
+            mDisplayEventConnections.cend(), connection);
+    if (it != mDisplayEventConnections.cend()) {
+        ALOGW("DisplayEventConnection %p already exists", connection.get());
+        mCondition.notify_all();
+        return ALREADY_EXISTS;
+    }
+
+    mDisplayEventConnections.push_back(connection);
     mCondition.notify_all();
     return NO_ERROR;
 }
 
 void EventThread::removeDisplayEventConnectionLocked(
         const wp<EventThread::Connection>& connection) {
-    mDisplayEventConnections.remove(connection);
+    auto it = std::find(mDisplayEventConnections.cbegin(),
+            mDisplayEventConnections.cend(), connection);
+    if (it != mDisplayEventConnections.cend()) {
+        mDisplayEventConnections.erase(it);
+    }
 }
 
 void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>& connection) {
@@ -181,7 +195,7 @@ void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
     event.header.timestamp = systemTime();
     event.hotplug.connected = connected;
 
-    mPendingEvents.add(event);
+    mPendingEvents.push(event);
     mCondition.notify_all();
 }
 
@@ -189,13 +203,11 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
     std::unique_lock<std::mutex> lock(mMutex);
     while (mKeepRunning) {
         DisplayEventReceiver::Event event;
-        Vector<sp<EventThread::Connection> > signalConnections;
+        std::vector<sp<EventThread::Connection>> signalConnections;
         signalConnections = waitForEventLocked(&lock, &event);
 
         // dispatch events to listeners...
-        const size_t count = signalConnections.size();
-        for (size_t i = 0; i < count; i++) {
-            const sp<Connection>& conn(signalConnections[i]);
+        for (const sp<Connection>& conn : signalConnections) {
             // now see if we still need to report this event
             status_t err = conn->postEvent(event);
             if (err == -EAGAIN || err == -EWOULDBLOCK) {
@@ -210,7 +222,7 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
                 // handle any other error on the pipe as fatal. the only
                 // reasonable thing to do is to clean-up this connection.
                 // The most common error we'll get here is -EPIPE.
-                removeDisplayEventConnectionLocked(signalConnections[i]);
+                removeDisplayEventConnectionLocked(conn);
             }
         }
     }
@@ -218,11 +230,11 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 
 // This will return when (1) a vsync event has been received, and (2) there was
 // at least one connection interested in receiving it when we started waiting.
-Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
+std::vector<sp<EventThread::Connection>> EventThread::waitForEventLocked(
         std::unique_lock<std::mutex>* lock, DisplayEventReceiver::Event* outEvent) {
-    Vector<sp<EventThread::Connection> > signalConnections;
+    std::vector<sp<EventThread::Connection>> signalConnections;
 
-    while (signalConnections.isEmpty() && mKeepRunning) {
+    while (signalConnections.empty() && mKeepRunning) {
         bool eventPending = false;
         bool waitForVSync = false;
 
@@ -244,18 +256,18 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
 
         if (!timestamp) {
             // no vsync event, see if there are some other event
-            eventPending = !mPendingEvents.isEmpty();
+            eventPending = !mPendingEvents.empty();
             if (eventPending) {
                 // we have some other event to dispatch
-                *outEvent = mPendingEvents[0];
-                mPendingEvents.removeAt(0);
+                *outEvent = mPendingEvents.front();
+                mPendingEvents.pop();
             }
         }
 
         // find out connections waiting for events
-        size_t count = mDisplayEventConnections.size();
-        for (size_t i = 0; i < count;) {
-            sp<Connection> connection(mDisplayEventConnections[i].promote());
+        auto it = mDisplayEventConnections.begin();
+        while (it != mDisplayEventConnections.end()) {
+            sp<Connection> connection(it->promote());
             if (connection != nullptr) {
                 bool added = false;
                 if (connection->count >= 0) {
@@ -268,12 +280,12 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
                         if (connection->count == 0) {
                             // fired this time around
                             connection->count = -1;
-                            signalConnections.add(connection);
+                            signalConnections.push_back(connection);
                             added = true;
                         } else if (connection->count == 1 ||
                                    (vsyncCount % connection->count) == 0) {
                             // continuous event, and time to report it
-                            signalConnections.add(connection);
+                            signalConnections.push_back(connection);
                             added = true;
                         }
                     }
@@ -283,14 +295,13 @@ Vector<sp<EventThread::Connection> > EventThread::waitForEventLocked(
                     // we don't have a vsync event to process
                     // (timestamp==0), but we have some pending
                     // messages.
-                    signalConnections.add(connection);
+                    signalConnections.push_back(connection);
                 }
-                ++i;
+                ++it;
             } else {
                 // we couldn't promote this reference, the connection has
                 // died, so clean-up!
-                mDisplayEventConnections.removeAt(i);
-                --count;
+                it = mDisplayEventConnections.erase(it);
             }
         }
 
@@ -379,11 +390,12 @@ void EventThread::dump(String8& result) const {
     result.appendFormat("  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
     result.appendFormat("  numListeners=%zu,\n  events-delivered: %u\n",
                         mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
-    for (size_t i = 0; i < mDisplayEventConnections.size(); i++) {
-        sp<Connection> connection = mDisplayEventConnections.itemAt(i).promote();
+    for (const wp<Connection>& weak : mDisplayEventConnections) {
+        sp<Connection> connection = weak.promote();
         result.appendFormat("    %p: count=%d\n", connection.get(),
                             connection != nullptr ? connection->count : 0);
     }
+    result.appendFormat("  other-events-pending: %zu\n", mPendingEvents.size());
 }
 
 // ---------------------------------------------------------------------------

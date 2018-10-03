@@ -258,64 +258,31 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 
 bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
         const std::string& uniqueDisplayId, DisplayViewport* outViewport) const {
-    const DisplayViewport* viewport = nullptr;
-    if (viewportType == ViewportType::VIEWPORT_VIRTUAL && !uniqueDisplayId.empty()) {
-
-        for (const DisplayViewport& currentViewport : mVirtualDisplays) {
-            if (currentViewport.uniqueId == uniqueDisplayId) {
-                viewport = &currentViewport;
-                break;
+    for (const DisplayViewport& currentViewport : mDisplays) {
+        if (currentViewport.type == viewportType) {
+            if (uniqueDisplayId.empty() ||
+                    (!uniqueDisplayId.empty() && uniqueDisplayId == currentViewport.uniqueId)) {
+                *outViewport = currentViewport;
+                return true;
             }
         }
-    } else if (viewportType == ViewportType::VIEWPORT_EXTERNAL) {
-        viewport = &mExternalDisplay;
-    } else if (viewportType == ViewportType::VIEWPORT_INTERNAL) {
-        viewport = &mInternalDisplay;
-    }
-
-    if (viewport != nullptr && viewport->displayId >= 0) {
-        *outViewport = *viewport;
-        return true;
     }
     return false;
 }
 
-void InputReaderConfiguration::setPhysicalDisplayViewport(ViewportType viewportType,
-        const DisplayViewport& viewport) {
-    if (viewportType == ViewportType::VIEWPORT_EXTERNAL) {
-        mExternalDisplay = viewport;
-    } else if (viewportType == ViewportType::VIEWPORT_INTERNAL) {
-        mInternalDisplay = viewport;
-    }
-}
-
-void InputReaderConfiguration::setVirtualDisplayViewports(
-        const Vector<DisplayViewport>& viewports) {
-    mVirtualDisplays = viewports;
+void InputReaderConfiguration::setDisplayViewports(const std::vector<DisplayViewport>& viewports) {
+    mDisplays = viewports;
 }
 
 void InputReaderConfiguration::dump(std::string& dump) const {
-    dump += INDENT4 "ViewportInternal:\n";
-    dumpViewport(dump, mInternalDisplay);
-    dump += INDENT4 "ViewportExternal:\n";
-    dumpViewport(dump, mExternalDisplay);
-    dump += INDENT4 "ViewportVirtual:\n";
-    for (const DisplayViewport& viewport : mVirtualDisplays) {
+    for (const DisplayViewport& viewport : mDisplays) {
         dumpViewport(dump, viewport);
     }
 }
 
-void InputReaderConfiguration::dumpViewport(std::string& dump, const DisplayViewport& viewport) const {
-    dump += StringPrintf(INDENT5 "Viewport: displayId=%d, orientation=%d, uniqueId='%s', "
-            "logicalFrame=[%d, %d, %d, %d], "
-            "physicalFrame=[%d, %d, %d, %d], "
-            "deviceSize=[%d, %d]\n",
-            viewport.displayId, viewport.orientation, viewport.uniqueId.c_str(),
-            viewport.logicalLeft, viewport.logicalTop,
-            viewport.logicalRight, viewport.logicalBottom,
-            viewport.physicalLeft, viewport.physicalTop,
-            viewport.physicalRight, viewport.physicalBottom,
-            viewport.deviceWidth, viewport.deviceHeight);
+void InputReaderConfiguration::dumpViewport(std::string& dump, const DisplayViewport& viewport)
+        const {
+    dump += StringPrintf(INDENT4 "%s\n", viewport.toString().c_str());
 }
 
 
@@ -3600,6 +3567,12 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
                 break;
             }
 
+            if (naturalPhysicalHeight == 0 || naturalPhysicalWidth == 0) {
+                ALOGE("Viewport is not set properly: %s", mViewport.toString().c_str());
+                naturalPhysicalHeight = naturalPhysicalHeight == 0 ? 1 : naturalPhysicalHeight;
+                naturalPhysicalWidth = naturalPhysicalWidth == 0 ? 1 : naturalPhysicalWidth;
+            }
+
             mPhysicalWidth = naturalPhysicalWidth;
             mPhysicalHeight = naturalPhysicalHeight;
             mPhysicalLeft = naturalPhysicalLeft;
@@ -3913,17 +3886,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 }
 
 void TouchInputMapper::dumpSurface(std::string& dump) {
-    dump += StringPrintf(INDENT3 "Viewport: displayId=%d, orientation=%d, "
-            "logicalFrame=[%d, %d, %d, %d], "
-            "physicalFrame=[%d, %d, %d, %d], "
-            "deviceSize=[%d, %d]\n",
-            mViewport.displayId, mViewport.orientation,
-            mViewport.logicalLeft, mViewport.logicalTop,
-            mViewport.logicalRight, mViewport.logicalBottom,
-            mViewport.physicalLeft, mViewport.physicalTop,
-            mViewport.physicalRight, mViewport.physicalBottom,
-            mViewport.deviceWidth, mViewport.deviceHeight);
-
+    dump += StringPrintf(INDENT3 "%s\n", mViewport.toString().c_str());
     dump += StringPrintf(INDENT3 "SurfaceWidth: %dpx\n", mSurfaceWidth);
     dump += StringPrintf(INDENT3 "SurfaceHeight: %dpx\n", mSurfaceHeight);
     dump += StringPrintf(INDENT3 "SurfaceLeft: %d\n", mSurfaceLeft);

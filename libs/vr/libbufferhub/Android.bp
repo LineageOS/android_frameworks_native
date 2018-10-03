@@ -15,6 +15,7 @@
 sourceFiles = [
     "buffer_hub_base.cpp",
     "buffer_hub_client.cpp",
+    "buffer_hub_metadata.cpp",
     "buffer_hub_rpc.cpp",
     "consumer_buffer.cpp",
     "detached_buffer.cpp",
@@ -69,3 +70,10 @@ cc_test {
     name: "buffer_hub-test",
 }
 
+cc_test {
+    srcs: ["buffer_hub_metadata-test.cpp"],
+    static_libs: ["libbufferhub"],
+    shared_libs: sharedLibraries,
+    header_libs: headerLibraries,
+    name: "buffer_hub_metadata-test",
+}

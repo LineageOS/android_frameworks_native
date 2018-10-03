@@ -6,11 +6,18 @@ cc_test {
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
-    static_libs: ["libbufferhubd"],
+    header_libs: ["libdvr_headers"],
+    static_libs: [
+        "libbufferhub",
+        "libbufferhubd",
+        "libgmock",
+    ],
     shared_libs: [
         "libbase",
         "libbinder",
         "liblog",
+        "libpdx_default_transport",
+        "libui",
         "libutils",
     ],
 }

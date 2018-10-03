@@ -155,7 +155,12 @@ class BufferHubBase : public pdx::Client {
   // for logging and debugging purposes only and should not be used for lookup
   // or any other functional purpose as a security precaution.
   int id_;
+
+  // Channel id.
   int cid_;
+
+  // Client bit mask which indicates the locations of this client object in the
+  // buffer_state_.
   uint64_t buffer_state_bit_{0ULL};
   IonBuffer buffer_;
   IonBuffer metadata_buffer_;
