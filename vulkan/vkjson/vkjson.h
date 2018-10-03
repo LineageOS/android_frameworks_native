@@ -46,11 +46,23 @@ struct VkJsonLayer {
   std::vector<VkExtensionProperties> extensions;
 };
 
+struct VkJsonExtDriverProperties {
+  VkJsonExtDriverProperties() {
+    reported = false;
+    memset(&driver_properties_khr, 0,
+           sizeof(VkPhysicalDeviceDriverPropertiesKHR));
+  }
+  bool reported;
+  VkPhysicalDeviceDriverPropertiesKHR driver_properties_khr;
+};
+
 struct VkJsonExtVariablePointerFeatures {
   VkJsonExtVariablePointerFeatures() {
+    reported = false;
     memset(&variable_pointer_features_khr, 0,
            sizeof(VkPhysicalDeviceVariablePointerFeaturesKHR));
   }
+  bool reported;
   VkPhysicalDeviceVariablePointerFeaturesKHR variable_pointer_features_khr;
 };
 
@@ -81,6 +93,7 @@ struct VkJsonDevice {
   }
   VkPhysicalDeviceProperties properties;
   VkPhysicalDeviceFeatures features;
+  VkJsonExtDriverProperties ext_driver_properties;
   VkJsonExtVariablePointerFeatures ext_variable_pointer_features;
   VkPhysicalDeviceMemoryProperties memory;
   std::vector<VkQueueFamilyProperties> queues;
