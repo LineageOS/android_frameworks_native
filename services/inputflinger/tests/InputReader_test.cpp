@@ -33,7 +33,7 @@ static const int32_t DISPLAY_HEIGHT = 800;
 static const int32_t VIRTUAL_DISPLAY_ID = 1;
 static const int32_t VIRTUAL_DISPLAY_WIDTH = 400;
 static const int32_t VIRTUAL_DISPLAY_HEIGHT = 500;
-static const char* VIRTUAL_DISPLAY_UNIQUE_ID = "Vr-display-unique-ID";
+static const char* VIRTUAL_DISPLAY_UNIQUE_ID = "virtual:1";
 
 // Error tolerance for floating point assertions.
 static const float EPSILON = 0.001f;
@@ -142,21 +142,21 @@ public:
     FakeInputReaderPolicy() {
     }
 
-    void setDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
-            const std::string& uniqueId) {
+    virtual void clearViewports() {
         mViewports.clear();
-        // Set the size of both the internal and external display at the same time.
-        mViewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId,
-                ViewportType::VIEWPORT_INTERNAL));
-        mViewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId,
-                ViewportType::VIEWPORT_EXTERNAL));
         mConfig.setDisplayViewports(mViewports);
     }
 
-    void setVirtualDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
+    std::optional<DisplayViewport> getDisplayViewport(ViewportType viewportType,
             const std::string& uniqueId) {
-        mViewports.push_back(createDisplayViewport(displayId, width, height, orientation, uniqueId,
-                ViewportType::VIEWPORT_VIRTUAL));
+        return mConfig.getDisplayViewport(viewportType, uniqueId);
+    }
+
+    void addDisplayViewport(int32_t displayId, int32_t width, int32_t height, int32_t orientation,
+            const std::string& uniqueId, ViewportType viewportType) {
+        const DisplayViewport viewport = createDisplayViewport(displayId, width, height,
+                orientation, uniqueId, viewportType);
+        mViewports.push_back(viewport);
         mConfig.setDisplayViewports(mViewports);
     }
 
@@ -1080,6 +1080,146 @@ protected:
     friend class InputReaderTest;
 };
 
+// --- InputReaderPolicyTest ---
+class InputReaderPolicyTest : public testing::Test {
+    protected:
+    sp<FakeInputReaderPolicy> mFakePolicy;
+
+    virtual void SetUp() {
+        mFakePolicy = new FakeInputReaderPolicy();
+    }
+    virtual void TearDown() {
+        mFakePolicy.clear();
+    }
+};
+
+/**
+ * Check that empty set of viewports is an acceptable configuration.
+ * Also try to get internal viewport two different ways - by type and by uniqueId.
+ *
+ * There will be confusion if two viewports with empty uniqueId and identical type are present.
+ * Such configuration is not currently allowed.
+ */
+TEST_F(InputReaderPolicyTest, Viewports_GetCleared) {
+    const std::string uniqueId = "local:0";
+
+    // We didn't add any viewports yet, so there shouldn't be any.
+    std::optional<DisplayViewport> internalViewport =
+            mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, uniqueId);
+    ASSERT_FALSE(internalViewport);
+
+    // Add an internal viewport, then clear it
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, uniqueId, ViewportType::VIEWPORT_INTERNAL);
+
+    // Check matching by uniqueId
+    internalViewport = mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, uniqueId);
+    ASSERT_TRUE(internalViewport);
+
+    // Check matching by viewport type
+    internalViewport = mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+    ASSERT_TRUE(internalViewport);
+
+    mFakePolicy->clearViewports();
+    // Make sure nothing is found after clear
+    internalViewport = mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, uniqueId);
+    ASSERT_FALSE(internalViewport);
+    internalViewport = mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+    ASSERT_FALSE(internalViewport);
+}
+
+TEST_F(InputReaderPolicyTest, Viewports_GetByType) {
+    const std::string internalUniqueId = "local:0";
+    const std::string externalUniqueId = "local:1";
+    const std::string virtualUniqueId1 = "virtual:2";
+    const std::string virtualUniqueId2 = "virtual:3";
+    constexpr int32_t virtualDisplayId1 = 2;
+    constexpr int32_t virtualDisplayId2 = 3;
+
+    // Add an internal viewport
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, internalUniqueId, ViewportType::VIEWPORT_INTERNAL);
+    // Add an external viewport
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, externalUniqueId, ViewportType::VIEWPORT_EXTERNAL);
+    // Add an virtual viewport
+    mFakePolicy->addDisplayViewport(virtualDisplayId1, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, virtualUniqueId1, ViewportType::VIEWPORT_VIRTUAL);
+    // Add another virtual viewport
+    mFakePolicy->addDisplayViewport(virtualDisplayId2, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, virtualUniqueId2, ViewportType::VIEWPORT_VIRTUAL);
+
+    // Check matching by type for internal
+    std::optional<DisplayViewport> internalViewport =
+            mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+    ASSERT_TRUE(internalViewport);
+    ASSERT_EQ(internalUniqueId, internalViewport->uniqueId);
+
+    // Check matching by type for external
+    std::optional<DisplayViewport> externalViewport =
+            mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_EXTERNAL, "");
+    ASSERT_TRUE(externalViewport);
+    ASSERT_EQ(externalUniqueId, externalViewport->uniqueId);
+
+    // Check matching by uniqueId for virtual viewport #1
+    std::optional<DisplayViewport> virtualViewport1 =
+            mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_VIRTUAL, virtualUniqueId1);
+    ASSERT_TRUE(virtualViewport1);
+    ASSERT_EQ(virtualUniqueId1, virtualViewport1->uniqueId);
+    ASSERT_EQ(virtualDisplayId1, virtualViewport1->displayId);
+
+    // Check matching by uniqueId for virtual viewport #2
+    std::optional<DisplayViewport> virtualViewport2 =
+            mFakePolicy->getDisplayViewport(ViewportType::VIEWPORT_VIRTUAL, virtualUniqueId2);
+    ASSERT_TRUE(virtualViewport2);
+    ASSERT_EQ(virtualUniqueId2, virtualViewport2->uniqueId);
+    ASSERT_EQ(virtualDisplayId2, virtualViewport2->displayId);
+}
+
+
+/**
+ * We can have 2 viewports of the same kind. We can distinguish them by uniqueId, and confirm
+ * that lookup works by checking display id.
+ * Check that 2 viewports of each kind is possible, for all existing viewport types.
+ */
+TEST_F(InputReaderPolicyTest, Viewports_TwoOfSameType) {
+    const std::string uniqueId1 = "uniqueId1";
+    const std::string uniqueId2 = "uniqueId2";
+    constexpr int32_t displayId1 = 2;
+    constexpr int32_t displayId2 = 3;
+
+    std::vector<ViewportType> types = {ViewportType::VIEWPORT_INTERNAL,
+            ViewportType::VIEWPORT_EXTERNAL, ViewportType::VIEWPORT_VIRTUAL};
+    for (const ViewportType& type : types) {
+        mFakePolicy->clearViewports();
+        // Add a viewport
+        mFakePolicy->addDisplayViewport(displayId1, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, uniqueId1, type);
+        // Add another viewport
+        mFakePolicy->addDisplayViewport(displayId2, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, uniqueId2, type);
+
+        // Check that correct display viewport was returned by comparing the display IDs.
+        std::optional<DisplayViewport> viewport1 = mFakePolicy->getDisplayViewport(type, uniqueId1);
+        ASSERT_TRUE(viewport1);
+        ASSERT_EQ(displayId1, viewport1->displayId);
+        ASSERT_EQ(type, viewport1->type);
+
+        std::optional<DisplayViewport> viewport2 = mFakePolicy->getDisplayViewport(type, uniqueId2);
+        ASSERT_TRUE(viewport2);
+        ASSERT_EQ(displayId2, viewport2->displayId);
+        ASSERT_EQ(type, viewport2->type);
+
+        // When there are multiple viewports of the same kind, and uniqueId is not specified
+        // in the call to getDisplayViewport, then that situation is not supported.
+        // The viewports can be stored in any order, so we cannot rely on the order, since that
+        // is just implementation detail.
+        // However, we can check that it still returns *a* viewport, we just cannot assert
+        // which one specifically is returned.
+        std::optional<DisplayViewport> someViewport = mFakePolicy->getDisplayViewport(type, "");
+        ASSERT_TRUE(someViewport);
+    }
+}
 
 // --- InputReaderTest ---
 
@@ -1603,15 +1743,14 @@ protected:
     }
 
     void setDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
-            int32_t orientation) {
-        mFakePolicy->setDisplayViewport(displayId, width, height, orientation, "");
+            int32_t orientation, const std::string& uniqueId, ViewportType viewportType) {
+        mFakePolicy->addDisplayViewport(
+                displayId, width, height, orientation, uniqueId, viewportType);
         configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
     }
 
-    void setVirtualDisplayInfoAndReconfigure(int32_t displayId, int32_t width, int32_t height,
-            int32_t orientation, const std::string& uniqueId) {
-        mFakePolicy->setVirtualDisplayViewport(displayId, width, height, orientation, uniqueId);
-        configureDevice(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    void clearViewports() {
+        mFakePolicy->clearViewports();
     }
 
     static void process(InputMapper* mapper, nsecs_t when, int32_t deviceId, int32_t type,
@@ -1715,12 +1854,24 @@ TEST_F(SwitchInputMapperTest, Process) {
 
 class KeyboardInputMapperTest : public InputMapperTest {
 protected:
+    const std::string UNIQUE_ID = "local:0";
+
+    void prepareDisplay(int32_t orientation);
+
     void testDPadKeyRotation(KeyboardInputMapper* mapper,
             int32_t originalScanCode, int32_t originalKeyCode, int32_t rotatedKeyCode);
 };
 
+/* Similar to setDisplayInfoAndReconfigure, but pre-populates all parameters except for the
+ * orientation.
+ */
+void KeyboardInputMapperTest::prepareDisplay(int32_t orientation) {
+    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            orientation, UNIQUE_ID, ViewportType::VIEWPORT_INTERNAL);
+}
+
 void KeyboardInputMapperTest::testDPadKeyRotation(KeyboardInputMapper* mapper,
-        int32_t originalScanCode, int32_t, int32_t rotatedKeyCode) {
+        int32_t originalScanCode, int32_t originalKeyCode, int32_t rotatedKeyCode) {
     NotifyKeyArgs args;
 
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, originalScanCode, 1);
@@ -1908,9 +2059,7 @@ TEST_F(KeyboardInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateD
             AINPUT_SOURCE_KEYBOARD, AINPUT_KEYBOARD_TYPE_ALPHABETIC);
     addMapperAndConfigure(mapper);
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_90);
+    prepareDisplay(DISPLAY_ORIENTATION_90);
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP));
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
@@ -1932,9 +2081,7 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     addConfigurationProperty("keyboard.orientationAware", "1");
     addMapperAndConfigure(mapper);
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_0);
+    prepareDisplay(DISPLAY_ORIENTATION_0);
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_UP));
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
@@ -1944,9 +2091,8 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_LEFT));
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_90);
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_90);
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_LEFT));
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
@@ -1956,9 +2102,8 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_DOWN));
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_180);
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_180);
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_DOWN));
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
@@ -1968,9 +2113,8 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_LEFT, AKEYCODE_DPAD_LEFT, AKEYCODE_DPAD_RIGHT));
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_270);
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_270);
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
             KEY_UP, AKEYCODE_DPAD_UP, AKEYCODE_DPAD_RIGHT));
     ASSERT_NO_FATAL_FAILURE(testDPadKeyRotation(mapper,
@@ -1983,19 +2127,16 @@ TEST_F(KeyboardInputMapperTest, Process_WhenOrientationAware_ShouldRotateDPad) {
     // Special case: if orientation changes while key is down, we still emit the same keycode
     // in the key up as we did in the key down.
     NotifyKeyArgs args;
-
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_270);
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_270);
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(AKEY_EVENT_ACTION_DOWN, args.action);
     ASSERT_EQ(KEY_UP, args.scanCode);
     ASSERT_EQ(AKEYCODE_DPAD_RIGHT, args.keyCode);
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_180);
+    clearViewports();
+    prepareDisplay(DISPLAY_ORIENTATION_180);
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(AKEY_EVENT_ACTION_UP, args.action);
@@ -2020,8 +2161,7 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_NotOrientationAware
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     ASSERT_EQ(ADISPLAY_ID_NONE, args.displayId);
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+    prepareDisplay(DISPLAY_ORIENTATION_0);
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
@@ -2043,8 +2183,8 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
     // Display id should be ADISPLAY_ID_NONE without any display configuration.
     // ^--- already checked by the previous test
 
-    setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0,
+            UNIQUE_ID, ViewportType::VIEWPORT_INTERNAL);
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
@@ -2052,8 +2192,9 @@ TEST_F(KeyboardInputMapperTest, DisplayIdConfigurationChange_OrientationAware) {
     ASSERT_EQ(DISPLAY_ID, args.displayId);
 
     constexpr int32_t newDisplayId = 2;
-    setDisplayInfoAndReconfigure(newDisplayId,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+    clearViewports();
+    setDisplayInfoAndReconfigure(newDisplayId, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0,
+            UNIQUE_ID, ViewportType::VIEWPORT_INTERNAL);
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 1);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyKeyWasCalled(&args));
     process(mapper, ARBITRARY_TIME, DEVICE_ID, EV_KEY, KEY_UP, 0);
@@ -2484,9 +2625,12 @@ TEST_F(CursorInputMapperTest, Process_WhenNotOrientationAware_ShouldNotRotateMot
     addConfigurationProperty("cursor.mode", "navigation");
     addMapperAndConfigure(mapper);
 
+    const std::string uniqueId = "local:0";
+    const ViewportType viewportType = ViewportType::VIEWPORT_INTERNAL;
+
     setDisplayInfoAndReconfigure(DISPLAY_ID,
             DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            DISPLAY_ORIENTATION_90);
+            DISPLAY_ORIENTATION_90, uniqueId, viewportType);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0,  1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1,  1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  1,  0));
@@ -2503,8 +2647,11 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) 
     addConfigurationProperty("cursor.orientationAware", "1");
     addMapperAndConfigure(mapper);
 
+    const std::string uniqueId = "local:0";
+    const ViewportType viewportType = ViewportType::VIEWPORT_INTERNAL;
+
     setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0);
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_0, uniqueId, viewportType);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0,  1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1,  1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  1,  0));
@@ -2515,7 +2662,7 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) 
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1, -1,  1));
 
     setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_90);
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_90, uniqueId, viewportType);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  1,  0));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1,  1, -1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  0, -1));
@@ -2526,7 +2673,7 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) 
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1,  1,  1));
 
     setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_180);
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_180, uniqueId, viewportType);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1,  0, -1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1, -1, -1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0, -1,  0));
@@ -2537,7 +2684,7 @@ TEST_F(CursorInputMapperTest, Process_WhenOrientationAware_ShouldRotateMotions) 
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper, -1,  1,  1, -1));
 
     setDisplayInfoAndReconfigure(DISPLAY_ID,
-            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_270);
+            DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_ORIENTATION_270, uniqueId, viewportType);
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  0,  1, -1,  0));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  1, -1,  1));
     ASSERT_NO_FATAL_FAILURE(testMotionRotation(mapper,  1,  0,  0,  1));
@@ -2982,6 +3129,8 @@ protected:
 
     static const VirtualKeyDefinition VIRTUAL_KEYS[2];
 
+    const std::string UNIQUE_ID = "local:0";
+
     enum Axes {
         POSITION = 1 << 0,
         TOUCH = 1 << 1,
@@ -3050,12 +3199,14 @@ const VirtualKeyDefinition TouchInputMapperTest::VIRTUAL_KEYS[2] = {
 };
 
 void TouchInputMapperTest::prepareDisplay(int32_t orientation) {
-    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, orientation);
+    setDisplayInfoAndReconfigure(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT, orientation,
+            UNIQUE_ID, ViewportType::VIEWPORT_INTERNAL);
 }
 
 void TouchInputMapperTest::prepareVirtualDisplay(int32_t orientation) {
-    setVirtualDisplayInfoAndReconfigure(VIRTUAL_DISPLAY_ID, VIRTUAL_DISPLAY_WIDTH,
-        VIRTUAL_DISPLAY_HEIGHT, orientation, VIRTUAL_DISPLAY_UNIQUE_ID);
+    setDisplayInfoAndReconfigure(VIRTUAL_DISPLAY_ID, VIRTUAL_DISPLAY_WIDTH,
+        VIRTUAL_DISPLAY_HEIGHT, orientation,
+        VIRTUAL_DISPLAY_UNIQUE_ID, ViewportType::VIEWPORT_VIRTUAL);
 }
 
 void TouchInputMapperTest::prepareVirtualKeys() {
@@ -3784,6 +3935,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     NotifyMotionArgs args;
 
     // Rotation 0.
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_0);
     processDown(mapper, toRawX(50), toRawY(75));
     processSync(mapper);
@@ -3797,6 +3949,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 
     // Rotation 90.
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_90);
     processDown(mapper, RAW_X_MAX - toRawX(75) + RAW_X_MIN, toRawY(50));
     processSync(mapper);
@@ -3810,6 +3963,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 
     // Rotation 180.
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_180);
     processDown(mapper, RAW_X_MAX - toRawX(50) + RAW_X_MIN, RAW_Y_MAX - toRawY(75) + RAW_Y_MIN);
     processSync(mapper);
@@ -3823,6 +3977,7 @@ TEST_F(SingleTouchInputMapperTest, Process_WhenOrientationAware_RotatesMotions) 
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled());
 
     // Rotation 270.
+    clearViewports();
     prepareDisplay(DISPLAY_ORIENTATION_270);
     processDown(mapper, toRawX(75), RAW_Y_MAX - toRawY(50) + RAW_Y_MIN);
     processSync(mapper);

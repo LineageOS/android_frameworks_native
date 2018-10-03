@@ -256,18 +256,17 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 
 // --- InputReaderConfiguration ---
 
-bool InputReaderConfiguration::getDisplayViewport(ViewportType viewportType,
-        const std::string& uniqueDisplayId, DisplayViewport* outViewport) const {
+std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewport(
+        ViewportType viewportType, const std::string& uniqueDisplayId) const {
     for (const DisplayViewport& currentViewport : mDisplays) {
         if (currentViewport.type == viewportType) {
             if (uniqueDisplayId.empty() ||
                     (!uniqueDisplayId.empty() && uniqueDisplayId == currentViewport.uniqueId)) {
-                *outViewport = currentViewport;
-                return true;
+                return std::make_optional(currentViewport);
             }
         }
     }
-    return false;
+    return std::nullopt;
 }
 
 void InputReaderConfiguration::setDisplayViewports(const std::vector<DisplayViewport>& viewports) {
@@ -2249,7 +2248,6 @@ void KeyboardInputMapper::dump(std::string& dump) {
     dump += StringPrintf(INDENT3 "DownTime: %" PRId64 "\n", mDownTime);
 }
 
-
 void KeyboardInputMapper::configure(nsecs_t when,
         const InputReaderConfiguration* config, uint32_t changes) {
     InputMapper::configure(when, config, changes);
@@ -2261,9 +2259,7 @@ void KeyboardInputMapper::configure(nsecs_t when,
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         if (mParameters.orientationAware) {
-            DisplayViewport dvp;
-            config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "", &dvp);
-            mViewport = dvp;
+            mViewport = config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
         }
     }
 }
@@ -2672,9 +2668,10 @@ void CursorInputMapper::configure(nsecs_t when,
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         mOrientation = DISPLAY_ORIENTATION_0;
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
-            DisplayViewport v;
-            if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "", &v)) {
-                mOrientation = v.orientation;
+            std::optional<DisplayViewport> internalViewport =
+                    config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+            if (internalViewport) {
+                mOrientation = internalViewport->orientation;
             }
         }
         bumpGeneration();
@@ -2987,9 +2984,10 @@ void RotaryEncoderInputMapper::configure(nsecs_t when,
         mRotaryEncoderScrollAccumulator.configure(getDevice());
     }
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
-        DisplayViewport v;
-        if (config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "", &v)) {
-            mOrientation = v.orientation;
+        std::optional<DisplayViewport> internalViewport =
+                config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+        if (internalViewport) {
+            mOrientation = internalViewport->orientation;
         } else {
             mOrientation = DISPLAY_ORIENTATION_0;
         }
@@ -3502,7 +3500,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
         }
 
-        if (!mConfig.getDisplayViewport(viewportTypeToUse, uniqueDisplayId, &newViewport)) {
+        std::optional<DisplayViewport> viewportToUse =
+                mConfig.getDisplayViewport(viewportTypeToUse, uniqueDisplayId);
+        if (!viewportToUse) {
             ALOGI(INDENT "Touch device '%s' could not query the properties of its associated "
                     "display.  The device will be inoperable until the display size "
                     "becomes available.",
@@ -3510,6 +3510,7 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
             mDeviceMode = DEVICE_MODE_DISABLED;
             return;
         }
+        newViewport = *viewportToUse;
     } else {
         newViewport.setNonDisplayViewport(rawWidth, rawHeight);
     }
