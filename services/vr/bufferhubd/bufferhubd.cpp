@@ -10,7 +10,7 @@
 
 int main(int, char**) {
   int ret = -1;
-  std::shared_ptr<android::dvr::BufferHubService> pdx_service;
+  std::shared_ptr<android::pdx::Service> service;
   std::unique_ptr<android::pdx::ServiceDispatcher> dispatcher;
 
   // We need to be able to create endpoints with full perms.
@@ -33,16 +33,15 @@ int main(int, char**) {
   else
     ALOGI("New nofile limit is %llu/%llu.", rlim.rlim_cur, rlim.rlim_max);
 
+  CHECK_ERROR(android::dvr::BufferHubBinderService::start() != android::OK,
+              error, "Failed to create bufferhub binder service\n");
+
   dispatcher = android::pdx::ServiceDispatcher::Create();
   CHECK_ERROR(!dispatcher, error, "Failed to create service dispatcher\n");
 
-  pdx_service = android::dvr::BufferHubService::Create();
-  CHECK_ERROR(!pdx_service, error, "Failed to create bufferhub pdx service\n");
-  dispatcher->AddService(pdx_service);
-
-  ret = android::dvr::BufferHubBinderService::start(pdx_service);
-  CHECK_ERROR(ret != android::NO_ERROR, error,
-              "Failed to create bufferhub binder service\n");
+  service = android::dvr::BufferHubService::Create();
+  CHECK_ERROR(!service, error, "Failed to create bufferhubd service\n");
+  dispatcher->AddService(service);
 
   ret = dvrSetSchedulerClass(0, "graphics");
   CHECK_ERROR(ret < 0, error, "Failed to set thread priority");

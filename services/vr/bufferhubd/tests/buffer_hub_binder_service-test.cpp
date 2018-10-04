@@ -1,7 +1,6 @@
-#include <binder/IServiceManager.h>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 #include <private/dvr/buffer_hub_binder.h>
+
+#include <gtest/gtest.h>
 
 namespace android {
 namespace dvr {
@@ -13,12 +12,8 @@ class BufferHubBinderServiceTest : public ::testing::Test {
 };
 
 TEST_F(BufferHubBinderServiceTest, TestInitialize) {
-  // Create a new service will kill the current one.
-  // So just check if Binder service is running
-  sp<IServiceManager> sm = defaultServiceManager();
-  sp<IBinder> service = sm->checkService(
-      String16(BufferHubBinderService::getServiceName()));
-  EXPECT_THAT(service, ::testing::Ne(nullptr));
+  // Test if start binder server returns OK
+  EXPECT_EQ(BufferHubBinderService::start(), OK);
 }
 
 }  // namespace
