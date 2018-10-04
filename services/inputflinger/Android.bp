@@ -19,12 +19,10 @@ cc_library_shared {
 
     srcs: [
         "EventHub.cpp",
-        "InputApplication.cpp",
         "InputDispatcher.cpp",
         "InputListener.cpp",
         "InputManager.cpp",
         "InputReader.cpp",
-        "InputWindow.cpp",
     ],
 
     shared_libs: [

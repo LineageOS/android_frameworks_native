@@ -6,6 +6,7 @@ cc_test {
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
         "VelocityTracker_test.cpp",
+        "InputWindow_test.cpp"
     ],
     cflags: [
         "-Wall",
@@ -34,4 +35,12 @@ cc_library_static {
         "-Wall",
         "-Werror",
     ],
+    shared_libs: [
+        "libinput",
+        "libcutils",
+        "libutils",
+        "libbinder",
+        "libui",
+        "libbase",
+    ]
 }

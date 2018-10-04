@@ -27,7 +27,7 @@
 #include "InputApplication.h"
 
 namespace android {
-
+class Parcel;
 
 /*
  * Describes the properties of a window that can receive input.
@@ -151,6 +151,9 @@ struct InputWindowInfo {
     bool supportsSplitTouch() const;
 
     bool overlaps(const InputWindowInfo* other) const;
+
+    status_t write(Parcel& output) const;
+    static InputWindowInfo read(const Parcel& from);
 };
 
 
@@ -168,9 +171,7 @@ public:
         return mInfo;
     }
 
-    inline sp<InputChannel> getInputChannel() const {
-        return mInfo ? mInfo->inputChannel : nullptr;
-    }
+    sp<InputChannel> getInputChannel() const;
 
     inline std::string getName() const {
         return mInfo ? mInfo->name : "<invalid>";
