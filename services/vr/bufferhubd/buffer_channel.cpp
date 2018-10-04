@@ -13,11 +13,10 @@ namespace dvr {
 
 BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              int channel_id, IonBuffer buffer,
-                             IonBuffer metadata_buffer,
                              size_t user_metadata_size)
     : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
-      buffer_node_(std::make_shared<BufferNode>(
-          std::move(buffer), std::move(metadata_buffer), user_metadata_size)),
+      buffer_node_(
+          std::make_shared<BufferNode>(std::move(buffer), user_metadata_size)),
       buffer_state_bit_(BufferHubDefs::FindFirstClearedBit()) {
   buffer_node_->set_buffer_state_bit(buffer_state_bit_);
 }
@@ -85,19 +84,26 @@ bool BufferChannel::HandleMessage(Message& message) {
   }
 }
 
-Status<BufferDescription<BorrowedHandle>> BufferChannel::OnImport(
+Status<BufferTraits<BorrowedHandle>> BufferChannel::OnImport(
     Message& /*message*/) {
   ATRACE_NAME("BufferChannel::OnImport");
-  ALOGD_IF(TRACE, "BufferChannel::OnImport: buffer=%d.",
-           buffer_id());
+  ALOGD_IF(TRACE, "BufferChannel::OnImport: buffer=%d.", buffer_id());
 
-  return BufferDescription<BorrowedHandle>{buffer_node_->buffer(),
-                                           buffer_node_->metadata_buffer(),
-                                           buffer_id(),
-                                           channel_id(),
-                                           buffer_state_bit_,
-                                           BorrowedHandle{},
-                                           BorrowedHandle{}};
+  // TODO(b/112057680) Move away from the GraphicBuffer-based IonBuffer.
+  return BufferTraits<BorrowedHandle>{
+      /*buffer_handle=*/buffer_node_->buffer().handle(),
+      /*metadata_handle=*/buffer_node_->metadata().ashmem_handle().Borrow(),
+      /*id=*/buffer_id(),
+      /*buffer_state_bit=*/buffer_state_bit_,
+      /*metadata_size=*/buffer_node_->metadata().metadata_size(),
+      /*width=*/buffer_node_->buffer().width(),
+      /*height=*/buffer_node_->buffer().height(),
+      /*layer_count=*/buffer_node_->buffer().layer_count(),
+      /*format=*/buffer_node_->buffer().format(),
+      /*usage=*/buffer_node_->buffer().usage(),
+      /*stride=*/buffer_node_->buffer().stride(),
+      /*acquire_fence_fd=*/BorrowedHandle{},
+      /*released_fence_fd=*/BorrowedHandle{}};
 }
 
 Status<RemoteChannelHandle> BufferChannel::OnDuplicate(
@@ -175,7 +181,17 @@ Status<RemoteChannelHandle> BufferChannel::OnPromote(
   }
 
   IonBuffer buffer = std::move(buffer_node_->buffer());
-  IonBuffer metadata_buffer = std::move(buffer_node_->metadata_buffer());
+  IonBuffer metadata_buffer;
+  if (int ret = metadata_buffer.Alloc(buffer_node_->metadata().metadata_size(),
+                                      /*height=*/1,
+                                      /*layer_count=*/1,
+                                      BufferHubDefs::kMetadataFormat,
+                                      BufferHubDefs::kMetadataUsage)) {
+    ALOGE("BufferChannel::OnPromote: Failed to allocate metadata: %s",
+          strerror(-ret));
+    return ErrorStatus(EINVAL);
+  }
+
   size_t user_metadata_size = buffer_node_->user_metadata_size();
 
   std::unique_ptr<ProducerChannel> channel = ProducerChannel::Create(

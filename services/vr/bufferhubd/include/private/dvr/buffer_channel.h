@@ -4,6 +4,7 @@
 #include <pdx/channel_handle.h>
 #include <pdx/file_handle.h>
 #include <private/dvr/buffer_hub.h>
+#include <private/dvr/buffer_hub_defs.h>
 #include <private/dvr/buffer_node.h>
 
 namespace android {
@@ -34,8 +35,7 @@ class BufferChannel : public BufferHubChannel {
  private:
   // Creates a detached buffer from existing IonBuffers.
   BufferChannel(BufferHubService* service, int buffer_id, int channel_id,
-                IonBuffer buffer, IonBuffer metadata_buffer,
-                size_t user_metadata_size);
+                IonBuffer buffer, size_t user_metadata_size);
 
   // Allocates a new detached buffer.
   BufferChannel(BufferHubService* service, int buffer_id, uint32_t width,
@@ -47,7 +47,7 @@ class BufferChannel : public BufferHubChannel {
                 std::shared_ptr<BufferNode> buffer_node,
                 uint64_t buffer_state_bit);
 
-  pdx::Status<BufferDescription<pdx::BorrowedHandle>> OnImport(
+  pdx::Status<BufferTraits<pdx::BorrowedHandle>> OnImport(
       pdx::Message& message);
   pdx::Status<pdx::RemoteChannelHandle> OnDuplicate(pdx::Message& message);
   pdx::Status<pdx::RemoteChannelHandle> OnPromote(pdx::Message& message);

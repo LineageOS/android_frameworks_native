@@ -316,8 +316,6 @@ struct BufferHubRPC {
     kOpConsumerRelease,
     kOpProducerBufferDetach,
     kOpConsumerBufferDetach,
-    kOpDetachedBufferCreate,
-    kOpDetachedBufferPromote,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
     kOpGetQueueInfo,
@@ -326,7 +324,6 @@ struct BufferHubRPC {
     kOpProducerQueueRemoveBuffer,
     kOpConsumerQueueImportBuffers,
     // TODO(b/77153033): Separate all those RPC operations into subclasses.
-    kOpDetachedBufferBase = 1000,
   };
 
   // Aliases.
@@ -377,27 +374,6 @@ struct BufferHubRPC {
                     void(size_t slot));
   PDX_REMOTE_METHOD(ConsumerQueueImportBuffers, kOpConsumerQueueImportBuffers,
                     std::vector<std::pair<LocalChannelHandle, size_t>>(Void));
-};
-
-struct DetachedBufferRPC final : public BufferHubRPC {
- private:
-  enum {
-    kOpCreate = kOpDetachedBufferBase,
-    kOpImport,
-    kOpPromote,
-    kOpDuplicate,
-  };
-
- public:
-  PDX_REMOTE_METHOD(Create, kOpCreate,
-                    void(uint32_t width, uint32_t height, uint32_t layer_count,
-                         uint32_t format, uint64_t usage,
-                         size_t user_metadata_size));
-  PDX_REMOTE_METHOD(Import, kOpImport, BufferDescription<LocalHandle>(Void));
-  PDX_REMOTE_METHOD(Promote, kOpPromote, LocalChannelHandle(Void));
-  PDX_REMOTE_METHOD(Duplicate, kOpDuplicate, LocalChannelHandle(Void));
-
-  PDX_REMOTE_API(API, Create, Import, Promote, Duplicate);
 };
 
 }  // namespace dvr

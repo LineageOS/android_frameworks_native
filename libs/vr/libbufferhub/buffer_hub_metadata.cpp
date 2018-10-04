@@ -74,6 +74,9 @@ BufferHubMetadata BufferHubMetadata::Import(pdx::LocalHandle ashmem_handle) {
   size_t metadata_size = ashmem_get_size_region(ashmem_handle.Get());
   size_t user_metadata_size = metadata_size - kMetadataHeaderSize;
 
+  // Note that here the buffer state is mapped from shared memory as an atomic
+  // object. The std::atomic's constructor will not be called so that the
+  // original value stored in the memory region can be preserved.
   auto metadata_header = static_cast<MetadataHeader*>(
       mmap(nullptr, metadata_size, kAshmemProt, MAP_SHARED, ashmem_handle.Get(),
            /*offset=*/0));
