@@ -44,6 +44,7 @@ cc_test {
         "libgui",
         "libhidlbase",
         "libhidltransport",
+        "libinput",
         "libui",
         "libutils",
         "libnativewindow"

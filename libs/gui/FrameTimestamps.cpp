@@ -621,7 +621,7 @@ status_t FrameEventsDelta::unflatten(void const*& buffer, size_t& size,
 // ============================================================================
 
 FrameEventHistoryDelta& FrameEventHistoryDelta::operator=(
-        FrameEventHistoryDelta&& src) {
+        FrameEventHistoryDelta&& src) noexcept {
     mCompositorTiming = src.mCompositorTiming;
 
     if (CC_UNLIKELY(!mDeltas.empty())) {

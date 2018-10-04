@@ -17,7 +17,9 @@
 #define LOG_TAG "InputWindow"
 #define LOG_NDEBUG 0
 
-#include "InputWindow.h"
+#include <binder/Parcel.h>
+#include <input/InputWindow.h>
+#include <input/InputTransport.h>
 
 #include <log/log.h>
 
@@ -62,6 +64,76 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
             && frameTop < other->frameBottom && frameBottom > other->frameTop;
 }
 
+status_t InputWindowInfo::write(Parcel& output) const {
+    if (inputChannel == nullptr) {
+        output.writeInt32(0);
+        return OK;
+    }
+    output.writeInt32(1);
+    status_t s = inputChannel->write(output);
+    if (s != OK) return s;
+
+    output.writeString8(String8(name.c_str()));
+    output.writeInt32(layoutParamsFlags);
+    output.writeInt32(layoutParamsType);
+    output.writeInt64(dispatchingTimeout);
+    output.writeInt32(frameLeft);
+    output.writeInt32(frameTop);
+    output.writeInt32(frameRight);
+    output.writeInt32(frameBottom);
+    output.writeFloat(scaleFactor);
+    output.writeBool(visible);
+    output.writeBool(canReceiveKeys);
+    output.writeBool(hasFocus);
+    output.writeBool(hasWallpaper);
+    output.writeBool(paused);
+    output.writeInt32(layer);
+    output.writeInt32(ownerPid);
+    output.writeInt32(ownerUid);
+    output.writeInt32(inputFeatures);
+    output.writeInt32(displayId);
+    output.write(touchableRegion);
+
+    return OK;
+}
+
+InputWindowInfo InputWindowInfo::read(const Parcel& from) {
+    InputWindowInfo ret;
+
+    if (from.readInt32() == 0) {
+        return ret;
+
+    }
+    sp<InputChannel> inputChannel = new InputChannel();
+    status_t s = inputChannel->read(from);
+    if (s != OK) {
+        return ret;
+    }
+
+    ret.inputChannel = inputChannel;
+    ret.name = from.readString8().c_str();
+    ret.layoutParamsFlags = from.readInt32();
+    ret.layoutParamsType = from.readInt32();
+    ret.dispatchingTimeout = from.readInt64();
+    ret.frameLeft = from.readInt32();
+    ret.frameTop = from.readInt32();
+    ret.frameRight = from.readInt32();
+    ret.frameBottom = from.readInt32();
+    ret.scaleFactor = from.readFloat();
+    ret.visible = from.readBool();
+    ret.canReceiveKeys = from.readBool();
+    ret.hasFocus = from.readBool();
+    ret.hasWallpaper = from.readBool();
+    ret.paused = from.readBool();
+    ret.layer = from.readInt32();
+    ret.ownerPid = from.readInt32();
+    ret.ownerUid = from.readInt32();
+    ret.inputFeatures = from.readInt32();
+    ret.displayId = from.readInt32();
+    from.read(ret.touchableRegion);
+
+    return ret;
+}
 
 // --- InputWindowHandle ---
 
@@ -78,6 +150,10 @@ void InputWindowHandle::releaseInfo() {
         delete mInfo;
         mInfo = nullptr;
     }
+}
+
+sp<InputChannel> InputWindowHandle::getInputChannel() const {
+    return mInfo ? mInfo->inputChannel : nullptr;
 }
 
 } // namespace android

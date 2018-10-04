@@ -18,7 +18,9 @@
 #define _UI_INPUT_DISPATCHER_H
 
 #include <input/Input.h>
+#include <input/InputApplication.h>
 #include <input/InputTransport.h>
+#include <input/InputWindow.h>
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 #include <utils/threads.h>
@@ -33,8 +35,6 @@
 #include <limits.h>
 #include <unordered_map>
 
-#include "InputWindow.h"
-#include "InputApplication.h"
 #include "InputListener.h"
 
 

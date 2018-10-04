@@ -49,11 +49,11 @@ IonBuffer::~IonBuffer() {
   FreeHandle();
 }
 
-IonBuffer::IonBuffer(IonBuffer&& other) : IonBuffer() {
+IonBuffer::IonBuffer(IonBuffer&& other) noexcept : IonBuffer() {
   *this = std::move(other);
 }
 
-IonBuffer& IonBuffer::operator=(IonBuffer&& other) {
+IonBuffer& IonBuffer::operator=(IonBuffer&& other) noexcept {
   ALOGD_IF(TRACE, "IonBuffer::operator=: handle_=%p other.handle_=%p", handle(),
            other.handle());
 

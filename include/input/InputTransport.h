@@ -37,6 +37,7 @@
 #include <utils/BitSet.h>
 
 namespace android {
+class Parcel;
 
 /*
  * Intermediate representation used to send input events and related signals.
@@ -143,6 +144,7 @@ protected:
     virtual ~InputChannel();
 
 public:
+    InputChannel() = default;
     InputChannel(const std::string& name, int fd);
 
     /* Creates a pair of input channels.
@@ -183,9 +185,14 @@ public:
     /* Returns a new object that has a duplicate of this channel's fd. */
     sp<InputChannel> dup() const;
 
+    status_t write(Parcel& out) const;
+    status_t read(const Parcel& from);
+
 private:
+    void setFd(int fd);
+
     std::string mName;
-    int mFd;
+    int mFd = -1;
 };
 
 /*

@@ -30,6 +30,7 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 
+#include <binder/Parcel.h>
 #include <input/InputTransport.h>
 
 namespace android {
@@ -100,15 +101,13 @@ size_t InputMessage::size() const {
 // --- InputChannel ---
 
 InputChannel::InputChannel(const std::string& name, int fd) :
-        mName(name), mFd(fd) {
+        mName(name) {
 #if DEBUG_CHANNEL_LIFECYCLE
     ALOGD("Input channel constructed: name='%s', fd=%d",
             mName.c_str(), fd);
 #endif
 
-    int result = fcntl(mFd, F_SETFL, O_NONBLOCK);
-    LOG_ALWAYS_FATAL_IF(result != 0, "channel '%s' ~ Could not make socket "
-            "non-blocking.  errno=%d", mName.c_str(), errno);
+    setFd(fd);
 }
 
 InputChannel::~InputChannel() {
@@ -118,6 +117,18 @@ InputChannel::~InputChannel() {
 #endif
 
     ::close(mFd);
+}
+
+void InputChannel::setFd(int fd) {
+    if (mFd > 0) {
+        ::close(mFd);
+    }
+    mFd = fd;
+    if (mFd > 0) {
+        int result = fcntl(mFd, F_SETFL, O_NONBLOCK);
+        LOG_ALWAYS_FATAL_IF(result != 0, "channel '%s' ~ Could not make socket "
+            "non-blocking.  errno=%d", mName.c_str(), errno);
+    }
 }
 
 status_t InputChannel::openInputChannelPair(const std::string& name,
@@ -229,6 +240,31 @@ sp<InputChannel> InputChannel::dup() const {
     return fd >= 0 ? new InputChannel(getName(), fd) : nullptr;
 }
 
+
+status_t InputChannel::write(Parcel& out) const {
+    status_t s = out.writeString8(String8(getName().c_str()));
+
+    if (s != OK) {
+        return s;
+    }
+
+    s = out.writeDupFileDescriptor(getFd());
+
+    return s;
+}
+
+status_t InputChannel::read(const Parcel& from) {
+    mName = from.readString8();
+
+    int rawFd = from.readFileDescriptor();
+    setFd(::dup(rawFd));
+
+    if (mFd < 0) {
+        return BAD_VALUE;
+    }
+
+    return OK;
+}
 
 // --- InputPublisher ---
 
