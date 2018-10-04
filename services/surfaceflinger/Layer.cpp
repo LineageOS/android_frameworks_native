@@ -118,12 +118,6 @@ Layer::~Layer() {
         c->detachLayer(this);
     }
 
-    for (auto& point : mRemoteSyncPoints) {
-        point->setTransactionApplied();
-    }
-    for (auto& point : mLocalSyncPoints) {
-        point->setFrameAvailable();
-    }
     mFrameTracker.logAndResetStats(mName);
 }
 
@@ -141,8 +135,6 @@ void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
 void Layer::onRemovedFromCurrentState() {
     // the layer is removed from SF mCurrentState to mLayersPendingRemoval
 
-    mPendingRemoval = true;
-
     if (mCurrentState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
         if (strongRelative != nullptr) {
@@ -151,7 +143,7 @@ void Layer::onRemovedFromCurrentState() {
         }
         mCurrentState.zOrderRelativeOf = nullptr;
     }
-
+    
     for (const auto& child : mCurrentChildren) {
         child->onRemovedFromCurrentState();
     }
@@ -163,8 +155,13 @@ void Layer::onRemoved() {
 
     destroyAllHwcLayers();
 
-    for (const auto& child : mCurrentChildren) {
-        child->onRemoved();
+    mRemoved = true;
+
+    for (auto& point : mRemoteSyncPoints) {
+        point->setTransactionApplied();
+    }
+    for (auto& point : mLocalSyncPoints) {
+        point->setFrameAvailable();
     }
 }
 
