@@ -139,6 +139,7 @@ class BufferHubBase : public pdx::Client {
   void* user_metadata_ptr_{nullptr};
   std::atomic<uint64_t>* buffer_state_{nullptr};
   std::atomic<uint64_t>* fence_state_{nullptr};
+  std::atomic<uint64_t>* active_clients_bit_mask_{nullptr};
 
   LocalHandle shared_acquire_fence_;
   LocalHandle shared_release_fence_;

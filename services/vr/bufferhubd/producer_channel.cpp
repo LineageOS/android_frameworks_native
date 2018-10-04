@@ -97,6 +97,8 @@ int ProducerChannel::InitializeBuffer() {
   buffer_state_ =
       new (&metadata_header_->buffer_state) std::atomic<uint64_t>(0);
   fence_state_ = new (&metadata_header_->fence_state) std::atomic<uint64_t>(0);
+  active_clients_bit_mask_ =
+      new (&metadata_header_->active_clients_bit_mask) std::atomic<uint64_t>(0);
 
   acquire_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
   release_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
@@ -260,14 +262,35 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
 
   // Try find the next consumer state bit which has not been claimed by any
   // consumer yet.
+  // memory_order_acquire is chosen here because all writes in other threads
+  // that release active_clients_bit_mask_ need to be visible here.
+  uint64_t current_active_clients_bit_mask =
+      active_clients_bit_mask_->load(std::memory_order_acquire);
   uint64_t consumer_state_bit = BufferHubDefs::FindNextClearedBit(
-      active_consumer_bit_mask_ | orphaned_consumer_bit_mask_ |
+      current_active_clients_bit_mask | orphaned_consumer_bit_mask_ |
       BufferHubDefs::kProducerStateBit);
   if (consumer_state_bit == 0ULL) {
     ALOGE(
         "ProducerChannel::CreateConsumer: reached the maximum mumber of "
         "consumers per producer: 63.");
     return ErrorStatus(E2BIG);
+  }
+
+  uint64_t updated_active_clients_bit_mask =
+      current_active_clients_bit_mask | consumer_state_bit;
+  // Set the updated value only if the current value stays the same as what was
+  // read before. If the comparison succeeds, update the value without
+  // reordering anything before or after this read-modify-write in the current
+  // thread, and the modification will be visible in other threads that acquire
+  // active_clients_bit_mask_. If the comparison fails, load the result of
+  // all writes from all threads to updated_active_clients_bit_mask.
+  if (!active_clients_bit_mask_->compare_exchange_weak(
+          current_active_clients_bit_mask, updated_active_clients_bit_mask,
+          std::memory_order_acq_rel, std::memory_order_acquire)) {
+    ALOGE("Current active clients bit mask is changed to %" PRIu64
+          ", which was expected to be %" PRIu64 ".",
+          updated_active_clients_bit_mask, current_active_clients_bit_mask);
+    return ErrorStatus(EBUSY);
   }
 
   auto consumer =
@@ -279,6 +302,10 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
         "ProducerChannel::CreateConsumer: failed to set new consumer channel: "
         "%s",
         channel_status.GetErrorMessage().c_str());
+    // Restore the consumer state bit and make it visible in other threads that
+    // acquire the active_clients_bit_mask_.
+    active_clients_bit_mask_->fetch_and(~consumer_state_bit,
+                                        std::memory_order_release);
     return ErrorStatus(ENOMEM);
   }
 
@@ -289,7 +316,6 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
       pending_consumers_++;
   }
 
-  active_consumer_bit_mask_ |= consumer_state_bit;
   return {status.take()};
 }
 
@@ -551,7 +577,10 @@ void ProducerChannel::AddConsumer(ConsumerChannel* channel) {
 void ProducerChannel::RemoveConsumer(ConsumerChannel* channel) {
   consumer_channels_.erase(
       std::find(consumer_channels_.begin(), consumer_channels_.end(), channel));
-  active_consumer_bit_mask_ &= ~channel->consumer_state_bit();
+  // Restore the consumer state bit and make it visible in other threads that
+  // acquire the active_clients_bit_mask_.
+  active_clients_bit_mask_->fetch_and(~channel->consumer_state_bit(),
+                                      std::memory_order_release);
 
   const uint64_t buffer_state = buffer_state_->load();
   if (BufferHubDefs::IsBufferPosted(buffer_state) ||
