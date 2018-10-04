@@ -18,9 +18,12 @@
 #define LOG_TAG "GraphicsEnv"
 #include <graphicsenv/GraphicsEnv.h>
 
+#include <sys/prctl.h>
+
 #include <mutex>
 
 #include <android/dlext.h>
+#include <cutils/properties.h>
 #include <log/log.h>
 
 // TODO(b/37049319) Get this from a header once one exists
@@ -44,6 +47,14 @@ namespace android {
 /*static*/ GraphicsEnv& GraphicsEnv::getInstance() {
     static GraphicsEnv env;
     return env;
+}
+
+int GraphicsEnv::getCanLoadSystemLibraries() {
+    if (property_get_bool("ro.debuggable", false) && prctl(PR_GET_DUMPABLE, 0, 0, 0, 0)) {
+        // Return an integer value since this crosses library boundaries
+        return 1;
+    }
+    return 0;
 }
 
 void GraphicsEnv::setDriverPath(const std::string path) {
@@ -180,5 +191,11 @@ bool android_getAngleDeveloperOptIn() {
 }
 const char* android_getAngleAppPref() {
     return android::GraphicsEnv::getInstance().getAngleAppPref();
+}
+const char* android_getLayerPaths() {
+    return android::GraphicsEnv::getInstance().getLayerPaths().c_str();
+}
+const char* android_getDebugLayers() {
+    return android::GraphicsEnv::getInstance().getDebugLayers().c_str();
 }
 }

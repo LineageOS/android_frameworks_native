@@ -30,10 +30,9 @@
 #include "egl_tls.h"
 #include "egl_display.h"
 #include "egl_object.h"
+#include "egl_layers.h"
 #include "CallStack.h"
 #include "Loader.h"
-
-typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -194,6 +193,14 @@ static EGLBoolean egl_init_drivers_locked() {
         cnx->hooks[egl_connection_t::GLESv2_INDEX] =
                 &gHooks[egl_connection_t::GLESv2_INDEX];
         cnx->dso = loader.open(cnx);
+    }
+
+    // Check to see if any layers are enabled and route functions through them
+    if (cnx->dso) {
+        // Layers can be enabled long after the drivers have been loaded.
+        // They will only be initialized once.
+        LayerLoader& layer_loader(LayerLoader::getInstance());
+        layer_loader.InitLayers(cnx);
     }
 
     return cnx->dso ? EGL_TRUE : EGL_FALSE;
