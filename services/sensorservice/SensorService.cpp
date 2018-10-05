@@ -47,6 +47,7 @@
 #include "SensorRecord.h"
 #include "SensorRegistrationInfo.h"
 
+#include <ctime>
 #include <inttypes.h>
 #include <math.h>
 #include <sched.h>
@@ -423,6 +424,11 @@ status_t SensorService::dump(int fd, const Vector<String16>& args) {
         } else {
             // Default dump the sensor list and debugging information.
             //
+            timespec curTime;
+            clock_gettime(CLOCK_REALTIME, &curTime);
+            struct tm* timeinfo = localtime(&(curTime.tv_sec));
+            result.appendFormat("Captured at: %02d:%02d:%02d.%03d\n", timeinfo->tm_hour,
+                                timeinfo->tm_min, timeinfo->tm_sec, (int)ns2ms(curTime.tv_nsec));
             result.append("Sensor Device:\n");
             result.append(SensorDevice::getInstance().dump().c_str());
 
