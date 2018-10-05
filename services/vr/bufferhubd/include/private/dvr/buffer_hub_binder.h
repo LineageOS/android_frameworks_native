@@ -18,6 +18,9 @@ class BufferHubBinderService : public BinderService<BufferHubBinderService>,
   // usage: adb shell dumpsys bufferhubd
   virtual status_t dump(int fd, const Vector<String16>& args) override;
 
+  // Helper function to get the BpReference to this service
+  static sp<IBufferHub> getServiceProxy();
+
  private:
   std::shared_ptr<BufferHubService> pdx_service_;
 };
