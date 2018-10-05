@@ -7,8 +7,8 @@
 #include <thread>
 
 #include <log/log.h>
-#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/buffer_channel.h>
+#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/consumer_channel.h>
 #include <private/dvr/producer_channel.h>
 #include <sync/sync.h>
@@ -96,8 +96,7 @@ int ProducerChannel::InitializeBuffer() {
   // and also initialize the value to zero.
   buffer_state_ =
       new (&metadata_header_->buffer_state) std::atomic<uint64_t>(0);
-  fence_state_ =
-      new (&metadata_header_->fence_state) std::atomic<uint64_t>(0);
+  fence_state_ = new (&metadata_header_->fence_state) std::atomic<uint64_t>(0);
 
   acquire_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
   release_fence_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
@@ -300,8 +299,8 @@ Status<RemoteChannelHandle> ProducerChannel::OnNewConsumer(Message& message) {
   return CreateConsumer(message);
 }
 
-Status<void> ProducerChannel::OnProducerPost(
-    Message&, LocalFence acquire_fence) {
+Status<void> ProducerChannel::OnProducerPost(Message&,
+                                             LocalFence acquire_fence) {
   ATRACE_NAME("ProducerChannel::OnProducerPost");
   ALOGD_IF(TRACE, "ProducerChannel::OnProducerPost: buffer_id=%d", buffer_id());
   if (!producer_owns_) {
@@ -315,9 +314,9 @@ Status<void> ProducerChannel::OnProducerPost(
   int ret = epoll_ctl(release_fence_fd_.Get(), EPOLL_CTL_MOD,
                       dummy_fence_fd_.Get(), &event);
   ALOGE_IF(ret < 0,
-      "ProducerChannel::OnProducerPost: Failed to modify the shared "
-      "release fence to include the dummy fence: %s",
-      strerror(errno));
+           "ProducerChannel::OnProducerPost: Failed to modify the shared "
+           "release fence to include the dummy fence: %s",
+           strerror(errno));
 
   eventfd_t dummy_fence_count = 0ULL;
   if (eventfd_read(dummy_fence_fd_.Get(), &dummy_fence_count) < 0) {
@@ -474,7 +473,7 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
     }
   }
 
-  OnConsumerIgnored();
+  DecrementPendingConsumers();
   if (pending_consumers_ == 0) {
     // Clear the producer bit atomically to transit into released state. This
     // has to done by BufferHub as it requries synchronization among all
@@ -507,21 +506,22 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
   return {};
 }
 
-void ProducerChannel::OnConsumerIgnored() {
+void ProducerChannel::DecrementPendingConsumers() {
   if (pending_consumers_ == 0) {
-    ALOGE("ProducerChannel::OnConsumerIgnored: no pending consumer.");
+    ALOGE("ProducerChannel::DecrementPendingConsumers: no pending consumer.");
     return;
   }
 
   --pending_consumers_;
   ALOGD_IF(TRACE,
-           "ProducerChannel::OnConsumerIgnored: buffer_id=%d %d consumers left",
+           "ProducerChannel::DecrementPendingConsumers: buffer_id=%d %d "
+           "consumers left",
            buffer_id(), pending_consumers_);
 }
 
 void ProducerChannel::OnConsumerOrphaned(ConsumerChannel* channel) {
   // Ignore the orphaned consumer.
-  OnConsumerIgnored();
+  DecrementPendingConsumers();
 
   const uint64_t consumer_state_bit = channel->consumer_state_bit();
   ALOGE_IF(orphaned_consumer_bit_mask_ & consumer_state_bit,

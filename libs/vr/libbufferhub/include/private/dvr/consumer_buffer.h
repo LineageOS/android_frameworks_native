@@ -76,13 +76,6 @@ class ConsumerBuffer : public pdx::ClientBase<ConsumerBuffer, BufferHubBase> {
   // negative unix error code.
   int Discard();
 
-  // When set, this consumer is no longer notified when this buffer is
-  // available. The system behaves as if Discard() is immediately called
-  // whenever the buffer is posted. If ignore is set to true while a buffer is
-  // pending, it will act as if Discard() was also called.
-  // This returns zero or a negative unix error code.
-  int SetIgnore(bool ignore);
-
  private:
   friend BASE;
 
