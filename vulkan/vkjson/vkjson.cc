@@ -544,6 +544,31 @@ inline bool Iterate(Visitor* visitor, VkPhysicalDeviceFeatures* features) {
 
 template <typename Visitor>
 inline bool Iterate(Visitor* visitor,
+                    VkJsonExtDriverProperties* properties) {
+  return visitor->Visit("driverPropertiesKHR",
+                        &properties->driver_properties_khr);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
+                    VkPhysicalDeviceDriverPropertiesKHR* properties) {
+  return visitor->Visit("driverID", &properties->driverID) &&
+         visitor->Visit("driverName", &properties->driverName) &&
+         visitor->Visit("driverInfo", &properties->driverInfo) &&
+         visitor->Visit("conformanceVersion", &properties->conformanceVersion);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
+                    VkConformanceVersionKHR* version) {
+  return visitor->Visit("major", &version->major) &&
+         visitor->Visit("minor", &version->minor) &&
+         visitor->Visit("subminor", &version->subminor) &&
+         visitor->Visit("patch", &version->patch);
+}
+
+template <typename Visitor>
+inline bool Iterate(Visitor* visitor,
                     VkJsonExtVariablePointerFeatures* features) {
   return visitor->Visit("variablePointerFeaturesKHR",
                         &features->variable_pointer_features_khr);
@@ -769,13 +794,19 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
     case VK_API_VERSION_1_0:
       ret &= visitor->Visit("properties", &device->properties) &&
              visitor->Visit("features", &device->features) &&
-             visitor->Visit("VK_KHR_variable_pointers",
-                            &device->ext_variable_pointer_features) &&
              visitor->Visit("memory", &device->memory) &&
              visitor->Visit("queues", &device->queues) &&
              visitor->Visit("extensions", &device->extensions) &&
              visitor->Visit("layers", &device->layers) &&
              visitor->Visit("formats", &device->formats);
+      if (device->ext_driver_properties.reported) {
+        ret &= visitor->Visit("VK_KHR_driver_properties",
+                            &device->ext_driver_properties);
+      }
+      if (device->ext_variable_pointer_features.reported) {
+        ret &= visitor->Visit("VK_KHR_variable_pointers",
+                            &device->ext_variable_pointer_features);
+      }
   }
   return ret;
 }
