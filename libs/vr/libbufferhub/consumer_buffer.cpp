@@ -174,10 +174,5 @@ int ConsumerBuffer::ReleaseAsync(const DvrNativeBufferMetadata* meta,
 
 int ConsumerBuffer::Discard() { return Release(LocalHandle()); }
 
-int ConsumerBuffer::SetIgnore(bool ignore) {
-  return ReturnStatusOrError(
-      InvokeRemoteMethod<BufferHubRPC::ConsumerSetIgnore>(ignore));
-}
-
 }  // namespace dvr
 }  // namespace android

@@ -361,12 +361,11 @@ private:
         }
 
         std::string preopted_boot_art_path = StringPrintf("/system/framework/%s/boot.art", isa);
-        if (access(preopted_boot_art_path.c_str(), F_OK) == 0) {
-          return PatchoatBootImage(isa_path, isa);
-        } else {
+        if (access(preopted_boot_art_path.c_str(), F_OK) != 0) {
           // No preopted boot image. Try to compile.
           return Dex2oatBootImage(boot_classpath_, art_path, oat_path, isa);
         }
+        return true;
     }
 
     static bool CreatePath(const std::string& path) {
@@ -429,29 +428,6 @@ private:
             }
         }
         CHECK_EQ(0, closedir(c_dir)) << "Unable to close directory.";
-    }
-
-    bool PatchoatBootImage(const std::string& output_dir, const char* isa) const {
-        // This needs to be kept in sync with ART, see art/runtime/gc/space/image_space.cc.
-
-        std::vector<std::string> cmd;
-        cmd.push_back("/system/bin/patchoat");
-
-        cmd.push_back("--input-image-location=/system/framework/boot.art");
-        cmd.push_back(StringPrintf("--output-image-directory=%s", output_dir.c_str()));
-
-        cmd.push_back(StringPrintf("--instruction-set=%s", isa));
-
-        int32_t base_offset = ChooseRelocationOffsetDelta(art::GetImageMinBaseAddressDelta(),
-                                                          art::GetImageMaxBaseAddressDelta());
-        cmd.push_back(StringPrintf("--base-offset-delta=%d", base_offset));
-
-        std::string error_msg;
-        bool result = Exec(cmd, &error_msg);
-        if (!result) {
-            LOG(ERROR) << "Could not generate boot image: " << error_msg;
-        }
-        return result;
     }
 
     bool Dex2oatBootImage(const std::string& boot_cp,

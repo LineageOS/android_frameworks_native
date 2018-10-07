@@ -58,7 +58,7 @@ class ProducerChannel : public BufferHubChannel {
   pdx::Status<void> OnConsumerRelease(Message& message,
                                       LocalFence release_fence);
 
-  void OnConsumerIgnored();
+  void DecrementPendingConsumers();
   void OnConsumerOrphaned(ConsumerChannel* channel);
 
   void AddConsumer(ConsumerChannel* channel);

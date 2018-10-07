@@ -314,7 +314,6 @@ struct BufferHubRPC {
     kOpProducerGain,
     kOpConsumerAcquire,
     kOpConsumerRelease,
-    kOpConsumerSetIgnore,
     kOpProducerBufferDetach,
     kOpConsumerBufferDetach,
     kOpDetachedBufferCreate,
@@ -348,7 +347,6 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ConsumerAcquire, kOpConsumerAcquire, LocalFence(Void));
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
                     void(LocalFence release_fence));
-  PDX_REMOTE_METHOD(ConsumerSetIgnore, kOpConsumerSetIgnore, void(bool ignore));
   PDX_REMOTE_METHOD(ProducerBufferDetach, kOpProducerBufferDetach,
                     LocalChannelHandle(Void));
 
