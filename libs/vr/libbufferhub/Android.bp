@@ -14,7 +14,6 @@
 
 sourceFiles = [
     "buffer_hub_base.cpp",
-    "buffer_hub_client.cpp",
     "buffer_hub_metadata.cpp",
     "buffer_hub_rpc.cpp",
     "consumer_buffer.cpp",
