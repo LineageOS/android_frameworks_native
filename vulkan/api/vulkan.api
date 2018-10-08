@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 86
+define VERSION_PATCH 87
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -596,6 +596,10 @@ define NULL_HANDLE 0
 // 212
 @extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_SPEC_VERSION 2
 @extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME "VK_KHR_vulkan_memory_model"
+
+// 215
+@extension("VK_FUCHSIA_imagepipe_surface") define VK_FUCHSIA_IMAGEPIPE_SURFACE_SPEC_VERSION 1
+@extension("VK_FUCHSIA_imagepipe_surface") define VK_FUCHSIA_IMAGEPIPE_SURFACE_EXTENSION_NAME "VK_FUCHSIA_imagepipe_surface"
 
 /////////////
 //  Types  //
@@ -1795,6 +1799,9 @@ enum VkStructureType {
 
     //@extension("VK_KHR_vulkan_memory_model") // 212
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES_KHR = 1000211000,
+
+    //@extension("VK_FUCHSIA_imagepipe_surface") // 215
+    VK_STRUCTURE_TYPE_IMAGEPIPE_SURFACE_CREATE_INFO_FUCHSIA     = 1000214000,
 }
 
 enum VkSubpassContents {
@@ -3425,6 +3432,12 @@ bitfield VkBuildAccelerationStructureFlagBitsNVX {
     VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NVX   = 0x00000008,
     VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_NVX          = 0x00000010,
 }
+
+@extension("VK_FUCHSIA_imagepipe_surface") // 215
+type VkFlags VkImagePipeSurfaceCreateFlagsFUCHSIA
+//@extension("VK_FUCHSIA_imagepipe_surface") // 215
+//bitfield VkImagePipeSurfaceCreateFlagBitsFUCHSIA {
+//}
 
 //////////////////
 //  Structures  //
@@ -7411,6 +7424,14 @@ class VkPhysicalDeviceVulkanMemoryModelFeaturesKHR {
     void*                                           pNext
     VkBool32                                        vulkanMemoryModel
     VkBool32                                        vulkanMemoryModelDeviceScope
+}
+
+@extension("VK_FUCHSIA_imagepipe_surface") // 215
+class VkImagePipeSurfaceCreateInfoFUCHSIA {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkImagePipeSurfaceCreateFlagsFUCHSIA            flags
+    platform.zx_handle_t                            imagePipeHandle
 }
 
 
@@ -11404,6 +11425,15 @@ cmd void vkGetQueueCheckpointDataNV(
         VkQueue                                     queue,
         u32*                                        pCheckpointDataCount,
         VkCheckpointDataNV*                         pCheckpointData) {
+}
+
+@extension("VK_FUCHSIA_imagepipe_surface") // 215
+cmd VkResult vkCreateImagePipeSurfaceFUCHSIA(
+        VkInstance                                  instance,
+        const VkImagePipeSurfaceCreateInfoFUCHSIA*  pCreateInfo,
+        const VkAllocationCallbacks*                pAllocator,
+        VkSurfaceKHR*                               pSurface) {
+    return ?
 }
 
 
