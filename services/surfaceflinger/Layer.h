@@ -341,7 +341,7 @@ public:
     virtual bool isCreatedFromMainThread() const { return false; }
 
 
-    bool isRemoved() const { return mRemoved; }
+    bool isPendingRemoval() const { return mPendingRemoval; }
 
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
@@ -589,12 +589,12 @@ protected:
      */
     class LayerCleaner {
         sp<SurfaceFlinger> mFlinger;
-        sp<Layer> mLayer;
+        wp<Layer> mLayer;
 
     protected:
         ~LayerCleaner() {
             // destroy client resources
-            mFlinger->removeLayer(mLayer, true);
+            mFlinger->onLayerDestroyed(mLayer);
         }
 
     public:
@@ -739,7 +739,7 @@ protected:
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering{false};
 
-    bool mRemoved{false};
+    bool mPendingRemoval{false};
 
     // page-flip thread (currently main thread)
     bool mProtectedByApp{false}; // application requires protected path to external sink
