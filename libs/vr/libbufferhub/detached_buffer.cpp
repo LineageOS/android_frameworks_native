@@ -155,6 +155,10 @@ int DetachedBuffer::Poll(int timeout_ms) {
 }
 
 Status<LocalChannelHandle> DetachedBuffer::Promote() {
+  // TODO(b/112338294) remove after migrate producer buffer to binder
+  ALOGW("DetachedBuffer::Promote: not supported operation during migration");
+  return {};
+
   ATRACE_NAME("DetachedBuffer::Promote");
   ALOGD_IF(TRACE, "DetachedBuffer::Promote: id=%d.", id_);
 

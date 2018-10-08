@@ -222,6 +222,10 @@ std::unique_ptr<ProducerBuffer> ProducerBuffer::Import(
 }
 
 Status<LocalChannelHandle> ProducerBuffer::Detach() {
+  // TODO(b/112338294) remove after migrate producer buffer to binder
+  ALOGW("ProducerBuffer::Detach: not supported operation during migration");
+  return {};
+
   uint64_t buffer_state = buffer_state_->load();
   if (!BufferHubDefs::IsBufferGained(buffer_state)) {
     // Can only detach a ProducerBuffer when it's in gained state.
