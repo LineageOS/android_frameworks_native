@@ -266,7 +266,7 @@ Rect BufferStateLayer::getDrawingCrop() const {
 }
 
 uint32_t BufferStateLayer::getDrawingScalingMode() const {
-    return NATIVE_WINDOW_SCALING_MODE_FREEZE;
+    return NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
 }
 
 Region BufferStateLayer::getDrawingSurfaceDamage() const {
