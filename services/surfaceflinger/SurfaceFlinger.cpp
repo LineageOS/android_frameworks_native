@@ -3040,7 +3040,8 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            if (layer->shouldPresentNow(*mPrimaryDispSync)) {
+            const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+            if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
                 layer->useEmptyDamage();

@@ -79,7 +79,7 @@ int32_t BufferQueueLayer::getQueuedFrameCount() const {
     return mQueuedFrames;
 }
 
-bool BufferQueueLayer::shouldPresentNow(const DispSync& dispSync) const {
+bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
     if (getSidebandStreamChanged() || getAutoRefresh()) {
         return true;
     }
@@ -91,7 +91,6 @@ bool BufferQueueLayer::shouldPresentNow(const DispSync& dispSync) const {
     Mutex::Autolock lock(mQueueItemLock);
 
     const int64_t addedTime = mQueueItems[0].mTimestamp;
-    const nsecs_t expectedPresentTime = mConsumer->computeExpectedPresent(dispSync);
 
     // Ignore timestamps more than a second in the future
     const bool isPlausible = addedTime < (expectedPresentTime + s2ns(1));
@@ -232,8 +231,9 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
     status_t updateResult =
-            mConsumer->updateTexImage(&r, *mFlinger->mPrimaryDispSync, &mAutoRefresh, &queuedBuffer,
-                                      mLastFrameNumberReceived, releaseFence);
+            mConsumer->updateTexImage(&r, mFlinger->mPrimaryDispSync->expectedPresentTime(),
+                                      &mAutoRefresh, &queuedBuffer, mLastFrameNumberReceived,
+                                      releaseFence);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.

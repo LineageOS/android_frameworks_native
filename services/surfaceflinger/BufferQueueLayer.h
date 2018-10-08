@@ -55,7 +55,7 @@ public:
 
     int32_t getQueuedFrameCount() const override;
 
-    bool shouldPresentNow(const DispSync& dispSync) const override;
+    bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------

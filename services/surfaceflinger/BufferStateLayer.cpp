@@ -56,7 +56,7 @@ void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
     return;
 }
 
-bool BufferStateLayer::shouldPresentNow(const DispSync& /*dispSync*/) const {
+bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
     if (getSidebandStreamChanged() || getAutoRefresh()) {
         return true;
     }

@@ -39,7 +39,7 @@ public:
     void setTransformHint(uint32_t orientation) const override;
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
 
-    bool shouldPresentNow(const DispSync& dispSync) const override;
+    bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
 
     bool getTransformToDisplayInverse() const override;
 

@@ -98,54 +98,7 @@ void BufferLayerConsumer::setContentsChangedListener(const wp<ContentsChangedLis
     mContentsChangedListener = listener;
 }
 
-// We need to determine the time when a buffer acquired now will be
-// displayed.  This can be calculated:
-//   time when previous buffer's actual-present fence was signaled
-//    + current display refresh rate * HWC latency
-//    + a little extra padding
-//
-// Buffer producers are expected to set their desired presentation time
-// based on choreographer time stamps, which (coming from vsync events)
-// will be slightly later then the actual-present timing.  If we get a
-// desired-present time that is unintentionally a hair after the next
-// vsync, we'll hold the frame when we really want to display it.  We
-// need to take the offset between actual-present and reported-vsync
-// into account.
-//
-// If the system is configured without a DispSync phase offset for the app,
-// we also want to throw in a bit of padding to avoid edge cases where we
-// just barely miss.  We want to do it here, not in every app.  A major
-// source of trouble is the app's use of the display's ideal refresh time
-// (via Display.getRefreshRate()), which could be off of the actual refresh
-// by a few percent, with the error multiplied by the number of frames
-// between now and when the buffer should be displayed.
-//
-// If the refresh reported to the app has a phase offset, we shouldn't need
-// to tweak anything here.
-nsecs_t BufferLayerConsumer::computeExpectedPresent(const DispSync& dispSync) {
-    // The HWC doesn't currently have a way to report additional latency.
-    // Assume that whatever we submit now will appear right after the flip.
-    // For a smart panel this might be 1.  This is expressed in frames,
-    // rather than time, because we expect to have a constant frame delay
-    // regardless of the refresh rate.
-    const uint32_t hwcLatency = 0;
-
-    // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
-    const nsecs_t nextRefresh = dispSync.computeNextRefresh(hwcLatency);
-
-    // The DispSync time is already adjusted for the difference between
-    // vsync and reported-vsync (SurfaceFlinger::dispSyncPresentTimeOffset), so
-    // we don't need to factor that in here.  Pad a little to avoid
-    // weird effects if apps might be requesting times right on the edge.
-    nsecs_t extraPadding = 0;
-    if (SurfaceFlinger::vsyncPhaseOffsetNs == 0) {
-        extraPadding = 1000000; // 1ms (6% of 60Hz)
-    }
-
-    return nextRefresh + extraPadding;
-}
-
-status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync,
+status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, nsecs_t expectedPresentTime,
                                              bool* autoRefresh, bool* queuedBuffer,
                                              uint64_t maxFrameNumber,
                                              const sp<Fence>& releaseFence) {
@@ -169,7 +122,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
     // Acquire the next buffer.
     // In asynchronous mode the list is guaranteed to be one buffer
     // deep, while in synchronous mode we use the oldest buffer.
-    status_t err = acquireBufferLocked(&item, computeExpectedPresent(dispSync), maxFrameNumber);
+    status_t err = acquireBufferLocked(&item, expectedPresentTime, maxFrameNumber);
     if (err != NO_ERROR) {
         if (err == BufferQueue::NO_BUFFER_AVAILABLE) {
             err = NO_ERROR;
