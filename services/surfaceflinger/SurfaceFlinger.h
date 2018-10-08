@@ -561,6 +561,11 @@ private:
     // ISurfaceComposerClient::destroySurface()
     status_t onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle);
 
+    // called when all clients have released all their references to
+    // this layer meaning it is entirely safe to destroy all
+    // resources associated to this layer.
+    status_t onLayerDestroyed(const wp<Layer>& layer);
+
     // remove a layer from SurfaceFlinger immediately
     status_t removeLayer(const sp<Layer>& layer, bool topLevelOnly = false);
     status_t removeLayerLocked(const Mutex&, const sp<Layer>& layer, bool topLevelOnly = false);
