@@ -369,6 +369,18 @@ public:
             return *this;
         }
 
+        auto& setHwcColorModes(
+                const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>
+                        hwcColorModes) {
+            mCreationArgs.hwcColorModes = hwcColorModes;
+            return *this;
+        }
+
+        auto& setHasWideColorGamut(bool hasWideColorGamut) {
+            mCreationArgs.hasWideColorGamut = hasWideColorGamut;
+            return *this;
+        }
+
         sp<DisplayDevice> inject() {
             DisplayDeviceState state;
             state.type = mCreationArgs.type;

@@ -234,6 +234,9 @@ std::string decodeColorMode(ColorMode colorMode) {
         case ColorMode::BT2020:
             return std::string("ColorMode::BT2020");
 
+        case ColorMode::DISPLAY_BT2020:
+            return std::string("ColorMode::DISPLAY_BT2020");
+
         case ColorMode::BT2100_PQ:
             return std::string("ColorMode::BT2100_PQ");
 

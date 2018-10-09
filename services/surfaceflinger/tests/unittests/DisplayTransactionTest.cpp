@@ -22,6 +22,7 @@
 
 #include <log/log.h>
 
+#include <ui/DebugUtils.h>
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/DisplayHardware/MockDisplaySurface.h"
@@ -994,6 +995,93 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
 
     // The display should have been removed from the drawing state
     EXPECT_FALSE(hasDrawingDisplayState(existing.token()));
+}
+
+/* ------------------------------------------------------------------------
+ * DisplayDevice::GetBestColorMode
+ */
+class GetBestColorModeTest : public DisplayTransactionTest {
+public:
+    GetBestColorModeTest()
+          : DisplayTransactionTest(),
+            mInjector(FakeDisplayDeviceInjector(mFlinger, DisplayDevice::DISPLAY_PRIMARY, 0)) {}
+
+    void setHasWideColorGamut(bool hasWideColorGamut) { mHasWideColorGamut = hasWideColorGamut; }
+
+    void addHwcColorModesMapping(ui::ColorMode colorMode,
+                                 std::vector<ui::RenderIntent> renderIntents) {
+        mHwcColorModes[colorMode] = renderIntents;
+    }
+
+    void setInputDataspace(ui::Dataspace dataspace) { mInputDataspace = dataspace; }
+
+    void setInputRenderIntent(ui::RenderIntent renderIntent) { mInputRenderIntent = renderIntent; }
+
+    void getBestColorMode() {
+        mInjector.setHwcColorModes(mHwcColorModes);
+        mInjector.setHasWideColorGamut(mHasWideColorGamut);
+        auto displayDevice = mInjector.inject();
+
+        displayDevice->getBestColorMode(mInputDataspace, mInputRenderIntent, &mOutDataspace,
+                                        &mOutColorMode, &mOutRenderIntent);
+    }
+
+    ui::Dataspace mOutDataspace;
+    ui::ColorMode mOutColorMode;
+    ui::RenderIntent mOutRenderIntent;
+
+private:
+    ui::Dataspace mInputDataspace;
+    ui::RenderIntent mInputRenderIntent;
+    bool mHasWideColorGamut = false;
+    std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> mHwcColorModes;
+    FakeDisplayDeviceInjector mInjector;
+};
+
+TEST_F(GetBestColorModeTest, DataspaceDisplayP3_ColorModeSRGB) {
+    addHwcColorModesMapping(ui::ColorMode::SRGB,
+                            std::vector<ui::RenderIntent>(1, RenderIntent::COLORIMETRIC));
+    setInputDataspace(ui::Dataspace::DISPLAY_P3);
+    setInputRenderIntent(ui::RenderIntent::COLORIMETRIC);
+    setHasWideColorGamut(true);
+
+    getBestColorMode();
+
+    ASSERT_EQ(ui::Dataspace::SRGB, mOutDataspace);
+    ASSERT_EQ(ui::ColorMode::SRGB, mOutColorMode);
+    ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mOutRenderIntent);
+}
+
+TEST_F(GetBestColorModeTest, DataspaceDisplayP3_ColorModeDisplayP3) {
+    addHwcColorModesMapping(ui::ColorMode::DISPLAY_P3,
+                            std::vector<ui::RenderIntent>(1, RenderIntent::COLORIMETRIC));
+    addHwcColorModesMapping(ui::ColorMode::SRGB,
+                            std::vector<ui::RenderIntent>(1, RenderIntent::COLORIMETRIC));
+    addHwcColorModesMapping(ui::ColorMode::DISPLAY_BT2020,
+                            std::vector<ui::RenderIntent>(1, RenderIntent::COLORIMETRIC));
+    setInputDataspace(ui::Dataspace::DISPLAY_P3);
+    setInputRenderIntent(ui::RenderIntent::COLORIMETRIC);
+    setHasWideColorGamut(true);
+
+    getBestColorMode();
+
+    ASSERT_EQ(ui::Dataspace::DISPLAY_P3, mOutDataspace);
+    ASSERT_EQ(ui::ColorMode::DISPLAY_P3, mOutColorMode);
+    ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mOutRenderIntent);
+}
+
+TEST_F(GetBestColorModeTest, DataspaceDisplayP3_ColorModeDISPLAY_BT2020) {
+    addHwcColorModesMapping(ui::ColorMode::DISPLAY_BT2020,
+                            std::vector<ui::RenderIntent>(1, RenderIntent::COLORIMETRIC));
+    setInputDataspace(ui::Dataspace::DISPLAY_P3);
+    setInputRenderIntent(ui::RenderIntent::COLORIMETRIC);
+    setHasWideColorGamut(true);
+
+    getBestColorMode();
+
+    ASSERT_EQ(ui::Dataspace::DISPLAY_BT2020, mOutDataspace);
+    ASSERT_EQ(ui::ColorMode::DISPLAY_BT2020, mOutColorMode);
+    ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mOutRenderIntent);
 }
 
 /* ------------------------------------------------------------------------
