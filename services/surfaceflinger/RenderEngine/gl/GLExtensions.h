@@ -25,7 +25,6 @@
 #include <GLES/gl.h>
 #include <GLES/glext.h>
 #include <utils/Singleton.h>
-#include <utils/SortedVector.h>
 #include <utils/String8.h>
 
 namespace android {
@@ -46,13 +45,9 @@ class GLExtensions : public Singleton<GLExtensions> {
     String8 mRenderer;
     String8 mVersion;
     String8 mExtensions;
-    SortedVector<String8> mExtensionList;
 
     String8 mEGLVersion;
     String8 mEGLExtensions;
-    SortedVector<String8> mEGLExtensionList;
-
-    static SortedVector<String8> parseExtensionString(char const* extensions);
 
     GLExtensions(const GLExtensions&);
     GLExtensions& operator=(const GLExtensions&);
@@ -74,12 +69,10 @@ public:
     char const* getRenderer() const;
     char const* getVersion() const;
     char const* getExtensions() const;
-    bool hasExtension(char const* extension) const;
 
     void initWithEGLStrings(char const* eglVersion, char const* eglExtensions);
     char const* getEGLVersion() const;
     char const* getEGLExtensions() const;
-    bool hasEGLExtension(char const* extension) const;
 };
 
 }  // namespace gl

@@ -17,9 +17,11 @@
 #ifndef SF_RENDER_ENGINE_PROGRAMCACHE_H
 #define SF_RENDER_ENGINE_PROGRAMCACHE_H
 
+#include <memory>
+#include <unordered_map>
+
 #include <GLES2/gl2.h>
 #include <renderengine/private/Description.h>
-#include <utils/KeyedVector.h>
 #include <utils/Singleton.h>
 #include <utils/TypeHelpers.h>
 
@@ -155,17 +157,26 @@ public:
         }
         inline bool isY410BT2020() const { return (mKey & Y410_BT2020_MASK) == Y410_BT2020_ON; }
 
-        // this is the definition of a friend function -- not a method of class Needs
-        friend inline int strictly_order_type(const Key& lhs, const Key& rhs) {
-            return (lhs.mKey < rhs.mKey) ? 1 : 0;
+        // for use by std::unordered_map
+
+        bool operator==(const Key& other) const {
+            return mKey == other.mKey;
         }
+
+        struct Hash {
+            size_t operator()(const Key& key) const {
+                return static_cast<size_t>(key.mKey);
+            }
+        };
     };
 
-    ProgramCache();
-    ~ProgramCache();
+    ProgramCache() = default;
+    ~ProgramCache() = default;
 
     // Generate shaders to populate the cache
     void primeCache(bool useColorManagement);
+
+    size_t getSize() const { return mCache.size(); }
 
     // useProgram lookup a suitable program in the cache or generates one
     // if none can be found.
@@ -183,15 +194,15 @@ private:
     // Generate OETF based from Key.
     static void generateOETF(Formatter& fs, const Key& needs);
     // generates a program from the Key
-    static Program* generateProgram(const Key& needs);
+    static std::unique_ptr<Program> generateProgram(const Key& needs);
     // generates the vertex shader from the Key
     static String8 generateVertexShader(const Key& needs);
     // generates the fragment shader from the Key
     static String8 generateFragmentShader(const Key& needs);
 
     // Key/Value map used for caching Programs. Currently the cache
-    // is never shrunk.
-    DefaultKeyedVector<Key, Program*> mCache;
+    // is never shrunk (and the GL program objects are never deleted).
+    std::unordered_map<Key, std::unique_ptr<Program>, Key::Hash> mCache;
 };
 
 }  // namespace gl

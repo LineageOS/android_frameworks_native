@@ -16,6 +16,9 @@
 
 #include "GLExtensions.h"
 
+#include <string>
+#include <unordered_set>
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,22 +29,30 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
-SortedVector<String8> GLExtensions::parseExtensionString(char const* extensions) {
-    SortedVector<String8> list;
+namespace {
 
-    char const* curr = extensions;
-    char const* head = curr;
-    do {
-        head = strchr(curr, ' ');
-        String8 s(curr, head ? head - curr : strlen(curr));
-        if (s.length()) {
-            list.add(s);
-        }
-        curr = head + 1;
-    } while (head);
+class ExtensionSet {
+public:
+    ExtensionSet(const char* extensions) {
+        char const* curr = extensions;
+        char const* head = curr;
+        do {
+            head = strchr(curr, ' ');
+            size_t len = head ? head - curr : strlen(curr);
+            if (len > 0) {
+                mExtensions.emplace(curr, len);
+            }
+            curr = head + 1;
+        } while (head);
+    }
 
-    return list;
-}
+    bool hasExtension(const char* extension) const { return mExtensions.count(extension) > 0; }
+
+private:
+    std::unordered_set<std::string> mExtensions;
+};
+
+} // anonymous namespace
 
 void GLExtensions::initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer,
                                      GLubyte const* version, GLubyte const* extensions) {
@@ -49,12 +60,6 @@ void GLExtensions::initWithGLStrings(GLubyte const* vendor, GLubyte const* rende
     mRenderer = (char const*)renderer;
     mVersion = (char const*)version;
     mExtensions = (char const*)extensions;
-    mExtensionList = parseExtensionString(mExtensions);
-}
-
-bool GLExtensions::hasExtension(char const* extension) const {
-    const String8 s(extension);
-    return mExtensionList.indexOf(s) >= 0;
 }
 
 char const* GLExtensions::getVendor() const {
@@ -76,7 +81,8 @@ char const* GLExtensions::getExtensions() const {
 void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExtensions) {
     mEGLVersion = eglVersion;
     mEGLExtensions = eglExtensions;
-    mEGLExtensionList = parseExtensionString(mEGLExtensions);
+
+    ExtensionSet extensionSet(eglExtensions);
 
     // EGL_ANDROIDX_no_config_context is an experimental extension with no
     // written specification. It will be replaced by something more formal.
@@ -86,24 +92,24 @@ void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExt
     //
     // EGL_KHR_no_config_context is official extension to allow creating a
     // context that works with any surface of a display.
-    if (hasEGLExtension("EGL_ANDROIDX_no_config_context") ||
-        hasEGLExtension("EGL_KHR_no_config_context")) {
+    if (extensionSet.hasExtension("EGL_ANDROIDX_no_config_context") ||
+        extensionSet.hasExtension("EGL_KHR_no_config_context")) {
         mHasNoConfigContext = true;
     }
 
-    if (hasEGLExtension("EGL_ANDROID_native_fence_sync")) {
+    if (extensionSet.hasExtension("EGL_ANDROID_native_fence_sync")) {
         mHasNativeFenceSync = true;
     }
-    if (hasEGLExtension("EGL_KHR_fence_sync")) {
+    if (extensionSet.hasExtension("EGL_KHR_fence_sync")) {
         mHasFenceSync = true;
     }
-    if (hasEGLExtension("EGL_KHR_wait_sync")) {
+    if (extensionSet.hasExtension("EGL_KHR_wait_sync")) {
         mHasWaitSync = true;
     }
-    if (hasEGLExtension("EGL_EXT_protected_content")) {
+    if (extensionSet.hasExtension("EGL_EXT_protected_content")) {
         mHasProtectedContent = true;
     }
-    if (hasEGLExtension("EGL_IMG_context_priority")) {
+    if (extensionSet.hasExtension("EGL_IMG_context_priority")) {
         mHasContextPriority = true;
     }
 }
@@ -114,11 +120,6 @@ char const* GLExtensions::getEGLVersion() const {
 
 char const* GLExtensions::getEGLExtensions() const {
     return mEGLExtensions.string();
-}
-
-bool GLExtensions::hasEGLExtension(char const* extension) const {
-    const String8 s(extension);
-    return mEGLExtensionList.indexOf(s) >= 0;
 }
 
 }  // namespace gl
