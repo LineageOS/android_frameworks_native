@@ -211,13 +211,20 @@ public:
             return *this;
         }
 
-        auto& addCapability(HWC2::Capability cap) {
-            mCapabilities.emplace(cap);
+        auto& setCapabilities(const std::unordered_set<HWC2::Capability>* capabilities) {
+            mCapabilities = capabilities;
             return *this;
         }
 
         void inject(TestableSurfaceFlinger* flinger, Hwc2::Composer* composer) {
-            auto display = std::make_unique<HWC2Display>(*composer, mCapabilities, mHwcDisplayId,
+            static const std::unordered_set<HWC2::Capability> defaultCapabilities;
+            if (mCapabilities == nullptr) mCapabilities = &defaultCapabilities;
+
+            // Caution - Make sure that any values passed by reference here do
+            // not refer to an instance owned by FakeHwcDisplayInjector. This
+            // class has temporary lifetime, while the constructed HWC2::Display
+            // is much longer lived.
+            auto display = std::make_unique<HWC2Display>(*composer, *mCapabilities, mHwcDisplayId,
                                                          mHwcDisplayType);
 
             auto config = HWC2::Display::Config::Builder(*display, mActiveConfig);
@@ -247,7 +254,7 @@ public:
         int32_t mDpiX = DEFAULT_DPI;
         int32_t mDpiY = DEFAULT_DPI;
         int32_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
-        std::unordered_set<HWC2::Capability> mCapabilities;
+        const std::unordered_set<HWC2::Capability>* mCapabilities = nullptr;
     };
 
     class FakeDisplayDeviceInjector {
