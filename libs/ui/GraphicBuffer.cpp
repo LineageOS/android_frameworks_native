@@ -372,6 +372,10 @@ status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& 
 
 status_t GraphicBuffer::unflatten(
         void const*& buffer, size_t& size, int const*& fds, size_t& count) {
+    if (size < 12 * sizeof(int)) {
+        android_errorWriteLog(0x534e4554, "114223584");
+        return NO_MEMORY;
+    }
 
     int const* buf = static_cast<int const*>(buffer);
 
