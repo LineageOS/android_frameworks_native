@@ -1,6 +1,8 @@
-#include <private/dvr/detached_buffer.h>
-
+#include <pdx/default_transport/client_channel.h>
+#include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
+#include <private/dvr/bufferhub_rpc.h>
+#include <private/dvr/detached_buffer.h>
 #include <ui/DetachedBufferHandle.h>
 
 #include <poll.h>
@@ -8,9 +10,29 @@
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
+using android::pdx::default_transport::ClientChannel;
+using android::pdx::default_transport::ClientChannelFactory;
 
 namespace android {
 namespace dvr {
+
+BufferHubClient::BufferHubClient()
+    : Client(ClientChannelFactory::Create(BufferHubRPC::kClientPath)) {}
+
+BufferHubClient::BufferHubClient(LocalChannelHandle channel_handle)
+    : Client(ClientChannel::Create(std::move(channel_handle))) {}
+
+bool BufferHubClient::IsValid() const {
+  return IsConnected() && GetChannelHandle().valid();
+}
+
+LocalChannelHandle BufferHubClient::TakeChannelHandle() {
+  if (IsConnected()) {
+    return std::move(GetChannelHandle());
+  } else {
+    return {};
+  }
+}
 
 DetachedBuffer::DetachedBuffer(uint32_t width, uint32_t height,
                                uint32_t layer_count, uint32_t format,
@@ -133,6 +155,10 @@ int DetachedBuffer::Poll(int timeout_ms) {
 }
 
 Status<LocalChannelHandle> DetachedBuffer::Promote() {
+  // TODO(b/112338294) remove after migrate producer buffer to binder
+  ALOGW("DetachedBuffer::Promote: not supported operation during migration");
+  return {};
+
   ATRACE_NAME("DetachedBuffer::Promote");
   ALOGD_IF(TRACE, "DetachedBuffer::Promote: id=%d.", id_);
 

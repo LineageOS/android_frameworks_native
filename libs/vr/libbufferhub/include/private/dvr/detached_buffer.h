@@ -1,10 +1,27 @@
 #ifndef ANDROID_DVR_DETACHED_BUFFER_H_
 #define ANDROID_DVR_DETACHED_BUFFER_H_
 
-#include <private/dvr/buffer_hub_client.h>
+#include <pdx/client.h>
+#include <private/dvr/buffer_hub_defs.h>
+#include <private/dvr/buffer_hub_metadata.h>
+#include <private/dvr/ion_buffer.h>
 
 namespace android {
 namespace dvr {
+
+class BufferHubClient : public pdx::Client {
+ public:
+  BufferHubClient();
+  explicit BufferHubClient(pdx::LocalChannelHandle channel_handle);
+
+  bool IsValid() const;
+  pdx::LocalChannelHandle TakeChannelHandle();
+
+  using pdx::Client::Close;
+  using pdx::Client::event_fd;
+  using pdx::Client::GetChannel;
+  using pdx::Client::InvokeRemoteMethod;
+};
 
 class DetachedBuffer {
  public:
