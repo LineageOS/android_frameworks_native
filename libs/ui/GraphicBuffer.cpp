@@ -333,7 +333,7 @@ status_t GraphicBuffer::flatten(void*& buffer, size_t& size, int*& fds, size_t& 
 
 status_t GraphicBuffer::unflatten(
         void const*& buffer, size_t& size, int const*& fds, size_t& count) {
-    if (size < 11 * sizeof(int)) return NO_MEMORY;
+    if (size < 12 * sizeof(int)) return NO_MEMORY;
 
     int const* buf = static_cast<int const*>(buffer);
     if (buf[0] != 'GBFR') return BAD_TYPE;
