@@ -474,7 +474,6 @@ struct BaseLayerProperties {
         enqueueBuffer(test, layer);
         Mock::VerifyAndClear(test->mMessageQueue);
 
-        EXPECT_CALL(*test->mRenderEngine, isCurrent()).WillRepeatedly(Return(true));
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, Fence::NO_FENCE);

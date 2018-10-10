@@ -327,11 +327,6 @@ status_t BufferStateLayer::bindTextureImage() {
     const State& s(getDrawingState());
     auto& engine(mFlinger->getRenderEngine());
 
-    if (!engine.isCurrent()) {
-        ALOGE("RenderEngine is not current");
-        return INVALID_OPERATION;
-    }
-
     engine.checkErrors();
 
     // TODO(marissaw): once buffers are cached, don't create a new image everytime

@@ -158,12 +158,6 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, const Dis
         return NO_INIT;
     }
 
-    // Make sure RenderEngine is current
-    if (!mRE.isCurrent()) {
-        BLC_LOGE("updateTexImage: RenderEngine is not current");
-        return INVALID_OPERATION;
-    }
-
     BufferItem item;
 
     // Acquire the next buffer.
@@ -524,10 +518,6 @@ std::shared_ptr<FenceTime> BufferLayerConsumer::getCurrentFenceTime() const {
 }
 
 status_t BufferLayerConsumer::doFenceWaitLocked() const {
-    if (!mRE.isCurrent()) {
-        BLC_LOGE("doFenceWait: RenderEngine is not current");
-        return INVALID_OPERATION;
-    }
     if (mCurrentFence->isValid()) {
         if (mRE.useWaitSync()) {
             base::unique_fd fenceFd(mCurrentFence->dup());
