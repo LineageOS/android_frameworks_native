@@ -35,15 +35,39 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
   if (!out_meta)
     return -EINVAL;
 
-  // Only check producer bit and this consumer buffer's particular consumer bit.
-  // The buffer is can be acquired iff: 1) producer bit is set; 2) consumer bit
-  // is not set.
-  uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
-  if (!BufferHubDefs::IsBufferPosted(buffer_state, client_state_mask())) {
-    ALOGE("ConsumerBuffer::LocalAcquire: not posted, id=%d state=%" PRIx64
-          " client_state_mask=%" PRIx64 ".",
-          id(), buffer_state, client_state_mask());
+  // The buffer can be acquired iff the buffer state for this client is posted.
+  uint64_t current_buffer_state =
+      buffer_state_->load(std::memory_order_acquire);
+  if (!BufferHubDefs::IsClientPosted(current_buffer_state,
+                                     client_state_mask())) {
+    ALOGE(
+        "%s: Failed to acquire the buffer. The buffer is not posted, id=%d "
+        "state=%" PRIx64 " client_state_mask=%" PRIx64 ".",
+        __FUNCTION__, id(), current_buffer_state, client_state_mask());
     return -EBUSY;
+  }
+
+  // Change the buffer state for this consumer from posted to acquired.
+  uint64_t updated_buffer_state = current_buffer_state ^ client_state_mask();
+  while (!buffer_state_->compare_exchange_weak(
+      current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
+      std::memory_order_acquire)) {
+    ALOGD(
+        "%s Failed to acquire the buffer. Current buffer state was changed to "
+        "%" PRIx64
+        " when trying to acquire the buffer and modify the buffer state to "
+        "%" PRIx64 ". About to try again if the buffer is still posted.",
+        __FUNCTION__, current_buffer_state, updated_buffer_state);
+    if (!BufferHubDefs::IsClientPosted(current_buffer_state,
+                                       client_state_mask())) {
+      ALOGE(
+          "%s: Failed to acquire the buffer. The buffer is no longer posted, "
+          "id=%d state=%" PRIx64 " client_state_mask=%" PRIx64 ".",
+          __FUNCTION__, id(), current_buffer_state, client_state_mask());
+      return -EBUSY;
+    }
+    // The failure of compare_exchange_weak updates current_buffer_state.
+    updated_buffer_state = current_buffer_state ^ client_state_mask();
   }
 
   // Copy the canonical metadata.
@@ -64,8 +88,6 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
     *out_fence = shared_acquire_fence_.Duplicate();
   }
 
-  // Set the consumer bit unique to this consumer.
-  BufferHubDefs::ModifyBufferState(buffer_state_, 0ULL, client_state_mask());
   return 0;
 }
 
@@ -118,12 +140,26 @@ int ConsumerBuffer::LocalRelease(const DvrNativeBufferMetadata* meta,
   if (const int error = CheckMetadata(meta->user_metadata_size))
     return error;
 
-  // Check invalid state transition.
-  uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
-  if (!BufferHubDefs::IsBufferAcquired(buffer_state)) {
-    ALOGE("ConsumerBuffer::LocalRelease: not acquired id=%d state=%" PRIx64 ".",
-          id(), buffer_state);
-    return -EBUSY;
+  // Set the buffer state of this client to released if it is not already in
+  // released state.
+  uint64_t current_buffer_state =
+      buffer_state_->load(std::memory_order_acquire);
+  if (BufferHubDefs::IsClientReleased(current_buffer_state,
+                                      client_state_mask())) {
+    return 0;
+  }
+  uint64_t updated_buffer_state = current_buffer_state & (~client_state_mask());
+  while (!buffer_state_->compare_exchange_weak(
+      current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
+      std::memory_order_acquire)) {
+    ALOGD(
+        "%s: Failed to release the buffer. Current buffer state was changed to "
+        "%" PRIx64
+        " when trying to release the buffer and modify the buffer state to "
+        "%" PRIx64 ". About to try again.",
+        __FUNCTION__, current_buffer_state, updated_buffer_state);
+    // The failure of compare_exchange_weak updates current_buffer_state.
+    updated_buffer_state = current_buffer_state & (~client_state_mask());
   }
 
   // On release, only the user requested metadata is copied back into the shared
@@ -141,8 +177,6 @@ int ConsumerBuffer::LocalRelease(const DvrNativeBufferMetadata* meta,
   if (const int error = UpdateSharedFence(release_fence, shared_release_fence_))
     return error;
 
-  // For release operation, the client don't need to change the state as it's
-  // bufferhubd's job to flip the produer bit once all consumers are released.
   return 0;
 }
 

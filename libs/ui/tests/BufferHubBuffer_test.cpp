@@ -35,7 +35,7 @@ const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const size_t kUserMetadataSize = 0;
 
-using dvr::BufferHubDefs::IsBufferGained;
+using dvr::BufferHubDefs::IsBufferReleased;
 using dvr::BufferHubDefs::kFirstClientBitMask;
 using dvr::BufferHubDefs::kMetadataHeaderSize;
 using frameworks::bufferhub::V1_0::BufferHubStatus;
@@ -118,9 +118,9 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     // We use client_state_mask() to tell those two instances apart.
     EXPECT_NE(bufferStateMask1, bufferStateMask2);
 
-    // Both buffer instances should be in gained state.
-    EXPECT_TRUE(IsBufferGained(b1->buffer_state()));
-    EXPECT_TRUE(IsBufferGained(b2->buffer_state()));
+    // Both buffer instances should be in released state currently.
+    EXPECT_TRUE(IsBufferReleased(b1->buffer_state()));
+    EXPECT_TRUE(IsBufferReleased(b2->buffer_state()));
 
     // TODO(b/112338294): rewrite test after migration
     return;

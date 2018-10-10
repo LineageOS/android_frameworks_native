@@ -48,9 +48,8 @@ class ConsumerBuffer : public pdx::ClientBase<ConsumerBuffer, BufferHubBase> {
   // Asynchronously acquires a bufer.
   int AcquireAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
 
-  // This should be called after a successful Acquire call. If the fence is
-  // valid the fence determines the buffer usage, otherwise the buffer is
-  // released immediately.
+  // Releases the buffer from any buffer state. If the fence is valid the fence
+  // determines the buffer usage, otherwise the buffer is released immediately.
   // This returns zero or a negative unix error code.
   int Release(const LocalHandle& release_fence);
   int ReleaseAsync();

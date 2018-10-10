@@ -20,52 +20,104 @@ static constexpr uint32_t kMetadataFormat = HAL_PIXEL_FORMAT_BLOB;
 static constexpr uint32_t kMetadataUsage =
     GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN;
 
-// Single producuer multiple (up to 63) consumers ownership signal.
+// Single buffer clients (up to 32) ownership signal.
 // 64-bit atomic unsigned int.
+// Each client takes 2 bits. The first bit locates in the first 32 bits of
+// buffer_state; the second bit locates in the last 32 bits of buffer_state.
+// Client states:
+// Gained state 11. Exclusive write state.
+// Posted state 10.
+// Acquired state 01. Shared read state.
+// Released state 00.
 //
-// MSB           LSB
-//  |             |
-//  v             v
-// [C62|...|C1|C0|P]
-// Gain'ed state:     [..|0|0|0] -> Exclusively Writable.
-// Post'ed state:     [..|0|0|1]
-// Acquired'ed state: [..|X|X|1] -> At least one bit is set in higher 63 bits
-// Released'ed state: [..|X|X|0] -> At least one bit is set in higher 63 bits
-static constexpr int kMaxNumberOfClients = 64;
-static constexpr uint64_t kFirstClientBitMask = 1ULL;
-static constexpr uint64_t kConsumerStateMask = ~kFirstClientBitMask;
+//  MSB                        LSB
+//   |                          |
+//   v                          v
+// [C31|...|C1|C0|C31| ... |C1|C0]
 
-static inline void ModifyBufferState(std::atomic<uint64_t>* buffer_state,
-                                     uint64_t clear_mask, uint64_t set_mask) {
-  uint64_t old_state;
-  uint64_t new_state;
-  do {
-    old_state = buffer_state->load(std::memory_order_acquire);
-    new_state = (old_state & ~clear_mask) | set_mask;
-  } while (!buffer_state->compare_exchange_weak(old_state, new_state));
+// Maximum number of clients a buffer can have.
+static constexpr int kMaxNumberOfClients = 32;
+
+// Definition of bit masks.
+//  MSB                            LSB
+//   | kHighBitsMask | kLowbitsMask |
+//   v               v              v
+// [b63|   ...   |b32|b31|   ...  |b0]
+
+// The location of lower 32 bits in the 64-bit buffer state.
+static constexpr uint64_t kLowbitsMask = (1ULL << kMaxNumberOfClients) - 1ULL;
+
+// The location of higher 32 bits in the 64-bit buffer state.
+static constexpr uint64_t kHighBitsMask = ~kLowbitsMask;
+
+// The client bit mask of the first client.
+static constexpr uint64_t kFirstClientBitMask =
+    (1ULL << kMaxNumberOfClients) + 1ULL;
+
+// Returns true if any of the client is in gained state.
+static inline bool AnyClientGained(uint64_t state) {
+  uint64_t high_bits = state >> kMaxNumberOfClients;
+  uint64_t low_bits = state & kLowbitsMask;
+  return high_bits == low_bits && low_bits != 0ULL;
 }
 
-static inline bool IsBufferGained(uint64_t state) { return state == 0; }
-
-static inline bool IsBufferPosted(uint64_t state,
-                                  uint64_t consumer_bit = kConsumerStateMask) {
-  return (state & kFirstClientBitMask) && !(state & consumer_bit);
+// Returns true if the input client is in gained state.
+static inline bool IsClientGained(uint64_t state, uint64_t client_bit_mask) {
+  return state == client_bit_mask;
 }
 
-static inline bool IsBufferAcquired(uint64_t state) {
-  return (state & kFirstClientBitMask) && (state & kConsumerStateMask);
+// Returns true if any of the client is in posted state.
+static inline bool AnyClientPosted(uint64_t state) {
+  uint64_t high_bits = state >> kMaxNumberOfClients;
+  uint64_t low_bits = state & kLowbitsMask;
+  uint64_t posted_or_acquired = high_bits ^ low_bits;
+  return posted_or_acquired & high_bits;
 }
 
-static inline bool IsBufferReleased(uint64_t state) {
-  return !(state & kFirstClientBitMask) && (state & kConsumerStateMask);
+// Returns true if the input client is in posted state.
+static inline bool IsClientPosted(uint64_t state, uint64_t client_bit_mask) {
+  uint64_t client_bits = state & client_bit_mask;
+  if (client_bits == 0ULL)
+    return false;
+  uint64_t low_bits = client_bits & kLowbitsMask;
+  return low_bits == 0ULL;
 }
 
-static inline uint64_t FindNextAvailableClientStateMask(uint64_t bits) {
-  return ~bits - (~bits & (~bits - 1));
+// Return true if any of the client is in acquired state.
+static inline bool AnyClientAcquired(uint64_t state) {
+  uint64_t high_bits = state >> kMaxNumberOfClients;
+  uint64_t low_bits = state & kLowbitsMask;
+  uint64_t posted_or_acquired = high_bits ^ low_bits;
+  return posted_or_acquired & low_bits;
 }
 
-static inline uint64_t FindFirstClearedBit() {
-  return FindNextAvailableClientStateMask(kFirstClientBitMask);
+// Return true if the input client is in acquired state.
+static inline bool IsClientAcquired(uint64_t state, uint64_t client_bit_mask) {
+  uint64_t client_bits = state & client_bit_mask;
+  if (client_bits == 0ULL)
+    return false;
+  uint64_t high_bits = client_bits & kHighBitsMask;
+  return high_bits == 0ULL;
+}
+
+// Returns true if all clients are in released state.
+static inline bool IsBufferReleased(uint64_t state) { return state == 0ULL; }
+
+// Returns true if the input client is in released state.
+static inline bool IsClientReleased(uint64_t state, uint64_t client_bit_mask) {
+  return (state & client_bit_mask) == 0ULL;
+}
+
+// Returns the next available buffer client's client_state_masks.
+// @params union_bits. Union of all existing clients' client_state_masks.
+static inline uint64_t FindNextAvailableClientStateMask(uint64_t union_bits) {
+  uint64_t low_union = union_bits & kLowbitsMask;
+  if (low_union == kLowbitsMask)
+    return 0ULL;
+  uint64_t incremented = low_union + 1ULL;
+  uint64_t difference = incremented ^ low_union;
+  uint64_t new_low_bit = (difference + 1ULL) >> 1;
+  return new_low_bit + (new_low_bit << kMaxNumberOfClients);
 }
 
 struct __attribute__((packed, aligned(8))) MetadataHeader {
@@ -74,9 +126,21 @@ struct __attribute__((packed, aligned(8))) MetadataHeader {
   // part is subject for future updates, it's not stable cross Android version,
   // so don't have it visible from outside of the Android platform (include Apps
   // and vendor HAL).
+
+  // Every client takes up one bit from the higher 32 bits and one bit from the
+  // lower 32 bits in buffer_state.
   std::atomic<uint64_t> buffer_state;
+
+  // Every client takes up one bit in fence_state. Only the lower 32 bits are
+  // valid. The upper 32 bits are there for easier manipulation, but the value
+  // should be ignored.
   std::atomic<uint64_t> fence_state;
+
+  // Every client takes up one bit from the higher 32 bits and one bit from the
+  // lower 32 bits in active_clients_bit_mask.
   std::atomic<uint64_t> active_clients_bit_mask;
+
+  // The index of the buffer queue where the buffer belongs to.
   uint64_t queue_index;
 
   // Public data format, which should be updated with caution. See more details
