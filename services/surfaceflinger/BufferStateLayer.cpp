@@ -323,7 +323,7 @@ void BufferStateLayer::setFilteringEnabled(bool enabled) {
                                        mCurrentTransform, enabled);
 }
 
-status_t BufferStateLayer::bindTextureImage() const {
+status_t BufferStateLayer::bindTextureImage() {
     const State& s(getDrawingState());
     auto& engine(mFlinger->getRenderEngine());
 
@@ -334,11 +334,8 @@ status_t BufferStateLayer::bindTextureImage() const {
 
     engine.checkErrors();
 
-    if (!mTextureImage) {
-        ALOGE("no currently-bound texture");
-        engine.bindExternalTextureImage(mTextureName, *engine.createImage());
-        return NO_INIT;
-    }
+    // TODO(marissaw): once buffers are cached, don't create a new image everytime
+    mTextureImage = engine.createImage();
 
     bool created =
             mTextureImage->setNativeWindowBuffer(s.buffer->getNativeBuffer(),
@@ -384,16 +381,6 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     if (!s.buffer) {
         return NO_ERROR;
     }
-
-    auto& engine(mFlinger->getRenderEngine());
-    if (!engine.isCurrent()) {
-        ALOGE("RenderEngine is not current");
-        return INVALID_OPERATION;
-    }
-    engine.checkErrors();
-
-    // TODO(marissaw): once buffers are cached, don't create a new image everytime
-    mTextureImage = engine.createImage();
 
     // Reject if the layer is invalid
     uint32_t bufferWidth = s.buffer->width;

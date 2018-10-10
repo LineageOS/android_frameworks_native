@@ -476,8 +476,6 @@ struct BaseLayerProperties {
 
         EXPECT_CALL(*test->mRenderEngine, isCurrent()).WillRepeatedly(Return(true));
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
-        EXPECT_CALL(*test->mRenderEngine, createImage())
-                .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, Fence::NO_FENCE);
         Mock::VerifyAndClear(test->mRenderEngine);
@@ -574,6 +572,9 @@ struct BaseLayerProperties {
                                              LayerProperties::COLOR[2], LayerProperties::COLOR[3])))
                 .Times(1);
 
+        EXPECT_CALL(*test->mRenderEngine, createImage())
+                .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
+        EXPECT_CALL(*test->mReImage, setNativeWindowBuffer(_, _)).WillOnce(Return(true));
         EXPECT_CALL(*test->mRenderEngine, bindExternalTextureImage(DEFAULT_TEXTURE_ID, _)).Times(1);
         EXPECT_CALL(*test->mRenderEngine, setupLayerTexturing(_)).Times(1);
         EXPECT_CALL(*test->mRenderEngine, setSourceDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
@@ -669,6 +670,9 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
     static constexpr uint32_t LAYER_FLAGS = ISurfaceComposerClient::eSecure;
 
     static void setupInsecureREBufferCompositionCommonCallExpectations(CompositionTest* test) {
+        EXPECT_CALL(*test->mRenderEngine, createImage())
+                .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
+        EXPECT_CALL(*test->mReImage, setNativeWindowBuffer(_, _)).WillOnce(Return(true));
         EXPECT_CALL(*test->mRenderEngine, bindExternalTextureImage(DEFAULT_TEXTURE_ID, _)).Times(1);
         EXPECT_CALL(*test->mRenderEngine, setupLayerBlackedOut()).Times(1);
 
