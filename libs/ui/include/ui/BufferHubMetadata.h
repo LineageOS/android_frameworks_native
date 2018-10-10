@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_DVR_BUFFER_HUB_METADATA_H_
-#define ANDROID_DVR_BUFFER_HUB_METADATA_H_
+#ifndef ANDROID_BUFFER_HUB_METADATA_H_
+#define ANDROID_BUFFER_HUB_METADATA_H_
 
 // We would eliminate the clang warnings introduced by libdpx.
 // TODO(b/112338294): Remove those once BufferHub moved to use Binder
@@ -41,70 +41,66 @@ namespace android {
 namespace dvr {
 
 class BufferHubMetadata {
- public:
-  // Creates a new BufferHubMetadata backed by an ashmem region.
-  //
-  // @param user_metadata_size Size in bytes of the user defined metadata. The
-  //        entire metadata shared memory region to be allocated is the size of
-  //        canonical BufferHubDefs::MetadataHeader plus user_metadata_size.
-  static BufferHubMetadata Create(size_t user_metadata_size);
+public:
+    // Creates a new BufferHubMetadata backed by an ashmem region.
+    //
+    // @param userMetadataSize Size in bytes of the user defined metadata. The entire metadata
+    //        shared memory region to be allocated is the size of canonical
+    //        BufferHubDefs::MetadataHeader plus userMetadataSize.
+    static BufferHubMetadata Create(size_t userMetadataSize);
 
-  // Imports an existing BufferHubMetadata from an ashmem FD.
-  //
-  // TODO(b/112338294): Refactor BufferHub to use Binder as its internal IPC
-  // backend instead of UDS.
-  //
-  // @param ashmem_handle Ashmem file handle representing an ashmem region.
-  static BufferHubMetadata Import(pdx::LocalHandle ashmem_handle);
+    // Imports an existing BufferHubMetadata from an ashmem FD.
+    //
+    // TODO(b/112338294): Refactor BufferHub to use Binder as its internal IPC backend instead of
+    // UDS.
+    //
+    // @param ashmemHandle Ashmem file handle representing an ashmem region.
+    static BufferHubMetadata Import(pdx::LocalHandle ashmemHandle);
 
-  BufferHubMetadata() = default;
+    BufferHubMetadata() = default;
 
-  BufferHubMetadata(BufferHubMetadata&& other) { *this = std::move(other); }
+    BufferHubMetadata(BufferHubMetadata&& other) { *this = std::move(other); }
 
-  ~BufferHubMetadata();
+    ~BufferHubMetadata();
 
-  BufferHubMetadata& operator=(BufferHubMetadata&& other) {
-    if (this != &other) {
-      user_metadata_size_ = other.user_metadata_size_;
-      other.user_metadata_size_ = 0;
+    BufferHubMetadata& operator=(BufferHubMetadata&& other) {
+        if (this != &other) {
+            mUserMetadataSize = other.mUserMetadataSize;
+            other.mUserMetadataSize = 0;
 
-      ashmem_handle_ = std::move(other.ashmem_handle_);
+            mAshmemHandle = std::move(other.mAshmemHandle);
 
-      // The old raw metadata_header_ pointer must be cleared, otherwise the
-      // destructor will automatically mummap() the shared memory.
-      metadata_header_ = other.metadata_header_;
-      other.metadata_header_ = nullptr;
+            // The old raw mMetadataHeader pointer must be cleared, otherwise the destructor will
+            // automatically mummap() the shared memory.
+            mMetadataHeader = other.mMetadataHeader;
+            other.mMetadataHeader = nullptr;
+        }
+        return *this;
     }
-    return *this;
-  }
 
-  // Returns true if the metadata is valid, i.e. the metadata has a valid ashmem
-  // fd and the ashmem has been mapped into virtual address space.
-  bool IsValid() const {
-    return ashmem_handle_.IsValid() && metadata_header_ != nullptr;
-  }
+    // Returns true if the metadata is valid, i.e. the metadata has a valid ashmem fd and the ashmem
+    // has been mapped into virtual address space.
+    bool IsValid() const { return mAshmemHandle.IsValid() && mMetadataHeader != nullptr; }
 
-  size_t user_metadata_size() const { return user_metadata_size_; }
-  size_t metadata_size() const {
-    return user_metadata_size_ + BufferHubDefs::kMetadataHeaderSize;
-  }
+    size_t user_metadata_size() const { return mUserMetadataSize; }
+    size_t metadata_size() const { return mUserMetadataSize + BufferHubDefs::kMetadataHeaderSize; }
 
-  const pdx::LocalHandle& ashmem_handle() const { return ashmem_handle_; }
-  BufferHubDefs::MetadataHeader* metadata_header() { return metadata_header_; }
+    const pdx::LocalHandle& ashmem_handle() const { return mAshmemHandle; }
+    BufferHubDefs::MetadataHeader* metadata_header() { return mMetadataHeader; }
 
- private:
-  BufferHubMetadata(size_t user_metadata_size, pdx::LocalHandle ashmem_handle,
-                    BufferHubDefs::MetadataHeader* metadata_header);
+private:
+    BufferHubMetadata(size_t userMetadataSize, pdx::LocalHandle ashmemHandle,
+                      BufferHubDefs::MetadataHeader* metadataHeader);
 
-  BufferHubMetadata(const BufferHubMetadata&) = delete;
-  void operator=(const BufferHubMetadata&) = delete;
+    BufferHubMetadata(const BufferHubMetadata&) = delete;
+    void operator=(const BufferHubMetadata&) = delete;
 
-  size_t user_metadata_size_ = 0;
-  pdx::LocalHandle ashmem_handle_;
-  BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
+    size_t mUserMetadataSize = 0;
+    pdx::LocalHandle mAshmemHandle;
+    BufferHubDefs::MetadataHeader* mMetadataHeader = nullptr;
 };
 
-}  // namespace dvr
-}  // namespace android
+} // namespace dvr
+} // namespace android
 
-#endif  // ANDROID_DVR_BUFFER_HUB_METADATA_H_
+#endif // ANDROID_BUFFER_HUB_METADATA_H_

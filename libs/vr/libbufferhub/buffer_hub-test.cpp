@@ -19,7 +19,7 @@
     return result;                            \
   })()
 
-using android::DetachedBuffer;
+using android::BufferHubBuffer;
 using android::GraphicBuffer;
 using android::sp;
 using android::dvr::ConsumerBuffer;
@@ -784,8 +784,9 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   // is gone.
   EXPECT_EQ(s3.error(), EPIPE);
 
-  // Detached buffer handle can be use to construct a new DetachedBuffer object.
-  auto d = DetachedBuffer::Import(std::move(handle));
+  // Detached buffer handle can be use to construct a new BufferHubBuffer
+  // object.
+  auto d = BufferHubBuffer::Import(std::move(handle));
   EXPECT_FALSE(handle.valid());
   EXPECT_TRUE(d->IsConnected());
   EXPECT_TRUE(d->IsValid());
@@ -793,17 +794,17 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   EXPECT_EQ(d->id(), p_id);
 }
 
-TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
+TEST_F(LibBufferHubTest, TestCreateBufferHubBufferFails) {
   // Buffer Creation will fail: BLOB format requires height to be 1.
-  auto b1 = DetachedBuffer::Create(kWidth, /*height=2*/ 2, kLayerCount,
-                                   /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage,
-                                   kUserMetadataSize);
+  auto b1 = BufferHubBuffer::Create(kWidth, /*height=2*/ 2, kLayerCount,
+                                    /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage,
+                                    kUserMetadataSize);
 
   EXPECT_FALSE(b1->IsConnected());
   EXPECT_FALSE(b1->IsValid());
 
   // Buffer Creation will fail: user metadata size too large.
-  auto b2 = DetachedBuffer::Create(
+  auto b2 = BufferHubBuffer::Create(
       kWidth, kHeight, kLayerCount, kFormat, kUsage,
       /*user_metadata_size=*/std::numeric_limits<size_t>::max());
 
@@ -811,7 +812,7 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
   EXPECT_FALSE(b2->IsValid());
 
   // Buffer Creation will fail: user metadata size too large.
-  auto b3 = DetachedBuffer::Create(
+  auto b3 = BufferHubBuffer::Create(
       kWidth, kHeight, kLayerCount, kFormat, kUsage,
       /*user_metadata_size=*/std::numeric_limits<size_t>::max() -
           kMetadataHeaderSize);
@@ -820,20 +821,20 @@ TEST_F(LibBufferHubTest, TestCreateDetachedBufferFails) {
   EXPECT_FALSE(b3->IsValid());
 }
 
-TEST_F(LibBufferHubTest, TestCreateDetachedBuffer) {
-  auto b1 = DetachedBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                   kUsage, kUserMetadataSize);
+TEST_F(LibBufferHubTest, TestCreateBufferHubBuffer) {
+  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                    kUsage, kUserMetadataSize);
   EXPECT_TRUE(b1->IsConnected());
   EXPECT_TRUE(b1->IsValid());
   EXPECT_NE(b1->id(), 0);
 }
 
-TEST_F(LibBufferHubTest, TestPromoteDetachedBuffer) {
+TEST_F(LibBufferHubTest, TestPromoteBufferHubBuffer) {
   // TODO(b/112338294) rewrite test after migration
   return;
 
-  auto b1 = DetachedBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                   kUsage, kUserMetadataSize);
+  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                    kUsage, kUserMetadataSize);
   int b1_id = b1->id();
   EXPECT_TRUE(b1->IsValid());
 
@@ -879,8 +880,9 @@ TEST_F(LibBufferHubTest, TestDetachThenPromote) {
   LocalChannelHandle h1 = status_or_handle.take();
   EXPECT_TRUE(h1.valid());
 
-  // Detached buffer handle can be use to construct a new DetachedBuffer object.
-  auto b1 = DetachedBuffer::Import(std::move(h1));
+  // Detached buffer handle can be use to construct a new BufferHubBuffer
+  // object.
+  auto b1 = BufferHubBuffer::Import(std::move(h1));
   EXPECT_FALSE(h1.valid());
   EXPECT_TRUE(b1->IsValid());
   int b1_id = b1->id();
@@ -907,9 +909,9 @@ TEST_F(LibBufferHubTest, TestDetachThenPromote) {
   EXPECT_TRUE(IsBufferGained(p2->buffer_state()));
 }
 
-TEST_F(LibBufferHubTest, TestDuplicateDetachedBuffer) {
-  auto b1 = DetachedBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                   kUsage, kUserMetadataSize);
+TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
+  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                    kUsage, kUserMetadataSize);
   int b1_id = b1->id();
   EXPECT_TRUE(b1->IsValid());
   EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
@@ -925,7 +927,7 @@ TEST_F(LibBufferHubTest, TestDuplicateDetachedBuffer) {
   LocalChannelHandle h2 = status_or_handle.take();
   EXPECT_TRUE(h2.valid());
 
-  std::unique_ptr<DetachedBuffer> b2 = DetachedBuffer::Import(std::move(h2));
+  std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(h2));
   EXPECT_FALSE(h2.valid());
   ASSERT_TRUE(b2 != nullptr);
   EXPECT_TRUE(b2->IsValid());

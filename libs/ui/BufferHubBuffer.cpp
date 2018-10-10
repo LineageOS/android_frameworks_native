@@ -45,6 +45,8 @@ using android::dvr::BufferHubMetadata;
 using android::dvr::BufferTraits;
 using android::dvr::DetachedBufferRPC;
 using android::dvr::NativeHandleWrapper;
+
+// TODO(b/112338294): Remove PDX dependencies from libui.
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
@@ -59,13 +61,12 @@ namespace {
 // to use Binder.
 static constexpr char kBufferHubClientPath[] = "system/buffer_hub/client";
 
-}  // namespace
+} // namespace
 
-BufferHubClient::BufferHubClient()
-    : Client(ClientChannelFactory::Create(kBufferHubClientPath)) {}
+BufferHubClient::BufferHubClient() : Client(ClientChannelFactory::Create(kBufferHubClientPath)) {}
 
-BufferHubClient::BufferHubClient(LocalChannelHandle channel_handle)
-    : Client(ClientChannel::Create(std::move(channel_handle))) {}
+BufferHubClient::BufferHubClient(LocalChannelHandle mChannelHandle)
+      : Client(ClientChannel::Create(std::move(mChannelHandle))) {}
 
 BufferHubClient::~BufferHubClient() {}
 
@@ -74,142 +75,137 @@ bool BufferHubClient::IsValid() const {
 }
 
 LocalChannelHandle BufferHubClient::TakeChannelHandle() {
-  if (IsConnected()) {
-    return std::move(GetChannelHandle());
-  } else {
+    if (IsConnected()) {
+        return std::move(GetChannelHandle());
+    } else {
+        return {};
+    }
+}
+
+BufferHubBuffer::BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layerCount,
+                                 uint32_t format, uint64_t usage, size_t mUserMetadataSize) {
+    ATRACE_CALL();
+    ALOGD("BufferHubBuffer::BufferHubBuffer: width=%u height=%u layerCount=%u, format=%u "
+          "usage=%" PRIx64 " mUserMetadataSize=%zu",
+          width, height, layerCount, format, usage, mUserMetadataSize);
+
+    auto status =
+            mClient.InvokeRemoteMethod<DetachedBufferRPC::Create>(width, height, layerCount, format,
+                                                                  usage, mUserMetadataSize);
+    if (!status) {
+        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to create detached buffer: %s",
+              status.GetErrorMessage().c_str());
+        mClient.Close(-status.error());
+    }
+
+    const int ret = ImportGraphicBuffer();
+    if (ret < 0) {
+        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to import buffer: %s", strerror(-ret));
+        mClient.Close(ret);
+    }
+}
+
+BufferHubBuffer::BufferHubBuffer(LocalChannelHandle mChannelHandle)
+      : mClient(std::move(mChannelHandle)) {
+    const int ret = ImportGraphicBuffer();
+    if (ret < 0) {
+        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to import buffer: %s", strerror(-ret));
+        mClient.Close(ret);
+    }
+}
+
+int BufferHubBuffer::ImportGraphicBuffer() {
+    ATRACE_CALL();
+
+    auto status = mClient.InvokeRemoteMethod<DetachedBufferRPC::Import>();
+    if (!status) {
+        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to import GraphicBuffer: %s",
+              status.GetErrorMessage().c_str());
+        return -status.error();
+    }
+
+    BufferTraits<LocalHandle> bufferTraits = status.take();
+    if (bufferTraits.id() < 0) {
+        ALOGE("BufferHubBuffer::BufferHubBuffer: Received an invalid id!");
+        return -EIO;
+    }
+
+    // Stash the buffer id to replace the value in mId.
+    const int bufferId = bufferTraits.id();
+
+    // Import the metadata.
+    mMetadata = BufferHubMetadata::Import(bufferTraits.take_metadata_handle());
+
+    if (!mMetadata.IsValid()) {
+        ALOGE("BufferHubBuffer::ImportGraphicBuffer: invalid metadata.");
+        return -ENOMEM;
+    }
+
+    if (mMetadata.metadata_size() != bufferTraits.metadata_size()) {
+        ALOGE("BufferHubBuffer::ImportGraphicBuffer: metadata buffer too small: "
+              "%zu, expected: %" PRIu64 ".",
+              mMetadata.metadata_size(), bufferTraits.metadata_size());
+        return -ENOMEM;
+    }
+
+    size_t metadataSize = static_cast<size_t>(bufferTraits.metadata_size());
+    if (metadataSize < dvr::BufferHubDefs::kMetadataHeaderSize) {
+        ALOGE("BufferHubBuffer::ImportGraphicBuffer: metadata too small: %zu", metadataSize);
+        return -EINVAL;
+    }
+
+    // Import the buffer: We only need to hold on the native_handle_t here so that
+    // GraphicBuffer instance can be created in future.
+    mBufferHandle = bufferTraits.take_buffer_handle();
+
+    // If all imports succeed, replace the previous buffer and id.
+    mId = bufferId;
+    mBfferStateBit = bufferTraits.buffer_state_bit();
+
+    // TODO(b/112012161) Set up shared fences.
+    ALOGD("BufferHubBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64 ".", id(),
+          mMetadata.metadata_header()->buffer_state.load(std::memory_order_acquire));
+    return 0;
+}
+
+int BufferHubBuffer::Poll(int timeoutMs) {
+    ATRACE_CALL();
+
+    pollfd p = {mClient.event_fd(), POLLIN, 0};
+    return poll(&p, 1, timeoutMs);
+}
+
+Status<LocalChannelHandle> BufferHubBuffer::Promote() {
+    ATRACE_CALL();
+
+    // TODO(b/112338294) remove after migrate producer buffer to binder
+    ALOGW("BufferHubBuffer::Promote: not supported operation during migration");
     return {};
-  }
+
+    ALOGD("BufferHubBuffer::Promote: id=%d.", mId);
+
+    auto statusOrHandle = mClient.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
+    if (statusOrHandle.ok()) {
+        // Invalidate the buffer.
+        mBufferHandle = {};
+    } else {
+        ALOGE("BufferHubBuffer::Promote: Failed to promote buffer (id=%d): %s.", mId,
+              statusOrHandle.GetErrorMessage().c_str());
+    }
+    return statusOrHandle;
 }
 
-DetachedBuffer::DetachedBuffer(uint32_t width, uint32_t height,
-                               uint32_t layer_count, uint32_t format,
-                               uint64_t usage, size_t user_metadata_size) {
-  ATRACE_NAME("DetachedBuffer::DetachedBuffer");
-  ALOGD("DetachedBuffer::DetachedBuffer: width=%u height=%u layer_count=%u, format=%u "
-        "usage=%" PRIx64 " user_metadata_size=%zu",
-        width, height, layer_count, format, usage, user_metadata_size);
+Status<LocalChannelHandle> BufferHubBuffer::Duplicate() {
+    ATRACE_CALL();
+    ALOGD("BufferHubBuffer::Duplicate: id=%d.", mId);
 
-  auto status = client_.InvokeRemoteMethod<DetachedBufferRPC::Create>(
-      width, height, layer_count, format, usage, user_metadata_size);
-  if (!status) {
-    ALOGE(
-        "DetachedBuffer::DetachedBuffer: Failed to create detached buffer: %s",
-        status.GetErrorMessage().c_str());
-    client_.Close(-status.error());
-  }
+    auto statusOrHandle = mClient.InvokeRemoteMethod<DetachedBufferRPC::Duplicate>();
 
-  const int ret = ImportGraphicBuffer();
-  if (ret < 0) {
-    ALOGE("DetachedBuffer::DetachedBuffer: Failed to import buffer: %s",
-          strerror(-ret));
-    client_.Close(ret);
-  }
+    if (!statusOrHandle.ok()) {
+        ALOGE("BufferHubBuffer::Duplicate: Failed to duplicate buffer (id=%d): %s.", mId,
+              statusOrHandle.GetErrorMessage().c_str());
+    }
+    return statusOrHandle;
 }
 
-DetachedBuffer::DetachedBuffer(LocalChannelHandle channel_handle)
-    : client_(std::move(channel_handle)) {
-  const int ret = ImportGraphicBuffer();
-  if (ret < 0) {
-    ALOGE("DetachedBuffer::DetachedBuffer: Failed to import buffer: %s",
-          strerror(-ret));
-    client_.Close(ret);
-  }
-}
-
-int DetachedBuffer::ImportGraphicBuffer() {
-  ATRACE_NAME("DetachedBuffer::ImportGraphicBuffer");
-
-  auto status = client_.InvokeRemoteMethod<DetachedBufferRPC::Import>();
-  if (!status) {
-    ALOGE("DetachedBuffer::DetachedBuffer: Failed to import GraphicBuffer: %s",
-          status.GetErrorMessage().c_str());
-    return -status.error();
-  }
-
-  BufferTraits<LocalHandle> buffer_traits = status.take();
-  if (buffer_traits.id() < 0) {
-    ALOGE("DetachedBuffer::DetachedBuffer: Received an invalid id!");
-    return -EIO;
-  }
-
-  // Stash the buffer id to replace the value in id_.
-  const int buffer_id = buffer_traits.id();
-
-  // Import the metadata.
-  metadata_ = BufferHubMetadata::Import(buffer_traits.take_metadata_handle());
-
-  if (!metadata_.IsValid()) {
-    ALOGE("DetachedBuffer::ImportGraphicBuffer: invalid metadata.");
-    return -ENOMEM;
-  }
-
-  if (metadata_.metadata_size() != buffer_traits.metadata_size()) {
-    ALOGE(
-        "DetachedBuffer::ImportGraphicBuffer: metadata buffer too small: "
-        "%zu, expected: %" PRIu64 ".",
-        metadata_.metadata_size(), buffer_traits.metadata_size());
-    return -ENOMEM;
-  }
-
-  size_t metadata_buf_size = static_cast<size_t>(buffer_traits.metadata_size());
-  if (metadata_buf_size < dvr::BufferHubDefs::kMetadataHeaderSize) {
-    ALOGE("DetachedBuffer::ImportGraphicBuffer: metadata too small: %zu",
-          metadata_buf_size);
-    return -EINVAL;
-  }
-
-  // Import the buffer: We only need to hold on the native_handle_t here so that
-  // GraphicBuffer instance can be created in future.
-  buffer_handle_ = buffer_traits.take_buffer_handle();
-
-  // If all imports succeed, replace the previous buffer and id.
-  id_ = buffer_id;
-  buffer_state_bit_ = buffer_traits.buffer_state_bit();
-
-  // TODO(b/112012161) Set up shared fences.
-  ALOGD("DetachedBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64 ".", id(),
-        metadata_.metadata_header()->buffer_state.load(std::memory_order_acquire));
-  return 0;
-}
-
-int DetachedBuffer::Poll(int timeout_ms) {
-  ATRACE_NAME("DetachedBuffer::Poll");
-  pollfd p = {client_.event_fd(), POLLIN, 0};
-  return poll(&p, 1, timeout_ms);
-}
-
-Status<LocalChannelHandle> DetachedBuffer::Promote() {
-  // TODO(b/112338294) remove after migrate producer buffer to binder
-  ALOGW("DetachedBuffer::Promote: not supported operation during migration");
-  return {};
-
-  ATRACE_NAME("DetachedBuffer::Promote");
-  ALOGD("DetachedBuffer::Promote: id=%d.", id_);
-
-  auto status_or_handle =
-      client_.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
-  if (status_or_handle.ok()) {
-    // Invalidate the buffer.
-    buffer_handle_ = {};
-  } else {
-    ALOGE("DetachedBuffer::Promote: Failed to promote buffer (id=%d): %s.", id_,
-          status_or_handle.GetErrorMessage().c_str());
-  }
-  return status_or_handle;
-}
-
-Status<LocalChannelHandle> DetachedBuffer::Duplicate() {
-  ATRACE_NAME("DetachedBuffer::Duplicate");
-  ALOGD("DetachedBuffer::Duplicate: id=%d.", id_);
-
-  auto status_or_handle =
-      client_.InvokeRemoteMethod<DetachedBufferRPC::Duplicate>();
-
-  if (!status_or_handle.ok()) {
-    ALOGE("DetachedBuffer::Duplicate: Failed to duplicate buffer (id=%d): %s.",
-          id_, status_or_handle.GetErrorMessage().c_str());
-  }
-  return status_or_handle;
-}
-
-}  // namespace android
+} // namespace android
