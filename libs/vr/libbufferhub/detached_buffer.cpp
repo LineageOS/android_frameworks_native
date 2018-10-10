@@ -16,8 +16,16 @@ using android::pdx::default_transport::ClientChannelFactory;
 namespace android {
 namespace dvr {
 
+namespace {
+
+// TODO(b/112338294): Remove this string literal after refactoring BufferHub
+// to use Binder.
+static constexpr char kBufferHubClientPath[] = "system/buffer_hub/client";
+
+}  // namespace
+
 BufferHubClient::BufferHubClient()
-    : Client(ClientChannelFactory::Create(BufferHubRPC::kClientPath)) {}
+    : Client(ClientChannelFactory::Create(kBufferHubClientPath)) {}
 
 BufferHubClient::BufferHubClient(LocalChannelHandle channel_handle)
     : Client(ClientChannel::Create(std::move(channel_handle))) {}
@@ -80,71 +88,53 @@ int DetachedBuffer::ImportGraphicBuffer() {
     return -status.error();
   }
 
-  BufferDescription<LocalHandle> buffer_desc = status.take();
-  if (buffer_desc.id() < 0) {
+  BufferTraits<LocalHandle> buffer_traits = status.take();
+  if (buffer_traits.id() < 0) {
     ALOGE("DetachedBuffer::DetachedBuffer: Received an invalid id!");
     return -EIO;
   }
 
   // Stash the buffer id to replace the value in id_.
-  const int buffer_id = buffer_desc.id();
-
-  // Import the buffer.
-  IonBuffer ion_buffer;
-  ALOGD_IF(TRACE, "DetachedBuffer::DetachedBuffer: id=%d.", buffer_id);
-
-  if (const int ret = buffer_desc.ImportBuffer(&ion_buffer)) {
-    ALOGE("Failed to import GraphicBuffer, error=%d", ret);
-    return ret;
-  }
+  const int buffer_id = buffer_traits.id();
 
   // Import the metadata.
-  IonBuffer metadata_buffer;
-  if (const int ret = buffer_desc.ImportMetadata(&metadata_buffer)) {
-    ALOGE("Failed to import metadata buffer, error=%d", ret);
-    return ret;
+  metadata_ = BufferHubMetadata::Import(buffer_traits.take_metadata_handle());
+
+  if (!metadata_.IsValid()) {
+    ALOGE("DetachedBuffer::ImportGraphicBuffer: invalid metadata.");
+    return -ENOMEM;
   }
-  size_t metadata_buf_size = metadata_buffer.width();
+
+  if (metadata_.metadata_size() != buffer_traits.metadata_size()) {
+    ALOGE(
+        "DetachedBuffer::ImportGraphicBuffer: metadata buffer too small: "
+        "%zu, expected: %" PRIu64 ".",
+        metadata_.metadata_size(), buffer_traits.metadata_size());
+    return -ENOMEM;
+  }
+
+  size_t metadata_buf_size = buffer_traits.metadata_size();
   if (metadata_buf_size < BufferHubDefs::kMetadataHeaderSize) {
-    ALOGE("DetachedBuffer::ImportGraphicBuffer: metadata buffer too small: %zu",
+    ALOGE("DetachedBuffer::ImportGraphicBuffer: metadata too small: %zu",
           metadata_buf_size);
     return -EINVAL;
   }
 
+  // Import the buffer: We only need to hold on the native_handle_t here so that
+  // GraphicBuffer instance can be created in future.
+  buffer_handle_ = buffer_traits.take_buffer_handle();
+
   // If all imports succeed, replace the previous buffer and id.
   id_ = buffer_id;
-  buffer_ = std::move(ion_buffer);
-  metadata_buffer_ = std::move(metadata_buffer);
-  user_metadata_size_ = metadata_buf_size - BufferHubDefs::kMetadataHeaderSize;
-
-  void* metadata_ptr = nullptr;
-  if (const int ret =
-          metadata_buffer_.Lock(BufferHubDefs::kMetadataUsage, /*x=*/0,
-                                /*y=*/0, metadata_buf_size,
-                                /*height=*/1, &metadata_ptr)) {
-    ALOGE("DetachedBuffer::ImportGraphicBuffer: Failed to lock metadata.");
-    return ret;
-  }
+  buffer_state_bit_ = buffer_traits.buffer_state_bit();
 
   // TODO(b/112012161) Set up shared fences.
-
-  // Note that here the buffer state is mapped from shared memory as an atomic
-  // object. The std::atomic's constructor will not be called so that the
-  // original value stored in the memory region can be preserved.
-  metadata_header_ = static_cast<BufferHubDefs::MetadataHeader*>(metadata_ptr);
-  if (user_metadata_size_) {
-    user_metadata_ptr_ = static_cast<void*>(metadata_header_ + 1);
-  } else {
-    user_metadata_ptr_ = nullptr;
-  }
-
-  id_ = buffer_desc.id();
-  buffer_state_bit_ = buffer_desc.buffer_state_bit();
-
   ALOGD_IF(TRACE,
            "DetachedBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64
            ".",
-           id(), metadata_header_->buffer_state.load());
+           id(),
+           metadata_.metadata_header()->buffer_state.load(
+               std::memory_order_acquire));
   return 0;
 }
 
@@ -166,7 +156,7 @@ Status<LocalChannelHandle> DetachedBuffer::Promote() {
       client_.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
   if (status_or_handle.ok()) {
     // Invalidate the buffer.
-    buffer_ = {};
+    buffer_handle_ = {};
   } else {
     ALOGE("DetachedBuffer::Promote: Failed to promote buffer (id=%d): %s.", id_,
           status_or_handle.GetErrorMessage().c_str());

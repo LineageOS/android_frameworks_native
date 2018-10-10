@@ -920,6 +920,7 @@ TEST_F(LibBufferHubTest, TestDuplicateDetachedBuffer) {
                                    kUsage, kUserMetadataSize);
   int b1_id = b1->id();
   EXPECT_TRUE(b1->IsValid());
+  EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
 
   auto status_or_handle = b1->Duplicate();
   EXPECT_TRUE(status_or_handle);
@@ -935,6 +936,9 @@ TEST_F(LibBufferHubTest, TestDuplicateDetachedBuffer) {
   std::unique_ptr<DetachedBuffer> b2 = DetachedBuffer::Import(std::move(h2));
   EXPECT_FALSE(h2.valid());
   ASSERT_TRUE(b2 != nullptr);
+  EXPECT_TRUE(b2->IsValid());
+  EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
+
   int b2_id = b2->id();
 
   // These two buffer instances are based on the same physical buffer under the

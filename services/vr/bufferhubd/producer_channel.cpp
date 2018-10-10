@@ -409,9 +409,9 @@ Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
     return ErrorStatus(-ret);
   };
 
-  std::unique_ptr<BufferChannel> channel = BufferChannel::Create(
-      service(), buffer_id(), channel_id, std::move(buffer_),
-      std::move(metadata_buffer_), user_metadata_size_);
+  std::unique_ptr<BufferChannel> channel =
+      BufferChannel::Create(service(), buffer_id(), channel_id,
+                            std::move(buffer_), user_metadata_size_);
   if (!channel) {
     ALOGE("ProducerChannel::OnProducerDetach: Invalid buffer.");
     return ErrorStatus(EINVAL);

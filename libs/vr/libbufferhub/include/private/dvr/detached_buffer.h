@@ -49,19 +49,28 @@ class DetachedBuffer {
   // same buffer in bufferhubd share the same buffer id.
   int id() const { return id_; }
 
+  const native_handle_t* DuplicateHandle() {
+    return buffer_handle_.DuplicateHandle();
+  }
+
   // Returns the current value of MetadataHeader::buffer_state.
-  uint64_t buffer_state() { return metadata_header_->buffer_state.load(); }
+  uint64_t buffer_state() {
+    return metadata_.metadata_header()->buffer_state.load(
+        std::memory_order_acquire);
+  }
 
   // A state mask which is unique to a buffer hub client among all its siblings
   // sharing the same concrete graphic buffer.
   uint64_t buffer_state_bit() const { return buffer_state_bit_; }
 
+  size_t user_metadata_size() const { return metadata_.user_metadata_size(); }
+
   // Returns true if the buffer holds an open PDX channels towards bufferhubd.
   bool IsConnected() const { return client_.IsValid(); }
 
-  // Returns true if the buffer holds an valid gralloc buffer handle that's
+  // Returns true if the buffer holds an valid native buffer handle that's
   // availble for the client to read from and/or write into.
-  bool IsValid() const { return buffer_.IsValid(); }
+  bool IsValid() const { return buffer_handle_.IsValid(); }
 
   // Returns the event mask for all the events that are pending on this buffer
   // (see sys/poll.h for all possible bits).
@@ -81,7 +90,8 @@ class DetachedBuffer {
   // return. Further IPCs towards this channel will return error.
   pdx::Status<pdx::LocalChannelHandle> Promote();
 
-  // Creates a DetachedBuffer from an existing one.
+  // Creates a DetachedBuffer client from an existing one. The new client will
+  // share the same underlying gralloc buffer and ashmem region for metadata.
   pdx::Status<pdx::LocalChannelHandle> Duplicate();
 
  private:
@@ -96,14 +106,12 @@ class DetachedBuffer {
   int id_;
   uint64_t buffer_state_bit_;
 
-  // The concrete Ion buffers.
-  IonBuffer buffer_;
-  IonBuffer metadata_buffer_;
+  // Wrapps the gralloc buffer handle of this buffer.
+  NativeHandleWrapper<pdx::LocalHandle> buffer_handle_;
 
-  // buffer metadata.
-  size_t user_metadata_size_ = 0;
-  BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
-  void* user_metadata_ptr_ = nullptr;
+  // An ashmem-based metadata object. The same shared memory are mapped to the
+  // bufferhubd daemon and all buffer clients.
+  BufferHubMetadata metadata_;
 
   // PDX backend.
   BufferHubClient client_;
