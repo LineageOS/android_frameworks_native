@@ -36,6 +36,7 @@ public:
     MOCK_METHOD1(queueBuffer_DEPRECATED, int(struct ANativeWindowBuffer*));
     MOCK_CONST_METHOD2(query, int(int, int*));
     MOCK_METHOD1(perform, int(int));
+    MOCK_METHOD2(perform, int(int, int));
     MOCK_METHOD1(cancelBuffer_DEPRECATED, int(struct ANativeWindowBuffer*));
     MOCK_METHOD2(dequeueBuffer, int(struct ANativeWindowBuffer**, int*));
     MOCK_METHOD2(queueBuffer, int(struct ANativeWindowBuffer*, int));

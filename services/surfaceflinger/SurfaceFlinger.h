@@ -716,10 +716,10 @@ private:
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void doTracing(const char* where);
     void logLayerStats();
-    void doDisplayComposition(const sp<const DisplayDevice>& display, const Region& dirtyRegion);
+    void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
     // This fails if using GL and the surface has been destroyed.
-    bool doComposeSurfaces(const sp<const DisplayDevice>& display);
+    bool doComposeSurfaces(const sp<DisplayDevice>& display);
 
     void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();
