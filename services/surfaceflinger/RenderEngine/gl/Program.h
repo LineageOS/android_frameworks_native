@@ -39,7 +39,7 @@ public:
     enum { position = 0, texCoords = 1 };
 
     Program(const ProgramCache::Key& needs, const char* vertex, const char* fragment);
-    ~Program();
+    ~Program() = default;
 
     /* whether this object is usable */
     bool isValid() const;
@@ -58,7 +58,6 @@ public:
 
 private:
     GLuint buildShader(const char* source, GLenum type);
-    String8& dumpShader(String8& result, GLenum type);
 
     // whether the initialization succeeded
     bool mInitialized;

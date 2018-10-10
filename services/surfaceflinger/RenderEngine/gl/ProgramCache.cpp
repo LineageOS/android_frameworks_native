@@ -20,6 +20,7 @@
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <log/log.h>
 #include <renderengine/private/Description.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
@@ -76,10 +77,6 @@ Formatter& dedent(Formatter& f) {
     return f;
 }
 
-ProgramCache::ProgramCache() {}
-
-ProgramCache::~ProgramCache() {}
-
 void ProgramCache::primeCache(bool useColorManagement) {
     uint32_t shaderCount = 0;
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK;
@@ -94,10 +91,8 @@ void ProgramCache::primeCache(bool useColorManagement) {
         if (tex != Key::TEXTURE_OFF && tex != Key::TEXTURE_EXT && tex != Key::TEXTURE_2D) {
             continue;
         }
-        Program* program = mCache.valueFor(shaderKey);
-        if (program == nullptr) {
-            program = generateProgram(shaderKey);
-            mCache.add(shaderKey, program);
+        if (mCache.count(shaderKey) == 0) {
+            mCache.emplace(shaderKey, generateProgram(shaderKey));
             shaderCount++;
         }
     }
@@ -113,10 +108,8 @@ void ProgramCache::primeCache(bool useColorManagement) {
             shaderKey.set(Key::OPACITY_MASK,
                           (i & 1) ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT);
             shaderKey.set(Key::ALPHA_MASK, (i & 2) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE);
-            Program* program = mCache.valueFor(shaderKey);
-            if (program == nullptr) {
-                program = generateProgram(shaderKey);
-                mCache.add(shaderKey, program);
+            if (mCache.count(shaderKey) == 0) {
+                mCache.emplace(shaderKey, generateProgram(shaderKey));
                 shaderCount++;
             }
         }
@@ -649,7 +642,7 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     return fs.getString();
 }
 
-Program* ProgramCache::generateProgram(const Key& needs) {
+std::unique_ptr<Program> ProgramCache::generateProgram(const Key& needs) {
     ATRACE_CALL();
 
     // vertex shader
@@ -658,8 +651,7 @@ Program* ProgramCache::generateProgram(const Key& needs) {
     // fragment shader
     String8 fs = generateFragmentShader(needs);
 
-    Program* program = new Program(needs, vs.string(), fs.string());
-    return program;
+    return std::make_unique<Program>(needs, vs.string(), fs.string());
 }
 
 void ProgramCache::useProgram(const Description& description) {
@@ -667,19 +659,19 @@ void ProgramCache::useProgram(const Description& description) {
     Key needs(computeKey(description));
 
     // look-up the program in the cache
-    Program* program = mCache.valueFor(needs);
-    if (program == nullptr) {
+    auto it = mCache.find(needs);
+    if (it == mCache.end()) {
         // we didn't find our program, so generate one...
-        nsecs_t time = -systemTime();
-        program = generateProgram(needs);
-        mCache.add(needs, program);
-        time += systemTime();
+        nsecs_t time = systemTime();
+        it = mCache.emplace(needs, generateProgram(needs)).first;
+        time = systemTime() - time;
 
         ALOGV(">>> generated new program: needs=%08X, time=%u ms (%zu programs)", needs.mKey,
               uint32_t(ns2ms(time)), mCache.size());
     }
 
     // here we have a suitable program for this description
+    std::unique_ptr<Program>& program = it->second;
     if (program->isValid()) {
         program->use();
         program->setUniforms(description);

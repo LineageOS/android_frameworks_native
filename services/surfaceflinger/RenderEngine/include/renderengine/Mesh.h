@@ -17,6 +17,8 @@
 #ifndef SF_RENDER_ENGINE_MESH_H
 #define SF_RENDER_ENGINE_MESH_H
 
+#include <vector>
+
 #include <stdint.h>
 
 namespace android {
@@ -31,7 +33,7 @@ public:
     };
 
     Mesh(Primitive primitive, size_t vertexCount, size_t vertexSize, size_t texCoordsSize = 0);
-    ~Mesh();
+    ~Mesh() = default;
 
     /*
      * VertexArray handles the stride automatically.
@@ -90,7 +92,8 @@ private:
 
     float* getPositions();
     float* getTexCoords();
-    float* mVertices;
+
+    std::vector<float> mVertices;
     size_t mVertexCount;
     size_t mVertexSize;
     size_t mTexCoordsSize;

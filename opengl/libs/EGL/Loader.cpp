@@ -529,7 +529,7 @@ static void* load_angle(const char* kind, egl_connection_t* cnx) {
         property_get("ro.product.model", model, "UNSET");
         ANGLEPreference app_preference = getAnglePref(android_getAngleAppPref());
 
-        so = load_angle_from_namespace("GLESv2", ns);
+        so = load_angle_from_namespace("feature_support", ns);
         if (so) {
             ALOGV("Temporarily loaded ANGLE's opt-in/out logic from namespace");
             fpANGLEUseForApplication fp =
@@ -538,6 +538,8 @@ static void* load_angle(const char* kind, egl_connection_t* cnx) {
                 use_angle = (fp)(app_name_str.c_str(), manufacturer, model, developer_option,
                                  app_preference);
                 ALOGV("Result of opt-in/out logic is %s", use_angle ? "true" : "false");
+            } else {
+                ALOGW("Cannot find ANGLEUseForApplication in library");
             }
 
             ALOGV("Close temporarily-loaded ANGLE opt-in/out logic");

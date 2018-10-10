@@ -74,8 +74,6 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
     }
 }
 
-Program::~Program() {}
-
 bool Program::isValid() const {
     return mInitialized;
 }
@@ -110,17 +108,6 @@ GLuint Program::buildShader(const char* source, GLenum type) {
         return 0;
     }
     return shader;
-}
-
-String8& Program::dumpShader(String8& result, GLenum /*type*/) {
-    GLuint shader = GL_FRAGMENT_SHADER ? mFragmentShader : mVertexShader;
-    GLint l;
-    glGetShaderiv(shader, GL_SHADER_SOURCE_LENGTH, &l);
-    char* src = new char[l];
-    glGetShaderSource(shader, l, nullptr, src);
-    result.append(src);
-    delete[] src;
-    return result;
 }
 
 void Program::setUniforms(const Description& desc) {

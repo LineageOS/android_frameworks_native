@@ -35,6 +35,7 @@
 #include <ui/DebugUtils.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
+#include <utils/KeyedVector.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 #include "GLExtensions.h"
@@ -115,28 +116,27 @@ static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EG
                                          EGLint wanted, EGLConfig* outConfig) {
     EGLint numConfigs = -1, n = 0;
     eglGetConfigs(dpy, nullptr, 0, &numConfigs);
-    EGLConfig* const configs = new EGLConfig[numConfigs];
-    eglChooseConfig(dpy, attrs, configs, numConfigs, &n);
+    std::vector<EGLConfig> configs(numConfigs, EGL_NO_CONFIG_KHR);
+    eglChooseConfig(dpy, attrs, configs.data(), configs.size(), &n);
+    configs.resize(n);
 
-    if (n) {
+    if (!configs.empty()) {
         if (attribute != EGL_NONE) {
-            for (int i = 0; i < n; i++) {
+            for (EGLConfig config : configs) {
                 EGLint value = 0;
-                eglGetConfigAttrib(dpy, configs[i], attribute, &value);
+                eglGetConfigAttrib(dpy, config, attribute, &value);
                 if (wanted == value) {
-                    *outConfig = configs[i];
-                    delete[] configs;
+                    *outConfig = config;
                     return NO_ERROR;
                 }
             }
         } else {
             // just pick the first one
             *outConfig = configs[0];
-            delete[] configs;
             return NO_ERROR;
         }
     }
-    delete[] configs;
+
     return NAME_NOT_FOUND;
 }
 
@@ -883,6 +883,10 @@ void GLES20RenderEngine::dump(String8& result) {
     result.appendFormat("GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
                         extensions.getVersion());
     result.appendFormat("%s\n", extensions.getExtensions());
+
+    result.appendFormat("RenderEngine program cache size: %zu\n",
+                        ProgramCache::getInstance().getSize());
+
     result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
                         dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
                         dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
