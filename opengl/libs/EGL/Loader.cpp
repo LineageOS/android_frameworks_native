@@ -261,6 +261,7 @@ void Loader::close(void* driver)
 
 void Loader::init_api(void* dso,
         char const * const * api,
+        char const * const * ref_api,
         __eglMustCastToProperFunctionPointerType* curr,
         getProcAddressType getProcAddress)
 {
@@ -270,6 +271,15 @@ void Loader::init_api(void* dso,
     char scrap[SIZE];
     while (*api) {
         char const * name = *api;
+        if (ref_api) {
+            char const * ref_name = *ref_api;
+            if (std::strcmp(name, ref_name) != 0) {
+                *curr++ = nullptr;
+                ref_api++;
+                continue;
+            }
+        }
+
         __eglMustCastToProperFunctionPointerType f =
             (__eglMustCastToProperFunctionPointerType)dlsym(dso, name);
         if (f == NULL) {
@@ -314,6 +324,7 @@ void Loader::init_api(void* dso,
         }
         *curr++ = f;
         api++;
+        if (ref_api) ref_api++;
     }
 }
 
@@ -525,14 +536,14 @@ void *Loader::load_driver(const char* kind,
     }
 
     if (mask & GLESv1_CM) {
-        init_api(dso, gl_names,
+        init_api(dso, gl_names_1, gl_names,
             (__eglMustCastToProperFunctionPointerType*)
                 &cnx->hooks[egl_connection_t::GLESv1_INDEX]->gl,
             getProcAddress);
     }
 
     if (mask & GLESv2) {
-      init_api(dso, gl_names,
+        init_api(dso, gl_names, nullptr,
             (__eglMustCastToProperFunctionPointerType*)
                 &cnx->hooks[egl_connection_t::GLESv2_INDEX]->gl,
             getProcAddress);
