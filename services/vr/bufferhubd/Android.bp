@@ -28,13 +28,13 @@ sharedLibraries = [
 cc_library_static {
     name: "libbufferhubd",
     srcs: [
-        "binder/android/dvr/IBufferHub.aidl",
         "buffer_channel.cpp",
         "buffer_hub.cpp",
         "buffer_hub_binder.cpp",
         "buffer_node.cpp",
         "consumer_channel.cpp",
         "consumer_queue_channel.cpp",
+        "IBufferHub.cpp",
         "producer_channel.cpp",
         "producer_queue_channel.cpp",
     ],
@@ -49,11 +49,6 @@ cc_library_static {
     static_libs: [
         "libbufferhub",
     ],
-    aidl: {
-        local_include_dirs: ["binder"],
-        include_dirs: ["frameworks/native/aidl/binder"],
-        export_aidl_headers: true,
-    },
 }
 
 cc_binary {

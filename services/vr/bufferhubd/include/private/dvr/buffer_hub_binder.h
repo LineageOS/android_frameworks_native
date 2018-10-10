@@ -2,9 +2,8 @@
 #define ANDROID_DVR_BUFFER_HUB_BINDER_H
 
 #include <binder/BinderService.h>
+#include <private/dvr/IBufferHub.h>
 #include <private/dvr/buffer_hub.h>
-
-#include "android/dvr/BnBufferHub.h"
 
 namespace android {
 namespace dvr {
