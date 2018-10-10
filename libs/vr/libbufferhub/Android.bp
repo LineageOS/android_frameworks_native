@@ -59,6 +59,9 @@ cc_library {
     export_header_lib_headers: [
         "libnativebase_headers",
     ],
+
+    // TODO(b/117568153): Temporarily opt out using libcrt.
+    no_libcrt: true,
 }
 
 cc_test {
@@ -67,6 +70,9 @@ cc_test {
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
     name: "buffer_hub-test",
+
+    // TODO(b/117568153): Temporarily opt out using libcrt.
+    no_libcrt: true,
 }
 
 cc_test {
@@ -75,4 +81,7 @@ cc_test {
     shared_libs: sharedLibraries,
     header_libs: headerLibraries,
     name: "buffer_hub_metadata-test",
+
+    // TODO(b/117568153): Temporarily opt out using libcrt.
+    no_libcrt: true,
 }
