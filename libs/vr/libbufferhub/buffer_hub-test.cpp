@@ -41,7 +41,6 @@ const int kLayerCount = 1;
 const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const size_t kUserMetadataSize = 0;
-const uint64_t kContext = 42;
 const size_t kMaxConsumerCount = 63;
 const int kPollTimeoutMs = 100;
 
@@ -79,22 +78,19 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
   EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 
-  EXPECT_EQ(0, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(0, p->Post(LocalHandle()));
 
   // New state: producer not available, consumers available.
   EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(1, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(1, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 
-  uint64_t context;
   LocalHandle fence;
-  EXPECT_EQ(0, c->Acquire(&fence, &context));
-  EXPECT_EQ(kContext, context);
+  EXPECT_EQ(0, c->Acquire(&fence));
   EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   EXPECT_EQ(1, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
 
-  EXPECT_EQ(0, c2->Acquire(&fence, &context));
-  EXPECT_EQ(kContext, context);
+  EXPECT_EQ(0, c2->Acquire(&fence));
   EXPECT_EQ(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
   EXPECT_EQ(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
 
@@ -147,7 +143,7 @@ TEST_F(LibBufferHubTest, TestEpoll) {
   ASSERT_EQ(0, epoll_wait(epoll_fd.Get(), events.data(), events.size(), 0));
 
   // Post the producer and check for consumer signal.
-  EXPECT_EQ(0, p->Post({}, kContext));
+  EXPECT_EQ(0, p->Post({}));
   ASSERT_EQ(1, epoll_wait(epoll_fd.Get(), events.data(), events.size(),
                           kPollTimeoutMs));
   ASSERT_TRUE(events[0].events & EPOLLIN);
@@ -229,10 +225,10 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
   EXPECT_EQ(-EALREADY, p->Gain(&fence));
 
   // Post in gained state should succeed.
-  EXPECT_EQ(0, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(0, p->Post(LocalHandle()));
 
   // Post, release, and gain in posted state should fail.
-  EXPECT_EQ(-EBUSY, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(-EBUSY, p->Post(LocalHandle()));
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
   EXPECT_EQ(-EBUSY, p->Gain(&fence));
 
@@ -241,7 +237,7 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
 
   // Acquire, post, and gain in acquired state should fail.
   EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
-  EXPECT_EQ(-EBUSY, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(-EBUSY, p->Post(LocalHandle()));
   EXPECT_EQ(-EBUSY, p->Gain(&fence));
 
   // Release in acquired state should succeed.
@@ -251,7 +247,7 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
   // Release, acquire, and post in released state should fail.
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
   EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
-  EXPECT_EQ(-EBUSY, p->Post(LocalHandle(), kContext));
+  EXPECT_EQ(-EBUSY, p->Post(LocalHandle()));
 
   // Gain in released state should succeed.
   EXPECT_EQ(0, p->Gain(&fence));
@@ -490,17 +486,14 @@ TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
   std::unique_ptr<ConsumerBuffer> c =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c.get() != nullptr);
-
   Metadata m = {1, 3};
-  EXPECT_EQ(0, p->Post(LocalHandle(), m));
+  EXPECT_EQ(0, p->Post(LocalHandle(), &m, sizeof(Metadata)));
   EXPECT_LE(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
-
   LocalHandle fence;
   Metadata m2 = {};
   EXPECT_EQ(0, c->Acquire(&fence, &m2));
   EXPECT_EQ(m.field1, m2.field1);
   EXPECT_EQ(m.field2, m2.field2);
-
   EXPECT_EQ(0, c->Release(LocalHandle()));
   EXPECT_LT(0, RETRY_EINTR(p->Poll(0)));
 }
@@ -525,13 +518,12 @@ TEST_F(LibBufferHubTest, TestPostWithWrongMetaSize) {
   // It is illegal to post metadata larger than originally requested during
   // buffer allocation.
   OverSizedMetadata evil_meta = {};
-  EXPECT_NE(0, p->Post(LocalHandle(), evil_meta));
+  EXPECT_NE(0, p->Post(LocalHandle(), &evil_meta, sizeof(OverSizedMetadata)));
   EXPECT_GE(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
 
   // It is ok to post metadata smaller than originally requested during
   // buffer allocation.
-  int64_t sequence = 42;
-  EXPECT_EQ(0, p->Post(LocalHandle(), sequence));
+  EXPECT_EQ(0, p->Post(LocalHandle()));
 }
 
 TEST_F(LibBufferHubTest, TestAcquireWithWrongMetaSize) {
@@ -552,7 +544,7 @@ TEST_F(LibBufferHubTest, TestAcquireWithWrongMetaSize) {
   ASSERT_TRUE(c.get() != nullptr);
 
   Metadata m = {1, 3};
-  EXPECT_EQ(0, p->Post(LocalHandle(), m));
+  EXPECT_EQ(0, p->Post(LocalHandle(), &m, sizeof(m)));
 
   LocalHandle fence;
   int64_t sequence;
@@ -577,7 +569,7 @@ TEST_F(LibBufferHubTest, TestAcquireWithNoMeta) {
   ASSERT_TRUE(c.get() != nullptr);
 
   int64_t sequence = 3;
-  EXPECT_EQ(0, p->Post(LocalHandle(), sequence));
+  EXPECT_EQ(0, p->Post(LocalHandle(), &sequence, sizeof(sequence)));
 
   LocalHandle fence;
   EXPECT_EQ(0, c->Acquire(&fence));
@@ -606,7 +598,7 @@ TEST_F(LibBufferHubTest, TestFailureToPostMetaFromABufferWithoutMeta) {
   ASSERT_TRUE(c.get() != nullptr);
 
   int64_t sequence = 3;
-  EXPECT_NE(0, p->Post(LocalHandle(), sequence));
+  EXPECT_NE(0, p->Post(LocalHandle(), &sequence, sizeof(sequence)));
 }
 
 namespace {
