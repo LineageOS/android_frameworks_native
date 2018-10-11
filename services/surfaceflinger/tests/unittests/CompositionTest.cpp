@@ -42,6 +42,7 @@ namespace android {
 namespace {
 
 using testing::_;
+using testing::AtLeast;
 using testing::ByMove;
 using testing::DoAll;
 using testing::IsNull;
@@ -514,7 +515,7 @@ struct BaseLayerProperties {
         // expectations are for appears to make an extra call to them.
         // TODO: Investigate this extra call
         EXPECT_CALL(*test->mComposer, setLayerTransform(HWC_DISPLAY, HWC_LAYER, DEFAULT_TRANSFORM))
-                .Times(1)
+                .Times(AtLeast(1))
                 .RetiresOnSaturation();
     }
 
