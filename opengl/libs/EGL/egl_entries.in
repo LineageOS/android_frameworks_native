@@ -47,6 +47,7 @@ EGL_ENTRY(EGLSurface, eglCreatePbufferFromClientBuffer, EGLDisplay, EGLenum, EGL
 /* EGL 1.5 */
 EGL_ENTRY(EGLImage, eglCreateImage, EGLDisplay, EGLContext, EGLenum, EGLClientBuffer, const EGLAttrib *)
 EGL_ENTRY(EGLBoolean, eglDestroyImage, EGLDisplay, EGLImage)
+EGL_ENTRY(EGLDisplay, eglGetPlatformDisplay, EGLenum, void *, const EGLAttrib *)
 
 /* EGL_EGLEXT_VERSION 3 */
 

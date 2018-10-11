@@ -1,4 +1,5 @@
 EGL_ENTRY(EGLDisplay, eglGetDisplay, EGLNativeDisplayType)
+EGL_ENTRY(EGLDisplay, eglGetPlatformDisplay, EGLenum, EGLNativeDisplayType, const EGLAttrib*)
 EGL_ENTRY(EGLBoolean, eglInitialize, EGLDisplay, EGLint*, EGLint*)
 EGL_ENTRY(EGLBoolean, eglTerminate, EGLDisplay)
 EGL_ENTRY(EGLBoolean, eglGetConfigs, EGLDisplay, EGLConfig*, EGLint, EGLint*)

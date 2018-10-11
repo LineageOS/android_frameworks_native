@@ -52,6 +52,21 @@ EGLDisplay eglGetDisplay(EGLNativeDisplayType display) {
     return cnx->platform.eglGetDisplay(display);
 }
 
+EGLDisplay eglGetPlatformDisplay(EGLenum platform, EGLNativeDisplayType display,
+                                 const EGLAttrib* attrib_list) {
+    ATRACE_CALL();
+    clearError();
+
+    if (egl_init_drivers() == EGL_FALSE) {
+        return setError(EGL_BAD_PARAMETER, EGL_NO_DISPLAY);
+    }
+
+    // Call down the chain, which usually points directly to the impl
+    // but may also be routed through layers
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglGetPlatformDisplay(platform, display, attrib_list);
+}
+
 EGLBoolean eglInitialize(EGLDisplay dpy, EGLint* major, EGLint* minor) {
     clearError();
 

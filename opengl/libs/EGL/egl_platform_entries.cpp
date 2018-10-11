@@ -135,6 +135,11 @@ char const * const gExtensionString  =
         "EGL_IMG_context_priority "
         "EGL_KHR_no_config_context "
         ;
+
+char const * const gClientExtensionString =
+        "EGL_EXT_client_extensions "
+        "EGL_KHR_platform_android "
+        "EGL_ANGLE_platform_angle";
 // clang-format on
 
 // extensions not exposed to applications but used by the ANDROID system
@@ -279,15 +284,29 @@ static inline EGLContext getContext() { return egl_tls_t::getContext(); }
 
 // ----------------------------------------------------------------------------
 
-EGLDisplay eglGetDisplayImpl(EGLNativeDisplayType display)
-{
+static EGLDisplay eglGetPlatformDisplayTmpl(EGLenum platform, EGLNativeDisplayType display,
+                                            const EGLAttrib* attrib_list) {
+    if (platform != EGL_PLATFORM_ANDROID_KHR) {
+        return setError(EGL_BAD_PARAMETER, EGL_NO_DISPLAY);
+    }
+
     uintptr_t index = reinterpret_cast<uintptr_t>(display);
     if (index >= NUM_DISPLAYS) {
         return setError(EGL_BAD_PARAMETER, EGL_NO_DISPLAY);
     }
 
-    EGLDisplay dpy = egl_display_t::getFromNativeDisplay(display);
+    EGLDisplay dpy = egl_display_t::getFromNativeDisplay(display, attrib_list);
     return dpy;
+}
+
+EGLDisplay eglGetDisplayImpl(EGLNativeDisplayType display) {
+    return eglGetPlatformDisplayTmpl(EGL_PLATFORM_ANDROID_KHR, display, nullptr);
+}
+
+EGLDisplay eglGetPlatformDisplayImpl(EGLenum platform, void* native_display,
+                                     const EGLAttrib* attrib_list) {
+    return eglGetPlatformDisplayTmpl(platform, static_cast<EGLNativeDisplayType>(native_display),
+                                     attrib_list);
 }
 
 // ----------------------------------------------------------------------------
@@ -1402,15 +1421,10 @@ EGLBoolean eglCopyBuffersImpl(  EGLDisplay dpy, EGLSurface surface,
 
 const char* eglQueryStringImpl(EGLDisplay dpy, EGLint name)
 {
-    // Generate an error quietly when client extensions (as defined by
-    // EGL_EXT_client_extensions) are queried.  We do not want to rely on
-    // validate_display to generate the error as validate_display would log
-    // the error, which can be misleading.
-    //
-    // If we want to support EGL_EXT_client_extensions later, we can return
-    // the client extension string here instead.
-    if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS)
-        return setErrorQuiet(EGL_BAD_DISPLAY, (const char*)nullptr);
+    if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS) {
+        // Return list of client extensions
+        return gClientExtensionString;
+    }
 
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return (const char *) nullptr;
@@ -2434,6 +2448,7 @@ struct implementation_map_t {
 static const implementation_map_t sPlatformImplMap[] = {
         // clang-format off
     { "eglGetDisplay", (EGLFuncPointer)&eglGetDisplayImpl },
+    { "eglGetPlatformDisplay", (EGLFuncPointer)&eglGetPlatformDisplayImpl },
     { "eglInitialize", (EGLFuncPointer)&eglInitializeImpl },
     { "eglTerminate", (EGLFuncPointer)&eglTerminateImpl },
     { "eglGetConfigs", (EGLFuncPointer)&eglGetConfigsImpl },
