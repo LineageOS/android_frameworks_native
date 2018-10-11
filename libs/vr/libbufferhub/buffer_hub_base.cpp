@@ -209,10 +209,6 @@ int BufferHubBase::GetBlobReadWritePointer(size_t size, void** addr) {
   return ret;
 }
 
-int BufferHubBase::GetBlobReadOnlyPointer(size_t size, void** addr) {
-  return GetBlobReadWritePointer(size, addr);
-}
-
 void BufferHubBase::GetBlobFds(int* fds, size_t* fds_count,
                                size_t max_fds_count) const {
   size_t numFds = static_cast<size_t>(native_handle()->numFds);

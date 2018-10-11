@@ -228,7 +228,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
     }
     constexpr size_t size = DvrVsyncPoseBuffer::kSize * sizeof(DvrPoseAsync);
     void* addr = nullptr;
-    int ret = buffer->GetBlobReadOnlyPointer(size, &addr);
+    int ret = buffer->GetBlobReadWritePointer(size, &addr);
     if (ret < 0 || !addr) {
       ALOGE("Pose failed to map ring buffer: ret:%d, addr:%p", ret, addr);
       return -EIO;
