@@ -33,6 +33,7 @@
 #endif
 #include <vndksupport/linker.h>
 
+#include "egl_platform_entries.h"
 #include "egl_trace.h"
 #include "egldefs.h"
 
@@ -237,12 +238,12 @@ void* Loader::open(egl_connection_t* cnx)
 
     setEmulatorGlesValue();
 
-    dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2);
+    dso = load_driver("GLES", cnx, EGL | GLESv1_CM | GLESv2 | PLATFORM);
     if (dso) {
         hnd = new driver_t(dso);
     } else {
         // Always load EGL first
-        dso = load_driver("EGL", cnx, EGL);
+        dso = load_driver("EGL", cnx, EGL | PLATFORM);
         if (dso) {
             hnd = new driver_t(dso);
             hnd->set( load_driver("GLESv1_CM", cnx, GLESv1_CM), GLESv1_CM );
@@ -621,6 +622,25 @@ void *Loader::load_driver(const char* kind,
         dso = load_system_driver(kind);
         if (!dso)
             return nullptr;
+    }
+
+    if (mask & PLATFORM) {
+        // For each entrypoint tracked by the platform
+        char const* const* entries = platform_names;
+        EGLFuncPointer* curr = reinterpret_cast<EGLFuncPointer*>(&cnx->platform);
+
+        while (*entries) {
+            const char* name = *entries;
+            EGLFuncPointer f = FindPlatformImplAddr(name);
+
+            if (f == nullptr) {
+                // If no entry found, update the lookup table: sPlatformImplMap
+                ALOGE("No entry found in platform lookup table for %s", name);
+            }
+
+            *curr++ = f;
+            entries++;
+        }
     }
 
     if (mask & EGL) {

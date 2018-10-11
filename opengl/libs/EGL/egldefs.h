@@ -38,11 +38,15 @@ struct egl_connection_t {
     };
 
     inline egl_connection_t() : dso(nullptr) { }
+
     void *              dso;
     gl_hooks_t *        hooks[2];
     EGLint              major;
     EGLint              minor;
     egl_t               egl;
+
+    // Functions implemented or redirected by platform libraries
+    platform_impl_t     platform;
 
     void*               libEgl;
     void*               libGles1;
@@ -63,6 +67,7 @@ extern "C" void gl_noop();
 
 extern char const * const gl_names[];
 extern char const * const egl_names[];
+extern char const * const platform_names[];
 
 extern egl_connection_t gEGLImpl;
 
