@@ -545,22 +545,22 @@ static std::vector<EGLint> getDriverColorSpaces(egl_display_ptr dp,
 // Cleans up color space related parameters that the driver does not understand.
 // If there is no color space attribute in attrib_list, colorSpace is left
 // unmodified.
-static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
-                                    android_pixel_format format, const EGLint* attrib_list,
-                                    EGLint* colorSpace,
-                                    std::vector<EGLint>* strippedAttribList) {
-    for (const EGLint* attr = attrib_list; attr && attr[0] != EGL_NONE; attr += 2) {
+template <typename AttrType>
+static EGLBoolean processAttributes(egl_display_ptr dp, ANativeWindow* window,
+                                    android_pixel_format format, const AttrType* attrib_list,
+                                    EGLint* colorSpace, std::vector<AttrType>* strippedAttribList) {
+    for (const AttrType* attr = attrib_list; attr && attr[0] != EGL_NONE; attr += 2) {
         bool copyAttribute = true;
         if (attr[0] == EGL_GL_COLORSPACE_KHR) {
             // Fail immediately if the driver doesn't have color space support at all.
             if (!dp->hasColorSpaceSupport) return false;
-            *colorSpace = attr[1];
+            *colorSpace = static_cast<EGLint>(attr[1]);
 
             // Strip the attribute if the driver doesn't understand it.
             copyAttribute = false;
             std::vector<EGLint> driverColorSpaces = getDriverColorSpaces(dp, format);
             for (auto driverColorSpace : driverColorSpaces) {
-                if (attr[1] == driverColorSpace) {
+                if (static_cast<EGLint>(attr[1]) == driverColorSpace) {
                     copyAttribute = true;
                     break;
                 }
@@ -714,15 +714,11 @@ EGLBoolean sendSurfaceMetadata(egl_surface_t* s) {
     return EGL_TRUE;
 }
 
-EGLSurface eglCreateWindowSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
-                                        NativeWindowType window,
-                                        const EGLint *attrib_list)
-{
-    egl_connection_t* cnx = nullptr;
-    egl_display_ptr dp = validate_display_connection(dpy, cnx);
-    if (!dp) {
-        return EGL_NO_SURFACE;
-    }
+template <typename AttrType, typename CreateFuncType>
+EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx, EGLConfig config,
+                                      ANativeWindow* window, const AttrType* attrib_list,
+                                      CreateFuncType createWindowSurfaceFunc) {
+    const AttrType* origAttribList = attrib_list;
 
     if (!window) {
         return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
@@ -752,8 +748,9 @@ EGLSurface eglCreateWindowSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
 
     // now select correct colorspace and dataspace based on user's attribute list
     EGLint colorSpace = EGL_UNKNOWN;
-    std::vector<EGLint> strippedAttribList;
-    if (!processAttributes(dp, window, format, attrib_list, &colorSpace, &strippedAttribList)) {
+    std::vector<AttrType> strippedAttribList;
+    if (!processAttributes<AttrType>(dp, window, format, attrib_list, &colorSpace,
+                                     &strippedAttribList)) {
         ALOGE("error invalid colorspace: %d", colorSpace);
         return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
     }
@@ -780,10 +777,9 @@ EGLSurface eglCreateWindowSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
 
     // the EGL spec requires that a new EGLSurface default to swap interval
     // 1, so explicitly set that on the window here.
-    ANativeWindow* anw = reinterpret_cast<ANativeWindow*>(window);
-    anw->setSwapInterval(anw, 1);
+    window->setSwapInterval(window, 1);
 
-    EGLSurface surface = cnx->egl.eglCreateWindowSurface(iDpy, config, window, attrib_list);
+    EGLSurface surface = createWindowSurfaceFunc(iDpy, config, window, attrib_list);
     if (surface != EGL_NO_SURFACE) {
         egl_surface_t* s = new egl_surface_t(dp.get(), config, window, surface,
                                              getReportedColorSpace(colorSpace), cnx);
@@ -794,6 +790,75 @@ EGLSurface eglCreateWindowSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
     if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
         native_window_set_buffers_format(window, 0);
         native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+    }
+    return EGL_NO_SURFACE;
+}
+
+typedef EGLSurface(EGLAPIENTRYP PFNEGLCREATEWINDOWSURFACEPROC)(EGLDisplay dpy, EGLConfig config,
+                                                               NativeWindowType window,
+                                                               const EGLint* attrib_list);
+typedef EGLSurface(EGLAPIENTRYP PFNEGLCREATEPLATFORMWINDOWSURFACEPROC)(
+        EGLDisplay dpy, EGLConfig config, void* native_window, const EGLAttrib* attrib_list);
+
+EGLSurface eglCreateWindowSurfaceImpl(EGLDisplay dpy, EGLConfig config, NativeWindowType window,
+                                      const EGLint* attrib_list) {
+    egl_connection_t* cnx = NULL;
+    egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    if (dp) {
+        return eglCreateWindowSurfaceTmpl<
+                EGLint, PFNEGLCREATEWINDOWSURFACEPROC>(dp, cnx, config, window, attrib_list,
+                                                       cnx->egl.eglCreateWindowSurface);
+    }
+    return EGL_NO_SURFACE;
+}
+
+EGLSurface eglCreatePlatformWindowSurfaceImpl(EGLDisplay dpy, EGLConfig config, void* native_window,
+                                              const EGLAttrib* attrib_list) {
+    egl_connection_t* cnx = NULL;
+    egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    if (dp) {
+        if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+            if (cnx->egl.eglCreatePlatformWindowSurface) {
+                return eglCreateWindowSurfaceTmpl<EGLAttrib, PFNEGLCREATEPLATFORMWINDOWSURFACEPROC>(
+                        dp, cnx, config, static_cast<ANativeWindow*>(native_window), attrib_list,
+                        cnx->egl.eglCreatePlatformWindowSurface);
+            }
+            // driver doesn't support native function, return EGL_BAD_DISPLAY
+            ALOGE("Driver indicates EGL 1.5 support, but does not have "
+                  "eglCreatePlatformWindowSurface");
+            return setError(EGL_BAD_DISPLAY, EGL_NO_SURFACE);
+        }
+
+        std::vector<EGLint> convertedAttribs;
+        convertAttribs(attrib_list, convertedAttribs);
+        if (cnx->egl.eglCreatePlatformWindowSurfaceEXT) {
+            return eglCreateWindowSurfaceTmpl<EGLint, PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC>(
+                    dp, cnx, config, static_cast<ANativeWindow*>(native_window),
+                    convertedAttribs.data(), cnx->egl.eglCreatePlatformWindowSurfaceEXT);
+        } else {
+            return eglCreateWindowSurfaceTmpl<
+                    EGLint, PFNEGLCREATEWINDOWSURFACEPROC>(dp, cnx, config,
+                                                           static_cast<ANativeWindow*>(
+                                                                   native_window),
+                                                           convertedAttribs.data(),
+                                                           cnx->egl.eglCreateWindowSurface);
+        }
+    }
+    return EGL_NO_SURFACE;
+}
+
+EGLSurface eglCreatePlatformPixmapSurfaceImpl(EGLDisplay dpy, EGLConfig /*config*/,
+                                              void* /*native_pixmap*/,
+                                              const EGLAttrib* /*attrib_list*/) {
+    // Per EGL_KHR_platform_android:
+    // It is not valid to call eglCreatePlatformPixmapSurface with a <dpy> that
+    // belongs to the Android platform. Any such call fails and generates
+    // an EGL_BAD_PARAMETER error.
+
+    egl_connection_t* cnx = NULL;
+    egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    if (dp) {
+        return setError(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
     }
     return EGL_NO_SURFACE;
 }
@@ -2451,6 +2516,8 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglGetConfigAttrib", (EGLFuncPointer)&eglGetConfigAttribImpl },
     { "eglCreateWindowSurface", (EGLFuncPointer)&eglCreateWindowSurfaceImpl },
     { "eglCreatePixmapSurface", (EGLFuncPointer)&eglCreatePixmapSurfaceImpl },
+    { "eglCreatePlatformWindowSurface", (EGLFuncPointer)&eglCreatePlatformWindowSurfaceImpl },
+    { "eglCreatePlatformPixmapSurface", (EGLFuncPointer)&eglCreatePlatformPixmapSurfaceImpl },
     { "eglCreatePbufferSurface", (EGLFuncPointer)&eglCreatePbufferSurfaceImpl },
     { "eglDestroySurface", (EGLFuncPointer)&eglDestroySurfaceImpl },
     { "eglQuerySurface", (EGLFuncPointer)&eglQuerySurfaceImpl },

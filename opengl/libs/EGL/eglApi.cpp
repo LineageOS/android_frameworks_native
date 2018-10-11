@@ -112,12 +112,28 @@ EGLSurface eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, NativeWindow
     return cnx->platform.eglCreateWindowSurface(dpy, config, window, attrib_list);
 }
 
+EGLSurface eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config, void* native_window,
+                                          const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreatePlatformWindowSurface(dpy, config, native_window, attrib_list);
+}
+
 EGLSurface eglCreatePixmapSurface(EGLDisplay dpy, EGLConfig config, NativePixmapType pixmap,
                                   const EGLint* attrib_list) {
     clearError();
 
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglCreatePixmapSurface(dpy, config, pixmap, attrib_list);
+}
+
+EGLSurface eglCreatePlatformPixmapSurface(EGLDisplay dpy, EGLConfig config, void* native_pixmap,
+                                          const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreatePlatformPixmapSurface(dpy, config, native_pixmap, attrib_list);
 }
 
 EGLSurface eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config, const EGLint* attrib_list) {
