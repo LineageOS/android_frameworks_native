@@ -77,6 +77,13 @@ binder::Status DumpstateService::setListener(const std::string& name,
     return binder::Status::ok();
 }
 
+binder::Status DumpstateService::startBugreport(int, const sp<IDumpstateListener>&,
+                                                const DumpstateOptions&, int32_t* returned_id) {
+    // TODO: fork to handle the bugreport request and return the process id or a request id here.
+    *returned_id = -1;
+    return binder::Status::ok();
+}
+
 status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "id: %d\n", ds_.id_);
     dprintf(fd, "pid: %d\n", ds_.pid_);
