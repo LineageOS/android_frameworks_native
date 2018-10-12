@@ -18,6 +18,7 @@ package android.os;
 
 import android.os.IDumpstateListener;
 import android.os.IDumpstateToken;
+import android.os.DumpstateOptions;
 
 /**
   * Binder interface for the currently running dumpstate process.
@@ -25,6 +26,8 @@ import android.os.IDumpstateToken;
   */
 interface IDumpstate {
 
+
+    // TODO: remove method once startBugReport is used by Shell.
     /*
      * Sets the listener for this dumpstate progress.
      *
@@ -35,4 +38,11 @@ interface IDumpstate {
      */
     IDumpstateToken setListener(@utf8InCpp String name, IDumpstateListener listener,
                                 boolean getSectionDetails);
+
+    /*
+     * Starts a bugreport in a child process.
+     *
+     * Returns an identifier of the bugreport process running in the background.
+     */
+    int startBugreport(int fd, IDumpstateListener listener, in DumpstateOptions options);
 }
