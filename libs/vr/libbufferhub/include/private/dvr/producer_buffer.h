@@ -50,12 +50,6 @@ class ProducerBuffer : public pdx::ClientBase<ProducerBuffer, BufferHubBase> {
     return Post(ready_fence, nullptr, 0);
   }
 
-  template <typename Meta, typename = typename std::enable_if<
-                               !std::is_void<Meta>::value>::type>
-  int Post(const LocalHandle& ready_fence, const Meta& meta) {
-    return Post(ready_fence, &meta, sizeof(meta));
-  }
-
   // Attempt to re-gain the buffer for writing. If |release_fence| is valid, it
   // must be waited on before using the buffer. If it is not valid then the
   // buffer is free for immediate use. This call will only succeed if the buffer
