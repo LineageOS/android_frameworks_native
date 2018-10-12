@@ -33,8 +33,7 @@ class Loader {
     enum {
         EGL         = 0x01,
         GLESv1_CM   = 0x02,
-        GLESv2      = 0x04,
-        PLATFORM    = 0x08
+        GLESv2      = 0x04
     };
     struct driver_t {
         explicit driver_t(void* gles);

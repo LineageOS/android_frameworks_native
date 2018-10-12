@@ -167,10 +167,6 @@ GLint egl_get_num_extensions_for_current_context() {
     return (GLint)c->tokenized_gl_extensions.size();
 }
 
-egl_connection_t* egl_get_connection() {
-    return &gEGLImpl;
-}
-
 // ----------------------------------------------------------------------------
 
 // this mutex protects:
@@ -263,11 +259,6 @@ char const * const gl_names_1[] = {
 
 char const * const egl_names[] = {
     #include "egl_entries.in"
-    nullptr
-};
-
-char const * const platform_names[] = {
-    #include "platform_entries.in"
     nullptr
 };
 

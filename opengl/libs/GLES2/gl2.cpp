@@ -301,31 +301,71 @@ extern "C" {
 }
 
 const GLubyte * glGetString(GLenum name) {
-    egl_connection_t* const cnx = egl_get_connection();
-    return cnx->platform.glGetString(name);
+    const GLubyte * ret = egl_get_string_for_current_context(name);
+    if (ret == NULL) {
+        gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;
+        if(_c) ret = _c->glGetString(name);
+    }
+    return ret;
 }
 
 const GLubyte * glGetStringi(GLenum name, GLuint index) {
-    egl_connection_t* const cnx = egl_get_connection();
-    return cnx->platform.glGetStringi(name, index);
+    const GLubyte * ret = egl_get_string_for_current_context(name, index);
+    if (ret == NULL) {
+        gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;
+        if(_c) ret = _c->glGetStringi(name, index);
+    }
+    return ret;
 }
 
 void glGetBooleanv(GLenum pname, GLboolean * data) {
-    egl_connection_t* const cnx = egl_get_connection();
-    return cnx->platform.glGetBooleanv(pname, data);
+    if (pname == GL_NUM_EXTENSIONS) {
+        int num_exts = egl_get_num_extensions_for_current_context();
+        if (num_exts >= 0) {
+            *data = num_exts > 0 ? GL_TRUE : GL_FALSE;
+            return;
+        }
+    }
+
+    gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;
+    if (_c) _c->glGetBooleanv(pname, data);
 }
 
 void glGetFloatv(GLenum pname, GLfloat * data) {
-    egl_connection_t* const cnx = egl_get_connection();
-    return cnx->platform.glGetFloatv(pname, data);
+    if (pname == GL_NUM_EXTENSIONS) {
+        int num_exts = egl_get_num_extensions_for_current_context();
+        if (num_exts >= 0) {
+            *data = (GLfloat)num_exts;
+            return;
+        }
+    }
+
+    gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;
+    if (_c) _c->glGetFloatv(pname, data);
 }
 
 void glGetIntegerv(GLenum pname, GLint * data) {
-    egl_connection_t* const cnx = egl_get_connection();
-    return cnx->platform.glGetIntegerv(pname, data);
+    if (pname == GL_NUM_EXTENSIONS) {
+        int num_exts = egl_get_num_extensions_for_current_context();
+        if (num_exts >= 0) {
+            *data = (GLint)num_exts;
+            return;
+        }
+    }
+
+    gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;
+    if (_c) _c->glGetIntegerv(pname, data);
 }
 
 void glGetInteger64v(GLenum pname, GLint64 * data) {
-    egl_connection_t* const cnx = egl_get_connection();
-    return cnx->platform.glGetInteger64v(pname, data);
+    if (pname == GL_NUM_EXTENSIONS) {
+        int num_exts = egl_get_num_extensions_for_current_context();
+        if (num_exts >= 0) {
+            *data = (GLint64)num_exts;
+            return;
+        }
+    }
+
+    gl_hooks_t::gl_t const * const _c = &getGlThreadSpecific()->gl;
+    if (_c) _c->glGetInteger64v(pname, data);
 }
