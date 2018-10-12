@@ -395,7 +395,7 @@ public:
 
     virtual void abandon() {}
 
-    virtual bool shouldPresentNow(const DispSync& /*dispSync*/) const { return false; }
+    virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
     virtual void setTransformHint(uint32_t /*orientation*/) const { }
 
     /*
