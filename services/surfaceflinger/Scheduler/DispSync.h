@@ -241,6 +241,9 @@ private:
     bool mIgnorePresentFences;
 
     std::unique_ptr<Callback> mZeroPhaseTracer;
+
+    // Flag to turn on logging in systrace.
+    bool mTraceDetailedInfo = false;
 };
 
 } // namespace impl
