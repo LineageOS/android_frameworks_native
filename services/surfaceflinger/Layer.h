@@ -270,7 +270,7 @@ public:
     virtual bool setTransform(uint32_t /*transform*/) { return false; };
     virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
     virtual bool setCrop(const Rect& /*crop*/) { return false; };
-    virtual bool setBuffer(sp<GraphicBuffer> /*buffer*/) { return false; };
+    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/) { return false; };
     virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
     virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
     virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };

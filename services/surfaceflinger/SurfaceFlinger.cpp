@@ -1943,6 +1943,7 @@ void SurfaceFlinger::postComposition()
         }
     }
 
+    mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
     mTransactionCompletedThread.sendCallbacks();
 }
 

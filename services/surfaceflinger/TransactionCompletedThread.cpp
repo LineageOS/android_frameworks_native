@@ -67,8 +67,17 @@ void TransactionCompletedThread::registerPendingLatchedCallbackHandle(
 }
 
 void TransactionCompletedThread::addLatchedCallbackHandles(
-        const std::deque<sp<CallbackHandle>>& handles) {
+        const std::deque<sp<CallbackHandle>>& handles, nsecs_t latchTime,
+        const sp<Fence>& previousReleaseFence) {
     std::lock_guard lock(mMutex);
+
+    // If the previous release fences have not signaled, something as probably gone wrong.
+    // Store the fences and check them again before sending a callback.
+    if (previousReleaseFence &&
+        previousReleaseFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING) {
+        ALOGD("release fence from the previous frame has not signaled");
+        mPreviousReleaseFences.push_back(previousReleaseFence);
+    }
 
     for (const auto& handle : handles) {
         auto listener = mPendingTransactions.find(IInterface::asBinder(handle->listener));
@@ -83,10 +92,10 @@ void TransactionCompletedThread::addLatchedCallbackHandles(
                 pendingCallbacks.erase(pendingCallback);
             }
         } else {
-            ALOGW("there are more latched callbacks than there were registered callbacks");
+            ALOGE("there are more latched callbacks than there were registered callbacks");
         }
 
-        addCallbackHandle(handle);
+        addCallbackHandle(handle, latchTime);
     }
 }
 
@@ -95,7 +104,8 @@ void TransactionCompletedThread::addUnlatchedCallbackHandle(const sp<CallbackHan
     addCallbackHandle(handle);
 }
 
-void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
+void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle,
+                                                   nsecs_t latchTime) {
     const sp<IBinder> listener = IInterface::asBinder(handle->listener);
 
     // If we don't already have a reference to this listener, linkToDeath so we get a notification
@@ -112,7 +122,14 @@ void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& han
     listenerStats.listener = handle->listener;
 
     auto& transactionStats = listenerStats.transactionStats[handle->callbackIds];
-    transactionStats.surfaceStats.emplace_back(handle->surfaceControl);
+    transactionStats.latchTime = latchTime;
+    transactionStats.surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
+                                               handle->releasePreviousBuffer);
+}
+
+void TransactionCompletedThread::addPresentFence(const sp<Fence>& presentFence) {
+    std::lock_guard<std::mutex> lock(mMutex);
+    mPresentFence = presentFence;
 }
 
 void TransactionCompletedThread::sendCallbacks() {
@@ -128,6 +145,27 @@ void TransactionCompletedThread::threadMain() {
     while (mKeepRunning) {
         mConditionVariable.wait(mMutex);
 
+        // Present fence should fire almost immediately. If the fence has not signaled in 100ms,
+        // there is a major problem and it will probably never fire.
+        nsecs_t presentTime = -1;
+        if (mPresentFence) {
+            status_t status = mPresentFence->wait(100);
+            if (status == NO_ERROR) {
+                presentTime = mPresentFence->getSignalTime();
+            } else {
+                ALOGE("present fence has not signaled, err %d", status);
+            }
+        }
+
+        // We should never hit this case. The release fences from the previous frame should have
+        // signaled long before the current frame is presented.
+        for (const auto& fence : mPreviousReleaseFences) {
+            status_t status = fence->wait(100);
+            if (status != NO_ERROR) {
+                ALOGE("previous release fence has not signaled, err %d", status);
+            }
+        }
+
         // For each listener
         auto it = mListenerStats.begin();
         while (it != mListenerStats.end()) {
@@ -140,6 +178,21 @@ void TransactionCompletedThread::threadMain() {
                 if (mPendingTransactions[listener].count(callbackIds) != 0) {
                     sendCallback = false;
                     break;
+                }
+
+                // If the transaction has been latched
+                if (transactionStats.latchTime >= 0) {
+                    // If the present time is < 0, this transaction has been latched but not
+                    // presented. Skip it for now. This can happen when a new transaction comes
+                    // in between the latch and present steps. sendCallbacks is called by
+                    // SurfaceFlinger when the transaction is received to ensure that if the
+                    // transaction that didn't update state it still got a callback.
+                    if (presentTime < 0) {
+                        sendCallback = false;
+                        break;
+                    }
+
+                    transactionStats.presentTime = presentTime;
                 }
             }
             // If the listener has no pending transactions and all latched transactions have been
@@ -155,6 +208,11 @@ void TransactionCompletedThread::threadMain() {
             } else {
                 it++;
             }
+        }
+
+        if (mPresentFence) {
+            mPresentFence.clear();
+            mPreviousReleaseFences.clear();
         }
     }
 }

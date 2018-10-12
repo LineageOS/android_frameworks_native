@@ -31,18 +31,50 @@ enum class Tag : uint32_t {
 } // Anonymous namespace
 
 status_t SurfaceStats::writeToParcel(Parcel* output) const {
-    return output->writeStrongBinder(surfaceControl);
+    status_t err = output->writeStrongBinder(surfaceControl);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    err = output->writeInt64(acquireTime);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    return output->writeBool(releasePreviousBuffer);
 }
 
 status_t SurfaceStats::readFromParcel(const Parcel* input) {
-    return input->readStrongBinder(&surfaceControl);
+    status_t err = input->readStrongBinder(&surfaceControl);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    err = input->readInt64(&acquireTime);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    return input->readBool(&releasePreviousBuffer);
 }
 
 status_t TransactionStats::writeToParcel(Parcel* output) const {
+    status_t err = output->writeInt64(latchTime);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    err = output->writeInt64(presentTime);
+    if (err != NO_ERROR) {
+        return err;
+    }
     return output->writeParcelableVector(surfaceStats);
 }
 
 status_t TransactionStats::readFromParcel(const Parcel* input) {
+    status_t err = input->readInt64(&latchTime);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    err = input->readInt64(&presentTime);
+    if (err != NO_ERROR) {
+        return err;
+    }
     return input->readParcelableVector(&surfaceStats);
 }
 

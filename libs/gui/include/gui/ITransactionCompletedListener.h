@@ -51,9 +51,12 @@ public:
     status_t readFromParcel(const Parcel* input) override;
 
     SurfaceStats() = default;
-    explicit SurfaceStats(const sp<IBinder>& sc) : surfaceControl(sc) {}
+    SurfaceStats(const sp<IBinder>& sc, nsecs_t time, bool releasePrevBuffer)
+          : surfaceControl(sc), acquireTime(time), releasePreviousBuffer(releasePrevBuffer) {}
 
     sp<IBinder> surfaceControl;
+    nsecs_t acquireTime = -1;
+    bool releasePreviousBuffer = false;
 };
 
 class TransactionStats : public Parcelable {
@@ -61,6 +64,8 @@ public:
     status_t writeToParcel(Parcel* output) const override;
     status_t readFromParcel(const Parcel* input) override;
 
+    nsecs_t latchTime = -1;
+    nsecs_t presentTime = -1;
     std::vector<SurfaceStats> surfaceStats;
 };
 

@@ -26,6 +26,7 @@
 
 #include <binder/IBinder.h>
 #include <gui/ITransactionCompletedListener.h>
+#include <ui/Fence.h>
 
 namespace android {
 
@@ -37,6 +38,9 @@ public:
     sp<ITransactionCompletedListener> listener;
     std::vector<CallbackId> callbackIds;
     sp<IBinder> surfaceControl;
+
+    bool releasePreviousBuffer = false;
+    nsecs_t acquireTime = -1;
 };
 
 class TransactionCompletedThread {
@@ -52,18 +56,22 @@ public:
     // presented.
     void registerPendingLatchedCallbackHandle(const sp<CallbackHandle>& handle);
     // Notifies the TransactionCompletedThread that a pending CallbackHandle has been latched.
-    void addLatchedCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
+    void addLatchedCallbackHandles(const std::deque<sp<CallbackHandle>>& handles, nsecs_t latchTime,
+                                   const sp<Fence>& previousReleaseFence);
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
     void addUnlatchedCallbackHandle(const sp<CallbackHandle>& handle);
+
+    void addPresentFence(const sp<Fence>& presentFence);
 
     void sendCallbacks();
 
 private:
     void threadMain();
 
-    void addCallbackHandle(const sp<CallbackHandle>& handle) REQUIRES(mMutex);
+    void addCallbackHandle(const sp<CallbackHandle>& handle, nsecs_t latchTime = -1)
+            REQUIRES(mMutex);
 
     class ThreadDeathRecipient : public IBinder::DeathRecipient {
     public:
@@ -97,6 +105,9 @@ private:
 
     bool mRunning GUARDED_BY(mMutex) = false;
     bool mKeepRunning GUARDED_BY(mMutex) = true;
+
+    sp<Fence> mPresentFence GUARDED_BY(mMutex);
+    std::vector<sp<Fence>> mPreviousReleaseFences GUARDED_BY(mMutex);
 };
 
 } // namespace android
