@@ -39,8 +39,6 @@ public:
         nsecs_t app;
     };
 
-    enum TransactionStart { EARLY, NORMAL };
-
     // Sets the phase offsets
     //
     // sfEarly: The phase offset when waking up SF early, which happens when marking a transaction
@@ -75,13 +73,14 @@ public:
         mSfConnectionHandle = sfConnectionHandle;
     }
 
-    void setTransactionStart(TransactionStart transactionStart) {
-        if (transactionStart == TransactionStart::EARLY) {
+    void setTransactionStart(Scheduler::TransactionStart transactionStart) {
+        if (transactionStart == Scheduler::TransactionStart::EARLY) {
             mRemainingEarlyFrameCount = MIN_EARLY_FRAME_COUNT;
         }
 
         // An early transaction stays an early transaction.
-        if (transactionStart == mTransactionStart || mTransactionStart == TransactionStart::EARLY) {
+        if (transactionStart == mTransactionStart ||
+            mTransactionStart == Scheduler::TransactionStart::EARLY) {
             return;
         }
         mTransactionStart = transactionStart;
@@ -89,8 +88,8 @@ public:
     }
 
     void onTransactionHandled() {
-        if (mTransactionStart == TransactionStart::NORMAL) return;
-        mTransactionStart = TransactionStart::NORMAL;
+        if (mTransactionStart == Scheduler::TransactionStart::NORMAL) return;
+        mTransactionStart = Scheduler::TransactionStart::NORMAL;
         updateOffsets();
     }
 
@@ -138,7 +137,8 @@ private:
     }
 
     Offsets getOffsets() {
-        if (mTransactionStart == TransactionStart::EARLY || mRemainingEarlyFrameCount > 0) {
+        if (mTransactionStart == Scheduler::TransactionStart::EARLY ||
+            mRemainingEarlyFrameCount > 0) {
             return mEarlyOffsets;
         } else if (mLastFrameUsedRenderEngine) {
             return mEarlyGlOffsets;
@@ -160,7 +160,8 @@ private:
 
     std::atomic<Offsets> mOffsets;
 
-    std::atomic<TransactionStart> mTransactionStart = TransactionStart::NORMAL;
+    std::atomic<Scheduler::TransactionStart> mTransactionStart =
+            Scheduler::TransactionStart::NORMAL;
     std::atomic<bool> mLastFrameUsedRenderEngine = false;
     std::atomic<int> mRemainingEarlyFrameCount = 0;
 };

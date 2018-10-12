@@ -29,6 +29,9 @@ namespace android {
 
 class Scheduler {
 public:
+    // Enum to indicate whether to start the transaction early, or at vsync time.
+    enum class TransactionStart { EARLY, NORMAL };
+
     /* The scheduler handle is a BBinder object passed to the client from which we can extract
      * an ID for subsequent operations.
      */

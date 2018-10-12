@@ -3372,11 +3372,11 @@ uint32_t SurfaceFlinger::getTransactionFlags(uint32_t flags) {
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags) {
-    return setTransactionFlags(flags, VSyncModulator::TransactionStart::NORMAL);
+    return setTransactionFlags(flags, Scheduler::TransactionStart::NORMAL);
 }
 
 uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
-        VSyncModulator::TransactionStart transactionStart) {
+                                             Scheduler::TransactionStart transactionStart) {
     uint32_t old = mTransactionFlags.fetch_or(flags);
     mVsyncModulator.setTransactionStart(transactionStart);
     if ((old & flags)==0) { // wake the server up
@@ -3467,9 +3467,8 @@ void SurfaceFlinger::setTransactionState(
         }
 
         // this triggers the transaction
-        const auto start = (flags & eEarlyWakeup)
-                ? VSyncModulator::TransactionStart::EARLY
-                : VSyncModulator::TransactionStart::NORMAL;
+        const auto start = (flags & eEarlyWakeup) ? Scheduler::TransactionStart::EARLY
+                                                  : Scheduler::TransactionStart::NORMAL;
         setTransactionFlags(transactionFlags, start);
 
         // if this is a synchronous transaction, wait for it to take effect
