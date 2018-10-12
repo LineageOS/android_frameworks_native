@@ -18,8 +18,8 @@
 #include <gui/BufferHubProducer.h>
 #include <inttypes.h>
 #include <log/log.h>
-#include <private/dvr/detached_buffer.h>
 #include <system/window.h>
+#include <ui/BufferHubBuffer.h>
 #include <ui/DetachedBufferHandle.h>
 
 namespace android {
@@ -400,14 +400,14 @@ status_t BufferHubProducer::attachBuffer(int* out_slot, const sp<GraphicBuffer>&
         ALOGE("attachBuffer: DetachedBufferHandle cannot be NULL.");
         return BAD_VALUE;
     }
-    auto detached_buffer = DetachedBuffer::Import(std::move(detached_handle->handle()));
+    auto detached_buffer = BufferHubBuffer::Import(std::move(detached_handle->handle()));
     if (detached_buffer == nullptr) {
-        ALOGE("attachBuffer: DetachedBuffer cannot be NULL.");
+        ALOGE("attachBuffer: BufferHubBuffer cannot be NULL.");
         return BAD_VALUE;
     }
     auto status_or_handle = detached_buffer->Promote();
     if (!status_or_handle.ok()) {
-        ALOGE("attachBuffer: Failed to promote a DetachedBuffer into a BufferProducer, error=%d.",
+        ALOGE("attachBuffer: Failed to promote a BufferHubBuffer into a BufferProducer, error=%d.",
               status_or_handle.error());
         return BAD_VALUE;
     }
