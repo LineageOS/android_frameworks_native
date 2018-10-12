@@ -92,6 +92,7 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(ownerUid);
     output.writeInt32(inputFeatures);
     output.writeInt32(displayId);
+    applicationInfo.write(output);
     output.write(touchableRegion);
 
     return OK;
@@ -129,6 +130,7 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.ownerUid = from.readInt32();
     ret.inputFeatures = from.readInt32();
     ret.displayId = from.readInt32();
+    ret.applicationInfo = InputApplicationInfo::read(from);
     from.read(ret.touchableRegion);
 
     return ret;
@@ -140,8 +142,7 @@ InputWindowInfo::InputWindowInfo(const Parcel& from) {
 
 // --- InputWindowHandle ---
 
-InputWindowHandle::InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle) :
-    inputApplicationHandle(inputApplicationHandle) {
+InputWindowHandle::InputWindowHandle() {
 }
 
 InputWindowHandle::~InputWindowHandle() {

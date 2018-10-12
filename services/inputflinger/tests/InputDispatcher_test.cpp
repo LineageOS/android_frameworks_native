@@ -63,6 +63,9 @@ private:
     virtual void notifyInputChannelBroken(const sp<IBinder>&) {
     }
 
+    virtual void notifyFocusChanged(const sp<IBinder>&) {
+    }
+
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) {
         *outConfig = mConfig;
     }
@@ -366,11 +369,13 @@ public:
 
     FakeWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle,
         const sp<InputDispatcher>& dispatcher, const std::string name, int32_t displayId) :
-            InputWindowHandle(inputApplicationHandle),
             FakeInputReceiver(dispatcher, name, displayId),
             mFocused(false) {
             mServerChannel->setToken(new BBinder());
             mDispatcher->registerInputChannel(mServerChannel, displayId);
+ 
+            inputApplicationHandle->updateInfo();
+            mInfo.applicationInfo = *inputApplicationHandle->getInfo();
     }
 
     virtual bool updateInfo() {

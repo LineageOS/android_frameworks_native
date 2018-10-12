@@ -153,6 +153,13 @@ private:
         mInputInfo.ownerUid = 11111;
         mInputInfo.inputFeatures = 0;
         mInputInfo.displayId = 0;
+
+        InputApplicationInfo aInfo;
+        aInfo.token = new BBinder();
+        aInfo.name = "Test app info";
+        aInfo.dispatchingTimeout = 100000;
+
+        mInputInfo.applicationInfo = aInfo;
     }
 public:
     sp<SurfaceControl> mSurfaceControl;

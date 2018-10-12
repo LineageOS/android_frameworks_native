@@ -1060,7 +1060,7 @@ private:
     nsecs_t mInputTargetWaitStartTime;
     nsecs_t mInputTargetWaitTimeoutTime;
     bool mInputTargetWaitTimeoutExpired;
-    sp<InputApplicationHandle> mInputTargetWaitApplicationHandle;
+    sp<IBinder> mInputTargetWaitApplicationToken;
 
     // Contains the last window which received a hover event.
     sp<InputWindowHandle> mLastHoverWindowHandle;

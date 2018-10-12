@@ -489,7 +489,7 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
         if (motionEntry->action == AMOTION_EVENT_ACTION_DOWN
                 && (motionEntry->source & AINPUT_SOURCE_CLASS_POINTER)
                 && mInputTargetWaitCause == INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY
-                && mInputTargetWaitApplicationHandle != nullptr) {
+                && mInputTargetWaitApplicationToken != nullptr) {
             int32_t displayId = motionEntry->displayId;
             int32_t x = int32_t(motionEntry->pointerCoords[0].
                     getAxisValue(AMOTION_EVENT_AXIS_X));
@@ -497,8 +497,8 @@ bool InputDispatcher::enqueueInboundEventLocked(EventEntry* entry) {
                     getAxisValue(AMOTION_EVENT_AXIS_Y));
             sp<InputWindowHandle> touchedWindowHandle = findTouchedWindowAtLocked(displayId, x, y);
             if (touchedWindowHandle != nullptr
-                    && touchedWindowHandle->inputApplicationHandle
-                            != mInputTargetWaitApplicationHandle) {
+                    && touchedWindowHandle->getApplicationToken()
+                            != mInputTargetWaitApplicationToken) {
                 // User touched a different application than the one we are waiting on.
                 // Flag the event, and start pruning the input queue.
                 mNextUnblockedEvent = motionEntry;
@@ -819,7 +819,8 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             sp<InputWindowHandle> focusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(entry));
             if (focusedWindowHandle != nullptr) {
-                commandEntry->inputChannel = getInputChannelLocked(focusedWindowHandle->getToken());
+                commandEntry->inputChannel =
+                    getInputChannelLocked(focusedWindowHandle->getToken());
             }
             commandEntry->keyEntry = entry;
             entry->refCount += 1;
@@ -1010,7 +1011,7 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(nsecs_t currentTime,
             mInputTargetWaitStartTime = currentTime;
             mInputTargetWaitTimeoutTime = LONG_LONG_MAX;
             mInputTargetWaitTimeoutExpired = false;
-            mInputTargetWaitApplicationHandle.clear();
+            mInputTargetWaitApplicationToken.clear();
         }
     } else {
         if (mInputTargetWaitCause != INPUT_TARGET_WAIT_CAUSE_APPLICATION_NOT_READY) {
@@ -1033,13 +1034,13 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(nsecs_t currentTime,
             mInputTargetWaitStartTime = currentTime;
             mInputTargetWaitTimeoutTime = currentTime + timeout;
             mInputTargetWaitTimeoutExpired = false;
-            mInputTargetWaitApplicationHandle.clear();
+            mInputTargetWaitApplicationToken.clear();
 
             if (windowHandle != nullptr) {
-                mInputTargetWaitApplicationHandle = windowHandle->inputApplicationHandle;
+                mInputTargetWaitApplicationToken = windowHandle->getApplicationToken();
             }
-            if (mInputTargetWaitApplicationHandle == nullptr && applicationHandle != nullptr) {
-                mInputTargetWaitApplicationHandle = applicationHandle;
+            if (mInputTargetWaitApplicationToken == nullptr && applicationHandle != nullptr) {
+                mInputTargetWaitApplicationToken = applicationHandle->getApplicationToken();
             }
         }
     }
@@ -1117,7 +1118,7 @@ void InputDispatcher::resetANRTimeoutsLocked() {
 
     // Reset input target wait timeout.
     mInputTargetWaitCause = INPUT_TARGET_WAIT_CAUSE_NONE;
-    mInputTargetWaitApplicationHandle.clear();
+    mInputTargetWaitApplicationToken.clear();
 }
 
 /**

@@ -138,6 +138,7 @@ struct InputWindowInfo {
     int32_t ownerUid;
     int32_t inputFeatures;
     int32_t displayId;
+    InputApplicationInfo applicationInfo;
 
     void addTouchableRegion(const Rect& region);
 
@@ -168,13 +169,16 @@ struct InputWindowInfo {
  */
 class InputWindowHandle : public RefBase {
 public:
-    const sp<InputApplicationHandle> inputApplicationHandle;
 
     inline const InputWindowInfo* getInfo() const {
         return &mInfo;
     }
 
     sp<IBinder> getToken() const;
+
+    sp<IBinder> getApplicationToken() {
+        return mInfo.applicationInfo.token;
+    }
 
     inline std::string getName() const {
         return mInfo.token ? mInfo.name : "<invalid>";
@@ -202,7 +206,7 @@ public:
     void releaseChannel();
 
 protected:
-    explicit InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle);
+    explicit InputWindowHandle();
     virtual ~InputWindowHandle();
 
     InputWindowInfo mInfo;

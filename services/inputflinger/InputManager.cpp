@@ -87,20 +87,9 @@ sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
 }
 
-class BinderApplicationHandle : public InputApplicationHandle {
-public:
-    BinderApplicationHandle() = default;
-
-    bool updateInfo() override {
-        return true;
-    }
-};
-
 class BinderWindowHandle : public InputWindowHandle {
 public:
-    BinderWindowHandle(const InputWindowInfo& info) :
-        InputWindowHandle(new BinderApplicationHandle()) {
-
+    BinderWindowHandle(const InputWindowInfo& info) {
         mInfo = info;
     }
 
