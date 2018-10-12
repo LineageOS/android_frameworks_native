@@ -52,8 +52,9 @@ class Region;
 
 // ---------------------------------------------------------------------------
 
-using TransactionCompletedCallback = std::function<void(void* /*context*/)>;
-using TransactionCompletedCallbackWithContext = std::function<void()>;
+using TransactionCompletedCallbackTakesContext =
+        std::function<void(void* /*context*/, const TransactionStats&)>;
+using TransactionCompletedCallback = std::function<void(const TransactionStats&)>;
 
 class TransactionCompletedListener : public BnTransactionCompletedListener {
     TransactionCompletedListener();
@@ -66,7 +67,7 @@ class TransactionCompletedListener : public BnTransactionCompletedListener {
 
     CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
 
-    std::map<CallbackId, TransactionCompletedCallbackWithContext> mCallbacks GUARDED_BY(mMutex);
+    std::map<CallbackId, TransactionCompletedCallback> mCallbacks GUARDED_BY(mMutex);
 
 public:
     static sp<TransactionCompletedListener> getInstance();
@@ -74,10 +75,10 @@ public:
 
     void startListeningLocked() REQUIRES(mMutex);
 
-    CallbackId addCallback(const TransactionCompletedCallbackWithContext& callback);
+    CallbackId addCallback(const TransactionCompletedCallback& callback);
 
     // Overrides BnTransactionCompletedListener's onTransactionCompleted
-    void onTransactionCompleted() override;
+    void onTransactionCompleted(ListenerStats stats) override;
 };
 
 // ---------------------------------------------------------------------------
@@ -303,8 +304,8 @@ public:
         Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
                                        const sp<NativeHandle>& sidebandStream);
 
-        Transaction& addTransactionCompletedCallback(TransactionCompletedCallback callback,
-                                                     void* callbackContext);
+        Transaction& addTransactionCompletedCallback(
+                TransactionCompletedCallbackTakesContext callback, void* callbackContext);
 
         // Detaches all child surfaces (and their children recursively)
         // from their SurfaceControl.

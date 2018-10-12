@@ -69,6 +69,7 @@ public:
     bool setSurfaceDamageRegion(const Region& surfaceDamage) override;
     bool setApi(int32_t api) override;
     bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
+    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
 
     bool setSize(uint32_t w, uint32_t h) override;
     bool setPosition(float x, float y, bool immediate) override;
@@ -125,6 +126,7 @@ private:
     // -----------------------------------------------------------------------
 private:
     void onFirstRef() override;
+    bool willPresentCurrentTransaction() const;
 
     static const std::array<float, 16> IDENTITY_MATRIX;
 

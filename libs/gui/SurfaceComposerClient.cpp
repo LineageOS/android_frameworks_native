@@ -128,8 +128,7 @@ void TransactionCompletedListener::startListeningLocked() {
     mListening = true;
 }
 
-CallbackId TransactionCompletedListener::addCallback(
-        const TransactionCompletedCallbackWithContext& callback) {
+CallbackId TransactionCompletedListener::addCallback(const TransactionCompletedCallback& callback) {
     std::lock_guard<std::mutex> lock(mMutex);
     startListeningLocked();
 
@@ -138,8 +137,20 @@ CallbackId TransactionCompletedListener::addCallback(
     return callbackId;
 }
 
-void TransactionCompletedListener::onTransactionCompleted() {
-    return;
+void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
+    std::lock_guard lock(mMutex);
+
+    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
+        for (auto callbackId : callbackIds) {
+            const auto& callback = mCallbacks[callbackId];
+            if (!callback) {
+                ALOGE("cannot call null callback function, skipping");
+                continue;
+            }
+            callback(transactionStats);
+            mCallbacks.erase(callbackId);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -199,6 +210,12 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
         auto& [callbackIds, surfaceControls] = callbackInfo;
         if (callbackIds.empty()) {
             continue;
+        }
+
+        // If the listener does not have any SurfaceControls set on this Transaction, send the
+        // callback now
+        if (surfaceControls.empty()) {
+            listener->onTransactionCompleted(ListenerStats::createEmpty(listener, callbackIds));
         }
 
         // If the listener has any SurfaceControls set on this Transaction update the surface state
@@ -676,10 +693,10 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSideb
 
 SurfaceComposerClient::Transaction&
 SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
-        TransactionCompletedCallback callback, void* callbackContext) {
+        TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
     auto listener = TransactionCompletedListener::getInstance();
 
-    auto callbackWithContext = std::bind(callback, callbackContext);
+    auto callbackWithContext = std::bind(callback, callbackContext, std::placeholders::_1);
 
     CallbackId callbackId = listener->addCallback(callbackWithContext);
 

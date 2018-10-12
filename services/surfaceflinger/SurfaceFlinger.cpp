@@ -1942,6 +1942,8 @@ void SurfaceFlinger::postComposition()
             ATRACE_INT("TexturePoolSize", mTexturePool.size());
         }
     }
+
+    mTransactionCompletedThread.sendCallbacks();
 }
 
 void SurfaceFlinger::rebuildLayerStacks() {
@@ -3295,9 +3297,15 @@ void SurfaceFlinger::setTransactionState(
         transactionFlags |= setDisplayStateLocked(display);
     }
 
+    uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        transactionFlags |= setClientStateLocked(state);
+        clientStateFlags |= setClientStateLocked(state);
     }
+    // If the state doesn't require a traversal and there are callbacks, send them now
+    if (!(clientStateFlags & eTraversalNeeded)) {
+        mTransactionCompletedThread.sendCallbacks();
+    }
+    transactionFlags |= clientStateFlags;
 
     // Iterate through all layers again to determine if any need to be destroyed. Marking layers
     // as destroyed should only occur after setting all other states. This is to allow for a
@@ -3606,6 +3614,17 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     if (what & layer_state_t::eSidebandStreamChanged) {
         if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
     }
+
+    std::vector<sp<CallbackHandle>> callbackHandles;
+    if ((what & layer_state_t::eListenerCallbacksChanged) && (!s.listenerCallbacks.empty())) {
+        mTransactionCompletedThread.run();
+        for (const auto& [listener, callbackIds] : s.listenerCallbacks) {
+            callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
+        }
+    }
+    if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
+    // Do not put anything that updates layer state or modifies flags after
+    // setTransactionCompletedListener
     return flags;
 }
 

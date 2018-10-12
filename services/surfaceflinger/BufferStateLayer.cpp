@@ -64,6 +64,12 @@ bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
     return hasFrameUpdate();
 }
 
+bool BufferStateLayer::willPresentCurrentTransaction() const {
+    // Returns true if the most recent Transaction applied to CurrentState will be presented.
+    return getSidebandStreamChanged() || getAutoRefresh() ||
+            (mCurrentState.modified && mCurrentState.buffer != nullptr);
+}
+
 bool BufferStateLayer::getTransformToDisplayInverse() const {
     return mCurrentState.transformToDisplayInverse;
 }
@@ -181,6 +187,34 @@ bool BufferStateLayer::setSidebandStream(const sp<NativeHandle>& sidebandStream)
         mFlinger->signalLayerUpdate();
     }
     return true;
+}
+
+bool BufferStateLayer::setTransactionCompletedListeners(
+        const std::vector<sp<CallbackHandle>>& handles) {
+    // If there is no handle, we will not send a callback
+    if (handles.empty()) {
+        return false;
+    }
+
+    const bool willPresent = willPresentCurrentTransaction();
+
+    for (const auto& handle : handles) {
+        // If this layer will be presented in this frame
+        if (willPresent) {
+            // Notify the transaction completed thread that there is a pending latched callback
+            // handle
+            mFlinger->getTransactionCompletedThread().registerPendingLatchedCallbackHandle(handle);
+
+            // Store so latched time and release fence can be set
+            mCurrentState.callbackHandles.push_back(handle);
+
+        } else { // If this layer will NOT need to be relatched and presented this frame
+            // Notify the transaction completed thread this handle is done
+            mFlinger->getTransactionCompletedThread().addUnlatchedCallbackHandle(handle);
+        }
+    }
+
+    return willPresent;
 }
 
 bool BufferStateLayer::setSize(uint32_t w, uint32_t h) {
@@ -403,6 +437,9 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         mTimeStats.removeTimeRecord(layerID, getFrameNumber());
         return BAD_VALUE;
     }
+
+    mFlinger->getTransactionCompletedThread().addLatchedCallbackHandles(
+            getDrawingState().callbackHandles);
 
     // Handle sync fences
     if (SyncFeatures::getInstance().useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {

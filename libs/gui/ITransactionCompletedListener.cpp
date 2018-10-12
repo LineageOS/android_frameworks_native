@@ -30,6 +30,74 @@ enum class Tag : uint32_t {
 
 } // Anonymous namespace
 
+status_t SurfaceStats::writeToParcel(Parcel* output) const {
+    return output->writeStrongBinder(surfaceControl);
+}
+
+status_t SurfaceStats::readFromParcel(const Parcel* input) {
+    return input->readStrongBinder(&surfaceControl);
+}
+
+status_t TransactionStats::writeToParcel(Parcel* output) const {
+    return output->writeParcelableVector(surfaceStats);
+}
+
+status_t TransactionStats::readFromParcel(const Parcel* input) {
+    return input->readParcelableVector(&surfaceStats);
+}
+
+status_t ListenerStats::writeToParcel(Parcel* output) const {
+    status_t err = output->writeInt32(static_cast<int32_t>(transactionStats.size()));
+    if (err != NO_ERROR) {
+        return err;
+    }
+
+    for (const auto& [callbackIds, stats] : transactionStats) {
+        err = output->writeParcelable(stats);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        err = output->writeInt64Vector(callbackIds);
+        if (err != NO_ERROR) {
+            return err;
+        }
+    }
+    return NO_ERROR;
+}
+
+status_t ListenerStats::readFromParcel(const Parcel* input) {
+    int32_t transactionStats_size = input->readInt32();
+
+    for (int i = 0; i < transactionStats_size; i++) {
+        TransactionStats stats;
+        std::vector<CallbackId> callbackIds;
+
+        status_t err = input->readParcelable(&stats);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        err = input->readInt64Vector(&callbackIds);
+        if (err != NO_ERROR) {
+            return err;
+        }
+
+        transactionStats.emplace(callbackIds, stats);
+    }
+    return NO_ERROR;
+}
+
+ListenerStats ListenerStats::createEmpty(const sp<ITransactionCompletedListener>& listener,
+                                         const std::unordered_set<CallbackId>& callbackIds) {
+    ListenerStats listenerStats;
+    listenerStats.listener = listener;
+    TransactionStats transactionStats;
+    listenerStats.transactionStats.emplace(std::piecewise_construct,
+                                           std::forward_as_tuple(callbackIds.begin(),
+                                                                 callbackIds.end()),
+                                           std::forward_as_tuple(transactionStats));
+    return listenerStats;
+}
+
 class BpTransactionCompletedListener : public SafeBpInterface<ITransactionCompletedListener> {
 public:
     explicit BpTransactionCompletedListener(const sp<IBinder>& impl)
@@ -38,9 +106,10 @@ public:
 
     ~BpTransactionCompletedListener() override;
 
-    void onTransactionCompleted() override {
-        callRemoteAsync<decltype(&ITransactionCompletedListener::onTransactionCompleted)>(
-                Tag::ON_TRANSACTION_COMPLETED);
+    void onTransactionCompleted(ListenerStats stats) override {
+        callRemoteAsync<decltype(&ITransactionCompletedListener::
+                                         onTransactionCompleted)>(Tag::ON_TRANSACTION_COMPLETED,
+                                                                  stats);
     }
 };
 

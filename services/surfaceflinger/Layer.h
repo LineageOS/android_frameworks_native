@@ -47,6 +47,7 @@
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
 #include "TimeStats/TimeStats.h"
+#include "TransactionCompletedThread.h"
 
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
@@ -183,6 +184,10 @@ public:
         sp<NativeHandle> sidebandStream;
         mat4 colorTransform;
         bool hasColorTransform;
+
+        // The deque of callback handles for this frame. The back of the deque contains the most
+        // recent callback handle.
+        std::deque<sp<CallbackHandle>> callbackHandles;
     };
 
     explicit Layer(const LayerCreationArgs& args);
@@ -272,6 +277,10 @@ public:
     virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) { return false; };
     virtual bool setApi(int32_t /*api*/) { return false; };
     virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) { return false; };
+    virtual bool setTransactionCompletedListeners(
+            const std::vector<sp<CallbackHandle>>& /*handles*/) {
+        return false;
+    };
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 

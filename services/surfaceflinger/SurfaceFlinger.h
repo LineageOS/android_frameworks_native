@@ -62,6 +62,7 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
 #include "SurfaceTracing.h"
+#include "TransactionCompletedThread.h"
 
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
@@ -366,6 +367,10 @@ public:
 
     inline void onLayerCreated() { mNumLayers++; }
     inline void onLayerDestroyed() { mNumLayers--; }
+
+    TransactionCompletedThread& getTransactionCompletedThread() {
+        return mTransactionCompletedThread;
+    }
 
 private:
     friend class Client;
@@ -885,6 +890,8 @@ private:
     TimeStats& mTimeStats = TimeStats::getInstance();
     bool mUseHwcVirtualDisplays = false;
     std::atomic<uint32_t> mFrameMissedCount{0};
+
+    TransactionCompletedThread mTransactionCompletedThread;
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
