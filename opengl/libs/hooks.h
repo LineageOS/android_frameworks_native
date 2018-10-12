@@ -59,10 +59,6 @@ namespace android {
 #define GL_ENTRY(_r, _api, ...) _r (*(_api))(__VA_ARGS__);
 #define EGL_ENTRY(_r, _api, ...) _r (*(_api))(__VA_ARGS__);
 
-struct platform_impl_t {
-    #include "platform_entries.in"
-};
-
 struct egl_t {
     #include "EGL/egl_entries.in"
 };
