@@ -340,7 +340,8 @@ public:
         mDisplayId = displayId;
     }
 
-    void consumeEvent(int32_t expectedEventType, int32_t expectedDisplayId) {
+    void consumeEvent(int32_t expectedEventType, int32_t expectedDisplayId,
+            int32_t expectedFlags = 0) {
         uint32_t consumeSeq;
         InputEvent* event;
         status_t status = mConsumer->consume(&mEventFactory, false /*consumeBatches*/, -1,
@@ -351,10 +352,29 @@ public:
         ASSERT_TRUE(event != nullptr)
                 << mName.c_str() << ": consumer should have returned non-NULL event.";
         ASSERT_EQ(expectedEventType, event->getType())
-                << mName.c_str() << ": consumer type should same as expected one.";
+                << mName.c_str() << ": event type should match.";
 
         ASSERT_EQ(expectedDisplayId, event->getDisplayId())
-                << mName.c_str() << ": consumer displayId should same as expected one.";
+                << mName.c_str() << ": event displayId should be the same as expected.";
+
+        int32_t flags;
+        switch (expectedEventType) {
+            case AINPUT_EVENT_TYPE_KEY: {
+                KeyEvent* typedEvent = static_cast<KeyEvent*>(event);
+                flags = typedEvent->getFlags();
+                break;
+            }
+            case AINPUT_EVENT_TYPE_MOTION: {
+                MotionEvent* typedEvent = static_cast<MotionEvent*>(event);
+                flags = typedEvent->getFlags();
+                break;
+            }
+            default: {
+                FAIL() << mName.c_str() << ": invalid event type: " << expectedEventType;
+            }
+        }
+        ASSERT_EQ(expectedFlags, flags)
+                << mName.c_str() << ": event flags should be the same as expected.";
 
         status = mConsumer->sendFinishedSignal(consumeSeq, true /*handled*/);
         ASSERT_EQ(OK, status)
@@ -556,8 +576,8 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedInMultiDisplay) {
     mDispatcher->setInputWindows(inputWindowHandles_Second, SECOND_DISPLAY_ID);
 
     // Expect old focus should receive a cancel event.
-    windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
-    // TODO(b/111361570): Validate that the event here was marked as canceled.
+    windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE,
+            AKEY_EVENT_FLAG_CANCELED);
 
     // Test inject a key down, should timeout because of no target window.
     ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
