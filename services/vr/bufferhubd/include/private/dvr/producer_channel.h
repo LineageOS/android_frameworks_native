@@ -8,8 +8,8 @@
 #include <pdx/channel_handle.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/buffer_wrapper.h>
-#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/buffer_hub.h>
+#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/ion_buffer.h>
 
 namespace android {
@@ -81,10 +81,8 @@ class ProducerChannel : public BufferHubChannel {
   BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
   std::atomic<uint64_t>* buffer_state_ = nullptr;
   std::atomic<uint64_t>* fence_state_ = nullptr;
+  std::atomic<uint64_t>* active_clients_bit_mask_ = nullptr;
 
-  // All active consumer bits. Valid bits are the lower 63 bits, while the
-  // highest bit is reserved for the producer and should not be set.
-  uint64_t active_consumer_bit_mask_{0ULL};
   // All orphaned consumer bits. Valid bits are the lower 63 bits, while the
   // highest bit is reserved for the producer and should not be set.
   uint64_t orphaned_consumer_bit_mask_{0ULL};

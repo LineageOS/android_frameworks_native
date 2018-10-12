@@ -75,6 +75,7 @@ struct __attribute__((packed, aligned(8))) MetadataHeader {
   // and vendor HAL).
   std::atomic<uint64_t> buffer_state;
   std::atomic<uint64_t> fence_state;
+  std::atomic<uint64_t> active_clients_bit_mask;
   uint64_t queue_index;
 
   // Public data format, which should be updated with caution. See more details
@@ -82,7 +83,7 @@ struct __attribute__((packed, aligned(8))) MetadataHeader {
   DvrNativeBufferMetadata metadata;
 };
 
-static_assert(sizeof(MetadataHeader) == 128, "Unexpected MetadataHeader size");
+static_assert(sizeof(MetadataHeader) == 136, "Unexpected MetadataHeader size");
 static constexpr size_t kMetadataHeaderSize = sizeof(MetadataHeader);
 
 }  // namespace BufferHubDefs
