@@ -141,7 +141,7 @@ cc_library_shared {
         "EGL/egl_display.cpp",
         "EGL/egl_object.cpp",
         "EGL/egl.cpp",
-        "EGL/egl_platform_entries.cpp",
+        "EGL/eglApi.cpp",
         "EGL/Loader.cpp",
         "EGL/egl_angle_platform.cpp",
     ],
