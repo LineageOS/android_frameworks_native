@@ -29,8 +29,6 @@ class GraphicsEnv {
 public:
     static GraphicsEnv& getInstance();
 
-    int getCanLoadSystemLibraries();
-
     // Set a search path for loading graphics drivers. The path is a list of
     // directories separated by ':'. A directory can be contained in a zip file
     // (drivers must be stored uncompressed and page aligned); such elements
@@ -87,13 +85,11 @@ private:
  *    will be removed soon.
  */
 extern "C" {
-    android_namespace_t* android_getDriverNamespace();
-    android_namespace_t* android_getAngleNamespace();
-    const char* android_getAngleAppName();
-    const char* android_getAngleAppPref();
-    bool android_getAngleDeveloperOptIn();
-    const char* android_getLayerPaths();
-    const char* android_getDebugLayers();
+android_namespace_t* android_getDriverNamespace();
+android_namespace_t* android_getAngleNamespace();
+const char* android_getAngleAppName();
+const char* android_getAngleAppPref();
+bool android_getAngleDeveloperOptIn();
 }
 
 #endif // ANDROID_UI_GRAPHICS_ENV_H

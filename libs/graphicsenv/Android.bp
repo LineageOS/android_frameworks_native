@@ -23,7 +23,6 @@ cc_library_shared {
 
     shared_libs: [
         "liblog",
-        "libcutils",
     ],
 
     export_include_dirs: ["include"],
