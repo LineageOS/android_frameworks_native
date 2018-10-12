@@ -20,6 +20,7 @@
 #include <binder/SafeInterface.h>
 
 #include <cstdint>
+#include <unordered_set>
 
 namespace android {
 
@@ -37,6 +38,23 @@ public:
 
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                         uint32_t flags = 0) override;
+};
+
+using CallbackId = int64_t;
+
+class ListenerCallbacks {
+public:
+    ListenerCallbacks(const sp<ITransactionCompletedListener>& listener,
+                      const std::unordered_set<CallbackId>& callbacks)
+          : transactionCompletedListener(listener),
+            callbackIds(callbacks.begin(), callbacks.end()) {}
+
+    ListenerCallbacks(const sp<ITransactionCompletedListener>& listener,
+                      const std::vector<CallbackId>& ids)
+          : transactionCompletedListener(listener), callbackIds(ids) {}
+
+    sp<ITransactionCompletedListener> transactionCompletedListener;
+    std::vector<CallbackId> callbackIds;
 };
 
 } // namespace android
