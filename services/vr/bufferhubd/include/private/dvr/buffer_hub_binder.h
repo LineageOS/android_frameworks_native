@@ -2,9 +2,8 @@
 #define ANDROID_DVR_BUFFER_HUB_BINDER_H
 
 #include <binder/BinderService.h>
+#include <private/dvr/IBufferHub.h>
 #include <private/dvr/buffer_hub.h>
-
-#include "android/dvr/BnBufferHub.h"
 
 namespace android {
 namespace dvr {
@@ -17,6 +16,9 @@ class BufferHubBinderService : public BinderService<BufferHubBinderService>,
   // Dump bufferhub related information to given fd (usually stdout)
   // usage: adb shell dumpsys bufferhubd
   virtual status_t dump(int fd, const Vector<String16>& args) override;
+
+  // Helper function to get the BpReference to this service
+  static sp<IBufferHub> getServiceProxy();
 
  private:
   std::shared_ptr<BufferHubService> pdx_service_;

@@ -39,11 +39,6 @@ class BufferHubBase : public pdx::Client {
   // after calling this method.
   int GetBlobReadWritePointer(size_t size, void** addr);
 
-  // Gets a blob buffer that was created with ProducerBuffer::CreateBlob.
-  // Locking and Unlocking is handled internally. There's no need to Unlock
-  // after calling this method.
-  int GetBlobReadOnlyPointer(size_t size, void** addr);
-
   // Returns a dup'd file descriptor for accessing the blob shared memory. The
   // caller takes ownership of the file descriptor and must close it or pass on
   // ownership. Some GPU API extensions can take file descriptors to bind shared
@@ -139,6 +134,7 @@ class BufferHubBase : public pdx::Client {
   void* user_metadata_ptr_{nullptr};
   std::atomic<uint64_t>* buffer_state_{nullptr};
   std::atomic<uint64_t>* fence_state_{nullptr};
+  std::atomic<uint64_t>* active_clients_bit_mask_{nullptr};
 
   LocalHandle shared_acquire_fence_;
   LocalHandle shared_release_fence_;

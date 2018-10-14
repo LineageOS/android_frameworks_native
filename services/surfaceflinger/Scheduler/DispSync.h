@@ -57,6 +57,7 @@ public:
     virtual status_t changePhaseOffset(Callback* callback, nsecs_t phase) = 0;
     virtual nsecs_t computeNextRefresh(int periodOffset) const = 0;
     virtual void setIgnorePresentFences(bool ignore) = 0;
+    virtual nsecs_t expectedPresentTime() = 0;
 
     virtual void dump(String8& result) const = 0;
 };
@@ -164,6 +165,9 @@ public:
     // true from addPresentFence() and addResyncSample().
     void setIgnorePresentFences(bool ignore) override;
 
+    // Determine the expected present time when a buffer acquired now will be displayed.
+    nsecs_t expectedPresentTime();
+
     // dump appends human-readable debug info to the result string.
     void dump(String8& result) const override;
 
@@ -237,6 +241,9 @@ private:
     bool mIgnorePresentFences;
 
     std::unique_ptr<Callback> mZeroPhaseTracer;
+
+    // Flag to turn on logging in systrace.
+    bool mTraceDetailedInfo = false;
 };
 
 } // namespace impl

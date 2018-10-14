@@ -41,6 +41,9 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
                                bool getSectionDetails,
                                sp<IDumpstateToken>* returned_token) override;
 
+    binder::Status startBugreport(int fd, const sp<IDumpstateListener>& listener,
+                                  const DumpstateOptions& options, int32_t* returned_id) override;
+
   private:
     Dumpstate& ds_;
     std::mutex lock_;

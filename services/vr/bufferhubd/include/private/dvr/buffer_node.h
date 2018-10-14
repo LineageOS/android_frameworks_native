@@ -1,8 +1,8 @@
 #ifndef ANDROID_DVR_BUFFERHUBD_BUFFER_NODE_H_
 #define ANDROID_DVR_BUFFERHUBD_BUFFER_NODE_H_
 
-#include <private/dvr/buffer_hub_metadata.h>
 #include <private/dvr/ion_buffer.h>
+#include <ui/BufferHubMetadata.h>
 
 namespace android {
 namespace dvr {

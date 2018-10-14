@@ -44,10 +44,6 @@ DispSync::~DispSync() = default;
 
 namespace impl {
 
-// Setting this to true enables verbose tracing that can be used to debug
-// vsync event model or phase issues.
-static const bool kTraceDetailedInfo = false;
-
 // Setting this to true adds a zero-phase tracer for correlating with hardware
 // vsync events
 static const bool kEnableZeroPhaseTracer = false;
@@ -62,19 +58,20 @@ static const nsecs_t kErrorThreshold = 160000000000; // 400 usec squared
 #define LOG_TAG "DispSyncThread"
 class DispSyncThread : public Thread {
 public:
-    explicit DispSyncThread(const char* name)
+    DispSyncThread(const char* name, bool showTraceDetailedInfo)
           : mName(name),
             mStop(false),
             mPeriod(0),
             mPhase(0),
             mReferenceTime(0),
             mWakeupLatency(0),
-            mFrameNumber(0) {}
+            mFrameNumber(0),
+            mTraceDetailedInfo(showTraceDetailedInfo) {}
 
     virtual ~DispSyncThread() {}
 
     void updateModel(nsecs_t period, nsecs_t phase, nsecs_t referenceTime) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
         mPeriod = period;
         mPhase = phase;
@@ -86,7 +83,7 @@ public:
     }
 
     void stop() {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
         mStop = true;
         mCond.signal();
@@ -104,7 +101,7 @@ public:
             { // Scope for lock
                 Mutex::Autolock lock(mMutex);
 
-                if (kTraceDetailedInfo) {
+                if (mTraceDetailedInfo) {
                     ATRACE_INT64("DispSync:Frame", mFrameNumber);
                 }
                 ALOGV("[%s] Frame %" PRId64, mName, mFrameNumber);
@@ -128,7 +125,7 @@ public:
                 bool isWakeup = false;
 
                 if (now < targetTime) {
-                    if (kTraceDetailedInfo) ATRACE_NAME("DispSync waiting");
+                    if (mTraceDetailedInfo) ATRACE_NAME("DispSync waiting");
 
                     if (targetTime == INT64_MAX) {
                         ALOGV("[%s] Waiting forever", mName);
@@ -154,7 +151,7 @@ public:
                 if (isWakeup) {
                     mWakeupLatency = ((mWakeupLatency * 63) + (now - targetTime)) / 64;
                     mWakeupLatency = min(mWakeupLatency, kMaxWakeupLatency);
-                    if (kTraceDetailedInfo) {
+                    if (mTraceDetailedInfo) {
                         ATRACE_INT64("DispSync:WakeupLat", now - targetTime);
                         ATRACE_INT64("DispSync:AvgWakeupLat", mWakeupLatency);
                     }
@@ -172,7 +169,7 @@ public:
     }
 
     status_t addEventListener(const char* name, nsecs_t phase, DispSync::Callback* callback) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
         for (size_t i = 0; i < mEventListeners.size(); i++) {
@@ -198,7 +195,7 @@ public:
     }
 
     status_t removeEventListener(DispSync::Callback* callback) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
         for (std::vector<EventListener>::iterator it = mEventListeners.begin();
@@ -214,7 +211,7 @@ public:
     }
 
     status_t changePhaseOffset(DispSync::Callback* callback, nsecs_t phase) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         Mutex::Autolock lock(mMutex);
 
         for (auto& eventListener : mEventListeners) {
@@ -254,7 +251,7 @@ private:
     };
 
     nsecs_t computeNextEventTimeLocked(nsecs_t now) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] computeNextEventTimeLocked", mName);
         nsecs_t nextEventTime = INT64_MAX;
         for (size_t i = 0; i < mEventListeners.size(); i++) {
@@ -270,7 +267,7 @@ private:
     }
 
     std::vector<CallbackInvocation> gatherCallbackInvocationsLocked(nsecs_t now) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] gatherCallbackInvocationsLocked @ %" PRId64, mName, ns2us(now));
 
         std::vector<CallbackInvocation> callbackInvocations;
@@ -293,7 +290,7 @@ private:
     }
 
     nsecs_t computeListenerNextEventTimeLocked(const EventListener& listener, nsecs_t baseTime) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         ALOGV("[%s] [%s] computeListenerNextEventTimeLocked(%" PRId64 ")", mName, listener.mName,
               ns2us(baseTime));
 
@@ -344,7 +341,7 @@ private:
     }
 
     void fireCallbackInvocations(const std::vector<CallbackInvocation>& callbacks) {
-        if (kTraceDetailedInfo) ATRACE_CALL();
+        if (mTraceDetailedInfo) ATRACE_CALL();
         for (size_t i = 0; i < callbacks.size(); i++) {
             callbacks[i].mCallback->onDispSyncEvent(callbacks[i].mEventTime);
         }
@@ -365,6 +362,9 @@ private:
 
     Mutex mMutex;
     Condition mCond;
+
+    // Flag to turn on logging in systrace.
+    const bool mTraceDetailedInfo;
 };
 
 #undef LOG_TAG
@@ -383,8 +383,13 @@ private:
     bool mParity;
 };
 
-DispSync::DispSync(const char* name)
-      : mName(name), mRefreshSkipCount(0), mThread(new DispSyncThread(name)) {}
+DispSync::DispSync(const char* name) : mName(name), mRefreshSkipCount(0) {
+    // This flag offers the ability to turn on systrace logging from the shell.
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.sf.dispsync_trace_detailed_info", value, "0");
+    mTraceDetailedInfo = atoi(value);
+    mThread = new DispSyncThread(name, mTraceDetailedInfo);
+}
 
 DispSync::~DispSync() {}
 
@@ -403,7 +408,7 @@ void DispSync::init(bool hasSyncFramework, int64_t dispSyncPresentTimeOffset) {
     reset();
     beginResync();
 
-    if (kTraceDetailedInfo && kEnableZeroPhaseTracer) {
+    if (mTraceDetailedInfo && kEnableZeroPhaseTracer) {
         mZeroPhaseTracer = std::make_unique<ZeroPhaseTracer>();
         addEventListener("ZeroPhaseTracer", 0, mZeroPhaseTracer.get());
     }
@@ -588,7 +593,7 @@ void DispSync::updateModelLocked() {
             ALOGV("[%s] Adjusting mPhase -> %" PRId64, mName, ns2us(mPhase));
         }
 
-        if (kTraceDetailedInfo) {
+        if (mTraceDetailedInfo) {
             ATRACE_INT64("DispSync:Period", mPeriod);
             ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
         }
@@ -647,7 +652,7 @@ void DispSync::updateErrorLocked() {
                  "No present times for model error.");
     }
 
-    if (kTraceDetailedInfo) {
+    if (mTraceDetailedInfo) {
         ATRACE_INT64("DispSync:Error", mError);
     }
 }
@@ -724,6 +729,54 @@ void DispSync::dump(String8& result) const {
     }
 
     result.appendFormat("current monotonic time: %" PRId64 "\n", now);
+}
+
+// TODO(b/113612090): Figure out how much of this is still relevant.
+// We need to determine the time when a buffer acquired now will be
+// displayed.  This can be calculated:
+//   time when previous buffer's actual-present fence was signaled
+//    + current display refresh rate * HWC latency
+//    + a little extra padding
+//
+// Buffer producers are expected to set their desired presentation time
+// based on choreographer time stamps, which (coming from vsync events)
+// will be slightly later then the actual-present timing.  If we get a
+// desired-present time that is unintentionally a hair after the next
+// vsync, we'll hold the frame when we really want to display it.  We
+// need to take the offset between actual-present and reported-vsync
+// into account.
+//
+// If the system is configured without a DispSync phase offset for the app,
+// we also want to throw in a bit of padding to avoid edge cases where we
+// just barely miss.  We want to do it here, not in every app.  A major
+// source of trouble is the app's use of the display's ideal refresh time
+// (via Display.getRefreshRate()), which could be off of the actual refresh
+// by a few percent, with the error multiplied by the number of frames
+// between now and when the buffer should be displayed.
+//
+// If the refresh reported to the app has a phase offset, we shouldn't need
+// to tweak anything here.
+nsecs_t DispSync::expectedPresentTime() {
+    // The HWC doesn't currently have a way to report additional latency.
+    // Assume that whatever we submit now will appear right after the flip.
+    // For a smart panel this might be 1.  This is expressed in frames,
+    // rather than time, because we expect to have a constant frame delay
+    // regardless of the refresh rate.
+    const uint32_t hwcLatency = 0;
+
+    // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
+    const nsecs_t nextRefresh = computeNextRefresh(hwcLatency);
+
+    // The DispSync time is already adjusted for the difference between
+    // vsync and reported-vsync (SurfaceFlinger::dispSyncPresentTimeOffset), so
+    // we don't need to factor that in here.  Pad a little to avoid
+    // weird effects if apps might be requesting times right on the edge.
+    nsecs_t extraPadding = 0;
+    if (SurfaceFlinger::vsyncPhaseOffsetNs == 0) {
+        extraPadding = 1000000; // 1ms (6% of 60Hz)
+    }
+
+    return nextRefresh + extraPadding;
 }
 
 } // namespace impl

@@ -523,7 +523,7 @@ private:
     uint32_t peekTransactionFlags();
     // Can only be called from the main thread or with mStateLock held
     uint32_t setTransactionFlags(uint32_t flags);
-    uint32_t setTransactionFlags(uint32_t flags, VSyncModulator::TransactionStart transactionStart);
+    uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
     void commitTransaction();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
@@ -662,12 +662,10 @@ private:
 
     void preComposition();
     void postComposition();
-    void updateCompositorTiming(
-            nsecs_t vsyncPhase, nsecs_t vsyncInterval, nsecs_t compositeTime,
-            std::shared_ptr<FenceTime>& presentFenceTime);
-    void setCompositorTimingSnapped(
-            nsecs_t vsyncPhase, nsecs_t vsyncInterval,
-            nsecs_t compositeToPresentLatency);
+    void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
+                                std::shared_ptr<FenceTime>& presentFenceTime);
+    void setCompositorTimingSnapped(const DisplayStatInfo& stats,
+                                    nsecs_t compositeToPresentLatency);
     void rebuildLayerStacks();
 
     ui::Dataspace getBestDataspace(const sp<const DisplayDevice>& display,

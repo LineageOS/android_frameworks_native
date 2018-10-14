@@ -218,10 +218,7 @@ TEST(VrFlingerTest, ActivateDeactivate) {
 
     ASSERT_GE(buffer.get()->Unlock(), 0);
 
-    ASSERT_GE(buffer.get()->Post(/*ready_fence=*/pdx::LocalHandle(),
-                                 /*meta=*/nullptr,
-                                 /*user_metadata_size=*/0),
-              0);
+    ASSERT_GE(buffer.get()->Post(/*ready_fence=*/pdx::LocalHandle()), 0);
 
     ASSERT_EQ(
         surface_flinger_connection->WaitForVrFlinger(/*wait_active=*/true),

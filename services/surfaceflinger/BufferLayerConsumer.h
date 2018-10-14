@@ -80,8 +80,6 @@ public:
     // ConsumerBase::setFrameAvailableListener().
     void setContentsChangedListener(const wp<ContentsChangedListener>& listener);
 
-    nsecs_t computeExpectedPresent(const DispSync& dispSync);
-
     // updateTexImage acquires the most recently queued buffer, and sets the
     // image contents of the target texture to it.
     //
@@ -93,8 +91,8 @@ public:
     // Unlike the GLConsumer version, this version takes a functor that may be
     // used to reject the newly acquired buffer.  It also does not bind the
     // RenderEngine texture until bindTextureImage is called.
-    status_t updateTexImage(BufferRejecter* rejecter, const DispSync& dispSync, bool* autoRefresh,
-                            bool* queuedBuffer, uint64_t maxFrameNumber,
+    status_t updateTexImage(BufferRejecter* rejecter, nsecs_t expectedPresentTime,
+                            bool* autoRefresh, bool* queuedBuffer, uint64_t maxFrameNumber,
                             const sp<Fence>& releaseFence);
 
     // See BufferLayerConsumer::bindTextureImageLocked().

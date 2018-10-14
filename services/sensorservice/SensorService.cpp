@@ -633,8 +633,13 @@ bool SensorService::threadLoop() {
     do {
         ssize_t count = device.poll(mSensorEventBuffer, numEventMax);
         if (count < 0) {
-            ALOGE("sensor poll failed (%s)", strerror(-count));
-            break;
+            if(count == DEAD_OBJECT && device.isReconnecting()) {
+                device.reconnect();
+                continue;
+            } else {
+                ALOGE("sensor poll failed (%s)", strerror(-count));
+                break;
+            }
         }
 
         // Reset sensors_event_t.flags to zero for all events in the buffer.

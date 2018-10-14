@@ -116,9 +116,10 @@ int BufferHubBase::ImportBuffer() {
   cid_ = buffer_desc.buffer_cid();
   buffer_state_bit_ = buffer_desc.buffer_state_bit();
 
-  // Note that here the buffer state is mapped from shared memory as an atomic
-  // object. The std::atomic's constructor will not be called so that the
-  // original value stored in the memory region will be preserved.
+  // Note that here the buffer_state, fence_state and active_clients_bit_mask
+  // are mapped from shared memory as an atomic object. The std::atomic's
+  // constructor will not be called so that the original value stored in the
+  // memory region will be preserved.
   buffer_state_ = &metadata_header_->buffer_state;
   ALOGD_IF(TRACE,
            "BufferHubBase::ImportBuffer: id=%d, buffer_state=%" PRIx64 ".",
@@ -127,6 +128,12 @@ int BufferHubBase::ImportBuffer() {
   ALOGD_IF(TRACE,
            "BufferHubBase::ImportBuffer: id=%d, fence_state=%" PRIx64 ".", id(),
            fence_state_->load());
+  active_clients_bit_mask_ = &metadata_header_->active_clients_bit_mask;
+  ALOGD_IF(
+      TRACE,
+      "BufferHubBase::ImportBuffer: id=%d, active_clients_bit_mask=%" PRIx64
+      ".",
+      id(), active_clients_bit_mask_->load());
 
   return 0;
 }
@@ -207,10 +214,6 @@ int BufferHubBase::GetBlobReadWritePointer(size_t size, void** addr) {
   if (ret == 0)
     Unlock();
   return ret;
-}
-
-int BufferHubBase::GetBlobReadOnlyPointer(size_t size, void** addr) {
-  return GetBlobReadWritePointer(size, addr);
 }
 
 void BufferHubBase::GetBlobFds(int* fds, size_t* fds_count,

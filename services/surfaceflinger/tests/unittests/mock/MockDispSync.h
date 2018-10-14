@@ -43,6 +43,7 @@ public:
     MOCK_METHOD2(changePhaseOffset, status_t(Callback*, nsecs_t));
     MOCK_CONST_METHOD1(computeNextRefresh, nsecs_t(int));
     MOCK_METHOD1(setIgnorePresentFences, void(bool));
+    MOCK_METHOD0(expectedPresentTime, nsecs_t());
 
     MOCK_CONST_METHOD1(dump, void(String8&));
 };

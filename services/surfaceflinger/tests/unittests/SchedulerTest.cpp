@@ -6,8 +6,11 @@
 
 #include <log/log.h>
 
+#include <mutex>
+
 #include "AsyncCallRecorder.h"
 #include "Scheduler/DispSync.h"
+#include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/Scheduler.h"
 #include "mock/MockDispSync.h"
@@ -37,7 +40,7 @@ protected:
     class MockScheduler : public android::Scheduler {
     public:
         MockScheduler(std::unique_ptr<EventThread> eventThread)
-              : mEventThread(std::move(eventThread)) {}
+              : Scheduler([](bool) {}), mEventThread(std::move(eventThread)) {}
 
         std::unique_ptr<EventThread> makeEventThread(
                 const std::string& /* connectionName */, DispSync* /* dispSync */,
@@ -81,9 +84,9 @@ SchedulerTest::SchedulerTest() {
     EXPECT_CALL(*mEventThread, createEventConnection())
             .WillRepeatedly(Return(mEventThreadConnection));
 
-    mConnectionHandle = mScheduler->createConnection("appConnection", mPrimaryDispSync, 16,
-                                                     mResyncCallRecorder.getInvocable(),
-                                                     mInterceptVSyncCallRecorder.getInvocable());
+    mConnectionHandle =
+            mScheduler->createConnection("appConnection", 16, mResyncCallRecorder.getInvocable(),
+                                         mInterceptVSyncCallRecorder.getInvocable());
 }
 
 SchedulerTest::~SchedulerTest() {
