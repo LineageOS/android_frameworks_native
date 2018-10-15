@@ -114,7 +114,7 @@ private:
 
     void setFilteringEnabled(bool enabled) override;
 
-    status_t bindTextureImage() const override;
+    status_t bindTextureImage() override;
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
                             const sp<Fence>& releaseFence) override;
 
