@@ -32,6 +32,7 @@
 #include <optional>
 #include <stddef.h>
 #include <unistd.h>
+#include <unordered_map>
 #include <vector>
 
 // Maximum supported size of a vibration pattern.
@@ -164,6 +165,10 @@ struct InputReaderConfiguration {
     // Devices with these names will be ignored.
     std::vector<std::string> excludedDeviceNames;
 
+    // The associations between input ports and display ports.
+    // Used to determine which DisplayViewport should be tied to which InputDevice.
+    std::unordered_map<std::string, uint8_t> portAssociations;
+
     // Velocity control parameters for mouse pointer movements.
     VelocityControlParameters pointerVelocityControlParameters;
 
@@ -262,8 +267,10 @@ struct InputReaderConfiguration {
             pointerGestureZoomSpeedRatio(0.3f),
             showTouches(false) { }
 
-    std::optional<DisplayViewport> getDisplayViewport(ViewportType viewportType,
-            const std::string& uniqueDisplayId) const;
+    std::optional<DisplayViewport> getDisplayViewportByType(ViewportType type) const;
+    std::optional<DisplayViewport> getDisplayViewportByUniqueId(const std::string& uniqueDisplayId)
+            const;
+    std::optional<DisplayViewport> getDisplayViewportByPort(uint8_t physicalPort) const;
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports);
 
 

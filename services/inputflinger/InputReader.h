@@ -252,6 +252,9 @@ public:
 
     inline bool isExternal() { return mIsExternal; }
     inline void setExternal(bool external) { mIsExternal = external; }
+    inline std::optional<uint8_t> getAssociatedDisplayPort() const {
+        return mAssociatedDisplayPort;
+    }
 
     inline void setMic(bool hasMic) { mHasMic = hasMic; }
     inline bool hasMic() const { return mHasMic; }
@@ -324,6 +327,7 @@ private:
 
     uint32_t mSources;
     bool mIsExternal;
+    std::optional<uint8_t> mAssociatedDisplayPort;
     bool mHasMic;
     bool mDropUntilNextSync;
 
@@ -1500,6 +1504,8 @@ private:
     VelocityControl mPointerVelocityControl;
     VelocityControl mWheelXVelocityControl;
     VelocityControl mWheelYVelocityControl;
+
+    std::optional<DisplayViewport> findViewport();
 
     void resetExternalStylus();
     void clearStylusDataPendingFlags();

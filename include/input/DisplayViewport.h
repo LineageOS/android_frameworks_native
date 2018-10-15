@@ -20,6 +20,8 @@
 #include <android-base/stringprintf.h>
 #include <ui/DisplayInfo.h>
 #include <input/Input.h>
+#include <inttypes.h>
+#include <optional>
 
 using android::base::StringPrintf;
 
@@ -66,13 +68,17 @@ struct DisplayViewport {
     int32_t deviceWidth;
     int32_t deviceHeight;
     std::string uniqueId;
+    // The actual (hardware) port that the associated display is connected to.
+    // Not all viewports will have this specified.
+    std::optional<uint8_t> physicalPort;
     ViewportType type;
 
     DisplayViewport() :
             displayId(ADISPLAY_ID_NONE), orientation(DISPLAY_ORIENTATION_0),
             logicalLeft(0), logicalTop(0), logicalRight(0), logicalBottom(0),
             physicalLeft(0), physicalTop(0), physicalRight(0), physicalBottom(0),
-            deviceWidth(0), deviceHeight(0), uniqueId(), type(ViewportType::VIEWPORT_INTERNAL) {
+            deviceWidth(0), deviceHeight(0), uniqueId(), physicalPort(std::nullopt),
+            type(ViewportType::VIEWPORT_INTERNAL) {
     }
 
     bool operator==(const DisplayViewport& other) const {
@@ -89,6 +95,7 @@ struct DisplayViewport {
                 && deviceWidth == other.deviceWidth
                 && deviceHeight == other.deviceHeight
                 && uniqueId == other.uniqueId
+                && physicalPort == other.physicalPort
                 && type == other.type;
     }
 
@@ -114,16 +121,19 @@ struct DisplayViewport {
         deviceWidth = width;
         deviceHeight = height;
         uniqueId.clear();
+        physicalPort = std::nullopt;
         type = ViewportType::VIEWPORT_INTERNAL;
     }
 
     std::string toString() const {
-        return StringPrintf("Viewport %s: displayId=%d, orientation=%d, "
+        return StringPrintf("Viewport %s: displayId=%d, uniqueId=%s, port=%s, orientation=%d, "
             "logicalFrame=[%d, %d, %d, %d], "
             "physicalFrame=[%d, %d, %d, %d], "
             "deviceSize=[%d, %d]",
-            viewportTypeToString(type),
-            displayId, orientation,
+            viewportTypeToString(type), displayId,
+            uniqueId.c_str(),
+            physicalPort ? StringPrintf("%" PRIu8, *physicalPort).c_str() : "<none>",
+            orientation,
             logicalLeft, logicalTop,
             logicalRight, logicalBottom,
             physicalLeft, physicalTop,
