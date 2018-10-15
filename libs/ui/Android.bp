@@ -144,6 +144,9 @@ cc_library_shared {
         "libhardware_headers",
         "libui_headers",
     ],
+
+    // TODO(b/117568153): Temporarily opt out using libcrt.
+    no_libcrt: true,
 }
 
 cc_library_headers {
