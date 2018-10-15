@@ -37,7 +37,6 @@
 #pragma clang diagnostic pop
 
 #include <ui/BufferHubBuffer.h>
-#include <ui/DetachedBufferHandle.h>
 
 #include <poll.h>
 

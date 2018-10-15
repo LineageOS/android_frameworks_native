@@ -5,7 +5,6 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <ui/BufferHubBuffer.h>
-#include <ui/DetachedBufferHandle.h>
 
 #include <mutex>
 #include <thread>
