@@ -40,7 +40,7 @@ class NativeHandleWrapper {
   bool IsValid() const { return ints_.size() != 0 || fds_.size() != 0; }
 
   // Duplicate a native handle from the wrapper.
-  const native_handle_t* DuplicateHandle() const {
+  native_handle_t* DuplicateHandle() const {
     if (!IsValid()) {
       return nullptr;
     }
@@ -58,7 +58,7 @@ class NativeHandleWrapper {
   }
 
   // Takes the native handle out of the wrapper.
-  const native_handle_t* TakeHandle() {
+  native_handle_t* TakeHandle() {
     if (!IsValid()) {
       return nullptr;
     }
@@ -70,8 +70,8 @@ class NativeHandleWrapper {
   NativeHandleWrapper(const NativeHandleWrapper&) = delete;
   void operator=(const NativeHandleWrapper&) = delete;
 
-  static const native_handle_t* FromFdsAndInts(std::vector<FileHandleType> fds,
-                                               std::vector<int> ints) {
+  static native_handle_t* FromFdsAndInts(std::vector<FileHandleType> fds,
+                                         std::vector<int> ints) {
     native_handle_t* handle = native_handle_create(fds.size(), ints.size());
     if (!handle) {
       ALOGE("NativeHandleWrapper::TakeHandle: Failed to create new handle.");
