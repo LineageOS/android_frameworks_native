@@ -88,7 +88,7 @@ public:
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
-    uint64_t buffer_state_bit() const { return mBfferStateBit; }
+    uint64_t buffer_state_bit() const { return mBufferStateBit; }
 
     size_t user_metadata_size() const { return mMetadata.user_metadata_size(); }
 
@@ -130,15 +130,15 @@ private:
     int ImportGraphicBuffer();
 
     // Global id for the buffer that is consistent across processes.
-    int mId;
-    uint64_t mBfferStateBit;
+    int mId = -1;
+    uint64_t mBufferStateBit = 0;
 
     // Wrapps the gralloc buffer handle of this buffer.
     dvr::NativeHandleWrapper<pdx::LocalHandle> mBufferHandle;
 
     // An ashmem-based metadata object. The same shared memory are mapped to the
     // bufferhubd daemon and all buffer clients.
-    dvr::BufferHubMetadata mMetadata;
+    BufferHubMetadata mMetadata;
 
     // PDX backend.
     BufferHubClient mClient;

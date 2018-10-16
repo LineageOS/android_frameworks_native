@@ -38,7 +38,6 @@
 #pragma clang diagnostic pop
 
 namespace android {
-namespace dvr {
 
 class BufferHubMetadata {
 public:
@@ -83,24 +82,25 @@ public:
     bool IsValid() const { return mAshmemHandle.IsValid() && mMetadataHeader != nullptr; }
 
     size_t user_metadata_size() const { return mUserMetadataSize; }
-    size_t metadata_size() const { return mUserMetadataSize + BufferHubDefs::kMetadataHeaderSize; }
+    size_t metadata_size() const {
+        return mUserMetadataSize + dvr::BufferHubDefs::kMetadataHeaderSize;
+    }
 
     const pdx::LocalHandle& ashmem_handle() const { return mAshmemHandle; }
-    BufferHubDefs::MetadataHeader* metadata_header() { return mMetadataHeader; }
+    dvr::BufferHubDefs::MetadataHeader* metadata_header() { return mMetadataHeader; }
 
 private:
     BufferHubMetadata(size_t userMetadataSize, pdx::LocalHandle ashmemHandle,
-                      BufferHubDefs::MetadataHeader* metadataHeader);
+                      dvr::BufferHubDefs::MetadataHeader* metadataHeader);
 
     BufferHubMetadata(const BufferHubMetadata&) = delete;
     void operator=(const BufferHubMetadata&) = delete;
 
     size_t mUserMetadataSize = 0;
     pdx::LocalHandle mAshmemHandle;
-    BufferHubDefs::MetadataHeader* mMetadataHeader = nullptr;
+    dvr::BufferHubDefs::MetadataHeader* mMetadataHeader = nullptr;
 };
 
-} // namespace dvr
 } // namespace android
 
 #endif // ANDROID_BUFFER_HUB_METADATA_H_
