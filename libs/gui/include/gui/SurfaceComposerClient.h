@@ -381,6 +381,11 @@ public:
 
     inline sp<ISurfaceComposerClient> getClient() { return mClient; }
 
+    static status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+                                                          ui::PixelFormat* outFormat,
+                                                          ui::Dataspace* outDataspace,
+                                                          uint8_t* outComponentMask);
+
 private:
     virtual void onFirstRef();
 

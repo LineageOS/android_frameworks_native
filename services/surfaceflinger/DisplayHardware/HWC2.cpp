@@ -538,6 +538,14 @@ Error Display::getHdrCapabilities(HdrCapabilities* outCapabilities) const
     return Error::None;
 }
 
+Error Display::getDisplayedContentSamplingAttributes(PixelFormat* outFormat,
+                                                     Dataspace* outDataspace,
+                                                     uint8_t* outComponentMask) const {
+    auto intError = mComposer.getDisplayedContentSamplingAttributes(mId, outFormat, outDataspace,
+                                                                    outComponentMask);
+    return static_cast<Error>(intError);
+}
+
 Error Display::getReleaseFences(
         std::unordered_map<Layer*, sp<Fence>>* outFences) const
 {

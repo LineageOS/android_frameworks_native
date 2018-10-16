@@ -193,6 +193,9 @@ public:
                                                std::vector<uint8_t>* outData) = 0;
     virtual Error setLayerColorTransform(Display display, Layer layer,
                                          const float* matrix) = 0;
+    virtual Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                        Dataspace* outDataspace,
+                                                        uint8_t* outComponentMask) = 0;
 };
 
 namespace impl {
@@ -392,6 +395,9 @@ public:
     Error getDisplayIdentificationData(Display display, uint8_t* outPort,
                                        std::vector<uint8_t>* outData) override;
     Error setLayerColorTransform(Display display, Layer layer, const float* matrix) override;
+    Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                Dataspace* outDataspace,
+                                                uint8_t* outComponentMask) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

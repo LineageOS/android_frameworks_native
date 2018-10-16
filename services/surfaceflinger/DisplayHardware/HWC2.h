@@ -237,6 +237,9 @@ public:
     [[clang::warn_unused_result]] Error supportsDoze(bool* outSupport) const;
     [[clang::warn_unused_result]] Error getHdrCapabilities(
             android::HdrCapabilities* outCapabilities) const;
+    [[clang::warn_unused_result]] Error getDisplayedContentSamplingAttributes(
+            android::ui::PixelFormat* outFormat, android::ui::Dataspace* outDataspace,
+            uint8_t* outComponentMask) const;
     [[clang::warn_unused_result]] Error getReleaseFences(
             std::unordered_map<Layer*,
                     android::sp<android::Fence>>* outFences) const;

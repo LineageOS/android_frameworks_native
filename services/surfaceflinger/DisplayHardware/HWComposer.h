@@ -125,6 +125,11 @@ public:
 
     mat4 getDataspaceSaturationMatrix(DisplayId displayId, ui::Dataspace dataspace);
 
+    // Returns the attributes of the color sampling engine.
+    status_t getDisplayedContentSamplingAttributes(DisplayId displayId, ui::PixelFormat* outFormat,
+                                                   ui::Dataspace* outDataspace,
+                                                   uint8_t* outComponentMask);
+
     // Events handling ---------------------------------------------------------
 
     // Returns stable display ID (and display name on connection of new or previously disconnected

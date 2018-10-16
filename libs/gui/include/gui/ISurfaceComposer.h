@@ -293,6 +293,13 @@ public:
                                               ui::PixelFormat* defaultPixelFormat,
                                               ui::Dataspace* wideColorGamutDataspace,
                                               ui::PixelFormat* wideColorGamutPixelFormat) const = 0;
+    /*
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+                                                           ui::PixelFormat* outFormat,
+                                                           ui::Dataspace* outDataspace,
+                                                           uint8_t* outComponentMask) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -332,6 +339,7 @@ public:
         CREATE_SCOPED_CONNECTION,
         GET_COMPOSITION_PREFERENCE,
         GET_COLOR_MANAGEMENT,
+        GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,
