@@ -24,6 +24,7 @@
 #include <log/log.h>
 
 #include <utils/String8.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
 
 #include <algorithm>
@@ -445,6 +446,39 @@ void TimeStats::removeTimeRecord(const std::string& layerName, uint64_t frameNum
     layerRecord.droppedFrames++;
 }
 
+void TimeStats::flushPowerTimeLocked() {
+    nsecs_t curTime = systemTime();
+    // elapsedTime is in milliseconds.
+    int64_t elapsedTime = (curTime - mPowerTime.prevTime) / 1000000;
+
+    switch (mPowerTime.powerMode) {
+        case HWC_POWER_MODE_NORMAL:
+            mTimeStats.displayOnTime += elapsedTime;
+            break;
+        case HWC_POWER_MODE_OFF:
+        case HWC_POWER_MODE_DOZE:
+        case HWC_POWER_MODE_DOZE_SUSPEND:
+        default:
+            break;
+    }
+
+    mPowerTime.prevTime = curTime;
+}
+
+void TimeStats::setPowerMode(int32_t powerMode) {
+    if (!mEnabled.load()) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mPowerTime.powerMode = powerMode;
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (powerMode == mPowerTime.powerMode) return;
+
+    flushPowerTimeLocked();
+    mPowerTime.powerMode = powerMode;
+}
+
 void TimeStats::enable() {
     if (mEnabled.load()) return;
 
@@ -454,6 +488,7 @@ void TimeStats::enable() {
     ALOGD("Enabled");
     mEnabled.store(true);
     mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
+    mPowerTime.prevTime = systemTime();
 }
 
 void TimeStats::disable() {
@@ -478,6 +513,8 @@ void TimeStats::clear() {
     mTimeStats.totalFrames = 0;
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
+    mTimeStats.displayOnTime = 0;
+    mPowerTime.prevTime = systemTime();
 }
 
 bool TimeStats::isEnabled() {
@@ -493,6 +530,8 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, String8& r
     }
 
     mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
+
+    flushPowerTimeLocked();
 
     if (asProto) {
         ALOGD("Dumping TimeStats as proto");

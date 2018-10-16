@@ -49,7 +49,7 @@ void TimeStatsHelper::Histogram::insert(int32_t delta) {
 float TimeStatsHelper::Histogram::averageTime() const {
     int64_t ret = 0;
     int64_t count = 0;
-    for (auto& ele : hist) {
+    for (const auto& ele : hist) {
         count += ele.second;
         ret += ele.first * ele.second;
     }
@@ -73,13 +73,13 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
     StringAppendF(&result, "packageName = %s\n", packageName.c_str());
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "droppedFrames = %d\n", droppedFrames);
-    auto iter = deltas.find("present2present");
+    const auto iter = deltas.find("present2present");
     if (iter != deltas.end()) {
         StringAppendF(&result, "averageFPS = %.3f\n", 1000.0 / iter->second.averageTime());
     }
-    for (auto& ele : deltas) {
+    for (const auto& ele : deltas) {
         StringAppendF(&result, "%s histogram is as below:\n", ele.first.c_str());
-        StringAppendF(&result, "%s", ele.second.toString().c_str());
+        result.append(ele.second.toString());
     }
 
     return result;
@@ -92,9 +92,10 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "missedFrames = %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
+    StringAppendF(&result, "displayOnTime = %lld ms\n", static_cast<long long int>(displayOnTime));
     const auto dumpStats = generateDumpStats(maxLayers);
-    for (auto& ele : dumpStats) {
-        StringAppendF(&result, "%s", ele->toString().c_str());
+    for (const auto& ele : dumpStats) {
+        result.append(ele->toString());
     }
 
     return result;
@@ -106,10 +107,10 @@ SFTimeStatsLayerProto TimeStatsHelper::TimeStatsLayer::toProto() const {
     layerProto.set_package_name(packageName);
     layerProto.set_total_frames(totalFrames);
     layerProto.set_dropped_frames(droppedFrames);
-    for (auto& ele : deltas) {
+    for (const auto& ele : deltas) {
         SFTimeStatsDeltaProto* deltaProto = layerProto.add_deltas();
         deltaProto->set_delta_name(ele.first);
-        for (auto& histEle : ele.second.hist) {
+        for (const auto& histEle : ele.second.hist) {
             SFTimeStatsHistogramBucketProto* histProto = deltaProto->add_histograms();
             histProto->set_time_millis(histEle.first);
             histProto->set_frame_count(histEle.second);
@@ -126,8 +127,9 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
     globalProto.set_total_frames(totalFrames);
     globalProto.set_missed_frames(missedFrames);
     globalProto.set_client_composition_frames(clientCompositionFrames);
+    globalProto.set_display_on_time(displayOnTime);
     const auto dumpStats = generateDumpStats(maxLayers);
-    for (auto& ele : dumpStats) {
+    for (const auto& ele : dumpStats) {
         SFTimeStatsLayerProto* layerProto = globalProto.add_stats();
         layerProto->CopyFrom(ele->toProto());
     }
@@ -137,7 +139,7 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
 std::vector<TimeStatsHelper::TimeStatsLayer const*>
 TimeStatsHelper::TimeStatsGlobal::generateDumpStats(std::optional<uint32_t> maxLayers) const {
     std::vector<TimeStatsLayer const*> dumpStats;
-    for (auto& ele : stats) {
+    for (const auto& ele : stats) {
         dumpStats.push_back(&ele.second);
     }
 

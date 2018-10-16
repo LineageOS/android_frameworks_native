@@ -19,6 +19,8 @@
 #include <timestatsproto/TimeStatsHelper.h>
 #include <timestatsproto/TimeStatsProtoHeader.h>
 
+#include <hardware/hwcomposer_defs.h>
+
 #include <ui/FenceTime.h>
 
 #include <utils/String16.h>
@@ -66,6 +68,11 @@ class TimeStats {
         std::deque<TimeRecord> timeRecords;
     };
 
+    struct PowerTime {
+        int32_t powerMode = HWC_POWER_MODE_OFF;
+        nsecs_t prevTime = 0;
+    };
+
 public:
     static TimeStats& getInstance();
     void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, String8& result);
@@ -91,11 +98,14 @@ public:
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
     void removeTimeRecord(const std::string& layerName, uint64_t frameNumber);
 
+    void setPowerMode(int32_t powerMode);
+
 private:
     TimeStats() = default;
 
     bool recordReadyLocked(const std::string& layerName, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(const std::string& layerName);
+    void flushPowerTimeLocked();
 
     void enable();
     void disable();
@@ -107,6 +117,7 @@ private:
     std::mutex mMutex;
     TimeStatsHelper::TimeStatsGlobal mTimeStats;
     std::unordered_map<std::string, LayerRecord> mTimeStatsTracker;
+    PowerTime mPowerTime;
 };
 
 } // namespace android
