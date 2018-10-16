@@ -74,11 +74,6 @@ bool BufferChannel::HandleMessage(Message& message) {
           *this, &BufferChannel::OnDuplicate, message);
       return true;
 
-    case DetachedBufferRPC::Promote::Opcode:
-      DispatchRemoteMethod<DetachedBufferRPC::Promote>(
-          *this, &BufferChannel::OnPromote, message);
-      return true;
-
     default:
       return false;
   }
@@ -148,70 +143,6 @@ Status<RemoteChannelHandle> BufferChannel::OnDuplicate(
     // that LOG_FATAL will be stripped out in non-debug build.
     LOG_FATAL(
         "BufferChannel::OnDuplicate: Failed to set new buffer channel: %s.",
-        channel_status.GetErrorMessage().c_str());
-  }
-
-  return status;
-}
-
-Status<RemoteChannelHandle> BufferChannel::OnPromote(
-    Message& message) {
-  ATRACE_NAME("BufferChannel::OnPromote");
-  ALOGD_IF(TRACE, "BufferChannel::OnPromote: buffer_id=%d", buffer_id());
-
-  // Check whether this is the channel exclusive owner of the buffer_node_.
-  if (buffer_state_bit_ != buffer_node_->active_buffer_bit_mask()) {
-    ALOGE(
-        "BufferChannel::OnPromote: Cannot promote this BufferChannel as its "
-        "BufferNode is shared between multiple channels. This channel's  state "
-        "bit=0x%" PRIx64 ", acitve_buffer_bit_mask=0x%" PRIx64 ".",
-        buffer_state_bit_, buffer_node_->active_buffer_bit_mask());
-    return ErrorStatus(EINVAL);
-  }
-
-  // Note that the new ProducerChannel will have different channel_id, but
-  // inherits the buffer_id from the DetachedBuffer.
-  int channel_id;
-  auto status = message.PushChannel(0, nullptr, &channel_id);
-  if (!status) {
-    ALOGE(
-        "BufferChannel::OnPromote: Failed to push ProducerChannel: %s.",
-        status.GetErrorMessage().c_str());
-    return ErrorStatus(ENOMEM);
-  }
-
-  IonBuffer buffer = std::move(buffer_node_->buffer());
-  IonBuffer metadata_buffer;
-  if (int ret = metadata_buffer.Alloc(buffer_node_->metadata().metadata_size(),
-                                      /*height=*/1,
-                                      /*layer_count=*/1,
-                                      BufferHubDefs::kMetadataFormat,
-                                      BufferHubDefs::kMetadataUsage)) {
-    ALOGE("BufferChannel::OnPromote: Failed to allocate metadata: %s",
-          strerror(-ret));
-    return ErrorStatus(EINVAL);
-  }
-
-  size_t user_metadata_size = buffer_node_->user_metadata_size();
-
-  std::unique_ptr<ProducerChannel> channel = ProducerChannel::Create(
-      service(), buffer_id(), channel_id, std::move(buffer),
-      std::move(metadata_buffer), user_metadata_size);
-  if (!channel) {
-    ALOGE(
-        "BufferChannel::OnPromote: Failed to create ProducerChannel from a "
-        "BufferChannel, buffer_id=%d.",
-        buffer_id());
-  }
-
-  const auto channel_status =
-      service()->SetChannel(channel_id, std::move(channel));
-  if (!channel_status) {
-    // Technically, this should never fail, as we just pushed the channel. Note
-    // that LOG_FATAL will be stripped out in non-debug build.
-    LOG_FATAL(
-        "BufferChannel::OnPromote: Failed to set new producer buffer channel: "
-        "%s.",
         channel_status.GetErrorMessage().c_str());
   }
 

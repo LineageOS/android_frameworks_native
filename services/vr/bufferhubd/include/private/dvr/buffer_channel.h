@@ -50,7 +50,6 @@ class BufferChannel : public BufferHubChannel {
   pdx::Status<BufferTraits<pdx::BorrowedHandle>> OnImport(
       pdx::Message& message);
   pdx::Status<pdx::RemoteChannelHandle> OnDuplicate(pdx::Message& message);
-  pdx::Status<pdx::RemoteChannelHandle> OnPromote(pdx::Message& message);
 
   // The concrete implementation of the Buffer object.
   std::shared_ptr<BufferNode> buffer_node_;
