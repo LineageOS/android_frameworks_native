@@ -33,6 +33,7 @@
 #endif
 #include <vndksupport/linker.h>
 
+#include "egl_platform_entries.h"
 #include "egl_trace.h"
 #include "egldefs.h"
 
