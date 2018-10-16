@@ -23,6 +23,7 @@ typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
 
 namespace android {
 
+EGLint eglGetErrorImpl();
 EGLFuncPointer FindPlatformImplAddr(const char* name);
 
 }; // namespace android

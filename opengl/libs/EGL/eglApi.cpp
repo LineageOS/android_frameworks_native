@@ -200,11 +200,7 @@ EGLBoolean eglWaitNative(EGLint engine) {
 
 EGLint eglGetError(void) {
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->platform.eglGetError) {
-        return cnx->platform.eglGetError();
-    } else {
-        return egl_tls_t::getError();
-    }
+    return cnx->platform.eglGetError();
 }
 
 __eglMustCastToProperFunctionPointerType eglGetProcAddress(const char* procname) {

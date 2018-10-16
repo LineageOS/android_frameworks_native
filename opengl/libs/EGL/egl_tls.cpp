@@ -21,6 +21,7 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 #include "CallStack.h"
+#include "egl_platform_entries.h"
 
 namespace android {
 
@@ -137,7 +138,7 @@ void egl_tls_t::clearTLS() {
 void egl_tls_t::clearError() {
     // This must clear the error from all the underlying EGL implementations as
     // well as the EGL wrapper layer.
-    eglGetError();
+    android::eglGetErrorImpl();
 }
 
 EGLint egl_tls_t::getError() {
