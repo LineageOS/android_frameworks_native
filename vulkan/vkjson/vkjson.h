@@ -41,6 +41,12 @@
 #define VK_API_VERSION_1_1 VK_MAKE_VERSION(1, 1, 0)
 #endif
 
+/*
+ * Annotation to tell clang that we intend to fall through from one case to
+ * another in a switch. Sourced from android-base/macros.h.
+ */
+#define FALLTHROUGH_INTENDED [[clang::fallthrough]]
+
 struct VkJsonLayer {
   VkLayerProperties properties;
   std::vector<VkExtensionProperties> extensions;
