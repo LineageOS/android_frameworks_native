@@ -2342,8 +2342,6 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     renderSurface->setCritical(isInternalDisplay);
     renderSurface->setAsync(state.isVirtual());
     renderSurface->setNativeWindow(nativeWindow.get());
-    creationArgs.displayWidth = renderSurface->getWidth();
-    creationArgs.displayHeight = renderSurface->getHeight();
     creationArgs.renderSurface = std::move(renderSurface);
 
     // Make sure that composition can never be stalled by a virtual display

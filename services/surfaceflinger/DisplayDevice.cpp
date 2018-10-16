@@ -223,8 +223,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mNativeWindow(args.nativeWindow),
         mDisplaySurface(args.displaySurface),
         mSurface{std::move(args.renderSurface)},
-        mDisplayWidth(args.displayWidth),
-        mDisplayHeight(args.displayHeight),
         mDisplayInstallOrientation(args.displayInstallOrientation),
         mPageFlipCount(0),
         mIsVirtual(args.isVirtual),
@@ -247,8 +245,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     ALOGE_IF(!mNativeWindow, "No native window was set for display");
     ALOGE_IF(!mDisplaySurface, "No display surface was set for display");
     ALOGE_IF(!mSurface, "No render surface was set for display");
-    ALOGE_IF(mDisplayWidth <= 0 || mDisplayHeight <= 0,
-             "Invalid dimensions of %d x %d were set for display", mDisplayWidth, mDisplayHeight);
 
     std::vector<Hdr> types = args.hdrCapabilities.getSupportedHdrTypes();
     for (Hdr hdrType : types) {
@@ -286,6 +282,10 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         }
     }
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
+
+    ANativeWindow* const window = mNativeWindow.get();
+    mDisplayWidth = ANativeWindow_getWidth(window);
+    mDisplayHeight = ANativeWindow_getHeight(window);
 
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
@@ -538,13 +538,8 @@ void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
 
     ANativeWindow* const window = mNativeWindow.get();
     mSurface->setNativeWindow(window);
-    mDisplayWidth = mSurface->getWidth();
-    mDisplayHeight = mSurface->getHeight();
-
-    LOG_FATAL_IF(mDisplayWidth != newWidth,
-                "Unable to set new width to %d", newWidth);
-    LOG_FATAL_IF(mDisplayHeight != newHeight,
-                "Unable to set new height to %d", newHeight);
+    mDisplayWidth = newWidth;
+    mDisplayHeight = newHeight;
 }
 
 void DisplayDevice::setProjection(int orientation,

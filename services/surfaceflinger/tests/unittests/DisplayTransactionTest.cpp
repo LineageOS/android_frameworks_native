@@ -119,6 +119,7 @@ public:
     TestableSurfaceFlinger mFlinger;
     mock::EventThread* mEventThread = new mock::EventThread();
     mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
+    sp<mock::NativeWindow> mNativeWindow = new mock::NativeWindow();
 
     // These mocks are created by the test, but are destroyed by SurfaceFlinger
     // by virtue of being stored into a std::unique_ptr. However we still need
@@ -133,7 +134,6 @@ public:
     sp<mock::GraphicBufferConsumer> mConsumer;
     sp<mock::GraphicBufferProducer> mProducer;
     surfaceflinger::mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
-    sp<mock::NativeWindow> mNativeWindow;
     renderengine::mock::Surface* mRenderSurface = nullptr;
 };
 
@@ -203,7 +203,6 @@ void DisplayTransactionTest::injectFakeNativeWindowSurfaceFactory() {
     ASSERT_TRUE(mNativeWindowSurface == nullptr);
 
     mNativeWindowSurface = new surfaceflinger::mock::NativeWindowSurface();
-    mNativeWindow = new mock::NativeWindow();
 
     mFlinger.setCreateNativeWindowSurface([this](auto) {
         return std::unique_ptr<surfaceflinger::NativeWindowSurface>(mNativeWindowSurface);
@@ -326,6 +325,14 @@ struct DisplayVariant {
                                           static_cast<bool>(VIRTUAL), static_cast<bool>(PRIMARY));
 
         injector.setSecure(static_cast<bool>(SECURE));
+        injector.setNativeWindow(test->mNativeWindow);
+
+        // Creating a DisplayDevice requires getting default dimensions from the
+        // native window.
+        EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(WIDTH), Return(0)));
+        EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(HEIGHT), Return(0)));
         return injector;
     }
 
@@ -342,11 +349,17 @@ struct DisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, createSurface())
                 .WillOnce(Return(ByMove(
                         std::unique_ptr<renderengine::Surface>(test->mRenderSurface))));
+
+        // Creating a DisplayDevice requires getting default dimensions from the
+        // native window.
+        EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(WIDTH), Return(0)));
+        EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(HEIGHT), Return(0)));
+
         EXPECT_CALL(*test->mRenderSurface, setAsync(static_cast<bool>(ASYNC))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setCritical(static_cast<bool>(CRITICAL))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setNativeWindow(test->mNativeWindow.get())).Times(1);
-        EXPECT_CALL(*test->mRenderSurface, getWidth()).WillOnce(Return(WIDTH));
-        EXPECT_CALL(*test->mRenderSurface, getHeight()).WillOnce(Return(HEIGHT));
     }
 
     static void setupFramebufferConsumerBufferQueueCallExpectations(DisplayTransactionTest* test) {
@@ -1111,6 +1124,14 @@ public:
     void getBestColorMode() {
         mInjector.setHwcColorModes(mHwcColorModes);
         mInjector.setHasWideColorGamut(mHasWideColorGamut);
+        mInjector.setNativeWindow(mNativeWindow);
+
+        // Creating a DisplayDevice requires getting default dimensions from the
+        // native window.
+        EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(1080 /* arbitrary */), Return(0)));
+        EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(1920 /* arbitrary */), Return(0)));
         auto displayDevice = mInjector.inject();
 
         displayDevice->getBestColorMode(mInputDataspace, mInputRenderIntent, &mOutDataspace,
@@ -1947,8 +1968,6 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
     EXPECT_CALL(*displaySurface, resizeBuffers(newWidth, oldHeight)).Times(1);
     EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
-    EXPECT_CALL(*renderSurface, getWidth()).WillOnce(Return(newWidth));
-    EXPECT_CALL(*renderSurface, getHeight()).WillOnce(Return(oldHeight));
 
     // --------------------------------------------------------------------
     // Invocation
@@ -1988,8 +2007,6 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
     EXPECT_CALL(*displaySurface, resizeBuffers(oldWidth, newHeight)).Times(1);
     EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
-    EXPECT_CALL(*renderSurface, getWidth()).WillOnce(Return(oldWidth));
-    EXPECT_CALL(*renderSurface, getHeight()).WillOnce(Return(newHeight));
 
     // --------------------------------------------------------------------
     // Invocation

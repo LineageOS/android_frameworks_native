@@ -483,12 +483,6 @@ public:
             return *this;
         }
 
-        auto& setDisplaySize(int width, int height) {
-            mCreationArgs.displayWidth = width;
-            mCreationArgs.displayHeight = height;
-            return *this;
-        }
-
         auto& setPowerMode(int mode) {
             mCreationArgs.initialPowerMode = mode;
             return *this;

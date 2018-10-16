@@ -327,8 +327,6 @@ struct DisplayDeviceCreationArgs {
     sp<ANativeWindow> nativeWindow;
     sp<DisplaySurface> displaySurface;
     std::unique_ptr<renderengine::Surface> renderSurface;
-    int displayWidth{0};
-    int displayHeight{0};
     int displayInstallOrientation{DisplayState::eOrientationDefault};
     bool hasWideColorGamut{false};
     HdrCapabilities hdrCapabilities;

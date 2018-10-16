@@ -37,6 +37,7 @@
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
 #include "mock/RenderEngine/MockRenderEngine.h"
+#include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
 namespace {
@@ -139,6 +140,7 @@ public:
     sp<DisplayDevice> mExternalDisplay;
     sp<mock::DisplaySurface> mDisplaySurface = new mock::DisplaySurface();
     renderengine::mock::Surface* mRenderSurface = new renderengine::mock::Surface();
+    mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
 
     mock::EventThread* mEventThread = new mock::EventThread();
     mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
@@ -227,6 +229,11 @@ struct BaseDisplayVariant {
     static constexpr int INIT_POWER_MODE = HWC_POWER_MODE_NORMAL;
 
     static void setupPreconditions(CompositionTest* test) {
+        EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_WIDTH), Return(0)));
+        EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_HEIGHT), Return(0)));
+
         FakeHwcDisplayInjector(DEFAULT_DISPLAY_ID, HWC2::DisplayType::Physical,
                                true /* isPrimary */)
                 .setCapabilities(&test->mDefaultCapabilities)
@@ -234,10 +241,10 @@ struct BaseDisplayVariant {
 
         test->mDisplay = FakeDisplayDeviceInjector(test->mFlinger, DEFAULT_DISPLAY_ID,
                                                    false /* isVirtual */, true /* isPrimary */)
-                                 .setDisplaySize(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT)
                                  .setDisplaySurface(test->mDisplaySurface)
                                  .setRenderSurface(std::unique_ptr<renderengine::Surface>(
                                          test->mRenderSurface))
+                                 .setNativeWindow(test->mNativeWindow)
                                  .setSecure(Derived::IS_SECURE)
                                  .setPowerMode(Derived::INIT_POWER_MODE)
                                  .inject();
