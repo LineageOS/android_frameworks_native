@@ -216,7 +216,7 @@ void BufferQueueLayer::setFilteringEnabled(bool enabled) {
     return mConsumer->setFilteringEnabled(enabled);
 }
 
-status_t BufferQueueLayer::bindTextureImage() const {
+status_t BufferQueueLayer::bindTextureImage() {
     return mConsumer->bindTextureImage();
 }
 

@@ -138,7 +138,7 @@ private:
 
     virtual void setFilteringEnabled(bool enabled) = 0;
 
-    virtual status_t bindTextureImage() const = 0;
+    virtual status_t bindTextureImage() = 0;
     virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
                                     const sp<Fence>& flushFence) = 0;
 
