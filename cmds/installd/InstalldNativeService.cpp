@@ -775,7 +775,7 @@ binder::Status InstalldNativeService::fixupAppData(const std::unique_ptr<std::st
                                 PLOG(WARNING) << "Failed to chmod " << p->fts_path;
                             }
                         }
-                        // Intentional fall through to also set GID
+                        [[fallthrough]]; // also set GID
                     case FTS_F:
                         if (chown(p->fts_path, -1, expected) != 0) {
                             PLOG(WARNING) << "Failed to chown " << p->fts_path;
@@ -1412,7 +1412,7 @@ static void collectManualExternalStatsForUser(const std::string& path, struct st
                     && !strcmp(p->fts_parent->fts_parent->fts_parent->fts_name, "Android")) {
                 p->fts_number = 1;
             }
-            // Fall through to count the directory
+            [[fallthrough]]; // to count the directory
         case FTS_DEFAULT:
         case FTS_F:
         case FTS_SL:
@@ -1827,13 +1827,14 @@ binder::Status InstalldNativeService::getExternalSize(const std::unique_ptr<std:
                         }
                     }
                 }
-                // Fall through to always count against total
+                [[fallthrough]]; // always count against total
             case FTS_D:
                 // Ignore data belonging to specific apps
                 p->fts_number = p->fts_parent->fts_number;
                 if (p->fts_level == 1 && !strcmp(p->fts_name, "Android")) {
                     p->fts_number = 1;
                 }
+                [[fallthrough]]; // always count against total
             case FTS_DEFAULT:
             case FTS_SL:
             case FTS_SLNONE:
