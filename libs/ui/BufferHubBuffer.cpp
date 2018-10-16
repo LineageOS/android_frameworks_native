@@ -160,6 +160,16 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     // GraphicBuffer instance can be created in future.
     mBufferHandle = bufferTraits.take_buffer_handle();
 
+    // Populate buffer desc based on buffer traits.
+    mBufferDesc.width = bufferTraits.width();
+    mBufferDesc.height = bufferTraits.height();
+    mBufferDesc.layers = bufferTraits.layer_count();
+    mBufferDesc.format = bufferTraits.format();
+    mBufferDesc.usage = bufferTraits.usage();
+    mBufferDesc.stride = bufferTraits.stride();
+    mBufferDesc.rfu0 = 0U;
+    mBufferDesc.rfu1 = 0U;
+
     // If all imports succeed, replace the previous buffer and id.
     mId = bufferId;
     mClientStateMask = bufferTraits.client_state_mask();

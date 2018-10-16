@@ -34,6 +34,10 @@
 
 namespace android {
 
+#ifndef LIBUI_IN_VNDK
+class BufferHubBuffer;
+#endif // LIBUI_IN_VNDK
+
 class GraphicBufferMapper;
 
 // ===========================================================================
@@ -133,6 +137,11 @@ public:
     GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
             uint32_t inUsage, std::string requestorName = "<Unknown>");
 
+#ifndef LIBUI_IN_VNDK
+    // Create a GraphicBuffer from an existing BufferHubBuffer.
+    GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer);
+#endif // LIBUI_IN_VNDK
+
     // return status
     status_t initCheck() const;
 
@@ -188,6 +197,11 @@ public:
     status_t flatten(void*& buffer, size_t& size, int*& fds, size_t& count) const;
     status_t unflatten(void const*& buffer, size_t& size, int const*& fds, size_t& count);
 
+#ifndef LIBUI_IN_VNDK
+    // Returns whether this GraphicBuffer is backed by BufferHubBuffer.
+    bool isBufferHubBuffer() const;
+#endif // LIBUI_IN_VNDK
+
 private:
     ~GraphicBuffer();
 
@@ -237,6 +251,11 @@ private:
     // match the BufferQueue's internal generation number (set through
     // IGBP::setGenerationNumber), attempts to attach the buffer will fail.
     uint32_t mGenerationNumber;
+
+#ifndef LIBUI_IN_VNDK
+    // Stores a BufferHubBuffer that handles buffer signaling, identification.
+    std::unique_ptr<BufferHubBuffer> mBufferHubBuffer;
+#endif // LIBUI_IN_VNDK
 };
 
 }; // namespace android

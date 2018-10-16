@@ -38,6 +38,7 @@
 #include <private/dvr/native_handle_wrapper.h>
 #pragma clang diagnostic pop
 
+#include <android/hardware_buffer.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {
@@ -62,9 +63,9 @@ public:
     // Allocates a standalone BufferHubBuffer not associated with any producer consumer set.
     static std::unique_ptr<BufferHubBuffer> Create(uint32_t width, uint32_t height,
                                                    uint32_t layerCount, uint32_t format,
-                                                   uint64_t usage, size_t mUserMetadataSize) {
+                                                   uint64_t usage, size_t userMetadataSize) {
         return std::unique_ptr<BufferHubBuffer>(
-                new BufferHubBuffer(width, height, layerCount, format, usage, mUserMetadataSize));
+                new BufferHubBuffer(width, height, layerCount, format, usage, userMetadataSize));
     }
 
     // Imports the given channel handle to a BufferHubBuffer, taking ownership.
@@ -78,6 +79,9 @@ public:
     // Gets ID of the buffer client. All BufferHubBuffer clients derived from the same buffer in
     // bufferhubd share the same buffer id.
     int id() const { return mId; }
+
+    // Returns the buffer description, which is guaranteed to be faithful values from bufferhubd.
+    const AHardwareBuffer_Desc& desc() const { return mBufferDesc; }
 
     const native_handle_t* DuplicateHandle() { return mBufferHandle.DuplicateHandle(); }
 
@@ -118,7 +122,7 @@ public:
 
 private:
     BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layerCount, uint32_t format,
-                    uint64_t usage, size_t mUserMetadataSize);
+                    uint64_t usage, size_t userMetadataSize);
 
     BufferHubBuffer(pdx::LocalChannelHandle mChannelHandle);
 
@@ -127,6 +131,9 @@ private:
     // Global id for the buffer that is consistent across processes.
     int mId = -1;
     uint64_t mClientStateMask = 0;
+
+    // Stores ground truth of the buffer.
+    AHardwareBuffer_Desc mBufferDesc;
 
     // Wrapps the gralloc buffer handle of this buffer.
     dvr::NativeHandleWrapper<pdx::LocalHandle> mBufferHandle;
