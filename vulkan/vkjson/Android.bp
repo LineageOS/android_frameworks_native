@@ -7,6 +7,7 @@ cc_library_static {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wimplicit-fallthrough",
     ],
     cppflags: [
         "-std=c++11",
@@ -33,6 +34,7 @@ cc_library_static {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wimplicit-fallthrough",
     ],
     cppflags: [
         "-std=c++11",
