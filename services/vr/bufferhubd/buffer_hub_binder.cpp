@@ -59,25 +59,6 @@ status_t BufferHubBinderService::dump(int fd, const Vector<String16>& args) {
   return NO_ERROR;
 }
 
-sp<IBufferHub> BufferHubBinderService::getServiceProxy() {
-  sp<IServiceManager> sm = defaultServiceManager();
-  sp<IBinder> service = sm->checkService(String16(getServiceName()));
-
-  if (service == nullptr) {
-    ALOGE("getServiceProxy(): %s binder service not found!", getServiceName());
-    return nullptr;
-  }
-
-  sp<IBufferHub> ret = interface_cast<IBufferHub>(service);
-  if (ret == nullptr) {
-    ALOGE("getServiceProxy(): %s binder service type casting error!",
-          getServiceName());
-    return nullptr;
-  }
-
-  return ret;
-}
-
 sp<IBufferClient> BufferHubBinderService::createBuffer(
     uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
     uint64_t usage, uint64_t user_metadata_size) {
