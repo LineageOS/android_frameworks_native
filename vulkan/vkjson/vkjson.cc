@@ -791,6 +791,7 @@ inline bool Iterate(Visitor* visitor, VkJsonDevice* device) {
                          &device->external_fence_properties) &&
           visitor->Visit("externalSemaphoreProperties",
                          &device->external_semaphore_properties);
+      FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_0:
       ret &= visitor->Visit("properties", &device->properties) &&
              visitor->Visit("features", &device->features) &&
@@ -817,6 +818,7 @@ inline bool Iterate(Visitor* visitor, VkJsonInstance* instance) {
   switch (instance->api_version ^ VK_VERSION_PATCH(instance->api_version)) {
     case VK_API_VERSION_1_1:
       ret &= visitor->Visit("deviceGroups", &instance->device_groups);
+      FALLTHROUGH_INTENDED;
     case VK_API_VERSION_1_0:
       ret &= visitor->Visit("layers", &instance->layers) &&
              visitor->Visit("extensions", &instance->extensions) &&

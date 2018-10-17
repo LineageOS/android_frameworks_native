@@ -10,6 +10,7 @@ cc_test {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wextra",
         "-Wno-unused-parameter",
     ],
     shared_libs: [

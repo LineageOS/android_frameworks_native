@@ -18,6 +18,9 @@
 #define ANDROID_EGLDEFS_H
 
 #include "../hooks.h"
+#include "egl_platform_entries.h"
+
+#include <log/log.h>
 
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 4
@@ -31,18 +34,40 @@ const unsigned int NUM_DISPLAYS = 1;
 
 // ----------------------------------------------------------------------------
 
+extern char const * const platform_names[];
+
 struct egl_connection_t {
     enum {
         GLESv1_INDEX = 0,
         GLESv2_INDEX = 1
     };
 
-    inline egl_connection_t() : dso(nullptr) { }
+    inline egl_connection_t() : dso(nullptr) {
+
+        char const* const* entries = platform_names;
+        EGLFuncPointer* curr = reinterpret_cast<EGLFuncPointer*>(&platform);
+        while (*entries) {
+            const char* name = *entries;
+            EGLFuncPointer f = FindPlatformImplAddr(name);
+
+            if (f == nullptr) {
+                // If no entry found, update the lookup table: sPlatformImplMap
+                ALOGE("No entry found in platform lookup table for %s", name);
+            }
+
+            *curr++ = f;
+            entries++;
+        }
+    }
+
     void *              dso;
     gl_hooks_t *        hooks[2];
     EGLint              major;
     EGLint              minor;
     egl_t               egl;
+
+    // Functions implemented or redirected by platform libraries
+    platform_impl_t     platform;
 
     void*               libEgl;
     void*               libGles1;

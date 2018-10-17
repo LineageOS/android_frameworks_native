@@ -30,10 +30,9 @@
 #include "egl_tls.h"
 #include "egl_display.h"
 #include "egl_object.h"
+#include "egl_layers.h"
 #include "CallStack.h"
 #include "Loader.h"
-
-typedef __eglMustCastToProperFunctionPointerType EGLFuncPointer;
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -167,6 +166,10 @@ GLint egl_get_num_extensions_for_current_context() {
     return (GLint)c->tokenized_gl_extensions.size();
 }
 
+egl_connection_t* egl_get_connection() {
+    return &gEGLImpl;
+}
+
 // ----------------------------------------------------------------------------
 
 // this mutex protects:
@@ -190,6 +193,14 @@ static EGLBoolean egl_init_drivers_locked() {
         cnx->hooks[egl_connection_t::GLESv2_INDEX] =
                 &gHooks[egl_connection_t::GLESv2_INDEX];
         cnx->dso = loader.open(cnx);
+    }
+
+    // Check to see if any layers are enabled and route functions through them
+    if (cnx->dso) {
+        // Layers can be enabled long after the drivers have been loaded.
+        // They will only be initialized once.
+        LayerLoader& layer_loader(LayerLoader::getInstance());
+        layer_loader.InitLayers(cnx);
     }
 
     return cnx->dso ? EGL_TRUE : EGL_FALSE;
@@ -259,6 +270,11 @@ char const * const gl_names_1[] = {
 
 char const * const egl_names[] = {
     #include "egl_entries.in"
+    nullptr
+};
+
+char const * const platform_names[] = {
+    #include "platform_entries.in"
     nullptr
 };
 

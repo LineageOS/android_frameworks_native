@@ -202,8 +202,8 @@ struct InputReaderConfiguration {
             pointerGestureZoomSpeedRatio(0.3f),
             showTouches(false) { }
 
-    bool getDisplayViewport(ViewportType viewportType, const std::string& uniqueDisplayId,
-            DisplayViewport* outViewport) const;
+    std::optional<DisplayViewport> getDisplayViewport(ViewportType viewportType,
+            const std::string& uniqueDisplayId) const;
     void setDisplayViewports(const std::vector<DisplayViewport>& viewports);
 
 
