@@ -577,7 +577,7 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             fs << "uniform mat4 inputTransformMatrix;";
             fs << R"__SHADER__(
                 highp vec3 InputTransform(const highp vec3 color) {
-                    return vec3(inputTransformMatrix * vec4(color, 1.0));
+                    return clamp(vec3(inputTransformMatrix * vec4(color, 1.0)), 0.0, 1.0);
                 }
             )__SHADER__";
         } else {
