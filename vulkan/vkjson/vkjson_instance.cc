@@ -330,7 +330,7 @@ VkJsonInstance VkJsonGetInstance() {
                                       1,
                                       "",
                                       0,
-                                      VK_API_VERSION_1_0};
+                                      VK_API_VERSION_1_1};
   VkInstanceCreateInfo instance_info = {
       VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
       nullptr,
