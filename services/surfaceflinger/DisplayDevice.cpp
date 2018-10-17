@@ -781,9 +781,12 @@ void DisplayDevice::getBestColorMode(Dataspace dataspace, RenderIntent intent,
         *outMode = iter->second.colorMode;
         *outIntent = iter->second.renderIntent;
     } else {
-        ALOGE("map unknown (%s)/(%s) to default color mode",
-              dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
-              decodeRenderIntent(intent).c_str());
+        // this is unexpected on a WCG display
+        if (hasWideColorGamut()) {
+            ALOGE("map unknown (%s)/(%s) to default color mode",
+                  dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
+                  decodeRenderIntent(intent).c_str());
+        }
 
         *outDataspace = Dataspace::UNKNOWN;
         *outMode = ColorMode::NATIVE;
