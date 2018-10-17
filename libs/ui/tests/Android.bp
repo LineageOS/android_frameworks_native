@@ -36,6 +36,14 @@ cc_test {
 }
 
 cc_test {
+    name: "BufferHubBuffer_test",
+    header_libs: ["libbufferhub_headers", "libdvr_headers"],
+    shared_libs: ["libpdx_default_transport", "libui", "libutils"],
+    srcs: ["BufferHubBuffer_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+}
+
+cc_test {
     name: "BufferHubMetadata_test",
     header_libs: ["libbufferhub_headers", "libdvr_headers"],
     shared_libs: ["libpdx_default_transport", "libui", "libutils"],
