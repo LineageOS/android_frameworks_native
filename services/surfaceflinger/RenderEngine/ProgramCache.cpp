@@ -319,7 +319,7 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
 
                             // scale [0.0, maxInLumi] to [0.0, maxOutLumi]
                             if (maxInLumi <= maxOutLumi) {
-                                nits *= maxOutLumi / maxInLumi;
+                                return color * (maxOutLumi / maxInLumi);
                             } else {
                                 // three control points
                                 const float x0 = 10.0;
@@ -340,7 +340,7 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                                 if (nits < x0) {
                                     // scale [0.0, x0] to [0.0, y0] linearly
                                     float slope = y0 / x0;
-                                    nits *= slope;
+                                    return color * slope;
                                 } else if (nits < x1) {
                                     // scale [x0, x1] to [y0, y1] linearly
                                     float slope = (y1 - y0) / (x1 - x0);
@@ -358,7 +358,8 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                                 }
                             }
 
-                            return color * (nits / max(1e-6, color.y));
+                            // color.y is greater than x0 and is thus non-zero
+                            return color * (nits / color.y);
                         }
                     )__SHADER__";
                     break;
@@ -389,7 +390,7 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                     if (nits <= x0) {
                         // scale [0.0, x0] to [0.0, y0] linearly
                         const float slope = y0 / x0;
-                        nits *= slope;
+                        return color * slope;
                     } else if (nits <= x1) {
                         // scale [x0, x1] to [y0, y1] using a curve
                         float t = (nits - x0) / (x1 - x0);
@@ -404,7 +405,8 @@ void ProgramCache::generateToneMappingProcess(Formatter& fs, const Key& needs) {
                         nits = (1.0 - t) * (1.0 - t) * y2 + 2.0 * (1.0 - t) * t * c3 + t * t * y3;
                     }
 
-                    return color * (nits / max(1e-6, color.y));
+                    // color.y is greater than x0 and is thus non-zero
+                    return color * (nits / color.y);
                 }
             )__SHADER__";
             break;
