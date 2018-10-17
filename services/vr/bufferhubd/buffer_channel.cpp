@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <private/dvr/buffer_channel.h>
 #include <private/dvr/producer_channel.h>
 
@@ -16,9 +17,8 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              size_t user_metadata_size)
     : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
       buffer_node_(
-          std::make_shared<BufferNode>(std::move(buffer), user_metadata_size)),
-      buffer_state_bit_(BufferHubDefs::FindFirstClearedBit()) {
-  buffer_node_->set_buffer_state_bit(buffer_state_bit_);
+          std::make_shared<BufferNode>(std::move(buffer), user_metadata_size)) {
+  buffer_state_bit_ = buffer_node_->AddNewActiveClientsBitToMask();
 }
 
 BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
@@ -27,24 +27,28 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              uint64_t usage, size_t user_metadata_size)
     : BufferHubChannel(service, buffer_id, buffer_id, kDetachedBufferType),
       buffer_node_(std::make_shared<BufferNode>(
-          width, height, layer_count, format, usage, user_metadata_size)),
-      buffer_state_bit_(BufferHubDefs::FindFirstClearedBit()) {
-  buffer_node_->set_buffer_state_bit(buffer_state_bit_);
+          width, height, layer_count, format, usage, user_metadata_size)) {
+  buffer_state_bit_ = buffer_node_->AddNewActiveClientsBitToMask();
 }
 
 BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              int channel_id,
-                             std::shared_ptr<BufferNode> buffer_node,
-                             uint64_t buffer_state_bit)
+                             std::shared_ptr<BufferNode> buffer_node)
     : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
-      buffer_node_(buffer_node),
-      buffer_state_bit_(buffer_state_bit) {
-  buffer_node_->set_buffer_state_bit(buffer_state_bit_);
+      buffer_node_(buffer_node) {
+  buffer_state_bit_ = buffer_node_->AddNewActiveClientsBitToMask();
+  if (buffer_state_bit_ == 0ULL) {
+    ALOGE("BufferChannel::BufferChannel: %s", strerror(errno));
+    buffer_node_ = nullptr;
+  }
 }
 
 BufferChannel::~BufferChannel() {
   ALOGD_IF(TRACE, "BufferChannel::~BufferChannel: channel_id=%d buffer_id=%d.",
            channel_id(), buffer_id());
+  if (buffer_state_bit_ != 0ULL) {
+    buffer_node_->RemoveClientsBitFromMask(buffer_state_bit_);
+  }
   Hangup();
 }
 
@@ -74,11 +78,6 @@ bool BufferChannel::HandleMessage(Message& message) {
           *this, &BufferChannel::OnDuplicate, message);
       return true;
 
-    case DetachedBufferRPC::Promote::Opcode:
-      DispatchRemoteMethod<DetachedBufferRPC::Promote>(
-          *this, &BufferChannel::OnPromote, message);
-      return true;
-
     default:
       return false;
   }
@@ -106,38 +105,22 @@ Status<BufferTraits<BorrowedHandle>> BufferChannel::OnImport(
       /*released_fence_fd=*/BorrowedHandle{}};
 }
 
-Status<RemoteChannelHandle> BufferChannel::OnDuplicate(
-    Message& message) {
+Status<RemoteChannelHandle> BufferChannel::OnDuplicate(Message& message) {
   ATRACE_NAME("BufferChannel::OnDuplicate");
-  ALOGD_IF(TRACE, "BufferChannel::OnDuplicate: buffer=%d.",
-           buffer_id());
+  ALOGD_IF(TRACE, "BufferChannel::OnDuplicate: buffer=%d.", buffer_id());
 
   int channel_id;
   auto status = message.PushChannel(0, nullptr, &channel_id);
-  if (!status) {
-    ALOGE(
-        "BufferChannel::OnDuplicate: Failed to push buffer channel: %s",
-        status.GetErrorMessage().c_str());
+  if (!status.ok()) {
+    ALOGE("BufferChannel::OnDuplicate: Failed to push buffer channel: %s",
+          status.GetErrorMessage().c_str());
     return ErrorStatus(ENOMEM);
   }
 
-  // Try find the next buffer state bit which has not been claimed by any
-  // other buffers yet.
-  uint64_t buffer_state_bit =
-      BufferHubDefs::FindNextClearedBit(buffer_node_->active_buffer_bit_mask() |
-                                        BufferHubDefs::kProducerStateBit);
-  if (buffer_state_bit == 0ULL) {
-    ALOGE(
-        "BufferChannel::OnDuplicate: reached the maximum mumber of channels "
-        "per buffer node: 63.");
-    return ErrorStatus(E2BIG);
-  }
-
-  auto channel =
-      std::shared_ptr<BufferChannel>(new BufferChannel(
-          service(), buffer_id(), channel_id, buffer_node_, buffer_state_bit));
-  if (!channel) {
-    ALOGE("BufferChannel::OnDuplicate: Invalid buffer.");
+  auto channel = std::shared_ptr<BufferChannel>(
+      new BufferChannel(service(), buffer_id(), channel_id, buffer_node_));
+  if (!channel->IsValid()) {
+    ALOGE("BufferChannel::OnDuplicate: Invalid buffer. %s", strerror(errno));
     return ErrorStatus(EINVAL);
   }
 
@@ -148,70 +131,6 @@ Status<RemoteChannelHandle> BufferChannel::OnDuplicate(
     // that LOG_FATAL will be stripped out in non-debug build.
     LOG_FATAL(
         "BufferChannel::OnDuplicate: Failed to set new buffer channel: %s.",
-        channel_status.GetErrorMessage().c_str());
-  }
-
-  return status;
-}
-
-Status<RemoteChannelHandle> BufferChannel::OnPromote(
-    Message& message) {
-  ATRACE_NAME("BufferChannel::OnPromote");
-  ALOGD_IF(TRACE, "BufferChannel::OnPromote: buffer_id=%d", buffer_id());
-
-  // Check whether this is the channel exclusive owner of the buffer_node_.
-  if (buffer_state_bit_ != buffer_node_->active_buffer_bit_mask()) {
-    ALOGE(
-        "BufferChannel::OnPromote: Cannot promote this BufferChannel as its "
-        "BufferNode is shared between multiple channels. This channel's  state "
-        "bit=0x%" PRIx64 ", acitve_buffer_bit_mask=0x%" PRIx64 ".",
-        buffer_state_bit_, buffer_node_->active_buffer_bit_mask());
-    return ErrorStatus(EINVAL);
-  }
-
-  // Note that the new ProducerChannel will have different channel_id, but
-  // inherits the buffer_id from the DetachedBuffer.
-  int channel_id;
-  auto status = message.PushChannel(0, nullptr, &channel_id);
-  if (!status) {
-    ALOGE(
-        "BufferChannel::OnPromote: Failed to push ProducerChannel: %s.",
-        status.GetErrorMessage().c_str());
-    return ErrorStatus(ENOMEM);
-  }
-
-  IonBuffer buffer = std::move(buffer_node_->buffer());
-  IonBuffer metadata_buffer;
-  if (int ret = metadata_buffer.Alloc(buffer_node_->metadata().metadata_size(),
-                                      /*height=*/1,
-                                      /*layer_count=*/1,
-                                      BufferHubDefs::kMetadataFormat,
-                                      BufferHubDefs::kMetadataUsage)) {
-    ALOGE("BufferChannel::OnPromote: Failed to allocate metadata: %s",
-          strerror(-ret));
-    return ErrorStatus(EINVAL);
-  }
-
-  size_t user_metadata_size = buffer_node_->user_metadata_size();
-
-  std::unique_ptr<ProducerChannel> channel = ProducerChannel::Create(
-      service(), buffer_id(), channel_id, std::move(buffer),
-      std::move(metadata_buffer), user_metadata_size);
-  if (!channel) {
-    ALOGE(
-        "BufferChannel::OnPromote: Failed to create ProducerChannel from a "
-        "BufferChannel, buffer_id=%d.",
-        buffer_id());
-  }
-
-  const auto channel_status =
-      service()->SetChannel(channel_id, std::move(channel));
-  if (!channel_status) {
-    // Technically, this should never fail, as we just pushed the channel. Note
-    // that LOG_FATAL will be stripped out in non-debug build.
-    LOG_FATAL(
-        "BufferChannel::OnPromote: Failed to set new producer buffer channel: "
-        "%s.",
         channel_status.GetErrorMessage().c_str());
   }
 

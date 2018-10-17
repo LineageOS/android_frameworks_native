@@ -42,21 +42,20 @@ class BufferChannel : public BufferHubChannel {
                 uint32_t height, uint32_t layer_count, uint32_t format,
                 uint64_t usage, size_t user_metadata_size);
 
-  // Creates a detached buffer from an existing BufferNode.
+  // Creates a detached buffer from an existing BufferNode. This method is used
+  // in OnDuplicate method.
   BufferChannel(BufferHubService* service, int buffer_id, int channel_id,
-                std::shared_ptr<BufferNode> buffer_node,
-                uint64_t buffer_state_bit);
+                std::shared_ptr<BufferNode> buffer_node);
 
   pdx::Status<BufferTraits<pdx::BorrowedHandle>> OnImport(
       pdx::Message& message);
   pdx::Status<pdx::RemoteChannelHandle> OnDuplicate(pdx::Message& message);
-  pdx::Status<pdx::RemoteChannelHandle> OnPromote(pdx::Message& message);
 
   // The concrete implementation of the Buffer object.
-  std::shared_ptr<BufferNode> buffer_node_;
+  std::shared_ptr<BufferNode> buffer_node_ = nullptr;
 
   // The state bit of this buffer. Must be one the lower 63 bits.
-  uint64_t buffer_state_bit_;
+  uint64_t buffer_state_bit_ = 0ULL;
 };
 
 }  // namespace dvr

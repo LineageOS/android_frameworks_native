@@ -794,43 +794,42 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   EXPECT_EQ(d->id(), p_id);
 }
 
-TEST_F(LibBufferHubTest, TestPromoteBufferHubBuffer) {
-  // TODO(b/112338294) rewrite test after migration
-  return;
+TEST_F(LibBufferHubTest, TestCreateBufferHubBufferFails) {
+  // Buffer Creation will fail: BLOB format requires height to be 1.
+  auto b1 = BufferHubBuffer::Create(kWidth, /*height=2*/ 2, kLayerCount,
+                                    /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage,
+                                    kUserMetadataSize);
 
-  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                    kUsage, kUserMetadataSize);
-  int b1_id = b1->id();
-  EXPECT_TRUE(b1->IsValid());
-
-  auto status_or_handle = b1->Promote();
-  EXPECT_TRUE(status_or_handle);
-
-  // The detached buffer should have hangup.
-  EXPECT_GT(RETRY_EINTR(b1->Poll(kPollTimeoutMs)), 0);
-  auto status_or_int = b1->GetEventMask(POLLHUP);
-  EXPECT_TRUE(status_or_int.ok());
-  EXPECT_EQ(status_or_int.get(), POLLHUP);
-
-  // The buffer client is still considered as connected but invalid.
-  EXPECT_TRUE(b1->IsConnected());
+  EXPECT_FALSE(b1->IsConnected());
   EXPECT_FALSE(b1->IsValid());
 
-  // Gets the channel handle for the producer.
-  LocalChannelHandle h1 = status_or_handle.take();
-  EXPECT_TRUE(h1.valid());
+  // Buffer Creation will fail: user metadata size too large.
+  auto b2 = BufferHubBuffer::Create(
+      kWidth, kHeight, kLayerCount, kFormat, kUsage,
+      /*user_metadata_size=*/std::numeric_limits<size_t>::max());
 
-  std::unique_ptr<ProducerBuffer> p1 = ProducerBuffer::Import(std::move(h1));
-  EXPECT_FALSE(h1.valid());
-  ASSERT_TRUE(p1 != nullptr);
-  int p1_id = p1->id();
+  EXPECT_FALSE(b2->IsConnected());
+  EXPECT_FALSE(b2->IsValid());
 
-  // A newly promoted ProducerBuffer should inherit the same buffer id.
-  EXPECT_EQ(b1_id, p1_id);
-  EXPECT_TRUE(IsBufferGained(p1->buffer_state()));
+  // Buffer Creation will fail: user metadata size too large.
+  auto b3 = BufferHubBuffer::Create(
+      kWidth, kHeight, kLayerCount, kFormat, kUsage,
+      /*user_metadata_size=*/std::numeric_limits<size_t>::max() -
+          kMetadataHeaderSize);
+
+  EXPECT_FALSE(b3->IsConnected());
+  EXPECT_FALSE(b3->IsValid());
 }
 
-TEST_F(LibBufferHubTest, TestDetachThenPromote) {
+TEST_F(LibBufferHubTest, TestCreateBufferHubBuffer) {
+  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                    kUsage, kUserMetadataSize);
+  EXPECT_TRUE(b1->IsConnected());
+  EXPECT_TRUE(b1->IsValid());
+  EXPECT_NE(b1->id(), 0);
+}
+
+TEST_F(LibBufferHubTest, TestDetach) {
   // TODO(b/112338294) rewrite test after migration
   return;
 
@@ -852,24 +851,48 @@ TEST_F(LibBufferHubTest, TestDetachThenPromote) {
   EXPECT_TRUE(b1->IsValid());
   int b1_id = b1->id();
   EXPECT_EQ(b1_id, p1_id);
+}
 
-  // Promote the detached buffer.
-  status_or_handle = b1->Promote();
-  // The buffer client is still considered as connected but invalid.
+TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
+  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
+                                    kUsage, kUserMetadataSize);
+  int b1_id = b1->id();
+  EXPECT_TRUE(b1->IsValid());
+  EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
+
+  auto status_or_handle = b1->Duplicate();
+  EXPECT_TRUE(status_or_handle);
+
+  // The detached buffer should still be valid.
   EXPECT_TRUE(b1->IsConnected());
-  EXPECT_FALSE(b1->IsValid());
-  EXPECT_TRUE(status_or_handle.ok());
+  EXPECT_TRUE(b1->IsValid());
 
-  // Gets the channel handle for the producer.
+  // Gets the channel handle for the duplicated buffer.
   LocalChannelHandle h2 = status_or_handle.take();
   EXPECT_TRUE(h2.valid());
 
-  std::unique_ptr<ProducerBuffer> p2 = ProducerBuffer::Import(std::move(h2));
+  std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(h2));
   EXPECT_FALSE(h2.valid());
-  ASSERT_TRUE(p2 != nullptr);
-  int p2_id = p2->id();
+  ASSERT_TRUE(b2 != nullptr);
+  EXPECT_TRUE(b2->IsValid());
+  EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
 
-  // A newly promoted ProducerBuffer should inherit the same buffer id.
-  EXPECT_EQ(b1_id, p2_id);
-  EXPECT_TRUE(IsBufferGained(p2->buffer_state()));
+  int b2_id = b2->id();
+
+  // These two buffer instances are based on the same physical buffer under the
+  // hood, so they should share the same id.
+  EXPECT_EQ(b1_id, b2_id);
+  // We use buffer_state_bit() to tell those two instances apart.
+  EXPECT_NE(b1->buffer_state_bit(), b2->buffer_state_bit());
+  EXPECT_NE(b1->buffer_state_bit(), 0ULL);
+  EXPECT_NE(b2->buffer_state_bit(), 0ULL);
+  EXPECT_NE(b1->buffer_state_bit(), kProducerStateBit);
+  EXPECT_NE(b2->buffer_state_bit(), kProducerStateBit);
+
+  // Both buffer instances should be in gained state.
+  EXPECT_TRUE(IsBufferGained(b1->buffer_state()));
+  EXPECT_TRUE(IsBufferGained(b2->buffer_state()));
+
+  // TODO(b/112338294) rewrite test after migration
+  return;
 }

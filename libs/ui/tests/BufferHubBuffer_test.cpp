@@ -113,12 +113,6 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
 
     // TODO(b/112338294): rewrite test after migration
     return;
-
-    // Promote the detached buffer should fail as b1 is no longer the exclusive
-    // owner of the buffer..
-    statusOrHandle = b1->Promote();
-    EXPECT_FALSE(statusOrHandle.ok());
-    EXPECT_EQ(statusOrHandle.error(), EINVAL);
 }
 
 } // namespace android

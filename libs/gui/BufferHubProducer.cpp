@@ -400,19 +400,8 @@ status_t BufferHubProducer::attachBuffer(int* out_slot, const sp<GraphicBuffer>&
         ALOGE("attachBuffer: DetachedBufferHandle cannot be NULL.");
         return BAD_VALUE;
     }
-    auto detached_buffer = BufferHubBuffer::Import(std::move(detached_handle->handle()));
-    if (detached_buffer == nullptr) {
-        ALOGE("attachBuffer: BufferHubBuffer cannot be NULL.");
-        return BAD_VALUE;
-    }
-    auto status_or_handle = detached_buffer->Promote();
-    if (!status_or_handle.ok()) {
-        ALOGE("attachBuffer: Failed to promote a BufferHubBuffer into a BufferProducer, error=%d.",
-              status_or_handle.error());
-        return BAD_VALUE;
-    }
     std::shared_ptr<BufferProducer> buffer_producer =
-            BufferProducer::Import(status_or_handle.take());
+            BufferProducer::Import(std::move(detached_handle->handle()));
     if (buffer_producer == nullptr) {
         ALOGE("attachBuffer: Failed to import BufferProducer.");
         return BAD_VALUE;

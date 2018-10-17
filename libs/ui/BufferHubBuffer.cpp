@@ -174,26 +174,6 @@ int BufferHubBuffer::Poll(int timeoutMs) {
     return poll(&p, 1, timeoutMs);
 }
 
-Status<LocalChannelHandle> BufferHubBuffer::Promote() {
-    ATRACE_CALL();
-
-    // TODO(b/112338294) remove after migrate producer buffer to binder
-    ALOGW("BufferHubBuffer::Promote: not supported operation during migration");
-    return {};
-
-    ALOGD("BufferHubBuffer::Promote: id=%d.", mId);
-
-    auto statusOrHandle = mClient.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
-    if (statusOrHandle.ok()) {
-        // Invalidate the buffer.
-        mBufferHandle = {};
-    } else {
-        ALOGE("BufferHubBuffer::Promote: Failed to promote buffer (id=%d): %s.", mId,
-              statusOrHandle.GetErrorMessage().c_str());
-    }
-    return statusOrHandle;
-}
-
 Status<LocalChannelHandle> BufferHubBuffer::Duplicate() {
     ATRACE_CALL();
     ALOGD("BufferHubBuffer::Duplicate: id=%d.", mId);

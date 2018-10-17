@@ -112,11 +112,6 @@ public:
     // Polls the fd for |timeoutMs| milliseconds (-1 for infinity).
     int Poll(int timeoutMs);
 
-    // Promotes a BufferHubBuffer to become a ProducerBuffer. Once promoted the BufferHubBuffer
-    // channel will be closed automatically on successful IPC return. Further IPCs towards this
-    // channel will return error.
-    pdx::Status<pdx::LocalChannelHandle> Promote();
-
     // Creates a BufferHubBuffer client from an existing one. The new client will
     // share the same underlying gralloc buffer and ashmem region for metadata.
     pdx::Status<pdx::LocalChannelHandle> Duplicate();
