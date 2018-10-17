@@ -145,14 +145,15 @@ static int32_t msBetween(nsecs_t start, nsecs_t end) {
     return static_cast<int32_t>(delta);
 }
 
+// This regular expression captures the following for instance:
+// StatusBar in StatusBar#0
+// com.appname in com.appname/com.appname.activity#0
+// com.appname in SurfaceView - com.appname/com.appname.activity#0
+static const std::regex packageNameRegex("(?:SurfaceView[-\\s\\t]+)?([^/]+).*#\\d+");
+
 static std::string getPackageName(const std::string& layerName) {
-    // This regular expression captures the following for instance:
-    // StatusBar in StatusBar#0
-    // com.appname in com.appname/com.appname.activity#0
-    // com.appname in SurfaceView - com.appname/com.appname.activity#0
-    const std::regex re("(?:SurfaceView[-\\s\\t]+)?([^/]+).*#\\d+");
     std::smatch match;
-    if (std::regex_match(layerName.begin(), layerName.end(), match, re)) {
+    if (std::regex_match(layerName.begin(), layerName.end(), match, packageNameRegex)) {
         // There must be a match for group 1 otherwise the whole string is not
         // matched and the above will return false
         return match[1];
@@ -223,17 +224,19 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
     }
 }
 
+// This regular expression captures the following layer names for instance:
+// 1) StatusBat#0
+// 2) NavigationBar#1
+// 3) co(m).*#0
+// 4) SurfaceView - co(m).*#0
+// Using [-\\s\t]+ for the conjunction part between SurfaceView and co(m).*
+// is a bit more robust in case there's a slight change.
+// The layer name would only consist of . / $ _ 0-9 a-z A-Z in most cases.
+static const std::regex layerNameRegex(
+        "(((SurfaceView[-\\s\\t]+)?com?\\.[./$\\w]+)|((Status|Navigation)Bar))#\\d+");
+
 static bool layerNameIsValid(const std::string& layerName) {
-    // This regular expression captures the following layer names for instance:
-    // 1) StatusBat#0
-    // 2) NavigationBar#1
-    // 3) co(m).*#0
-    // 4) SurfaceView - co(m).*#0
-    // Using [-\\s\t]+ for the conjunction part between SurfaceView and co(m).*
-    // is a bit more robust in case there's a slight change.
-    // The layer name would only consist of . / $ _ 0-9 a-z A-Z in most cases.
-    std::regex re("(((SurfaceView[-\\s\\t]+)?com?\\.[./$\\w]+)|((Status|Navigation)Bar))#\\d+");
-    return std::regex_match(layerName.begin(), layerName.end(), re);
+    return std::regex_match(layerName.begin(), layerName.end(), layerNameRegex);
 }
 
 void TimeStats::setPostTime(const std::string& layerName, uint64_t frameNumber, nsecs_t postTime) {
