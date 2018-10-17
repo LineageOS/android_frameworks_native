@@ -94,6 +94,10 @@ public:
         EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0)).WillRepeatedly(Return(0));
         EXPECT_CALL(*mPrimaryDispSync, getPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
+        EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_WIDTH), Return(0)));
+        EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
+                .WillRepeatedly(DoAll(SetArgPointee<1>(DEFAULT_DISPLAY_HEIGHT), Return(0)));
 
         mFlinger.setupRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
         setupComposer(0);
@@ -140,7 +144,6 @@ public:
     sp<DisplayDevice> mDisplay;
     sp<DisplayDevice> mExternalDisplay;
     sp<mock::DisplaySurface> mDisplaySurface = new mock::DisplaySurface();
-    renderengine::mock::Surface* mRenderSurface = new renderengine::mock::Surface();
     mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
 
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
@@ -246,8 +249,6 @@ struct BaseDisplayVariant {
         test->mDisplay = FakeDisplayDeviceInjector(test->mFlinger, DEFAULT_DISPLAY_ID,
                                                    false /* isVirtual */, true /* isPrimary */)
                                  .setDisplaySurface(test->mDisplaySurface)
-                                 .setRenderSurface(std::unique_ptr<renderengine::Surface>(
-                                         test->mRenderSurface))
                                  .setNativeWindow(test->mNativeWindow)
                                  .setSecure(Derived::IS_SECURE)
                                  .setPowerMode(Derived::INIT_POWER_MODE)
