@@ -94,7 +94,8 @@ size_t ASharedMemory_getSize(int fd) __INTRODUCED_IN(26);
  *     int fd = ASharedMemory_create("memory", 128);
  *
  *     // By default it has PROT_READ | PROT_WRITE | PROT_EXEC.
- *     char *buffer = (char *) mmap(NULL, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+ *     size_t memSize = ASharedMemory_getSize(fd);
+ *     char *buffer = (char *) mmap(NULL, memSize, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
  *
  *     strcpy(buffer, "This is an example."); // trivially initialize content
  *
