@@ -264,7 +264,9 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     mAnimation = false;
     mEarlyWakeup = false;
 
-    sf->setTransactionState(composerStates, displayStates, flags);
+    sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+
+    sf->setTransactionState(composerStates, displayStates, flags, applyToken);
     mStatus = NO_ERROR;
     return NO_ERROR;
 }

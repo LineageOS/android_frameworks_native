@@ -558,8 +558,8 @@ public:
     void destroyDisplay(const sp<IBinder>& /*display */) override {}
     sp<IBinder> getBuiltInDisplay(int32_t /*id*/) override { return nullptr; }
     void setTransactionState(const Vector<ComposerState>& /*state*/,
-            const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/)
-            override {}
+                             const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
+                             const sp<IBinder>& /*applyToken*/) override {}
     void bootFinished() override {}
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& /*surface*/) const override {

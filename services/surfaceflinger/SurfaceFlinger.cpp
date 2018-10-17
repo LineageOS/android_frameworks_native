@@ -1568,11 +1568,23 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
 
 bool SurfaceFlinger::handleMessageTransaction() {
     uint32_t transactionFlags = peekTransactionFlags();
+
+    // Apply any ready transactions in the queues if there are still transactions that have not been
+    // applied, wake up during the next vsync period and check again
+    bool transactionNeeded = false;
+    if (!flushTransactionQueues()) {
+        transactionNeeded = true;
+    }
+
     if (transactionFlags) {
         handleTransaction(transactionFlags);
-        return true;
     }
-    return false;
+
+    if (transactionNeeded) {
+        setTransactionFlags(eTransactionNeeded);
+    }
+
+    return transactionFlags;
 }
 
 void SurfaceFlinger::handleMessageRefresh() {
@@ -3314,6 +3326,26 @@ uint32_t SurfaceFlinger::setTransactionFlags(uint32_t flags,
     return old;
 }
 
+bool SurfaceFlinger::flushTransactionQueues() {
+    Mutex::Autolock _l(mStateLock);
+    auto it = mTransactionQueues.begin();
+    while (it != mTransactionQueues.end()) {
+        auto& [applyToken, transactionQueue] = *it;
+
+        while (!transactionQueue.empty()) {
+            const auto& [states, displays, flags] = transactionQueue.front();
+            if (composerStateContainsUnsignaledFences(states)) {
+                break;
+            }
+            applyTransactionState(states, displays, flags);
+            transactionQueue.pop();
+        }
+
+        it = (transactionQueue.empty()) ? mTransactionQueues.erase(it) : std::next(it, 1);
+    }
+    return mTransactionQueues.empty();
+}
+
 bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& states) {
     for (const ComposerState& state : states) {
         // Here we need to check that the interface we're given is indeed
@@ -3336,18 +3368,43 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
     return false;
 }
 
-void SurfaceFlinger::setTransactionState(
-        const Vector<ComposerState>& states,
-        const Vector<DisplayState>& displays,
-        uint32_t flags)
-{
+bool SurfaceFlinger::composerStateContainsUnsignaledFences(const Vector<ComposerState>& states) {
+    for (const ComposerState& state : states) {
+        const layer_state_t& s = state.state;
+        if (!(s.what & layer_state_t::eAcquireFenceChanged)) {
+            continue;
+        }
+        if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
+                                         const Vector<DisplayState>& displays, uint32_t flags,
+                                         const sp<IBinder>& applyToken) {
     ATRACE_CALL();
     Mutex::Autolock _l(mStateLock);
-    uint32_t transactionFlags = 0;
 
     if (containsAnyInvalidClientState(states)) {
         return;
     }
+
+    // If its TransactionQueue already has a pending TransactionState or if it is pending
+    if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
+        composerStateContainsUnsignaledFences(states)) {
+        mTransactionQueues[applyToken].emplace(states, displays, flags);
+        setTransactionFlags(eTransactionNeeded);
+        return;
+    }
+
+    applyTransactionState(states, displays, flags);
+}
+
+void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
+                                           const Vector<DisplayState>& displays, uint32_t flags) {
+    uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
         // For window updates that are part of an animation we must wait for
@@ -3938,7 +3995,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0);
+    setTransactionState(state, displays, 0, nullptr);
 
     const auto display = getDisplayDevice(displayToken);
     if (!display) return;
