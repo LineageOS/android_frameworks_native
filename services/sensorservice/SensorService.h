@@ -117,6 +117,8 @@ private:
             void onUidGone(uid_t uid, bool disabled);
             void onUidActive(uid_t uid);
             void onUidIdle(uid_t uid, bool disabled);
+            void onUidStateChanged(uid_t uid __unused, int32_t procState __unused,
+                                   int64_t procStateSeq __unused) {}
 
             void addOverrideUid(uid_t uid, bool active);
             void removeOverrideUid(uid_t uid);
