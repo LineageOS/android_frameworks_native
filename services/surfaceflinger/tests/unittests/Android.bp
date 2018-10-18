@@ -56,13 +56,14 @@ cc_test {
         "mock/MockMessageQueue.cpp",
         "mock/MockNativeWindowSurface.cpp",
         "mock/MockSurfaceInterceptor.cpp",
-        "mock/RenderEngine/MockRenderEngine.cpp",
         "mock/system/window/MockNativeWindow.cpp",
     ],
     static_libs: [
         "libgmock",
         "libcompositionengine",
         "libcompositionengine_mocks",
+        "librenderengine_mocks",
+
     ],
     header_libs: [
         "libsurfaceflinger_headers",
