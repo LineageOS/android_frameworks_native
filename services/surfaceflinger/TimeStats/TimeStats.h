@@ -84,6 +84,8 @@ public:
                          const std::shared_ptr<FenceTime>& presentFence);
     // On producer disconnect with BufferQueue.
     void onDisconnect(const std::string& layerName);
+    // On layer tear down.
+    void onDestroy(const std::string& layerName);
     // When SF is cleaning up the queue, clear the LayerRecord as well.
     void clearLayerRecord(const std::string& layerName);
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
@@ -103,8 +105,8 @@ private:
 
     std::atomic<bool> mEnabled = false;
     std::mutex mMutex;
-    TimeStatsHelper::TimeStatsGlobal timeStats;
-    std::unordered_map<std::string, LayerRecord> timeStatsTracker;
+    TimeStatsHelper::TimeStatsGlobal mTimeStats;
+    std::unordered_map<std::string, LayerRecord> mTimeStatsTracker;
 };
 
 } // namespace android

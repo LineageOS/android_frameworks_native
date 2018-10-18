@@ -70,6 +70,8 @@ BufferLayer::~BufferLayer() {
               mName.string());
         destroyAllHwcLayers();
     }
+
+    mTimeStats.onDestroy(getName().c_str());
 }
 
 void BufferLayer::useSurfaceDamage() {
