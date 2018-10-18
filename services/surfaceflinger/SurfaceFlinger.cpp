@@ -35,32 +35,29 @@
 #include <binder/IServiceManager.h>
 #include <binder/PermissionCache.h>
 
+#include <compositionengine/CompositionEngine.h>
 #include <dvr/vr_flinger.h>
-
-#include <input/IInputFlinger.h>
-
-#include <ui/ColorSpace.h>
-#include <ui/DebugUtils.h>
-#include <ui/DisplayInfo.h>
-#include <ui/DisplayStatInfo.h>
-
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
+#include <input/IInputFlinger.h>
 #include <renderengine/RenderEngine.h>
+#include <ui/ColorSpace.h>
+#include <ui/DebugUtils.h>
+#include <ui/DisplayInfo.h>
+#include <ui/DisplayStatInfo.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/PixelFormat.h>
 #include <ui/UiConfig.h>
-
-#include <utils/misc.h>
-#include <utils/String8.h>
-#include <utils/String16.h>
 #include <utils/StopWatch.h>
+#include <utils/String16.h>
+#include <utils/String8.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
+#include <utils/misc.h>
 
 #include <private/android_filesystem_config.h>
 #include <private/gui/SyncFeatures.h>
@@ -272,7 +269,8 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mHasPoweredOff(false),
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
-        mMainThreadId(std::this_thread::get_id()) {}
+        mMainThreadId(std::this_thread::get_id()),
+        mCompositionEngine{getFactory().createCompositionEngine()} {}
 
 SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
       : SurfaceFlinger(factory, SkipInitialization) {
@@ -542,6 +540,10 @@ status_t SurfaceFlinger::getColorManagement(bool* outGetColorManagement) const {
     }
     *outGetColorManagement = useColorManagement;
     return NO_ERROR;
+}
+
+compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() const {
+    return *mCompositionEngine.get();
 }
 
 void SurfaceFlinger::bootFinished()

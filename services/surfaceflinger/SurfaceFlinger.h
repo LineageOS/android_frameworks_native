@@ -336,6 +336,9 @@ public:
 
     surfaceflinger::Factory& getFactory() { return mFactory; }
 
+    // The CompositionEngine encapsulates all composition related interfaces and actions.
+    compositionengine::CompositionEngine& getCompositionEngine() const;
+
     // returns the default Display
     sp<const DisplayDevice> getDefaultDisplayDevice() const {
         Mutex::Autolock _l(mStateLock);
@@ -991,6 +994,7 @@ private:
     ui::Dataspace mWideColorGamutCompositionDataspace;
 
     SurfaceFlingerBE mBE;
+    std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
 
     bool mUseScheduler = false;
     std::unique_ptr<Scheduler> mScheduler;

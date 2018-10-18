@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <compositionengine/impl/CompositionEngine.h>
+
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
 #include "ColorLayer.h"
@@ -113,6 +115,10 @@ public:
         return mCreateNativeWindowSurface(producer);
     }
 
+    std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override {
+        return compositionengine::impl::createCompositionEngine();
+    }
+
     sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs&) override {
         // TODO: Use test-fixture controlled factory
         return nullptr;
@@ -148,6 +154,10 @@ public:
             std::function<std::unique_ptr<surfaceflinger::NativeWindowSurface>(
                     const sp<IGraphicBufferProducer>&)>;
     CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
+
+    using CreateCompositionEngineFunction =
+            std::function<std::unique_ptr<compositionengine::CompositionEngine>()>;
+    CreateCompositionEngineFunction mCreateCompositionEngine;
 };
 
 } // namespace surfaceflinger::test

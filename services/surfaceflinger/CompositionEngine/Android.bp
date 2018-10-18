@@ -1,0 +1,62 @@
+cc_defaults {
+    name: "libcompositionengine_defaults",
+    defaults: ["surfaceflinger_defaults"],
+    cflags: [
+        "-DLOG_TAG=\"CompositionEngine\"",
+    ],
+}
+
+cc_library {
+    name: "libcompositionengine",
+    defaults: ["libcompositionengine_defaults"],
+    srcs: [
+        "src/CompositionEngine.cpp",
+    ],
+    local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}
+
+cc_library {
+    name: "libcompositionengine_mocks",
+    defaults: ["libcompositionengine_defaults"],
+    srcs: [
+        "mock/CompositionEngine.cpp",
+    ],
+    static_libs: [
+        "libgtest",
+        "libgmock",
+        "libcompositionengine",
+    ],
+    local_include_dirs: ["include"],
+    export_include_dirs: ["include"],
+}
+
+cc_test {
+    name: "libcompositionengine_test",
+    test_suites: ["device-tests"],
+    defaults: ["libcompositionengine_defaults"],
+    srcs: [
+        "tests/CompositionEngineTest.cpp",
+    ],
+    static_libs: [
+        "libcompositionengine",
+        "libcompositionengine_mocks",
+        "libgmock",
+        "libgtest",
+    ],
+    sanitize: {
+        // By using the address sanitizer, we not only uncover any issues
+        // with the test, but also any issues with the code under test.
+        //
+        // Note: If you get an runtime link error like:
+        //
+        //   CANNOT LINK EXECUTABLE "/data/local/tmp/libcompositionengine_test": library "libclang_rt.asan-aarch64-android.so" not found
+        //
+        // it is because the address sanitizer shared objects are not installed
+        // by default in the system image.
+        //
+        // You can either "make dist tests" before flashing, or set this
+        // option to false temporarily.
+        address: true,
+    },
+}

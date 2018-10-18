@@ -49,6 +49,9 @@ class TimeStats;
 struct DisplayDeviceCreationArgs;
 struct LayerCreationArgs;
 
+namespace compositionengine {
+class CompositionEngine;
+} // namespace compositionengine
 namespace surfaceflinger {
 
 class NativeWindowSurface;
@@ -77,6 +80,8 @@ public:
                                    bool consumerIsSurfaceFlinger) = 0;
     virtual std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
             const sp<IGraphicBufferProducer>&) = 0;
+
+    virtual std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() = 0;
 
     virtual sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs& args) = 0;
     virtual sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs& args) = 0;
