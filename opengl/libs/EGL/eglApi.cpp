@@ -52,6 +52,21 @@ EGLDisplay eglGetDisplay(EGLNativeDisplayType display) {
     return cnx->platform.eglGetDisplay(display);
 }
 
+EGLDisplay eglGetPlatformDisplay(EGLenum platform, EGLNativeDisplayType display,
+                                 const EGLAttrib* attrib_list) {
+    ATRACE_CALL();
+    clearError();
+
+    if (egl_init_drivers() == EGL_FALSE) {
+        return setError(EGL_BAD_PARAMETER, EGL_NO_DISPLAY);
+    }
+
+    // Call down the chain, which usually points directly to the impl
+    // but may also be routed through layers
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglGetPlatformDisplay(platform, display, attrib_list);
+}
+
 EGLBoolean eglInitialize(EGLDisplay dpy, EGLint* major, EGLint* minor) {
     clearError();
 
@@ -97,12 +112,28 @@ EGLSurface eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config, NativeWindow
     return cnx->platform.eglCreateWindowSurface(dpy, config, window, attrib_list);
 }
 
+EGLSurface eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config, void* native_window,
+                                          const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreatePlatformWindowSurface(dpy, config, native_window, attrib_list);
+}
+
 EGLSurface eglCreatePixmapSurface(EGLDisplay dpy, EGLConfig config, NativePixmapType pixmap,
                                   const EGLint* attrib_list) {
     clearError();
 
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglCreatePixmapSurface(dpy, config, pixmap, attrib_list);
+}
+
+EGLSurface eglCreatePlatformPixmapSurface(EGLDisplay dpy, EGLConfig config, void* native_pixmap,
+                                          const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreatePlatformPixmapSurface(dpy, config, native_pixmap, attrib_list);
 }
 
 EGLSurface eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config, const EGLint* attrib_list) {
@@ -352,11 +383,37 @@ EGLImageKHR eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
     return cnx->platform.eglCreateImageKHR(dpy, ctx, target, buffer, attrib_list);
 }
 
+EGLImage eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer,
+                        const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreateImage(dpy, ctx, target, buffer, attrib_list);
+}
+
 EGLBoolean eglDestroyImageKHR(EGLDisplay dpy, EGLImageKHR img) {
     clearError();
 
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglDestroyImageKHR(dpy, img);
+}
+
+EGLBoolean eglDestroyImage(EGLDisplay dpy, EGLImageKHR img) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglDestroyImage(dpy, img);
+}
+
+// ----------------------------------------------------------------------------
+// EGL_EGLEXT_VERSION 5
+// ----------------------------------------------------------------------------
+
+EGLSyncKHR eglCreateSync(EGLDisplay dpy, EGLenum type, const EGLAttrib* attrib_list) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglCreateSync(dpy, type, attrib_list);
 }
 
 EGLSyncKHR eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint* attrib_list) {
@@ -366,11 +423,25 @@ EGLSyncKHR eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint* attrib_l
     return cnx->platform.eglCreateSyncKHR(dpy, type, attrib_list);
 }
 
+EGLBoolean eglDestroySync(EGLDisplay dpy, EGLSyncKHR sync) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglDestroySync(dpy, sync);
+}
+
 EGLBoolean eglDestroySyncKHR(EGLDisplay dpy, EGLSyncKHR sync) {
     clearError();
 
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglDestroySyncKHR(dpy, sync);
+}
+
+EGLBoolean eglSignalSync(EGLDisplay dpy, EGLSync sync, EGLenum mode) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglSignalSync(dpy, sync, mode);
 }
 
 EGLBoolean eglSignalSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
@@ -380,11 +451,25 @@ EGLBoolean eglSignalSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
     return cnx->platform.eglSignalSyncKHR(dpy, sync, mode);
 }
 
+EGLint eglClientWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTimeKHR timeout) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglClientWaitSyncKHR(dpy, sync, flags, timeout);
+}
+
 EGLint eglClientWaitSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout) {
     clearError();
 
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglClientWaitSyncKHR(dpy, sync, flags, timeout);
+}
+
+EGLBoolean eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib* value) {
+    clearError();
+
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglGetSyncAttrib(dpy, sync, attribute, value);
 }
 
 EGLBoolean eglGetSyncAttribKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLint attribute, EGLint* value) {
@@ -488,6 +573,12 @@ EGLint eglWaitSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags) {
     clearError();
     egl_connection_t* const cnx = &gEGLImpl;
     return cnx->platform.eglWaitSyncKHR(dpy, sync, flags);
+}
+
+EGLBoolean eglWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags) {
+    clearError();
+    egl_connection_t* const cnx = &gEGLImpl;
+    return cnx->platform.eglWaitSync(dpy, sync, flags);
 }
 
 EGLint eglDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSyncKHR sync) {

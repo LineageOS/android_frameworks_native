@@ -24,6 +24,7 @@
 
 #define VERSION_MAJOR 1
 #define VERSION_MINOR 4
+#define EGL_MAKE_VERSION(major, minor, patch) (((major) << 22) | ((minor) << 12) | (patch))
 
 // ----------------------------------------------------------------------------
 namespace android {
@@ -36,6 +37,7 @@ const unsigned int NUM_DISPLAYS = 1;
 
 extern char const * const platform_names[];
 
+// clang-format off
 struct egl_connection_t {
     enum {
         GLESv1_INDEX = 0,
@@ -64,6 +66,7 @@ struct egl_connection_t {
     gl_hooks_t *        hooks[2];
     EGLint              major;
     EGLint              minor;
+    EGLint              driverVersion;
     egl_t               egl;
 
     // Functions implemented or redirected by platform libraries
@@ -77,6 +80,7 @@ struct egl_connection_t {
     EGLint              angleBackend;
     void*               vendorEGL;
 };
+// clang-format on
 
 // ----------------------------------------------------------------------------
 

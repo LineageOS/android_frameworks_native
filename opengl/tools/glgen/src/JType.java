@@ -60,12 +60,16 @@ public class JType {
     typeMapping.put(new CType("EGLNativeDisplayType"), new JType("long"));
     typeMapping.put(new CType("EGLClientBuffer"), new JType("long"));
     typeMapping.put(new CType("EGLnsecsANDROID"), new JType("long"));
+    typeMapping.put(new CType("EGLAttrib"), new JType("long"));
+    typeMapping.put(new CType("EGLTime"), new JType("long"));
 
     // EGL nonprimitive types
     typeMapping.put(new CType("EGLConfig"), new JType("EGLConfig", true, false));
     typeMapping.put(new CType("EGLContext"), new JType("EGLContext", true, false));
     typeMapping.put(new CType("EGLDisplay"), new JType("EGLDisplay", true, false));
     typeMapping.put(new CType("EGLSurface"), new JType("EGLSurface", true, false));
+    typeMapping.put(new CType("EGLImage"), new JType("EGLImage", true, false));
+    typeMapping.put(new CType("EGLSync"), new JType("EGLSync", true, false));
 
 
     // Untyped pointers map to untyped Buffers
@@ -139,6 +143,8 @@ public class JType {
     arrayTypeMapping.put(new CType("EGLint", true, true), new JType("int", false, true));
     arrayTypeMapping.put(new CType("EGLConfig", false, true), new JType("EGLConfig", true, true));
     arrayTypeMapping.put(new CType("EGLConfig", true, true), new JType("EGLConfig", true, true));
+    arrayTypeMapping.put(new CType("EGLAttrib", false, true), new JType("long", false, true));
+    arrayTypeMapping.put(new CType("EGLAttrib", true, true), new JType("long", false, true));
 
     }
 

@@ -103,6 +103,12 @@ public class JniCodeEmitter {
             if (cfunc.hasEGLHandleArg()) {
                 return;
             }
+            // eglGetPlatformDisplay does not have any EGLHandleArgs
+            // but we do not want to create IOBuffers of this, so
+            // exit
+            if (cfunc.getName().equals("eglGetPlatformDisplay")) {
+                return;
+            }
         }
 
         jfunc = JFunc.convert(cfunc, false);
