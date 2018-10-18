@@ -66,6 +66,10 @@
 
 namespace android {
 
+HWComposer::~HWComposer() = default;
+
+namespace impl {
+
 HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
       : mHwcDevice(std::make_unique<HWC2::Device>(std::move(composer))) {}
 
@@ -854,4 +858,5 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplugConnect(hwc2_displ
                                                                            : "External display"};
 }
 
+} // namespace impl
 } // namespace android

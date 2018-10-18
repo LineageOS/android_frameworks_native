@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include <memory>
-
 #include <compositionengine/CompositionEngine.h>
 
 namespace android::compositionengine::impl {
@@ -26,6 +24,12 @@ class CompositionEngine : public compositionengine::CompositionEngine {
 public:
     CompositionEngine();
     ~CompositionEngine() override;
+
+    HWComposer& getHwComposer() const override;
+    void setHwComposer(std::unique_ptr<HWComposer>) override;
+
+private:
+    std::unique_ptr<HWComposer> mHwComposer;
 };
 
 std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine();

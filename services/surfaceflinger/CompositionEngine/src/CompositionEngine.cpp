@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-#include <memory>
-
 #include <compositionengine/impl/CompositionEngine.h>
+
+#include "DisplayHardware/HWComposer.h"
 
 namespace android::compositionengine {
 
@@ -30,6 +30,14 @@ std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() 
 
 CompositionEngine::CompositionEngine() = default;
 CompositionEngine::~CompositionEngine() = default;
+
+HWComposer& CompositionEngine::getHwComposer() const {
+    return *mHwComposer.get();
+}
+
+void CompositionEngine::setHwComposer(std::unique_ptr<HWComposer> hwComposer) {
+    mHwComposer = std::move(hwComposer);
+}
 
 } // namespace impl
 } // namespace android::compositionengine

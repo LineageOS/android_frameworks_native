@@ -19,7 +19,6 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <gui/IProducerListener.h>
 #include <log/log.h>
 #include <system/window.h>
@@ -767,7 +766,7 @@ struct BaseLayerVariant {
 
         const auto displayId = test->mDisplay->getId();
         ASSERT_TRUE(displayId);
-        layer->createHwcLayer(test->mFlinger.mFlinger->getBE().mHwc.get(), *displayId);
+        layer->createHwcLayer(&test->mFlinger.getHwComposer(), *displayId);
 
         Mock::VerifyAndClear(test->mComposer);
 

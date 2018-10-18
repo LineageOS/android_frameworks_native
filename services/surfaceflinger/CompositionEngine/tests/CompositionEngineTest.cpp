@@ -17,14 +17,19 @@
 #include <compositionengine/impl/CompositionEngine.h>
 #include <gtest/gtest.h>
 
+#include "MockHWComposer.h"
+
 namespace android::compositionengine {
 namespace {
+
+using ::testing::StrictMock;
 
 class CompositionEngineTest : public testing::Test {
 public:
     ~CompositionEngineTest() override;
 
-    impl::CompositionEngine engine;
+    mock::HWComposer* mHwc = new StrictMock<mock::HWComposer>();
+    impl::CompositionEngine mEngine;
 };
 
 CompositionEngineTest::~CompositionEngineTest() = default;
@@ -32,6 +37,12 @@ CompositionEngineTest::~CompositionEngineTest() = default;
 TEST_F(CompositionEngineTest, canInstantiateCompositionEngine) {
     auto engine = impl::createCompositionEngine();
     EXPECT_TRUE(engine.get() != nullptr);
+}
+
+TEST_F(CompositionEngineTest, canSetHWComposer) {
+    mEngine.setHwComposer(std::unique_ptr<android::HWComposer>(mHwc));
+
+    EXPECT_EQ(mHwc, &mEngine.getHwComposer());
 }
 
 } // namespace

@@ -4,6 +4,30 @@ cc_defaults {
     cflags: [
         "-DLOG_TAG=\"CompositionEngine\"",
     ],
+    shared_libs: [
+        "android.hardware.graphics.allocator@2.0",
+        "android.hardware.graphics.composer@2.1",
+        "android.hardware.graphics.composer@2.2",
+        "android.hardware.graphics.composer@2.3",
+        "android.hardware.power@1.0",
+        "android.hardware.power@1.3",
+        "libbase",
+        "libcutils",
+        "libgui",
+        "liblayers_proto",
+        "liblog",
+        "libtimestats_proto",
+        "libui",
+        "libutils",
+    ],
+    static_libs: [
+        "libmath",
+        "librenderengine",
+        "libtrace_proto",
+    ],
+    header_libs: [
+        "libsurfaceflinger_headers",
+    ],
 }
 
 cc_library {
@@ -37,6 +61,7 @@ cc_test {
     defaults: ["libcompositionengine_defaults"],
     srcs: [
         "tests/CompositionEngineTest.cpp",
+        "tests/MockHWComposer.cpp",
     ],
     static_libs: [
         "libcompositionengine",

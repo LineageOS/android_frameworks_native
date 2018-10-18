@@ -60,7 +60,7 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
         }
 
         std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override {
-            return std::make_unique<HWComposer>(
+            return std::make_unique<android::impl::HWComposer>(
                     std::make_unique<Hwc2::impl::Composer>(serviceName));
         }
 

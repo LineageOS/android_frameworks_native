@@ -19,12 +19,17 @@
 #include <compositionengine/CompositionEngine.h>
 #include <gmock/gmock.h>
 
+#include "DisplayHardware/HWComposer.h"
+
 namespace android::compositionengine::mock {
 
 class CompositionEngine : public compositionengine::CompositionEngine {
 public:
     CompositionEngine();
     ~CompositionEngine() override;
+
+    MOCK_CONST_METHOD0(getHwComposer, HWComposer&());
+    MOCK_METHOD1(setHwComposer, void(std::unique_ptr<HWComposer>));
 };
 
 } // namespace android::compositionengine::mock

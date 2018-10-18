@@ -542,6 +542,10 @@ status_t SurfaceFlinger::getColorManagement(bool* outGetColorManagement) const {
     return NO_ERROR;
 }
 
+HWComposer& SurfaceFlinger::getHwComposer() const {
+    return mCompositionEngine->getHwComposer();
+}
+
 compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() const {
     return *mCompositionEngine.get();
 }
@@ -682,8 +686,8 @@ void SurfaceFlinger::init() {
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
-    getBE().mHwc = getFactory().createHWComposer(getBE().mHwcServiceName);
-    getBE().mHwc->registerCallback(this, getBE().mComposerSequenceId);
+    mCompositionEngine->setHwComposer(getFactory().createHWComposer(getBE().mHwcServiceName));
+    mCompositionEngine->getHwComposer().registerCallback(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
     const auto display = getDefaultDisplayDeviceLocked();
@@ -1451,11 +1455,11 @@ void SurfaceFlinger::updateVrFlinger() {
     if (!mVrFlinger)
         return;
     bool vrFlingerRequestsDisplay = mVrFlingerRequestsDisplay;
-    if (vrFlingerRequestsDisplay == getBE().mHwc->isUsingVrComposer()) {
+    if (vrFlingerRequestsDisplay == getHwComposer().isUsingVrComposer()) {
         return;
     }
 
-    if (vrFlingerRequestsDisplay && !getBE().mHwc->getComposer()->isRemote()) {
+    if (vrFlingerRequestsDisplay && !getHwComposer().getComposer()->isRemote()) {
         ALOGE("Vr flinger is only supported for remote hardware composer"
               " service connections. Ignoring request to transition to vr"
               " flinger.");
@@ -1478,12 +1482,13 @@ void SurfaceFlinger::updateVrFlinger() {
     }
 
     resetDisplayState();
-    getBE().mHwc.reset(); // Delete the current instance before creating the new one
-    getBE().mHwc = getFactory().createHWComposer(
-            vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName);
-    getBE().mHwc->registerCallback(this, ++getBE().mComposerSequenceId);
+    // Delete the current instance before creating the new one
+    mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
+    mCompositionEngine->setHwComposer(getFactory().createHWComposer(
+            vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName));
+    getHwComposer().registerCallback(this, ++getBE().mComposerSequenceId);
 
-    LOG_ALWAYS_FATAL_IF(!getBE().mHwc->getComposer()->isRemote(),
+    LOG_ALWAYS_FATAL_IF(!getHwComposer().getComposer()->isRemote(),
                         "Switched to non-remote hardware composer");
 
     if (vrFlingerRequestsDisplay) {
@@ -1506,9 +1511,10 @@ void SurfaceFlinger::updateVrFlinger() {
     // The present fences returned from vr_hwc are not an accurate
     // representation of vsync times.
     if (mUseScheduler) {
-        mScheduler->setIgnorePresentFences(getBE().mHwc->isUsingVrComposer() || !hasSyncFramework);
+        mScheduler->setIgnorePresentFences(getHwComposer().isUsingVrComposer() ||
+                                           !hasSyncFramework);
     } else {
-        mPrimaryDispSync->setIgnorePresentFences(getBE().mHwc->isUsingVrComposer() ||
+        mPrimaryDispSync->setIgnorePresentFences(getHwComposer().isUsingVrComposer() ||
                                                  !hasSyncFramework);
     }
 
@@ -1601,8 +1607,8 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mHadClientComposition = false;
     for (const auto& [token, display] : mDisplays) {
-        mHadClientComposition = mHadClientComposition ||
-                getBE().mHwc->hasClientComposition(display->getId());
+        mHadClientComposition =
+                mHadClientComposition || getHwComposer().hasClientComposition(display->getId());
     }
 
     // Setup RenderEngine sync fences if native sync is supported.
@@ -2275,7 +2281,7 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
         // supply them with the present fence.
         if (!display->getLayersNeedingFences().isEmpty()) {
             sp<Fence> presentFence =
-                    displayId ? getBE().mHwc->getPresentFence(*displayId) : Fence::NO_FENCE;
+                    displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
             for (auto& layer : display->getLayersNeedingFences()) {
                 layer->getBE().onLayerDisplayed(presentFence);
             }
@@ -3072,7 +3078,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
     const Region bounds(display->bounds());
     const DisplayRenderArea renderArea(display);
     const auto displayId = display->getId();
-    const bool hasClientComposition = getBE().mHwc->hasClientComposition(displayId);
+    const bool hasClientComposition = getHwComposer().hasClientComposition(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
     mat4 colorMatrix;
@@ -3111,11 +3117,11 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
         getBE().mRenderEngine->setDisplayMaxLuminance(
                 display->getHdrCapabilities().getDesiredMaxLuminance());
 
-        const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(displayId);
+        const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
         const bool skipClientColorTransform =
-                getBE().mHwc
-                        ->hasDisplayCapability(displayId,
-                                               HWC2::DisplayCapability::SkipClientColorTransform);
+                getHwComposer()
+                        .hasDisplayCapability(displayId,
+                                              HWC2::DisplayCapability::SkipClientColorTransform);
 
         // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
@@ -5089,7 +5095,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             // Is VrFlinger active?
             case 1028: {
                 Mutex::Autolock _l(mStateLock);
-                reply->writeBool(getBE().mHwc->isUsingVrComposer());
+                reply->writeBool(getHwComposer().isUsingVrComposer());
                 return NO_ERROR;
             }
             // Is device color managed?
