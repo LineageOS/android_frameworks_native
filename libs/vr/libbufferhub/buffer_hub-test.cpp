@@ -829,43 +829,7 @@ TEST_F(LibBufferHubTest, TestCreateBufferHubBuffer) {
   EXPECT_NE(b1->id(), 0);
 }
 
-TEST_F(LibBufferHubTest, TestPromoteBufferHubBuffer) {
-  // TODO(b/112338294) rewrite test after migration
-  return;
-
-  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                    kUsage, kUserMetadataSize);
-  int b1_id = b1->id();
-  EXPECT_TRUE(b1->IsValid());
-
-  auto status_or_handle = b1->Promote();
-  EXPECT_TRUE(status_or_handle);
-
-  // The detached buffer should have hangup.
-  EXPECT_GT(RETRY_EINTR(b1->Poll(kPollTimeoutMs)), 0);
-  auto status_or_int = b1->GetEventMask(POLLHUP);
-  EXPECT_TRUE(status_or_int.ok());
-  EXPECT_EQ(status_or_int.get(), POLLHUP);
-
-  // The buffer client is still considered as connected but invalid.
-  EXPECT_TRUE(b1->IsConnected());
-  EXPECT_FALSE(b1->IsValid());
-
-  // Gets the channel handle for the producer.
-  LocalChannelHandle h1 = status_or_handle.take();
-  EXPECT_TRUE(h1.valid());
-
-  std::unique_ptr<ProducerBuffer> p1 = ProducerBuffer::Import(std::move(h1));
-  EXPECT_FALSE(h1.valid());
-  ASSERT_TRUE(p1 != nullptr);
-  int p1_id = p1->id();
-
-  // A newly promoted ProducerBuffer should inherit the same buffer id.
-  EXPECT_EQ(b1_id, p1_id);
-  EXPECT_TRUE(IsBufferGained(p1->buffer_state()));
-}
-
-TEST_F(LibBufferHubTest, TestDetachThenPromote) {
+TEST_F(LibBufferHubTest, TestDetach) {
   // TODO(b/112338294) rewrite test after migration
   return;
 
@@ -887,26 +851,6 @@ TEST_F(LibBufferHubTest, TestDetachThenPromote) {
   EXPECT_TRUE(b1->IsValid());
   int b1_id = b1->id();
   EXPECT_EQ(b1_id, p1_id);
-
-  // Promote the detached buffer.
-  status_or_handle = b1->Promote();
-  // The buffer client is still considered as connected but invalid.
-  EXPECT_TRUE(b1->IsConnected());
-  EXPECT_FALSE(b1->IsValid());
-  EXPECT_TRUE(status_or_handle.ok());
-
-  // Gets the channel handle for the producer.
-  LocalChannelHandle h2 = status_or_handle.take();
-  EXPECT_TRUE(h2.valid());
-
-  std::unique_ptr<ProducerBuffer> p2 = ProducerBuffer::Import(std::move(h2));
-  EXPECT_FALSE(h2.valid());
-  ASSERT_TRUE(p2 != nullptr);
-  int p2_id = p2->id();
-
-  // A newly promoted ProducerBuffer should inherit the same buffer id.
-  EXPECT_EQ(b1_id, p2_id);
-  EXPECT_TRUE(IsBufferGained(p2->buffer_state()));
 }
 
 TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
@@ -951,10 +895,4 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
 
   // TODO(b/112338294) rewrite test after migration
   return;
-
-  // Promote the detached buffer should fail as b1 is no longer the exclusive
-  // owner of the buffer..
-  status_or_handle = b1->Promote();
-  EXPECT_FALSE(status_or_handle.ok());
-  EXPECT_EQ(status_or_handle.error(), EINVAL);
 }

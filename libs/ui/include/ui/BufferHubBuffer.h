@@ -88,7 +88,7 @@ public:
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
-    uint64_t buffer_state_bit() const { return mBfferStateBit; }
+    uint64_t buffer_state_bit() const { return mBufferStateBit; }
 
     size_t user_metadata_size() const { return mMetadata.user_metadata_size(); }
 
@@ -112,11 +112,6 @@ public:
     // Polls the fd for |timeoutMs| milliseconds (-1 for infinity).
     int Poll(int timeoutMs);
 
-    // Promotes a BufferHubBuffer to become a ProducerBuffer. Once promoted the BufferHubBuffer
-    // channel will be closed automatically on successful IPC return. Further IPCs towards this
-    // channel will return error.
-    pdx::Status<pdx::LocalChannelHandle> Promote();
-
     // Creates a BufferHubBuffer client from an existing one. The new client will
     // share the same underlying gralloc buffer and ashmem region for metadata.
     pdx::Status<pdx::LocalChannelHandle> Duplicate();
@@ -130,15 +125,15 @@ private:
     int ImportGraphicBuffer();
 
     // Global id for the buffer that is consistent across processes.
-    int mId;
-    uint64_t mBfferStateBit;
+    int mId = -1;
+    uint64_t mBufferStateBit = 0;
 
     // Wrapps the gralloc buffer handle of this buffer.
     dvr::NativeHandleWrapper<pdx::LocalHandle> mBufferHandle;
 
     // An ashmem-based metadata object. The same shared memory are mapped to the
     // bufferhubd daemon and all buffer clients.
-    dvr::BufferHubMetadata mMetadata;
+    BufferHubMetadata mMetadata;
 
     // PDX backend.
     BufferHubClient mClient;

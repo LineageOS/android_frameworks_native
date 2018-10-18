@@ -41,7 +41,6 @@
 
 #include <poll.h>
 
-using android::dvr::BufferHubMetadata;
 using android::dvr::BufferTraits;
 using android::dvr::DetachedBufferRPC;
 using android::dvr::NativeHandleWrapper;
@@ -160,7 +159,7 @@ int BufferHubBuffer::ImportGraphicBuffer() {
 
     // If all imports succeed, replace the previous buffer and id.
     mId = bufferId;
-    mBfferStateBit = bufferTraits.buffer_state_bit();
+    mBufferStateBit = bufferTraits.buffer_state_bit();
 
     // TODO(b/112012161) Set up shared fences.
     ALOGD("BufferHubBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64 ".", id(),
@@ -173,26 +172,6 @@ int BufferHubBuffer::Poll(int timeoutMs) {
 
     pollfd p = {mClient.event_fd(), POLLIN, 0};
     return poll(&p, 1, timeoutMs);
-}
-
-Status<LocalChannelHandle> BufferHubBuffer::Promote() {
-    ATRACE_CALL();
-
-    // TODO(b/112338294) remove after migrate producer buffer to binder
-    ALOGW("BufferHubBuffer::Promote: not supported operation during migration");
-    return {};
-
-    ALOGD("BufferHubBuffer::Promote: id=%d.", mId);
-
-    auto statusOrHandle = mClient.InvokeRemoteMethod<DetachedBufferRPC::Promote>();
-    if (statusOrHandle.ok()) {
-        // Invalidate the buffer.
-        mBufferHandle = {};
-    } else {
-        ALOGE("BufferHubBuffer::Promote: Failed to promote buffer (id=%d): %s.", mId,
-              statusOrHandle.GetErrorMessage().c_str());
-    }
-    return statusOrHandle;
 }
 
 Status<LocalChannelHandle> BufferHubBuffer::Duplicate() {

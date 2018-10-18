@@ -102,6 +102,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.hdrMetadata.validTypes = 0;
     mCurrentState.surfaceDamageRegion.clear();
     mCurrentState.api = -1;
+    mCurrentState.hasColorTransform = false;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1547,11 +1548,15 @@ bool Layer::detachChildren() {
 }
 
 bool Layer::setColorTransform(const mat4& matrix) {
+    static const mat4 identityMatrix = mat4();
+
     if (mCurrentState.colorTransform == matrix) {
         return false;
     }
     ++mCurrentState.sequence;
     mCurrentState.colorTransform = matrix;
+    mCurrentState.hasColorTransform = matrix != identityMatrix;
+    mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
 }
@@ -1561,8 +1566,7 @@ const mat4& Layer::getColorTransform() const {
 }
 
 bool Layer::hasColorTransform() const {
-    static const mat4 identityMatrix = mat4();
-    return getDrawingState().colorTransform != identityMatrix;
+    return getDrawingState().hasColorTransform;
 }
 
 bool Layer::isLegacyDataSpace() const {

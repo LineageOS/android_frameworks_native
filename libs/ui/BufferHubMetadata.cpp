@@ -22,7 +22,6 @@
 #include <ui/BufferHubMetadata.h>
 
 namespace android {
-namespace dvr {
 
 namespace {
 
@@ -30,8 +29,8 @@ static const int kAshmemProt = PROT_READ | PROT_WRITE;
 
 } // namespace
 
-using BufferHubDefs::kMetadataHeaderSize;
-using BufferHubDefs::MetadataHeader;
+using dvr::BufferHubDefs::kMetadataHeaderSize;
+using dvr::BufferHubDefs::MetadataHeader;
 
 /* static */
 BufferHubMetadata BufferHubMetadata::Create(size_t userMetadataSize) {
@@ -101,5 +100,4 @@ BufferHubMetadata::~BufferHubMetadata() {
     }
 }
 
-} // namespace dvr
 } // namespace android

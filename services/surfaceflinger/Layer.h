@@ -182,6 +182,7 @@ public:
 
         sp<NativeHandle> sidebandStream;
         mat4 colorTransform;
+        bool hasColorTransform;
     };
 
     explicit Layer(const LayerCreationArgs& args);

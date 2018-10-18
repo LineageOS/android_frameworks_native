@@ -191,11 +191,6 @@ struct DetachedBufferRPC {
     // Imports the given channel handle to a DetachedBuffer, taking ownership.
     kOpImport,
 
-    // Promotes a DetachedBuffer to become a ProducerBuffer. Once promoted the
-    // DetachedBuffer channel will be closed automatically on successful IPC
-    // return. Further IPCs towards this channel will return error.
-    kOpPromote,
-
     // Creates a DetachedBuffer client from an existing one. The new client will
     // share the same underlying gralloc buffer and ashmem region for metadata.
     kOpDuplicate,
@@ -212,10 +207,9 @@ struct DetachedBufferRPC {
                          uint32_t format, uint64_t usage,
                          size_t user_metadata_size));
   PDX_REMOTE_METHOD(Import, kOpImport, BufferTraits<LocalHandle>(Void));
-  PDX_REMOTE_METHOD(Promote, kOpPromote, LocalChannelHandle(Void));
   PDX_REMOTE_METHOD(Duplicate, kOpDuplicate, LocalChannelHandle(Void));
 
-  PDX_REMOTE_API(API, Create, Import, Promote, Duplicate);
+  PDX_REMOTE_API(API, Create, Import, Duplicate);
 };
 
 }  // namespace dvr
