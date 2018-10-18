@@ -346,13 +346,19 @@ public:
     virtual bool transferTouchFocus(const sp<InputChannel>& fromChannel,
             const sp<InputChannel>& toChannel) = 0;
 
-    /* Registers or unregister input channels that may be used as targets for input events.
-     * If monitor is true, the channel will receive a copy of all input events.
+    /* Registers input channels that may be used as targets for input events.
+     * If inputWindowHandle is null, and displayId is not ADISPLAY_ID_NONE,
+     * the channel will receive a copy of all input events form the specific displayId.
      *
-     * These methods may be called on any thread (usually by the input manager).
+     * This method may be called on any thread (usually by the input manager).
      */
     virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-            const sp<InputWindowHandle>& inputWindowHandle, bool monitor) = 0;
+            const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId) = 0;
+
+    /* Unregister input channels that will no longer receive input events.
+     *
+     * This method may be called on any thread (usually by the input manager).
+     */
     virtual status_t unregisterInputChannel(const sp<InputChannel>& inputChannel) = 0;
 };
 
@@ -407,7 +413,7 @@ public:
             const sp<InputChannel>& toChannel);
 
     virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-            const sp<InputWindowHandle>& inputWindowHandle, bool monitor);
+            const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId);
     virtual status_t unregisterInputChannel(const sp<InputChannel>& inputChannel);
 
 private:
@@ -914,8 +920,8 @@ private:
 
     ssize_t getConnectionIndexLocked(const sp<InputChannel>& inputChannel);
 
-    // Input channels that will receive a copy of all input events.
-    Vector<sp<InputChannel> > mMonitoringChannels;
+    // Input channels that will receive a copy of all input events sent to the provided display.
+    std::unordered_map<int32_t, Vector<sp<InputChannel>>> mMonitoringChannelsByDisplay;
 
     // Event injection and synchronization.
     Condition mInjectionResultAvailableCondition;
@@ -1070,7 +1076,7 @@ private:
 
     void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
             int32_t targetFlags, BitSet32 pointerIds, Vector<InputTarget>& inputTargets);
-    void addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets);
+    void addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets, int32_t displayId);
 
     void pokeUserActivityLocked(const EventEntry* eventEntry);
     bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,
