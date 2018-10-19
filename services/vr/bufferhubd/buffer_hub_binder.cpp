@@ -65,13 +65,23 @@ status_t BufferHubBinderService::dump(int fd, const Vector<String16>& args) {
   return NO_ERROR;
 }
 
+status_t BufferHubBinderService::registerToken(
+    const std::weak_ptr<BufferNode> node, uint64_t* outToken) {
+  do {
+    *outToken = token_engine_();
+  } while (token_map_.find(*outToken) != token_map_.end());
+
+  token_map_.emplace(*outToken, node);
+  return NO_ERROR;
+}
+
 sp<IBufferClient> BufferHubBinderService::createBuffer(
     uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
     uint64_t usage, uint64_t user_metadata_size) {
   std::shared_ptr<BufferNode> node = std::make_shared<BufferNode>(
       width, height, layer_count, format, usage, user_metadata_size);
 
-  sp<BufferClient> client = new BufferClient(node);
+  sp<BufferClient> client = new BufferClient(node, this);
   // Add it to list for bookkeeping and dumpsys.
   client_list_.push_back(client);
 

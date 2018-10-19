@@ -64,7 +64,7 @@ status_t BnBufferHub::onTransact(uint32_t code, const Parcel& data,
       sp<IBufferClient> ret = createBuffer(width, height, layer_count, format,
                                            usage, user_metadata_size);
       return reply->writeStrongBinder(IInterface::asBinder(ret));
-    } break;
+    }
     default:
       // Should not reach except binder defined transactions such as dumpsys
       return BBinder::onTransact(code, data, reply, flags);

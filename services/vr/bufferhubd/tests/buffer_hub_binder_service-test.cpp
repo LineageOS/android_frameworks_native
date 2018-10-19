@@ -38,6 +38,23 @@ TEST_F(BufferHubBinderServiceTest, TestCreateBuffer) {
   EXPECT_TRUE(bufferClient->isValid());
 }
 
+TEST_F(BufferHubBinderServiceTest, TestDuplicateBuffer) {
+  sp<IBufferClient> bufferClient = service->createBuffer(
+      kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
+  EXPECT_THAT(bufferClient, NotNull());
+  EXPECT_TRUE(bufferClient->isValid());
+
+  uint64_t token1 = 0ULL;
+  status_t ret = bufferClient->duplicate(&token1);
+  EXPECT_EQ(ret, NO_ERROR);
+
+  // Should be different
+  uint64_t token2 = 0ULL;
+  ret = bufferClient->duplicate(&token2);
+  EXPECT_EQ(ret, NO_ERROR);
+  EXPECT_NE(token2, token1);
+}
+
 }  // namespace
 
 }  // namespace dvr
