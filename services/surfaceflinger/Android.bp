@@ -152,6 +152,13 @@ cc_library_shared {
     lto: {
         thin: true,
     },
+    product_variables: {
+        lineage: {
+            hwc2_no_skipvalidate: {
+                cppflags: ["-DTARGET_HWC2_NO_SKIPVALIDATE"],
+            },
+        },
+    },
 }
 
 cc_binary {

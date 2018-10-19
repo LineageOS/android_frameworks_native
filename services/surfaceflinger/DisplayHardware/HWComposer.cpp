@@ -80,6 +80,12 @@
 #define RETURN_IF_HWC_ERROR(error, displayId, ...) \
     RETURN_IF_HWC_ERROR_FOR(__FUNCTION__, error, displayId, __VA_ARGS__)
 
+#ifdef TARGET_HWC2_NO_SKIPVALIDATE
+#define HAS_SKIPVALIDATE 0
+#else
+#define HAS_SKIPVALIDATE 1
+#endif
+
 namespace android {
 
 #define MIN_HWC_HEADER_VERSION HWC_HEADER_VERSION
@@ -435,7 +441,7 @@ status_t HWComposer::prepare(DisplayDevice& displayDevice) {
     // The check below is incorrect.  We actually rely on HWC here to fall
     // back to validate when there is any client layer.
     displayData.validateWasSkipped = false;
-    if (!displayData.hasClientComposition) {
+    if (HAS_SKIPVALIDATE && !displayData.hasClientComposition) {
         sp<android::Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
