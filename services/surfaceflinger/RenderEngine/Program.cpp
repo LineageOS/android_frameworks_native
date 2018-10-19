@@ -135,22 +135,13 @@ void Program::setUniforms(const Description& desc) {
         glUniform4fv(mColorLoc, 1, color);
     }
     if (mInputTransformMatrixLoc >= 0) {
-        // If the input transform matrix is not identity matrix, we want to merge
-        // the saturation matrix with input transform matrix so that the saturation
-        // matrix is applied at the correct stage.
-        mat4 inputTransformMatrix = mat4(desc.mInputTransformMatrix) * desc.mSaturationMatrix;
+        mat4 inputTransformMatrix = mat4(desc.mInputTransformMatrix);
         glUniformMatrix4fv(mInputTransformMatrixLoc, 1, GL_FALSE, inputTransformMatrix.asArray());
     }
     if (mOutputTransformMatrixLoc >= 0) {
         // The output transform matrix and color matrix can be combined as one matrix
         // that is applied right before applying OETF.
         mat4 outputTransformMatrix = desc.mColorMatrix * desc.mOutputTransformMatrix;
-        // If there is no input transform matrix, we want to merge the saturation
-        // matrix with output transform matrix to avoid extra matrix multiplication
-        // in shader.
-        if (mInputTransformMatrixLoc < 0) {
-            outputTransformMatrix *= desc.mSaturationMatrix;
-        }
         glUniformMatrix4fv(mOutputTransformMatrixLoc, 1, GL_FALSE,
                            outputTransformMatrix.asArray());
     }
