@@ -11,3 +11,5 @@ eglQuerySurface check value 1
 //STUB function: eglCreatePbufferFromClientBuffer nullAllowed attrib_list sentinel attrib_list EGL_NONE
 eglCreateContext sentinel attrib_list EGL_NONE
 eglQueryContext check value 1
+//unsupported: eglCreatePlatformPixmapSurface nullAllowed attrib_list sentinel attrib_list EGL_NONE
+eglCreatePlatformPixmapSurface unsupported

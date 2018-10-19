@@ -10,3 +10,5 @@ EGLDisplay eglGetPlatformDisplay ( EGLenum platform, EGLAttrib native_display, c
 EGLSurface eglCreatePlatformWindowSurface ( EGLDisplay dpy, EGLConfig config, void *native_window, const EGLAttrib *attrib_list )
 EGLSurface eglCreatePlatformPixmapSurface ( EGLDisplay dpy, EGLConfig config, void *native_pixmap, const EGLAttrib *attrib_list )
 EGLBoolean eglWaitSync ( EGLDisplay dpy, EGLSync sync, EGLint flags )
+EGLImage eglCreateImage ( EGLDisplay dpy, EGLContext context, EGLenum target, EGLClientBuffer buffer, const EGLAttrib *attrib_list )
+EGLBoolean eglDestroyImage ( EGLDisplay dpy, EGLImage image )
