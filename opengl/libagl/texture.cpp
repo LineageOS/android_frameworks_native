@@ -401,14 +401,14 @@ static GLsizei dataSizePalette4(int numLevels, int width, int height, int format
     switch (format) {
     case GL_PALETTE4_RGB8_OES:
         indexBits = 4;
-        /* FALLTHROUGH */
+        [[fallthrough]];
     case GL_PALETTE8_RGB8_OES:
         entrySize = 3;
         break;
 
     case GL_PALETTE4_RGBA8_OES:
         indexBits = 4;
-        /* FALLTHROUGH */
+        [[fallthrough]];
     case GL_PALETTE8_RGBA8_OES:
         entrySize = 4;
         break;
@@ -417,7 +417,7 @@ static GLsizei dataSizePalette4(int numLevels, int width, int height, int format
     case GL_PALETTE4_RGBA4_OES:
     case GL_PALETTE4_RGB5_A1_OES:
         indexBits = 4;
-        /* FALLTHROUGH */
+        [[fallthrough]];
     case GL_PALETTE8_R5_G6_B5_OES:
     case GL_PALETTE8_RGBA4_OES:
     case GL_PALETTE8_RGB5_A1_OES:
@@ -446,14 +446,14 @@ static void decodePalette4(const GLvoid *data, int level, int width, int height,
     switch (format) {
     case GL_PALETTE4_RGB8_OES:
         indexBits = 4;
-        /* FALLTHROUGH */
+        [[fallthrough]];
     case GL_PALETTE8_RGB8_OES:
         entrySize = 3;
         break;
 
     case GL_PALETTE4_RGBA8_OES:
         indexBits = 4;
-        /* FALLTHROUGH */
+        [[fallthrough]];
     case GL_PALETTE8_RGBA8_OES:
         entrySize = 4;
         break;
@@ -462,7 +462,7 @@ static void decodePalette4(const GLvoid *data, int level, int width, int height,
     case GL_PALETTE4_RGBA4_OES:
     case GL_PALETTE4_RGB5_A1_OES:
         indexBits = 4;
-        /* FALLTHROUGH */
+        [[fallthrough]];
     case GL_PALETTE8_R5_G6_B5_OES:
     case GL_PALETTE8_RGBA4_OES:
     case GL_PALETTE8_RGB5_A1_OES:

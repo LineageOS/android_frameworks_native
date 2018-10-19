@@ -181,7 +181,7 @@ static void enable_disable(ogles_context_t* c, GLenum cap, int enabled)
     case GL_FOG:
     case GL_DEPTH_TEST:
         ogles_invalidate_perspective(c);
-        // fall-through...
+        [[fallthrough]];
     case GL_BLEND:
     case GL_SCISSOR_TEST:
     case GL_ALPHA_TEST:
