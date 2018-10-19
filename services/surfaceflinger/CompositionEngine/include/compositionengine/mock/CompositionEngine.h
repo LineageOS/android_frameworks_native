@@ -18,6 +18,7 @@
 
 #include <compositionengine/CompositionEngine.h>
 #include <gmock/gmock.h>
+#include <renderengine/RenderEngine.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -30,6 +31,9 @@ public:
 
     MOCK_CONST_METHOD0(getHwComposer, HWComposer&());
     MOCK_METHOD1(setHwComposer, void(std::unique_ptr<HWComposer>));
+
+    MOCK_CONST_METHOD0(getRenderEngine, renderengine::RenderEngine&());
+    MOCK_METHOD1(setRenderEngine, void(std::unique_ptr<renderengine::RenderEngine>));
 };
 
 } // namespace android::compositionengine::mock

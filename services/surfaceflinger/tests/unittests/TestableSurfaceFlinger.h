@@ -168,7 +168,7 @@ public:
     // functions.
 
     void setupRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
-        mFlinger->getBE().mRenderEngine = std::move(renderEngine);
+        mFlinger->mCompositionEngine->setRenderEngine(std::move(renderEngine));
     }
 
     void setupComposer(std::unique_ptr<Hwc2::Composer> composer) {
@@ -316,7 +316,8 @@ public:
         mutableInterceptor().reset();
         mutablePrimaryDispSync().reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
-        mFlinger->getBE().mRenderEngine.reset();
+        mFlinger->mCompositionEngine->setRenderEngine(
+                std::unique_ptr<renderengine::RenderEngine>());
     }
 
     /* ------------------------------------------------------------------------

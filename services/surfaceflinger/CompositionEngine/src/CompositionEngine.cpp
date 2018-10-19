@@ -15,6 +15,7 @@
  */
 
 #include <compositionengine/impl/CompositionEngine.h>
+#include <renderengine/RenderEngine.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -37,6 +38,14 @@ HWComposer& CompositionEngine::getHwComposer() const {
 
 void CompositionEngine::setHwComposer(std::unique_ptr<HWComposer> hwComposer) {
     mHwComposer = std::move(hwComposer);
+}
+
+renderengine::RenderEngine& CompositionEngine::getRenderEngine() const {
+    return *mRenderEngine.get();
+}
+
+void CompositionEngine::setRenderEngine(std::unique_ptr<renderengine::RenderEngine> renderEngine) {
+    mRenderEngine = std::move(renderEngine);
 }
 
 } // namespace impl

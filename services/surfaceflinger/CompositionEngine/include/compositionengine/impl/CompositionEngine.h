@@ -28,8 +28,12 @@ public:
     HWComposer& getHwComposer() const override;
     void setHwComposer(std::unique_ptr<HWComposer>) override;
 
+    renderengine::RenderEngine& getRenderEngine() const override;
+    void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) override;
+
 private:
     std::unique_ptr<HWComposer> mHwComposer;
+    std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
 };
 
 std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine();

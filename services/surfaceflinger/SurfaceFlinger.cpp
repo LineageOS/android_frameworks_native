@@ -235,7 +235,6 @@ std::string decodeDisplayColorSetting(DisplayColorSetting displayColorSetting) {
 
 SurfaceFlingerBE::SurfaceFlingerBE()
       : mHwcServiceName(getHwcServiceName()),
-        mRenderEngine(nullptr),
         mFrameBuckets(),
         mTotalTime(0),
         mLastSwapTime(0),
@@ -546,6 +545,10 @@ HWComposer& SurfaceFlinger::getHwComposer() const {
     return mCompositionEngine->getHwComposer();
 }
 
+renderengine::RenderEngine& SurfaceFlinger::getRenderEngine() const {
+    return mCompositionEngine->getRenderEngine();
+}
+
 compositionengine::CompositionEngine& SurfaceFlinger::getCompositionEngine() const {
     return *mCompositionEngine.get();
 }
@@ -679,10 +682,9 @@ void SurfaceFlinger::init() {
                             renderengine::RenderEngine::USE_HIGH_PRIORITY_CONTEXT : 0);
 
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
-    getBE().mRenderEngine =
+    mCompositionEngine->setRenderEngine(
             renderengine::RenderEngine::create(static_cast<int32_t>(defaultCompositionPixelFormat),
-                                               renderEngineFeature);
-    LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
+                                               renderEngineFeature));
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
@@ -728,7 +730,7 @@ void SurfaceFlinger::init() {
     // set initial conditions (e.g. unblank default device)
     initializeDisplays();
 
-    getBE().mRenderEngine->primeCache();
+    getRenderEngine().primeCache();
 
     // Inform native graphics APIs whether the present timestamp is supported:
 
@@ -768,11 +770,11 @@ void SurfaceFlinger::startBootAnim() {
 }
 
 size_t SurfaceFlinger::getMaxTextureSize() const {
-    return getBE().mRenderEngine->getMaxTextureSize();
+    return getRenderEngine().getMaxTextureSize();
 }
 
 size_t SurfaceFlinger::getMaxViewportDims() const {
-    return getBE().mRenderEngine->getMaxViewportDims();
+    return getRenderEngine().getMaxViewportDims();
 }
 
 // ----------------------------------------------------------------------------
@@ -1612,7 +1614,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     }
 
     // Setup RenderEngine sync fences if native sync is supported.
-    if (getBE().mRenderEngine->useNativeFenceSync()) {
+    if (getRenderEngine().useNativeFenceSync()) {
         if (mHadClientComposition) {
             base::unique_fd flushFence(getRenderEngine().flush());
             ALOGE_IF(flushFence < 0, "Failed to flush RenderEngine!");
@@ -3113,8 +3115,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
         if (display->hasWideColorGamut()) {
             outputDataspace = display->getCompositionDataSpace();
         }
-        getBE().mRenderEngine->setOutputDataSpace(outputDataspace);
-        getBE().mRenderEngine->setDisplayMaxLuminance(
+        getRenderEngine().setOutputDataSpace(outputDataspace);
+        getRenderEngine().setDisplayMaxLuminance(
                 display->getHdrCapabilities().getDesiredMaxLuminance());
 
         const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
@@ -3138,7 +3140,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
             // remove where there are opaque FB layers. however, on some
             // GPUs doing a "clean slate" clear might be more efficient.
             // We'll revisit later if needed.
-            getBE().mRenderEngine->clearWithColor(0, 0, 0, 0);
+            getRenderEngine().clearWithColor(0, 0, 0, 0);
         } else {
             // we start with the whole screen area and remove the scissor part
             // we're left with the letterbox region
@@ -3163,7 +3165,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
             // the GL scissor so we don't draw anything where we shouldn't
 
             // enable scissor for this frame
-            getBE().mRenderEngine->setScissor(scissor);
+            getRenderEngine().setScissor(scissor);
         }
     }
 
@@ -3221,7 +3223,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
     // Perform some cleanup steps if we used client composition.
     if (hasClientComposition) {
         getRenderEngine().setColorTransform(mat4());
-        getBE().mRenderEngine->disableScissor();
+        getRenderEngine().disableScissor();
         display->finishBuffer();
         // Clear out error flags here so that we don't wait until next
         // composition to log.
@@ -4619,7 +4621,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("SurfaceFlinger global state:\n");
     colorizer.reset(result);
 
-    getBE().mRenderEngine->dump(result);
+    getRenderEngine().dump(result);
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         display->undefinedRegion.dump(result, "undefinedRegion");

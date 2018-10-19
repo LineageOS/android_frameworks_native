@@ -16,6 +16,7 @@
 
 #include <compositionengine/impl/CompositionEngine.h>
 #include <gtest/gtest.h>
+#include <renderengine/mock/RenderEngine.h>
 
 #include "MockHWComposer.h"
 
@@ -27,8 +28,9 @@ using ::testing::StrictMock;
 class CompositionEngineTest : public testing::Test {
 public:
     ~CompositionEngineTest() override;
-
     mock::HWComposer* mHwc = new StrictMock<mock::HWComposer>();
+    renderengine::mock::RenderEngine* mRenderEngine =
+            new StrictMock<renderengine::mock::RenderEngine>();
     impl::CompositionEngine mEngine;
 };
 
@@ -43,6 +45,12 @@ TEST_F(CompositionEngineTest, canSetHWComposer) {
     mEngine.setHwComposer(std::unique_ptr<android::HWComposer>(mHwc));
 
     EXPECT_EQ(mHwc, &mEngine.getHwComposer());
+}
+
+TEST_F(CompositionEngineTest, canSetRenderEngine) {
+    mEngine.setRenderEngine(std::unique_ptr<renderengine::RenderEngine>(mRenderEngine));
+
+    EXPECT_EQ(mRenderEngine, &mEngine.getRenderEngine());
 }
 
 } // namespace

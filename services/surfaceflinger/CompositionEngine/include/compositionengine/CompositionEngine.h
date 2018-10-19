@@ -22,6 +22,10 @@ namespace android {
 
 class HWComposer;
 
+namespace renderengine {
+class RenderEngine;
+} // namespace renderengine
+
 namespace compositionengine {
 
 /**
@@ -34,6 +38,9 @@ public:
 
     virtual HWComposer& getHwComposer() const = 0;
     virtual void setHwComposer(std::unique_ptr<HWComposer>) = 0;
+
+    virtual renderengine::RenderEngine& getRenderEngine() const = 0;
+    virtual void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) = 0;
 };
 
 } // namespace compositionengine
