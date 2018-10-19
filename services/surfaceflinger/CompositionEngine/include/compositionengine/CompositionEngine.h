@@ -28,6 +28,10 @@ class RenderEngine;
 
 namespace compositionengine {
 
+class Display;
+
+struct DisplayCreationArgs;
+
 /**
  * Encapsulates all the interfaces and implementation details for performing
  * display output composition.
@@ -35,6 +39,9 @@ namespace compositionengine {
 class CompositionEngine {
 public:
     virtual ~CompositionEngine();
+
+    // Create a composition Display
+    virtual std::shared_ptr<Display> createDisplay(DisplayCreationArgs&&) = 0;
 
     virtual HWComposer& getHwComposer() const = 0;
     virtual void setHwComposer(std::unique_ptr<HWComposer>) = 0;

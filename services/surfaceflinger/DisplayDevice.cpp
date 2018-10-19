@@ -30,6 +30,9 @@
 
 #include <android-base/stringprintf.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
+#include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Display.h>
+#include <compositionengine/DisplayCreationArgs.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <gui/Surface.h>
@@ -223,14 +226,15 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mFlinger(args.flinger),
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
-        mId(args.displayId),
+        mDisplayInstallOrientation(args.displayInstallOrientation),
+        mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
+                compositionengine::DisplayCreationArgs{args.isSecure, args.isVirtual,
+                                                       args.displayId})},
         mNativeWindow(args.nativeWindow),
         mGraphicBuffer(nullptr),
         mDisplaySurface(args.displaySurface),
-        mDisplayInstallOrientation(args.displayInstallOrientation),
         mPageFlipCount(0),
         mIsVirtual(args.isVirtual),
-        mIsSecure(args.isSecure),
         mLayerStack(NO_LAYER_STACK),
         mOrientation(),
         mViewport(Rect::INVALID_RECT),
@@ -308,11 +312,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
 
 DisplayDevice::~DisplayDevice() = default;
 
-void DisplayDevice::disconnect(HWComposer& hwc) {
-    if (mId) {
-        hwc.disconnectDisplay(*mId);
-        mId.reset();
-    }
+void DisplayDevice::disconnect() {
+    mCompositionDisplay->disconnect();
 }
 
 int DisplayDevice::getWidth() const {
@@ -345,16 +346,17 @@ status_t DisplayDevice::beginFrame(bool mustRecompose) const {
 
 status_t DisplayDevice::prepareFrame(HWComposer& hwc,
         std::vector<CompositionInfo>& compositionData) {
-    if (mId) {
-        status_t error = hwc.prepare(*mId, compositionData);
+    const auto id = getId();
+    if (id) {
+        status_t error = hwc.prepare(id.value(), compositionData);
         if (error != NO_ERROR) {
             return error;
         }
     }
 
     DisplaySurface::CompositionType compositionType;
-    bool hasClient = hwc.hasClientComposition(mId);
-    bool hasDevice = hwc.hasDeviceComposition(mId);
+    bool hasClient = hwc.hasClientComposition(id);
+    bool hasDevice = hwc.hasDeviceComposition(id);
     if (hasClient && hasDevice) {
         compositionType = DisplaySurface::COMPOSITION_MIXED;
     } else if (hasClient) {
@@ -409,7 +411,8 @@ sp<GraphicBuffer> DisplayDevice::dequeueBuffer() {
 }
 
 void DisplayDevice::queueBuffer(HWComposer& hwc) {
-    if (hwc.hasClientComposition(mId) || hwc.hasFlipClientTargetRequest(mId)) {
+    const auto id = getId();
+    if (hwc.hasClientComposition(id) || hwc.hasFlipClientTargetRequest(id)) {
         // hasFlipClientTargetRequest could return true even if we haven't
         // dequeued a buffer before. Try dequeueing one if we don't have a
         // buffer ready.
@@ -726,7 +729,7 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 }
 
 std::string DisplayDevice::getDebugName() const {
-    const auto id = mId ? to_string(*mId) + ", " : std::string();
+    const auto id = getId() ? to_string(*getId()) + ", " : std::string();
     return base::StringPrintf("DisplayDevice{%s%s%s\"%s\"}", id.c_str(),
                               isPrimary() ? "primary, " : "", isVirtual() ? "virtual, " : "",
                               mDisplayName.c_str());
@@ -742,7 +745,7 @@ void DisplayDevice::dump(std::string& result) const {
                   "powerMode=%d, activeConfig=%d, numLayers=%zu\n",
                   mLayerStack, mDisplayWidth, mDisplayHeight, window,
                   ANativeWindow_getFormat(window), mOrientation, tr.getType(), getPageFlipCount(),
-                  mIsSecure, mPowerMode, mActiveConfig, mVisibleLayersSortedByZ.size());
+                  isSecure(), mPowerMode, mActiveConfig, mVisibleLayersSortedByZ.size());
     StringAppendF(&result,
                   "   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
                   "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
@@ -869,6 +872,16 @@ void DisplayDevice::getBestColorMode(Dataspace dataspace, RenderIntent intent,
         *outMode = ColorMode::NATIVE;
         *outIntent = RenderIntent::COLORIMETRIC;
     }
+}
+
+// ----------------------------------------------------------------------------
+
+const std::optional<DisplayId>& DisplayDevice::getId() const {
+    return mCompositionDisplay->getId();
+}
+
+bool DisplayDevice::isSecure() const {
+    return mCompositionDisplay->isSecure();
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);

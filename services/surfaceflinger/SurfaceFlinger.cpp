@@ -2620,7 +2620,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
 
                 // in drawing state but not in current state
                 if (const auto display = getDisplayDeviceLocked(draw.keyAt(i))) {
-                    display->disconnect(getHwComposer());
+                    display->disconnect();
                 }
                 if (internalDisplayId && internalDisplayId == draw[i].displayId) {
                     if (mUseScheduler) {
@@ -2650,7 +2650,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                     // from the drawing state, so that it get re-added
                     // below.
                     if (const auto display = getDisplayDeviceLocked(displayToken)) {
-                        display->disconnect(getHwComposer());
+                        display->disconnect();
                     }
                     mDisplays.erase(displayToken);
                     mDrawingState.displays.removeItemsAt(i);

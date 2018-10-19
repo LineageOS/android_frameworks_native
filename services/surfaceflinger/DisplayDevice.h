@@ -55,8 +55,11 @@ struct CompositionInfo;
 struct DisplayDeviceCreationArgs;
 struct DisplayInfo;
 
-class DisplayDevice : public LightRefBase<DisplayDevice>
-{
+namespace compositionengine {
+class Display;
+} // namespace compositionengine
+
+class DisplayDevice : public LightRefBase<DisplayDevice> {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
@@ -72,14 +75,18 @@ public:
     };
 
     explicit DisplayDevice(DisplayDeviceCreationArgs&& args);
-    ~DisplayDevice();
+    virtual ~DisplayDevice();
+
+    std::shared_ptr<compositionengine::Display> getCompositionDisplay() const {
+        return mCompositionDisplay;
+    }
 
     bool isVirtual() const { return mIsVirtual; }
     bool isPrimary() const { return mIsPrimary; }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
-    bool isSecure() const { return mIsSecure; }
+    bool isSecure() const;
 
     // Flip the front and back buffers if the back buffer is "dirty".  Might
     // be instantaneous, might involve copying the frame buffer around.
@@ -110,7 +117,7 @@ public:
 
     uint32_t                getLayerStack() const { return mLayerStack; }
 
-    const std::optional<DisplayId>& getId() const { return mId; }
+    const std::optional<DisplayId>& getId() const;
     const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
     int32_t getSequenceId() const { return mSequenceId; }
 
@@ -196,7 +203,7 @@ public:
     void setActiveConfig(int mode);
 
     // release HWC resources (if any) for removable displays
-    void disconnect(HWComposer& hwc);
+    void disconnect();
 
     /* ------------------------------------------------------------------------
      * Debugging
@@ -206,11 +213,15 @@ public:
     void dump(std::string& result) const;
 
 private:
+    /*
+     *  Constants, set during initialization
+     */
     const sp<SurfaceFlinger> mFlinger;
     const wp<IBinder> mDisplayToken;
     const int32_t mSequenceId;
 
-    std::optional<DisplayId> mId;
+    const int mDisplayInstallOrientation;
+    const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
     // ANativeWindow this display is rendering into
     sp<ANativeWindow> mNativeWindow;
@@ -223,12 +234,10 @@ private:
 
     int             mDisplayWidth;
     int             mDisplayHeight;
-    const int       mDisplayInstallOrientation;
     mutable uint32_t mPageFlipCount;
     std::string     mDisplayName;
 
     const bool mIsVirtual;
-    const bool mIsSecure;
 
     /*
      * Can only accessed from the main thread, these members
