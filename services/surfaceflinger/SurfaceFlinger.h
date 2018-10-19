@@ -320,6 +320,10 @@ public:
         return getDefaultDisplayDeviceLocked();
     }
 
+    // Obtains a name from the texture pool, or, if the pool is empty, posts a
+    // synchronous message to the main thread to obtain one on the fly
+    uint32_t getNewTexture();
+
     // utility function to delete a texture on the main thread
     void deleteTextureAsync(uint32_t texture);
 
@@ -808,6 +812,13 @@ private:
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
 
+    enum class BootStage {
+        BOOTLOADER,
+        BOOTANIMATION,
+        FINISHED,
+    };
+    BootStage mBootStage;
+
     struct HotplugEvent {
         hwc2_display_t display;
         HWC2::Connection connection = HWC2::Connection::Invalid;
@@ -828,7 +839,6 @@ private:
     nsecs_t mLastSwapBufferTime;
     volatile nsecs_t mDebugInTransaction;
     nsecs_t mLastTransactionTime;
-    bool mBootFinished;
     bool mForceFullDamage;
     bool mPropagateBackpressure = true;
     std::unique_ptr<SurfaceInterceptor> mInterceptor =
@@ -858,6 +868,13 @@ private:
 
     std::atomic<bool> mRefreshPending{false};
 
+    // We maintain a pool of pre-generated texture names to hand out to avoid
+    // layer creation needing to run on the main thread (which it would
+    // otherwise need to do to access RenderEngine).
+    std::mutex mTexturePoolMutex;
+    uint32_t mTexturePoolSize = 0;
+    std::vector<uint32_t> mTexturePool;
+
     /* ------------------------------------------------------------------------
      * Feature prototyping
      */
@@ -878,9 +895,9 @@ private:
     static bool useVrFlinger;
     std::thread::id mMainThreadId;
 
-    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::MANAGED;
-    // Applied on sRGB layers when the render intent is non-colorimetric.
-    mat4 mLegacySrgbSaturationMatrix;
+    DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
+    // Applied on Display P3 layers when the render intent is non-colorimetric.
+    mat4 mEnhancedSaturationMatrix;
 
     using CreateBufferQueueFunction =
             std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
