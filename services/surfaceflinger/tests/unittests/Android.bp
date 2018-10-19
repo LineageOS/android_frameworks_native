@@ -46,7 +46,6 @@ cc_test {
         "SchedulerUtilsTest.cpp",
         "TimeStatsTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
-        "mock/DisplayHardware/MockDisplaySurface.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/gui/MockGraphicBufferConsumer.cpp",
         "mock/gui/MockGraphicBufferProducer.cpp",
@@ -63,7 +62,6 @@ cc_test {
         "libcompositionengine",
         "libcompositionengine_mocks",
         "librenderengine_mocks",
-
     ],
     header_libs: [
         "libsurfaceflinger_headers",

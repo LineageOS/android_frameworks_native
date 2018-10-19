@@ -33,6 +33,7 @@
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayCreationArgs.h>
+#include <compositionengine/DisplaySurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
@@ -47,7 +48,6 @@
 #include <utils/Log.h>
 #include <utils/RefBase.h>
 
-#include "DisplayHardware/DisplaySurface.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWC2.h"
 #include "SurfaceFlinger.h"
@@ -356,20 +356,20 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc,
         }
     }
 
-    DisplaySurface::CompositionType compositionType;
+    compositionengine::DisplaySurface::CompositionType compositionType;
     bool hasClient = hwc.hasClientComposition(id);
     bool hasDevice = hwc.hasDeviceComposition(id);
     if (hasClient && hasDevice) {
-        compositionType = DisplaySurface::COMPOSITION_MIXED;
+        compositionType = compositionengine::DisplaySurface::COMPOSITION_MIXED;
     } else if (hasClient) {
-        compositionType = DisplaySurface::COMPOSITION_GLES;
+        compositionType = compositionengine::DisplaySurface::COMPOSITION_GLES;
     } else if (hasDevice) {
-        compositionType = DisplaySurface::COMPOSITION_HWC;
+        compositionType = compositionengine::DisplaySurface::COMPOSITION_HWC;
     } else {
         // Nothing to do -- when turning the screen off we get a frame like
         // this. Call it a HWC frame since we won't be doing any GLES work but
         // will do a prepare/set cycle.
-        compositionType = DisplaySurface::COMPOSITION_HWC;
+        compositionType = compositionengine::DisplaySurface::COMPOSITION_HWC;
     }
     return mDisplaySurface->prepareFrame(compositionType);
 }

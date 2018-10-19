@@ -36,6 +36,7 @@ cc_library {
     srcs: [
         "src/CompositionEngine.cpp",
         "src/Display.cpp",
+        "src/DisplaySurface.cpp",
         "src/DumpHelpers.cpp",
         "src/Output.cpp",
         "src/OutputCompositionState.cpp",
@@ -50,6 +51,7 @@ cc_library {
     srcs: [
         "mock/CompositionEngine.cpp",
         "mock/Display.cpp",
+        "mock/DisplaySurface.cpp",
         "mock/Output.cpp",
     ],
     static_libs: [

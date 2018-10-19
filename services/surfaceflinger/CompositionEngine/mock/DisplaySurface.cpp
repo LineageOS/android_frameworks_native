@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-#include "mock/DisplayHardware/MockDisplaySurface.h"
+#include "compositionengine/mock/DisplaySurface.h"
 
-namespace android {
-namespace mock {
+namespace android::compositionengine::mock {
 
-// Explicit default instantiation is recommended.
+// The Google Mock documentation recommends explicit non-header instantiations
+// for better compile time performance.
 DisplaySurface::DisplaySurface() = default;
 DisplaySurface::~DisplaySurface() = default;
 
-} // namespace mock
-} // namespace android
+} // namespace android::compositionengine::mock

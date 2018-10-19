@@ -19,6 +19,7 @@
 
 #include <type_traits>
 
+#include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
@@ -28,7 +29,6 @@
 #include "DisplayIdentificationTest.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/DisplayHardware/MockDisplaySurface.h"
 #include "mock/MockDispSync.h"
 #include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
@@ -1227,7 +1227,8 @@ public:
 template <typename Case>
 void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     const sp<BBinder> displayToken = new BBinder();
-    const sp<mock::DisplaySurface> displaySurface = new mock::DisplaySurface();
+    const sp<compositionengine::mock::DisplaySurface> displaySurface =
+            new compositionengine::mock::DisplaySurface();
     const sp<mock::GraphicBufferProducer> producer = new mock::GraphicBufferProducer();
 
     // --------------------------------------------------------------------
@@ -1970,7 +1971,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
 
     // A display is set up
     auto nativeWindow = new mock::NativeWindow();
-    auto displaySurface = new mock::DisplaySurface();
+    auto displaySurface = new compositionengine::mock::DisplaySurface();
     sp<GraphicBuffer> buf = new GraphicBuffer();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
@@ -2014,7 +2015,7 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
 
     // A display is set up
     auto nativeWindow = new mock::NativeWindow();
-    auto displaySurface = new mock::DisplaySurface();
+    auto displaySurface = new compositionengine::mock::DisplaySurface();
     sp<GraphicBuffer> buf = new GraphicBuffer();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);

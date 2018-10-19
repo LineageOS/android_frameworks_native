@@ -44,7 +44,6 @@
 
 namespace android {
 
-class DisplaySurface;
 class Fence;
 class HWComposer;
 class IGraphicBufferProducer;
@@ -57,6 +56,7 @@ struct DisplayInfo;
 
 namespace compositionengine {
 class Display;
+class DisplaySurface;
 } // namespace compositionengine
 
 class DisplayDevice : public LightRefBase<DisplayDevice> {
@@ -212,7 +212,7 @@ private:
     sp<ANativeWindow> mNativeWindow;
     // Current buffer that this display can render to.
     sp<GraphicBuffer> mGraphicBuffer;
-    sp<DisplaySurface> mDisplaySurface;
+    sp<compositionengine::DisplaySurface> mDisplaySurface;
     // File descriptor indicating that mGraphicBuffer is ready for display, i.e.
     // that drawing to the buffer is now complete.
     base::unique_fd mBufferReady;
@@ -315,7 +315,7 @@ struct DisplayDeviceCreationArgs {
     bool isVirtual{false};
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
-    sp<DisplaySurface> displaySurface;
+    sp<compositionengine::DisplaySurface> displaySurface;
     int displayInstallOrientation{DisplayState::eOrientationDefault};
     bool hasWideColorGamut{false};
     HdrCapabilities hdrCapabilities;

@@ -14,23 +14,27 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SF_DISPLAY_SURFACE_H
-#define ANDROID_SF_DISPLAY_SURFACE_H
+#pragma once
 
 #include <utils/Errors.h>
 #include <utils/RefBase.h>
 #include <utils/StrongPointer.h>
 
-// ---------------------------------------------------------------------------
 namespace android {
-// ---------------------------------------------------------------------------
 
 class Fence;
 class IGraphicBufferProducer;
 class String8;
 
+namespace compositionengine {
+
+/**
+ * An abstraction for working with a display surface (buffer queue)
+ */
 class DisplaySurface : public virtual RefBase {
 public:
+    virtual ~DisplaySurface();
+
     // beginFrame is called at the beginning of the composition loop, before
     // the configuration is known. The DisplaySurface should do anything it
     // needs to do to enable HWComposer to decide how to compose the frame.
@@ -44,9 +48,9 @@ public:
     // GLES and HWC for this frame.
     enum CompositionType {
         COMPOSITION_UNKNOWN = 0,
-        COMPOSITION_GLES    = 1,
-        COMPOSITION_HWC     = 2,
-        COMPOSITION_MIXED   = COMPOSITION_GLES | COMPOSITION_HWC
+        COMPOSITION_GLES = 1,
+        COMPOSITION_HWC = 2,
+        COMPOSITION_MIXED = COMPOSITION_GLES | COMPOSITION_HWC
     };
     virtual status_t prepareFrame(CompositionType compositionType) = 0;
 
@@ -70,15 +74,7 @@ public:
     virtual void resizeBuffers(const uint32_t w, const uint32_t h) = 0;
 
     virtual const sp<Fence>& getClientTargetAcquireFence() const = 0;
-
-protected:
-    DisplaySurface() {}
-    virtual ~DisplaySurface() {}
 };
 
-// ---------------------------------------------------------------------------
+} // namespace compositionengine
 } // namespace android
-// ---------------------------------------------------------------------------
-
-#endif // ANDROID_SF_DISPLAY_SURFACE_H
-
