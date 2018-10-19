@@ -53,7 +53,6 @@ EGL_ENTRY(EGLSurface, eglCreatePlatformPixmapSurface, EGLDisplay, EGLConfig, voi
 EGL_ENTRY(EGLSyncKHR, eglCreateSync, EGLDisplay, EGLenum, const EGLAttrib *)
 EGL_ENTRY(EGLBoolean, eglDestroySync, EGLDisplay, EGLSync)
 EGL_ENTRY(EGLint, eglClientWaitSync, EGLDisplay, EGLSync, EGLint, EGLTimeKHR)
-EGL_ENTRY(EGLBoolean, eglSignalSync, EGLDisplay, EGLSync, EGLenum)
 EGL_ENTRY(EGLBoolean, eglGetSyncAttrib, EGLDisplay, EGLSync, EGLint, EGLAttrib *)
 EGL_ENTRY(EGLBoolean, eglWaitSync, EGLDisplay, EGLSync, EGLint)
 

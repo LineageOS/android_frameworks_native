@@ -1861,34 +1861,16 @@ EGLBoolean eglDestroySyncImpl(EGLDisplay dpy, EGLSyncKHR sync) {
     return eglDestroySyncTmpl(dpy, sync, cnx->egl.eglDestroySyncKHR);
 }
 
-EGLBoolean eglSignalSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode,
-                             PFNEGLSIGNALSYNCKHRPROC eglSignalSyncFunc) {
+EGLBoolean eglSignalSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && eglSignalSyncFunc) {
-        result = eglSignalSyncFunc(dp->disp.dpy, sync, mode);
+    if (cnx->dso && gEGLImpl.egl.eglSignalSyncKHR) {
+        result = gEGLImpl.egl.eglSignalSyncKHR(dp->disp.dpy, sync, mode);
     }
     return result;
-}
-
-EGLBoolean eglSignalSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
-    return eglSignalSyncTmpl(dpy, sync, mode, gEGLImpl.egl.eglSignalSyncKHR);
-}
-
-EGLBoolean eglSignalSyncImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
-    egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
-        if (cnx->egl.eglSignalSync) {
-            return eglSignalSyncTmpl(dpy, sync, mode, cnx->egl.eglSignalSync);
-        }
-        ALOGE("Driver indicates EGL 1.5 support, but does not have eglSignalSync");
-        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
-    }
-
-    return eglSignalSyncTmpl(dpy, sync, mode, gEGLImpl.egl.eglSignalSyncKHR);
 }
 
 EGLint eglClientWaitSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout,
@@ -2668,7 +2650,6 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglDestroyImage", (EGLFuncPointer)&eglDestroyImageImpl },
     { "eglCreateSync", (EGLFuncPointer)&eglCreateSyncImpl },
     { "eglDestroySync", (EGLFuncPointer)&eglDestroySyncImpl },
-    { "eglSignalSync", (EGLFuncPointer)&eglSignalSyncImpl },
     { "eglClientWaitSync", (EGLFuncPointer)&eglClientWaitSyncImpl },
     { "eglGetSyncAttrib", (EGLFuncPointer)&eglGetSyncAttribImpl },
     { "eglCreateSyncKHR", (EGLFuncPointer)&eglCreateSyncKHRImpl },
