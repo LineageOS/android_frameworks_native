@@ -14,26 +14,13 @@
  * limitations under the License.
  */
 
-#pragma once
-
-#include <compositionengine/Display.h>
 #include <compositionengine/mock/Output.h>
-#include <gmock/gmock.h>
-
-#include "DisplayHardware/DisplayIdentification.h"
 
 namespace android::compositionengine::mock {
 
-class Display : public compositionengine::mock::Output, public compositionengine::Display {
-public:
-    Display();
-    virtual ~Display();
-
-    MOCK_CONST_METHOD0(getId, const std::optional<DisplayId>&());
-    MOCK_CONST_METHOD0(isSecure, bool());
-    MOCK_CONST_METHOD0(isVirtual, bool());
-
-    MOCK_METHOD0(disconnect, void());
-};
+// The Google Mock documentation recommends explicit non-header instantiations
+// for better compile time performance.
+Output::Output() = default;
+Output::~Output() = default;
 
 } // namespace android::compositionengine::mock

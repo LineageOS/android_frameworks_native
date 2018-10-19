@@ -19,6 +19,7 @@
 #include <memory>
 
 #include <compositionengine/Display.h>
+#include <compositionengine/impl/Output.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 
@@ -30,19 +31,23 @@ struct DisplayCreationArgs;
 
 namespace impl {
 
-class Display : public compositionengine::Display {
+class Display : public compositionengine::impl::Output, public compositionengine::Display {
 public:
     Display(const CompositionEngine&, compositionengine::DisplayCreationArgs&&);
     virtual ~Display();
 
+    // compositionengine::Output overrides
+    void dump(std::string&) const override;
+    void setColorTransform(const mat4&) override;
+    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent) override;
+
+    // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
 
 private:
-    const CompositionEngine& mCompositionEngine;
-    const bool mIsSecure;
     const bool mIsVirtual;
     std::optional<DisplayId> mId;
 };

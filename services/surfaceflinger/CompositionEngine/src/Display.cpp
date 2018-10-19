@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-#include <cinttypes>
-
+#include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/impl/Display.h>
+#include <compositionengine/impl/DumpHelpers.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -31,10 +31,11 @@ std::shared_ptr<compositionengine::Display> createDisplay(
 }
 
 Display::Display(const CompositionEngine& compositionEngine, DisplayCreationArgs&& args)
-      : mCompositionEngine(compositionEngine),
-        mIsSecure(args.isSecure),
+      : compositionengine::impl::Output(compositionEngine),
         mIsVirtual(args.isVirtual),
-        mId(args.displayId) {}
+        mId(args.displayId) {
+    editState().isSecure = args.isSecure;
+}
 
 Display::~Display() = default;
 
@@ -43,7 +44,7 @@ const std::optional<DisplayId>& Display::getId() const {
 }
 
 bool Display::isSecure() const {
-    return mIsSecure;
+    return getState().isSecure;
 }
 
 bool Display::isVirtual() const {
@@ -55,9 +56,55 @@ void Display::disconnect() {
         return;
     }
 
-    auto& hwc = mCompositionEngine.getHwComposer();
+    auto& hwc = getCompositionEngine().getHwComposer();
     hwc.disconnectDisplay(*mId);
     mId.reset();
+}
+
+void Display::setColorTransform(const mat4& transform) {
+    Output::setColorTransform(transform);
+
+    auto& hwc = getCompositionEngine().getHwComposer();
+    status_t result = hwc.setColorTransform(*mId, transform);
+    ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display \"%s\": %d",
+             mId ? to_string(*mId).c_str() : "", result);
+}
+
+void Display::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
+                           ui::RenderIntent renderIntent) {
+    if (mode == getState().colorMode && dataspace == getState().dataspace &&
+        renderIntent == getState().renderIntent) {
+        return;
+    }
+
+    if (mIsVirtual) {
+        ALOGW("%s: Invalid operation on virtual display", __FUNCTION__);
+        return;
+    }
+
+    Output::setColorMode(mode, dataspace, renderIntent);
+
+    auto& hwc = getCompositionEngine().getHwComposer();
+    hwc.setActiveColorMode(*mId, mode, renderIntent);
+}
+
+void Display::dump(std::string& out) const {
+    using android::base::StringAppendF;
+
+    StringAppendF(&out, "   Composition Display State: [\"%s\"]", getName().c_str());
+
+    out.append("\n   ");
+
+    dumpVal(out, "isVirtual", mIsVirtual);
+    if (mId) {
+        dumpVal(out, "hwcId", to_string(*mId));
+    } else {
+        StringAppendF(&out, "no hwcId, ");
+    }
+
+    out.append("\n");
+
+    Output::dumpBase(out);
 }
 
 } // namespace android::compositionengine::impl

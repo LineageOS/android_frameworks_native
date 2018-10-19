@@ -36,6 +36,8 @@
 #include <binder/PermissionCache.h>
 
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Display.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <dvr/vr_flinger.h>
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
@@ -1017,38 +1019,9 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
 
 ColorMode SurfaceFlinger::getActiveColorMode(const sp<IBinder>& displayToken) {
     if (const auto display = getDisplayDevice(displayToken)) {
-        return display->getActiveColorMode();
+        return display->getCompositionDisplay()->getState().colorMode;
     }
     return static_cast<ColorMode>(BAD_VALUE);
-}
-
-void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& display, ColorMode mode,
-                                                Dataspace dataSpace, RenderIntent renderIntent) {
-    if (display->isVirtual()) {
-        ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
-        return;
-    }
-
-    ColorMode currentMode = display->getActiveColorMode();
-    Dataspace currentDataSpace = display->getCompositionDataSpace();
-    RenderIntent currentRenderIntent = display->getActiveRenderIntent();
-
-    if (mode == currentMode && dataSpace == currentDataSpace &&
-        renderIntent == currentRenderIntent) {
-        return;
-    }
-
-    display->setActiveColorMode(mode);
-    display->setCompositionDataSpace(dataSpace);
-    display->setActiveRenderIntent(renderIntent);
-
-    const auto displayId = display->getId();
-    LOG_ALWAYS_FATAL_IF(!displayId);
-    getHwComposer().setActiveColorMode(*displayId, mode, renderIntent);
-
-    ALOGV("Set active color mode: %s (%d), active render intent: %s (%d), display=%s",
-          decodeColorMode(mode).c_str(), mode, decodeRenderIntent(renderIntent).c_str(),
-          renderIntent, to_string(*displayId).c_str());
 }
 
 status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ColorMode mode) {
@@ -1069,8 +1042,9 @@ status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, Col
             ALOGW("Attempt to set active color mode %s (%d) for virtual display",
                   decodeColorMode(mode).c_str(), mode);
         } else {
-            setActiveColorModeInternal(display, mode, Dataspace::UNKNOWN,
-                                       RenderIntent::COLORIMETRIC);
+            display->setCompositionDataSpace(Dataspace::UNKNOWN);
+            display->getCompositionDisplay()->setColorMode(mode, Dataspace::UNKNOWN,
+                                                           RenderIntent::COLORIMETRIC);
         }
     }));
 
@@ -1667,9 +1641,11 @@ void SurfaceFlinger::handleMessageRefresh() {
     postComposition();
 
     mHadClientComposition = false;
-    for (const auto& [token, display] : mDisplays) {
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        const auto displayId = display->getId();
         mHadClientComposition =
-                mHadClientComposition || getHwComposer().hasClientComposition(display->getId());
+                mHadClientComposition || getHwComposer().hasClientComposition(displayId);
     }
 
     // Setup RenderEngine sync fences if native sync is supported.
@@ -1709,13 +1685,14 @@ void SurfaceFlinger::calculateWorkingSet() {
     // build the h/w work list
     if (CC_UNLIKELY(mGeometryInvalid)) {
         mGeometryInvalid = false;
-        for (const auto& [token, display] : mDisplays) {
+        for (const auto& [token, displayDevice] : mDisplays) {
+            auto display = displayDevice->getCompositionDisplay();
             const auto displayId = display->getId();
             if (!displayId) {
                 continue;
             }
 
-            const Vector<sp<Layer>>& currentLayers = display->getVisibleLayersSortedByZ();
+            const Vector<sp<Layer>>& currentLayers = displayDevice->getVisibleLayersSortedByZ();
             for (size_t i = 0; i < currentLayers.size(); i++) {
                 const auto& layer = currentLayers[i];
 
@@ -1726,7 +1703,7 @@ void SurfaceFlinger::calculateWorkingSet() {
                     }
                 }
 
-                layer->setGeometry(display, i);
+                layer->setGeometry(displayDevice, i);
                 if (mDebugDisableHWC || mDebugRegion) {
                     layer->forceClientComposition(*displayId);
                 }
@@ -1735,7 +1712,8 @@ void SurfaceFlinger::calculateWorkingSet() {
     }
 
     // Set the per-frame data
-    for (const auto& [token, display] : mDisplays) {
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
         const auto displayId = display->getId();
         if (!displayId) {
             continue;
@@ -1743,21 +1721,17 @@ void SurfaceFlinger::calculateWorkingSet() {
 
         if (mDrawingState.colorMatrixChanged) {
             display->setColorTransform(mDrawingState.colorMatrix);
-            status_t result =
-                    getHwComposer().setColorTransform(*displayId, mDrawingState.colorMatrix);
-            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display %s: %d",
-                     to_string(*displayId).c_str(), result);
         }
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             if (layer->isHdrY410()) {
                 layer->forceClientComposition(*displayId);
             } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                    !display->hasHDR10Support()) {
+                       !displayDevice->hasHDR10Support()) {
                 layer->forceClientComposition(*displayId);
             } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                    !display->hasHLGSupport()) {
+                       !displayDevice->hasHLGSupport()) {
                 layer->forceClientComposition(*displayId);
             }
 
@@ -1776,16 +1750,18 @@ void SurfaceFlinger::calculateWorkingSet() {
                 continue;
             }
 
-            layer->setPerFrameData(*displayId, display->getTransform(), display->getViewport(),
-                                   display->getSupportedPerFrameMetadata());
+            const auto& displayState = display->getState();
+            layer->setPerFrameData(*displayId, displayState.transform, displayState.viewport,
+                                   displayDevice->getSupportedPerFrameMetadata());
         }
 
         if (useColorManagement) {
             ColorMode  colorMode;
             Dataspace dataSpace;
             RenderIntent renderIntent;
-            pickColorMode(display, &colorMode, &dataSpace, &renderIntent);
-            setActiveColorModeInternal(display, colorMode, dataSpace, renderIntent);
+            pickColorMode(displayDevice, &colorMode, &dataSpace, &renderIntent);
+            displayDevice->setCompositionDataSpace(dataSpace);
+            display->setColorMode(colorMode, dataSpace, renderIntent);
         }
     }
 
@@ -1809,34 +1785,37 @@ void SurfaceFlinger::calculateWorkingSet() {
     }
 }
 
-void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)
-{
+void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
+                                         bool repaintEverything) {
+    auto display = displayDevice->getCompositionDisplay();
+    const auto& displayState = display->getState();
+
     // is debugging enabled
     if (CC_LIKELY(!mDebugRegion))
         return;
 
-    if (display->isPoweredOn()) {
+    if (displayState.isEnabled) {
         // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion(display->getDirtyRegion(repaintEverything));
+        const Region dirtyRegion = display->getPhysicalSpaceDirtyRegion(repaintEverything);
         if (!dirtyRegion.isEmpty()) {
             // redraw the whole screen
-            doComposeSurfaces(display);
+            doComposeSurfaces(displayDevice);
 
             // and draw the dirty region
             auto& engine(getRenderEngine());
             engine.fillRegionWithColor(dirtyRegion, 1, 0, 1, 1);
 
-            display->queueBuffer(getHwComposer());
+            displayDevice->queueBuffer(getHwComposer());
         }
     }
 
-    postFramebuffer(display);
+    postFramebuffer(displayDevice);
 
     if (mDebugRegion > 1) {
         usleep(mDebugRegion * 1000);
     }
 
-    prepareFrame(display);
+    prepareFrame(displayDevice);
 }
 
 void SurfaceFlinger::doTracing(const char* where) {
@@ -2001,16 +1980,16 @@ void SurfaceFlinger::postComposition()
     ASSERT_ON_STACK_GUARD();
 
     // |mStateLock| not needed as we are on the main thread
-    const auto display = getDefaultDisplayDeviceLocked();
-    DEFINE_STACK_GUARD(display);
+    const auto displayDevice = getDefaultDisplayDeviceLocked();
+    DEFINE_STACK_GUARD(displayDevice);
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
     DEFINE_STACK_GUARD(glCompositionDoneFenceTime);
 
-    if (display && getHwComposer().hasClientComposition(display->getId())) {
+    if (displayDevice && getHwComposer().hasClientComposition(displayDevice->getId())) {
         glCompositionDoneFenceTime =
-                std::make_shared<FenceTime>(display->getClientTargetAcquireFence());
+                std::make_shared<FenceTime>(displayDevice->getClientTargetAcquireFence());
         getBE().mGlCompositionDoneTimeline.push(glCompositionDoneFenceTime);
     } else {
         glCompositionDoneFenceTime = FenceTime::NO_FENCE;
@@ -2019,8 +1998,8 @@ void SurfaceFlinger::postComposition()
     ASSERT_ON_STACK_GUARD();
 
     getBE().mDisplayTimeline.updateSignalTimes();
-    mPreviousPresentFence =
-            display ? getHwComposer().getPresentFence(*display->getId()) : Fence::NO_FENCE;
+    mPreviousPresentFence = displayDevice ? getHwComposer().getPresentFence(*displayDevice->getId())
+                                          : Fence::NO_FENCE;
     auto presentFenceTime = std::make_shared<FenceTime>(mPreviousPresentFence);
     DEFINE_STACK_GUARD(presentFenceTime);
     getBE().mDisplayTimeline.push(presentFenceTime);
@@ -2052,8 +2031,9 @@ void SurfaceFlinger::postComposition()
     }
 
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        bool frameLatched = layer->onPostComposition(display->getId(), glCompositionDoneFenceTime,
-                                                     presentFenceTime, compositorTiming);
+        bool frameLatched =
+                layer->onPostComposition(displayDevice->getId(), glCompositionDoneFenceTime,
+                                         presentFenceTime, compositorTiming);
         DEFINE_STACK_GUARD(frameLatched);
         if (frameLatched) {
             recordBufferingStats(layer->getName().string(),
@@ -2078,7 +2058,8 @@ void SurfaceFlinger::postComposition()
     }
 
     if (!hasSyncFramework) {
-        if (display && getHwComposer().isConnected(*display->getId()) && display->isPoweredOn()) {
+        if (displayDevice && getHwComposer().isConnected(*displayDevice->getId()) &&
+            displayDevice->isPoweredOn()) {
             if (mUseScheduler) {
                 mScheduler->enableHardwareVsync();
             } else {
@@ -2097,10 +2078,11 @@ void SurfaceFlinger::postComposition()
                     std::move(presentFenceTime));
 
             ASSERT_ON_STACK_GUARD();
-        } else if (display && getHwComposer().isConnected(*display->getId())) {
+        } else if (displayDevice && getHwComposer().isConnected(*displayDevice->getId())) {
             // The HWC doesn't support present fences, so use the refresh
             // timestamp instead.
-            const nsecs_t presentTime = getHwComposer().getRefreshTimestamp(*display->getId());
+            const nsecs_t presentTime =
+                    getHwComposer().getRefreshTimestamp(*displayDevice->getId());
             DEFINE_STACK_GUARD(presentTime);
 
             mAnimFrameTracker.setActualPresentTime(presentTime);
@@ -2122,7 +2104,8 @@ void SurfaceFlinger::postComposition()
 
     ASSERT_ON_STACK_GUARD();
 
-    if (display && getHwComposer().isConnected(*display->getId()) && !display->isPoweredOn()) {
+    if (displayDevice && getHwComposer().isConnected(*displayDevice->getId()) &&
+        !displayDevice->isPoweredOn()) {
         return;
     }
 
@@ -2190,20 +2173,22 @@ void SurfaceFlinger::rebuildLayerStacks() {
         invalidateHwcGeometry();
 
         for (const auto& pair : mDisplays) {
-            const auto& display = pair.second;
+            const auto& displayDevice = pair.second;
+            auto display = displayDevice->getCompositionDisplay();
+            const auto& displayState = display->getState();
             Region opaqueRegion;
             Region dirtyRegion;
             Vector<sp<Layer>> layersSortedByZ;
             Vector<sp<Layer>> layersNeedingFences;
-            const ui::Transform& tr = display->getTransform();
-            const Rect bounds = display->getBounds();
-            if (display->isPoweredOn()) {
-                computeVisibleRegions(display, dirtyRegion, opaqueRegion);
+            const ui::Transform& tr = displayState.transform;
+            const Rect bounds = displayState.bounds;
+            if (displayState.isEnabled) {
+                computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
                     bool hwcLayerDestroyed = false;
-                    const auto displayId = display->getId();
-                    if (layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
+                    const auto displayId = displayDevice->getId();
+                    if (display->belongsInOutput(layer->getLayerStack())) {
                         Region drawRegion(tr.transform(
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
@@ -2234,11 +2219,14 @@ void SurfaceFlinger::rebuildLayerStacks() {
                     }
                 });
             }
-            display->setVisibleLayersSortedByZ(layersSortedByZ);
-            display->setLayersNeedingFences(layersNeedingFences);
-            display->undefinedRegion.set(bounds);
-            display->undefinedRegion.subtractSelf(tr.transform(opaqueRegion));
-            display->dirtyRegion.orSelf(dirtyRegion);
+            displayDevice->setVisibleLayersSortedByZ(layersSortedByZ);
+            displayDevice->setLayersNeedingFences(layersNeedingFences);
+
+            Region undefinedRegion{bounds};
+            undefinedRegion.subtractSelf(tr.transform(opaqueRegion));
+
+            display->editState().undefinedRegion = undefinedRegion;
+            display->editState().dirtyRegion.orSelf(dirtyRegion);
         }
     }
 }
@@ -2327,11 +2315,13 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
-void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
-{
-    bool dirty = !display->getDirtyRegion(false).isEmpty();
-    bool empty = display->getVisibleLayersSortedByZ().size() == 0;
-    bool wasEmpty = !display->lastCompositionHadVisibleLayers;
+void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
+    auto display = displayDevice->getCompositionDisplay();
+    const auto& displayState = display->getState();
+
+    bool dirty = !display->getPhysicalSpaceDirtyRegion(false).isEmpty();
+    bool empty = displayDevice->getVisibleLayersSortedByZ().size() == 0;
+    bool wasEmpty = !displayState.lastCompositionHadVisibleLayers;
 
     // If nothing has changed (!dirty), don't recompose.
     // If something changed, but we don't currently have any visible layers,
@@ -2345,44 +2335,51 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 
     const char flagPrefix[] = {'-', '+'};
     static_cast<void>(flagPrefix);
-    ALOGV_IF(display->isVirtual(), "%s: %s composition for %s (%cdirty %cempty %cwasEmpty)",
-             __FUNCTION__, mustRecompose ? "doing" : "skipping", display->getDebugName().c_str(),
-             flagPrefix[dirty], flagPrefix[empty], flagPrefix[wasEmpty]);
+    ALOGV_IF(displayDevice->isVirtual(), "%s: %s composition for %s (%cdirty %cempty %cwasEmpty)",
+             __FUNCTION__, mustRecompose ? "doing" : "skipping",
+             displayDevice->getDebugName().c_str(), flagPrefix[dirty], flagPrefix[empty],
+             flagPrefix[wasEmpty]);
 
-    display->beginFrame(mustRecompose);
+    displayDevice->beginFrame(mustRecompose);
 
     if (mustRecompose) {
-        display->lastCompositionHadVisibleLayers = !empty;
+        display->editState().lastCompositionHadVisibleLayers = !empty;
     }
 }
 
-void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
-{
-    if (!display->isPoweredOn()) {
+void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& displayDevice) {
+    auto display = displayDevice->getCompositionDisplay();
+    const auto& displayState = display->getState();
+
+    if (!displayState.isEnabled) {
         return;
     }
 
-    status_t result = display->prepareFrame(getHwComposer(),
-                                            getBE().mCompositionInfo[display->getDisplayToken()]);
+    status_t result =
+            displayDevice->prepareFrame(getHwComposer(),
+                                        getBE().mCompositionInfo[displayDevice->getDisplayToken()]);
     ALOGE_IF(result != NO_ERROR, "prepareFrame failed for %s: %d (%s)",
-             display->getDebugName().c_str(), result, strerror(-result));
+             displayDevice->getDebugName().c_str(), result, strerror(-result));
 }
 
-void SurfaceFlinger::doComposition(const sp<DisplayDevice>& display, bool repaintEverything) {
+void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool repaintEverything) {
     ATRACE_CALL();
     ALOGV("doComposition");
 
-    if (display->isPoweredOn()) {
+    auto display = displayDevice->getCompositionDisplay();
+    const auto& displayState = display->getState();
+
+    if (displayState.isEnabled) {
         // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion(display->getDirtyRegion(repaintEverything));
+        const Region dirtyRegion = display->getPhysicalSpaceDirtyRegion(repaintEverything);
 
         // repaint the framebuffer (if needed)
-        doDisplayComposition(display, dirtyRegion);
+        doDisplayComposition(displayDevice, dirtyRegion);
 
-        display->dirtyRegion.clear();
-        display->flip();
+        display->editState().dirtyRegion.clear();
+        displayDevice->flip();
     }
-    postFramebuffer(display);
+    postFramebuffer(displayDevice);
 }
 
 void SurfaceFlinger::postFrame()
@@ -2397,20 +2394,22 @@ void SurfaceFlinger::postFrame()
     }
 }
 
-void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
-{
+void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
     ATRACE_CALL();
     ALOGV("postFramebuffer");
 
+    auto display = displayDevice->getCompositionDisplay();
+    const auto& displayState = display->getState();
+    const auto displayId = display->getId();
+
     mPostFramebufferTime = systemTime();
 
-    if (display->isPoweredOn()) {
-        const auto displayId = display->getId();
+    if (displayState.isEnabled) {
         if (displayId) {
             getHwComposer().presentAndGetReleaseFences(*displayId);
         }
-        display->onPresentDisplayCompleted();
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+        displayDevice->onPresentDisplayCompleted();
+        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
 
             // The layer buffer from the previous frame (if any) is released
@@ -2428,7 +2427,7 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
             // this is suboptimal.
             if (layer->getCompositionType(displayId) == HWC2::Composition::Client) {
                 releaseFence = Fence::merge("LayerRelease", releaseFence,
-                                            display->getClientTargetAcquireFence());
+                                            displayDevice->getClientTargetAcquireFence());
             }
 
             layer->getBE().onLayerDisplayed(releaseFence);
@@ -2437,10 +2436,10 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
         // We've got a list of layers needing fences, that are disjoint with
         // display->getVisibleLayersSortedByZ.  The best we can do is to
         // supply them with the present fence.
-        if (!display->getLayersNeedingFences().isEmpty()) {
+        if (!displayDevice->getLayersNeedingFences().isEmpty()) {
             sp<Fence> presentFence =
                     displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
-            for (auto& layer : display->getLayersNeedingFences()) {
+            for (auto& layer : displayDevice->getLayersNeedingFences()) {
                 layer->getBE().onLayerDisplayed(presentFence);
             }
         }
@@ -2582,8 +2581,9 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         defaultColorMode = ColorMode::SRGB;
         defaultDataSpace = Dataspace::V0_SRGB;
     }
-    setActiveColorModeInternal(display, defaultColorMode, defaultDataSpace,
-                               RenderIntent::COLORIMETRIC);
+    display->setCompositionDataSpace(defaultDataSpace);
+    display->getCompositionDisplay()->setColorMode(defaultColorMode, defaultDataSpace,
+                                                   RenderIntent::COLORIMETRIC);
     if (!state.isVirtual()) {
         LOG_ALWAYS_FATAL_IF(!displayId);
         display->setActiveConfig(getHwComposer().getActiveConfigIndex(*displayId));
@@ -2840,7 +2840,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // if not, pick the only display it's on.
                 hintDisplay = nullptr;
                 for (const auto& [token, display] : mDisplays) {
-                    if (layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
+                    if (display->getCompositionDisplay()->belongsInOutput(layer->getLayerStack())) {
                         if (hintDisplay) {
                             hintDisplay = nullptr;
                             break;
@@ -3007,10 +3007,12 @@ void SurfaceFlinger::commitTransaction()
     mTransactionCV.broadcast();
 }
 
-void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& display,
+void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displayDevice,
                                            Region& outDirtyRegion, Region& outOpaqueRegion) {
     ATRACE_CALL();
     ALOGV("computeVisibleRegions");
+
+    auto display = displayDevice->getCompositionDisplay();
 
     Region aboveOpaqueLayers;
     Region aboveCoveredLayers;
@@ -3023,7 +3025,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (!layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
+        if (!display->belongsInOutput(layer->getLayerStack())) {
             return;
         }
 
@@ -3147,9 +3149,10 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 }
 
 void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
-    for (const auto& [token, display] : mDisplays) {
-        if (layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
-            display->dirtyRegion.orSelf(dirty);
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        if (display->belongsInOutput(layer->getLayerStack())) {
+            display->editState().dirtyRegion.orSelf(dirty);
         }
     }
 }
@@ -3236,30 +3239,35 @@ void SurfaceFlinger::invalidateHwcGeometry()
     mGeometryInvalid = true;
 }
 
-void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& display,
+void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice,
                                           const Region& inDirtyRegion) {
+    auto display = displayDevice->getCompositionDisplay();
+
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
     // 2) There is work to be done (the dirty region isn't empty)
-    if (!display->getId() && inDirtyRegion.isEmpty()) {
+    if (!displayDevice->getId() && inDirtyRegion.isEmpty()) {
         ALOGV("Skipping display composition");
         return;
     }
 
     ALOGV("doDisplayComposition");
-    if (!doComposeSurfaces(display)) return;
+    if (!doComposeSurfaces(displayDevice)) return;
 
     // swap buffers (presentation)
-    display->queueBuffer(getHwComposer());
+    displayDevice->queueBuffer(getHwComposer());
 }
 
-bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
+bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
     ALOGV("doComposeSurfaces");
 
-    const Region bounds(display->bounds());
-    const DisplayRenderArea renderArea(display);
+    auto display = displayDevice->getCompositionDisplay();
+    const auto& displayState = display->getState();
     const auto displayId = display->getId();
+
+    const Region bounds(displayState.bounds);
+    const DisplayRenderArea renderArea(displayDevice);
     const bool hasClientComposition = getHwComposer().hasClientComposition(displayId);
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
@@ -3272,12 +3280,12 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        sp<GraphicBuffer> buf = display->dequeueBuffer();
+        sp<GraphicBuffer> buf = displayDevice->dequeueBuffer();
 
         if (buf == nullptr) {
             ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
                   "client composition for this frame",
-                  display->getDisplayName().c_str());
+                  displayDevice->getDisplayName().c_str());
             return false;
         }
 
@@ -3287,17 +3295,17 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
 
         if (fbo->getStatus() != NO_ERROR) {
             ALOGW("Binding buffer for display [%s] failed with status: %d",
-                  display->getDisplayName().c_str(), fbo->getStatus());
+                  displayDevice->getDisplayName().c_str(), fbo->getStatus());
             return false;
         }
 
         Dataspace outputDataspace = Dataspace::UNKNOWN;
-        if (display->hasWideColorGamut()) {
-            outputDataspace = display->getCompositionDataSpace();
+        if (displayDevice->hasWideColorGamut()) {
+            outputDataspace = displayState.dataspace;
         }
         getRenderEngine().setOutputDataSpace(outputDataspace);
         getRenderEngine().setDisplayMaxLuminance(
-                display->getHdrCapabilities().getDesiredMaxLuminance());
+                displayDevice->getHdrCapabilities().getDesiredMaxLuminance());
 
         const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
         const bool skipClientColorTransform =
@@ -3311,7 +3319,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
             colorMatrix = mDrawingState.colorMatrix;
         }
 
-        display->setViewportAndProjection();
+        displayDevice->setViewportAndProjection();
 
         // Never touch the framebuffer if we don't have any framebuffer layers
         if (hasDeviceComposition) {
@@ -3325,10 +3333,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
             // we start with the whole screen area and remove the scissor part
             // we're left with the letterbox region
             // (common case is that letterbox ends-up being empty)
-            const Region letterbox = bounds.subtract(display->getScissor());
+            const Region letterbox = bounds.subtract(displayState.scissor);
 
             // compute the area to clear
-            const Region region = display->undefinedRegion.merge(letterbox);
+            const Region region = displayState.undefinedRegion.merge(letterbox);
 
             // screen is already cleared here
             if (!region.isEmpty()) {
@@ -3337,8 +3345,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
             }
         }
 
-        const Rect& bounds = display->getBounds();
-        const Rect& scissor = display->getScissor();
+        const Rect& bounds = displayState.bounds;
+        const Rect& scissor = displayState.scissor;
         if (scissor != bounds) {
             // scissor doesn't match the screen's dimensions, so we
             // need to clear everything outside of it and enable
@@ -3354,9 +3362,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
      */
 
     ALOGV("Rendering client layers");
-    const ui::Transform& displayTransform = display->getTransform();
+    const ui::Transform& displayTransform = displayState.transform;
     bool firstLayer = true;
-    for (auto& layer : display->getVisibleLayersSortedByZ()) {
+    for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
         const Region clip(bounds.intersect(
                 displayTransform.transform(layer->visibleRegion)));
         ALOGV("Layer: %s", layer->getName().string());
@@ -3405,7 +3413,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
     if (hasClientComposition) {
         getRenderEngine().setColorTransform(mat4());
         getRenderEngine().disableScissor();
-        display->finishBuffer();
+        displayDevice->finishBuffer();
         // Clear out error flags here so that we don't wait until next
         // composition to log.
         getRenderEngine().checkErrors();
@@ -4639,7 +4647,7 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
             StringAppendF(&result, "    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
         }
 
-        ColorMode currentMode = display->getActiveColorMode();
+        ColorMode currentMode = display->getCompositionDisplay()->getState().colorMode;
         StringAppendF(&result, "    Current color mode: %s (%d)\n",
                       decodeColorMode(currentMode).c_str(), currentMode);
     }
@@ -4675,18 +4683,21 @@ LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const 
     return layersProto;
 }
 
-LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& display) const {
+LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& displayDevice) const {
     LayersProto layersProto;
 
     SizeProto* resolution = layersProto.mutable_resolution();
-    resolution->set_w(display.getWidth());
-    resolution->set_h(display.getHeight());
+    resolution->set_w(displayDevice.getWidth());
+    resolution->set_h(displayDevice.getHeight());
 
-    layersProto.set_color_mode(decodeColorMode(display.getActiveColorMode()));
-    layersProto.set_color_transform(decodeColorTransform(display.getColorTransform()));
-    layersProto.set_global_transform(static_cast<int32_t>(display.getOrientationTransform()));
+    auto display = displayDevice.getCompositionDisplay();
+    const auto& displayState = display->getState();
 
-    const auto displayId = display.getId();
+    layersProto.set_color_mode(decodeColorMode(displayState.colorMode));
+    layersProto.set_color_transform(decodeColorTransform(displayState.colorTransform));
+    layersProto.set_global_transform(displayState.orientation);
+
+    const auto displayId = displayDevice.getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(*displayId)) {
@@ -4813,7 +4824,8 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     getRenderEngine().dump(result);
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
-        display->undefinedRegion.dump(result, "undefinedRegion");
+        display->getCompositionDisplay()->getState().undefinedRegion.dump(result,
+                                                                          "undefinedRegion");
         StringAppendF(&result, "  orientation=%d, isPoweredOn=%d\n", display->getOrientation(),
                       display->isPoweredOn());
     }

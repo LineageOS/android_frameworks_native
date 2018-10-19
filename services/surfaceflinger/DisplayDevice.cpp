@@ -33,6 +33,7 @@
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayCreationArgs.h>
+#include <compositionengine/impl/OutputCompositionState.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <gui/Surface.h>
@@ -222,8 +223,7 @@ DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& f
       : flinger(flinger), displayToken(displayToken), displayId(displayId) {}
 
 DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
-      : lastCompositionHadVisibleLayers(false),
-        mFlinger(args.flinger),
+      : mFlinger(args.flinger),
         mDisplayToken(args.displayToken),
         mSequenceId(args.sequenceId),
         mDisplayInstallOrientation(args.displayInstallOrientation),
@@ -235,13 +235,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mDisplaySurface(args.displaySurface),
         mPageFlipCount(0),
         mIsVirtual(args.isVirtual),
-        mLayerStack(NO_LAYER_STACK),
         mOrientation(),
-        mViewport(Rect::INVALID_RECT),
-        mFrame(Rect::INVALID_RECT),
-        mPowerMode(args.initialPowerMode),
         mActiveConfig(0),
-        mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
         mHasWideColorGamut(args.hasWideColorGamut),
         mHasHdr10Plus(false),
         mHasHdr10(false),
@@ -249,6 +244,10 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mHasDolbyVision(false),
         mSupportedPerFrameMetadata(args.supportedPerFrameMetadata),
         mIsPrimary(args.isPrimary) {
+    if (!mCompositionDisplay->isValid()) {
+        ALOGE("Composition Display did not validate!");
+    }
+
     populateColorModes(args.hwcColorModes);
 
     ALOGE_IF(!mNativeWindow, "No native window was set for display");
@@ -303,11 +302,13 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     status = native_window_set_usage(window, GRALLOC_USAGE_HW_RENDER);
     ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
 
-    mDisplayWidth = ANativeWindow_getWidth(window);
-    mDisplayHeight = ANativeWindow_getHeight(window);
+    mCompositionDisplay->setBounds(
+            Rect(ANativeWindow_getWidth(window), ANativeWindow_getHeight(window)));
+
+    setPowerMode(args.initialPowerMode);
 
     // initialize the display orientation transform.
-    setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
+    setProjection(DisplayState::eOrientationDefault, Rect::INVALID_RECT, Rect::INVALID_RECT);
 }
 
 DisplayDevice::~DisplayDevice() = default;
@@ -317,17 +318,18 @@ void DisplayDevice::disconnect() {
 }
 
 int DisplayDevice::getWidth() const {
-    return mDisplayWidth;
+    return mCompositionDisplay->getState().bounds.getWidth();
 }
 
 int DisplayDevice::getHeight() const {
-    return mDisplayHeight;
+    return mCompositionDisplay->getState().bounds.getHeight();
 }
 
 void DisplayDevice::setDisplayName(const std::string& displayName) {
     if (!displayName.empty()) {
         // never override the name with an empty name
         mDisplayName = displayName;
+        mCompositionDisplay->setName(displayName);
     }
 }
 
@@ -462,8 +464,8 @@ void DisplayDevice::onPresentDisplayCompleted() {
 }
 
 void DisplayDevice::setViewportAndProjection() const {
-    size_t w = mDisplayWidth;
-    size_t h = mDisplayHeight;
+    size_t w = getWidth();
+    size_t h = getHeight();
     Rect sourceCrop(0, 0, w, h);
     mFlinger->getRenderEngine().setViewportAndProjection(w, h, sourceCrop, ui::Transform::ROT_0);
 }
@@ -497,21 +499,10 @@ const Vector< sp<Layer> >& DisplayDevice::getLayersNeedingFences() const {
     return mLayersNeedingFences;
 }
 
-Region DisplayDevice::getDirtyRegion(bool repaintEverything) const {
-    Region dirty;
-    if (repaintEverything) {
-        dirty.set(getBounds());
-    } else {
-        const ui::Transform& planeTransform(mGlobalTransform);
-        dirty = planeTransform.transform(this->dirtyRegion);
-        dirty.andSelf(getBounds());
-    }
-    return dirty;
-}
-
 // ----------------------------------------------------------------------------
 void DisplayDevice::setPowerMode(int mode) {
     mPowerMode = mode;
+    getCompositionDisplay()->setCompositionEnabled(mPowerMode != HWC_POWER_MODE_OFF);
 }
 
 int DisplayDevice::getPowerMode()  const {
@@ -532,88 +523,42 @@ int DisplayDevice::getActiveConfig()  const {
 }
 
 // ----------------------------------------------------------------------------
-void DisplayDevice::setActiveColorMode(ColorMode mode) {
-    mActiveColorMode = mode;
-}
-
-ColorMode DisplayDevice::getActiveColorMode() const {
-    return mActiveColorMode;
-}
-
-RenderIntent DisplayDevice::getActiveRenderIntent() const {
-    return mActiveRenderIntent;
-}
-
-void DisplayDevice::setActiveRenderIntent(RenderIntent renderIntent) {
-    mActiveRenderIntent = renderIntent;
-}
-
-void DisplayDevice::setColorTransform(const mat4& transform) {
-    const bool isIdentity = (transform == mat4());
-    mColorTransform =
-            isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
-}
-
-android_color_transform_t DisplayDevice::getColorTransform() const {
-    return mColorTransform;
-}
 
 void DisplayDevice::setCompositionDataSpace(ui::Dataspace dataspace) {
-    mCompositionDataSpace = dataspace;
     ANativeWindow* const window = mNativeWindow.get();
     native_window_set_buffers_data_space(window, static_cast<android_dataspace>(dataspace));
 }
 
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
-    return mCompositionDataSpace;
+    return mCompositionDisplay->getState().dataspace;
 }
 
 // ----------------------------------------------------------------------------
 
 void DisplayDevice::setLayerStack(uint32_t stack) {
-    mLayerStack = stack;
-    dirtyRegion.set(bounds());
+    mCompositionDisplay->setLayerStackFilter(!isPrimary(), stack);
 }
 
 // ----------------------------------------------------------------------------
 
-uint32_t DisplayDevice::getOrientationTransform() const {
-    uint32_t transform = 0;
-    switch (mOrientation) {
-        case DisplayState::eOrientationDefault:
-            transform = ui::Transform::ROT_0;
-            break;
-        case DisplayState::eOrientation90:
-            transform = ui::Transform::ROT_90;
-            break;
-        case DisplayState::eOrientation180:
-            transform = ui::Transform::ROT_180;
-            break;
-        case DisplayState::eOrientation270:
-            transform = ui::Transform::ROT_270;
-            break;
-    }
-    return transform;
-}
-
-status_t DisplayDevice::orientationToTransfrom(
-        int orientation, int w, int h, ui::Transform* tr)
-{
-    uint32_t flags = 0;
+uint32_t DisplayDevice::displayStateOrientationToTransformOrientation(int orientation) {
     switch (orientation) {
     case DisplayState::eOrientationDefault:
-        flags = ui::Transform::ROT_0;
-        break;
+        return ui::Transform::ROT_0;
     case DisplayState::eOrientation90:
-        flags = ui::Transform::ROT_90;
-        break;
+        return ui::Transform::ROT_90;
     case DisplayState::eOrientation180:
-        flags = ui::Transform::ROT_180;
-        break;
+        return ui::Transform::ROT_180;
     case DisplayState::eOrientation270:
-        flags = ui::Transform::ROT_270;
-        break;
+        return ui::Transform::ROT_270;
     default:
+        return ui::Transform::ROT_INVALID;
+    }
+}
+
+status_t DisplayDevice::orientationToTransfrom(int orientation, int w, int h, ui::Transform* tr) {
+    uint32_t flags = displayStateOrientationToTransformOrientation(orientation);
+    if (flags == ui::Transform::ROT_INVALID) {
         return BAD_VALUE;
     }
     tr->set(flags, w, h);
@@ -621,12 +566,8 @@ status_t DisplayDevice::orientationToTransfrom(
 }
 
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
-    dirtyRegion.set(getBounds());
-
     mDisplaySurface->resizeBuffers(newWidth, newHeight);
-
-    mDisplayWidth = newWidth;
-    mDisplayHeight = newHeight;
+    mCompositionDisplay->setBounds(Rect(newWidth, newHeight));
 }
 
 void DisplayDevice::setProjection(int orientation,
@@ -634,8 +575,11 @@ void DisplayDevice::setProjection(int orientation,
     Rect viewport(newViewport);
     Rect frame(newFrame);
 
-    const int w = mDisplayWidth;
-    const int h = mDisplayHeight;
+    mOrientation = orientation;
+
+    const Rect& displayBounds = getCompositionDisplay()->getState().bounds;
+    const int w = displayBounds.width();
+    const int h = displayBounds.height();
 
     ui::Transform R;
     DisplayDevice::orientationToTransfrom(orientation, w, h, &R);
@@ -659,8 +603,6 @@ void DisplayDevice::setProjection(int orientation,
         }
     }
 
-    dirtyRegion.set(getBounds());
-
     ui::Transform TL, TP, S;
     float src_width  = viewport.width();
     float src_height = viewport.height();
@@ -679,7 +621,7 @@ void DisplayDevice::setProjection(int orientation,
     TL.set(-src_x, -src_y);
     TP.set(dst_x, dst_y);
 
-    // need to take care of primary display rotation for mGlobalTransform
+    // need to take care of primary display rotation for globalTransform
     // for case if the panel is not installed aligned with device orientation
     if (isPrimary()) {
         DisplayDevice::orientationToTransfrom(
@@ -690,38 +632,25 @@ void DisplayDevice::setProjection(int orientation,
     // The viewport and frame are both in the logical orientation.
     // Apply the logical translation, scale to physical size, apply the
     // physical translation and finally rotate to the physical orientation.
-    mGlobalTransform = R * TP * S * TL;
+    ui::Transform globalTransform = R * TP * S * TL;
 
-    const uint8_t type = mGlobalTransform.getType();
-    mNeedsFiltering = (!mGlobalTransform.preserveRects() ||
-            (type >= ui::Transform::SCALE));
+    const uint8_t type = globalTransform.getType();
+    const bool needsFiltering =
+            (!globalTransform.preserveRects() || (type >= ui::Transform::SCALE));
 
-    mScissor = mGlobalTransform.transform(viewport);
-    if (mScissor.isEmpty()) {
-        mScissor = getBounds();
+    Rect scissor = globalTransform.transform(viewport);
+    if (scissor.isEmpty()) {
+        scissor = displayBounds;
     }
 
-    mOrientation = orientation;
     if (isPrimary()) {
-        uint32_t transform = 0;
-        switch (mOrientation) {
-            case DisplayState::eOrientationDefault:
-                transform = ui::Transform::ROT_0;
-                break;
-            case DisplayState::eOrientation90:
-                transform = ui::Transform::ROT_90;
-                break;
-            case DisplayState::eOrientation180:
-                transform = ui::Transform::ROT_180;
-                break;
-            case DisplayState::eOrientation270:
-                transform = ui::Transform::ROT_270;
-                break;
-        }
-        sPrimaryDisplayOrientation = transform;
+        sPrimaryDisplayOrientation = displayStateOrientationToTransformOrientation(orientation);
     }
-    mViewport = viewport;
-    mFrame = frame;
+
+    getCompositionDisplay()->setProjection(globalTransform,
+                                           displayStateOrientationToTransformOrientation(
+                                                   orientation),
+                                           frame, viewport, scissor, needsFiltering);
 }
 
 uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
@@ -736,30 +665,21 @@ std::string DisplayDevice::getDebugName() const {
 }
 
 void DisplayDevice::dump(std::string& result) const {
-    const ui::Transform& tr(mGlobalTransform);
     ANativeWindow* const window = mNativeWindow.get();
     StringAppendF(&result, "+ %s\n", getDebugName().c_str());
-    StringAppendF(&result,
-                  "  layerStack=%u, (%4dx%4d), ANativeWindow=%p "
-                  "format=%d, orient=%2d (type=%08x), flips=%u, isSecure=%d, "
-                  "powerMode=%d, activeConfig=%d, numLayers=%zu\n",
-                  mLayerStack, mDisplayWidth, mDisplayHeight, window,
-                  ANativeWindow_getFormat(window), mOrientation, tr.getType(), getPageFlipCount(),
-                  isSecure(), mPowerMode, mActiveConfig, mVisibleLayersSortedByZ.size());
-    StringAppendF(&result,
-                  "   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
-                  "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
-                  mViewport.left, mViewport.top, mViewport.right, mViewport.bottom, mFrame.left,
-                  mFrame.top, mFrame.right, mFrame.bottom, mScissor.left, mScissor.top,
-                  mScissor.right, mScissor.bottom, tr[0][0], tr[1][0], tr[2][0], tr[0][1], tr[1][1],
-                  tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
+
+    result.append("   ");
+    StringAppendF(&result, "ANativeWindow=%p (format %d), ", window,
+                  ANativeWindow_getFormat(window));
+    StringAppendF(&result, "flips=%u, ", getPageFlipCount());
+    StringAppendF(&result, "powerMode=%d, ", mPowerMode);
+    StringAppendF(&result, "activeConfig=%d, ", mActiveConfig);
+    StringAppendF(&result, "numLayers=%zu\n", mVisibleLayersSortedByZ.size());
+    getCompositionDisplay()->dump(result);
     auto const surface = static_cast<Surface*>(window);
     ui::Dataspace dataspace = surface->getBuffersDataSpace();
-    StringAppendF(&result,
-                  "   wideColorGamut=%d, hdr10plus =%d, hdr10=%d, colorMode=%s, dataspace: %s "
-                  "(%d)\n",
+    StringAppendF(&result, "   wideColorGamut=%d, hdr10plus =%d, hdr10=%d, dataspace: %s (%d)\n",
                   mHasWideColorGamut, mHasHdr10Plus, mHasHdr10,
-                  decodeColorMode(mActiveColorMode).c_str(),
                   dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
 
     String8 surfaceDump;
@@ -882,6 +802,38 @@ const std::optional<DisplayId>& DisplayDevice::getId() const {
 
 bool DisplayDevice::isSecure() const {
     return mCompositionDisplay->isSecure();
+}
+
+const Rect& DisplayDevice::getBounds() const {
+    return mCompositionDisplay->getState().bounds;
+}
+
+const Region& DisplayDevice::getUndefinedRegion() const {
+    return mCompositionDisplay->getState().undefinedRegion;
+}
+
+bool DisplayDevice::needsFiltering() const {
+    return mCompositionDisplay->getState().needsFiltering;
+}
+
+uint32_t DisplayDevice::getLayerStack() const {
+    return mCompositionDisplay->getState().singleLayerStackId;
+}
+
+const ui::Transform& DisplayDevice::getTransform() const {
+    return mCompositionDisplay->getState().transform;
+}
+
+const Rect& DisplayDevice::getViewport() const {
+    return mCompositionDisplay->getState().viewport;
+}
+
+const Rect& DisplayDevice::getFrame() const {
+    return mCompositionDisplay->getState().frame;
+}
+
+const Rect& DisplayDevice::getScissor() const {
+    return mCompositionDisplay->getState().scissor;
 }
 
 std::atomic<int32_t> DisplayDeviceState::sNextSequenceId(1);

@@ -16,6 +16,7 @@
 
 #include <math.h>
 
+#include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
@@ -380,44 +381,47 @@ bool Transform::preserveRects() const
     return (getOrientation() & ROT_INVALID) ? false : true;
 }
 
-void Transform::dump(const char* name) const
-{
-    type(); // updates the type
+void Transform::dump(std::string& out, const char* name) const {
+    using android::base::StringAppendF;
 
-    String8 flags, type;
-    const mat33& m(mMatrix);
-    uint32_t orient = mType >> 8;
+    type(); // Ensure the information in mType is up to date
 
-    if (orient&ROT_INVALID) {
-        flags.append("ROT_INVALID ");
+    const uint32_t type = mType;
+    const uint32_t orient = type >> 8;
+
+    StringAppendF(&out, "%s 0x%08x (", name, orient);
+
+    if (orient & ROT_INVALID) {
+        out.append("ROT_INVALID ");
     } else {
-        if (orient&ROT_90) {
-            flags.append("ROT_90 ");
+        if (orient & ROT_90) {
+            out.append("ROT_90 ");
         } else {
-            flags.append("ROT_0 ");
+            out.append("ROT_0 ");
         }
-        if (orient&FLIP_V)
-            flags.append("FLIP_V ");
-        if (orient&FLIP_H)
-            flags.append("FLIP_H ");
+        if (orient & FLIP_V) out.append("FLIP_V ");
+        if (orient & FLIP_H) out.append("FLIP_H ");
     }
 
-    if (!(mType&(SCALE|ROTATE|TRANSLATE)))
-        type.append("IDENTITY ");
-    if (mType&SCALE)
-        type.append("SCALE ");
-    if (mType&ROTATE)
-        type.append("ROTATE ");
-    if (mType&TRANSLATE)
-        type.append("TRANSLATE ");
+    StringAppendF(&out, ") 0x%02x (", type);
 
-    ALOGD("%s 0x%08x (%s, %s)", name, mType, flags.string(), type.string());
-    ALOGD("%.4f  %.4f  %.4f", static_cast<double>(m[0][0]), static_cast<double>(m[1][0]),
-          static_cast<double>(m[2][0]));
-    ALOGD("%.4f  %.4f  %.4f", static_cast<double>(m[0][1]), static_cast<double>(m[1][1]),
-          static_cast<double>(m[2][1]));
-    ALOGD("%.4f  %.4f  %.4f", static_cast<double>(m[0][2]), static_cast<double>(m[1][2]),
-          static_cast<double>(m[2][2]));
+    if (!(type & (SCALE | ROTATE | TRANSLATE))) out.append("IDENTITY ");
+    if (type & SCALE) out.append("SCALE ");
+    if (type & ROTATE) out.append("ROTATE ");
+    if (type & TRANSLATE) out.append("TRANSLATE ");
+
+    out.append(")\n");
+
+    for (size_t i = 0; i < 3; i++) {
+        StringAppendF(&out, "    %.4f  %.4f  %.4f\n", static_cast<double>(mMatrix[0][i]),
+                      static_cast<double>(mMatrix[1][i]), static_cast<double>(mMatrix[2][i]));
+    }
+}
+
+void Transform::dump(const char* name) const {
+    std::string out;
+    dump(out, name);
+    ALOGD("%s", out.c_str());
 }
 
 }  // namespace ui

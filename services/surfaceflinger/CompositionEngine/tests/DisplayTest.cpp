@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-
 #include <cmath>
 
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <gtest/gtest.h>
 
 #include "MockHWComposer.h"
 
@@ -99,6 +98,78 @@ TEST_F(DisplayTest, disconnectDisconnectsDisplay) {
     EXPECT_CALL(mHwComposer, disconnectDisplay(DEFAULT_DISPLAY_ID)).Times(0);
     mDisplay.disconnect();
     EXPECT_FALSE(mDisplay.getId());
+}
+
+/* ------------------------------------------------------------------------
+ * Display::setColorTransform()
+ */
+
+TEST_F(DisplayTest, setColorTransformSetsTransform) {
+    // Identity matrix sets an identity state value
+    const mat4 identity;
+
+    EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
+
+    EXPECT_CALL(mHwComposer, setColorTransform(DEFAULT_DISPLAY_ID, identity)).Times(1);
+
+    mDisplay.setColorTransform(identity);
+
+    EXPECT_EQ(HAL_COLOR_TRANSFORM_IDENTITY, mDisplay.getState().colorTransform);
+
+    // Non-identity matrix sets a non-identity state value
+    const mat4 nonIdentity = mat4() * 2;
+
+    EXPECT_CALL(mHwComposer, setColorTransform(DEFAULT_DISPLAY_ID, nonIdentity)).Times(1);
+
+    mDisplay.setColorTransform(nonIdentity);
+
+    EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mDisplay.getState().colorTransform);
+}
+
+/* ------------------------------------------------------------------------
+ * Display::setColorMode()
+ */
+
+TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
+    EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
+
+    // These values are expected to be the initial state.
+    ASSERT_EQ(ui::ColorMode::NATIVE, mDisplay.getState().colorMode);
+    ASSERT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().dataspace);
+    ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay.getState().renderIntent);
+
+    // Otherwise if the values are unchanged, nothing happens
+    mDisplay.setColorMode(ui::ColorMode::NATIVE, ui::Dataspace::UNKNOWN,
+                          ui::RenderIntent::COLORIMETRIC);
+
+    EXPECT_EQ(ui::ColorMode::NATIVE, mDisplay.getState().colorMode);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, mDisplay.getState().dataspace);
+    EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay.getState().renderIntent);
+
+    // Otherwise if the values are different, updates happen
+    EXPECT_CALL(mHwComposer,
+                setActiveColorMode(DEFAULT_DISPLAY_ID, ui::ColorMode::BT2100_PQ,
+                                   ui::RenderIntent::TONE_MAP_COLORIMETRIC))
+            .Times(1);
+
+    mDisplay.setColorMode(ui::ColorMode::BT2100_PQ, ui::Dataspace::SRGB,
+                          ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+
+    EXPECT_EQ(ui::ColorMode::BT2100_PQ, mDisplay.getState().colorMode);
+    EXPECT_EQ(ui::Dataspace::SRGB, mDisplay.getState().dataspace);
+    EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mDisplay.getState().renderIntent);
+}
+
+TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
+    impl::Display virtualDisplay{mCompositionEngine,
+                                 DisplayCreationArgs{false, true, DEFAULT_DISPLAY_ID}};
+
+    virtualDisplay.setColorMode(ui::ColorMode::BT2100_PQ, ui::Dataspace::SRGB,
+                                ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+
+    EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay.getState().colorMode);
+    EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay.getState().dataspace);
+    EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, virtualDisplay.getState().renderIntent);
 }
 
 } // namespace

@@ -21,13 +21,15 @@
 
 #include "DisplayHardware/DisplayIdentification.h"
 
+#include <compositionengine/Output.h>
+
 namespace android::compositionengine {
 
 /**
  * A display is a composition target which may be backed by a hardware composer
  * display device
  */
-class Display {
+class Display : public virtual Output {
 public:
     // Gets the HWC DisplayId for the display if there is one
     virtual const std::optional<DisplayId>& getId() const = 0;

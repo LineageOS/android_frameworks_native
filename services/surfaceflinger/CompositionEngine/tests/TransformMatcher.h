@@ -16,24 +16,31 @@
 
 #pragma once
 
-#include <compositionengine/Display.h>
-#include <compositionengine/mock/Output.h>
+#include <string>
+
 #include <gmock/gmock.h>
 
-#include "DisplayHardware/DisplayIdentification.h"
+namespace {
 
-namespace android::compositionengine::mock {
+// Check for a transform match
+MATCHER_P(TransformEq, expected, "") {
+    std::string buf;
+    buf.append("Transforms are not equal\n");
+    expected.dump(buf, "expected transform");
+    arg.dump(buf, "actual transform");
+    *result_listener << buf;
 
-class Display : public compositionengine::mock::Output, public compositionengine::Display {
-public:
-    Display();
-    virtual ~Display();
+    const float TOLERANCE = 1e-3f;
 
-    MOCK_CONST_METHOD0(getId, const std::optional<DisplayId>&());
-    MOCK_CONST_METHOD0(isSecure, bool());
-    MOCK_CONST_METHOD0(isVirtual, bool());
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (std::fabs(expected[i][j] - arg[i][j]) > TOLERANCE) {
+                return false;
+            }
+        }
+    }
 
-    MOCK_METHOD0(disconnect, void());
-};
+    return true;
+}
 
-} // namespace android::compositionengine::mock
+} // namespace

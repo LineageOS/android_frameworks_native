@@ -36,6 +36,9 @@ cc_library {
     srcs: [
         "src/CompositionEngine.cpp",
         "src/Display.cpp",
+        "src/DumpHelpers.cpp",
+        "src/Output.cpp",
+        "src/OutputCompositionState.cpp",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -47,6 +50,7 @@ cc_library {
     srcs: [
         "mock/CompositionEngine.cpp",
         "mock/Display.cpp",
+        "mock/Output.cpp",
     ],
     static_libs: [
         "libgtest",
@@ -64,6 +68,7 @@ cc_test {
     srcs: [
         "tests/CompositionEngineTest.cpp",
         "tests/DisplayTest.cpp",
+        "tests/OutputTest.cpp",
         "tests/MockHWComposer.cpp",
     ],
     static_libs: [

@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <string>
 
 #include <hardware/hardware.h>
 #include <math/vec2.h>
@@ -90,6 +91,7 @@ public:
     Transform inverse() const;
 
     // for debugging
+    void dump(std::string& result, const char* name) const;
     void dump(const char* name) const;
 
 private:
