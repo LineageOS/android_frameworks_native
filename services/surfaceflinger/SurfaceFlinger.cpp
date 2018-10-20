@@ -37,6 +37,7 @@
 
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
+#include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <dvr/vr_flinger.h>
@@ -1718,6 +1719,7 @@ void SurfaceFlinger::calculateWorkingSet() {
         if (!displayId) {
             continue;
         }
+        auto* profile = display->getDisplayColorProfile();
 
         if (mDrawingState.colorMatrixChanged) {
             display->setColorTransform(mDrawingState.colorMatrix);
@@ -1727,11 +1729,11 @@ void SurfaceFlinger::calculateWorkingSet() {
                 layer->forceClientComposition(*displayId);
             } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
-                       !displayDevice->hasHDR10Support()) {
+                       !profile->hasHDR10Support()) {
                 layer->forceClientComposition(*displayId);
             } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
-                       !displayDevice->hasHLGSupport()) {
+                       !profile->hasHLGSupport()) {
                 layer->forceClientComposition(*displayId);
             }
 
@@ -2292,9 +2294,11 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     Dataspace hdrDataSpace;
     Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace);
 
+    auto* profile = display->getCompositionDisplay()->getDisplayColorProfile();
+
     // respect hdrDataSpace only when there is no legacy HDR support
-    const bool isHdr = hdrDataSpace != Dataspace::UNKNOWN &&
-        !display->hasLegacyHdrSupport(hdrDataSpace);
+    const bool isHdr =
+            hdrDataSpace != Dataspace::UNKNOWN && !profile->hasLegacyHdrSupport(hdrDataSpace);
     if (isHdr) {
         bestDataSpace = hdrDataSpace;
     }
@@ -2313,7 +2317,7 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
             break;
     }
 
-    display->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
+    profile->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
 }
 
 void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
@@ -3299,13 +3303,14 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
             return false;
         }
 
+        const auto* profile = display->getDisplayColorProfile();
         Dataspace outputDataspace = Dataspace::UNKNOWN;
-        if (displayDevice->hasWideColorGamut()) {
+        if (profile->hasWideColorGamut()) {
             outputDataspace = displayState.dataspace;
         }
         getRenderEngine().setOutputDataSpace(outputDataspace);
         getRenderEngine().setDisplayMaxLuminance(
-                displayDevice->getHdrCapabilities().getDesiredMaxLuminance());
+                profile->getHdrCapabilities().getDesiredMaxLuminance());
 
         const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
         const bool skipClientColorTransform =

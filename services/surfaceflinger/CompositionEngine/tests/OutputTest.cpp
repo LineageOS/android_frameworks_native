@@ -18,6 +18,7 @@
 
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <compositionengine/mock/DisplayColorProfile.h>
 #include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
 #include <ui/Rect.h>
@@ -36,11 +37,14 @@ using testing::StrictMock;
 class OutputTest : public testing::Test {
 public:
     OutputTest() {
+        mOutput.setDisplayColorProfileForTest(
+                std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
     }
     ~OutputTest() override = default;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
+    mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     impl::Output mOutput{mCompositionEngine};
 };
@@ -51,12 +55,15 @@ public:
 
 TEST_F(OutputTest, canInstantiateOutput) {
     // The validation check checks each required component.
+    EXPECT_CALL(*mDisplayColorProfile, isValid()).WillOnce(Return(true));
     EXPECT_CALL(*mRenderSurface, isValid()).WillOnce(Return(true));
 
     EXPECT_TRUE(mOutput.isValid());
 
     // If we take away the required components, it is no longer valid.
     mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>());
+
+    EXPECT_CALL(*mDisplayColorProfile, isValid()).WillOnce(Return(true));
 
     EXPECT_FALSE(mOutput.isValid());
 }

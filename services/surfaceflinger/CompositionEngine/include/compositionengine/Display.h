@@ -26,6 +26,7 @@
 namespace android::compositionengine {
 
 struct RenderSurfaceCreationArgs;
+struct DisplayColorProfileCreationArgs;
 
 /**
  * A display is a composition target which may be backed by a hardware composer
@@ -45,6 +46,10 @@ public:
     // Releases the use of the HWC display, if any
     virtual void disconnect() = 0;
 
+    // Creates a render color mode for the display
+    virtual void createDisplayColorProfile(DisplayColorProfileCreationArgs&&) = 0;
+
+    // Creates a render surface for the display
     virtual void createRenderSurface(RenderSurfaceCreationArgs&&) = 0;
 
 protected:

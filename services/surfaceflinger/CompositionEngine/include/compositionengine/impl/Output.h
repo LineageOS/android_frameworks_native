@@ -48,6 +48,9 @@ public:
     const std::string& getName() const override;
     void setName(const std::string&) override;
 
+    compositionengine::DisplayColorProfile* getDisplayColorProfile() const override;
+    void setDisplayColorProfile(std::unique_ptr<compositionengine::DisplayColorProfile>) override;
+
     compositionengine::RenderSurface* getRenderSurface() const override;
     void setRenderSurface(std::unique_ptr<compositionengine::RenderSurface>) override;
 
@@ -58,6 +61,7 @@ public:
     bool belongsInOutput(uint32_t) const override;
 
     // Testing
+    void setDisplayColorProfileForTest(std::unique_ptr<compositionengine::DisplayColorProfile>);
     void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
 
 protected:
@@ -73,6 +77,7 @@ private:
 
     OutputCompositionState mState;
 
+    std::unique_ptr<compositionengine::DisplayColorProfile> mDisplayColorProfile;
     std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;
 };
 

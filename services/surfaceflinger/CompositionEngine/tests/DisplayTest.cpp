@@ -16,6 +16,7 @@
 
 #include <cmath>
 
+#include <compositionengine/DisplayColorProfileCreationArgs.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/RenderSurfaceCreationArgs.h>
@@ -179,6 +180,18 @@ TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
     EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, virtualDisplay.getState().renderIntent);
+}
+
+/* ------------------------------------------------------------------------
+ * Display::createDisplayColorProfile()
+ */
+
+TEST_F(DisplayTest, createDisplayColorProfileSetsDisplayColorProfile) {
+    EXPECT_TRUE(mDisplay.getDisplayColorProfile() == nullptr);
+    mDisplay.createDisplayColorProfile(
+            DisplayColorProfileCreationArgs{false, HdrCapabilities(), 0,
+                                            DisplayColorProfileCreationArgs::HwcColorModes()});
+    EXPECT_TRUE(mDisplay.getDisplayColorProfile() != nullptr);
 }
 
 /* ------------------------------------------------------------------------

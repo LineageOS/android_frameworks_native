@@ -19,6 +19,8 @@
 
 #include <type_traits>
 
+#include <compositionengine/Display.h>
+#include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -1152,8 +1154,10 @@ public:
         EXPECT_CALL(*mNativeWindow, perform(30)).Times(1);
         auto displayDevice = mInjector.inject();
 
-        displayDevice->getBestColorMode(mInputDataspace, mInputRenderIntent, &mOutDataspace,
-                                        &mOutColorMode, &mOutRenderIntent);
+        displayDevice->getCompositionDisplay()
+                ->getDisplayColorProfile()
+                ->getBestColorMode(mInputDataspace, mInputRenderIntent, &mOutDataspace,
+                                   &mOutColorMode, &mOutRenderIntent);
     }
 
     ui::Dataspace mOutDataspace;

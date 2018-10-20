@@ -38,6 +38,7 @@ cc_library {
     srcs: [
         "src/CompositionEngine.cpp",
         "src/Display.cpp",
+        "src/DisplayColorProfile.cpp",
         "src/DisplaySurface.cpp",
         "src/DumpHelpers.cpp",
         "src/Output.cpp",
@@ -54,6 +55,7 @@ cc_library {
     srcs: [
         "mock/CompositionEngine.cpp",
         "mock/Display.cpp",
+        "mock/DisplayColorProfile.cpp",
         "mock/DisplaySurface.cpp",
         "mock/Output.cpp",
         "mock/RenderSurface.cpp",
@@ -73,9 +75,10 @@ cc_test {
     defaults: ["libcompositionengine_defaults"],
     srcs: [
         "tests/CompositionEngineTest.cpp",
+        "tests/DisplayColorProfileTest.cpp",
         "tests/DisplayTest.cpp",
-        "tests/OutputTest.cpp",
         "tests/MockHWComposer.cpp",
+        "tests/OutputTest.cpp",
         "tests/RenderSurfaceTest.cpp",
     ],
     static_libs: [

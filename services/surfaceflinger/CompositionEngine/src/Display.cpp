@@ -19,6 +19,7 @@
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/DisplaySurface.h>
 #include <compositionengine/impl/Display.h>
+#include <compositionengine/impl/DisplayColorProfile.h>
 #include <compositionengine/impl/DumpHelpers.h>
 #include <compositionengine/impl/RenderSurface.h>
 
@@ -107,6 +108,10 @@ void Display::dump(std::string& out) const {
     out.append("\n");
 
     Output::dumpBase(out);
+}
+
+void Display::createDisplayColorProfile(DisplayColorProfileCreationArgs&& args) {
+    setDisplayColorProfile(compositionengine::impl::createDisplayColorProfile(std::move(args)));
 }
 
 void Display::createRenderSurface(RenderSurfaceCreationArgs&& args) {

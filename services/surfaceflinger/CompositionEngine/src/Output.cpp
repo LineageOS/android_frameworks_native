@@ -16,6 +16,7 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/Output.h>
 #include <ui/DebugUtils.h>
@@ -32,7 +33,8 @@ const CompositionEngine& Output::getCompositionEngine() const {
 }
 
 bool Output::isValid() const {
-    return mRenderSurface && mRenderSurface->isValid();
+    return mDisplayColorProfile && mDisplayColorProfile->isValid() && mRenderSurface &&
+            mRenderSurface->isValid();
 }
 
 const std::string& Output::getName() const {
@@ -113,11 +115,30 @@ void Output::dump(std::string& out) const {
 void Output::dumpBase(std::string& out) const {
     mState.dump(out);
 
+    if (mDisplayColorProfile) {
+        mDisplayColorProfile->dump(out);
+    } else {
+        out.append("    No display color profile!\n");
+    }
+
     if (mRenderSurface) {
         mRenderSurface->dump(out);
     } else {
         out.append("    No render surface!\n");
     }
+}
+
+compositionengine::DisplayColorProfile* Output::getDisplayColorProfile() const {
+    return mDisplayColorProfile.get();
+}
+
+void Output::setDisplayColorProfile(std::unique_ptr<compositionengine::DisplayColorProfile> mode) {
+    mDisplayColorProfile = std::move(mode);
+}
+
+void Output::setDisplayColorProfileForTest(
+        std::unique_ptr<compositionengine::DisplayColorProfile> mode) {
+    mDisplayColorProfile = std::move(mode);
 }
 
 compositionengine::RenderSurface* Output::getRenderSurface() const {

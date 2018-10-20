@@ -46,6 +46,7 @@ public:
     bool isSecure() const override;
     bool isVirtual() const override;
     void disconnect() override;
+    void createDisplayColorProfile(compositionengine::DisplayColorProfileCreationArgs&&) override;
     void createRenderSurface(compositionengine::RenderSurfaceCreationArgs&&) override;
 
 private:

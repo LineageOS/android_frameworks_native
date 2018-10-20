@@ -17,7 +17,7 @@
 #pragma once
 
 #include <compositionengine/Display.h>
-#include <compositionengine/DisplaySurface.h>
+#include <compositionengine/DisplayColorProfileCreationArgs.h>
 #include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/mock/Output.h>
 #include <gmock/gmock.h>
@@ -38,6 +38,7 @@ public:
 
     MOCK_METHOD0(disconnect, void());
 
+    MOCK_METHOD1(createDisplayColorProfile, void(DisplayColorProfileCreationArgs&&));
     MOCK_METHOD1(createRenderSurface, void(RenderSurfaceCreationArgs&&));
 };
 

@@ -26,6 +26,7 @@
 
 namespace android::compositionengine {
 
+class DisplayColorProfile;
 class RenderSurface;
 
 namespace impl {
@@ -72,6 +73,9 @@ public:
     // Sets a debug name for the output
     virtual void setName(const std::string&) = 0;
 
+    // Gets the current render color mode for the output
+    virtual DisplayColorProfile* getDisplayColorProfile() const = 0;
+
     // Gets the current render surface for the output
     virtual RenderSurface* getRenderSurface() const = 0;
 
@@ -98,7 +102,8 @@ public:
 protected:
     ~Output() = default;
 
-    virtual void setRenderSurface(std::unique_ptr<RenderSurface> surface) = 0;
+    virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
+    virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 };
 
 } // namespace android::compositionengine

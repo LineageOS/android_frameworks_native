@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
@@ -42,6 +43,9 @@ public:
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getName, const std::string&());
     MOCK_METHOD1(setName, void(const std::string&));
+
+    MOCK_CONST_METHOD0(getDisplayColorProfile, DisplayColorProfile*());
+    MOCK_METHOD1(setDisplayColorProfile, void(std::unique_ptr<DisplayColorProfile>));
 
     MOCK_CONST_METHOD0(getRenderSurface, RenderSurface*());
     MOCK_METHOD1(setRenderSurface, void(std::unique_ptr<RenderSurface>));

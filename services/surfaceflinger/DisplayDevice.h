@@ -110,18 +110,14 @@ public:
 
     const Region& getUndefinedRegion() const;
 
-    int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
+    int32_t getSupportedPerFrameMetadata() const;
 
-    bool hasWideColorGamut() const { return mHasWideColorGamut; }
+    bool hasWideColorGamut() const;
     // Whether h/w composer has native support for specific HDR type.
-    bool hasHDR10PlusSupport() const { return mHasHdr10Plus; }
-    bool hasHDR10Support() const { return mHasHdr10; }
-    bool hasHLGSupport() const { return mHasHLG; }
-    bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
-
-    // Return true if the HDR dataspace is supported but
-    // there is no corresponding color mode.
-    bool hasLegacyHdrSupport(ui::Dataspace dataspace) const;
+    bool hasHDR10PlusSupport() const;
+    bool hasHDR10Support() const;
+    bool hasHLGSupport() const;
+    bool hasDolbyVisionSupport() const;
 
     // The returned HdrCapabilities is the combination of HDR capabilities from
     // hardware composer and RenderEngine. When the DisplayDevice supports wide
@@ -129,14 +125,10 @@ public:
     // color space for both PQ and HLG HDR contents. The minimum and maximum
     // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
     // respectively if hardware composer doesn't return meaningful values.
-    const HdrCapabilities& getHdrCapabilities() const { return mHdrCapabilities; }
+    const HdrCapabilities& getHdrCapabilities() const;
 
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
-
-    void getBestColorMode(ui::Dataspace dataspace, ui::RenderIntent intent,
-                          ui::Dataspace* outDataspace, ui::ColorMode* outMode,
-                          ui::RenderIntent* outIntent) const;
 
     const Rect& getBounds() const;
     const Rect& bounds() const { return getBounds(); }
@@ -207,37 +199,6 @@ private:
     int mPowerMode;
     // Current active config
     int mActiveConfig;
-
-    // Need to know if display is wide-color capable or not.
-    // Initialized by SurfaceFlinger when the DisplayDevice is created.
-    // Fed to RenderEngine during composition.
-    bool mHasWideColorGamut;
-    bool mHasHdr10Plus;
-    bool mHasHdr10;
-    bool mHasHLG;
-    bool mHasDolbyVision;
-    HdrCapabilities mHdrCapabilities;
-    const int32_t mSupportedPerFrameMetadata;
-
-    // Mappings from desired Dataspace/RenderIntent to the supported
-    // Dataspace/ColorMode/RenderIntent.
-    using ColorModeKey = uint64_t;
-    struct ColorModeValue {
-        ui::Dataspace dataspace;
-        ui::ColorMode colorMode;
-        ui::RenderIntent renderIntent;
-    };
-
-    static ColorModeKey getColorModeKey(ui::Dataspace dataspace, ui::RenderIntent intent) {
-        return (static_cast<uint64_t>(dataspace) << 32) | static_cast<uint32_t>(intent);
-    }
-    void populateColorModes(
-            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes);
-    void addColorMode(
-            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
-            const ui::ColorMode mode, const ui::RenderIntent intent);
-
-    std::unordered_map<ColorModeKey, ColorModeValue> mColorModes;
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
