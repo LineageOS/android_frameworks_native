@@ -37,8 +37,13 @@ class RecentEventLogger : public Dumpable {
 public:
     explicit RecentEventLogger(int sensorType);
     void addEvent(const sensors_event_t& event);
-    bool populateLastEvent(sensors_event_t *event) const;
+
+    // Populate event with the last recorded sensor event if it is not stale. An event is
+    // considered stale if the sensor has become deactivated since the event was recorded.
+    // returns true on success, false if no recent event is available or the last event is stale
+    bool populateLastEventIfCurrent(sensors_event_t *event) const;
     bool isEmpty() const;
+    void setLastEventStale();
     virtual ~RecentEventLogger() {}
 
     // Dumpable interface
@@ -59,6 +64,7 @@ protected:
     RingBuffer<SensorEventLog> mRecentEvents;
 
     bool mMaskData;
+    bool mIsLastEventCurrent;
 
 private:
     static size_t logSizeBySensorType(int sensorType);
