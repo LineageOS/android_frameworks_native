@@ -458,24 +458,14 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
 
-    // Device or Cursor layers
-    if (mPotentialCursor) {
-        ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(displayId, HWC2::Composition::Cursor);
-    } else {
-        ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(displayId, HWC2::Composition::Device);
-    }
-
-    // Need to program geometry parts
-    getBE().compositionInfo.hwc.skipGeometry = false;
-
     // enable this layer
     hwcInfo.forceClientComposition = false;
 
     if (isSecure() && !display->isSecure()) {
         hwcInfo.forceClientComposition = true;
     }
+
+    auto& hwcLayer = hwcInfo.layer;
 
     // this gives us only the "orientation" component of the transform
     const State& s(getDrawingState());
@@ -484,6 +474,12 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
         blendMode =
                 mPremultipliedAlpha ? HWC2::BlendMode::Premultiplied : HWC2::BlendMode::Coverage;
     }
+    auto error = hwcLayer->setBlendMode(blendMode);
+    ALOGE_IF(error != HWC2::Error::None,
+             "[%s] Failed to set blend mode %s:"
+             " %s (%d)",
+             mName.string(), to_string(blendMode).c_str(), to_string(error).c_str(),
+             static_cast<int32_t>(error));
     getBE().compositionInfo.hwc.blendMode = blendMode;
 
     // apply the layer's transform, followed by the display's global transform
@@ -523,14 +519,39 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     }
     const ui::Transform& tr = display->getTransform();
     Rect transformedFrame = tr.transform(frame);
+    error = hwcLayer->setDisplayFrame(transformedFrame);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)", mName.string(),
+              transformedFrame.left, transformedFrame.top, transformedFrame.right,
+              transformedFrame.bottom, to_string(error).c_str(), static_cast<int32_t>(error));
+    } else {
+        hwcInfo.displayFrame = transformedFrame;
+    }
     getBE().compositionInfo.hwc.displayFrame = transformedFrame;
 
     FloatRect sourceCrop = computeCrop(display);
+    error = hwcLayer->setSourceCrop(sourceCrop);
+    if (error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
+              "%s (%d)",
+              mName.string(), sourceCrop.left, sourceCrop.top, sourceCrop.right, sourceCrop.bottom,
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    } else {
+        hwcInfo.sourceCrop = sourceCrop;
+    }
     getBE().compositionInfo.hwc.sourceCrop = sourceCrop;
 
     float alpha = static_cast<float>(getAlpha());
+    error = hwcLayer->setPlaneAlpha(alpha);
+    ALOGE_IF(error != HWC2::Error::None,
+             "[%s] Failed to set plane alpha %.3f: "
+             "%s (%d)",
+             mName.string(), alpha, to_string(error).c_str(), static_cast<int32_t>(error));
     getBE().compositionInfo.hwc.alpha = alpha;
 
+    error = hwcLayer->setZOrder(z);
+    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)", mName.string(), z,
+             to_string(error).c_str(), static_cast<int32_t>(error));
     getBE().compositionInfo.hwc.z = z;
 
     int type = s.type;
@@ -543,6 +564,10 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
             appId = parentState.appId;
         }
     }
+
+    error = hwcLayer->setInfo(type, appId);
+    ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
+             static_cast<int32_t>(error));
 
     getBE().compositionInfo.hwc.type = type;
     getBE().compositionInfo.hwc.appId = appId;
@@ -583,9 +608,16 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     if (orientation & ui::Transform::ROT_INVALID) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
+        getBE().mHwcLayers[displayId].compositionType = HWC2::Composition::Client;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
         hwcInfo.transform = transform;
+        auto error = hwcLayer->setTransform(transform);
+        ALOGE_IF(error != HWC2::Error::None,
+                 "[%s] Failed to set transform %s: "
+                 "%s (%d)",
+                 mName.string(), to_string(transform).c_str(), to_string(error).c_str(),
+                 static_cast<int32_t>(error));
         getBE().compositionInfo.hwc.transform = transform;
     }
 }
@@ -666,16 +698,25 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
     clearWithOpenGL(renderArea, 0, 0, 0, 0);
 }
 
-void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool /*callIntoHwc*/) {
+void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool callIntoHwc) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         ALOGE("setCompositionType called without a valid HWC layer");
         return;
-    } else {
-        if (getBE().mHwcLayers[displayId].compositionType != type) {
-            ALOGV("setCompositionType: Changing compositionType from %s to %s",
-                    to_string(getBE().mHwcLayers[displayId].compositionType).c_str(),
-                    to_string(type).c_str());
-            getBE().mHwcLayers[displayId].compositionType = type;
+    }
+    auto& hwcInfo = getBE().mHwcLayers[displayId];
+    auto& hwcLayer = hwcInfo.layer;
+    ALOGV("setCompositionType(%" PRIx64 ", %s, %d)", (hwcLayer)->getId(), to_string(type).c_str(),
+          static_cast<int>(callIntoHwc));
+    if (hwcInfo.compositionType != type) {
+        ALOGV("    actually setting");
+        hwcInfo.compositionType = type;
+        if (callIntoHwc) {
+            auto error = (hwcLayer)->setCompositionType(type);
+            ALOGE_IF(error != HWC2::Error::None,
+                     "[%s] Failed to set "
+                     "composition type %s: %s (%d)",
+                     mName.string(), to_string(type).c_str(), to_string(error).c_str(),
+                     static_cast<int32_t>(error));
         }
     }
 }

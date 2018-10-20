@@ -34,14 +34,13 @@ class LayerBE;
 
 struct CompositionInfo {
     std::string layerName;
-    HWC2::Composition compositionType = HWC2::Composition::Invalid;
+    HWC2::Composition compositionType;
     bool firstClear = false;
     sp<GraphicBuffer> mBuffer = nullptr;
     int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     std::shared_ptr<LayerBE> layer;
     struct {
         std::shared_ptr<HWC2::Layer> hwcLayer;
-        bool skipGeometry = true;
         int32_t displayId = -1;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
