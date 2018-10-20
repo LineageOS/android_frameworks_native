@@ -73,6 +73,10 @@ public:
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
 
+    status_t drawLayers(const DisplaySettings& settings, const std::vector<LayerSettings>& layers,
+                        ANativeWindowBuffer* const buffer,
+                        base::unique_fd* displayFence) const override;
+
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
     EGLConfig getEGLConfig() const { return mEGLConfig; }

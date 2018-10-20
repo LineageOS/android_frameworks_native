@@ -650,6 +650,13 @@ void GLES20RenderEngine::checkErrors() const {
     } while (true);
 }
 
+status_t GLES20RenderEngine::drawLayers(const DisplaySettings& /*settings*/,
+                                        const std::vector<LayerSettings>& /*layers*/,
+                                        ANativeWindowBuffer* const /*buffer*/,
+                                        base::unique_fd* /*displayFence*/) const {
+    return NO_ERROR;
+}
+
 void GLES20RenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                                   ui::Transform::orientation_flags rotation) {
     int32_t l = sourceCrop.left;
