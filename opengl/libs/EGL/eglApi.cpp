@@ -437,13 +437,6 @@ EGLBoolean eglDestroySyncKHR(EGLDisplay dpy, EGLSyncKHR sync) {
     return cnx->platform.eglDestroySyncKHR(dpy, sync);
 }
 
-EGLBoolean eglSignalSync(EGLDisplay dpy, EGLSync sync, EGLenum mode) {
-    clearError();
-
-    egl_connection_t* const cnx = &gEGLImpl;
-    return cnx->platform.eglSignalSync(dpy, sync, mode);
-}
-
 EGLBoolean eglSignalSyncKHR(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
     clearError();
 
