@@ -26,6 +26,8 @@
 
 namespace android::compositionengine {
 
+class RenderSurface;
+
 namespace impl {
 struct OutputCompositionState;
 } // namespace impl
@@ -47,7 +49,7 @@ public:
     virtual void setProjection(const ui::Transform&, int32_t orientation, const Rect& frame,
                                const Rect& viewport, const Rect& scissor, bool needsFiltering) = 0;
     // Sets the bounds to use
-    virtual void setBounds(const Rect&) = 0;
+    virtual void setBounds(const ui::Size&) = 0;
 
     // Sets the layer stack filter for this output. If singleLayerStack is true,
     // this output displays just the single layer stack specified by
@@ -69,6 +71,9 @@ public:
 
     // Sets a debug name for the output
     virtual void setName(const std::string&) = 0;
+
+    // Gets the current render surface for the output
+    virtual RenderSurface* getRenderSurface() const = 0;
 
     using OutputCompositionState = compositionengine::impl::OutputCompositionState;
 
@@ -92,6 +97,8 @@ public:
 
 protected:
     ~Output() = default;
+
+    virtual void setRenderSurface(std::unique_ptr<RenderSurface> surface) = 0;
 };
 
 } // namespace android::compositionengine

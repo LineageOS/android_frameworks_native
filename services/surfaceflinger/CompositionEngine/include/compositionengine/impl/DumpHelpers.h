@@ -55,6 +55,7 @@ void dumpVal(std::string& out, const char* name, const FloatRect& rect);
 void dumpVal(std::string& out, const char* name, const Rect& rect);
 void dumpVal(std::string& out, const char* name, const Region& region);
 void dumpVal(std::string& out, const char* name, const ui::Transform&);
+void dumpVal(std::string& out, const char* name, const ui::Size&);
 
 void dumpVal(std::string& out, const char* name, const mat4& tr);
 

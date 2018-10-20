@@ -17,8 +17,11 @@
 #pragma once
 
 #include <compositionengine/Display.h>
+#include <compositionengine/DisplaySurface.h>
+#include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/mock/Output.h>
 #include <gmock/gmock.h>
+#include <system/window.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 
@@ -34,6 +37,8 @@ public:
     MOCK_CONST_METHOD0(isVirtual, bool());
 
     MOCK_METHOD0(disconnect, void());
+
+    MOCK_METHOD1(createRenderSurface, void(RenderSurfaceCreationArgs&&));
 };
 
 } // namespace android::compositionengine::mock

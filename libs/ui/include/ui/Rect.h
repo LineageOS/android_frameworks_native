@@ -24,6 +24,7 @@
 
 #include <ui/FloatRect.h>
 #include <ui/Point.h>
+#include <ui/Size.h>
 
 #include <android/rect.h>
 
@@ -78,6 +79,13 @@ public:
         bottom = static_cast<int32_t>(floatRect.bottom + 0.5f);
     }
 
+    inline explicit Rect(const ui::Size& size) {
+        left = 0;
+        top = 0;
+        right = size.width;
+        bottom = size.height;
+    }
+
     void makeInvalid();
 
     inline void clear() {
@@ -105,6 +113,8 @@ public:
     inline int32_t getHeight() const {
         return bottom - top;
     }
+
+    ui::Size getSize() const { return ui::Size(getWidth(), getHeight()); }
 
     __attribute__((no_sanitize("signed-integer-overflow")))
     inline Rect getBounds() const {

@@ -16,6 +16,7 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/Output.h>
 #include <ui/DebugUtils.h>
 
@@ -31,7 +32,7 @@ const CompositionEngine& Output::getCompositionEngine() const {
 }
 
 bool Output::isValid() const {
-    return true;
+    return mRenderSurface && mRenderSurface->isValid();
 }
 
 const std::string& Output::getName() const {
@@ -63,8 +64,11 @@ void Output::setProjection(const ui::Transform& transform, int32_t orientation, 
     dirtyEntireOutput();
 }
 
-void Output::setBounds(const Rect& bounds) {
-    mState.bounds = bounds;
+// TODO(lpique): Rename setSize() once more is moved.
+void Output::setBounds(const ui::Size& size) {
+    mRenderSurface->setDisplaySize(size);
+    // TODO(lpique): Rename mState.size once more is moved.
+    mState.bounds = Rect(mRenderSurface->getSize());
 
     dirtyEntireOutput();
 }
@@ -89,6 +93,8 @@ void Output::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
     mState.dataspace = dataspace;
     mState.renderIntent = renderIntent;
 
+    mRenderSurface->setBufferDataspace(dataspace);
+
     ALOGV("Set active color mode: %s (%d), active render intent: %s (%d)",
           decodeColorMode(mode).c_str(), mode, decodeRenderIntent(renderIntent).c_str(),
           renderIntent);
@@ -106,6 +112,27 @@ void Output::dump(std::string& out) const {
 
 void Output::dumpBase(std::string& out) const {
     mState.dump(out);
+
+    if (mRenderSurface) {
+        mRenderSurface->dump(out);
+    } else {
+        out.append("    No render surface!\n");
+    }
+}
+
+compositionengine::RenderSurface* Output::getRenderSurface() const {
+    return mRenderSurface.get();
+}
+
+void Output::setRenderSurface(std::unique_ptr<compositionengine::RenderSurface> surface) {
+    mRenderSurface = std::move(surface);
+    mState.bounds = Rect(mRenderSurface->getSize());
+
+    dirtyEntireOutput();
+}
+
+void Output::setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface> surface) {
+    mRenderSurface = std::move(surface);
 }
 
 const OutputCompositionState& Output::getState() const {

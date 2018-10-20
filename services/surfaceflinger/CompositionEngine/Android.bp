@@ -16,6 +16,8 @@ cc_defaults {
         "libgui",
         "liblayers_proto",
         "liblog",
+        "libnativewindow",
+        "libsync",
         "libtimestats_proto",
         "libui",
         "libutils",
@@ -40,6 +42,7 @@ cc_library {
         "src/DumpHelpers.cpp",
         "src/Output.cpp",
         "src/OutputCompositionState.cpp",
+        "src/RenderSurface.cpp",
     ],
     local_include_dirs: ["include"],
     export_include_dirs: ["include"],
@@ -53,6 +56,7 @@ cc_library {
         "mock/Display.cpp",
         "mock/DisplaySurface.cpp",
         "mock/Output.cpp",
+        "mock/RenderSurface.cpp",
     ],
     static_libs: [
         "libgtest",
@@ -72,6 +76,7 @@ cc_test {
         "tests/DisplayTest.cpp",
         "tests/OutputTest.cpp",
         "tests/MockHWComposer.cpp",
+        "tests/RenderSurfaceTest.cpp",
     ],
     static_libs: [
         "libcompositionengine",

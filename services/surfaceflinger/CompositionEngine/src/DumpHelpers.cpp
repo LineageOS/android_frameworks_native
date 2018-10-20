@@ -79,6 +79,10 @@ void dumpVal(std::string& out, const char* name, const ui::Transform& transform)
     transform.dump(out, name);
 }
 
+void dumpVal(std::string& out, const char* name, const ui::Size& size) {
+    StringAppendF(&out, "%s=[%d %d] ", name, size.width, size.height);
+}
+
 void dumpVal(std::string& out, const char* name, const mat4& tr) {
     StringAppendF(&out,
                   "%s=["

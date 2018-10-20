@@ -34,6 +34,8 @@
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/DisplaySurface.h>
+#include <compositionengine/RenderSurface.h>
+#include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
@@ -230,10 +232,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mCompositionDisplay{mFlinger->getCompositionEngine().createDisplay(
                 compositionengine::DisplayCreationArgs{args.isSecure, args.isVirtual,
                                                        args.displayId})},
-        mNativeWindow(args.nativeWindow),
-        mGraphicBuffer(nullptr),
-        mDisplaySurface(args.displaySurface),
-        mPageFlipCount(0),
         mIsVirtual(args.isVirtual),
         mOrientation(),
         mActiveConfig(0),
@@ -244,14 +242,20 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mHasDolbyVision(false),
         mSupportedPerFrameMetadata(args.supportedPerFrameMetadata),
         mIsPrimary(args.isPrimary) {
+    mCompositionDisplay->createRenderSurface(
+            compositionengine::RenderSurfaceCreationArgs{ANativeWindow_getWidth(
+                                                                 args.nativeWindow.get()),
+                                                         ANativeWindow_getHeight(
+                                                                 args.nativeWindow.get()),
+                                                         args.nativeWindow, args.displaySurface});
+
     if (!mCompositionDisplay->isValid()) {
         ALOGE("Composition Display did not validate!");
     }
 
-    populateColorModes(args.hwcColorModes);
+    mCompositionDisplay->getRenderSurface()->initialize();
 
-    ALOGE_IF(!mNativeWindow, "No native window was set for display");
-    ALOGE_IF(!mDisplaySurface, "No display surface was set for display");
+    populateColorModes(args.hwcColorModes);
 
     std::vector<Hdr> types = args.hdrCapabilities.getSupportedHdrTypes();
     for (Hdr hdrType : types) {
@@ -293,18 +297,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     }
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
 
-    ANativeWindow* const window = mNativeWindow.get();
-
-    int status = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
-    ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
-    status = native_window_set_buffers_format(window, HAL_PIXEL_FORMAT_RGBA_8888);
-    ALOGE_IF(status != NO_ERROR, "Unable to set BQ format to RGBA888: %d", status);
-    status = native_window_set_usage(window, GRALLOC_USAGE_HW_RENDER);
-    ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for GPU rendering: %d", status);
-
-    mCompositionDisplay->setBounds(
-            Rect(ANativeWindow_getWidth(window), ANativeWindow_getHeight(window)));
-
     setPowerMode(args.initialPowerMode);
 
     // initialize the display orientation transform.
@@ -334,151 +326,7 @@ void DisplayDevice::setDisplayName(const std::string& displayName) {
 }
 
 uint32_t DisplayDevice::getPageFlipCount() const {
-    return mPageFlipCount;
-}
-
-void DisplayDevice::flip() const
-{
-    mPageFlipCount++;
-}
-
-status_t DisplayDevice::beginFrame(bool mustRecompose) const {
-    return mDisplaySurface->beginFrame(mustRecompose);
-}
-
-status_t DisplayDevice::prepareFrame(HWComposer& hwc,
-        std::vector<CompositionInfo>& compositionData) {
-    const auto id = getId();
-    if (id) {
-        status_t error = hwc.prepare(id.value(), compositionData);
-        if (error != NO_ERROR) {
-            return error;
-        }
-    }
-
-    compositionengine::DisplaySurface::CompositionType compositionType;
-    bool hasClient = hwc.hasClientComposition(id);
-    bool hasDevice = hwc.hasDeviceComposition(id);
-    if (hasClient && hasDevice) {
-        compositionType = compositionengine::DisplaySurface::COMPOSITION_MIXED;
-    } else if (hasClient) {
-        compositionType = compositionengine::DisplaySurface::COMPOSITION_GLES;
-    } else if (hasDevice) {
-        compositionType = compositionengine::DisplaySurface::COMPOSITION_HWC;
-    } else {
-        // Nothing to do -- when turning the screen off we get a frame like
-        // this. Call it a HWC frame since we won't be doing any GLES work but
-        // will do a prepare/set cycle.
-        compositionType = compositionengine::DisplaySurface::COMPOSITION_HWC;
-    }
-    return mDisplaySurface->prepareFrame(compositionType);
-}
-
-void DisplayDevice::setProtected(bool useProtected) {
-    uint64_t usageFlags = GRALLOC_USAGE_HW_RENDER;
-    if (useProtected) {
-        usageFlags |= GRALLOC_USAGE_PROTECTED;
-    }
-    const int status = native_window_set_usage(mNativeWindow.get(), usageFlags);
-    ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for protected content: %d", status);
-}
-
-sp<GraphicBuffer> DisplayDevice::dequeueBuffer() {
-    int fd;
-    ANativeWindowBuffer* buffer;
-
-    status_t res = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buffer, &fd);
-
-    if (res != NO_ERROR) {
-        ALOGE("ANativeWindow::dequeueBuffer failed for display [%s] with error: %d",
-              getDisplayName().c_str(), res);
-        // Return fast here as we can't do much more - any rendering we do
-        // now will just be wrong.
-        return mGraphicBuffer;
-    }
-
-    ALOGW_IF(mGraphicBuffer != nullptr, "Clobbering a non-null pointer to a buffer [%p].",
-             mGraphicBuffer->getNativeBuffer()->handle);
-    mGraphicBuffer = GraphicBuffer::from(buffer);
-
-    // Block until the buffer is ready
-    // TODO(alecmouri): it's perhaps more appropriate to block renderengine so
-    // that the gl driver can block instead.
-    if (fd >= 0) {
-        sync_wait(fd, -1);
-        close(fd);
-    }
-
-    return mGraphicBuffer;
-}
-
-void DisplayDevice::queueBuffer(HWComposer& hwc) {
-    const auto id = getId();
-    if (hwc.hasClientComposition(id) || hwc.hasFlipClientTargetRequest(id)) {
-        // hasFlipClientTargetRequest could return true even if we haven't
-        // dequeued a buffer before. Try dequeueing one if we don't have a
-        // buffer ready.
-        if (mGraphicBuffer == nullptr) {
-            ALOGI("Attempting to queue a client composited buffer without one "
-                  "previously dequeued for display [%s]. Attempting to dequeue "
-                  "a scratch buffer now",
-                  mDisplayName.c_str());
-            // We shouldn't deadlock here, since mGraphicBuffer == nullptr only
-            // after a successful call to queueBuffer, or if dequeueBuffer has
-            // never been called.
-            dequeueBuffer();
-        }
-
-        if (mGraphicBuffer == nullptr) {
-            ALOGE("No buffer is ready for display [%s]", mDisplayName.c_str());
-        } else {
-            status_t res = mNativeWindow->queueBuffer(mNativeWindow.get(),
-                                                      mGraphicBuffer->getNativeBuffer(),
-                                                      dup(mBufferReady));
-            if (res != NO_ERROR) {
-                ALOGE("Error when queueing buffer for display [%s]: %d", mDisplayName.c_str(), res);
-                // We risk blocking on dequeueBuffer if the primary display failed
-                // to queue up its buffer, so crash here.
-                if (isPrimary()) {
-                    LOG_ALWAYS_FATAL("ANativeWindow::queueBuffer failed with error: %d", res);
-                } else {
-                    mNativeWindow->cancelBuffer(mNativeWindow.get(),
-                                                mGraphicBuffer->getNativeBuffer(),
-                                                dup(mBufferReady));
-                }
-            }
-
-            mBufferReady.reset();
-            mGraphicBuffer = nullptr;
-        }
-    }
-
-    status_t result = mDisplaySurface->advanceFrame();
-    if (result != NO_ERROR) {
-        ALOGE("[%s] failed pushing new frame to HWC: %d", mDisplayName.c_str(), result);
-    }
-}
-
-void DisplayDevice::onPresentDisplayCompleted() {
-    mDisplaySurface->onFrameCommitted();
-}
-
-void DisplayDevice::setViewportAndProjection() const {
-    size_t w = getWidth();
-    size_t h = getHeight();
-    Rect sourceCrop(0, 0, w, h);
-    mFlinger->getRenderEngine().setViewportAndProjection(w, h, sourceCrop, ui::Transform::ROT_0);
-}
-
-void DisplayDevice::finishBuffer() {
-    mBufferReady = mFlinger->getRenderEngine().flush();
-    if (mBufferReady.get() < 0) {
-        mFlinger->getRenderEngine().finish();
-    }
-}
-
-const sp<Fence>& DisplayDevice::getClientTargetAcquireFence() const {
-    return mDisplaySurface->getClientTargetAcquireFence();
+    return mCompositionDisplay->getRenderSurface()->getPageFlipCount();
 }
 
 // ----------------------------------------------------------------------------
@@ -524,11 +372,6 @@ int DisplayDevice::getActiveConfig()  const {
 
 // ----------------------------------------------------------------------------
 
-void DisplayDevice::setCompositionDataSpace(ui::Dataspace dataspace) {
-    ANativeWindow* const window = mNativeWindow.get();
-    native_window_set_buffers_data_space(window, static_cast<android_dataspace>(dataspace));
-}
-
 ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
     return mCompositionDisplay->getState().dataspace;
 }
@@ -566,8 +409,7 @@ status_t DisplayDevice::orientationToTransfrom(int orientation, int w, int h, ui
 }
 
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
-    mDisplaySurface->resizeBuffers(newWidth, newHeight);
-    mCompositionDisplay->setBounds(Rect(newWidth, newHeight));
+    mCompositionDisplay->setBounds(ui::Size(newWidth, newHeight));
 }
 
 void DisplayDevice::setProjection(int orientation,
@@ -665,26 +507,16 @@ std::string DisplayDevice::getDebugName() const {
 }
 
 void DisplayDevice::dump(std::string& result) const {
-    ANativeWindow* const window = mNativeWindow.get();
     StringAppendF(&result, "+ %s\n", getDebugName().c_str());
 
     result.append("   ");
-    StringAppendF(&result, "ANativeWindow=%p (format %d), ", window,
-                  ANativeWindow_getFormat(window));
-    StringAppendF(&result, "flips=%u, ", getPageFlipCount());
     StringAppendF(&result, "powerMode=%d, ", mPowerMode);
     StringAppendF(&result, "activeConfig=%d, ", mActiveConfig);
     StringAppendF(&result, "numLayers=%zu\n", mVisibleLayersSortedByZ.size());
+    StringAppendF(&result, "wideColorGamut=%d, ", mHasWideColorGamut);
+    StringAppendF(&result, "hdr10plus=%d\n", mHasHdr10Plus);
+    StringAppendF(&result, "hdr10=%d\n", mHasHdr10);
     getCompositionDisplay()->dump(result);
-    auto const surface = static_cast<Surface*>(window);
-    ui::Dataspace dataspace = surface->getBuffersDataSpace();
-    StringAppendF(&result, "   wideColorGamut=%d, hdr10plus =%d, hdr10=%d, dataspace: %s (%d)\n",
-                  mHasWideColorGamut, mHasHdr10Plus, mHasHdr10,
-                  dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
-
-    String8 surfaceDump;
-    mDisplaySurface->dumpAsString(surfaceDump);
-    result.append(surfaceDump.string(), surfaceDump.size());
 }
 
 // Map dataspace/intent to the best matched dataspace/colorMode/renderIntent

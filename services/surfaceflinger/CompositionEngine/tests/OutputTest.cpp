@@ -18,6 +18,7 @@
 
 #include <compositionengine/impl/Output.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
@@ -28,14 +29,19 @@
 namespace android::compositionengine {
 namespace {
 
+using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
 
 class OutputTest : public testing::Test {
 public:
+    OutputTest() {
+        mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+    }
     ~OutputTest() override = default;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
+    mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     impl::Output mOutput{mCompositionEngine};
 };
 
@@ -43,7 +49,17 @@ public:
  * Basic construction
  */
 
-TEST_F(OutputTest, canInstantiateOutput) {}
+TEST_F(OutputTest, canInstantiateOutput) {
+    // The validation check checks each required component.
+    EXPECT_CALL(*mRenderSurface, isValid()).WillOnce(Return(true));
+
+    EXPECT_TRUE(mOutput.isValid());
+
+    // If we take away the required components, it is no longer valid.
+    mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>());
+
+    EXPECT_FALSE(mOutput.isValid());
+}
 
 /* ------------------------------------------------------------------------
  * Output::setCompositionEnabled()
@@ -109,12 +125,16 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
  */
 
 TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
-    const Rect displaySize{100, 200};
+    const ui::Size displaySize{100, 200};
+
+    EXPECT_CALL(*mRenderSurface, setDisplaySize(displaySize)).Times(1);
+    EXPECT_CALL(*mRenderSurface, getSize()).WillOnce(ReturnRef(displaySize));
+
     mOutput.setBounds(displaySize);
 
-    EXPECT_EQ(displaySize, mOutput.getState().bounds);
+    EXPECT_EQ(Rect(displaySize), mOutput.getState().bounds);
 
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(displaySize)));
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(Rect(displaySize))));
 }
 
 /* ------------------------------------------------------------------------
@@ -159,12 +179,29 @@ TEST_F(OutputTest, setColorTransformSetsTransform) {
  */
 
 TEST_F(OutputTest, setColorModeSetsModeUnlessNoChange) {
+    EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::SRGB)).Times(1);
+
     mOutput.setColorMode(ui::ColorMode::BT2100_PQ, ui::Dataspace::SRGB,
                          ui::RenderIntent::TONE_MAP_COLORIMETRIC);
 
     EXPECT_EQ(ui::ColorMode::BT2100_PQ, mOutput.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::SRGB, mOutput.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput.getState().renderIntent);
+}
+
+/* ------------------------------------------------------------------------
+ * Output::setRenderSurface()
+ */
+
+TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
+    const ui::Size newDisplaySize{640, 480};
+
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    EXPECT_CALL(*renderSurface, getSize()).WillOnce(ReturnRef(newDisplaySize));
+
+    mOutput.setRenderSurface(std::unique_ptr<RenderSurface>(renderSurface));
+
+    EXPECT_EQ(Rect(newDisplaySize), mOutput.getState().bounds);
 }
 
 /* ------------------------------------------------------------------------

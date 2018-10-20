@@ -37,7 +37,7 @@ public:
     void setCompositionEnabled(bool) override;
     void setProjection(const ui::Transform&, int32_t orientation, const Rect& frame,
                        const Rect& viewport, const Rect& scissor, bool needsFiltering) override;
-    void setBounds(const Rect&) override;
+    void setBounds(const ui::Size&) override;
     void setLayerStackFilter(bool singleLayerStack, uint32_t singleLayerStackId) override;
 
     void setColorTransform(const mat4&) override;
@@ -48,11 +48,17 @@ public:
     const std::string& getName() const override;
     void setName(const std::string&) override;
 
+    compositionengine::RenderSurface* getRenderSurface() const override;
+    void setRenderSurface(std::unique_ptr<compositionengine::RenderSurface>) override;
+
     const OutputCompositionState& getState() const override;
     OutputCompositionState& editState() override;
 
     Region getPhysicalSpaceDirtyRegion(bool repaintEverything) const override;
     bool belongsInOutput(uint32_t) const override;
+
+    // Testing
+    void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
 
 protected:
     const CompositionEngine& getCompositionEngine() const;
@@ -66,6 +72,8 @@ private:
     std::string mName;
 
     OutputCompositionState mState;
+
+    std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;
 };
 
 } // namespace impl

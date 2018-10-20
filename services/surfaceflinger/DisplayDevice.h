@@ -82,10 +82,6 @@ public:
     // secure surfaces.
     bool isSecure() const;
 
-    // Flip the front and back buffers if the back buffer is "dirty".  Might
-    // be instantaneous, might involve copying the frame buffer around.
-    void flip() const;
-
     int         getWidth() const;
     int         getHeight() const;
     int         getInstallOrientation() const { return mDisplayInstallOrientation; }
@@ -116,11 +112,6 @@ public:
 
     int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
 
-    // We pass in mustRecompose so we can keep VirtualDisplaySurface's state
-    // machine happy without actually queueing a buffer if nothing has changed
-    status_t beginFrame(bool mustRecompose) const;
-    status_t prepareFrame(HWComposer& hwc, std::vector<CompositionInfo>& compositionInfo);
-
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
     // Whether h/w composer has native support for specific HDR type.
     bool hasHDR10PlusSupport() const { return mHasHdr10Plus; }
@@ -147,29 +138,11 @@ public:
                           ui::Dataspace* outDataspace, ui::ColorMode* outMode,
                           ui::RenderIntent* outIntent) const;
 
-    void setProtected(bool useProtected);
-    // Queues the drawn buffer for consumption by HWC.
-    void queueBuffer(HWComposer& hwc);
-    // Allocates a buffer as scratch space for GPU composition
-    sp<GraphicBuffer> dequeueBuffer();
-
-    // called after h/w composer has completed its set() call
-    void onPresentDisplayCompleted();
-
     const Rect& getBounds() const;
     const Rect& bounds() const { return getBounds(); }
 
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
-
-    // Acquires a new buffer for GPU composition.
-    void readyNewBuffer();
-    // Marks the current buffer has finished, so that it can be presented and
-    // swapped out.
-    void finishBuffer();
-    void setViewportAndProjection() const;
-
-    const sp<Fence>& getClientTargetAcquireFence() const;
 
     /* ------------------------------------------------------------------------
      * Display power mode management.
@@ -178,7 +151,6 @@ public:
     void setPowerMode(int mode);
     bool isPoweredOn() const;
 
-    void setCompositionDataSpace(ui::Dataspace dataspace);
     ui::Dataspace getCompositionDataSpace() const;
 
     /* ------------------------------------------------------------------------
@@ -208,18 +180,7 @@ private:
     const int mDisplayInstallOrientation;
     const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
-    // ANativeWindow this display is rendering into
-    sp<ANativeWindow> mNativeWindow;
-    // Current buffer that this display can render to.
-    sp<GraphicBuffer> mGraphicBuffer;
-    sp<compositionengine::DisplaySurface> mDisplaySurface;
-    // File descriptor indicating that mGraphicBuffer is ready for display, i.e.
-    // that drawing to the buffer is now complete.
-    base::unique_fd mBufferReady;
-
-    mutable uint32_t mPageFlipCount;
-    std::string     mDisplayName;
-
+    std::string mDisplayName;
     const bool mIsVirtual;
 
     /*

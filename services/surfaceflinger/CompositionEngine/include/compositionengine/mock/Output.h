@@ -17,6 +17,7 @@
 #pragma once
 
 #include <compositionengine/Output.h>
+#include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <gmock/gmock.h>
 
@@ -32,7 +33,7 @@ public:
     MOCK_METHOD1(setCompositionEnabled, void(bool));
     MOCK_METHOD6(setProjection,
                  void(const ui::Transform&, int32_t, const Rect&, const Rect&, const Rect&, bool));
-    MOCK_METHOD1(setBounds, void(const Rect&));
+    MOCK_METHOD1(setBounds, void(const ui::Size&));
     MOCK_METHOD2(setLayerStackFilter, void(bool, uint32_t));
 
     MOCK_METHOD1(setColorTransform, void(const mat4&));
@@ -41,6 +42,9 @@ public:
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(getName, const std::string&());
     MOCK_METHOD1(setName, void(const std::string&));
+
+    MOCK_CONST_METHOD0(getRenderSurface, RenderSurface*());
+    MOCK_METHOD1(setRenderSurface, void(std::unique_ptr<RenderSurface>));
 
     MOCK_CONST_METHOD0(getState, const OutputCompositionState&());
     MOCK_METHOD0(editState, OutputCompositionState&());

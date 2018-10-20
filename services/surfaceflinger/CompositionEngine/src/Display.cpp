@@ -17,8 +17,10 @@
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/DisplayCreationArgs.h>
+#include <compositionengine/DisplaySurface.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/impl/DumpHelpers.h>
+#include <compositionengine/impl/RenderSurface.h>
 
 #include "DisplayHardware/HWComposer.h"
 
@@ -105,6 +107,11 @@ void Display::dump(std::string& out) const {
     out.append("\n");
 
     Output::dumpBase(out);
+}
+
+void Display::createRenderSurface(RenderSurfaceCreationArgs&& args) {
+    setRenderSurface(compositionengine::impl::createRenderSurface(getCompositionEngine(), *this,
+                                                                  std::move(args)));
 }
 
 } // namespace android::compositionengine::impl

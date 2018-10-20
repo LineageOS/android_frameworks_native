@@ -17,15 +17,20 @@
 #include <cmath>
 
 #include <compositionengine/DisplayCreationArgs.h>
+#include <compositionengine/DisplaySurface.h>
+#include <compositionengine/RenderSurfaceCreationArgs.h>
 #include <compositionengine/impl/Display.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <compositionengine/mock/RenderSurface.h>
 #include <gtest/gtest.h>
+#include <system/window.h>
 
 #include "MockHWComposer.h"
 
 namespace android::compositionengine {
 namespace {
 
+using testing::Return;
 using testing::ReturnRef;
 using testing::StrictMock;
 
@@ -131,6 +136,9 @@ TEST_F(DisplayTest, setColorTransformSetsTransform) {
  */
 
 TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
+    mock::RenderSurface* renderSurface = new StrictMock<mock::RenderSurface>();
+    mDisplay.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(renderSurface));
+
     EXPECT_CALL(mCompositionEngine, getHwComposer()).WillRepeatedly(ReturnRef(mHwComposer));
 
     // These values are expected to be the initial state.
@@ -147,6 +155,7 @@ TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay.getState().renderIntent);
 
     // Otherwise if the values are different, updates happen
+    EXPECT_CALL(*renderSurface, setBufferDataspace(ui::Dataspace::SRGB)).Times(1);
     EXPECT_CALL(mHwComposer,
                 setActiveColorMode(DEFAULT_DISPLAY_ID, ui::ColorMode::BT2100_PQ,
                                    ui::RenderIntent::TONE_MAP_COLORIMETRIC))
@@ -170,6 +179,16 @@ TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
     EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay.getState().colorMode);
     EXPECT_EQ(ui::Dataspace::UNKNOWN, virtualDisplay.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, virtualDisplay.getState().renderIntent);
+}
+
+/* ------------------------------------------------------------------------
+ * Display::createRenderSurface()
+ */
+
+TEST_F(DisplayTest, createRenderSurfaceSetsRenderSurface) {
+    EXPECT_TRUE(mDisplay.getRenderSurface() == nullptr);
+    mDisplay.createRenderSurface(RenderSurfaceCreationArgs{640, 480, nullptr, nullptr});
+    EXPECT_TRUE(mDisplay.getRenderSurface() != nullptr);
 }
 
 } // namespace
