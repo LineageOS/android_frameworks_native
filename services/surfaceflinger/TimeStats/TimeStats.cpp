@@ -479,6 +479,54 @@ void TimeStats::setPowerMode(int32_t powerMode) {
     mPowerTime.powerMode = powerMode;
 }
 
+void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
+    ATRACE_CALL();
+
+    while (!mGlobalRecord.presentFences.empty()) {
+        const nsecs_t curPresentTime = mGlobalRecord.presentFences.front()->getSignalTime();
+        if (curPresentTime == Fence::SIGNAL_TIME_PENDING) break;
+
+        if (curPresentTime == Fence::SIGNAL_TIME_INVALID) {
+            ALOGE("GlobalPresentFence is invalid!");
+            mGlobalRecord.prevPresentTime = 0;
+            mGlobalRecord.presentFences.pop_front();
+            continue;
+        }
+
+        ALOGV("GlobalPresentFenceTime[%" PRId64 "]",
+              mGlobalRecord.presentFences.front()->getSignalTime());
+
+        const int32_t presentToPresentMs = msBetween(mGlobalRecord.prevPresentTime, curPresentTime);
+        ALOGV("Global present2present[%d]", presentToPresentMs);
+
+        mTimeStats.presentToPresent.insert(presentToPresentMs);
+        mGlobalRecord.prevPresentTime = curPresentTime;
+        mGlobalRecord.presentFences.pop_front();
+    }
+}
+
+void TimeStats::setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (presentFence == nullptr) {
+        mGlobalRecord.prevPresentTime = 0;
+        return;
+    }
+
+    if (mGlobalRecord.presentFences.size() == MAX_NUM_TIME_RECORDS) {
+        // The front presentFence must be trapped in pending status in this
+        // case. Try dequeuing the front one to recover.
+        ALOGE("GlobalPresentFences is already at its maximum size[%zu]", MAX_NUM_TIME_RECORDS);
+        mGlobalRecord.prevPresentTime = 0;
+        mGlobalRecord.presentFences.pop_front();
+    }
+
+    mGlobalRecord.presentFences.emplace_back(presentFence);
+    flushAvailableGlobalRecordsToStatsLocked();
+}
+
 void TimeStats::enable() {
     if (mEnabled.load()) return;
 
@@ -514,6 +562,7 @@ void TimeStats::clear() {
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
     mTimeStats.displayOnTime = 0;
+    mTimeStats.presentToPresent.hist.clear();
     mPowerTime.prevTime = systemTime();
 }
 

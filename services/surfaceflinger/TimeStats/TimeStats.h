@@ -73,6 +73,11 @@ class TimeStats {
         nsecs_t prevTime = 0;
     };
 
+    struct GlobalRecord {
+        nsecs_t prevPresentTime = 0;
+        std::deque<std::shared_ptr<FenceTime>> presentFences;
+    };
+
 public:
     static TimeStats& getInstance();
     void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, String8& result);
@@ -99,6 +104,7 @@ public:
     void removeTimeRecord(const std::string& layerName, uint64_t frameNumber);
 
     void setPowerMode(int32_t powerMode);
+    void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence);
 
 private:
     TimeStats() = default;
@@ -106,6 +112,7 @@ private:
     bool recordReadyLocked(const std::string& layerName, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(const std::string& layerName);
     void flushPowerTimeLocked();
+    void flushAvailableGlobalRecordsToStatsLocked();
 
     void enable();
     void disable();
@@ -118,6 +125,7 @@ private:
     TimeStatsHelper::TimeStatsGlobal mTimeStats;
     std::unordered_map<std::string, LayerRecord> mTimeStatsTracker;
     PowerTime mPowerTime;
+    GlobalRecord mGlobalRecord;
 };
 
 } // namespace android

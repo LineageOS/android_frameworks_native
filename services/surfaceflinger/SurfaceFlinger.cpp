@@ -1909,6 +1909,8 @@ void SurfaceFlinger::postComposition()
         mTimeStats.incrementClientCompositionFrames();
     }
 
+    mTimeStats.setPresentFenceGlobal(presentFenceTime);
+
     if (display && getHwComposer().isConnected(display->getId()) &&
         display->getPowerMode() == HWC_POWER_MODE_OFF) {
         return;

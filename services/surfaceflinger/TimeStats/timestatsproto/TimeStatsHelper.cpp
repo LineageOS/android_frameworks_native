@@ -93,6 +93,8 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "missedFrames = %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
     StringAppendF(&result, "displayOnTime = %lld ms\n", static_cast<long long int>(displayOnTime));
+    StringAppendF(&result, "presentToPresent histogram is as below:\n");
+    result.append(presentToPresent.toString());
     const auto dumpStats = generateDumpStats(maxLayers);
     for (const auto& ele : dumpStats) {
         result.append(ele->toString());
@@ -128,6 +130,11 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
     globalProto.set_missed_frames(missedFrames);
     globalProto.set_client_composition_frames(clientCompositionFrames);
     globalProto.set_display_on_time(displayOnTime);
+    for (const auto& histEle : presentToPresent.hist) {
+        SFTimeStatsHistogramBucketProto* histProto = globalProto.add_present_to_present();
+        histProto->set_time_millis(histEle.first);
+        histProto->set_frame_count(histEle.second);
+    }
     const auto dumpStats = generateDumpStats(maxLayers);
     for (const auto& ele : dumpStats) {
         SFTimeStatsLayerProto* layerProto = globalProto.add_stats();
