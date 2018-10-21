@@ -16,6 +16,24 @@
       "revId": "36bd16ae778603da6218fc2142cf733acbf8ba91",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "e533efd3_0b865b76",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 444,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2018-10-21T16:51:13Z",
+      "side": 1,
+      "message": "Nvm, the hal now doesn\u0027t return success when it\u0027s called to check SkipValidate even if supported :/",
+      "parentUuid": "478436be_be774856",
+      "revId": "36bd16ae778603da6218fc2142cf733acbf8ba91",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
