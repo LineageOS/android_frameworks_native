@@ -1,0 +1,21 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "478436be_be774856",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 444,
+      "author": {
+        "id": 11883
+      },
+      "writtenOn": "2018-10-21T16:49:31Z",
+      "side": 1,
+      "message": "hasCapability(HWC2::Capability::SkipValidate)\nWouldn\u0027t this also work? The only difference is that PresentOrValidateResult is set to 0 when presentOrValidate is called when SkipValidate isn\u0027t supported, but I don\u0027t think it\u0027s any different then running validate directly",
+      "revId": "36bd16ae778603da6218fc2142cf733acbf8ba91",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
