@@ -974,7 +974,7 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
             if (chmod(p->fts_path, target_mode) != 0) {
                 PLOG(WARNING) << "Failed to chmod " << p->fts_path;
             }
-            // Intentional fall through to also set GID
+            [[fallthrough]]; // to also set GID
         case FTS_F:
             if (chown(p->fts_path, -1, gid) != 0) {
                 PLOG(WARNING) << "Failed to chown " << p->fts_path;

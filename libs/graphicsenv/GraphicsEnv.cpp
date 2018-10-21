@@ -68,7 +68,9 @@ void GraphicsEnv::setDriverPath(const std::string path) {
 }
 
 void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName,
-                               const std::string appPref, bool developerOptIn) {
+                               const std::string appPref, bool developerOptIn,
+                               const int rulesFd, const long rulesOffset,
+                               const long rulesLength) {
     if (!mAnglePath.empty()) {
         ALOGV("ignoring attempt to change ANGLE path from '%s' to '%s'", mAnglePath.c_str(),
               path.c_str());
@@ -94,6 +96,13 @@ void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName
     }
 
     mAngleDeveloperOptIn = developerOptIn;
+
+    ALOGV("setting ANGLE rules file descriptor to '%i'", rulesFd);
+    mAngleRulesFd = rulesFd;
+    ALOGV("setting ANGLE rules offset to '%li'", rulesOffset);
+    mAngleRulesOffset = rulesOffset;
+    ALOGV("setting ANGLE rules length to '%li'", rulesLength);
+    mAngleRulesLength = rulesLength;
 }
 
 void GraphicsEnv::setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths) {
@@ -122,6 +131,18 @@ bool GraphicsEnv::getAngleDeveloperOptIn() {
 const char* GraphicsEnv::getAngleAppPref() {
     if (mAngleAppPref.empty()) return nullptr;
     return mAngleAppPref.c_str();
+}
+
+int GraphicsEnv::getAngleRulesFd() {
+    return mAngleRulesFd;
+}
+
+long GraphicsEnv::getAngleRulesOffset() {
+    return mAngleRulesOffset;
+}
+
+long GraphicsEnv::getAngleRulesLength() {
+    return mAngleRulesLength;
 }
 
 const std::string GraphicsEnv::getLayerPaths(){
@@ -191,6 +212,15 @@ bool android_getAngleDeveloperOptIn() {
 }
 const char* android_getAngleAppPref() {
     return android::GraphicsEnv::getInstance().getAngleAppPref();
+}
+int android_getAngleRulesFd() {
+   return android::GraphicsEnv::getInstance().getAngleRulesFd();
+}
+long android_getAngleRulesOffset() {
+   return android::GraphicsEnv::getInstance().getAngleRulesOffset();
+}
+long android_getAngleRulesLength() {
+   return android::GraphicsEnv::getInstance().getAngleRulesLength();
 }
 const char* android_getLayerPaths() {
     return android::GraphicsEnv::getInstance().getLayerPaths().c_str();

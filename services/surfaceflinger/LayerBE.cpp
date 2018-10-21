@@ -65,9 +65,7 @@ LayerBE::LayerBE(const LayerBE& layer)
 }
 
 void LayerBE::onLayerDisplayed(const sp<Fence>& releaseFence) {
-    if (mLayer) {
-        mLayer->onLayerDisplayed(releaseFence);
-    }
+    mLayer->onLayerDisplayed(releaseFence);
 }
 
 void LayerBE::clear(renderengine::RenderEngine& engine) {

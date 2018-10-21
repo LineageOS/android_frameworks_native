@@ -93,6 +93,7 @@ rm src/*.class
 pushd out > /dev/null
 mkdir classes
 javac -d classes    android/opengl/EGL14.java \
+                    android/opengl/EGL15.java \
                     android/opengl/EGLExt.java \
                     com/google/android/gles_jni/GLImpl.java \
                     javax/microedition/khronos/opengles/GL10.java \
@@ -155,13 +156,13 @@ do
     compareGenerated ../../../../base/opengl/java/javax/microedition/khronos/opengles generated/javax/microedition/khronos/opengles $x
 done
 
-for x in EGL14 EGLExt GLES10 GLES10Ext GLES11 GLES11Ext GLES20 GLES30 GLES31 GLES31Ext GLES32
+for x in EGL14 EGL15 EGLExt GLES10 GLES10Ext GLES11 GLES11Ext GLES20 GLES30 GLES31 GLES31Ext GLES32
 do
     compareGenerated ../../../../base/opengl/java/android/opengl generated/android/opengl ${x}.java
     compareGenerated ../../../../base/core/jni generated/C android_opengl_${x}.cpp
 done
 
-for x in EGLConfig EGLContext EGLDisplay EGLObjectHandle EGLSurface
+for x in EGLConfig EGLContext EGLDisplay EGLObjectHandle EGLSurface EGLImage EGLSync
 do
     compareGenerated ../../../../base/opengl/java/android/opengl generated/android/opengl ${x}.java
 done

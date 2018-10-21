@@ -49,6 +49,7 @@ bool findExtension(const char* exts, const char* name, size_t nameLen = 0);
 class EGLAPI egl_display_t { // marked as EGLAPI for testing purposes
     static egl_display_t sDisplay[NUM_DISPLAYS];
     EGLDisplay getDisplay(EGLNativeDisplayType display);
+    EGLDisplay getPlatformDisplay(EGLNativeDisplayType display, const EGLAttrib* attrib_list);
     void loseCurrentImpl(egl_context_t * cur_c);
 
 public:
@@ -72,7 +73,7 @@ public:
     bool getObject(egl_object_t* object) const;
 
     static egl_display_t* get(EGLDisplay dpy);
-    static EGLDisplay getFromNativeDisplay(EGLNativeDisplayType disp);
+    static EGLDisplay getFromNativeDisplay(EGLNativeDisplayType disp, const EGLAttrib* attrib_list);
 
     EGLBoolean makeCurrent(egl_context_t* c, egl_context_t* cur_c,
             EGLSurface draw, EGLSurface read, EGLContext ctx,

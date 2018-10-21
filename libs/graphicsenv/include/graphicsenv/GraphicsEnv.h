@@ -45,11 +45,15 @@ public:
     // in the search path must have a '!' after the zip filename, e.g.
     //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
     void setAngleInfo(const std::string path, const std::string appName, const std::string appPref,
-                      bool devOptIn);
+                      bool devOptIn, const int rulesFd, const long rulesOffset,
+                      const long rulesLength);
     android_namespace_t* getAngleNamespace();
     const char* getAngleAppName();
     const char* getAngleAppPref();
     bool getAngleDeveloperOptIn();
+    int getAngleRulesFd();
+    long getAngleRulesOffset();
+    long getAngleRulesLength();
 
     void setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths);
     NativeLoaderNamespace* getAppNamespace();
@@ -66,6 +70,9 @@ private:
     std::string mAngleAppName;
     std::string mAngleAppPref;
     bool mAngleDeveloperOptIn;
+    int mAngleRulesFd;
+    long mAngleRulesOffset;
+    long mAngleRulesLength;
     std::string mDebugLayers;
     std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
@@ -92,6 +99,9 @@ extern "C" {
     const char* android_getAngleAppName();
     const char* android_getAngleAppPref();
     bool android_getAngleDeveloperOptIn();
+    int android_getAngleRulesFd();
+    long android_getAngleRulesOffset();
+    long android_getAngleRulesLength();
     const char* android_getLayerPaths();
     const char* android_getDebugLayers();
 }

@@ -44,6 +44,18 @@ EGL_ENTRY(EGLSurface, eglCreatePbufferFromClientBuffer, EGLDisplay, EGLenum, EGL
 
 /* EGL 1.4 */
 
+/* EGL 1.5 */
+EGL_ENTRY(EGLImage, eglCreateImage, EGLDisplay, EGLContext, EGLenum, EGLClientBuffer, const EGLAttrib *)
+EGL_ENTRY(EGLBoolean, eglDestroyImage, EGLDisplay, EGLImage)
+EGL_ENTRY(EGLDisplay, eglGetPlatformDisplay, EGLenum, void *, const EGLAttrib *)
+EGL_ENTRY(EGLSurface, eglCreatePlatformWindowSurface, EGLDisplay, EGLConfig, void *, const EGLAttrib *)
+EGL_ENTRY(EGLSurface, eglCreatePlatformPixmapSurface, EGLDisplay, EGLConfig, void *, const EGLAttrib *)
+EGL_ENTRY(EGLSyncKHR, eglCreateSync, EGLDisplay, EGLenum, const EGLAttrib *)
+EGL_ENTRY(EGLBoolean, eglDestroySync, EGLDisplay, EGLSync)
+EGL_ENTRY(EGLint, eglClientWaitSync, EGLDisplay, EGLSync, EGLint, EGLTimeKHR)
+EGL_ENTRY(EGLBoolean, eglGetSyncAttrib, EGLDisplay, EGLSync, EGLint, EGLAttrib *)
+EGL_ENTRY(EGLBoolean, eglWaitSync, EGLDisplay, EGLSync, EGLint)
+
 /* EGL_EGLEXT_VERSION 3 */
 
 EGL_ENTRY(EGLBoolean,  eglLockSurfaceKHR,   EGLDisplay, EGLSurface, const EGLint *)
@@ -74,6 +86,10 @@ EGL_ENTRY(EGLBoolean,   eglQueryStreamTimeKHR,  EGLDisplay, EGLStreamKHR, EGLenu
 EGL_ENTRY(EGLNativeFileDescriptorKHR,   eglGetStreamFileDescriptorKHR,          EGLDisplay, EGLStreamKHR)
 EGL_ENTRY(EGLStreamKHR, eglCreateStreamFromFileDescriptorKHR,   EGLDisplay, EGLNativeFileDescriptorKHR)
 EGL_ENTRY(EGLint,       eglWaitSyncKHR,         EGLDisplay, EGLSyncKHR, EGLint)
+
+/* EGL_EGLEXT_VERSION 20170627 */
+EGL_ENTRY(EGLSurface, eglCreatePlatformWindowSurfaceEXT, EGLDisplay, EGLConfig, void *, const EGLint *)
+EGL_ENTRY(EGLSurface, eglCreatePlatformPixmapSurfaceEXT, EGLDisplay, EGLConfig, void *, const EGLint *)
 
 /* ANDROID extensions */
 

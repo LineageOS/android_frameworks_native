@@ -121,7 +121,6 @@ cc_binary {
         "kill",
         "librank",
         "logcat",
-        "logcompressor",
         "lsmod",
         "lsof",
         "netstat",

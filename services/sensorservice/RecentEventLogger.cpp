@@ -32,17 +32,24 @@ namespace {
 
 RecentEventLogger::RecentEventLogger(int sensorType) :
         mSensorType(sensorType), mEventSize(eventSizeBySensorType(mSensorType)),
-        mRecentEvents(logSizeBySensorType(sensorType)), mMaskData(false) {
+        mRecentEvents(logSizeBySensorType(sensorType)), mMaskData(false),
+        mIsLastEventCurrent(false) {
     // blank
 }
 
 void RecentEventLogger::addEvent(const sensors_event_t& event) {
     std::lock_guard<std::mutex> lk(mLock);
     mRecentEvents.emplace(event);
+    mIsLastEventCurrent = true;
 }
 
 bool RecentEventLogger::isEmpty() const {
     return mRecentEvents.size() == 0;
+}
+
+void RecentEventLogger::setLastEventStale() {
+    std::lock_guard<std::mutex> lk(mLock);
+    mIsLastEventCurrent = false;
 }
 
 std::string RecentEventLogger::dump() const {
@@ -85,10 +92,10 @@ void RecentEventLogger::setFormat(std::string format) {
     }
 }
 
-bool RecentEventLogger::populateLastEvent(sensors_event_t *event) const {
+bool RecentEventLogger::populateLastEventIfCurrent(sensors_event_t *event) const {
     std::lock_guard<std::mutex> lk(mLock);
 
-    if (mRecentEvents.size()) {
+    if (mIsLastEventCurrent && mRecentEvents.size()) {
         // Index 0 contains the latest event emplace()'ed
         *event = mRecentEvents[0].mEvent;
         return true;

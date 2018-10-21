@@ -135,6 +135,11 @@ char const * const gExtensionString  =
         "EGL_IMG_context_priority "
         "EGL_KHR_no_config_context "
         ;
+
+char const * const gClientExtensionString =
+        "EGL_EXT_client_extensions "
+        "EGL_KHR_platform_android "
+        "EGL_ANGLE_platform_angle";
 // clang-format on
 
 // extensions not exposed to applications but used by the ANDROID system
@@ -279,15 +284,29 @@ static inline EGLContext getContext() { return egl_tls_t::getContext(); }
 
 // ----------------------------------------------------------------------------
 
-EGLDisplay eglGetDisplayImpl(EGLNativeDisplayType display)
-{
+static EGLDisplay eglGetPlatformDisplayTmpl(EGLenum platform, EGLNativeDisplayType display,
+                                            const EGLAttrib* attrib_list) {
+    if (platform != EGL_PLATFORM_ANDROID_KHR) {
+        return setError(EGL_BAD_PARAMETER, EGL_NO_DISPLAY);
+    }
+
     uintptr_t index = reinterpret_cast<uintptr_t>(display);
     if (index >= NUM_DISPLAYS) {
         return setError(EGL_BAD_PARAMETER, EGL_NO_DISPLAY);
     }
 
-    EGLDisplay dpy = egl_display_t::getFromNativeDisplay(display);
+    EGLDisplay dpy = egl_display_t::getFromNativeDisplay(display, attrib_list);
     return dpy;
+}
+
+EGLDisplay eglGetDisplayImpl(EGLNativeDisplayType display) {
+    return eglGetPlatformDisplayTmpl(EGL_PLATFORM_ANDROID_KHR, display, nullptr);
+}
+
+EGLDisplay eglGetPlatformDisplayImpl(EGLenum platform, void* native_display,
+                                     const EGLAttrib* attrib_list) {
+    return eglGetPlatformDisplayTmpl(platform, static_cast<EGLNativeDisplayType>(native_display),
+                                     attrib_list);
 }
 
 // ----------------------------------------------------------------------------
@@ -526,22 +545,22 @@ static std::vector<EGLint> getDriverColorSpaces(egl_display_ptr dp,
 // Cleans up color space related parameters that the driver does not understand.
 // If there is no color space attribute in attrib_list, colorSpace is left
 // unmodified.
-static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
-                                    android_pixel_format format, const EGLint* attrib_list,
-                                    EGLint* colorSpace,
-                                    std::vector<EGLint>* strippedAttribList) {
-    for (const EGLint* attr = attrib_list; attr && attr[0] != EGL_NONE; attr += 2) {
+template <typename AttrType>
+static EGLBoolean processAttributes(egl_display_ptr dp, ANativeWindow* window,
+                                    android_pixel_format format, const AttrType* attrib_list,
+                                    EGLint* colorSpace, std::vector<AttrType>* strippedAttribList) {
+    for (const AttrType* attr = attrib_list; attr && attr[0] != EGL_NONE; attr += 2) {
         bool copyAttribute = true;
         if (attr[0] == EGL_GL_COLORSPACE_KHR) {
             // Fail immediately if the driver doesn't have color space support at all.
             if (!dp->hasColorSpaceSupport) return false;
-            *colorSpace = attr[1];
+            *colorSpace = static_cast<EGLint>(attr[1]);
 
             // Strip the attribute if the driver doesn't understand it.
             copyAttribute = false;
             std::vector<EGLint> driverColorSpaces = getDriverColorSpaces(dp, format);
             for (auto driverColorSpace : driverColorSpaces) {
-                if (attr[1] == driverColorSpace) {
+                if (static_cast<EGLint>(attr[1]) == driverColorSpace) {
                     copyAttribute = true;
                     break;
                 }
@@ -596,6 +615,16 @@ static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
         }
     }
     return true;
+}
+
+// Note: This only works for existing GLenum's that are all 32bits.
+// If you have 64bit attributes (e.g. pointers) you shouldn't be calling this.
+void convertAttribs(const EGLAttrib* attribList, std::vector<EGLint>& newList) {
+    for (const EGLAttrib* attr = attribList; attr && attr[0] != EGL_NONE; attr += 2) {
+        newList.push_back(static_cast<EGLint>(attr[0]));
+        newList.push_back(static_cast<EGLint>(attr[1]));
+    }
+    newList.push_back(EGL_NONE);
 }
 
 // Gets the native pixel format corrsponding to the passed EGLConfig.
@@ -685,124 +714,161 @@ EGLBoolean sendSurfaceMetadata(egl_surface_t* s) {
     return EGL_TRUE;
 }
 
-EGLSurface eglCreateWindowSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
-                                        NativeWindowType window,
-                                        const EGLint *attrib_list)
-{
-    const EGLint *origAttribList = attrib_list;
+template <typename AttrType, typename CreateFuncType>
+EGLSurface eglCreateWindowSurfaceTmpl(egl_display_ptr dp, egl_connection_t* cnx, EGLConfig config,
+                                      ANativeWindow* window, const AttrType* attrib_list,
+                                      CreateFuncType createWindowSurfaceFunc) {
+    const AttrType* origAttribList = attrib_list;
 
-    egl_connection_t* cnx = nullptr;
-    egl_display_ptr dp = validate_display_connection(dpy, cnx);
-    if (dp) {
-        if (!window) {
+    if (!window) {
+        return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+    }
+
+    int value = 0;
+    window->query(window, NATIVE_WINDOW_IS_VALID, &value);
+    if (!value) {
+        return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
+    }
+
+    // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
+    // native_window_* calls, so don't do them here.
+    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
+        if (result < 0) {
+            ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
+                  "failed (%#x) (already connected to another API?)",
+                  window, result);
+            return setError(EGL_BAD_ALLOC, EGL_NO_SURFACE);
+        }
+    }
+
+    EGLDisplay iDpy = dp->disp.dpy;
+    android_pixel_format format;
+    getNativePixelFormat(iDpy, cnx, config, &format);
+
+    // now select correct colorspace and dataspace based on user's attribute list
+    EGLint colorSpace = EGL_UNKNOWN;
+    std::vector<AttrType> strippedAttribList;
+    if (!processAttributes<AttrType>(dp, window, format, attrib_list, &colorSpace,
+                                     &strippedAttribList)) {
+        ALOGE("error invalid colorspace: %d", colorSpace);
+        return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
+    }
+    attrib_list = strippedAttribList.data();
+
+    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        int err = native_window_set_buffers_format(window, format);
+        if (err != 0) {
+            ALOGE("error setting native window pixel format: %s (%d)", strerror(-err), err);
+            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
             return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
         }
 
-        int value = 0;
-        window->query(window, NATIVE_WINDOW_IS_VALID, &value);
-        if (!value) {
-            return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-        }
-
-        // NOTE: When using Vulkan backend, the Vulkan runtime makes all the
-        // native_window_* calls, so don't do them here.
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
-            int result = native_window_api_connect(window, NATIVE_WINDOW_API_EGL);
-            if (result < 0) {
-                ALOGE("eglCreateWindowSurface: native_window_api_connect (win=%p) "
-                      "failed (%#x) (already connected to another API?)",
-                      window, result);
-                return setError(EGL_BAD_ALLOC, EGL_NO_SURFACE);
-            }
-        }
-
-        EGLDisplay iDpy = dp->disp.dpy;
-        android_pixel_format format;
-        getNativePixelFormat(iDpy, cnx, config, &format);
-
-        // now select correct colorspace and dataspace based on user's attribute list
-        EGLint colorSpace = EGL_UNKNOWN;
-        std::vector<EGLint> strippedAttribList;
-        if (!processAttributes(dp, window, format, attrib_list, &colorSpace,
-                               &strippedAttribList)) {
-            ALOGE("error invalid colorspace: %d", colorSpace);
-            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-        }
-        attrib_list = strippedAttribList.data();
-
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
-            int err = native_window_set_buffers_format(window, format);
+        android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
+        if (dataSpace != HAL_DATASPACE_UNKNOWN) {
+            err = native_window_set_buffers_data_space(window, dataSpace);
             if (err != 0) {
-                ALOGE("error setting native window pixel format: %s (%d)",
-                      strerror(-err), err);
+                ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err), err);
                 native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
                 return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
             }
+        }
+    }
 
-            android_dataspace dataSpace = dataSpaceFromEGLColorSpace(colorSpace);
-            if (dataSpace != HAL_DATASPACE_UNKNOWN) {
-                err = native_window_set_buffers_data_space(window, dataSpace);
-                if (err != 0) {
-                    ALOGE("error setting native window pixel dataSpace: %s (%d)", strerror(-err),
-                          err);
-                    native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
-                    return setError(EGL_BAD_NATIVE_WINDOW, EGL_NO_SURFACE);
-                }
+    // the EGL spec requires that a new EGLSurface default to swap interval
+    // 1, so explicitly set that on the window here.
+    window->setSwapInterval(window, 1);
+
+    EGLSurface surface = createWindowSurfaceFunc(iDpy, config, window, attrib_list);
+    if (surface != EGL_NO_SURFACE) {
+        egl_surface_t* s = new egl_surface_t(dp.get(), config, window, surface,
+                                             getReportedColorSpace(colorSpace), cnx);
+        return s;
+    }
+
+    // EGLSurface creation failed
+    if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
+        native_window_set_buffers_format(window, 0);
+        native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+    }
+    return EGL_NO_SURFACE;
+}
+
+typedef EGLSurface(EGLAPIENTRYP PFNEGLCREATEWINDOWSURFACEPROC)(EGLDisplay dpy, EGLConfig config,
+                                                               NativeWindowType window,
+                                                               const EGLint* attrib_list);
+typedef EGLSurface(EGLAPIENTRYP PFNEGLCREATEPLATFORMWINDOWSURFACEPROC)(
+        EGLDisplay dpy, EGLConfig config, void* native_window, const EGLAttrib* attrib_list);
+
+EGLSurface eglCreateWindowSurfaceImpl(EGLDisplay dpy, EGLConfig config, NativeWindowType window,
+                                      const EGLint* attrib_list) {
+    egl_connection_t* cnx = NULL;
+    egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    if (dp) {
+        return eglCreateWindowSurfaceTmpl<
+                EGLint, PFNEGLCREATEWINDOWSURFACEPROC>(dp, cnx, config, window, attrib_list,
+                                                       cnx->egl.eglCreateWindowSurface);
+    }
+    return EGL_NO_SURFACE;
+}
+
+EGLSurface eglCreatePlatformWindowSurfaceImpl(EGLDisplay dpy, EGLConfig config, void* native_window,
+                                              const EGLAttrib* attrib_list) {
+    egl_connection_t* cnx = NULL;
+    egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    if (dp) {
+        if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+            if (cnx->egl.eglCreatePlatformWindowSurface) {
+                return eglCreateWindowSurfaceTmpl<EGLAttrib, PFNEGLCREATEPLATFORMWINDOWSURFACEPROC>(
+                        dp, cnx, config, static_cast<ANativeWindow*>(native_window), attrib_list,
+                        cnx->egl.eglCreatePlatformWindowSurface);
             }
+            // driver doesn't support native function, return EGL_BAD_DISPLAY
+            ALOGE("Driver indicates EGL 1.5 support, but does not have "
+                  "eglCreatePlatformWindowSurface");
+            return setError(EGL_BAD_DISPLAY, EGL_NO_SURFACE);
         }
 
-        // the EGL spec requires that a new EGLSurface default to swap interval
-        // 1, so explicitly set that on the window here.
-        ANativeWindow* anw = reinterpret_cast<ANativeWindow*>(window);
-        anw->setSwapInterval(anw, 1);
-
-        EGLSurface surface = cnx->egl.eglCreateWindowSurface(
-                iDpy, config, window, attrib_list);
-        if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, window, surface,
-                                      getReportedColorSpace(colorSpace), cnx);
-            return s;
-        }
-
-        // EGLSurface creation failed
-        if (cnx->angleBackend != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) {
-            native_window_set_buffers_format(window, 0);
-            native_window_api_disconnect(window, NATIVE_WINDOW_API_EGL);
+        std::vector<EGLint> convertedAttribs;
+        convertAttribs(attrib_list, convertedAttribs);
+        if (cnx->egl.eglCreatePlatformWindowSurfaceEXT) {
+            return eglCreateWindowSurfaceTmpl<EGLint, PFNEGLCREATEPLATFORMWINDOWSURFACEEXTPROC>(
+                    dp, cnx, config, static_cast<ANativeWindow*>(native_window),
+                    convertedAttribs.data(), cnx->egl.eglCreatePlatformWindowSurfaceEXT);
+        } else {
+            return eglCreateWindowSurfaceTmpl<
+                    EGLint, PFNEGLCREATEWINDOWSURFACEPROC>(dp, cnx, config,
+                                                           static_cast<ANativeWindow*>(
+                                                                   native_window),
+                                                           convertedAttribs.data(),
+                                                           cnx->egl.eglCreateWindowSurface);
         }
     }
     return EGL_NO_SURFACE;
 }
 
-EGLSurface eglCreatePixmapSurfaceImpl(  EGLDisplay dpy, EGLConfig config,
-                                        NativePixmapType pixmap,
-                                        const EGLint *attrib_list)
-{
+EGLSurface eglCreatePlatformPixmapSurfaceImpl(EGLDisplay dpy, EGLConfig /*config*/,
+                                              void* /*native_pixmap*/,
+                                              const EGLAttrib* /*attrib_list*/) {
+    // Per EGL_KHR_platform_android:
+    // It is not valid to call eglCreatePlatformPixmapSurface with a <dpy> that
+    // belongs to the Android platform. Any such call fails and generates
+    // an EGL_BAD_PARAMETER error.
+
+    egl_connection_t* cnx = NULL;
+    egl_display_ptr dp = validate_display_connection(dpy, cnx);
+    if (dp) {
+        return setError(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
+    }
+    return EGL_NO_SURFACE;
+}
+
+EGLSurface eglCreatePixmapSurfaceImpl(EGLDisplay dpy, EGLConfig /*config*/,
+                                      NativePixmapType /*pixmap*/, const EGLint* /*attrib_list*/) {
     egl_connection_t* cnx = nullptr;
     egl_display_ptr dp = validate_display_connection(dpy, cnx);
     if (dp) {
-        EGLDisplay iDpy = dp->disp.dpy;
-        android_pixel_format format;
-        getNativePixelFormat(iDpy, cnx, config, &format);
-
-        // now select a corresponding sRGB format if needed
-        EGLint colorSpace = EGL_UNKNOWN;
-        std::vector<EGLint> strippedAttribList;
-        if (!processAttributes(dp, nullptr, format, attrib_list, &colorSpace,
-                               &strippedAttribList)) {
-            ALOGE("error invalid colorspace: %d", colorSpace);
-            return setError(EGL_BAD_ATTRIBUTE, EGL_NO_SURFACE);
-        }
-        attrib_list = strippedAttribList.data();
-
-        EGLSurface surface = cnx->egl.eglCreatePixmapSurface(
-                dp->disp.dpy, config, pixmap, attrib_list);
-        if (surface != EGL_NO_SURFACE) {
-            egl_surface_t* s =
-                    new egl_surface_t(dp.get(), config, nullptr, surface,
-                                      getReportedColorSpace(colorSpace), cnx);
-            return s;
-        }
+        return setError(EGL_BAD_PARAMETER, EGL_NO_SURFACE);
     }
     return EGL_NO_SURFACE;
 }
@@ -1392,15 +1458,10 @@ EGLBoolean eglCopyBuffersImpl(  EGLDisplay dpy, EGLSurface surface,
 
 const char* eglQueryStringImpl(EGLDisplay dpy, EGLint name)
 {
-    // Generate an error quietly when client extensions (as defined by
-    // EGL_EXT_client_extensions) are queried.  We do not want to rely on
-    // validate_display to generate the error as validate_display would log
-    // the error, which can be misleading.
-    //
-    // If we want to support EGL_EXT_client_extensions later, we can return
-    // the client extension string here instead.
-    if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS)
-        return setErrorQuiet(EGL_BAD_DISPLAY, (const char*)nullptr);
+    if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS) {
+        // Return list of client extensions
+        return gClientExtensionString;
+    }
 
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return (const char *) nullptr;
@@ -1641,68 +1702,163 @@ EGLBoolean eglUnlockSurfaceKHRImpl(EGLDisplay dpy, EGLSurface surface)
     return setError(EGL_BAD_DISPLAY, (EGLBoolean)EGL_FALSE);
 }
 
-EGLImageKHR eglCreateImageKHRImpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
-        EGLClientBuffer buffer, const EGLint *attrib_list)
-{
+// Note: EGLImageKHR and EGLImage are the same thing so no need
+// to templatize that.
+template <typename AttrType, typename FuncType>
+EGLImageKHR eglCreateImageTmpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                               EGLClientBuffer buffer, const AttrType* attrib_list,
+                               FuncType eglCreateImageFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_NO_IMAGE_KHR;
 
     ContextRef _c(dp.get(), ctx);
-    egl_context_t * const c = _c.get();
+    egl_context_t* const c = _c.get();
 
     EGLImageKHR result = EGL_NO_IMAGE_KHR;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglCreateImageKHR) {
-        result = cnx->egl.eglCreateImageKHR(
-                dp->disp.dpy,
-                c ? c->context : EGL_NO_CONTEXT,
-                target, buffer, attrib_list);
+    if (cnx->dso && eglCreateImageFunc) {
+        result = eglCreateImageFunc(dp->disp.dpy, c ? c->context : EGL_NO_CONTEXT, target, buffer,
+                                    attrib_list);
     }
     return result;
 }
 
-EGLBoolean eglDestroyImageKHRImpl(EGLDisplay dpy, EGLImageKHR img)
-{
+typedef EGLImage(EGLAPIENTRYP PFNEGLCREATEIMAGE)(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                                                 EGLClientBuffer buffer,
+                                                 const EGLAttrib* attrib_list);
+
+EGLImageKHR eglCreateImageKHRImpl(EGLDisplay dpy, EGLContext ctx, EGLenum target,
+                                  EGLClientBuffer buffer, const EGLint* attrib_list) {
+    return eglCreateImageTmpl<EGLint, PFNEGLCREATEIMAGEKHRPROC>(dpy, ctx, target, buffer,
+                                                                attrib_list,
+                                                                gEGLImpl.egl.eglCreateImageKHR);
+}
+
+EGLImage eglCreateImageImpl(EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer,
+                            const EGLAttrib* attrib_list) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglCreateImage) {
+            return eglCreateImageTmpl<EGLAttrib, PFNEGLCREATEIMAGE>(dpy, ctx, target, buffer,
+                                                                    attrib_list,
+                                                                    cnx->egl.eglCreateImage);
+        }
+        // driver doesn't support native function, return EGL_BAD_DISPLAY
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglCreateImage");
+        return setError(EGL_BAD_DISPLAY, EGL_NO_IMAGE);
+    }
+
+    std::vector<EGLint> convertedAttribs;
+    convertAttribs(attrib_list, convertedAttribs);
+    return eglCreateImageTmpl<EGLint, PFNEGLCREATEIMAGEKHRPROC>(dpy, ctx, target, buffer,
+                                                                convertedAttribs.data(),
+                                                                gEGLImpl.egl.eglCreateImageKHR);
+}
+
+EGLBoolean eglDestroyImageTmpl(EGLDisplay dpy, EGLImageKHR img,
+                               PFNEGLDESTROYIMAGEKHRPROC destroyImageFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglDestroyImageKHR) {
-        result = cnx->egl.eglDestroyImageKHR(dp->disp.dpy, img);
+    if (cnx->dso && destroyImageFunc) {
+        result = destroyImageFunc(dp->disp.dpy, img);
     }
     return result;
+}
+
+EGLBoolean eglDestroyImageKHRImpl(EGLDisplay dpy, EGLImageKHR img) {
+    return eglDestroyImageTmpl(dpy, img, gEGLImpl.egl.eglDestroyImageKHR);
+}
+
+EGLBoolean eglDestroyImageImpl(EGLDisplay dpy, EGLImageKHR img) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglDestroyImage) {
+            return eglDestroyImageTmpl(dpy, img, gEGLImpl.egl.eglDestroyImage);
+        }
+        // driver doesn't support native function, return EGL_BAD_DISPLAY
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglDestroyImage");
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    return eglDestroyImageTmpl(dpy, img, gEGLImpl.egl.eglDestroyImageKHR);
 }
 
 // ----------------------------------------------------------------------------
 // EGL_EGLEXT_VERSION 5
 // ----------------------------------------------------------------------------
 
-
-EGLSyncKHR eglCreateSyncKHRImpl(EGLDisplay dpy, EGLenum type, const EGLint *attrib_list)
-{
+// NOTE: EGLSyncKHR and EGLSync are identical, no need to templatize
+template <typename AttrType, typename FuncType>
+EGLSyncKHR eglCreateSyncTmpl(EGLDisplay dpy, EGLenum type, const AttrType* attrib_list,
+                             FuncType eglCreateSyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_NO_SYNC_KHR;
 
-    EGLSyncKHR result = EGL_NO_SYNC_KHR;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglCreateSyncKHR) {
-        result = cnx->egl.eglCreateSyncKHR(dp->disp.dpy, type, attrib_list);
+    EGLSyncKHR result = EGL_NO_SYNC_KHR;
+    if (cnx->dso && eglCreateSyncFunc) {
+        result = eglCreateSyncFunc(dp->disp.dpy, type, attrib_list);
     }
     return result;
 }
 
-EGLBoolean eglDestroySyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync)
-{
+typedef EGLSurface(EGLAPIENTRYP PFNEGLCREATESYNC)(EGLDisplay dpy, EGLenum type,
+                                                  const EGLAttrib* attrib_list);
+
+EGLSyncKHR eglCreateSyncKHRImpl(EGLDisplay dpy, EGLenum type, const EGLint* attrib_list) {
+    return eglCreateSyncTmpl<EGLint, PFNEGLCREATESYNCKHRPROC>(dpy, type, attrib_list,
+                                                              gEGLImpl.egl.eglCreateSyncKHR);
+}
+
+EGLSync eglCreateSyncImpl(EGLDisplay dpy, EGLenum type, const EGLAttrib* attrib_list) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglCreateSync) {
+            return eglCreateSyncTmpl<EGLAttrib, PFNEGLCREATESYNC>(dpy, type, attrib_list,
+                                                                  cnx->egl.eglCreateSync);
+        }
+        // driver doesn't support native function, return EGL_BAD_DISPLAY
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglCreateSync");
+        return setError(EGL_BAD_DISPLAY, EGL_NO_SYNC);
+    }
+
+    std::vector<EGLint> convertedAttribs;
+    convertAttribs(attrib_list, convertedAttribs);
+    return eglCreateSyncTmpl<EGLint, PFNEGLCREATESYNCKHRPROC>(dpy, type, convertedAttribs.data(),
+                                                              cnx->egl.eglCreateSyncKHR);
+}
+
+EGLBoolean eglDestroySyncTmpl(EGLDisplay dpy, EGLSyncKHR sync,
+                              PFNEGLDESTROYSYNCKHRPROC eglDestroySyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglDestroySyncKHR) {
-        result = cnx->egl.eglDestroySyncKHR(dp->disp.dpy, sync);
+    if (cnx->dso && eglDestroySyncFunc) {
+        result = eglDestroySyncFunc(dp->disp.dpy, sync);
     }
     return result;
+}
+
+EGLBoolean eglDestroySyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync) {
+    return eglDestroySyncTmpl(dpy, sync, gEGLImpl.egl.eglDestroySyncKHR);
+}
+
+EGLBoolean eglDestroySyncImpl(EGLDisplay dpy, EGLSyncKHR sync) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglDestroySync) {
+            return eglDestroySyncTmpl(dpy, sync, cnx->egl.eglDestroySync);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglDestroySync");
+        return setError(EGL_BAD_DISPLAY, EGL_FALSE);
+    }
+
+    return eglDestroySyncTmpl(dpy, sync, cnx->egl.eglDestroySyncKHR);
 }
 
 EGLBoolean eglSignalSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
@@ -1711,41 +1867,89 @@ EGLBoolean eglSignalSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLenum mode) {
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglSignalSyncKHR) {
-        result = cnx->egl.eglSignalSyncKHR(
-                dp->disp.dpy, sync, mode);
+    if (cnx->dso && gEGLImpl.egl.eglSignalSyncKHR) {
+        result = gEGLImpl.egl.eglSignalSyncKHR(dp->disp.dpy, sync, mode);
     }
     return result;
 }
 
-EGLint eglClientWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync,
-        EGLint flags, EGLTimeKHR timeout)
-{
+EGLint eglClientWaitSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout,
+                             PFNEGLCLIENTWAITSYNCKHRPROC eglClientWaitSyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLint result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglClientWaitSyncKHR) {
-        result = cnx->egl.eglClientWaitSyncKHR(
-                dp->disp.dpy, sync, flags, timeout);
+    if (cnx->dso && eglClientWaitSyncFunc) {
+        result = eglClientWaitSyncFunc(dp->disp.dpy, sync, flags, timeout);
     }
     return result;
 }
 
-EGLBoolean eglGetSyncAttribKHRImpl(EGLDisplay dpy, EGLSyncKHR sync,
-        EGLint attribute, EGLint *value)
-{
+EGLint eglClientWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    return eglClientWaitSyncTmpl(dpy, sync, flags, timeout, cnx->egl.eglClientWaitSyncKHR);
+}
+
+EGLint eglClientWaitSyncImpl(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTimeKHR timeout) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglClientWaitSync) {
+            return eglClientWaitSyncTmpl(dpy, sync, flags, timeout, cnx->egl.eglClientWaitSync);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglClientWaitSync");
+        return setError(EGL_BAD_DISPLAY, (EGLint)EGL_FALSE);
+    }
+
+    return eglClientWaitSyncTmpl(dpy, sync, flags, timeout, cnx->egl.eglClientWaitSyncKHR);
+}
+
+template <typename AttrType, typename FuncType>
+EGLBoolean eglGetSyncAttribTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint attribute, AttrType* value,
+                                FuncType eglGetSyncAttribFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
 
     EGLBoolean result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglGetSyncAttribKHR) {
-        result = cnx->egl.eglGetSyncAttribKHR(
-                dp->disp.dpy, sync, attribute, value);
+    if (cnx->dso && eglGetSyncAttribFunc) {
+        result = eglGetSyncAttribFunc(dp->disp.dpy, sync, attribute, value);
     }
     return result;
+}
+
+typedef EGLBoolean(EGLAPIENTRYP PFNEGLGETSYNCATTRIB)(EGLDisplay dpy, EGLSync sync, EGLint attribute,
+                                                     EGLAttrib* value);
+
+EGLBoolean eglGetSyncAttribImpl(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib* value) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglGetSyncAttrib) {
+            return eglGetSyncAttribTmpl<EGLAttrib, PFNEGLGETSYNCATTRIB>(dpy, sync, attribute, value,
+                                                                        cnx->egl.eglGetSyncAttrib);
+        }
+        ALOGE("Driver indicates EGL 1.5 support, but does not have eglGetSyncAttrib");
+        return setError(EGL_BAD_DISPLAY, (EGLint)EGL_FALSE);
+    }
+
+    // Fallback to KHR, ask for EGLint attribute and cast back to EGLAttrib
+    EGLint attribValue;
+    EGLBoolean ret =
+            eglGetSyncAttribTmpl<EGLint, PFNEGLGETSYNCATTRIBKHRPROC>(dpy, sync, attribute,
+                                                                     &attribValue,
+                                                                     gEGLImpl.egl
+                                                                             .eglGetSyncAttribKHR);
+    if (ret) {
+        *value = static_cast<EGLAttrib>(attribValue);
+    }
+    return ret;
+}
+
+EGLBoolean eglGetSyncAttribKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint attribute,
+                                   EGLint* value) {
+    return eglGetSyncAttribTmpl<EGLint, PFNEGLGETSYNCATTRIBKHRPROC>(dpy, sync, attribute, value,
+                                                                    gEGLImpl.egl
+                                                                            .eglGetSyncAttribKHR);
 }
 
 EGLStreamKHR eglCreateStreamKHRImpl(EGLDisplay dpy, const EGLint *attrib_list)
@@ -1934,15 +2138,41 @@ EGLStreamKHR eglCreateStreamFromFileDescriptorKHRImpl(
 // EGL_EGLEXT_VERSION 15
 // ----------------------------------------------------------------------------
 
-EGLint eglWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags) {
+// Need to template function type because return type is different
+template <typename ReturnType, typename FuncType>
+ReturnType eglWaitSyncTmpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags,
+                           FuncType eglWaitSyncFunc) {
     const egl_display_ptr dp = validate_display(dpy);
     if (!dp) return EGL_FALSE;
-    EGLint result = EGL_FALSE;
+    ReturnType result = EGL_FALSE;
     egl_connection_t* const cnx = &gEGLImpl;
-    if (cnx->dso && cnx->egl.eglWaitSyncKHR) {
-        result = cnx->egl.eglWaitSyncKHR(dp->disp.dpy, sync, flags);
+    if (cnx->dso && eglWaitSyncFunc) {
+        result = eglWaitSyncFunc(dp->disp.dpy, sync, flags);
     }
     return result;
+}
+
+typedef EGLBoolean(EGLAPIENTRYP PFNEGLWAITSYNC)(EGLDisplay dpy, EGLSync sync, EGLint flags);
+
+EGLint eglWaitSyncKHRImpl(EGLDisplay dpy, EGLSyncKHR sync, EGLint flags) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    return eglWaitSyncTmpl<EGLint, PFNEGLWAITSYNCKHRPROC>(dpy, sync, flags,
+                                                          cnx->egl.eglWaitSyncKHR);
+}
+
+EGLBoolean eglWaitSyncImpl(EGLDisplay dpy, EGLSync sync, EGLint flags) {
+    egl_connection_t* const cnx = &gEGLImpl;
+    if (cnx->driverVersion >= EGL_MAKE_VERSION(1, 5, 0)) {
+        if (cnx->egl.eglWaitSync) {
+            return eglWaitSyncTmpl<EGLBoolean, PFNEGLWAITSYNC>(dpy, sync, flags,
+                                                               cnx->egl.eglWaitSync);
+        }
+        return setError(EGL_BAD_DISPLAY, (EGLint)EGL_FALSE);
+    }
+
+    return static_cast<EGLBoolean>(
+            eglWaitSyncTmpl<EGLint, PFNEGLWAITSYNCKHRPROC>(dpy, sync, flags,
+                                                           cnx->egl.eglWaitSyncKHR));
 }
 
 // ----------------------------------------------------------------------------
@@ -2371,7 +2601,9 @@ struct implementation_map_t {
 };
 
 static const implementation_map_t sPlatformImplMap[] = {
+        // clang-format off
     { "eglGetDisplay", (EGLFuncPointer)&eglGetDisplayImpl },
+    { "eglGetPlatformDisplay", (EGLFuncPointer)&eglGetPlatformDisplayImpl },
     { "eglInitialize", (EGLFuncPointer)&eglInitializeImpl },
     { "eglTerminate", (EGLFuncPointer)&eglTerminateImpl },
     { "eglGetConfigs", (EGLFuncPointer)&eglGetConfigsImpl },
@@ -2379,6 +2611,8 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglGetConfigAttrib", (EGLFuncPointer)&eglGetConfigAttribImpl },
     { "eglCreateWindowSurface", (EGLFuncPointer)&eglCreateWindowSurfaceImpl },
     { "eglCreatePixmapSurface", (EGLFuncPointer)&eglCreatePixmapSurfaceImpl },
+    { "eglCreatePlatformWindowSurface", (EGLFuncPointer)&eglCreatePlatformWindowSurfaceImpl },
+    { "eglCreatePlatformPixmapSurface", (EGLFuncPointer)&eglCreatePlatformPixmapSurfaceImpl },
     { "eglCreatePbufferSurface", (EGLFuncPointer)&eglCreatePbufferSurfaceImpl },
     { "eglDestroySurface", (EGLFuncPointer)&eglDestroySurfaceImpl },
     { "eglQuerySurface", (EGLFuncPointer)&eglQuerySurfaceImpl },
@@ -2412,6 +2646,12 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglUnlockSurfaceKHR", (EGLFuncPointer)&eglUnlockSurfaceKHRImpl },
     { "eglCreateImageKHR", (EGLFuncPointer)&eglCreateImageKHRImpl },
     { "eglDestroyImageKHR", (EGLFuncPointer)&eglDestroyImageKHRImpl },
+    { "eglCreateImage", (EGLFuncPointer)&eglCreateImageImpl },
+    { "eglDestroyImage", (EGLFuncPointer)&eglDestroyImageImpl },
+    { "eglCreateSync", (EGLFuncPointer)&eglCreateSyncImpl },
+    { "eglDestroySync", (EGLFuncPointer)&eglDestroySyncImpl },
+    { "eglClientWaitSync", (EGLFuncPointer)&eglClientWaitSyncImpl },
+    { "eglGetSyncAttrib", (EGLFuncPointer)&eglGetSyncAttribImpl },
     { "eglCreateSyncKHR", (EGLFuncPointer)&eglCreateSyncKHRImpl },
     { "eglDestroySyncKHR", (EGLFuncPointer)&eglDestroySyncKHRImpl },
     { "eglSignalSyncKHR", (EGLFuncPointer)&eglSignalSyncKHRImpl },
@@ -2429,6 +2669,7 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "eglStreamConsumerReleaseKHR", (EGLFuncPointer)&eglStreamConsumerReleaseKHRImpl },
     { "eglGetStreamFileDescriptorKHR", (EGLFuncPointer)&eglGetStreamFileDescriptorKHRImpl },
     { "eglCreateStreamFromFileDescriptorKHR", (EGLFuncPointer)&eglCreateStreamFromFileDescriptorKHRImpl },
+    { "eglWaitSync", (EGLFuncPointer)&eglWaitSyncImpl },
     { "eglWaitSyncKHR", (EGLFuncPointer)&eglWaitSyncKHRImpl },
     { "eglDupNativeFenceFDANDROID", (EGLFuncPointer)&eglDupNativeFenceFDANDROIDImpl },
     { "eglPresentationTimeANDROID", (EGLFuncPointer)&eglPresentationTimeANDROIDImpl },
@@ -2447,6 +2688,7 @@ static const implementation_map_t sPlatformImplMap[] = {
     { "glGetFloatv", (EGLFuncPointer)&glGetFloatvImpl },
     { "glGetIntegerv", (EGLFuncPointer)&glGetIntegervImpl },
     { "glGetInteger64v", (EGLFuncPointer)&glGetInteger64vImpl },
+        // clang-format on
 };
 
 EGLFuncPointer FindPlatformImplAddr(const char* name)

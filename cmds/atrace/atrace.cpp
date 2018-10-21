@@ -224,6 +224,11 @@ static const TracingCategory k_categories[] = {
     { "pagecache",  "Page cache", 0, {
         { REQ,      "events/filemap/enable" },
     } },
+    { "memory",  "Memory", 0, {
+        { OPT,      "events/kmem/rss_stat/enable" },
+        { OPT,      "events/kmem/ion_heap_grow/enable" },
+        { OPT,      "events/kmem/ion_heap_shrink/enable" },
+    } },
 };
 
 struct TracingVendorCategory {
