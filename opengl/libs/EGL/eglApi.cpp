@@ -562,6 +562,15 @@ static EGLBoolean processAttributes(egl_display_ptr dp, NativeWindowType window,
                     break;
                 }
             }
+
+            // If the driver doesn't understand it, we should map sRGB-encoded P3 to
+            // sRGB rather than just dropping the colorspace on the floor.
+            // For this format, the driver is expected to apply the sRGB
+            // transfer function during framebuffer operations.
+            if (!copyAttribute && attr[1] == EGL_GL_COLORSPACE_DISPLAY_P3_EXT) {
+                strippedAttribList->push_back(attr[0]);
+                strippedAttribList->push_back(EGL_GL_COLORSPACE_SRGB_KHR);
+            }
         }
         if (copyAttribute) {
             strippedAttribList->push_back(attr[0]);
