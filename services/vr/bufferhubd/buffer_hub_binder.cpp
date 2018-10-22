@@ -13,7 +13,7 @@ status_t BufferHubBinderService::start(
     const std::shared_ptr<BufferHubService>& pdx_service) {
   IPCThreadState::self()->disableBackgroundScheduling(true);
 
-  BufferHubBinderService* service = new BufferHubBinderService();
+  sp<BufferHubBinderService> service = new BufferHubBinderService();
   service->pdx_service_ = pdx_service;
 
   // Not using BinderService::publish because need to get an instance of this
