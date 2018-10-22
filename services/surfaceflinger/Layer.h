@@ -263,6 +263,8 @@ public:
     virtual void setChildrenDrawingParent(const sp<Layer>& layer);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
     virtual bool detachChildren();
+    bool attachChildren();
+    bool isLayerDetached() const { return mLayerDetached; }
     virtual bool setColorTransform(const mat4& matrix);
     virtual const mat4& getColorTransform() const;
     virtual bool hasColorTransform() const;
@@ -354,7 +356,6 @@ public:
     // grab the SF state lock to access HWC, but ContainerLayer does, so we need
     // to avoid grabbing the lock again to avoid deadlock
     virtual bool isCreatedFromMainThread() const { return false; }
-
 
     bool isRemovedFromCurrentState() const;
 
@@ -775,6 +776,9 @@ protected:
     wp<Layer> mDrawingParent;
 
     mutable LayerBE mBE;
+
+    // Can only be accessed with the SF state lock held.
+    bool mLayerDetached{false};
 
 private:
     /**

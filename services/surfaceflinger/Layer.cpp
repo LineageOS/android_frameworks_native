@@ -1021,6 +1021,10 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
 uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
+    if (mLayerDetached) {
+        return 0;
+    }
+
     pushPendingState();
     State c = getCurrentState();
     if (!applyPendingStates(&c)) {
@@ -1553,6 +1557,9 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
         return false;
     }
 
+    if (attachChildren()) {
+        setTransactionFlags(eTransactionNeeded);
+    }
     for (const sp<Layer>& child : mCurrentChildren) {
         newParent->addChild(child);
 
@@ -1597,6 +1604,13 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         client->updateParent(newParent);
     }
 
+    if (mLayerDetached) {
+        mLayerDetached = false;
+        setTransactionFlags(eTransactionNeeded);
+    }
+    if (attachChildren()) {
+        setTransactionFlags(eTransactionNeeded);
+    }
     return true;
 }
 
@@ -1605,12 +1619,29 @@ bool Layer::detachChildren() {
         sp<Client> parentClient = mClientRef.promote();
         sp<Client> client(child->mClientRef.promote());
         if (client != nullptr && parentClient != client) {
-            client->detachLayer(child.get());
+            child->mLayerDetached = true;
             child->detachChildren();
         }
     }
 
     return true;
+}
+
+bool Layer::attachChildren() {
+    bool changed = false;
+    for (const sp<Layer>& child : mCurrentChildren) {
+        sp<Client> parentClient = mClientRef.promote();
+        sp<Client> client(child->mClientRef.promote());
+        if (client != nullptr && parentClient != client) {
+            if (child->mLayerDetached) {
+                child->mLayerDetached = false;
+                changed = true;
+            }
+            changed |= child->attachChildren();
+        }
+    }
+
+    return changed;
 }
 
 bool Layer::setColorTransform(const mat4& matrix) {

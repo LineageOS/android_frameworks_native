@@ -3198,6 +3198,10 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
 }
 
 status_t SurfaceFlinger::removeLayerLocked(const Mutex& lock, const sp<Layer>& layer) {
+    if (layer->isLayerDetached()) {
+        return NO_ERROR;
+    }
+
     const auto& p = layer->getParent();
     ssize_t index;
     if (p != nullptr) {

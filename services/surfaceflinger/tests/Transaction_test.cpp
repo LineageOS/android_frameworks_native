@@ -3356,6 +3356,61 @@ TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
     }
 }
 
+TEST_F(ChildLayerTest, DetachChildrenThenAttach) {
+    sp<SurfaceComposerClient> newComposerClient = new SurfaceComposerClient;
+    sp<SurfaceControl> childNewClient =
+            newComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+
+    ASSERT_TRUE(childNewClient != nullptr);
+    ASSERT_TRUE(childNewClient->isValid());
+
+    fillSurfaceRGBA8(childNewClient, 200, 200, 200);
+
+    Transaction()
+            .hide(mChild)
+            .show(childNewClient)
+            .setPosition(childNewClient, 10, 10)
+            .setPosition(mFGSurfaceControl, 64, 64)
+            .apply();
+
+    {
+        mCapture = screenshot();
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // But 10 pixels in we should see the child surface
+        mCapture->expectChildColor(74, 74);
+        // And 10 more pixels we should be back to the foreground surface
+        mCapture->expectFGColor(84, 84);
+    }
+
+    Transaction().detachChildren(mFGSurfaceControl).apply();
+    Transaction().hide(childNewClient).apply();
+
+    // Nothing should have changed.
+    {
+        mCapture = screenshot();
+        mCapture->expectFGColor(64, 64);
+        mCapture->expectChildColor(74, 74);
+        mCapture->expectFGColor(84, 84);
+    }
+
+    sp<SurfaceControl> newParentSurface = createLayer(String8("New Parent Surface"), 32, 32, 0);
+    fillLayerColor(ISurfaceComposerClient::eFXSurfaceBufferQueue, newParentSurface, Color::RED, 32,
+                   32);
+    Transaction()
+            .setLayer(newParentSurface, INT32_MAX - 1)
+            .show(newParentSurface)
+            .setPosition(newParentSurface, 20, 20)
+            .reparent(childNewClient, newParentSurface->getHandle())
+            .apply();
+    {
+        mCapture = screenshot();
+        // Child is now hidden.
+        mCapture->expectColor(Rect(20, 20, 52, 52), Color::RED);
+    }
+}
+
 TEST_F(ChildLayerTest, ChildrenInheritNonTransformScalingFromParent) {
     asTransaction([&](Transaction& t) {
         t.show(mChild);
