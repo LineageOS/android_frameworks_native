@@ -354,16 +354,26 @@ Error Composer::getColorModes(Display display,
 {
     Error error = kDefaultError;
 
-    if (mClient_2_2) {
-        mClient_2_2->getColorModes_2_2(display,
-                [&](const auto& tmpError, const auto& tmpModes) {
-                    error = tmpError;
-                    if (error != Error::NONE) {
-                        return;
-                    }
+    if (mClient_2_3) {
+        mClient_2_3->getColorModes_2_3(display, [&](const auto& tmpError, const auto& tmpModes) {
+            error = tmpError;
+            if (error != Error::NONE) {
+                return;
+            }
 
-                    *outModes = tmpModes;
-                });
+            *outModes = tmpModes;
+        });
+    } else if (mClient_2_2) {
+        mClient_2_2->getColorModes_2_2(display, [&](const auto& tmpError, const auto& tmpModes) {
+            error = tmpError;
+            if (error != Error::NONE) {
+                return;
+            }
+
+            for (types::V1_1::ColorMode colorMode : tmpModes) {
+                outModes->push_back(static_cast<ColorMode>(colorMode));
+            }
+        });
     } else {
         mClient->getColorModes(display,
                 [&](const auto& tmpError, const auto& tmpModes) {
@@ -555,8 +565,11 @@ Error Composer::setColorMode(Display display, ColorMode mode,
         RenderIntent renderIntent)
 {
     hardware::Return<Error> ret(kDefaultError);
-    if (mClient_2_2) {
-        ret = mClient_2_2->setColorMode_2_2(display, mode, renderIntent);
+    if (mClient_2_3) {
+        ret = mClient_2_3->setColorMode_2_3(display, mode, renderIntent);
+    } else if (mClient_2_2) {
+        ret = mClient_2_2->setColorMode_2_2(display, static_cast<types::V1_1::ColorMode>(mode),
+                                            renderIntent);
     } else {
         ret = mClient->setColorMode(display,
                 static_cast<types::V1_0::ColorMode>(mode));
@@ -934,15 +947,22 @@ Error Composer::getRenderIntents(Display display, ColorMode colorMode,
     }
 
     Error error = kDefaultError;
-    mClient_2_2->getRenderIntents(display, colorMode,
-            [&](const auto& tmpError, const auto& tmpKeys) {
+
+    auto getRenderIntentsLambda = [&](const auto& tmpError, const auto& tmpKeys) {
         error = tmpError;
         if (error != Error::NONE) {
             return;
         }
 
         *outRenderIntents = tmpKeys;
-    });
+    };
+
+    if (mClient_2_3) {
+        mClient_2_3->getRenderIntents_2_3(display, colorMode, getRenderIntentsLambda);
+    } else {
+        mClient_2_2->getRenderIntents(display, static_cast<types::V1_1::ColorMode>(colorMode),
+                                      getRenderIntentsLambda);
+    }
 
     return error;
 }
@@ -955,14 +975,14 @@ Error Composer::getDataspaceSaturationMatrix(Dataspace dataspace, mat4* outMatri
     }
 
     Error error = kDefaultError;
-    mClient_2_2->getDataspaceSaturationMatrix(dataspace, [&](const auto& tmpError, const auto& tmpMatrix) {
-        error = tmpError;
-        if (error != Error::NONE) {
-            return;
-        }
-
-        *outMatrix = mat4(tmpMatrix.data());
-    });
+    mClient_2_2->getDataspaceSaturationMatrix(static_cast<types::V1_1::Dataspace>(dataspace),
+                                              [&](const auto& tmpError, const auto& tmpMatrix) {
+                                                  error = tmpError;
+                                                  if (error != Error::NONE) {
+                                                      return;
+                                                  }
+                                                  *outMatrix = mat4(tmpMatrix.data());
+                                              });
 
     return error;
 }

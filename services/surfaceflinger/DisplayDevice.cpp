@@ -37,8 +37,8 @@
 #include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
-#include <utils/RefBase.h>
 #include <utils/Log.h>
+#include <utils/RefBase.h>
 
 #include "DisplayHardware/DisplaySurface.h"
 #include "DisplayHardware/HWComposer.h"
@@ -66,7 +66,8 @@ uint32_t DisplayDevice::sPrimaryDisplayOrientation = 0;
 namespace {
 
 // ordered list of known SDR color modes
-const std::array<ColorMode, 2> sSdrColorModes = {
+const std::array<ColorMode, 3> sSdrColorModes = {
+        ColorMode::DISPLAY_BT2020,
         ColorMode::DISPLAY_P3,
         ColorMode::SRGB,
 };
@@ -96,6 +97,8 @@ Dataspace colorModeToDataspace(ColorMode mode) {
             return Dataspace::SRGB;
         case ColorMode::DISPLAY_P3:
             return Dataspace::DISPLAY_P3;
+        case ColorMode::DISPLAY_BT2020:
+            return Dataspace::DISPLAY_BT2020;
         case ColorMode::BT2100_HLG:
             return Dataspace::BT2020_HLG;
         case ColorMode::BT2100_PQ:

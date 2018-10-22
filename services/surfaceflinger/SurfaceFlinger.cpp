@@ -124,6 +124,7 @@ bool isWideColorMode(const ColorMode colorMode) {
         case ColorMode::ADOBE_RGB:
         case ColorMode::DCI_P3:
         case ColorMode::BT2020:
+        case ColorMode::DISPLAY_BT2020:
         case ColorMode::BT2100_PQ:
         case ColorMode::BT2100_HLG:
             return true;
@@ -2003,6 +2004,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 // can only be one of
 //  - Dataspace::SRGB (use legacy dataspace and let HWC saturate when colors are enhanced)
 //  - Dataspace::DISPLAY_P3
+//  - Dataspace::DISPLAY_BT2020
 // The returned HDR data space is one of
 //  - Dataspace::UNKNOWN
 //  - Dataspace::BT2020_HLG
@@ -2016,6 +2018,12 @@ Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& displa
         switch (layer->getDataSpace()) {
             case Dataspace::V0_SCRGB:
             case Dataspace::V0_SCRGB_LINEAR:
+            case Dataspace::BT2020:
+            case Dataspace::BT2020_ITU:
+            case Dataspace::BT2020_LINEAR:
+            case Dataspace::DISPLAY_BT2020:
+                bestDataSpace = Dataspace::DISPLAY_BT2020;
+                break;
             case Dataspace::DISPLAY_P3:
                 bestDataSpace = Dataspace::DISPLAY_P3;
                 break;
