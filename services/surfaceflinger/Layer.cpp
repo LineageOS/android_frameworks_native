@@ -91,8 +91,8 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.requested_legacy = mCurrentState.active_legacy;
     mCurrentState.appId = 0;
     mCurrentState.type = 0;
-    mCurrentState.active.w = 0;
-    mCurrentState.active.h = 0;
+    mCurrentState.active.w = UINT32_MAX;
+    mCurrentState.active.h = UINT32_MAX;
     mCurrentState.active.transform.set(0, 0);
     mCurrentState.transform = 0;
     mCurrentState.transformToDisplayInverse = false;

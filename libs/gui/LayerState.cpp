@@ -59,6 +59,7 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeUint32(transform);
     output.writeBool(transformToDisplayInverse);
     output.write(crop);
+    output.write(frame);
     if (buffer) {
         output.writeBool(true);
         output.write(*buffer);
@@ -135,6 +136,7 @@ status_t layer_state_t::read(const Parcel& input)
     transform = input.readUint32();
     transformToDisplayInverse = input.readBool();
     input.read(crop);
+    input.read(frame);
     buffer = new GraphicBuffer();
     if (input.readBool()) {
         input.read(*buffer);
@@ -321,6 +323,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eCropChanged) {
         what |= eCropChanged;
         crop = other.crop;
+    }
+    if (other.what & eFrameChanged) {
+        what |= eFrameChanged;
+        frame = other.frame;
     }
     if (other.what & eBufferChanged) {
         what |= eBufferChanged;

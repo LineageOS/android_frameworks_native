@@ -62,6 +62,7 @@ public:
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
+    bool setFrame(const Rect& frame) override;
     bool setBuffer(const sp<GraphicBuffer>& buffer) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
@@ -71,18 +72,22 @@ public:
     bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
     bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
 
-    bool setSize(uint32_t w, uint32_t h) override;
-    bool setPosition(float x, float y, bool immediate) override;
-    bool setTransparentRegionHint(const Region& transparent) override;
-    bool setMatrix(const layer_state_t::matrix22_t& matrix,
-                   bool allowNonRectPreservingTransforms) override;
-
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
-    bool setCrop_legacy(const Rect& /*crop*/, bool /*immediate*/) override { return false; };
+    bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
+    bool setPosition(float /*x*/, float /*y*/, bool /*immediate*/) override { return false; }
+    bool setTransparentRegionHint(const Region& transparent) override;
+    bool setMatrix(const layer_state_t::matrix22_t& /*matrix*/,
+                   bool /*allowNonRectPreservingTransforms*/) override {
+        return false;
+    }
+    bool setCrop_legacy(const Rect& /*crop*/, bool /*immediate*/) override { return false; }
+    bool setOverrideScalingMode(int32_t /*overrideScalingMode*/) override { return false; }
     void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
                                       uint64_t /*frameNumber*/) override {}
     void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
                                       uint64_t /*frameNumber*/) override {}
+
+    Rect getBufferSize(const State& s) const override;
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------

@@ -3663,6 +3663,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     if (what & layer_state_t::eCropChanged) {
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
     }
+    if (what & layer_state_t::eFrameChanged) {
+        if (layer->setFrame(s.frame)) flags |= eTraversalNeeded;
+    }
     if (what & layer_state_t::eBufferChanged) {
         if (layer->setBuffer(s.buffer)) flags |= eTraversalNeeded;
     }

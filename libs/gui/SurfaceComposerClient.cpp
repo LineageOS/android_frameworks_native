@@ -609,6 +609,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCrop(
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setFrame(
+        const sp<SurfaceControl>& sc, const Rect& frame) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eFrameChanged;
+    s->frame = frame;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffer(
         const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer) {
     layer_state_t* s = getLayerState(sc);

@@ -95,10 +95,9 @@ bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     return stateUpdateAvailable;
 }
 
-Rect BufferStateLayer::getCrop(const Layer::State& s) const {
-    return (getEffectiveScalingMode() == NATIVE_WINDOW_SCALING_MODE_SCALE_CROP)
-            ? GLConsumer::scaleDownCrop(s.crop, s.active.w, s.active.h)
-            : s.crop;
+// Crop that applies to the window
+Rect BufferStateLayer::getCrop(const Layer::State& /*s*/) const {
+    return Rect::INVALID_RECT;
 }
 
 bool BufferStateLayer::setTransform(uint32_t transform) {
@@ -123,6 +122,30 @@ bool BufferStateLayer::setCrop(const Rect& crop) {
     if (mCurrentState.crop == crop) return false;
     mCurrentState.sequence++;
     mCurrentState.crop = crop;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool BufferStateLayer::setFrame(const Rect& frame) {
+    int x = frame.left;
+    int y = frame.top;
+    int w = frame.getWidth();
+    int h = frame.getHeight();
+
+    if (mCurrentState.active.transform.tx() == x && mCurrentState.active.transform.ty() == y &&
+        mCurrentState.active.w == w && mCurrentState.active.h == h) {
+        return false;
+    }
+
+    if (!frame.isValid()) {
+        x = y = w = h = 0;
+    }
+    mCurrentState.active.transform.set(x, y);
+    mCurrentState.active.w = w;
+    mCurrentState.active.h = h;
+
+    mCurrentState.sequence++;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
     return true;
@@ -237,27 +260,6 @@ bool BufferStateLayer::setTransactionCompletedListeners(
     return willPresent;
 }
 
-bool BufferStateLayer::setSize(uint32_t w, uint32_t h) {
-    if (mCurrentState.active.w == w && mCurrentState.active.h == h) return false;
-    mCurrentState.active.w = w;
-    mCurrentState.active.h = h;
-    mCurrentState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
-bool BufferStateLayer::setPosition(float x, float y, bool /*immediate*/) {
-    if (mCurrentState.active.transform.tx() == x && mCurrentState.active.transform.ty() == y)
-        return false;
-
-    mCurrentState.active.transform.set(x, y);
-
-    mCurrentState.sequence++;
-    mCurrentState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
-}
-
 bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
     mCurrentState.transparentRegionHint = transparent;
     mCurrentState.modified = true;
@@ -265,21 +267,26 @@ bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
     return true;
 }
 
-bool BufferStateLayer::setMatrix(const layer_state_t::matrix22_t& matrix,
-                                 bool allowNonRectPreservingTransforms) {
-    ui::Transform t;
-    t.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
-
-    if (!allowNonRectPreservingTransforms && !t.preserveRects()) {
-        ALOGW("Attempt to set rotation matrix without permission ACCESS_SURFACE_FLINGER ignored");
-        return false;
+Rect BufferStateLayer::getBufferSize(const State& s) const {
+    // for buffer state layers we use the display frame size as the buffer size.
+    if (getActiveWidth(s) < UINT32_MAX && getActiveHeight(s) < UINT32_MAX) {
+        return Rect(getActiveWidth(s), getActiveHeight(s));
     }
 
-    mCurrentState.sequence++;
-    mCurrentState.active.transform.set(matrix.dsdx, matrix.dtdy, matrix.dtdx, matrix.dsdy);
-    mCurrentState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
-    return true;
+    // if the display frame is not defined, use the parent bounds as the buffer size.
+    const auto& p = mDrawingParent.promote();
+    if (p != nullptr) {
+        Rect parentBounds = Rect(p->computeBounds(Region()));
+        if (!parentBounds.isEmpty()) {
+            return parentBounds;
+        }
+    }
+
+    // if there is no parent layer, use the buffer's bounds as the buffer size
+    if (s.buffer) {
+        return s.buffer->getBounds();
+    }
+    return Rect::INVALID_RECT;
 }
 // -----------------------------------------------------------------------
 
@@ -315,8 +322,14 @@ ui::Dataspace BufferStateLayer::getDrawingDataSpace() const {
     return getDrawingState().dataspace;
 }
 
+// Crop that applies to the buffer
 Rect BufferStateLayer::getDrawingCrop() const {
-    return Rect::INVALID_RECT;
+    const State& s(getDrawingState());
+
+    if (s.crop.isEmpty() && s.buffer) {
+        return s.buffer->getBounds();
+    }
+    return s.crop;
 }
 
 uint32_t BufferStateLayer::getDrawingScalingMode() const {
