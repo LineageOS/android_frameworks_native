@@ -49,10 +49,10 @@ using types::V1_0::ColorTransform;
 using types::V1_0::Hdr;
 using types::V1_0::Transform;
 
-using types::V1_1::ColorMode;
-using types::V1_1::Dataspace;
 using types::V1_1::PixelFormat;
 using types::V1_1::RenderIntent;
+using types::V1_2::ColorMode;
+using types::V1_2::Dataspace;
 
 using V2_1::Config;
 using V2_1::Display;
