@@ -88,5 +88,42 @@ sp<IBufferClient> BufferHubBinderService::createBuffer(
   return client;
 }
 
+status_t BufferHubBinderService::importBuffer(uint64_t token,
+                                              sp<IBufferClient>* outClient) {
+  auto iter = token_map_.find(token);
+
+  if (iter == token_map_.end()) {  // Not found
+    ALOGE("BufferHubBinderService::importBuffer: token %" PRIu64
+          "does not exist.",
+          token);
+    return PERMISSION_DENIED;
+  }
+
+  if (iter->second.expired()) {  // Gone
+    ALOGW(
+        "BufferHubBinderService::importBuffer: the original node of token "
+        "%" PRIu64 "has gone.",
+        token);
+    token_map_.erase(iter);
+    return DEAD_OBJECT;
+  }
+
+  // Promote the weak_ptr
+  std::shared_ptr<BufferNode> node(iter->second);
+  if (!node) {
+    ALOGE("BufferHubBinderService::importBuffer: promote weak_ptr failed.");
+    token_map_.erase(iter);
+    return DEAD_OBJECT;
+  }
+
+  sp<BufferClient> client = new BufferClient(node, this);
+  *outClient = client;
+
+  token_map_.erase(iter);
+  client_list_.push_back(client);
+
+  return NO_ERROR;
+}
+
 }  // namespace dvr
 }  // namespace android

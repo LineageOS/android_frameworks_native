@@ -10,6 +10,7 @@ namespace dvr {
 
 namespace {
 
+using testing::IsNull;
 using testing::NotNull;
 
 const int kWidth = 640;
@@ -38,21 +39,44 @@ TEST_F(BufferHubBinderServiceTest, TestCreateBuffer) {
   EXPECT_TRUE(bufferClient->isValid());
 }
 
-TEST_F(BufferHubBinderServiceTest, TestDuplicateBuffer) {
+TEST_F(BufferHubBinderServiceTest, TestDuplicateAndImportBuffer) {
   sp<IBufferClient> bufferClient = service->createBuffer(
       kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
-  EXPECT_THAT(bufferClient, NotNull());
+  ASSERT_THAT(bufferClient, NotNull());
   EXPECT_TRUE(bufferClient->isValid());
 
   uint64_t token1 = 0ULL;
   status_t ret = bufferClient->duplicate(&token1);
   EXPECT_EQ(ret, NO_ERROR);
 
-  // Should be different
+  // Tokens should be unique even corresponding to the same buffer
   uint64_t token2 = 0ULL;
   ret = bufferClient->duplicate(&token2);
   EXPECT_EQ(ret, NO_ERROR);
   EXPECT_NE(token2, token1);
+
+  sp<IBufferClient> bufferClient1;
+  ret = service->importBuffer(token1, &bufferClient1);
+  EXPECT_EQ(ret, NO_ERROR);
+  ASSERT_THAT(bufferClient1, NotNull());
+  EXPECT_TRUE(bufferClient1->isValid());
+
+  // Consumes the token to keep the service clean
+  sp<IBufferClient> bufferClient2;
+  ret = service->importBuffer(token2, &bufferClient2);
+  EXPECT_EQ(ret, NO_ERROR);
+  ASSERT_THAT(bufferClient2, NotNull());
+  EXPECT_TRUE(bufferClient2->isValid());
+}
+
+TEST_F(BufferHubBinderServiceTest, TestImportUnexistingToken) {
+  // There is very little chance that this test fails if there is a token = 0
+  // in the service.
+  uint64_t unexistingToken = 0ULL;
+  sp<IBufferClient> bufferClient;
+  status_t ret = service->importBuffer(unexistingToken, &bufferClient);
+  EXPECT_EQ(ret, PERMISSION_DENIED);
+  EXPECT_THAT(bufferClient, IsNull());
 }
 
 }  // namespace

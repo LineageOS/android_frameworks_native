@@ -33,6 +33,8 @@ class BufferHubBinderService : public BinderService<BufferHubBinderService>,
                                  uint64_t usage,
                                  uint64_t user_metadata_size) override;
 
+  status_t importBuffer(uint64_t token, sp<IBufferClient>* outClient) override;
+
  private:
   std::shared_ptr<BufferHubService> pdx_service_;
 
