@@ -82,7 +82,7 @@ void TimeStats::incrementTotalFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    timeStats.totalFrames++;
+    mTimeStats.totalFrames++;
 }
 
 void TimeStats::incrementMissedFrames() {
@@ -91,7 +91,7 @@ void TimeStats::incrementMissedFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    timeStats.missedFrames++;
+    mTimeStats.missedFrames++;
 }
 
 void TimeStats::incrementClientCompositionFrames() {
@@ -100,7 +100,7 @@ void TimeStats::incrementClientCompositionFrames() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    timeStats.clientCompositionFrames++;
+    mTimeStats.clientCompositionFrames++;
 }
 
 bool TimeStats::recordReadyLocked(const std::string& layerName, TimeRecord* timeRecord) {
@@ -164,7 +164,7 @@ static std::string getPackageName(const std::string& layerName) {
 void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName) {
     ATRACE_CALL();
 
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
     std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     while (!timeRecords.empty()) {
@@ -173,11 +173,11 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
               timeRecords[0].frameTime.frameNumber, timeRecords[0].frameTime.presentTime);
 
         if (prevTimeRecord.ready) {
-            if (!timeStats.stats.count(layerName)) {
-                timeStats.stats[layerName].layerName = layerName;
-                timeStats.stats[layerName].packageName = getPackageName(layerName);
+            if (!mTimeStats.stats.count(layerName)) {
+                mTimeStats.stats[layerName].layerName = layerName;
+                mTimeStats.stats[layerName].packageName = getPackageName(layerName);
             }
-            TimeStatsHelper::TimeStatsLayer& timeStatsLayer = timeStats.stats[layerName];
+            TimeStatsHelper::TimeStatsLayer& timeStatsLayer = mTimeStats.stats[layerName];
             timeStatsLayer.totalFrames++;
             timeStatsLayer.droppedFrames += layerRecord.droppedFrames;
             layerRecord.droppedFrames = 0;
@@ -246,10 +246,10 @@ void TimeStats::setPostTime(const std::string& layerName, uint64_t frameNumber, 
     ALOGV("[%s]-[%" PRIu64 "]-PostTime[%" PRId64 "]", layerName.c_str(), frameNumber, postTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName) && !layerNameIsValid(layerName)) {
+    if (!mTimeStatsTracker.count(layerName) && !layerNameIsValid(layerName)) {
         return;
     }
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     if (layerRecord.timeRecords.size() == MAX_NUM_TIME_RECORDS) {
         ALOGV("[%s]-timeRecords is already at its maximum size[%zu]", layerName.c_str(),
               MAX_NUM_TIME_RECORDS);
@@ -283,8 +283,8 @@ void TimeStats::setLatchTime(const std::string& layerName, uint64_t frameNumber,
     ALOGV("[%s]-[%" PRIu64 "]-LatchTime[%" PRId64 "]", layerName.c_str(), frameNumber, latchTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.latchTime = latchTime;
@@ -300,8 +300,8 @@ void TimeStats::setDesiredTime(const std::string& layerName, uint64_t frameNumbe
           desiredTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.desiredTime = desiredTime;
@@ -317,8 +317,8 @@ void TimeStats::setAcquireTime(const std::string& layerName, uint64_t frameNumbe
           acquireTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.acquireTime = acquireTime;
@@ -334,8 +334,8 @@ void TimeStats::setAcquireFence(const std::string& layerName, uint64_t frameNumb
           acquireFence->getSignalTime());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.acquireFence = acquireFence;
@@ -351,8 +351,8 @@ void TimeStats::setPresentTime(const std::string& layerName, uint64_t frameNumbe
           presentTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.presentTime = presentTime;
@@ -372,8 +372,8 @@ void TimeStats::setPresentFence(const std::string& layerName, uint64_t frameNumb
           presentFence->getSignalTime());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.presentFence = presentFence;
@@ -391,9 +391,21 @@ void TimeStats::onDisconnect(const std::string& layerName) {
     ALOGV("[%s]-onDisconnect", layerName.c_str());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
+    if (!mTimeStatsTracker.count(layerName)) return;
     flushAvailableRecordsToStatsLocked(layerName);
-    timeStatsTracker.erase(layerName);
+    mTimeStatsTracker.erase(layerName);
+}
+
+void TimeStats::onDestroy(const std::string& layerName) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    ALOGV("[%s]-onDestroy", layerName.c_str());
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (!mTimeStatsTracker.count(layerName)) return;
+    flushAvailableRecordsToStatsLocked(layerName);
+    mTimeStatsTracker.erase(layerName);
 }
 
 void TimeStats::clearLayerRecord(const std::string& layerName) {
@@ -403,8 +415,8 @@ void TimeStats::clearLayerRecord(const std::string& layerName) {
     ALOGV("[%s]-clearLayerRecord", layerName.c_str());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     layerRecord.timeRecords.clear();
     layerRecord.prevTimeRecord.ready = false;
     layerRecord.waitData = -1;
@@ -418,8 +430,8 @@ void TimeStats::removeTimeRecord(const std::string& layerName, uint64_t frameNum
     ALOGV("[%s]-[%" PRIu64 "]-removeTimeRecord", layerName.c_str(), frameNumber);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!timeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = timeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerName)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
     size_t removeAt = 0;
     for (const TimeRecord& record : layerRecord.timeRecords) {
         if (record.frameTime.frameNumber == frameNumber) break;
@@ -441,7 +453,7 @@ void TimeStats::enable() {
     std::lock_guard<std::mutex> lock(mMutex);
     ALOGD("Enabled");
     mEnabled.store(true);
-    timeStats.statsStart = static_cast<int64_t>(std::time(0));
+    mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
 }
 
 void TimeStats::disable() {
@@ -452,7 +464,7 @@ void TimeStats::disable() {
     std::lock_guard<std::mutex> lock(mMutex);
     ALOGD("Disabled");
     mEnabled.store(false);
-    timeStats.statsEnd = static_cast<int64_t>(std::time(0));
+    mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
 }
 
 void TimeStats::clear() {
@@ -460,12 +472,12 @@ void TimeStats::clear() {
 
     std::lock_guard<std::mutex> lock(mMutex);
     ALOGD("Cleared");
-    timeStats.stats.clear();
-    timeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
-    timeStats.statsEnd = 0;
-    timeStats.totalFrames = 0;
-    timeStats.missedFrames = 0;
-    timeStats.clientCompositionFrames = 0;
+    mTimeStats.stats.clear();
+    mTimeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
+    mTimeStats.statsEnd = 0;
+    mTimeStats.totalFrames = 0;
+    mTimeStats.missedFrames = 0;
+    mTimeStats.clientCompositionFrames = 0;
 }
 
 bool TimeStats::isEnabled() {
@@ -476,19 +488,19 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, String8& r
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (timeStats.statsStart == 0) {
+    if (mTimeStats.statsStart == 0) {
         return;
     }
 
-    timeStats.statsEnd = static_cast<int64_t>(std::time(0));
+    mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
 
     if (asProto) {
         ALOGD("Dumping TimeStats as proto");
-        SFTimeStatsGlobalProto timeStatsProto = timeStats.toProto(maxLayers);
+        SFTimeStatsGlobalProto timeStatsProto = mTimeStats.toProto(maxLayers);
         result.append(timeStatsProto.SerializeAsString().c_str(), timeStatsProto.ByteSize());
     } else {
         ALOGD("Dumping TimeStats as text");
-        result.append(timeStats.toString(maxLayers).c_str());
+        result.append(mTimeStats.toString(maxLayers).c_str());
         result.append("\n");
     }
 }
