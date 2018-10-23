@@ -153,8 +153,16 @@ const std::string& GraphicsEnv::getDebugLayers() {
     return mDebugLayers;
 }
 
+const std::string& GraphicsEnv::getDebugLayersGLES() {
+    return mDebugLayersGLES;
+}
+
 void GraphicsEnv::setDebugLayers(const std::string layers) {
     mDebugLayers = layers;
+}
+
+void GraphicsEnv::setDebugLayersGLES(const std::string layers) {
+    mDebugLayersGLES = layers;
 }
 
 android_namespace_t* GraphicsEnv::getDriverNamespace() {
