@@ -541,6 +541,8 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
 
     if (use_angle) {
         ALOGV("User set \"Developer Options\" to force the use of ANGLE");
+    } else if (cnx->angleDecided) {
+        use_angle = cnx->useAngle;
     } else {
         // The "Developer Options" value wasn't set to force the use of ANGLE.  Need to temporarily
         // load ANGLE and call the updatable opt-in/out logic:
@@ -610,6 +612,7 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
             use_angle = false;
             ALOGV("Could not temporarily-load the ANGLE opt-in/out logic, cannot use ANGLE.");
         }
+        cnx->angleDecided = true;
     }
     if (use_angle) {
         so = load_angle_from_namespace(kind, ns);
