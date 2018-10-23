@@ -40,8 +40,6 @@ public:
 public:
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
 
-    void abandon() override;
-
     void setTransformHint(uint32_t orientation) const override;
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
