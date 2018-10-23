@@ -345,7 +345,7 @@ public:
     virtual bool isCreatedFromMainThread() const { return false; }
 
 
-    bool isRemovedFromCurrentState() const { return mRemovedFromCurrentState; }
+    bool isPendingRemoval() const { return mPendingRemoval; }
 
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
@@ -474,6 +474,12 @@ public:
      */
     void onRemovedFromCurrentState();
 
+    /*
+     * called with the state lock from the main thread when the layer is
+     * removed from the pending removal list
+     */
+    void onRemoved();
+
     // Updates the transform hint in our SurfaceFlingerConsumer to match
     // the current orientation of the display device.
     void updateTransformHint(const sp<const DisplayDevice>& display) const;
@@ -588,12 +594,12 @@ protected:
      */
     class LayerCleaner {
         sp<SurfaceFlinger> mFlinger;
-        sp<Layer> mLayer;
+        wp<Layer> mLayer;
 
     protected:
         ~LayerCleaner() {
             // destroy client resources
-            mFlinger->onHandleDestroyed(mLayer);
+            mFlinger->onLayerDestroyed(mLayer);
         }
 
     public:
@@ -695,8 +701,6 @@ public:
     virtual PixelFormat getPixelFormat() const { return PIXEL_FORMAT_NONE; }
     bool getPremultipledAlpha() const;
 
-    bool mPendingHWCDestroy{false};
-
 protected:
     // -----------------------------------------------------------------------
     bool usingRelativeZ(LayerVector::StateSet stateSet);
@@ -740,7 +744,7 @@ protected:
     // Whether filtering is needed b/c of the drawingstate
     bool mNeedsFiltering{false};
 
-    bool mRemovedFromCurrentState{false};
+    bool mPendingRemoval{false};
 
     // page-flip thread (currently main thread)
     bool mProtectedByApp{false}; // application requires protected path to external sink
