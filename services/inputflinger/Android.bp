@@ -41,6 +41,8 @@ cc_library_shared {
         "-Wall",
         "-Wextra",
         "-Werror",
+        // Allow implicit fallthroughs in InputReader.cpp until they are fixed.
+        "-Wno-error=implicit-fallthrough",
         "-Wno-unused-parameter",
         // TODO: Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
