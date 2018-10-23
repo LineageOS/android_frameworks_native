@@ -20,13 +20,12 @@ package android.surfaceflinger;
 
 option optimize_for = LITE_RUNTIME;
 
-// //depot/google3/java/com/google/android/apps/graphics/stats/proto/
+// //depot/google3/wireless/android/graphics/surfaceflingerstats/proto/
 // timestats.proto is based on this proto. Please only make valid protobuf
-// changes to these messages, and keep the other file in sync per Android
-// release. Please also do not include "option optimize_for = LITE_RUNTIME;" at
-// google3 side.
+// changes to these messages, and keep google3 side proto messages in sync if
+// the end to end pipeline needs to be updated.
 
-// Next tag: 7
+// Next tag: 9
 message SFTimeStatsGlobalProto {
   // The stats start time in UTC as seconds since January 1, 1970
   optional int64 stats_start = 1;
@@ -38,6 +37,10 @@ message SFTimeStatsGlobalProto {
   optional int32 missed_frames = 4;
   // Total frames fallback to client composition.
   optional int32 client_composition_frames = 5;
+  // Primary display on time in milliseconds.
+  optional int64 display_on_time = 7;
+  // Present to present histogram.
+  repeated SFTimeStatsHistogramBucketProto present_to_present = 8;
   // Stats per layer. Apps could have multiple layers.
   repeated SFTimeStatsLayerProto stats = 6;
 }

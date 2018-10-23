@@ -24,6 +24,7 @@
 #include <log/log.h>
 
 #include <utils/String8.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
 
 #include <algorithm>
@@ -103,9 +104,9 @@ void TimeStats::incrementClientCompositionFrames() {
     mTimeStats.clientCompositionFrames++;
 }
 
-bool TimeStats::recordReadyLocked(const std::string& layerName, TimeRecord* timeRecord) {
+bool TimeStats::recordReadyLocked(int32_t layerID, TimeRecord* timeRecord) {
     if (!timeRecord->ready) {
-        ALOGV("[%s]-[%" PRIu64 "]-presentFence is still not received", layerName.c_str(),
+        ALOGV("[%d]-[%" PRIu64 "]-presentFence is still not received", layerID,
               timeRecord->frameTime.frameNumber);
         return false;
     }
@@ -118,7 +119,7 @@ bool TimeStats::recordReadyLocked(const std::string& layerName, TimeRecord* time
             timeRecord->frameTime.acquireTime = timeRecord->acquireFence->getSignalTime();
             timeRecord->acquireFence = nullptr;
         } else {
-            ALOGV("[%s]-[%" PRIu64 "]-acquireFence signal time is invalid", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-acquireFence signal time is invalid", layerID,
                   timeRecord->frameTime.frameNumber);
         }
     }
@@ -131,7 +132,7 @@ bool TimeStats::recordReadyLocked(const std::string& layerName, TimeRecord* time
             timeRecord->frameTime.presentTime = timeRecord->presentFence->getSignalTime();
             timeRecord->presentFence = nullptr;
         } else {
-            ALOGV("[%s]-[%" PRIu64 "]-presentFence signal time invalid", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-presentFence signal time invalid", layerID,
                   timeRecord->frameTime.frameNumber);
         }
     }
@@ -161,18 +162,19 @@ static std::string getPackageName(const std::string& layerName) {
     return "";
 }
 
-void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName) {
+void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerID) {
     ATRACE_CALL();
 
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& prevTimeRecord = layerRecord.prevTimeRecord;
     std::deque<TimeRecord>& timeRecords = layerRecord.timeRecords;
     while (!timeRecords.empty()) {
-        if (!recordReadyLocked(layerName, &timeRecords[0])) break;
-        ALOGV("[%s]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerName.c_str(),
+        if (!recordReadyLocked(layerID, &timeRecords[0])) break;
+        ALOGV("[%d]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerID,
               timeRecords[0].frameTime.frameNumber, timeRecords[0].frameTime.presentTime);
 
         if (prevTimeRecord.ready) {
+            const std::string& layerName = layerRecord.layerName;
             if (!mTimeStats.stats.count(layerName)) {
                 mTimeStats.stats[layerName].layerName = layerName;
                 mTimeStats.stats[layerName].packageName = getPackageName(layerName);
@@ -184,37 +186,37 @@ void TimeStats::flushAvailableRecordsToStatsLocked(const std::string& layerName)
 
             const int32_t postToAcquireMs = msBetween(timeRecords[0].frameTime.postTime,
                                                       timeRecords[0].frameTime.acquireTime);
-            ALOGV("[%s]-[%" PRIu64 "]-post2acquire[%d]", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-post2acquire[%d]", layerID,
                   timeRecords[0].frameTime.frameNumber, postToAcquireMs);
             timeStatsLayer.deltas["post2acquire"].insert(postToAcquireMs);
 
             const int32_t postToPresentMs = msBetween(timeRecords[0].frameTime.postTime,
                                                       timeRecords[0].frameTime.presentTime);
-            ALOGV("[%s]-[%" PRIu64 "]-post2present[%d]", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-post2present[%d]", layerID,
                   timeRecords[0].frameTime.frameNumber, postToPresentMs);
             timeStatsLayer.deltas["post2present"].insert(postToPresentMs);
 
             const int32_t acquireToPresentMs = msBetween(timeRecords[0].frameTime.acquireTime,
                                                          timeRecords[0].frameTime.presentTime);
-            ALOGV("[%s]-[%" PRIu64 "]-acquire2present[%d]", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-acquire2present[%d]", layerID,
                   timeRecords[0].frameTime.frameNumber, acquireToPresentMs);
             timeStatsLayer.deltas["acquire2present"].insert(acquireToPresentMs);
 
             const int32_t latchToPresentMs = msBetween(timeRecords[0].frameTime.latchTime,
                                                        timeRecords[0].frameTime.presentTime);
-            ALOGV("[%s]-[%" PRIu64 "]-latch2present[%d]", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-latch2present[%d]", layerID,
                   timeRecords[0].frameTime.frameNumber, latchToPresentMs);
             timeStatsLayer.deltas["latch2present"].insert(latchToPresentMs);
 
             const int32_t desiredToPresentMs = msBetween(timeRecords[0].frameTime.desiredTime,
                                                          timeRecords[0].frameTime.presentTime);
-            ALOGV("[%s]-[%" PRIu64 "]-desired2present[%d]", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-desired2present[%d]", layerID,
                   timeRecords[0].frameTime.frameNumber, desiredToPresentMs);
             timeStatsLayer.deltas["desired2present"].insert(desiredToPresentMs);
 
             const int32_t presentToPresentMs = msBetween(prevTimeRecord.frameTime.presentTime,
                                                          timeRecords[0].frameTime.presentTime);
-            ALOGV("[%s]-[%" PRIu64 "]-present2present[%d]", layerName.c_str(),
+            ALOGV("[%d]-[%" PRIu64 "]-present2present[%d]", layerID,
                   timeRecords[0].frameTime.frameNumber, presentToPresentMs);
             timeStatsLayer.deltas["present2present"].insert(presentToPresentMs);
         }
@@ -239,23 +241,33 @@ static bool layerNameIsValid(const std::string& layerName) {
     return std::regex_match(layerName.begin(), layerName.end(), layerNameRegex);
 }
 
-void TimeStats::setPostTime(const std::string& layerName, uint64_t frameNumber, nsecs_t postTime) {
+void TimeStats::setLayerName(int32_t layerID, const std::string& layerName) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-PostTime[%" PRId64 "]", layerName.c_str(), frameNumber, postTime);
+    ALOGV("[%d]-[%s]", layerID, layerName.c_str());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName) && !layerNameIsValid(layerName)) {
-        return;
+    if (!mTimeStatsTracker.count(layerID) && layerNameIsValid(layerName)) {
+        mTimeStatsTracker[layerID].layerName = layerName;
     }
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+}
+
+void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, nsecs_t postTime) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    ALOGV("[%d]-[%" PRIu64 "]-PostTime[%" PRId64 "]", layerID, frameNumber, postTime);
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     if (layerRecord.timeRecords.size() == MAX_NUM_TIME_RECORDS) {
-        ALOGV("[%s]-timeRecords is already at its maximum size[%zu]", layerName.c_str(),
-              MAX_NUM_TIME_RECORDS);
-        // TODO(zzyiwei): if this happens, there must be a present fence missing
-        // or waitData is not in the correct position. Need to think out a
-        // reasonable way to recover from this state.
+        ALOGE("[%d]-[%s]-timeRecords is already at its maximum size[%zu]. Please file a bug.",
+              layerID, layerRecord.layerName.c_str(), MAX_NUM_TIME_RECORDS);
+        layerRecord.timeRecords.clear();
+        layerRecord.prevTimeRecord.ready = false;
+        layerRecord.waitData = -1;
         return;
     }
     // For most media content, the acquireFence is invalid because the buffer is
@@ -275,84 +287,77 @@ void TimeStats::setPostTime(const std::string& layerName, uint64_t frameNumber, 
         layerRecord.waitData = layerRecord.timeRecords.size() - 1;
 }
 
-void TimeStats::setLatchTime(const std::string& layerName, uint64_t frameNumber,
-                             nsecs_t latchTime) {
+void TimeStats::setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latchTime) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-LatchTime[%" PRId64 "]", layerName.c_str(), frameNumber, latchTime);
+    ALOGV("[%d]-[%" PRIu64 "]-LatchTime[%" PRId64 "]", layerID, frameNumber, latchTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.latchTime = latchTime;
     }
 }
 
-void TimeStats::setDesiredTime(const std::string& layerName, uint64_t frameNumber,
-                               nsecs_t desiredTime) {
+void TimeStats::setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t desiredTime) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-DesiredTime[%" PRId64 "]", layerName.c_str(), frameNumber,
-          desiredTime);
+    ALOGV("[%d]-[%" PRIu64 "]-DesiredTime[%" PRId64 "]", layerID, frameNumber, desiredTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.desiredTime = desiredTime;
     }
 }
 
-void TimeStats::setAcquireTime(const std::string& layerName, uint64_t frameNumber,
-                               nsecs_t acquireTime) {
+void TimeStats::setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t acquireTime) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-AcquireTime[%" PRId64 "]", layerName.c_str(), frameNumber,
-          acquireTime);
+    ALOGV("[%d]-[%" PRIu64 "]-AcquireTime[%" PRId64 "]", layerID, frameNumber, acquireTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.acquireTime = acquireTime;
     }
 }
 
-void TimeStats::setAcquireFence(const std::string& layerName, uint64_t frameNumber,
+void TimeStats::setAcquireFence(int32_t layerID, uint64_t frameNumber,
                                 const std::shared_ptr<FenceTime>& acquireFence) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-AcquireFenceTime[%" PRId64 "]", layerName.c_str(), frameNumber,
+    ALOGV("[%d]-[%" PRIu64 "]-AcquireFenceTime[%" PRId64 "]", layerID, frameNumber,
           acquireFence->getSignalTime());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.acquireFence = acquireFence;
     }
 }
 
-void TimeStats::setPresentTime(const std::string& layerName, uint64_t frameNumber,
-                               nsecs_t presentTime) {
+void TimeStats::setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t presentTime) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-PresentTime[%" PRId64 "]", layerName.c_str(), frameNumber,
-          presentTime);
+    ALOGV("[%d]-[%" PRIu64 "]-PresentTime[%" PRId64 "]", layerID, frameNumber, presentTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.frameTime.presentTime = presentTime;
@@ -360,20 +365,20 @@ void TimeStats::setPresentTime(const std::string& layerName, uint64_t frameNumbe
         layerRecord.waitData++;
     }
 
-    flushAvailableRecordsToStatsLocked(layerName);
+    flushAvailableRecordsToStatsLocked(layerID);
 }
 
-void TimeStats::setPresentFence(const std::string& layerName, uint64_t frameNumber,
+void TimeStats::setPresentFence(int32_t layerID, uint64_t frameNumber,
                                 const std::shared_ptr<FenceTime>& presentFence) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-PresentFenceTime[%" PRId64 "]", layerName.c_str(), frameNumber,
+    ALOGV("[%d]-[%" PRIu64 "]-PresentFenceTime[%" PRId64 "]", layerID, frameNumber,
           presentFence->getSignalTime());
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     TimeRecord& timeRecord = layerRecord.timeRecords[layerRecord.waitData];
     if (timeRecord.frameTime.frameNumber == frameNumber) {
         timeRecord.presentFence = presentFence;
@@ -381,57 +386,57 @@ void TimeStats::setPresentFence(const std::string& layerName, uint64_t frameNumb
         layerRecord.waitData++;
     }
 
-    flushAvailableRecordsToStatsLocked(layerName);
+    flushAvailableRecordsToStatsLocked(layerID);
 }
 
-void TimeStats::onDisconnect(const std::string& layerName) {
+void TimeStats::onDisconnect(int32_t layerID) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-onDisconnect", layerName.c_str());
+    ALOGV("[%d]-onDisconnect", layerID);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    flushAvailableRecordsToStatsLocked(layerName);
-    mTimeStatsTracker.erase(layerName);
+    if (!mTimeStatsTracker.count(layerID)) return;
+    flushAvailableRecordsToStatsLocked(layerID);
+    mTimeStatsTracker.erase(layerID);
 }
 
-void TimeStats::onDestroy(const std::string& layerName) {
+void TimeStats::onDestroy(int32_t layerID) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-onDestroy", layerName.c_str());
+    ALOGV("[%d]-onDestroy", layerID);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    flushAvailableRecordsToStatsLocked(layerName);
-    mTimeStatsTracker.erase(layerName);
+    if (!mTimeStatsTracker.count(layerID)) return;
+    flushAvailableRecordsToStatsLocked(layerID);
+    mTimeStatsTracker.erase(layerID);
 }
 
-void TimeStats::clearLayerRecord(const std::string& layerName) {
+void TimeStats::clearLayerRecord(int32_t layerID) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-clearLayerRecord", layerName.c_str());
+    ALOGV("[%d]-clearLayerRecord", layerID);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     layerRecord.timeRecords.clear();
     layerRecord.prevTimeRecord.ready = false;
     layerRecord.waitData = -1;
     layerRecord.droppedFrames = 0;
 }
 
-void TimeStats::removeTimeRecord(const std::string& layerName, uint64_t frameNumber) {
+void TimeStats::removeTimeRecord(int32_t layerID, uint64_t frameNumber) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%s]-[%" PRIu64 "]-removeTimeRecord", layerName.c_str(), frameNumber);
+    ALOGV("[%d]-[%" PRIu64 "]-removeTimeRecord", layerID, frameNumber);
 
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerName)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerName];
+    if (!mTimeStatsTracker.count(layerID)) return;
+    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     size_t removeAt = 0;
     for (const TimeRecord& record : layerRecord.timeRecords) {
         if (record.frameTime.frameNumber == frameNumber) break;
@@ -445,6 +450,87 @@ void TimeStats::removeTimeRecord(const std::string& layerName, uint64_t frameNum
     layerRecord.droppedFrames++;
 }
 
+void TimeStats::flushPowerTimeLocked() {
+    nsecs_t curTime = systemTime();
+    // elapsedTime is in milliseconds.
+    int64_t elapsedTime = (curTime - mPowerTime.prevTime) / 1000000;
+
+    switch (mPowerTime.powerMode) {
+        case HWC_POWER_MODE_NORMAL:
+            mTimeStats.displayOnTime += elapsedTime;
+            break;
+        case HWC_POWER_MODE_OFF:
+        case HWC_POWER_MODE_DOZE:
+        case HWC_POWER_MODE_DOZE_SUSPEND:
+        default:
+            break;
+    }
+
+    mPowerTime.prevTime = curTime;
+}
+
+void TimeStats::setPowerMode(int32_t powerMode) {
+    if (!mEnabled.load()) {
+        std::lock_guard<std::mutex> lock(mMutex);
+        mPowerTime.powerMode = powerMode;
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (powerMode == mPowerTime.powerMode) return;
+
+    flushPowerTimeLocked();
+    mPowerTime.powerMode = powerMode;
+}
+
+void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
+    ATRACE_CALL();
+
+    while (!mGlobalRecord.presentFences.empty()) {
+        const nsecs_t curPresentTime = mGlobalRecord.presentFences.front()->getSignalTime();
+        if (curPresentTime == Fence::SIGNAL_TIME_PENDING) break;
+
+        if (curPresentTime == Fence::SIGNAL_TIME_INVALID) {
+            ALOGE("GlobalPresentFence is invalid!");
+            mGlobalRecord.prevPresentTime = 0;
+            mGlobalRecord.presentFences.pop_front();
+            continue;
+        }
+
+        ALOGV("GlobalPresentFenceTime[%" PRId64 "]",
+              mGlobalRecord.presentFences.front()->getSignalTime());
+
+        const int32_t presentToPresentMs = msBetween(mGlobalRecord.prevPresentTime, curPresentTime);
+        ALOGV("Global present2present[%d]", presentToPresentMs);
+
+        mTimeStats.presentToPresent.insert(presentToPresentMs);
+        mGlobalRecord.prevPresentTime = curPresentTime;
+        mGlobalRecord.presentFences.pop_front();
+    }
+}
+
+void TimeStats::setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) {
+    if (!mEnabled.load()) return;
+
+    ATRACE_CALL();
+    std::lock_guard<std::mutex> lock(mMutex);
+    if (presentFence == nullptr) {
+        mGlobalRecord.prevPresentTime = 0;
+        return;
+    }
+
+    if (mGlobalRecord.presentFences.size() == MAX_NUM_TIME_RECORDS) {
+        // The front presentFence must be trapped in pending status in this
+        // case. Try dequeuing the front one to recover.
+        ALOGE("GlobalPresentFences is already at its maximum size[%zu]", MAX_NUM_TIME_RECORDS);
+        mGlobalRecord.prevPresentTime = 0;
+        mGlobalRecord.presentFences.pop_front();
+    }
+
+    mGlobalRecord.presentFences.emplace_back(presentFence);
+    flushAvailableGlobalRecordsToStatsLocked();
+}
+
 void TimeStats::enable() {
     if (mEnabled.load()) return;
 
@@ -454,6 +540,7 @@ void TimeStats::enable() {
     ALOGD("Enabled");
     mEnabled.store(true);
     mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
+    mPowerTime.prevTime = systemTime();
 }
 
 void TimeStats::disable() {
@@ -478,6 +565,9 @@ void TimeStats::clear() {
     mTimeStats.totalFrames = 0;
     mTimeStats.missedFrames = 0;
     mTimeStats.clientCompositionFrames = 0;
+    mTimeStats.displayOnTime = 0;
+    mTimeStats.presentToPresent.hist.clear();
+    mPowerTime.prevTime = systemTime();
 }
 
 bool TimeStats::isEnabled() {
@@ -493,6 +583,8 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, String8& r
     }
 
     mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
+
+    flushPowerTimeLocked();
 
     if (asProto) {
         ALOGD("Dumping TimeStats as proto");

@@ -57,6 +57,8 @@ public:
         int32_t totalFrames = 0;
         int32_t missedFrames = 0;
         int32_t clientCompositionFrames = 0;
+        int64_t displayOnTime = 0;
+        Histogram presentToPresent;
         std::unordered_map<std::string, TimeStatsLayer> stats;
 
         std::string toString(std::optional<uint32_t> maxLayers) const;

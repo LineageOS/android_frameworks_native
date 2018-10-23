@@ -1470,14 +1470,15 @@ void Layer::dumpFrameEvents(String8& result) {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
-    mTimeStats.onDisconnect(getName().c_str());
+    mTimeStats.onDisconnect(getSequence());
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                      FrameEventHistoryDelta* outDelta) {
     if (newTimestamps) {
-        mTimeStats.setPostTime(getName().c_str(), newTimestamps->frameNumber,
-                               newTimestamps->postedTime);
+        const int32_t layerID = getSequence();
+        mTimeStats.setLayerName(layerID, getName().c_str());
+        mTimeStats.setPostTime(layerID, newTimestamps->frameNumber, newTimestamps->postedTime);
     }
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);

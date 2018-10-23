@@ -1905,6 +1905,8 @@ void SurfaceFlinger::postComposition()
         mTimeStats.incrementClientCompositionFrames();
     }
 
+    mTimeStats.setPresentFenceGlobal(presentFenceTime);
+
     if (display && getHwComposer().isConnected(display->getId()) &&
         display->getPowerMode() == HWC_POWER_MODE_OFF) {
         return;
@@ -3978,6 +3980,10 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     } else {
         ALOGE("Attempting to set unknown power mode: %d\n", mode);
         getHwComposer().setPowerMode(type, mode);
+    }
+
+    if (display->isPrimary()) {
+        mTimeStats.setPowerMode(mode);
     }
 
     ALOGD("Finished setting power mode %d on display %d", mode, displayId);
