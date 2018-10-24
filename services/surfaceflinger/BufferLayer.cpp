@@ -70,6 +70,8 @@ BufferLayer::~BufferLayer() {
               mName.string());
         destroyAllHwcLayers();
     }
+
+    mTimeStats.onDestroy(getSequence());
 }
 
 void BufferLayer::useSurfaceDamage() {
@@ -335,8 +337,8 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     nsecs_t desiredPresentTime = getDesiredPresentTime();
     mFrameTracker.setDesiredPresentTime(desiredPresentTime);
 
-    const std::string layerName(getName().c_str());
-    mTimeStats.setDesiredTime(layerName, mCurrentFrameNumber, desiredPresentTime);
+    const int32_t layerID = getSequence();
+    mTimeStats.setDesiredTime(layerID, mCurrentFrameNumber, desiredPresentTime);
 
     std::shared_ptr<FenceTime> frameReadyFence = getCurrentFenceTime();
     if (frameReadyFence->isValid()) {
@@ -348,14 +350,14 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     }
 
     if (presentFence->isValid()) {
-        mTimeStats.setPresentFence(layerName, mCurrentFrameNumber, presentFence);
+        mTimeStats.setPresentFence(layerID, mCurrentFrameNumber, presentFence);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
     } else if (mFlinger->getHwComposer().isConnected(HWC_DISPLAY_PRIMARY)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime =
                 mFlinger->getHwComposer().getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
-        mTimeStats.setPresentTime(layerName, mCurrentFrameNumber, actualPresentTime);
+        mTimeStats.setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
         mFrameTracker.setActualPresentTime(actualPresentTime);
     }
 
