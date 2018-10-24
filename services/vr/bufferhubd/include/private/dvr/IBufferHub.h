@@ -3,6 +3,7 @@
 
 #include <binder/IInterface.h>
 #include <binder/Parcel.h>
+#include <private/dvr/IBufferClient.h>
 
 namespace android {
 namespace dvr {
@@ -10,6 +11,11 @@ namespace dvr {
 class IBufferHub : public IInterface {
  public:
   DECLARE_META_INTERFACE(BufferHub);
+
+  virtual sp<IBufferClient> createBuffer(uint32_t width, uint32_t height,
+                                         uint32_t layer_count, uint32_t format,
+                                         uint64_t usage,
+                                         uint64_t user_metadata_size) = 0;
 };
 
 class BnBufferHub : public BnInterface<IBufferHub> {
@@ -18,13 +24,7 @@ class BnBufferHub : public BnInterface<IBufferHub> {
                               uint32_t flags = 0);
 };
 
-class BpBufferHub : public BpInterface<IBufferHub> {
- public:
-  explicit BpBufferHub(const sp<IBinder>& impl)
-      : BpInterface<IBufferHub>(impl) {}
-};
-
 }  // namespace dvr
 }  // namespace android
 
-#endif
+#endif  // ANDROID_DVR_IBUFFERHUB_H
