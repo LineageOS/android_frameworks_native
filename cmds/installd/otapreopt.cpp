@@ -322,21 +322,8 @@ private:
             return false;
         }
         const char* isa = parameters_.instruction_set;
-
-        // Check whether the file exists where expected.
         std::string dalvik_cache = GetOTADataDirectory() + "/" + DALVIK_CACHE;
         std::string isa_path = dalvik_cache + "/" + isa;
-        std::string art_path = isa_path + "/system@framework@boot.art";
-        std::string oat_path = isa_path + "/system@framework@boot.oat";
-        bool cleared = false;
-        if (access(art_path.c_str(), F_OK) == 0 && access(oat_path.c_str(), F_OK) == 0) {
-            // Files exist, assume everything is alright if not forced. Otherwise clean up.
-            if (!force) {
-                return true;
-            }
-            ClearDirectory(isa_path);
-            cleared = true;
-        }
 
         // Reset umask in otapreopt, so that we control the the access for the files we create.
         umask(0);
@@ -355,17 +342,34 @@ private:
             }
         }
 
-        // Prepare to create.
+        // Check whether we have files in /data.
+        // TODO: check that the files are correct wrt/ jars.
+        std::string art_path = isa_path + "/system@framework@boot.art";
+        std::string oat_path = isa_path + "/system@framework@boot.oat";
+        bool cleared = false;
+        if (access(art_path.c_str(), F_OK) == 0 && access(oat_path.c_str(), F_OK) == 0) {
+            // Files exist, assume everything is alright if not forced. Otherwise clean up.
+            if (!force) {
+                return true;
+            }
+            ClearDirectory(isa_path);
+            cleared = true;
+        }
+
+        // Check whether we have an image in /system.
+        // TODO: check that the files are correct wrt/ jars.
+        std::string preopted_boot_art_path = StringPrintf("/system/framework/%s/boot.art", isa);
+        if (access(preopted_boot_art_path.c_str(), F_OK) == 0) {
+            // Note: we ignore |force| here.
+            return true;
+        }
+
+
         if (!cleared) {
             ClearDirectory(isa_path);
         }
 
-        std::string preopted_boot_art_path = StringPrintf("/system/framework/%s/boot.art", isa);
-        if (access(preopted_boot_art_path.c_str(), F_OK) != 0) {
-          // No preopted boot image. Try to compile.
-          return Dex2oatBootImage(boot_classpath_, art_path, oat_path, isa);
-        }
-        return true;
+        return Dex2oatBootImage(boot_classpath_, art_path, oat_path, isa);
     }
 
     static bool CreatePath(const std::string& path) {
