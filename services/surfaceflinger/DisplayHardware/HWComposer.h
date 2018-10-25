@@ -186,14 +186,6 @@ public:
     android::Hwc2::Composer* getComposer() const { return mHwcDevice->getComposer(); }
 
     std::optional<hwc2_display_t> getHwcDisplayId(int32_t displayId) const;
-
-    // ------------------------------------------------------------------------
-    // These functions set and get the frequencyScaler.  The frequencyScaler holds
-    // a multiplier and divisor for virtually scaling the panel frequency in
-    // software.  This is used to simulate different panel frequencies when
-    // panel hardware is not available.
-    void setDisplayFrequencyScaleParameters(HWC2::Device::FrequencyScaler frequencyScaler);
-    HWC2::Device::FrequencyScaler getDisplayFrequencyScaleParameters();
 private:
     // For unit tests
     friend TestableSurfaceFlinger;

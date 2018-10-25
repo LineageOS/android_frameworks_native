@@ -526,18 +526,16 @@ void DispSync::setPeriod(nsecs_t period) {
     mThread->updateModel(mPeriod, mPhase, mReferenceTime);
 }
 
-void DispSync::scalePeriod(HWC2::Device::FrequencyScaler frequencyScaler) {
+void DispSync::scalePeriod(uint32_t multiplier, uint32_t divisor) {
     Mutex::Autolock lock(mMutex);
 
     // if only 1 of the properties is updated, we will get to this
     // point "attempting" to set the scale to 1 when it is already
     // 1.  Check that special case so that we don't do a useless
     // update of the model.
-    if ((frequencyScaler.multiplier == 1) &&
-            (frequencyScaler.divisor == 1) &&
-            (mPeriod == mPeriodBase)) return;
+    if ((multiplier == 1) && (divisor == 1) && (mPeriod == mPeriodBase)) return;
 
-    mPeriod = mPeriodBase * frequencyScaler.multiplier / frequencyScaler.divisor;
+    mPeriod = mPeriodBase * multiplier / divisor;
     mThread->updateModel(mPeriod, mPhase, mReferenceTime);
 }
 
