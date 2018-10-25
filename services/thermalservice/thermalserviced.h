@@ -19,22 +19,26 @@
 
 #include "ThermalService.h"
 #include "libthermalcallback/ThermalCallback.h"
+#include "libthermalcallback/ThermalChangedCallback.h"
 
 using namespace android;
 using ::android::hardware::thermal::V1_0::Temperature;
 using ::android::hardware::thermal::V1_1::implementation::ThermalCallback;
+using ::android::hardware::thermal::V2_0::implementation::ThermalChangedCallback;
 using ::android::os::ThermalService;
 
 class ThermalServiceDaemon {
  public:
+    ~ThermalServiceDaemon();
     void thermalServiceStartup();
     void thermalCallbackStartup();
     void getThermalHal();
-    ThermalServiceDaemon() {};
+    ThermalServiceDaemon(){};
 
  private:
     sp<ThermalService> mThermalService;
     sp<ThermalCallback> mThermalCallback;
+    sp<ThermalChangedCallback> mThermalChangedCallback;
 };
 
 #endif  // ANDROID_THERMALSERVICE_THERMALSERVICED_H

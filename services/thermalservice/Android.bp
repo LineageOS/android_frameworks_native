@@ -40,11 +40,13 @@ cc_binary {
     include_dirs: ["frameworks/native"],
 
     shared_libs: [
+        "libbase",
         "libthermalservice",
         "libbinder",
         "libutils",
         "libthermalcallback",
         "android.hardware.thermal@1.1",
+        "android.hardware.thermal@2.0",
         "libhidlbase",
         "libhidltransport",
         "liblog",
