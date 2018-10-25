@@ -275,10 +275,24 @@ void* Loader::open(egl_connection_t* cnx)
     return (void*)hnd;
 }
 
-void Loader::close(void* driver)
+void Loader::close(egl_connection_t* cnx)
 {
-    driver_t* hnd = (driver_t*)driver;
+    driver_t* hnd = (driver_t*) cnx->dso;
     delete hnd;
+    cnx->dso = nullptr;
+
+    if (cnx->featureSo) {
+        dlclose(cnx->featureSo);
+        cnx->featureSo = nullptr;
+    }
+
+    cnx->angleDecided = false;
+    cnx->useAngle = false;
+
+    if (cnx->vendorEGL) {
+        dlclose(cnx->vendorEGL);
+        cnx->vendorEGL = nullptr;
+    }
 }
 
 void Loader::init_api(void* dso,
@@ -553,15 +567,9 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
         property_get("ro.product.manufacturer", manufacturer, "UNSET");
         property_get("ro.product.model", model, "UNSET");
 
-        // Check if ANGLE is enabled. Workaround for b/118375731
-        // We suspect that loading & unloading a library somehow corrupts
-        // the process.
-        property_get("debug.angle.enable", prop, "0");
-        if (atoi(prop)) {
-            so = load_angle_from_namespace("feature_support", ns);
-        }
-        if (so) {
-            ALOGV("Temporarily loaded ANGLE's opt-in/out logic from namespace");
+        cnx->featureSo = load_angle_from_namespace("feature_support", ns);
+        if (cnx->featureSo) {
+            ALOGV("loaded ANGLE's opt-in/out logic from namespace");
             bool use_version0_API = false;
             bool use_version1_API = false;
             fpANGLEGetUtilityAPI ANGLEGetUtilityAPI =
@@ -605,14 +613,11 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
                     ALOGW("Cannot find ANGLEUseForApplication in library");
                 }
             }
-            ALOGV("Close temporarily-loaded ANGLE opt-in/out logic");
-            dlclose(so);
-            so = nullptr;
         } else {
             // We weren't able to load and call the updateable opt-in/out logic.
             // If we can't load the library, there is no ANGLE available.
             use_angle = false;
-            ALOGV("Could not temporarily-load the ANGLE opt-in/out logic, cannot use ANGLE.");
+            ALOGV("Could not load the ANGLE opt-in/out logic, cannot use ANGLE.");
         }
         cnx->angleDecided = true;
     }
