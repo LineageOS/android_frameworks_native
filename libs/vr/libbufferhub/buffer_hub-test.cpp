@@ -214,13 +214,12 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c.get() != nullptr);
 
-  uint64_t context;
   LocalHandle fence;
 
   // The producer buffer starts in gained state.
 
   // Acquire, release, and gain in gained state should fail.
-  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence));
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
   EXPECT_EQ(-EALREADY, p->Gain(&fence));
 
@@ -233,10 +232,10 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
   EXPECT_EQ(-EBUSY, p->Gain(&fence));
 
   // Acquire in posted state should succeed.
-  EXPECT_LE(0, c->Acquire(&fence, &context));
+  EXPECT_LE(0, c->Acquire(&fence));
 
   // Acquire, post, and gain in acquired state should fail.
-  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence));
   EXPECT_EQ(-EBUSY, p->Post(LocalHandle()));
   EXPECT_EQ(-EBUSY, p->Gain(&fence));
 
@@ -246,14 +245,14 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
 
   // Release, acquire, and post in released state should fail.
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
-  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence));
   EXPECT_EQ(-EBUSY, p->Post(LocalHandle()));
 
   // Gain in released state should succeed.
   EXPECT_EQ(0, p->Gain(&fence));
 
   // Acquire, release, and gain in gained state should fail.
-  EXPECT_EQ(-EBUSY, c->Acquire(&fence, &context));
+  EXPECT_EQ(-EBUSY, c->Acquire(&fence));
   EXPECT_EQ(-EBUSY, c->Release(LocalHandle()));
   EXPECT_EQ(-EALREADY, p->Gain(&fence));
 }
@@ -491,7 +490,7 @@ TEST_F(LibBufferHubTest, TestWithCustomMetadata) {
   EXPECT_LE(0, RETRY_EINTR(c->Poll(kPollTimeoutMs)));
   LocalHandle fence;
   Metadata m2 = {};
-  EXPECT_EQ(0, c->Acquire(&fence, &m2));
+  EXPECT_EQ(0, c->Acquire(&fence, &m2, sizeof(m2)));
   EXPECT_EQ(m.field1, m2.field1);
   EXPECT_EQ(m.field2, m2.field2);
   EXPECT_EQ(0, c->Release(LocalHandle()));
@@ -552,11 +551,11 @@ TEST_F(LibBufferHubTest, TestAcquireWithWrongMetaSize) {
 
   // It is illegal to acquire metadata larger than originally requested during
   // buffer allocation.
-  EXPECT_NE(0, c->Acquire(&fence, &e));
+  EXPECT_NE(0, c->Acquire(&fence, &e, sizeof(e)));
 
   // It is ok to acquire metadata smaller than originally requested during
   // buffer allocation.
-  EXPECT_EQ(0, c->Acquire(&fence, &sequence));
+  EXPECT_EQ(0, c->Acquire(&fence, &sequence, sizeof(sequence)));
   EXPECT_EQ(m.field1, sequence);
 }
 

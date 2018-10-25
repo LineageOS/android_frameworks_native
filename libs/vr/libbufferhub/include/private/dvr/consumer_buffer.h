@@ -45,15 +45,6 @@ class ConsumerBuffer : public pdx::ClientBase<ConsumerBuffer, BufferHubBase> {
   // Returns zero on success, or a negative errno code otherwise.
   int Acquire(LocalHandle* ready_fence, void* meta, size_t user_metadata_size);
 
-  // Attempt to retrieve a post event from buffer hub. If successful,
-  // |ready_fence| is set to a fence to wait on until the buffer is ready. This
-  // call will only succeed after the fd is signaled. This returns zero or a
-  // negative unix error code.
-  template <typename Meta>
-  int Acquire(LocalHandle* ready_fence, Meta* meta) {
-    return Acquire(ready_fence, meta, sizeof(*meta));
-  }
-
   // Asynchronously acquires a bufer.
   int AcquireAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
 
