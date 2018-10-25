@@ -103,11 +103,15 @@ public:
     }
 
     virtual status_t captureScreen(const sp<IBinder>& display, sp<GraphicBuffer>* outBuffer,
-                                   Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                                   bool useIdentityTransform, ISurfaceComposer::Rotation rotation) {
+                                   const ui::Dataspace reqDataspace,
+                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
+                                   ISurfaceComposer::Rotation rotation) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
+        data.writeInt32(static_cast<int32_t>(reqDataspace));
+        data.writeInt32(static_cast<int32_t>(reqPixelFormat));
         data.write(sourceCrop);
         data.writeUint32(reqWidth);
         data.writeUint32(reqHeight);
@@ -126,15 +130,19 @@ public:
 
         *outBuffer = new GraphicBuffer();
         reply.read(**outBuffer);
+
         return result;
     }
 
     virtual status_t captureLayers(const sp<IBinder>& layerHandleBinder,
-                                   sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                   sp<GraphicBuffer>* outBuffer, const ui::Dataspace reqDataspace,
+                                   const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                    float frameScale, bool childrenOnly) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(layerHandleBinder);
+        data.writeInt32(static_cast<int32_t>(reqDataspace));
+        data.writeInt32(static_cast<int32_t>(reqPixelFormat));
         data.write(sourceCrop);
         data.writeFloat(frameScale);
         data.writeBool(childrenOnly);
@@ -148,6 +156,7 @@ public:
             ALOGE("captureLayers failed to readInt32: %d", result);
             return result;
         }
+
         *outBuffer = new GraphicBuffer();
         reply.read(**outBuffer);
 
@@ -645,6 +654,8 @@ status_t BnSurfaceComposer::onTransact(
         case CAPTURE_SCREEN: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> display = data.readStrongBinder();
+            ui::Dataspace reqDataspace = static_cast<ui::Dataspace>(data.readInt32());
+            ui::PixelFormat reqPixelFormat = static_cast<ui::PixelFormat>(data.readInt32());
             sp<GraphicBuffer> outBuffer;
             Rect sourceCrop(Rect::EMPTY_RECT);
             data.read(sourceCrop);
@@ -653,8 +664,8 @@ status_t BnSurfaceComposer::onTransact(
             bool useIdentityTransform = static_cast<bool>(data.readInt32());
             int32_t rotation = data.readInt32();
 
-            status_t res = captureScreen(display, &outBuffer, sourceCrop, reqWidth, reqHeight,
-                                         useIdentityTransform,
+            status_t res = captureScreen(display, &outBuffer, reqDataspace, reqPixelFormat,
+                                         sourceCrop, reqWidth, reqHeight, useIdentityTransform,
                                          static_cast<ISurfaceComposer::Rotation>(rotation));
             reply->writeInt32(res);
             if (res == NO_ERROR) {
@@ -665,14 +676,16 @@ status_t BnSurfaceComposer::onTransact(
         case CAPTURE_LAYERS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> layerHandleBinder = data.readStrongBinder();
+            ui::Dataspace reqDataspace = static_cast<ui::Dataspace>(data.readInt32());
+            ui::PixelFormat reqPixelFormat = static_cast<ui::PixelFormat>(data.readInt32());
             sp<GraphicBuffer> outBuffer;
             Rect sourceCrop(Rect::EMPTY_RECT);
             data.read(sourceCrop);
             float frameScale = data.readFloat();
             bool childrenOnly = data.readBool();
 
-            status_t res = captureLayers(layerHandleBinder, &outBuffer, sourceCrop, frameScale,
-                                         childrenOnly);
+            status_t res = captureLayers(layerHandleBinder, &outBuffer, reqDataspace,
+                                         reqPixelFormat, sourceCrop, frameScale, childrenOnly);
             reply->writeInt32(res);
             if (res == NO_ERROR) {
                 reply->write(*outBuffer);

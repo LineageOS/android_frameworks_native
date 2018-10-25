@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ui/GraphicTypes.h>
 #include <ui/Transform.h>
 
 #include <functional>
@@ -19,9 +20,11 @@ public:
     static float getCaptureFillValue(CaptureFill captureFill);
 
     RenderArea(uint32_t reqWidth, uint32_t reqHeight, CaptureFill captureFill,
+               ui::Dataspace reqDataSpace,
                ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
           : mReqWidth(reqWidth),
             mReqHeight(reqHeight),
+            mReqDataSpace(reqDataSpace),
             mCaptureFill(captureFill),
             mRotationFlags(rotation) {}
 
@@ -66,6 +69,9 @@ public:
     int getReqWidth() const { return mReqWidth; };
     int getReqHeight() const { return mReqHeight; };
 
+    // Returns the composition data space of the render area.
+    ui::Dataspace getReqDataSpace() const { return mReqDataSpace; }
+
     // Returns the fill color of the physical render area.  Regions not
     // covered by any rendered layer should be filled with this color.
     CaptureFill getCaptureFill() const { return mCaptureFill; };
@@ -73,6 +79,7 @@ public:
 private:
     const uint32_t mReqWidth;
     const uint32_t mReqHeight;
+    const ui::Dataspace mReqDataSpace;
     const CaptureFill mCaptureFill;
     const ui::Transform::orientation_flags mRotationFlags;
 };

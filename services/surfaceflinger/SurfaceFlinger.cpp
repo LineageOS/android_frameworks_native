@@ -5108,7 +5108,8 @@ private:
 };
 
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
-                                       sp<GraphicBuffer>* outBuffer, Rect sourceCrop,
+                                       sp<GraphicBuffer>* outBuffer, const Dataspace reqDataspace,
+                                       const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                        uint32_t reqWidth, uint32_t reqHeight,
                                        bool useIdentityTransform,
                                        ISurfaceComposer::Rotation rotation) {
@@ -5137,23 +5138,27 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         }
     }
 
-    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
+    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, reqDataspace,
+                                 renderAreaRotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     display, std::placeholders::_1);
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, useIdentityTransform);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat,
+                               useIdentityTransform);
 }
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
-                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                       sp<GraphicBuffer>* outBuffer, const Dataspace reqDataspace,
+                                       const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                        float frameScale, bool childrenOnly) {
     ATRACE_CALL();
 
     class LayerRenderArea : public RenderArea {
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
-                        int32_t reqWidth, int32_t reqHeight, bool childrenOnly)
-              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR),
+                        int32_t reqWidth, int32_t reqHeight, Dataspace reqDataSpace,
+                        bool childrenOnly)
+              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR, reqDataSpace),
                 mLayer(layer),
                 mCrop(crop),
                 mNeedsFiltering(false),
@@ -5260,7 +5265,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         reqHeight = 1;
     }
 
-    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, childrenOnly);
+    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly);
 
     auto traverseLayers = [parent, childrenOnly](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
@@ -5272,19 +5277,22 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
             visitor(layer);
         });
     };
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, false);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat, false);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              TraverseLayersFunction traverseLayers,
                                              sp<GraphicBuffer>* outBuffer,
+                                             const ui::PixelFormat reqPixelFormat,
                                              bool useIdentityTransform) {
     ATRACE_CALL();
 
+    // TODO(b/116112787) Make buffer usage a parameter.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
     *outBuffer = new GraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
-                                   HAL_PIXEL_FORMAT_RGBA_8888, 1, usage, "screenshot");
+                                   static_cast<android_pixel_format>(reqPixelFormat), 1, usage,
+                                   "screenshot");
 
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
@@ -5360,8 +5368,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto sourceCrop = renderArea.getSourceCrop();
     const auto rotation = renderArea.getRotationFlags();
 
-    // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
-    engine.setOutputDataSpace(Dataspace::SRGB);
+    engine.setOutputDataSpace(renderArea.getReqDataSpace());
     engine.setDisplayMaxLuminance(DisplayDevice::sDefaultMaxLumiance);
 
     // make sure to clear all GL error flags
