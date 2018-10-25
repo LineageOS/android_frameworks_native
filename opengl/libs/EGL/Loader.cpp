@@ -549,7 +549,14 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
         char model[PROPERTY_VALUE_MAX];
         property_get("ro.product.manufacturer", manufacturer, "UNSET");
         property_get("ro.product.model", model, "UNSET");
-        so = load_angle_from_namespace("feature_support", ns);
+
+        // Check if ANGLE is enabled. Workaround for b/118375731
+        // We suspect that loading & unloading a library somehow corrupts
+        // the process.
+        property_get("debug.angle.enable", prop, "0");
+        if (atoi(prop)) {
+            so = load_angle_from_namespace("feature_support", ns);
+        }
         if (so) {
             ALOGV("Temporarily loaded ANGLE's opt-in/out logic from namespace");
             bool use_version0_API = false;
