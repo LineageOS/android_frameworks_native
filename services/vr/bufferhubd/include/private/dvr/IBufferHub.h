@@ -12,6 +12,7 @@ class IBufferHub : public IInterface {
  public:
   DECLARE_META_INTERFACE(BufferHub);
 
+  static const char* getServiceName() { return "bufferhubd"; }
   virtual sp<IBufferClient> createBuffer(uint32_t width, uint32_t height,
                                          uint32_t layer_count, uint32_t format,
                                          uint64_t usage,
