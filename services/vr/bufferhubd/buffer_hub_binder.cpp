@@ -46,8 +46,14 @@ status_t BufferHubBinderService::dump(int fd, const Vector<String16>& args) {
             "Input arguments are ignored.\n");
   }
 
-  // TODO(b/116526156): output real data in this class once we have it
+  fprintf(out, "Binder service:\n");
+  // Active buffers
+  fprintf(out, "Active BufferClients: %zu\n", client_list_.size());
+  // TODO(b/117790952): print buffer information after BufferNode has it
+  // TODO(b/116526156): print more information once we have them
+
   if (pdx_service_) {
+    fprintf(out, "\nPDX service:\n");
     // BufferHubService::Dumpstate(size_t) is not actually using the param
     // So just using 0 as the length
     fprintf(out, "%s", pdx_service_->DumpState(0).c_str());
