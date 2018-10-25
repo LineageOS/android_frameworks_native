@@ -167,7 +167,7 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
         auto sphalNamespace = android_get_exported_namespace("sphal");
         if (!sphalNamespace) return;
         mDriverNamespace = android_create_namespace("gfx driver",
-                                                    nullptr,             // ld_library_path
+                                                    mDriverPath.c_str(), // ld_library_path
                                                     mDriverPath.c_str(), // default_library_path
                                                     ANDROID_NAMESPACE_TYPE_SHARED |
                                                             ANDROID_NAMESPACE_TYPE_ISOLATED,

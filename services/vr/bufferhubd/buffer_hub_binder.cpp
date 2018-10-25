@@ -5,6 +5,7 @@
 #include <binder/ProcessState.h>
 #include <log/log.h>
 #include <private/dvr/buffer_hub_binder.h>
+#include <private/dvr/buffer_node.h>
 
 namespace android {
 namespace dvr {
@@ -45,8 +46,14 @@ status_t BufferHubBinderService::dump(int fd, const Vector<String16>& args) {
             "Input arguments are ignored.\n");
   }
 
-  // TODO(b/116526156): output real data in this class once we have it
+  fprintf(out, "Binder service:\n");
+  // Active buffers
+  fprintf(out, "Active BufferClients: %zu\n", client_list_.size());
+  // TODO(b/117790952): print buffer information after BufferNode has it
+  // TODO(b/116526156): print more information once we have them
+
   if (pdx_service_) {
+    fprintf(out, "\nPDX service:\n");
     // BufferHubService::Dumpstate(size_t) is not actually using the param
     // So just using 0 as the length
     fprintf(out, "%s", pdx_service_->DumpState(0).c_str());
@@ -75,6 +82,19 @@ sp<IBufferHub> BufferHubBinderService::getServiceProxy() {
   }
 
   return ret;
+}
+
+sp<IBufferClient> BufferHubBinderService::createBuffer(
+    uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
+    uint64_t usage, uint64_t user_metadata_size) {
+  std::shared_ptr<BufferNode> node = std::make_shared<BufferNode>(
+      width, height, layer_count, format, usage, user_metadata_size);
+
+  sp<BufferClient> client = new BufferClient(node);
+  // Add it to list for bookkeeping and dumpsys.
+  client_list_.push_back(client);
+
+  return client;
 }
 
 }  // namespace dvr
