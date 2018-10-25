@@ -4976,11 +4976,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 repaintEverything();
                 return NO_ERROR;
             }
-            // TODO(b/111505327): Find out whether the usage of 1024 can switch to 1030,
-            // deprecate 1024 if they can.
-            case 1024: { // Does device have wide color gamut display?
-                reply->writeBool(hasWideColorDisplay);
-                return NO_ERROR;
+            // Deprecate, use 1030 to check whether the device is color managed.
+            case 1024: {
+                return NAME_NOT_FOUND;
             }
             case 1025: { // Set layer tracing
                 n = data.readInt32();
