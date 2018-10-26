@@ -1,6 +1,7 @@
 #ifndef ANDROID_DVR_BUFFERHUBD_BUFFER_NODE_H_
 #define ANDROID_DVR_BUFFERHUBD_BUFFER_NODE_H_
 
+#include <android/hardware_buffer.h>
 #include <private/dvr/ion_buffer.h>
 #include <ui/BufferHubMetadata.h>
 
@@ -13,14 +14,16 @@ class BufferNode {
   BufferNode(uint32_t width, uint32_t height, uint32_t layer_count,
              uint32_t format, uint64_t usage, size_t user_metadata_size);
 
-  // Returns whether the object holds a valid graphic buffer.
-  bool IsValid() const { return buffer_.IsValid() && metadata_.IsValid(); }
+  ~BufferNode();
+
+  // Returns whether the object holds a valid metadata.
+  bool IsValid() const { return metadata_.IsValid(); }
 
   size_t user_metadata_size() const { return metadata_.user_metadata_size(); }
 
-  // Accessors of the IonBuffer.
-  IonBuffer& buffer() { return buffer_; }
-  const IonBuffer& buffer() const { return buffer_; }
+  // Accessors of the buffer description and handle
+  const native_handle_t* buffer_handle() const { return buffer_handle_; }
+  const AHardwareBuffer_Desc& buffer_desc() const { return buffer_desc_; }
 
   // Accessors of metadata.
   const BufferHubMetadata& metadata() const { return metadata_; }
@@ -48,7 +51,8 @@ class BufferNode {
   void InitializeMetadata();
 
   // Gralloc buffer handles.
-  IonBuffer buffer_;
+  native_handle_t* buffer_handle_;
+  AHardwareBuffer_Desc buffer_desc_;
 
   // Metadata in shared memory.
   BufferHubMetadata metadata_;

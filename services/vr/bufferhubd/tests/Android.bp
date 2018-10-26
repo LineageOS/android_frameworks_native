@@ -33,7 +33,10 @@ cc_test {
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
-    header_libs: ["libdvr_headers"],
+    header_libs: [
+        "libdvr_headers",
+        "libnativewindow_headers",
+    ],
     static_libs: [
         "libbufferhub",
         "libbufferhubd",
