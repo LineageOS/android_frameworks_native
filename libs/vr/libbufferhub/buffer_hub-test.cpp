@@ -59,19 +59,19 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
   ASSERT_TRUE(c2.get() != nullptr);
 
   // Producer state mask is unique, i.e. 1.
-  EXPECT_EQ(p->buffer_state_bit(), kProducerStateBit);
+  EXPECT_EQ(p->client_state_mask(), kProducerStateBit);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c->buffer_state_bit() & kProducerStateBit, 0U);
+  EXPECT_EQ(c->client_state_mask() & kProducerStateBit, 0U);
   // Consumer state mask must be a single, i.e. power of 2.
-  EXPECT_NE(c->buffer_state_bit(), 0U);
-  EXPECT_EQ(c->buffer_state_bit() & (c->buffer_state_bit() - 1), 0U);
+  EXPECT_NE(c->client_state_mask(), 0U);
+  EXPECT_EQ(c->client_state_mask() & (c->client_state_mask() - 1), 0U);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c2->buffer_state_bit() & kProducerStateBit, 0U);
+  EXPECT_EQ(c2->client_state_mask() & kProducerStateBit, 0U);
   // Consumer state mask must be a single, i.e. power of 2.
-  EXPECT_NE(c2->buffer_state_bit(), 0U);
-  EXPECT_EQ(c2->buffer_state_bit() & (c2->buffer_state_bit() - 1), 0U);
+  EXPECT_NE(c2->client_state_mask(), 0U);
+  EXPECT_EQ(c2->client_state_mask() & (c2->client_state_mask() - 1), 0U);
   // Each consumer should have unique bit.
-  EXPECT_EQ(c->buffer_state_bit() & c2->buffer_state_bit(), 0U);
+  EXPECT_EQ(c->client_state_mask() & c2->client_state_mask(), 0U);
 
   // Initial state: producer not available, consumers not available.
   EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
@@ -178,16 +178,16 @@ TEST_F(LibBufferHubTest, TestStateMask) {
   ASSERT_TRUE(p.get() != nullptr);
 
   // It's ok to create up to kMaxConsumerCount consumer buffers.
-  uint64_t buffer_state_bits = p->buffer_state_bit();
+  uint64_t client_state_masks = p->client_state_mask();
   std::array<std::unique_ptr<ConsumerBuffer>, kMaxConsumerCount> cs;
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
     cs[i] = ConsumerBuffer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // Expect all buffers have unique state mask.
-    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0U);
-    buffer_state_bits |= cs[i]->buffer_state_bit();
+    EXPECT_EQ(client_state_masks & cs[i]->client_state_mask(), 0U);
+    client_state_masks |= cs[i]->client_state_mask();
   }
-  EXPECT_EQ(buffer_state_bits, kProducerStateBit | kConsumerStateMask);
+  EXPECT_EQ(client_state_masks, kProducerStateBit | kConsumerStateMask);
 
   // The 64th creation will fail with out-of-memory error.
   auto state = p->CreateConsumer();
@@ -195,14 +195,14 @@ TEST_F(LibBufferHubTest, TestStateMask) {
 
   // Release any consumer should allow us to re-create.
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
-    buffer_state_bits &= ~cs[i]->buffer_state_bit();
+    client_state_masks &= ~cs[i]->client_state_mask();
     cs[i] = nullptr;
     cs[i] = ConsumerBuffer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
     // The released state mask will be reused.
-    EXPECT_EQ(buffer_state_bits & cs[i]->buffer_state_bit(), 0U);
-    buffer_state_bits |= cs[i]->buffer_state_bit();
-    EXPECT_EQ(buffer_state_bits, kProducerStateBit | kConsumerStateMask);
+    EXPECT_EQ(client_state_masks & cs[i]->client_state_mask(), 0U);
+    client_state_masks |= cs[i]->client_state_mask();
+    EXPECT_EQ(client_state_masks, kProducerStateBit | kConsumerStateMask);
   }
 }
 
@@ -402,7 +402,7 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
   EXPECT_TRUE(IsBufferPosted(p->buffer_state()));
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
     EXPECT_TRUE(
-        IsBufferPosted(cs[i]->buffer_state(), cs[i]->buffer_state_bit()));
+        IsBufferPosted(cs[i]->buffer_state(), cs[i]->client_state_mask()));
     EXPECT_LT(0, RETRY_EINTR(cs[i]->Poll(kPollTimeoutMs)));
     EXPECT_EQ(0, cs[i]->AcquireAsync(&metadata, &invalid_fence));
     EXPECT_TRUE(IsBufferAcquired(p->buffer_state()));
@@ -707,7 +707,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c1 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c1.get() != nullptr);
-  const uint64_t consumer_state_bit1 = c1->buffer_state_bit();
+  const uint64_t consumer_state_bit1 = c1->client_state_mask();
 
   DvrNativeBufferMetadata meta;
   EXPECT_EQ(0, p->PostAsync(&meta, LocalHandle()));
@@ -723,7 +723,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c2 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
-  const uint64_t consumer_state_bit2 = c2->buffer_state_bit();
+  const uint64_t consumer_state_bit2 = c2->client_state_mask();
   EXPECT_NE(consumer_state_bit1, consumer_state_bit2);
 
   // The new consumer is available for acquire.
@@ -739,7 +739,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c3 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c3.get() != nullptr);
-  const uint64_t consumer_state_bit3 = c3->buffer_state_bit();
+  const uint64_t consumer_state_bit3 = c3->client_state_mask();
   EXPECT_NE(consumer_state_bit2, consumer_state_bit3);
   // The consumer buffer is not acquirable.
   EXPECT_GE(0, RETRY_EINTR(c3->Poll(kPollTimeoutMs)));
@@ -911,12 +911,12 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
   // These two buffer instances are based on the same physical buffer under the
   // hood, so they should share the same id.
   EXPECT_EQ(b1_id, b2_id);
-  // We use buffer_state_bit() to tell those two instances apart.
-  EXPECT_NE(b1->buffer_state_bit(), b2->buffer_state_bit());
-  EXPECT_NE(b1->buffer_state_bit(), 0ULL);
-  EXPECT_NE(b2->buffer_state_bit(), 0ULL);
-  EXPECT_NE(b1->buffer_state_bit(), kProducerStateBit);
-  EXPECT_NE(b2->buffer_state_bit(), kProducerStateBit);
+  // We use client_state_mask() to tell those two instances apart.
+  EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
+  EXPECT_NE(b1->client_state_mask(), 0ULL);
+  EXPECT_NE(b2->client_state_mask(), 0ULL);
+  EXPECT_NE(b1->client_state_mask(), kProducerStateBit);
+  EXPECT_NE(b2->client_state_mask(), kProducerStateBit);
 
   // Both buffer instances should be in gained state.
   EXPECT_TRUE(IsBufferGained(b1->buffer_state()));

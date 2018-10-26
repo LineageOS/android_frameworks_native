@@ -159,7 +159,7 @@ int BufferHubBuffer::ImportGraphicBuffer() {
 
     // If all imports succeed, replace the previous buffer and id.
     mId = bufferId;
-    mBufferStateBit = bufferTraits.buffer_state_bit();
+    mClientStateMask = bufferTraits.client_state_mask();
 
     // TODO(b/112012161) Set up shared fences.
     ALOGD("BufferHubBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64 ".", id(),

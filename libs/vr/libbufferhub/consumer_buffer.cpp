@@ -39,10 +39,10 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
   // The buffer is can be acquired iff: 1) producer bit is set; 2) consumer bit
   // is not set.
   uint64_t buffer_state = buffer_state_->load();
-  if (!BufferHubDefs::IsBufferPosted(buffer_state, buffer_state_bit())) {
+  if (!BufferHubDefs::IsBufferPosted(buffer_state, client_state_mask())) {
     ALOGE("ConsumerBuffer::LocalAcquire: not posted, id=%d state=%" PRIx64
-          " buffer_state_bit=%" PRIx64 ".",
-          id(), buffer_state, buffer_state_bit());
+          " client_state_mask=%" PRIx64 ".",
+          id(), buffer_state, client_state_mask());
     return -EBUSY;
   }
 
@@ -64,7 +64,7 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
   }
 
   // Set the consumer bit unique to this consumer.
-  BufferHubDefs::ModifyBufferState(buffer_state_, 0ULL, buffer_state_bit());
+  BufferHubDefs::ModifyBufferState(buffer_state_, 0ULL, client_state_mask());
   return 0;
 }
 

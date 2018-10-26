@@ -43,12 +43,12 @@ uint64_t BufferNode::GetActiveClientsBitMask() const {
 
 uint64_t BufferNode::AddNewActiveClientsBitToMask() {
   uint64_t current_active_clients_bit_mask = GetActiveClientsBitMask();
-  uint64_t buffer_state_bit = 0ULL;
+  uint64_t client_state_mask = 0ULL;
   uint64_t updated_active_clients_bit_mask = 0ULL;
   do {
-    buffer_state_bit =
+    client_state_mask =
         BufferHubDefs::FindNextClearedBit(current_active_clients_bit_mask);
-    if (buffer_state_bit == 0ULL) {
+    if (client_state_mask == 0ULL) {
       ALOGE(
           "BufferNode::AddNewActiveClientsBitToMask: reached the maximum "
           "mumber of channels per buffer node: 32.");
@@ -56,11 +56,11 @@ uint64_t BufferNode::AddNewActiveClientsBitToMask() {
       return 0ULL;
     }
     updated_active_clients_bit_mask =
-        current_active_clients_bit_mask | buffer_state_bit;
+        current_active_clients_bit_mask | client_state_mask;
   } while (!(active_clients_bit_mask_->compare_exchange_weak(
       current_active_clients_bit_mask, updated_active_clients_bit_mask,
       std::memory_order_acq_rel, std::memory_order_acquire)));
-  return buffer_state_bit;
+  return client_state_mask;
 }
 
 void BufferNode::RemoveClientsBitFromMask(const uint64_t& value) {

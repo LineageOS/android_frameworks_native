@@ -34,9 +34,9 @@ class BufferNode {
   // active_clients_bit_mask from all threads will be returned here.
   uint64_t GetActiveClientsBitMask() const;
 
-  // Find and add a new buffer_state_bit to active_clients_bit_mask in
+  // Find and add a new client_state_mask to active_clients_bit_mask in
   // metadata_.
-  // Return the new buffer_state_bit that is added to active_clients_bit_mask.
+  // Return the new client_state_mask that is added to active_clients_bit_mask.
   // Return 0ULL if there are already 32 bp clients of the buffer.
   uint64_t AddNewActiveClientsBitToMask();
 
@@ -69,7 +69,7 @@ class BufferNode {
   std::atomic<uint64_t>* fence_state_ = nullptr;
 
   // active_clients_bit_mask_ tracks all the bp clients of the buffer. It is the
-  // union of all buffer_state_bit of all bp clients.
+  // union of all client_state_mask of all bp clients.
   std::atomic<uint64_t>* active_clients_bit_mask_ = nullptr;
 };
 

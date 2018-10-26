@@ -49,7 +49,7 @@ class ProducerChannel : public BufferHubChannel {
 
   BufferInfo GetBufferInfo() const override;
 
-  BufferDescription<BorrowedHandle> GetBuffer(uint64_t buffer_state_bit);
+  BufferDescription<BorrowedHandle> GetBuffer(uint64_t client_state_mask);
 
   pdx::Status<RemoteChannelHandle> CreateConsumer(Message& message);
   pdx::Status<RemoteChannelHandle> OnNewConsumer(Message& message);
