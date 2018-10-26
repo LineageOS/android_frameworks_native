@@ -562,6 +562,10 @@ binder::Status InstalldNativeService::clearAppData(const std::unique_ptr<std::st
             // No code cache on shared storage
         } else {
             // Clear everything on shared storage
+            path = StringPrintf("%s/Android/sandbox/%s", extPath.c_str(), pkgname);
+            if (delete_dir_contents(path, true) != 0) {
+                res = error("Failed to delete contents of " + path);
+            }
             path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
             if (delete_dir_contents(path, true) != 0) {
                 res = error("Failed to delete contents of " + path);
@@ -645,6 +649,10 @@ binder::Status InstalldNativeService::destroyAppData(const std::unique_ptr<std::
         }
 
         auto extPath = findDataMediaPath(uuid, userId);
+        path = StringPrintf("%s/Android/sandbox/%s", extPath.c_str(), pkgname);
+        if (delete_dir_contents_and_dir(path, true) != 0) {
+            res = error("Failed to delete " + path);
+        }
         path = StringPrintf("%s/Android/data/%s", extPath.c_str(), pkgname);
         if (delete_dir_contents_and_dir(path, true) != 0) {
             res = error("Failed to delete " + path);
@@ -1491,6 +1499,8 @@ binder::Status InstalldNativeService::getAppSize(const std::unique_ptr<std::stri
             }
 
             ATRACE_BEGIN("external");
+            auto sandboxPath = create_data_media_package_path(uuid_, userId, "sandbox", pkgname);
+            calculate_tree_size(sandboxPath, &extStats.dataSize);
             auto extPath = create_data_media_package_path(uuid_, userId, "data", pkgname);
             collectManualStats(extPath, &extStats);
             auto mediaPath = create_data_media_package_path(uuid_, userId, "media", pkgname);
