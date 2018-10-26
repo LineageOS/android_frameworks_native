@@ -173,8 +173,8 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerID) {
         ALOGV("[%d]-[%" PRIu64 "]-presentFenceTime[%" PRId64 "]", layerID,
               timeRecords[0].frameTime.frameNumber, timeRecords[0].frameTime.presentTime);
 
+        const std::string& layerName = layerRecord.layerName;
         if (prevTimeRecord.ready) {
-            const std::string& layerName = layerRecord.layerName;
             if (!mTimeStats.stats.count(layerName)) {
                 mTimeStats.stats[layerName].layerName = layerName;
                 mTimeStats.stats[layerName].packageName = getPackageName(layerName);
@@ -220,6 +220,18 @@ void TimeStats::flushAvailableRecordsToStatsLocked(int32_t layerID) {
                   timeRecords[0].frameTime.frameNumber, presentToPresentMs);
             timeStatsLayer.deltas["present2present"].insert(presentToPresentMs);
         }
+
+        // Output additional trace points to track frame time.
+        ATRACE_INT64(("TimeStats-Post - " + layerName).c_str(), timeRecords[0].frameTime.postTime);
+        ATRACE_INT64(("TimeStats-Acquire - " + layerName).c_str(),
+                     timeRecords[0].frameTime.acquireTime);
+        ATRACE_INT64(("TimeStats-Latch - " + layerName).c_str(),
+                     timeRecords[0].frameTime.latchTime);
+        ATRACE_INT64(("TimeStats-Desired - " + layerName).c_str(),
+                     timeRecords[0].frameTime.desiredTime);
+        ATRACE_INT64(("TimeStats-Present - " + layerName).c_str(),
+                     timeRecords[0].frameTime.presentTime);
+
         prevTimeRecord = timeRecords[0];
         timeRecords.pop_front();
         layerRecord.waitData--;
