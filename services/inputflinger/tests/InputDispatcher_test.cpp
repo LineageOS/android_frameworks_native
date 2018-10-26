@@ -370,30 +370,27 @@ public:
     }
 
     virtual bool updateInfo() {
-        if (!mInfo) {
-            mInfo = new InputWindowInfo();
-        }
-        mInfo->inputChannel = mServerChannel;
-        mInfo->name = mName;
-        mInfo->layoutParamsFlags = 0;
-        mInfo->layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
-        mInfo->dispatchingTimeout = DISPATCHING_TIMEOUT;
-        mInfo->frameLeft = 0;
-        mInfo->frameTop = 0;
-        mInfo->frameRight = WIDTH;
-        mInfo->frameBottom = HEIGHT;
-        mInfo->scaleFactor = 1.0;
-        mInfo->addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
-        mInfo->visible = true;
-        mInfo->canReceiveKeys = true;
-        mInfo->hasFocus = mFocused;
-        mInfo->hasWallpaper = false;
-        mInfo->paused = false;
-        mInfo->layer = 0;
-        mInfo->ownerPid = INJECTOR_PID;
-        mInfo->ownerUid = INJECTOR_UID;
-        mInfo->inputFeatures = 0;
-        mInfo->displayId = mDisplayId;
+        mInfo.inputChannel = mServerChannel;
+        mInfo.name = mName;
+        mInfo.layoutParamsFlags = 0;
+        mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.frameLeft = 0;
+        mInfo.frameTop = 0;
+        mInfo.frameRight = WIDTH;
+        mInfo.frameBottom = HEIGHT;
+        mInfo.scaleFactor = 1.0;
+        mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
+        mInfo.visible = true;
+        mInfo.canReceiveKeys = true;
+        mInfo.hasFocus = mFocused;
+        mInfo.hasWallpaper = false;
+        mInfo.paused = false;
+        mInfo.layer = 0;
+        mInfo.ownerPid = INJECTOR_PID;
+        mInfo.ownerUid = INJECTOR_UID;
+        mInfo.inputFeatures = 0;
+        mInfo.displayId = mDisplayId;
 
         return true;
     }
@@ -527,6 +524,34 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     // Focused window should receive event.
     windowTop->assertNoEvents();
     windowSecond->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
+}
+
+TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+
+    sp<FakeWindowHandle> windowTop = new FakeWindowHandle(application, mDispatcher, "Top",
+            ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
+            ADISPLAY_ID_DEFAULT);
+
+    windowTop->setFocus();
+
+    Vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.add(windowTop);
+    inputWindowHandles.add(windowSecond);
+
+    mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
+
+    // Release channel for window is no longer valid.
+    windowTop->releaseChannel();
+
+    // Test inject a motion down, should timeout because of no target channel.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+
+    // Top window is invalid, so it should not receive any input event.
+    windowTop->assertNoEvents();
+    windowSecond->assertNoEvents();
 }
 
 /* Test InputDispatcher for MultiDisplay */

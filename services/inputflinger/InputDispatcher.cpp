@@ -864,11 +864,11 @@ void InputDispatcher::logOutboundKeyDetailsLocked(const char* prefix, const KeyE
 #if DEBUG_OUTBOUND_EVENT_DETAILS
     ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32 ", "
             "policyFlags=0x%x, action=0x%x, flags=0x%x, keyCode=0x%x, scanCode=0x%x, "
-            "metaState=0x%x, repeatCount=%d, downTime=%" PRId64,
+            "metaState=0x%x, repeatCount=%d, downTime=%" PRId64 ", displayId=%" PRId32,
             prefix,
             entry->eventTime, entry->deviceId, entry->source, entry->displayId, entry->policyFlags,
             entry->action, entry->flags, entry->keyCode, entry->scanCode, entry->metaState,
-            entry->repeatCount, entry->downTime);
+            entry->repeatCount, entry->downTime, entry->displayId);
 #endif
 }
 
@@ -940,13 +940,13 @@ void InputDispatcher::logOutboundMotionDetailsLocked(const char* prefix, const M
             ", policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, "
             "metaState=0x%x, buttonState=0x%x,"
-            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
+            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64", displayId=%" PRId32,
             prefix,
             entry->eventTime, entry->deviceId, entry->source, entry->displayId, entry->policyFlags,
             entry->action, entry->actionButton, entry->flags,
             entry->metaState, entry->buttonState,
             entry->edgeFlags, entry->xPrecision, entry->yPrecision,
-            entry->downTime);
+            entry->downTime, entry->displayId);
 
     for (uint32_t i = 0; i < entry->pointerCount; i++) {
         ALOGD("  Pointer %d: id=%d, toolType=%d, "
@@ -1168,7 +1168,8 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
             goto Unresponsive;
         }
 
-        ALOGI("Dropping event because there is no focused window or focused application.");
+        ALOGI("Dropping event because there is no focused window or focused application in display "
+                "%" PRId32 ".", displayId);
         injectionResult = INPUT_EVENT_INJECTION_FAILED;
         goto Failed;
     }
@@ -1254,7 +1255,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         if (switchedDevice && mTempTouchState.down && !down && !isHoverAction) {
 #if DEBUG_FOCUS
-            ALOGD("Dropping event because a pointer for a different device is already down.");
+            ALOGD("Dropping event because a pointer for a different device is already down "
+                    "in display %" PRId32, displayId);
 #endif
             // TODO: test multiple simultaneous input streams.
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
@@ -1270,7 +1272,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
 #if DEBUG_FOCUS
-        ALOGI("Dropping move event because a pointer for a different device is already active.");
+        ALOGI("Dropping move event because a pointer for a different device is already active "
+                "in display %" PRId32, displayId);
 #endif
         // TODO: test multiple simultaneous input streams.
         injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
@@ -1335,7 +1338,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             // Try to assign the pointer to the first foreground window we find, if there is one.
             newTouchedWindowHandle = mTempTouchState.getFirstForegroundWindowHandle();
             if (newTouchedWindowHandle == nullptr) {
-                ALOGI("Dropping event because there is no touchable window at (%d, %d).", x, y);
+                ALOGI("Dropping event because there is no touchable window at (%d, %d) in display "
+                        "%" PRId32 ".", x, y, displayId);
                 injectionResult = INPUT_EVENT_INJECTION_FAILED;
                 goto Failed;
             }
@@ -1373,7 +1377,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         if (! mTempTouchState.down) {
 #if DEBUG_FOCUS
             ALOGD("Dropping event because the pointer is not down or we previously "
-                    "dropped the pointer down event.");
+                    "dropped the pointer down event in display %" PRId32, displayId);
 #endif
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             goto Failed;
@@ -1393,9 +1397,10 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             if (oldTouchedWindowHandle != newTouchedWindowHandle
                     && newTouchedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
-                ALOGD("Touch is slipping out of window %s into window %s.",
+                ALOGD("Touch is slipping out of window %s into window %s in display %" PRId32,
                         oldTouchedWindowHandle->getName().c_str(),
-                        newTouchedWindowHandle->getName().c_str());
+                        newTouchedWindowHandle->getName().c_str(),
+                        displayId);
 #endif
                 // Make a slippery exit from the old window.
                 mTempTouchState.addOrUpdateWindow(oldTouchedWindowHandle,
@@ -1464,7 +1469,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         }
         if (! haveForegroundWindow) {
 #if DEBUG_FOCUS
-            ALOGD("Dropping event because there is no touched foreground window to receive it.");
+            ALOGD("Dropping event because there is no touched foreground window in display %" PRId32
+                    " to receive it.", displayId);
 #endif
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             goto Failed;
@@ -1689,7 +1695,7 @@ void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTarge
     } else {
         // If there is no monitor channel registered or all monitor channel unregistered,
         // the display can't detect the extra system gesture by a copy of input events.
-        ALOGW("There is no monitor channel found in display=%" PRId32, displayId);
+        ALOGW("There is no monitor channel found in display %" PRId32, displayId);
     }
 }
 
@@ -2533,10 +2539,11 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("notifyKey - eventTime=%" PRId64
             ", deviceId=%d, source=0x%x, displayId=%" PRId32 "policyFlags=0x%x, action=0x%x, "
-            "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64,
+            "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64
+            ", displayId=%" PRId32,
             args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
             args->action, args->flags, args->keyCode, args->scanCode,
-            args->metaState, args->downTime);
+            args->metaState, args->downTime, args->displayId);
 #endif
     if (!validateKeyEvent(args->action)) {
         return;
@@ -2611,10 +2618,10 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     ALOGD("notifyMotion - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
             ", policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x,"
-            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
-            args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
+            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", displayId=%" PRId32
+            , args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
             args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
-            args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime);
+            args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime, args->displayId);
     for (uint32_t i = 0; i < args->pointerCount; i++) {
         ALOGD("  Pointer %d: id=%d, toolType=%d, "
                 "x=%f, y=%f, pressure=%f, size=%f, "
@@ -3013,9 +3020,10 @@ bool InputDispatcher::hasWindowHandleLocked(
         for (size_t i = 0; i < numWindows; i++) {
             if (windowHandles.itemAt(i) == windowHandle) {
                 if (windowHandle->getInfo()->displayId != it.first) {
-                    ALOGE("Found window %s in display %d, but it should belong to display %d",
-                        windowHandle->getName().c_str(), it.first,
-                        windowHandle->getInfo()->displayId);
+                    ALOGE("Found window %s in display %" PRId32
+                            ", but it should belong to display %" PRId32,
+                            windowHandle->getName().c_str(), it.first,
+                            windowHandle->getInfo()->displayId);
                 }
                 return true;
             }
@@ -3034,7 +3042,7 @@ bool InputDispatcher::hasWindowHandleLocked(
 void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& inputWindowHandles,
         int32_t displayId) {
 #if DEBUG_FOCUS
-    ALOGD("setInputWindows");
+    ALOGD("setInputWindows displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
         AutoMutex _l(mLock);
@@ -3085,8 +3093,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
         if (oldFocusedWindowHandle != newFocusedWindowHandle) {
             if (oldFocusedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
-                ALOGD("Focus left window: %s",
-                        oldFocusedWindowHandle->getName().c_str());
+                ALOGD("Focus left window: %s in display %" PRId32,
+                        oldFocusedWindowHandle->getName().c_str(), displayId);
 #endif
                 sp<InputChannel> focusedInputChannel = oldFocusedWindowHandle->getInputChannel();
                 if (focusedInputChannel != nullptr) {
@@ -3099,8 +3107,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             }
             if (newFocusedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
-                ALOGD("Focus entered window: %s",
-                        newFocusedWindowHandle->getName().c_str());
+                ALOGD("Focus entered window: %s in display %" PRId32,
+                        newFocusedWindowHandle->getName().c_str(), displayId);
 #endif
                 mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
             }
@@ -3113,8 +3121,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
                 TouchedWindow& touchedWindow = state.windows.editItemAt(i);
                 if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
 #if DEBUG_FOCUS
-                    ALOGD("Touched window was removed: %s",
-                            touchedWindow.windowHandle->getName().c_str());
+                    ALOGD("Touched window was removed: %s in display %" PRId32,
+                            touchedWindow.windowHandle->getName().c_str(), displayId);
 #endif
                     sp<InputChannel> touchedInputChannel =
                             touchedWindow.windowHandle->getInputChannel();
@@ -3142,7 +3150,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 #if DEBUG_FOCUS
                 ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
 #endif
-                oldWindowHandle->releaseInfo();
+                oldWindowHandle->releaseChannel();
             }
         }
     } // release lock
@@ -3154,7 +3162,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 void InputDispatcher::setFocusedApplication(
         int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) {
 #if DEBUG_FOCUS
-    ALOGD("setFocusedApplication");
+    ALOGD("setFocusedApplication displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
         AutoMutex _l(mLock);
@@ -3469,7 +3477,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     if (!mWindowHandlesByDisplay.empty()) {
        for (auto& it : mWindowHandlesByDisplay) {
             const Vector<sp<InputWindowHandle>> windowHandles = it.second;
-            dump += StringPrintf(INDENT "Display: %d\n", it.first);
+            dump += StringPrintf(INDENT "Display: %" PRId32 "\n", it.first);
             if (!windowHandles.isEmpty()) {
                 dump += INDENT2 "Windows:\n";
                 for (size_t i = 0; i < windowHandles.size(); i++) {
@@ -3509,7 +3517,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     if (!mMonitoringChannelsByDisplay.empty()) {
        for (auto& it : mMonitoringChannelsByDisplay) {
             const Vector<sp<InputChannel>>& monitoringChannels = it.second;
-            dump += INDENT "MonitoringChannels in Display %d:\n";
+            dump += StringPrintf(INDENT "MonitoringChannels in display %" PRId32 ":\n", it.first);
             const size_t numChannels = monitoringChannels.size();
             for (size_t i = 0; i < numChannels; i++) {
                 const sp<InputChannel>& channel = monitoringChannels[i];
@@ -3737,6 +3745,10 @@ void InputDispatcher::removeMonitorChannelLocked(const sp<InputChannel>& inputCh
 }
 
 ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputChannel) {
+    if (!inputChannel) {
+        return -1;
+    }
+
     ssize_t connectionIndex = mConnectionsByFd.indexOfKey(inputChannel->getFd());
     if (connectionIndex >= 0) {
         sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
@@ -3744,7 +3756,6 @@ ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputC
             return connectionIndex;
         }
     }
-
     return -1;
 }
 
