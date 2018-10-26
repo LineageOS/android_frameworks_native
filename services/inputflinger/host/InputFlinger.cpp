@@ -53,7 +53,7 @@ status_t InputFlinger::dump(int fd, const Vector<String16>& args) {
     if ((uid != AID_SHELL)
             && !PermissionCache::checkPermission(sDumpPermission, pid, uid)) {
         result.appendFormat("Permission Denial: "
-                "can't dump SurfaceFlinger from pid=%d, uid=%d\n", pid, uid);
+                "can't dump InputFlinger from pid=%d, uid=%d\n", pid, uid);
     } else {
         dumpInternal(result);
     }
