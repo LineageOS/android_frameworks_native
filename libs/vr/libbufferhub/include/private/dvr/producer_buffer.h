@@ -52,11 +52,14 @@ class ProducerBuffer : public pdx::ClientBase<ProducerBuffer, BufferHubBase> {
 
   // Attempt to re-gain the buffer for writing. If |release_fence| is valid, it
   // must be waited on before using the buffer. If it is not valid then the
-  // buffer is free for immediate use. This call will only succeed if the buffer
-  // is in the released state.
-  // This returns zero or a negative unix error code.
-  int Gain(LocalHandle* release_fence);
-  int GainAsync();
+  // buffer is free for immediate use. This call will succeed if the buffer
+  // is in the released state, or in posted state and gain_posted_buffer is
+  // true.
+  //
+  // @param release_fence output fence.
+  // @param gain_posted_buffer whether to gain posted buffer or not.
+  // @return This returns zero or a negative unix error code.
+  int Gain(LocalHandle* release_fence, bool gain_posted_buffer = false);
 
   // Asynchronously marks a released buffer as gained. This method is similar to
   // the synchronous version above, except that it does not wait for BufferHub
@@ -64,7 +67,13 @@ class ProducerBuffer : public pdx::ClientBase<ProducerBuffer, BufferHubBase> {
   // the underlying message, no error is returned if this method is called when
   // the buffer is in an incorrect state. Returns zero if sending the message
   // succeeded, or a negative errno code if local error check fails.
-  int GainAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
+  // TODO(b/112007999): gain_posted_buffer true is only used to prevent
+  // libdvrtracking from starving when there are non-responding clients. This
+  // gain_posted_buffer param can be removed once libdvrtracking start to use
+  // the new AHardwareBuffer API.
+  int GainAsync(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence,
+                bool gain_posted_buffer = false);
+  int GainAsync();
 
   // Detaches a ProducerBuffer from an existing producer/consumer set. Can only
   // be called when a producer buffer has exclusive access to the buffer (i.e.
@@ -92,7 +101,8 @@ class ProducerBuffer : public pdx::ClientBase<ProducerBuffer, BufferHubBase> {
   explicit ProducerBuffer(LocalChannelHandle channel);
 
   // Local state transition helpers.
-  int LocalGain(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence);
+  int LocalGain(DvrNativeBufferMetadata* out_meta, LocalHandle* out_fence,
+                bool gain_posted_buffer = false);
   int LocalPost(const DvrNativeBufferMetadata* meta,
                 const LocalHandle& ready_fence);
 };

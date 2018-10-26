@@ -134,7 +134,7 @@ int ProducerBuffer::PostAsync(const DvrNativeBufferMetadata* meta,
 }
 
 int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
-                              LocalHandle* out_fence) {
+                              LocalHandle* out_fence, bool gain_posted_buffer) {
   uint64_t buffer_state = buffer_state_->load();
   ALOGD_IF(TRACE, "ProducerBuffer::LocalGain: buffer=%d, state=%" PRIx64 ".",
            id(), buffer_state);
@@ -142,13 +142,14 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   if (!out_meta)
     return -EINVAL;
 
-  if (!BufferHubDefs::IsBufferReleased(buffer_state)) {
-    if (BufferHubDefs::IsBufferGained(buffer_state)) {
-      // We don't want to log error when gaining a newly allocated
-      // buffer.
-      ALOGI("ProducerBuffer::LocalGain: already gained id=%d.", id());
-      return -EALREADY;
-    }
+  if (BufferHubDefs::IsBufferGained(buffer_state)) {
+    // We don't want to log error when gaining a newly allocated
+    // buffer.
+    ALOGI("ProducerBuffer::LocalGain: already gained id=%d.", id());
+    return -EALREADY;
+  }
+  if (BufferHubDefs::IsBufferAcquired(buffer_state) ||
+      (BufferHubDefs::IsBufferPosted(buffer_state) && !gain_posted_buffer)) {
     ALOGE("ProducerBuffer::LocalGain: not released id=%d state=%" PRIx64 ".",
           id(), buffer_state);
     return -EBUSY;
@@ -180,11 +181,11 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   return 0;
 }
 
-int ProducerBuffer::Gain(LocalHandle* release_fence) {
+int ProducerBuffer::Gain(LocalHandle* release_fence, bool gain_posted_buffer) {
   ATRACE_NAME("ProducerBuffer::Gain");
 
   DvrNativeBufferMetadata meta;
-  if (const int error = LocalGain(&meta, release_fence))
+  if (const int error = LocalGain(&meta, release_fence, gain_posted_buffer))
     return error;
 
   auto status = InvokeRemoteMethod<BufferHubRPC::ProducerGain>();
@@ -194,10 +195,11 @@ int ProducerBuffer::Gain(LocalHandle* release_fence) {
 }
 
 int ProducerBuffer::GainAsync(DvrNativeBufferMetadata* out_meta,
-                              LocalHandle* release_fence) {
+                              LocalHandle* release_fence,
+                              bool gain_posted_buffer) {
   ATRACE_NAME("ProducerBuffer::GainAsync");
 
-  if (const int error = LocalGain(out_meta, release_fence))
+  if (const int error = LocalGain(out_meta, release_fence, gain_posted_buffer))
     return error;
 
   return ReturnStatusOrError(SendImpulse(BufferHubRPC::ProducerGain::Opcode));
