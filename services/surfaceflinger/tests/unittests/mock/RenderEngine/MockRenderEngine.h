@@ -77,9 +77,9 @@ public:
     MOCK_CONST_METHOD0(isProtected, bool());
     MOCK_CONST_METHOD0(supportsProtectedContent, bool());
     MOCK_METHOD1(useProtectedContext, bool(bool));
-    MOCK_CONST_METHOD4(drawLayers,
-                       status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
-                                ANativeWindowBuffer* const, base::unique_fd*));
+    MOCK_METHOD4(drawLayers,
+                 status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
+                          ANativeWindowBuffer*, base::unique_fd*));
 };
 
 class Image : public renderengine::Image {

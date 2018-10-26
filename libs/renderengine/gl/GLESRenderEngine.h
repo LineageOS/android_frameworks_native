@@ -72,9 +72,8 @@ public:
     bool isProtected() const override { return mInProtectedContext; }
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
-    status_t drawLayers(const DisplaySettings& settings, const std::vector<LayerSettings>& layers,
-                        ANativeWindowBuffer* const buffer,
-                        base::unique_fd* displayFence) const override;
+    status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
+                        ANativeWindowBuffer* buffer, base::unique_fd* drawFence) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }
@@ -125,6 +124,9 @@ private:
     // with PQ or HLG transfer function.
     bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
     bool needsXYZTransformMatrix() const;
+    // Defines the viewport, and sets the projection matrix to the projection
+    // defined by the clip.
+    void setViewportAndProjection(Rect viewport, Rect clip);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;

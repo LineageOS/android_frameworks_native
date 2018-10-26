@@ -648,27 +648,89 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
     return success;
 }
 
-status_t GLESRenderEngine::drawLayers(const DisplaySettings& /*settings*/,
-                                      const std::vector<LayerSettings>& /*layers*/,
-                                      ANativeWindowBuffer* const /*buffer*/,
-                                      base::unique_fd* /*displayFence*/) const {
+status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
+                                      const std::vector<LayerSettings>& layers,
+                                      ANativeWindowBuffer* const buffer,
+                                      base::unique_fd* drawFence) {
+    if (layers.empty()) {
+        ALOGV("Drawing empty layer stack");
+        return NO_ERROR;
+    }
+
+    BindNativeBufferAsFramebuffer fbo(*this, buffer);
+
+    if (fbo.getStatus() != NO_ERROR) {
+        ALOGE("Failed to bind framebuffer! Aborting GPU composition for buffer (%p).",
+              buffer->handle);
+        checkErrors();
+        return fbo.getStatus();
+    }
+
+    setViewportAndProjection(display.physicalDisplay, display.clip);
+
+    setOutputDataSpace(display.outputDataspace);
+    setDisplayMaxLuminance(display.maxLuminance);
+
+    mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
+
+    Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
+    for (auto layer : layers) {
+        // for now, assume that all pixel sources are solid colors.
+        // TODO(alecmouri): support buffer sources
+        if (layer.source.buffer.buffer != nullptr) {
+            continue;
+        }
+
+        setColorTransform(display.colorTransform * layer.colorTransform);
+
+        mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
+
+        FloatRect bounds = layer.geometry.boundaries;
+        Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
+        position[0] = vec2(bounds.left, bounds.top);
+        position[1] = vec2(bounds.left, bounds.bottom);
+        position[2] = vec2(bounds.right, bounds.bottom);
+        position[3] = vec2(bounds.right, bounds.top);
+
+        half3 solidColor = layer.source.solidColor;
+        half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
+        setupLayerBlending(/*premultipliedAlpha=*/true, /*opaque=*/false, /*disableTexture=*/true,
+                           color, /*cornerRadius=*/0.0);
+        setSourceDataSpace(layer.sourceDataspace);
+
+        drawMesh(mesh);
+    }
+
+    *drawFence = flush();
+    // If flush failed or we don't support native fences, we need to force the
+    // gl command stream to be executed.
+    if (drawFence->get() < 0) {
+        bool success = finish();
+        if (!success) {
+            ALOGE("Failed to flush RenderEngine commands");
+            checkErrors();
+            // Chances are, something illegal happened (either the caller passed
+            // us bad parameters, or we messed up our shader generation).
+            return INVALID_OPERATION;
+        }
+    }
+
+    checkErrors();
     return NO_ERROR;
 }
 
 void GLESRenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                                 ui::Transform::orientation_flags rotation) {
-    int32_t l = sourceCrop.left;
-    int32_t r = sourceCrop.right;
-    int32_t b = sourceCrop.bottom;
-    int32_t t = sourceCrop.top;
-    std::swap(t, b);
-    mat4 m = mat4::ortho(l, r, b, t, 0, 1);
+    setViewportAndProjection(Rect(vpw, vph), sourceCrop);
+
+    if (rotation == ui::Transform::ROT_0) {
+        return;
+    }
 
     // Apply custom rotation to the projection.
     float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
+    mat4 m = mState.projectionMatrix;
     switch (rotation) {
-        case ui::Transform::ROT_0:
-            break;
         case ui::Transform::ROT_90:
             m = mat4::rotate(rot90InRadians, vec3(0, 0, 1)) * m;
             break;
@@ -681,11 +743,18 @@ void GLESRenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sou
         default:
             break;
     }
-
-    glViewport(0, 0, vpw, vph);
     mState.projectionMatrix = m;
-    mVpWidth = vpw;
-    mVpHeight = vph;
+}
+
+void GLESRenderEngine::setViewportAndProjection(Rect viewport, Rect clip) {
+    mVpWidth = viewport.getWidth();
+    mVpHeight = viewport.getHeight();
+
+    // We pass the the top left corner instead of the bottom left corner,
+    // because since we're rendering off-screen first.
+    glViewport(viewport.left, viewport.top, mVpWidth, mVpHeight);
+
+    mState.projectionMatrix = mat4::ortho(clip.left, clip.right, clip.top, clip.bottom, 0, 1);
 }
 
 void GLESRenderEngine::setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
