@@ -77,7 +77,6 @@ namespace installd {
 
 static constexpr const char* kCpPath = "/system/bin/cp";
 static constexpr const char* kXattrDefault = "user.default";
-static constexpr const char* kPropHasReserved = "vold.has_reserved";
 
 static constexpr const int MIN_RESTRICTED_HOME_SDK_VERSION = 24; // > M
 
@@ -352,55 +351,6 @@ static int prepare_app_dir(const std::string& path, mode_t target_mode, uid_t ui
     return 0;
 }
 
-/**
- * Ensure that we have a hard-limit quota to protect against abusive apps;
- * they should never use more than 90% of blocks or 50% of inodes.
- */
-static int prepare_app_quota(const std::unique_ptr<std::string>& uuid ATTRIBUTE_UNUSED,
-        const std::string& device, uid_t uid) {
-    // Skip when reserved blocks are protecting us against abusive apps
-    if (android::base::GetBoolProperty(kPropHasReserved, false)) return 0;
-    // Skip when device no quotas present
-    if (device.empty()) return 0;
-
-    struct dqblk dq;
-    if (quotactl(QCMD(Q_GETQUOTA, USRQUOTA), device.c_str(), uid,
-            reinterpret_cast<char*>(&dq)) != 0) {
-        PLOG(WARNING) << "Failed to find quota for " << uid;
-        return -1;
-    }
-
-#if APPLY_HARD_QUOTAS
-    if ((dq.dqb_bhardlimit == 0) || (dq.dqb_ihardlimit == 0)) {
-        auto path = create_data_path(uuid ? uuid->c_str() : nullptr);
-        struct statvfs stat;
-        if (statvfs(path.c_str(), &stat) != 0) {
-            PLOG(WARNING) << "Failed to statvfs " << path;
-            return -1;
-        }
-
-        dq.dqb_valid = QIF_LIMITS;
-        dq.dqb_bhardlimit =
-            (((static_cast<uint64_t>(stat.f_blocks) * stat.f_frsize) / 10) * 9) / QIF_DQBLKSIZE;
-        dq.dqb_ihardlimit = (stat.f_files / 2);
-        if (quotactl(QCMD(Q_SETQUOTA, USRQUOTA), device.c_str(), uid,
-                reinterpret_cast<char*>(&dq)) != 0) {
-            PLOG(WARNING) << "Failed to set hard quota for " << uid;
-            return -1;
-        } else {
-            LOG(DEBUG) << "Applied hard quotas for " << uid;
-            return 0;
-        }
-    } else {
-        // Hard quota already set; assume it's reasonable
-        return 0;
-    }
-#else
-    // Hard quotas disabled
-    return 0;
-#endif
-}
-
 static bool prepare_app_profile_dir(const std::string& packageName, int32_t appId, int32_t userId) {
     if (!property_get_bool("dalvik.vm.usejitprofiles", false)) {
         return true;
@@ -513,10 +463,6 @@ binder::Status InstalldNativeService::createAppData(const std::unique_ptr<std::s
                 restorecon_app_data_lazy(path, "cache", seInfo, uid, existing) ||
                 restorecon_app_data_lazy(path, "code_cache", seInfo, uid, existing)) {
             return error("Failed to restorecon " + path);
-        }
-
-        if (prepare_app_quota(uuid, findQuotaDeviceForUuid(uuid), uid)) {
-            return error("Failed to set hard quota " + path);
         }
 
         if (!prepare_app_profile_dir(packageName, appId, userId)) {
@@ -956,13 +902,6 @@ binder::Status InstalldNativeService::createUserData(const std::unique_ptr<std::
                 return error(StringPrintf("Failed to ensure dirs for %d", userId));
             }
         }
-    }
-
-    // Data under /data/media doesn't have an app, but we still want
-    // to limit it to prevent abuse.
-    if (prepare_app_quota(uuid, findQuotaDeviceForUuid(uuid),
-            multiuser_get_uid(userId, AID_MEDIA_RW))) {
-        return error("Failed to set hard quota for media_rw");
     }
 
     return ok();
@@ -2614,21 +2553,6 @@ binder::Status InstalldNativeService::invalidateMounts() {
                     reinterpret_cast<char*>(&dq)) == 0) {
                 LOG(DEBUG) << "Found quota mount " << source << " at " << target;
                 mQuotaReverseMounts[target] = source;
-
-                // ext4 only enables DQUOT_USAGE_ENABLED by default, so we
-                // need to kick it again to enable DQUOT_LIMITS_ENABLED. We
-                // only need hard limits enabled when we're not being protected
-                // by reserved blocks.
-                if (!android::base::GetBoolProperty(kPropHasReserved, false)) {
-                    if (quotactl(QCMD(Q_QUOTAON, USRQUOTA), source.c_str(), QFMT_VFS_V1,
-                            nullptr) != 0 && errno != EBUSY) {
-                        PLOG(ERROR) << "Failed to enable USRQUOTA on " << source;
-                    }
-                    if (quotactl(QCMD(Q_QUOTAON, GRPQUOTA), source.c_str(), QFMT_VFS_V1,
-                            nullptr) != 0 && errno != EBUSY) {
-                        PLOG(ERROR) << "Failed to enable GRPQUOTA on " << source;
-                    }
-                }
             }
         }
 #endif
