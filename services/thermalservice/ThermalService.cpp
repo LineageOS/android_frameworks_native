@@ -15,17 +15,51 @@
  */
 
 #include "ThermalService.h"
-#include <android/os/IThermalService.h>
+#include <android-base/file.h>
+#include <android-base/stringprintf.h>
 #include <android/os/IThermalEventListener.h>
+#include <android/os/IThermalService.h>
 #include <android/os/Temperature.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
+#include <binder/PermissionCache.h>
+#include <log/log.h>
+#include <private/android_filesystem_config.h>
 #include <utils/Errors.h>
 #include <utils/Mutex.h>
 #include <utils/String16.h>
 
 namespace android {
 namespace os {
+
+/**
+ * Dump thermal service
+ * @param fd file descriptor for dumping
+ * @param args not used
+ */
+status_t ThermalService::dump(int fd, const Vector<String16>& /* args */) {
+    status_t ret = OK;
+    std::string result;
+    const IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+    if ((uid != AID_SHELL) &&
+        !PermissionCache::checkPermission(String16("android.permission.DUMP"), pid, uid)) {
+        result = android::base::
+                StringPrintf("Permission Denial: can't dump ThermalService from pid=%d, uid=%d\n",
+                             pid, uid);
+        ret = PERMISSION_DENIED;
+    } else {
+        Mutex::Autolock _l(mListenersLock);
+        result = android::base::StringPrintf("ThermalEventListener registered: %d\n",
+                                             (int)mListeners.size());
+    }
+    if (!android::base::WriteStringToFd(result, fd)) {
+        SLOGE("Failed to dump fd: %d", fd);
+        ret = FDS_NOT_ALLOWED;
+    }
+    return ret;
+}
 
 /**
  * Notify registered listeners of a thermal throttling start/stop event.
@@ -62,8 +96,9 @@ binder::Status ThermalService::isThrottling(bool* _aidl_return) {
 binder::Status ThermalService::registerThermalEventListener(
     const sp<IThermalEventListener>& listener) {
     {
-        if (listener == NULL)
+        if (listener == NULL) {
             return binder::Status::ok();
+        }
         Mutex::Autolock _l(mListenersLock);
         // check whether this is a duplicate
         for (size_t i = 0; i < mListeners.size(); i++) {
@@ -87,8 +122,9 @@ binder::Status ThermalService::registerThermalEventListener(
  */
 binder::Status ThermalService::unregisterThermalEventListener(
     const sp<IThermalEventListener>& listener) {
-    if (listener == NULL)
+    if (listener == NULL) {
         return binder::Status::ok();
+    }
     Mutex::Autolock _l(mListenersLock);
     for (size_t i = 0; i < mListeners.size(); i++) {
         if (IInterface::asBinder(mListeners[i]) ==

@@ -34,6 +34,7 @@ public:
     void publish(const sp<ThermalService>& service);
     binder::Status notifyThrottling(
         const bool isThrottling, const Temperature& temperature);
+    status_t dump(int fd, const Vector<String16>& args) override;
 
 private:
     Mutex mListenersLock;
