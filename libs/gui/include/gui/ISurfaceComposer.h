@@ -282,6 +282,8 @@ public:
 
     virtual status_t getCompositionPreference(ui::Dataspace* dataSpace,
                                               ui::PixelFormat* pixelFormat) const = 0;
+
+    virtual bool isColorManagementUsed() const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -320,6 +322,7 @@ public:
         GET_LAYER_DEBUG_INFO,
         CREATE_SCOPED_CONNECTION,
         GET_COMPOSITION_PREFERENCE,
+        IS_COLOR_MANAGEMET_USED,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

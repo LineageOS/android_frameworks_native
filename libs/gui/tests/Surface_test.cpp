@@ -633,6 +633,8 @@ public:
         return NO_ERROR;
     }
 
+    virtual bool isColorManagementUsed() const { return false; }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 

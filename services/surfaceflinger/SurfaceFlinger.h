@@ -462,6 +462,7 @@ private:
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
     status_t getCompositionPreference(ui::Dataspace* outDataSpace,
                                       ui::PixelFormat* outPixelFormat) const override;
+    virtual bool isColorManagementUsed() const;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface

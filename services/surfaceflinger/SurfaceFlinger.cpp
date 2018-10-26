@@ -513,6 +513,10 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
     return mDisplayTokens[id];
 }
 
+bool SurfaceFlinger::isColorManagementUsed() const {
+    return useColorManagement;
+}
+
 void SurfaceFlinger::bootFinished()
 {
     if (mStartPropertySetThread->join() != NO_ERROR) {
@@ -4744,6 +4748,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_TRANSACTION_STATE:
         // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
         case CREATE_SCOPED_CONNECTION:
+        case IS_COLOR_MANAGEMET_USED:
         case GET_COMPOSITION_PREFERENCE: {
             return OK;
         }

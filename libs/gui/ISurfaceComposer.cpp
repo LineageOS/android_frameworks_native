@@ -583,6 +583,21 @@ public:
         }
         return error;
     }
+
+    virtual bool isColorManagementUsed() const {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        remote()->transact(BnSurfaceComposer::IS_COLOR_MANAGEMET_USED, data, &reply);
+        int32_t result = 0;
+        status_t err = reply.readInt32(&result);
+        if (err != NO_ERROR) {
+            ALOGE("ISurfaceComposer::isColorManagementUsed: error "
+                  "retrieving result: %s (%d)",
+                  strerror(-err), -err);
+            return false;
+        }
+        return result != 0;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -918,6 +933,12 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeInt32(static_cast<int32_t>(dataSpace));
                 reply->writeInt32(static_cast<int32_t>(pixelFormat));
             }
+            return NO_ERROR;
+        }
+        case IS_COLOR_MANAGEMET_USED: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            int32_t result = isColorManagementUsed() ? 1 : 0;
+            reply->writeInt32(result);
             return NO_ERROR;
         }
         default: {
