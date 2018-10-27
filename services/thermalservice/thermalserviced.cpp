@@ -73,10 +73,10 @@ void ThermalServiceDaemon::thermalServiceStartup() {
     mThermalService = new android::os::ThermalService;
     mThermalService->publish(mThermalService);
     // Register IThermalService object to ThermalHAL callback
-    if (mThermalChangedCallback != nullptr) {
-        mThermalChangedCallback->registerThermalService(mThermalService);
-    } else if (mThermalCallback != nullptr) {
-        mThermalCallback->registerThermalService(mThermalService);
+    if (mThermalCallback_2_0 != nullptr) {
+        mThermalCallback_2_0->registerThermalService(mThermalService);
+    } else if (mThermalCallback_1_1 != nullptr) {
+        mThermalCallback_1_1->registerThermalService(mThermalService);
     }
     IPCThreadState::self()->joinThreadPool();
 }
@@ -103,8 +103,8 @@ void ThermalServiceDaemon::getThermalHal() {
             gThermalHal1_1->linkToDeath(gThermalHalDied, 0x451F /* cookie */);
         }
 
-        if (mThermalCallback != nullptr) {
-            Return<void> ret = gThermalHal1_1->registerThermalCallback(mThermalCallback);
+        if (mThermalCallback_1_1 != nullptr) {
+            Return<void> ret = gThermalHal1_1->registerThermalCallback(mThermalCallback_1_1);
             if (!ret.isOk()) {
                 SLOGE("registerThermalCallback failed, status: %s", ret.description().c_str());
             }
@@ -114,10 +114,10 @@ void ThermalServiceDaemon::getThermalHal() {
             gThermalHal2_0->linkToDeath(gThermalHalDied, 0x451F /* cookie */);
         }
 
-        if (mThermalCallback != nullptr) {
+        if (mThermalCallback_2_0 != nullptr) {
             Return<void> ret =
                     gThermalHal2_0
-                            ->registerThermalChangedCallback(mThermalChangedCallback, false,
+                            ->registerThermalChangedCallback(mThermalCallback_2_0, false,
                                                              TemperatureType::SKIN, // not used
                                                              [](ThermalStatus status) {
                                                                  if (ThermalStatusCode::SUCCESS !=
@@ -138,11 +138,11 @@ void ThermalServiceDaemon::getThermalHal() {
 }
 
 ThermalServiceDaemon::~ThermalServiceDaemon() {
-    if (mThermalCallback != nullptr && gThermalHal2_0 != nullptr) {
+    if (mThermalCallback_2_0 != nullptr && gThermalHal2_0 != nullptr) {
         Return<void> ret =
                 gThermalHal2_0
                         ->unregisterThermalChangedCallback(
-                            mThermalChangedCallback,
+                            mThermalCallback_2_0,
                             [](ThermalStatus status) {
                                 if (ThermalStatusCode::SUCCESS !=
                                     status.code) {
@@ -163,8 +163,8 @@ void ThermalServiceDaemon::thermalCallbackStartup() {
     // to come back on the binder death notification thread and we need
     // another thread for the incoming service now available call.
     configureRpcThreadpool(2, false /* callerWillJoin */);
-    mThermalCallback = new ThermalCallback();
-    mThermalChangedCallback = new ThermalChangedCallback();
+    mThermalCallback_1_1 = new ThermalCallback();
+    mThermalCallback_2_0 = new ThermalChangedCallback();
     // Lookup Thermal HAL 1.1 and 2.0 to register our Callback.
     getThermalHal();
 }

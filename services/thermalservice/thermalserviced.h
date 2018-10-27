@@ -37,8 +37,8 @@ class ThermalServiceDaemon {
 
  private:
     sp<ThermalService> mThermalService;
-    sp<ThermalCallback> mThermalCallback;
-    sp<ThermalChangedCallback> mThermalChangedCallback;
+    sp<ThermalCallback> mThermalCallback_1_1;
+    sp<ThermalChangedCallback> mThermalCallback_2_0;
 };
 
 #endif  // ANDROID_THERMALSERVICE_THERMALSERVICED_H
