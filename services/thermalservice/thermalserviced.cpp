@@ -109,28 +109,30 @@ void ThermalServiceDaemon::getThermalHal() {
                 SLOGE("registerThermalCallback failed, status: %s", ret.description().c_str());
             }
         }
-    }
+    } else {
+        if (gThermalHalDied != nullptr) {
+            gThermalHal2_0->linkToDeath(gThermalHalDied, 0x451F /* cookie */);
+        }
 
-    if (gThermalHalDied != nullptr) {
-        gThermalHal2_0->linkToDeath(gThermalHalDied, 0x451F /* cookie */);
-    }
-
-    if (mThermalCallback != nullptr) {
-        Return<void> ret =
-                gThermalHal2_0
-                        ->registerThermalChangedCallback(
-                            mThermalChangedCallback,
-                            false,
-                            TemperatureType::SKIN, // not used
-                            [](ThermalStatus status) {
-                                if (ThermalStatusCode::SUCCESS !=
-                                    status.code) {
-                                    SLOGE("registerThermalChangedCallback failed, status: %s",
-                                          status.debugMessage.c_str());
-                                }
-                            });
-        if (!ret.isOk()) {
-            SLOGE("registerThermalChangedCallback failed, status: %s", ret.description().c_str());
+        if (mThermalCallback != nullptr) {
+            Return<void> ret =
+                    gThermalHal2_0
+                            ->registerThermalChangedCallback(mThermalChangedCallback, false,
+                                                             TemperatureType::SKIN, // not used
+                                                             [](ThermalStatus status) {
+                                                                 if (ThermalStatusCode::SUCCESS !=
+                                                                     status.code) {
+                                                                     SLOGE("registerThermalChangedC"
+                                                                           "allback failed, "
+                                                                           "status: %s",
+                                                                           status.debugMessage
+                                                                                   .c_str());
+                                                                 }
+                                                             });
+            if (!ret.isOk()) {
+                SLOGE("registerThermalChangedCallback failed, status: %s",
+                      ret.description().c_str());
+            }
         }
     }
 }
