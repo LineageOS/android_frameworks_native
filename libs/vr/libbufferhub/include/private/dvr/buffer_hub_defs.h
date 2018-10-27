@@ -94,13 +94,13 @@ class BufferTraits {
   BufferTraits() = default;
   BufferTraits(const native_handle_t* buffer_handle,
                const FileHandleType& metadata_handle, int id,
-               uint64_t buffer_state_bit, uint64_t metadata_size,
+               uint64_t client_state_mask, uint64_t metadata_size,
                uint32_t width, uint32_t height, uint32_t layer_count,
                uint32_t format, uint64_t usage, uint32_t stride,
                const FileHandleType& acquire_fence_fd,
                const FileHandleType& release_fence_fd)
       : id_(id),
-        buffer_state_bit_(buffer_state_bit),
+        client_state_mask_(client_state_mask),
         metadata_size_(metadata_size),
         width_(width),
         height_(height),
@@ -124,7 +124,7 @@ class BufferTraits {
   // same buffer channel has uniqued state bit among its siblings. For a
   // producer buffer the bit must be kProducerStateBit; for a consumer the bit
   // must be one of the kConsumerStateMask.
-  uint64_t buffer_state_bit() const { return buffer_state_bit_; }
+  uint64_t client_state_mask() const { return client_state_mask_; }
   uint64_t metadata_size() const { return metadata_size_; }
 
   uint32_t width() { return width_; }
@@ -148,7 +148,7 @@ class BufferTraits {
  private:
   // BufferHub specific traits.
   int id_ = -1;
-  uint64_t buffer_state_bit_;
+  uint64_t client_state_mask_;
   uint64_t metadata_size_;
 
   // Traits for a GraphicBuffer.
@@ -169,10 +169,10 @@ class BufferTraits {
   FileHandleType acquire_fence_fd_;
   FileHandleType release_fence_fd_;
 
-  PDX_SERIALIZABLE_MEMBERS(BufferTraits<FileHandleType>, id_, buffer_state_bit_,
-                           metadata_size_, stride_, width_, height_,
-                           layer_count_, format_, usage_, buffer_handle_,
-                           metadata_handle_, acquire_fence_fd_,
+  PDX_SERIALIZABLE_MEMBERS(BufferTraits<FileHandleType>, id_,
+                           client_state_mask_, metadata_size_, stride_, width_,
+                           height_, layer_count_, format_, usage_,
+                           buffer_handle_, metadata_handle_, acquire_fence_fd_,
                            release_fence_fd_);
 
   BufferTraits(const BufferTraits&) = delete;

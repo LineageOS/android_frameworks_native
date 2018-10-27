@@ -55,7 +55,7 @@ class BufferChannel : public BufferHubChannel {
   std::shared_ptr<BufferNode> buffer_node_ = nullptr;
 
   // The state bit of this buffer. Must be one the lower 63 bits.
-  uint64_t buffer_state_bit_ = 0ULL;
+  uint64_t client_state_mask_ = 0ULL;
 };
 
 }  // namespace dvr

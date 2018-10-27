@@ -114,7 +114,7 @@ int BufferHubBase::ImportBuffer() {
 
   id_ = new_id;
   cid_ = buffer_desc.buffer_cid();
-  buffer_state_bit_ = buffer_desc.buffer_state_bit();
+  client_state_mask_ = buffer_desc.client_state_mask();
 
   // Note that here the buffer_state, fence_state and active_clients_bit_mask
   // are mapped from shared memory as an atomic object. The std::atomic's
@@ -169,7 +169,7 @@ int BufferHubBase::UpdateSharedFence(const LocalHandle& new_fence,
       // If ready fence is valid, we put that into the epoll set.
       epoll_event event;
       event.events = EPOLLIN;
-      event.data.u64 = buffer_state_bit();
+      event.data.u64 = client_state_mask();
       pending_fence_fd_ = new_fence.Duplicate();
       if (epoll_ctl(shared_fence.Get(), EPOLL_CTL_ADD, pending_fence_fd_.Get(),
                     &event) < 0) {
@@ -182,12 +182,12 @@ int BufferHubBase::UpdateSharedFence(const LocalHandle& new_fence,
       }
       // Set bit in fence state to indicate that there is a fence from this
       // producer or consumer.
-      fence_state_->fetch_or(buffer_state_bit());
+      fence_state_->fetch_or(client_state_mask());
     } else {
       // Unset bit in fence state to indicate that there is no fence, so that
       // when consumer to acquire or producer to acquire, it knows no need to
       // check fence for this buffer.
-      fence_state_->fetch_and(~buffer_state_bit());
+      fence_state_->fetch_and(~client_state_mask());
     }
   }
 
