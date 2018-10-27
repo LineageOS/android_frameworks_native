@@ -59,6 +59,8 @@ public:
                                       DisplayIdentificationData* outData) const;
 
     bool hasCapability(HWC2::Capability capability) const;
+    bool hasDisplayCapability(const std::optional<DisplayId>& displayId,
+                              HWC2::DisplayCapability capability) const;
 
     // Attempts to allocate a virtual display and returns its ID if created on the HWC device.
     std::optional<DisplayId> allocateVirtualDisplay(uint32_t width, uint32_t height,

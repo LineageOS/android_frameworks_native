@@ -3085,8 +3085,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
                 display->getHdrCapabilities().getDesiredMaxLuminance());
 
         const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(displayId);
-        const bool skipClientColorTransform = getBE().mHwc->hasCapability(
-            HWC2::Capability::SkipClientColorTransform);
+        const bool skipClientColorTransform =
+                getBE().mHwc
+                        ->hasDisplayCapability(displayId,
+                                               HWC2::DisplayCapability::SkipClientColorTransform);
 
         // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
