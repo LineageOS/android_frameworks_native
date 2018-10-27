@@ -156,8 +156,8 @@ private:
     const bool mUseColorManagement = false;
 };
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android
 
 #endif /* SF_GLES20RENDERENGINE_H_ */

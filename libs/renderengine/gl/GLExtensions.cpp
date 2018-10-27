@@ -122,6 +122,6 @@ char const* GLExtensions::getEGLExtensions() const {
     return mEGLExtensions.string();
 }
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

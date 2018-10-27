@@ -75,8 +75,8 @@ public:
     char const* getEGLExtensions() const;
 };
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android
 
 #endif // ANDROID_SF_GLEXTENSION_H

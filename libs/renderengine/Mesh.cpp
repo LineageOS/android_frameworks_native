@@ -91,5 +91,5 @@ size_t Mesh::getStride() const {
     return mStride;
 }
 
-}  // namespace renderengine
-}  // namespace android
+} // namespace renderengine
+} // namespace android

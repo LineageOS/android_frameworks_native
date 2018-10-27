@@ -52,5 +52,5 @@ bool Description::hasColorMatrix() const {
     return colorMatrix != identity;
 }
 
-}  // namespace renderengine
-}  // namespace android
+} // namespace renderengine
+} // namespace android

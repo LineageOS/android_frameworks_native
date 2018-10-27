@@ -73,5 +73,5 @@ size_t Texture::getHeight() const {
     return mHeight;
 }
 
-}  // namespace renderengine
-}  // namespace android
+} // namespace renderengine
+} // namespace android

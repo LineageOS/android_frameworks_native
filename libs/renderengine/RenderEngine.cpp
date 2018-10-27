@@ -39,8 +39,7 @@ RenderEngine::~RenderEngine() = default;
 
 namespace impl {
 
-RenderEngine::RenderEngine(uint32_t featureFlags)
-      : mFeatureFlags(featureFlags) {}
+RenderEngine::RenderEngine(uint32_t featureFlags) : mFeatureFlags(featureFlags) {}
 
 RenderEngine::~RenderEngine() = default;
 
@@ -52,6 +51,6 @@ bool RenderEngine::useWaitSync() const {
     return SyncFeatures::getInstance().useWaitSync();
 }
 
-}  // namespace impl
-}  // namespace renderengine
-}  // namespace android
+} // namespace impl
+} // namespace renderengine
+} // namespace android
