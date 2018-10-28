@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 87
+define VERSION_PATCH 90
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -148,6 +148,10 @@ define NULL_HANDLE 0
 // 28
 @extension("VK_IMG_format_pvrtc") define VK_IMG_FORMAT_PVRTC_SPEC_VERSION 1
 @extension("VK_IMG_format_pvrtc") define VK_IMG_FORMAT_PVRTC_EXTENSION_NAME "VK_IMG_format_pvrtc"
+
+// 29
+@extension("VK_EXT_transform_feedback") define VK_EXT_TRANSFORM_FEEDBACK_SPEC_VERSION 1
+@extension("VK_EXT_transform_feedback") define VK_EXT_TRANSFORM_FEEDBACK_EXTENSION_NAME "VK_EXT_transform_feedback"
 
 // 34
 @extension("VK_AMD_draw_indirect_count") define VK_AMD_DRAW_INDIRECT_COUNT_SPEC_VERSION 1
@@ -501,6 +505,10 @@ define NULL_HANDLE 0
 @extension("VK_KHR_bind_memory2") define VK_KHR_BIND_MEMORY2_SPEC_VERSION 1
 @extension("VK_KHR_bind_memory2") define VK_KHR_BIND_MEMORY2_EXTENSION_NAME "VK_KHR_bind_memory2"
 
+// 159
+@extension("VK_EXT_image_drm_format_modifier") define VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_SPEC_VERSION 1
+@extension("VK_EXT_image_drm_format_modifier") define VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME "VK_EXT_image_drm_format_modifier"
+
 // 161
 @extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_SPEC_VERSION 1
 @extension("VK_EXT_validation_cache") define VK_EXT_VALIDATION_CACHE_EXTENSION_NAME "VK_EXT_validation_cache"
@@ -597,9 +605,21 @@ define NULL_HANDLE 0
 @extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_SPEC_VERSION 2
 @extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME "VK_KHR_vulkan_memory_model"
 
+// 213
+@extension("VK_EXT_pci_bus_info") define VK_EXT_PCI_BUS_INFO_SPEC_VERSION 1
+@extension("VK_EXT_pci_bus_info") define VK_EXT_PCI_BUS_INFO_EXENSION_NAME "VK_EXT_pci_bus_info"
+
 // 215
 @extension("VK_FUCHSIA_imagepipe_surface") define VK_FUCHSIA_IMAGEPIPE_SURFACE_SPEC_VERSION 1
 @extension("VK_FUCHSIA_imagepipe_surface") define VK_FUCHSIA_IMAGEPIPE_SURFACE_EXTENSION_NAME "VK_FUCHSIA_imagepipe_surface"
+
+// 224
+@extension("VK_GOOGLE_hlsl_functionality1") define VK_GOOGLE_HLSL_FUNCTIONALITY1_SPEC_VERSION 0
+@extension("VK_GOOGLE_hlsl_functionality1") define VK_GOOGLE_HLSL_FUNCTIONALITY1_EXTENSION_NAME "VK_GOOGLE_hlsl_functionality1"
+
+// 225
+@extension("VK_GOOGLE_decorate_string") define VK_GOOGLE_DECORATE_STRING_SPEC_VERSION 0
+@extension("VK_GOOGLE_decorate_string") define VK_GOOGLE_DECORATE_STRING_EXTENSION_NAME "VK_GOOGLE_decorate_string"
 
 /////////////
 //  Types  //
@@ -728,6 +748,9 @@ enum VkImageType {
 enum VkImageTiling {
     VK_IMAGE_TILING_OPTIMAL                                 = 0x00000000,
     VK_IMAGE_TILING_LINEAR                                  = 0x00000001,
+
+    //@extension("VK_EXT_image_drm_format_modifier") // 159
+    VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT                 = 1000158000,
 }
 
 enum VkImageViewType {
@@ -779,6 +802,9 @@ enum VkQueryType {
     VK_QUERY_TYPE_OCCLUSION                                 = 0x00000000,
     VK_QUERY_TYPE_PIPELINE_STATISTICS                       = 0x00000001, /// Optional
     VK_QUERY_TYPE_TIMESTAMP                                 = 0x00000002,
+
+    //@extension("VK_EXT_transform_feedback") // 29
+    VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT             = 1000028004,
 
     //@extension("VK_NVX_raytracing") // 166
     VK_QUERY_TYPE_COMPACTED_SIZE_NVX                        = 1000165000,
@@ -1451,6 +1477,11 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_BUFFER_CREATE_INFO_NV = 1000026001,
     VK_STRUCTURE_TYPE_DEDICATED_ALLOCATION_MEMORY_ALLOCATE_INFO_NV = 1000026002,
 
+    //@extension("VK_EXT_transform_feedback") // 29
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_FEATURES_EXT       = 1000028000,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TRANSFORM_FEEDBACK_PROPERTIES_EXT     = 1000028001,
+    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_STREAM_CREATE_INFO_EXT   = 1000028002,
+
     //@extension("VK_AMD_texture_gather_bias_lod") // 42
     VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD  = 1000041000,
 
@@ -1726,6 +1757,14 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SAMPLER_YCBCR_CONVERSION_FEATURES_KHR = 1000156004,
     VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES_KHR  = 1000156005,
 
+    //@extension("VK_EXT_image_drm_format_modifier") // 159
+    VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT               = 1000158000,
+    VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT                    = 1000158001,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT    = 1000158002,
+    VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT        = 1000158003,
+    VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT    = 1000158004,
+    VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT              = 1000158005,
+
     //@extension("VK_KHR_bind_memory2") // 158
     VK_STRUCTURE_TYPE_BIND_BUFFER_MEMORY_INFO_KHR                       = 1000157000,
     VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO_KHR                        = 1000157001,
@@ -1782,6 +1821,9 @@ enum VkStructureType {
     //@extension("VK_KHR_shader_atomic_int64") // 181
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_ATOMIC_INT64_FEATURES_KHR  = 1000180000,
 
+    //@extension("VK_EXT_calibrated_timestamps") // 185
+    VK_STRUCTURE_TYPE_CALIBRATED_TIMESTAMP_INFO_EXT                     = 1000184000,
+
     //@extension("VK_KHR_driver_properties") // 197
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES_KHR             = 1000196000,
 
@@ -1799,6 +1841,9 @@ enum VkStructureType {
 
     //@extension("VK_KHR_vulkan_memory_model") // 212
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_MEMORY_MODEL_FEATURES_KHR = 1000211000,
+
+    //@extension("VK_EXT_pci_bus_info") // 213
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT       = 1000212000,
 
     //@extension("VK_FUCHSIA_imagepipe_surface") // 215
     VK_STRUCTURE_TYPE_IMAGEPIPE_SURFACE_CREATE_INFO_FUCHSIA     = 1000214000,
@@ -1864,14 +1909,17 @@ enum VkResult {
     //@extension("VK_KHR_maintenance1") // 70
     VK_ERROR_OUT_OF_POOL_MEMORY_KHR                         = 0xC4642878, // -1000069000
 
-    //@extension("VK_EXT_global_priority") // 175
-    VK_ERROR_NOT_PERMITTED_EXT                              = 0xC4628E4F, // -1000174001
-
     //@extension("VK_KHR_external_memory") // 73
     VK_ERROR_INVALID_EXTERNAL_HANDLE_KHR                    = 0xC4641CBD, // -1000072003
 
+    //@extension("VK_EXT_image_drm_format_modifier") // 159
+    VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT   = 0xC462CCD0, // -1000158000
+
     //@extension("VK_EXT_descriptor_indexing") // 162
     VK_ERROR_FRAGMENTATION_EXT                              = 0xc462c118, // -1000161000
+
+    //@extension("VK_EXT_global_priority") // 175
+    VK_ERROR_NOT_PERMITTED_EXT                              = 0xC4628E4F, // -1000174001
 }
 
 enum VkDynamicState {
@@ -2289,6 +2337,14 @@ enum VkQueueGlobalPriorityEXT {
     VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT                   = 1024,
 }
 
+@extension("VK_EXT_calibrated_timestamps") // 185
+enum VkTimeDomainEXT {
+    VK_TIME_DOMAIN_DEVICE_EXT                               = 0,
+    VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT                      = 1,
+    VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_EXT                  = 2,
+    VK_TIME_DOMAIN_QUERY_PERFORMANCE_COUNTER_EXT            = 3,
+}
+
 @extension("VK_KHR_driver_properties") // 197
 enum VkDriverIdKHR {
     VK_DRIVER_ID_AMD_PROPRIETARY_KHR                        = 1,
@@ -2380,6 +2436,11 @@ bitfield VkAccessFlagBits {
     //@extension("VK_NVX_raytracing") // 166
     VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NVX           = 0x00200000,
     VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NVX          = 0x00400000,
+
+    //@extension("VK_EXT_transform_feedback") // 29
+    VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT              = 0x02000000,
+    VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT       = 0x04000000,
+    VK_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT      = 0x08000000,
 }
 
 /// Buffer usage flags
@@ -2400,6 +2461,10 @@ bitfield VkBufferUsageFlagBits {
 
     //@extension("VK_NVX_raytracing") // 166
     VK_BUFFER_USAGE_RAYTRACING_BIT_NVX                      = 0x00000400,
+
+    //@extension("VK_EXT_transform_feedback") // 29
+    VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT           = 0x00000800,
+    VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT   = 0x00001000,
 }
 
 /// Buffer creation flags
@@ -2673,6 +2738,12 @@ bitfield VkImageAspectFlagBits {
     VK_IMAGE_ASPECT_PLANE_0_BIT_KHR                         = 0x00000010,
     VK_IMAGE_ASPECT_PLANE_1_BIT_KHR                         = 0x00000020,
     VK_IMAGE_ASPECT_PLANE_2_BIT_KHR                         = 0x00000040,
+
+    //@extension("VK_EXT_transform_feedback") // 29
+    VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT                  = 0x00000080,
+    VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT                  = 0x00000100,
+    VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT                  = 0x00000200,
+    VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT                  = 0x00000400,
 }
 
 /// Sparse memory bind flags
@@ -2726,6 +2797,9 @@ bitfield VkPipelineStageFlagBits {
     //@extension("VK_NV_mesh_shader") // 203
     VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV                    = 0x00080000,
     VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV                    = 0x00100000,
+
+    //@extension("VK_EXT_transform_feedback") // 29
+    VK_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT            = 0x01000000,
 }
 
 /// Render pass attachment description flags
@@ -3155,6 +3229,12 @@ bitfield VkDebugReportFlagBitsEXT {
     VK_DEBUG_REPORT_ERROR_BIT_EXT                           = 0x00000008,
     VK_DEBUG_REPORT_DEBUG_BIT_EXT                           = 0x00000010,
 }
+
+@extension("VK_EXT_transform_feedback") // 29
+type VkFlags VkPipelineRasterizationStateStreamCreateFlagsEXT
+//@extension("VK_EXT_transform_feedback") // 29
+//bitfield VkPipelineRasterizationStateStreamCreateFlagBitsEXT {
+//}
 
 @extension("VK_NV_external_memory_capabilities") // 56
 type VkFlags VkExternalMemoryHandleTypeFlagsNV
@@ -5373,6 +5453,38 @@ class VkDedicatedAllocationMemoryAllocateInfoNV {
     VkBuffer                                    buffer
 }
 
+@extension("VK_EXT_transform_feedback") // 29
+class VkPhysicalDeviceTransformFeedbackFeaturesEXT {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkBool32                                    transformFeedback
+    VkBool32                                    geometryStreams
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+class VkPhysicalDeviceTransformFeedbackPropertiesEXT {
+    VkStructureType                             sType
+    void*                                       pNext
+    u32                                         maxTransformFeedbackStreams
+    u32                                         maxTransformFeedbackBuffers
+    VkDeviceSize                                maxTransformFeedbackBufferSize
+    u32                                         maxTransformFeedbackStreamDataSize
+    u32                                         maxTransformFeedbackBufferDataSize
+    u32                                         maxTransformFeedbackBufferDataStride
+    VkBool32                                    transformFeedbackQueries
+    VkBool32                                    transformFeedbackStreamsLinesTriangles
+    VkBool32                                    transformFeedbackRasterizationStreamSelect
+    VkBool32                                    transformFeedbackDraw
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+class VkPipelineRasterizationStateStreamCreateInfoEXT {
+    VkStructureType                                     sType
+    const void*                                         pNext
+    VkPipelineRasterizationStateStreamCreateFlagsEXT    flags
+    u32                                                 rasterizationStream
+}
+
 @extension("VK_AMD_texture_gather_bias_lod") // 42
 class VkTextureLODGatherFormatPropertiesAMD {
     VkStructureType                             sType
@@ -6612,7 +6724,7 @@ class VkDebugUtilsMessengerCreateInfoEXT {
     const void*                                     pNext
     VkDebugUtilsMessengerCreateFlagsEXT             flags
     VkDebugUtilsMessageSeverityFlagsEXT             messageSeverity
-    VkDebugUtilsMessageTypeFlagsEXT                 messageType
+    VkDebugUtilsMessageTypeFlagsEXT                 messageTypes
     PFN_vkDebugUtilsMessengerCallbackEXT            pfnUserCallback
     void*                                           pUserData
 }
@@ -6936,6 +7048,55 @@ class VkBindImageMemoryInfoKHR {
     VkImage                                         image
     VkDeviceMemory                                  memory
     VkDeviceSize                                    memoryOffset
+}
+
+@extension("VK_EXT_image_drm_format_modifier") // 159
+class VkDrmFormatModifierPropertiesEXT {
+    u64                                             drmFormatModifier
+    u32                                             drmFormatModifierPlaneCount
+    VkFormatFeatureFlags                            drmFormatModifierTilingFeatures
+}
+
+@extension("VK_EXT_image_drm_format_modifier") // 159
+class VkDrmFormatModifierPropertiesListEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u32                                             drmFormatModifierCount
+    VkDrmFormatModifierPropertiesEXT*               pDrmFormatModifierProperties
+}
+
+@extension("VK_EXT_image_drm_format_modifier") // 159
+class VkPhysicalDeviceImageDrmFormatModifierInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u64                                             drmFormatModifier
+    VkSharingMode                                   sharingMode
+    u32                                             queueFamilyIndexCount
+    const u32*                                      pQueueFamilyIndices
+}
+
+@extension("VK_EXT_image_drm_format_modifier") // 159
+class VkImageDrmFormatModifierListCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u32                                             drmFormatModifierCount
+    const u64*                                      pDrmFormatModifiers
+}
+
+@extension("VK_EXT_image_drm_format_modifier") // 159
+class VkImageDrmFormatModifierExplicitCreateInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    u64                                             drmFormatModifier
+    u32                                             drmFormatModifierPlaneCount
+    const VkSubresourceLayout*                      pPlaneLayouts
+}
+
+@extension("VK_EXT_image_drm_format_modifier") // 159
+class VkImageDrmFormatModifierPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u64                                             drmFormatModifier
 }
 
 @extension("VK_EXT_validation_cache") // 161
@@ -7266,6 +7427,13 @@ class VkPhysicalDeviceShaderAtomicInt64FeaturesKHR {
     VkBool32                                        shaderSharedInt64Atomics
 }
 
+@extension("VK_EXT_calibrated_timestamps") // 185
+class VkCalibratedTimestampInfoEXT {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkTimeDomainEXT                                 timeDomain
+}
+
 @extension("VK_AMD_shader_core_properties") // 186
 class VkPhysicalDeviceShaderCorePropertiesAMD {
     VkStructureType                                 sType
@@ -7327,7 +7495,7 @@ class VkConformanceVersionKHR {
 class VkPhysicalDeviceDriverPropertiesKHR {
     VkStructureType                                 sType
     void*                                           pNext
-    u32                                             driverID
+    VkDriverIdKHR                                   driverID
     char[VK_MAX_DRIVER_NAME_SIZE_KHR]               driverName
     char[VK_MAX_DRIVER_INFO_SIZE_KHR]               driverInfo
     VkConformanceVersionKHR                         conformanceVersion
@@ -7424,6 +7592,16 @@ class VkPhysicalDeviceVulkanMemoryModelFeaturesKHR {
     void*                                           pNext
     VkBool32                                        vulkanMemoryModel
     VkBool32                                        vulkanMemoryModelDeviceScope
+}
+
+@extension("VK_EXT_pci_bus_info") // 213
+class VkPhysicalDevicePCIBusInfoPropertiesEXT {
+    VkStructureType                                 sType
+    void*                                           pNext
+    u16                                             pciDomain
+    u8                                              pciBus
+    u8                                              pciDevice
+    u8                                              pciFunction
 }
 
 @extension("VK_FUCHSIA_imagepipe_surface") // 215
@@ -10355,6 +10533,62 @@ cmd void vkCmdDebugMarkerInsertEXT(
         const VkDebugMarkerMarkerInfoEXT*           pMarkerInfo) {
 }
 
+@extension("VK_EXT_transform_feedback") // 29
+cmd void vkCmdBindTransformFeedbackBuffersEXT(
+        VkCommandBuffer                             commandBuffer,
+        u32                                         firstBinding,
+        u32                                         bindingCount,
+        const VkBuffer*                             pBuffers,
+        const VkDeviceSize*                         pOffsets,
+        const VkDeviceSize*                         pSizes) {
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+cmd void vkCmdBeginTransformFeedbackEXT(
+        VkCommandBuffer                             commandBuffer,
+        u32                                         firstCounterBuffer,
+        u32                                         counterBufferCount,
+        const VkBuffer*                             pCounterBuffers,
+        const VkDeviceSize*                         pCounterBufferOffsets) {
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+cmd void vkCmdEndTransformFeedbackEXT(
+        VkCommandBuffer                             commandBuffer,
+        u32                                         firstCounterBuffer,
+        u32                                         counterBufferCount,
+        const VkBuffer*                             pCounterBuffers,
+        const VkDeviceSize*                         pCounterBufferOffsets) {
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+cmd void vkCmdBeginQueryIndexedEXT(
+        VkCommandBuffer                             commandBuffer,
+        VkQueryPool                                 queryPool,
+        u32                                         query,
+        VkQueryControlFlags                         flags,
+        u32                                         index) {
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+cmd void vkCmdEndQueryIndexedEXT(
+        VkCommandBuffer                             commandBuffer,
+        VkQueryPool                                 queryPool,
+        u32                                         query,
+        u32                                         index) {
+}
+
+@extension("VK_EXT_transform_feedback") // 29
+cmd void vkCmdDrawIndirectByteCountEXT(
+        VkCommandBuffer                             commandBuffer,
+        u32                                         instanceCount,
+        u32                                         firstInstance,
+        VkBuffer                                    counterBuffer,
+        VkDeviceSize                                counterBufferOffset,
+        u32                                         counterOffset,
+        u32                                         vertexStride) {
+}
+
 @extension("VK_AMD_draw_indirect_count") // 34
 cmd void vkCmdDrawIndirectCountAMD(
         VkCommandBuffer                             commandBuffer,
@@ -11149,6 +11383,14 @@ cmd VkResult vkBindImageMemory2KHR(
     return ?
 }
 
+@extension("VK_EXT_image_drm_format_modifier") // 159
+cmd VkResult vkGetImageDrmFormatModifierPropertiesEXT(
+        VkDevice                                        device,
+        VkImage                                         image,
+        VkImageDrmFormatModifierPropertiesEXT*          pProperties) {
+    return ?
+}
+
 @extension("VK_EXT_validation_cache") // 161
 cmd VkResult vkCreateValidationCacheEXT(
         VkDevice                                    device,
@@ -11377,6 +11619,24 @@ cmd void vkCmdWriteBufferMarkerAMD(
         VkBuffer                                    dstBuffer,
         VkDeviceSize                                dstOffset,
         u32                                         marker) {
+}
+
+@extension("VK_EXT_calibrated_timestamps") // 185
+cmd VkResult vkGetPhysicalDeviceCalibrateableTimeDomainsEXT(
+        VkPhysicalDevice                            physicalDevice,
+        u32*                                        pTimeDomainCount,
+        VkTimeDomainEXT*                            pTimeDomains) {
+    return ?
+}
+
+@extension("VK_EXT_calibrated_timestamps") // 185
+cmd VkResult vkGetCalibratedTimestampsEXT(
+        VkDevice                                    device,
+        u32                                         timestampCount,
+        const VkCalibratedTimestampInfoEXT*         pTimestampInfos,
+        u64*                                        pTimestamps,
+        u64*                                        pMaxDeviation) {
+    return ?
 }
 
 @extension("VK_NV_mesh_shader") // 203
