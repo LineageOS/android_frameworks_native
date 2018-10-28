@@ -565,8 +565,10 @@ public:
         return reply.readParcelableVector(outLayers);
     }
 
-    virtual status_t getCompositionPreference(ui::Dataspace* dataSpace,
-                                              ui::PixelFormat* pixelFormat) const {
+    virtual status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
+                                              ui::PixelFormat* defaultPixelFormat,
+                                              ui::Dataspace* wideColorGamutDataspace,
+                                              ui::PixelFormat* wideColorGamutPixelFormat) const {
         Parcel data, reply;
         status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         if (error != NO_ERROR) {
@@ -578,8 +580,10 @@ public:
         }
         error = static_cast<status_t>(reply.readInt32());
         if (error == NO_ERROR) {
-            *dataSpace = static_cast<ui::Dataspace>(reply.readInt32());
-            *pixelFormat = static_cast<ui::PixelFormat>(reply.readInt32());
+            *defaultDataspace = static_cast<ui::Dataspace>(reply.readInt32());
+            *defaultPixelFormat = static_cast<ui::PixelFormat>(reply.readInt32());
+            *wideColorGamutDataspace = static_cast<ui::Dataspace>(reply.readInt32());
+            *wideColorGamutPixelFormat = static_cast<ui::PixelFormat>(reply.readInt32());
         }
         return error;
     }
@@ -925,13 +929,19 @@ status_t BnSurfaceComposer::onTransact(
         }
         case GET_COMPOSITION_PREFERENCE: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            ui::Dataspace dataSpace;
-            ui::PixelFormat pixelFormat;
-            status_t error = getCompositionPreference(&dataSpace, &pixelFormat);
+            ui::Dataspace defaultDataspace;
+            ui::PixelFormat defaultPixelFormat;
+            ui::Dataspace wideColorGamutDataspace;
+            ui::PixelFormat wideColorGamutPixelFormat;
+            status_t error =
+                    getCompositionPreference(&defaultDataspace, &defaultPixelFormat,
+                                             &wideColorGamutDataspace, &wideColorGamutPixelFormat);
             reply->writeInt32(error);
             if (error == NO_ERROR) {
-                reply->writeInt32(static_cast<int32_t>(dataSpace));
-                reply->writeInt32(static_cast<int32_t>(pixelFormat));
+                reply->writeInt32(static_cast<int32_t>(defaultDataspace));
+                reply->writeInt32(static_cast<int32_t>(defaultPixelFormat));
+                reply->writeInt32(static_cast<int32_t>(wideColorGamutDataspace));
+                reply->writeInt32(static_cast<int32_t>(wideColorGamutDataspace));
             }
             return NO_ERROR;
         }

@@ -101,9 +101,15 @@ public:
     /* Triggers screen on/off or low power mode and waits for it to complete */
     static void setDisplayPowerMode(const sp<IBinder>& display, int mode);
 
-    //
-    static status_t getCompositionPreference(ui::Dataspace* dataSpace,
-                                             ui::PixelFormat* pixelFormat);
+    /* Returns the composition preference of the default data space and default pixel format,
+     * as well as the wide color gamut data space and wide color gamut pixel format.
+     * If the wide color gamut data space is V0_SRGB, then it implies that the platform
+     * has no wide color gamut support.
+     */
+    static status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
+                                             ui::PixelFormat* defaultPixelFormat,
+                                             ui::Dataspace* wideColorGamutDataspace,
+                                             ui::PixelFormat* wideColorGamutPixelFormat);
 
     // ------------------------------------------------------------------------
     // surface creation / destruction
