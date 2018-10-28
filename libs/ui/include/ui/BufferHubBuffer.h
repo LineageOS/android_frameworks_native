@@ -88,7 +88,7 @@ public:
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
-    uint64_t buffer_state_bit() const { return mBufferStateBit; }
+    uint64_t client_state_mask() const { return mClientStateMask; }
 
     size_t user_metadata_size() const { return mMetadata.user_metadata_size(); }
 
@@ -126,7 +126,7 @@ private:
 
     // Global id for the buffer that is consistent across processes.
     int mId = -1;
-    uint64_t mBufferStateBit = 0;
+    uint64_t mClientStateMask = 0;
 
     // Wrapps the gralloc buffer handle of this buffer.
     dvr::NativeHandleWrapper<pdx::LocalHandle> mBufferHandle;

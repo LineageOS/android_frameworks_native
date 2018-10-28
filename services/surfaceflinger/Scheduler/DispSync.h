@@ -24,7 +24,6 @@
 #include <utils/Timers.h>
 
 #include <ui/FenceTime.h>
-#include <DisplayHardware/HWC2.h>
 
 #include <memory>
 
@@ -49,7 +48,6 @@ public:
     virtual bool addResyncSample(nsecs_t timestamp) = 0;
     virtual void endResync() = 0;
     virtual void setPeriod(nsecs_t period) = 0;
-    virtual void scalePeriod(HWC2::Device::FrequencyScaler) = 0;
     virtual nsecs_t getPeriod() = 0;
     virtual void setRefreshSkipCount(int count) = 0;
     virtual status_t addEventListener(const char* name, nsecs_t phase, Callback* callback) = 0;
@@ -120,12 +118,6 @@ public:
     // turned on.  It should NOT be used after that.
     void setPeriod(nsecs_t period) override;
 
-    // The scalePeriod method applies the multiplier and divisor to
-    // scale the vsync event model's period.   The function is added
-    // for an experimental test mode and should not be used outside
-    // of that purpose.
-    void scalePeriod(HWC2::Device::FrequencyScaler frequencyScaler);
-
     // The getPeriod method returns the current vsync period.
     nsecs_t getPeriod() override;
 
@@ -188,7 +180,6 @@ private:
     // mPeriod is the computed period of the modeled vsync events in
     // nanoseconds.
     nsecs_t mPeriod;
-    nsecs_t mPeriodBase;
 
     // mPhase is the phase offset of the modeled vsync events.  It is the
     // number of nanoseconds from time 0 to the first vsync event.

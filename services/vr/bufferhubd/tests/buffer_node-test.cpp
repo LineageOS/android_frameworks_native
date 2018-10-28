@@ -37,49 +37,51 @@ TEST_F(BufferNodeTest, TestCreateBufferNode) {
 }
 
 TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_twoNewClients) {
-  uint64_t new_buffer_state_bit_1 = buffer_node->AddNewActiveClientsBitToMask();
-  EXPECT_EQ(buffer_node->GetActiveClientsBitMask(), new_buffer_state_bit_1);
+  uint64_t new_client_state_mask_1 =
+      buffer_node->AddNewActiveClientsBitToMask();
+  EXPECT_EQ(buffer_node->GetActiveClientsBitMask(), new_client_state_mask_1);
 
-  // Request and add a new buffer_state_bit again.
+  // Request and add a new client_state_mask again.
   // Active clients bit mask should be the union of the two new
-  // buffer_state_bits.
-  uint64_t new_buffer_state_bit_2 = buffer_node->AddNewActiveClientsBitToMask();
+  // client_state_masks.
+  uint64_t new_client_state_mask_2 =
+      buffer_node->AddNewActiveClientsBitToMask();
   EXPECT_EQ(buffer_node->GetActiveClientsBitMask(),
-            new_buffer_state_bit_1 | new_buffer_state_bit_2);
+            new_client_state_mask_1 | new_client_state_mask_2);
 }
 
 TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_32NewClients) {
-  uint64_t new_buffer_state_bit = 0ULL;
+  uint64_t new_client_state_mask = 0ULL;
   uint64_t current_mask = 0ULL;
   uint64_t expected_mask = 0ULL;
 
   for (int i = 0; i < 64; ++i) {
-    new_buffer_state_bit = buffer_node->AddNewActiveClientsBitToMask();
-    EXPECT_NE(new_buffer_state_bit, 0);
-    EXPECT_FALSE(new_buffer_state_bit & current_mask);
-    expected_mask = current_mask | new_buffer_state_bit;
+    new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
+    EXPECT_NE(new_client_state_mask, 0);
+    EXPECT_FALSE(new_client_state_mask & current_mask);
+    expected_mask = current_mask | new_client_state_mask;
     current_mask = buffer_node->GetActiveClientsBitMask();
     EXPECT_EQ(current_mask, expected_mask);
   }
 
   // Method should fail upon requesting for more than maximum allowable clients.
-  new_buffer_state_bit = buffer_node->AddNewActiveClientsBitToMask();
-  EXPECT_EQ(new_buffer_state_bit, 0ULL);
+  new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
+  EXPECT_EQ(new_client_state_mask, 0ULL);
   EXPECT_EQ(errno, E2BIG);
 }
 
 TEST_F(BufferNodeTest, TestRemoveActiveClientsBitFromMask) {
   buffer_node->AddNewActiveClientsBitToMask();
   uint64_t current_mask = buffer_node->GetActiveClientsBitMask();
-  uint64_t new_buffer_state_bit = buffer_node->AddNewActiveClientsBitToMask();
+  uint64_t new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
   EXPECT_NE(buffer_node->GetActiveClientsBitMask(), current_mask);
 
-  buffer_node->RemoveClientsBitFromMask(new_buffer_state_bit);
+  buffer_node->RemoveClientsBitFromMask(new_client_state_mask);
   EXPECT_EQ(buffer_node->GetActiveClientsBitMask(), current_mask);
 
   // Remove the test_mask again to the active client bit mask should not modify
   // the value of active clients bit mask.
-  buffer_node->RemoveClientsBitFromMask(new_buffer_state_bit);
+  buffer_node->RemoveClientsBitFromMask(new_client_state_mask);
   EXPECT_EQ(buffer_node->GetActiveClientsBitMask(), current_mask);
 }
 

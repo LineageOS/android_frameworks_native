@@ -267,8 +267,9 @@ TEST_F(CredentialsTest, CaptureTest) {
     sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::capture(display, Rect(), 0 /*reqWidth*/, 0 /*reqHeight*/, false,
-                                         ROTATION, &outBuffer);
+        return ScreenshotClient::capture(display, ui::Dataspace::V0_SRGB,
+                                         ui::PixelFormat::RGBA_8888, Rect(), 0 /*reqWidth*/,
+                                         0 /*reqHeight*/, false, ROTATION, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }
@@ -278,8 +279,9 @@ TEST_F(CredentialsTest, CaptureLayersTest) {
     sp<GraphicBuffer> outBuffer;
     std::function<status_t()> condition = [=]() {
         sp<GraphicBuffer> outBuffer;
-        return ScreenshotClient::captureLayers(mBGSurfaceControl->getHandle(), Rect(), FRAME_SCALE,
-                                               &outBuffer);
+        return ScreenshotClient::captureLayers(mBGSurfaceControl->getHandle(),
+                                               ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
+                                               Rect(), FRAME_SCALE, &outBuffer);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
 }

@@ -36,8 +36,6 @@
 #define BYPASS_QUOTA 0
 #define BYPASS_SDCARDFS 0
 
-#define APPLY_HARD_QUOTAS 0
-
 namespace android {
 namespace installd {
 

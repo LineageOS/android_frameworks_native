@@ -18,7 +18,7 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
     : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
       buffer_node_(
           std::make_shared<BufferNode>(std::move(buffer), user_metadata_size)) {
-  buffer_state_bit_ = buffer_node_->AddNewActiveClientsBitToMask();
+  client_state_mask_ = buffer_node_->AddNewActiveClientsBitToMask();
 }
 
 BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
@@ -28,7 +28,7 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
     : BufferHubChannel(service, buffer_id, buffer_id, kDetachedBufferType),
       buffer_node_(std::make_shared<BufferNode>(
           width, height, layer_count, format, usage, user_metadata_size)) {
-  buffer_state_bit_ = buffer_node_->AddNewActiveClientsBitToMask();
+  client_state_mask_ = buffer_node_->AddNewActiveClientsBitToMask();
 }
 
 BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
@@ -36,8 +36,8 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              std::shared_ptr<BufferNode> buffer_node)
     : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
       buffer_node_(buffer_node) {
-  buffer_state_bit_ = buffer_node_->AddNewActiveClientsBitToMask();
-  if (buffer_state_bit_ == 0ULL) {
+  client_state_mask_ = buffer_node_->AddNewActiveClientsBitToMask();
+  if (client_state_mask_ == 0ULL) {
     ALOGE("BufferChannel::BufferChannel: %s", strerror(errno));
     buffer_node_ = nullptr;
   }
@@ -46,8 +46,8 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
 BufferChannel::~BufferChannel() {
   ALOGD_IF(TRACE, "BufferChannel::~BufferChannel: channel_id=%d buffer_id=%d.",
            channel_id(), buffer_id());
-  if (buffer_state_bit_ != 0ULL) {
-    buffer_node_->RemoveClientsBitFromMask(buffer_state_bit_);
+  if (client_state_mask_ != 0ULL) {
+    buffer_node_->RemoveClientsBitFromMask(client_state_mask_);
   }
   Hangup();
 }
@@ -93,7 +93,7 @@ Status<BufferTraits<BorrowedHandle>> BufferChannel::OnImport(
       /*buffer_handle=*/buffer_node_->buffer().handle(),
       /*metadata_handle=*/buffer_node_->metadata().ashmem_handle().Borrow(),
       /*id=*/buffer_id(),
-      /*buffer_state_bit=*/buffer_state_bit_,
+      /*client_state_mask=*/client_state_mask_,
       /*metadata_size=*/buffer_node_->metadata().metadata_size(),
       /*width=*/buffer_node_->buffer().width(),
       /*height=*/buffer_node_->buffer().height(),

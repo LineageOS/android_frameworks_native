@@ -1,11 +1,11 @@
 #define LOG_TAG "android.hardware.thermal.thermalcallback@1.1-impl"
 #include <log/log.h>
 
-#include "ThermalCallback.h"
-#include "services/thermalservice/ThermalService.h"
-#include <math.h>
 #include <android/os/Temperature.h>
 #include <hardware/thermal.h>
+#include <cmath>
+#include "ThermalCallback.h"
+#include "services/thermalservice/ThermalService.h"
 
 namespace android {
 namespace hardware {
@@ -57,7 +57,7 @@ Return<void> ThermalCallback::notifyThrottling(
         android::os::Temperature thermal_svc_temp(value, type);
         mThermalService->notifyThrottling(isThrottling, thermal_svc_temp);
     } else {
-        ALOGE("IThermalService binder service not created, drop throttling event");
+        SLOGE("IThermalService binder service not created, drop throttling event");
     }
     return Void();
 }

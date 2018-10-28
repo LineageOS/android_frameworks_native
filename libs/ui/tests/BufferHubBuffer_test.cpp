@@ -100,12 +100,12 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     // These two buffer instances are based on the same physical buffer under the
     // hood, so they should share the same id.
     EXPECT_EQ(id1, id2);
-    // We use buffer_state_bit() to tell those two instances apart.
-    EXPECT_NE(b1->buffer_state_bit(), b2->buffer_state_bit());
-    EXPECT_NE(b1->buffer_state_bit(), 0ULL);
-    EXPECT_NE(b2->buffer_state_bit(), 0ULL);
-    EXPECT_NE(b1->buffer_state_bit(), kProducerStateBit);
-    EXPECT_NE(b2->buffer_state_bit(), kProducerStateBit);
+    // We use client_state_mask() to tell those two instances apart.
+    EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
+    EXPECT_NE(b1->client_state_mask(), 0ULL);
+    EXPECT_NE(b2->client_state_mask(), 0ULL);
+    EXPECT_NE(b1->client_state_mask(), kProducerStateBit);
+    EXPECT_NE(b2->client_state_mask(), kProducerStateBit);
 
     // Both buffer instances should be in gained state.
     EXPECT_TRUE(IsBufferGained(b1->buffer_state()));

@@ -1,7 +1,8 @@
+#include <binder/IServiceManager.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <private/dvr/IBufferClient.h>
-#include <private/dvr/buffer_hub_binder.h>
+#include <private/dvr/IBufferHub.h>
 #include <ui/PixelFormat.h>
 
 namespace android {
@@ -9,7 +10,6 @@ namespace dvr {
 
 namespace {
 
-using testing::Ne;
 using testing::NotNull;
 
 const int kWidth = 640;
@@ -22,8 +22,10 @@ const size_t kUserMetadataSize = 0;
 class BufferHubBinderServiceTest : public ::testing::Test {
  protected:
   void SetUp() override {
-    service = BufferHubBinderService::getServiceProxy();
-    ASSERT_THAT(service, Ne(nullptr));
+    status_t ret = getService<IBufferHub>(
+        String16(IBufferHub::getServiceName()), &service);
+    ASSERT_EQ(ret, OK);
+    ASSERT_THAT(service, NotNull());
   }
 
   sp<IBufferHub> service;

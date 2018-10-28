@@ -349,10 +349,11 @@ public:
     DisplayRenderArea(const sp<const DisplayDevice> device,
                       ui::Transform::orientation_flags rotation = ui::Transform::ROT_0)
           : DisplayRenderArea(device, device->getBounds(), device->getWidth(), device->getHeight(),
-                              rotation) {}
+                              device->getCompositionDataSpace(), rotation) {}
     DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
-                      uint32_t reqHeight, ui::Transform::orientation_flags rotation)
-          : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE,
+                      uint32_t reqHeight, ui::Dataspace reqDataSpace,
+                      ui::Transform::orientation_flags rotation)
+          : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, reqDataSpace,
                        getDisplayRotation(rotation, device->getInstallOrientation())),
             mDevice(device),
             mSourceCrop(sourceCrop) {}

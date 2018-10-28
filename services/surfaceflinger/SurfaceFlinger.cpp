@@ -4778,9 +4778,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1029 are currently use for backdoors. The code
+    // Numbers from 1000 to 1030 are currently use for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1029) {
+    if (code >= 1000 && code <= 1030) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -4976,11 +4976,9 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 repaintEverything();
                 return NO_ERROR;
             }
-            // TODO(b/111505327): Find out whether the usage of 1024 can switch to 1030,
-            // deprecate 1024 if they can.
-            case 1024: { // Does device have wide color gamut display?
-                reply->writeBool(hasWideColorDisplay);
-                return NO_ERROR;
+            // Deprecate, use 1030 to check whether the device is color managed.
+            case 1024: {
+                return NAME_NOT_FOUND;
             }
             case 1025: { // Set layer tracing
                 n = data.readInt32();
@@ -5031,54 +5029,6 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                 reply->writeBool(getBE().mHwc->isUsingVrComposer());
                 return NO_ERROR;
             }
-            case 1029: {
-                // Code 1029 is an experimental feature that allows applications to
-                // simulate a high frequency panel by setting a multiplier and divisor
-                // on the VSYNC-sf clock.  If either the multiplier or divisor are
-                // 0, then the code simply return the current multiplier and divisor.
-                HWC2::Device::FrequencyScaler frequencyScaler;
-                frequencyScaler.multiplier = data.readInt32();
-                frequencyScaler.divisor = data.readInt32();
-
-                if ((frequencyScaler.multiplier == 0) || (frequencyScaler.divisor == 0)) {
-                    frequencyScaler = getBE().mHwc->getDisplayFrequencyScaleParameters();
-                    reply->writeInt32(frequencyScaler.multiplier);
-                    reply->writeInt32(frequencyScaler.divisor);
-                    return NO_ERROR;
-                }
-
-                if ((frequencyScaler.multiplier == 1) && (frequencyScaler.divisor == 1)) {
-                    if (mUseScheduler) {
-                        mScheduler->enableHardwareVsync();
-                    } else {
-                        enableHardwareVsync();
-                    }
-                } else {
-                    if (mUseScheduler) {
-                        mScheduler->disableHardwareVsync(true);
-                    } else {
-                        disableHardwareVsync(true);
-                    }
-                }
-                mPrimaryDispSync->scalePeriod(frequencyScaler);
-                getBE().mHwc->setDisplayFrequencyScaleParameters(frequencyScaler);
-
-                ATRACE_INT("PeriodMultiplier", frequencyScaler.multiplier);
-                ATRACE_INT("PeriodDivisor", frequencyScaler.divisor);
-
-                const hwc2_display_t hwcDisplayId = getBE().mHwc->getActiveConfig(
-                        DisplayDevice::DISPLAY_PRIMARY)->getDisplayId();
-
-                onHotplugReceived(getBE().mComposerSequenceId,
-                        hwcDisplayId, HWC2::Connection::Disconnected);
-                onHotplugReceived(getBE().mComposerSequenceId,
-                        hwcDisplayId, HWC2::Connection::Connected);
-                frequencyScaler = getBE().mHwc->getDisplayFrequencyScaleParameters();
-                reply->writeInt32(frequencyScaler.multiplier);
-                reply->writeInt32(frequencyScaler.divisor);
-
-                return NO_ERROR;
-            }
             // Is device color managed?
             case 1030: {
                 reply->writeBool(useColorManagement);
@@ -5108,7 +5058,8 @@ private:
 };
 
 status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
-                                       sp<GraphicBuffer>* outBuffer, Rect sourceCrop,
+                                       sp<GraphicBuffer>* outBuffer, const Dataspace reqDataspace,
+                                       const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                        uint32_t reqWidth, uint32_t reqHeight,
                                        bool useIdentityTransform,
                                        ISurfaceComposer::Rotation rotation) {
@@ -5137,23 +5088,27 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         }
     }
 
-    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, renderAreaRotation);
+    DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, reqDataspace,
+                                 renderAreaRotation);
 
     auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
                                     display, std::placeholders::_1);
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, useIdentityTransform);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat,
+                               useIdentityTransform);
 }
 
 status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
-                                       sp<GraphicBuffer>* outBuffer, const Rect& sourceCrop,
+                                       sp<GraphicBuffer>* outBuffer, const Dataspace reqDataspace,
+                                       const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
                                        float frameScale, bool childrenOnly) {
     ATRACE_CALL();
 
     class LayerRenderArea : public RenderArea {
     public:
         LayerRenderArea(SurfaceFlinger* flinger, const sp<Layer>& layer, const Rect crop,
-                        int32_t reqWidth, int32_t reqHeight, bool childrenOnly)
-              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR),
+                        int32_t reqWidth, int32_t reqHeight, Dataspace reqDataSpace,
+                        bool childrenOnly)
+              : RenderArea(reqWidth, reqHeight, CaptureFill::CLEAR, reqDataSpace),
                 mLayer(layer),
                 mCrop(crop),
                 mNeedsFiltering(false),
@@ -5260,7 +5215,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         reqHeight = 1;
     }
 
-    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, childrenOnly);
+    LayerRenderArea renderArea(this, parent, crop, reqWidth, reqHeight, reqDataspace, childrenOnly);
 
     auto traverseLayers = [parent, childrenOnly](const LayerVector::Visitor& visitor) {
         parent->traverseChildrenInZOrder(LayerVector::StateSet::Drawing, [&](Layer* layer) {
@@ -5272,19 +5227,22 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
             visitor(layer);
         });
     };
-    return captureScreenCommon(renderArea, traverseLayers, outBuffer, false);
+    return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat, false);
 }
 
 status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              TraverseLayersFunction traverseLayers,
                                              sp<GraphicBuffer>* outBuffer,
+                                             const ui::PixelFormat reqPixelFormat,
                                              bool useIdentityTransform) {
     ATRACE_CALL();
 
+    // TODO(b/116112787) Make buffer usage a parameter.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
     *outBuffer = new GraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
-                                   HAL_PIXEL_FORMAT_RGBA_8888, 1, usage, "screenshot");
+                                   static_cast<android_pixel_format>(reqPixelFormat), 1, usage,
+                                   "screenshot");
 
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
@@ -5360,8 +5318,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     const auto sourceCrop = renderArea.getSourceCrop();
     const auto rotation = renderArea.getRotationFlags();
 
-    // assume ColorMode::SRGB / RenderIntent::COLORIMETRIC
-    engine.setOutputDataSpace(Dataspace::SRGB);
+    engine.setOutputDataSpace(renderArea.getReqDataSpace());
     engine.setDisplayMaxLuminance(DisplayDevice::sDefaultMaxLumiance);
 
     // make sure to clear all GL error flags

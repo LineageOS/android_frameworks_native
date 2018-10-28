@@ -2,6 +2,7 @@ cc_library_shared {
     name: "libthermalcallback",
     srcs: [
         "ThermalCallback.cpp",
+        "ThermalChangedCallback.cpp",
     ],
     cflags: [
         "-Wall",
@@ -10,6 +11,7 @@ cc_library_shared {
     include_dirs: ["frameworks/native"],
     shared_libs: [
         "android.hardware.thermal@1.1",
+        "android.hardware.thermal@2.0",
         "libhidlbase",
         "libhidltransport",
         "liblog",

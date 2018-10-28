@@ -35,7 +35,6 @@ public:
     MOCK_METHOD1(addResyncSample, bool(nsecs_t));
     MOCK_METHOD0(endResync, void());
     MOCK_METHOD1(setPeriod, void(nsecs_t));
-    MOCK_METHOD1(scalePeriod, void(HWC2::Device::FrequencyScaler));
     MOCK_METHOD0(getPeriod, nsecs_t());
     MOCK_METHOD1(setRefreshSkipCount, void(int));
     MOCK_METHOD3(addEventListener, status_t(const char*, nsecs_t, Callback*));

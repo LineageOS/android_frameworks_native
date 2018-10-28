@@ -15,13 +15,9 @@ class BufferHubBinderService : public BinderService<BufferHubBinderService>,
                                public BnBufferHub {
  public:
   static status_t start(const std::shared_ptr<BufferHubService>& pdx_service);
-  static const char* getServiceName() { return "bufferhubd"; }
   // Dump bufferhub related information to given fd (usually stdout)
   // usage: adb shell dumpsys bufferhubd
   virtual status_t dump(int fd, const Vector<String16>& args) override;
-
-  // Helper function to get the BpReference to this service
-  static sp<IBufferHub> getServiceProxy();
 
   // Binder IPC functions
   sp<IBufferClient> createBuffer(uint32_t width, uint32_t height,
