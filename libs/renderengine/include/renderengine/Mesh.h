@@ -101,6 +101,6 @@ private:
     Primitive mPrimitive;
 };
 
-}  // namespace renderengine
-}  // namespace android
+} // namespace renderengine
+} // namespace android
 #endif /* SF_RENDER_ENGINE_MESH_H */

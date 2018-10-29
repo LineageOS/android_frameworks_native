@@ -71,6 +71,6 @@ private:
     DISALLOW_COPY_AND_ASSIGN(GLSurface);
 };
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

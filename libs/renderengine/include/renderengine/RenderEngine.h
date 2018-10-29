@@ -58,7 +58,7 @@ class RenderEngine;
 class RenderEngine {
 public:
     enum FeatureFlag {
-        USE_COLOR_MANAGEMENT = 1 << 0, // Device manages color
+        USE_COLOR_MANAGEMENT = 1 << 0,      // Device manages color
         USE_HIGH_PRIORITY_CONTEXT = 1 << 1, // Use high priority context
     };
 
@@ -100,8 +100,8 @@ public:
     virtual bool waitFence(base::unique_fd fenceFd) = 0;
 
     virtual void clearWithColor(float red, float green, float blue, float alpha) = 0;
-    virtual void fillRegionWithColor(const Region& region, float red, float green,
-                                     float blue, float alpha) = 0;
+    virtual void fillRegionWithColor(const Region& region, float red, float green, float blue,
+                                     float alpha) = 0;
 
     virtual void setScissor(const Rect& region) = 0;
     virtual void disableScissor() = 0;
@@ -176,11 +176,10 @@ public:
 class BindNativeBufferAsFramebuffer {
 public:
     BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer)
-          : mEngine(engine),
-            mFramebuffer(mEngine.createFramebuffer()),
-            mStatus(NO_ERROR) {
-        mStatus = mFramebuffer->setNativeWindowBuffer(buffer) ?
-                  mEngine.bindFrameBuffer(mFramebuffer.get()) : NO_MEMORY;
+          : mEngine(engine), mFramebuffer(mEngine.createFramebuffer()), mStatus(NO_ERROR) {
+        mStatus = mFramebuffer->setNativeWindowBuffer(buffer)
+                ? mEngine.bindFrameBuffer(mFramebuffer.get())
+                : NO_MEMORY;
     }
     ~BindNativeBufferAsFramebuffer() {
         mFramebuffer->setNativeWindowBuffer(nullptr);
@@ -209,8 +208,8 @@ protected:
     const uint32_t mFeatureFlags;
 };
 
-}  // namespace impl
-}  // namespace renderengine
-}  // namespace android
+} // namespace impl
+} // namespace renderengine
+} // namespace android
 
 #endif /* SF_RENDERENGINE_H_ */

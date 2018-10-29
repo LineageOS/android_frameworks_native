@@ -19,8 +19,8 @@
 #include <vector>
 
 #include <log/log.h>
-#include "GLExtensions.h"
 #include "GLES20RenderEngine.h"
+#include "GLExtensions.h"
 
 namespace android {
 namespace renderengine {
@@ -70,6 +70,6 @@ bool GLImage::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtecte
     return true;
 }
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

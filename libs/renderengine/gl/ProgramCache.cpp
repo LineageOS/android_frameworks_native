@@ -130,18 +130,18 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
                               : description.texture.getTextureTarget() == GL_TEXTURE_2D
                                       ? Key::TEXTURE_2D
                                       : Key::TEXTURE_OFF)
-            .set(Key::ALPHA_MASK,
-                 (description.color.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
+            .set(Key::ALPHA_MASK, (description.color.a < 1) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE)
             .set(Key::BLEND_MASK,
                  description.isPremultipliedAlpha ? Key::BLEND_PREMULT : Key::BLEND_NORMAL)
             .set(Key::OPACITY_MASK,
                  description.isOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
             .set(Key::Key::INPUT_TRANSFORM_MATRIX_MASK,
-                 description.hasInputTransformMatrix() ?
-                     Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
+                 description.hasInputTransformMatrix() ? Key::INPUT_TRANSFORM_MATRIX_ON
+                                                       : Key::INPUT_TRANSFORM_MATRIX_OFF)
             .set(Key::Key::OUTPUT_TRANSFORM_MATRIX_MASK,
-                 description.hasOutputTransformMatrix() || description.hasColorMatrix() ?
-                     Key::OUTPUT_TRANSFORM_MATRIX_ON : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
+                 description.hasOutputTransformMatrix() || description.hasColorMatrix()
+                         ? Key::OUTPUT_TRANSFORM_MATRIX_ON
+                         : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
 
     needs.set(Key::Y410_BT2020_MASK,
               description.isY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
@@ -631,7 +631,8 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
             // avoid divide by 0 by adding 0.5/256 to the alpha channel
             fs << "gl_FragColor.rgb = gl_FragColor.rgb / (gl_FragColor.a + 0.0019);";
         }
-        fs << "gl_FragColor.rgb = OETF(OutputTransform(OOTF(InputTransform(EOTF(gl_FragColor.rgb)))));";
+        fs << "gl_FragColor.rgb = "
+              "OETF(OutputTransform(OOTF(InputTransform(EOTF(gl_FragColor.rgb)))));";
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";
@@ -678,6 +679,6 @@ void ProgramCache::useProgram(const Description& description) {
     }
 }
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

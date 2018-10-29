@@ -261,7 +261,7 @@ std::unique_ptr<GLES20RenderEngine> GLES20RenderEngine::create(int hwcFormat,
     contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
     contextAttributes.push_back(contextClientVersion);
     bool useContextPriority = extensions.hasContextPriority() &&
-                              (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
+            (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
     if (useContextPriority) {
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
@@ -589,15 +589,13 @@ void GLES20RenderEngine::deleteTextures(size_t count, uint32_t const* names) {
     glDeleteTextures(count, names);
 }
 
-void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName,
-                                                  const Image& image) {
+void GLES20RenderEngine::bindExternalTextureImage(uint32_t texName, const Image& image) {
     const GLImage& glImage = static_cast<const GLImage&>(image);
     const GLenum target = GL_TEXTURE_EXTERNAL_OES;
 
     glBindTexture(target, texName);
     if (glImage.getEGLImage() != EGL_NO_IMAGE_KHR) {
-        glEGLImageTargetTexture2DOES(target,
-                                     static_cast<GLeglImageOES>(glImage.getEGLImage()));
+        glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(glImage.getEGLImage()));
     }
 }
 
@@ -613,16 +611,15 @@ status_t GLES20RenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
 
     // Bind the Framebuffer to render into
     glBindFramebuffer(GL_FRAMEBUFFER, framebufferName);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
-                           GL_TEXTURE_2D, textureName, 0);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureName, 0);
 
     mRenderToFbo = true;
     mFboHeight = glFramebuffer->getBufferHeight();
 
     uint32_t glStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 
-    ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES,
-             "glCheckFramebufferStatusOES error %d", glStatus);
+    ALOGE_IF(glStatus != GL_FRAMEBUFFER_COMPLETE_OES, "glCheckFramebufferStatusOES error %d",
+             glStatus);
 
     return glStatus == GL_FRAMEBUFFER_COMPLETE_OES ? NO_ERROR : BAD_VALUE;
 }
@@ -790,10 +787,10 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
         Description managedState = mState;
         Dataspace inputStandard = static_cast<Dataspace>(mDataSpace & Dataspace::STANDARD_MASK);
         Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
-        Dataspace outputStandard = static_cast<Dataspace>(mOutputDataSpace &
-                                                          Dataspace::STANDARD_MASK);
-        Dataspace outputTransfer = static_cast<Dataspace>(mOutputDataSpace &
-                                                          Dataspace::TRANSFER_MASK);
+        Dataspace outputStandard =
+                static_cast<Dataspace>(mOutputDataSpace & Dataspace::STANDARD_MASK);
+        Dataspace outputTransfer =
+                static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
         bool needsXYZConversion = needsXYZTransformMatrix();
 
         if (needsXYZConversion) {
@@ -847,9 +844,9 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
         if (managedState.hasColorMatrix() || managedState.hasOutputTransformMatrix() ||
             inputTransfer != outputTransfer) {
             managedState.inputTransferFunction =
-                Description::dataSpaceToTransferFunction(inputTransfer);
+                    Description::dataSpaceToTransferFunction(inputTransfer);
             managedState.outputTransferFunction =
-                Description::dataSpaceToTransferFunction(outputTransfer);
+                    Description::dataSpaceToTransferFunction(outputTransfer);
         }
 
         ProgramCache::getInstance().useProgram(managedState);
@@ -921,7 +918,7 @@ bool GLES20RenderEngine::isHdrDataSpace(const Dataspace dataSpace) const {
     const Dataspace standard = static_cast<Dataspace>(dataSpace & Dataspace::STANDARD_MASK);
     const Dataspace transfer = static_cast<Dataspace>(dataSpace & Dataspace::TRANSFER_MASK);
     return standard == Dataspace::STANDARD_BT2020 &&
-        (transfer == Dataspace::TRANSFER_ST2084 || transfer == Dataspace::TRANSFER_HLG);
+            (transfer == Dataspace::TRANSFER_ST2084 || transfer == Dataspace::TRANSFER_HLG);
 }
 
 // For convenience, we want to convert the input color space to XYZ color space first,
@@ -938,8 +935,8 @@ bool GLES20RenderEngine::needsXYZTransformMatrix() const {
     const bool isInputHdrDataSpace = isHdrDataSpace(mDataSpace);
     const bool isOutputHdrDataSpace = isHdrDataSpace(mOutputDataSpace);
     const Dataspace inputTransfer = static_cast<Dataspace>(mDataSpace & Dataspace::TRANSFER_MASK);
-    const Dataspace outputTransfer = static_cast<Dataspace>(mOutputDataSpace &
-                                                            Dataspace::TRANSFER_MASK);
+    const Dataspace outputTransfer =
+            static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
 
     return (isInputHdrDataSpace || isOutputHdrDataSpace) && inputTransfer != outputTransfer;
 }
@@ -950,6 +947,6 @@ void GLES20RenderEngine::setEGLHandles(EGLDisplay display, EGLConfig config, EGL
     mEGLContext = ctxt;
 }
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

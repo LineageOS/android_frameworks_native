@@ -28,8 +28,7 @@ namespace renderengine {
 namespace gl {
 
 GLFramebuffer::GLFramebuffer(const GLES20RenderEngine& engine)
-        : mEGLDisplay(engine.getEGLDisplay()),
-          mEGLImage(EGL_NO_IMAGE_KHR) {
+      : mEGLDisplay(engine.getEGLDisplay()), mEGLImage(EGL_NO_IMAGE_KHR) {
     glGenTextures(1, &mTextureName);
     glGenFramebuffers(1, &mFramebufferName);
 }
@@ -49,8 +48,7 @@ bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) {
     }
 
     if (nativeBuffer) {
-        mEGLImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT,
-                                      EGL_NATIVE_BUFFER_ANDROID,
+        mEGLImage = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
                                       nativeBuffer, nullptr);
         if (mEGLImage == EGL_NO_IMAGE_KHR) {
             return false;
@@ -61,6 +59,6 @@ bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) {
     return true;
 }
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android
