@@ -42,18 +42,6 @@ extern "C" {
   android_namespace_t* android_get_exported_namespace(const char*);
 
   // TODO(ianelliott@): Get this from an ANGLE header:
-  typedef enum ANGLEPreference {
-      ANGLE_NO_PREFERENCE = 0,
-      ANGLE_PREFER_NATIVE = 1,
-      ANGLE_PREFER_ANGLE = 2,
-  } ANGLEPreference;
-
-  // TODO(ianelliott@): Get this from an ANGLE header:
-  typedef bool (*fpANGLEUseForApplication)(const char* appName, const char* deviceMfr,
-                                           const char* deviceModel, ANGLEPreference developerOption,
-                                           ANGLEPreference appPreference);
-
-  // TODO(ianelliott@): Get this from an ANGLE header:
   typedef bool (*fpANGLEGetUtilityAPI)(unsigned int* versionToUse);
 
   // TODO(ianelliott@): Get this from an ANGLE header:
@@ -535,7 +523,6 @@ static bool check_angle_rules(void* so, const char* app_name) {
     property_get("ro.product.manufacturer", manufacturer, "UNSET");
     property_get("ro.product.model", model, "UNSET");
 
-    bool use_version0_API = false;
     bool use_version1_API = false;
     fpANGLEGetUtilityAPI ANGLEGetUtilityAPI =
             (fpANGLEGetUtilityAPI)dlsym(so, "ANGLEGetUtilityAPI");
@@ -545,11 +532,10 @@ static bool check_angle_rules(void* so, const char* app_name) {
             if (versionToUse == 1) {
                 use_version1_API = true;
             } else {
-                use_version0_API = true;
+                ALOGW("Could not find supported ANGLEGetUtilityAPI version, found %u", versionToUse);
             }
         }
     } else {
-        use_version0_API = true;
         ALOGV("Cannot find ANGLEGetUtilityAPI in library");
     }
     if (use_version1_API) {
@@ -563,18 +549,6 @@ static bool check_angle_rules(void* so, const char* app_name) {
                                                         manufacturer, model);
         } else {
             ALOGW("Cannot find AndroidUseANGLEForApplication in library");
-        }
-    } else if (use_version0_API) {
-        // Use the old version 0 API to determine if the
-        // application should use the ANGLE or the native driver.
-        fpANGLEUseForApplication ANGLEUseForApplication =
-                (fpANGLEUseForApplication)dlsym(so, "ANGLEUseForApplication");
-        if (ANGLEUseForApplication) {
-            use_angle = (ANGLEUseForApplication)(app_name_str.c_str(), manufacturer, model,
-                                                 ANGLE_NO_PREFERENCE, ANGLE_NO_PREFERENCE);
-            ALOGV("Result of opt-in/out logic is %s", use_angle ? "true" : "false");
-        } else {
-            ALOGW("Cannot find ANGLEUseForApplication in library");
         }
     }
     ALOGV("Close temporarily-loaded ANGLE opt-in/out logic");
