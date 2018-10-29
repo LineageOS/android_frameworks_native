@@ -73,7 +73,7 @@ int CacheItem::purge() {
         FTS *fts;
         FTSENT *p;
         char *argv[] = { (char*) path.c_str(), nullptr };
-        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, NULL))) {
+        if (!(fts = fts_open(argv, FTS_PHYSICAL | FTS_NOCHDIR | FTS_XDEV, nullptr))) {
             PLOG(WARNING) << "Failed to fts_open " << path;
             return -1;
         }

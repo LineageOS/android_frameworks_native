@@ -190,9 +190,9 @@ static int split_count(const char *str)
   strlcpy(buf, str, sizeof(buf));
   char *pBuf = buf;
 
-  while(strtok_r(pBuf, " ", &ctx) != NULL) {
+  while(strtok_r(pBuf, " ", &ctx) != nullptr) {
     count++;
-    pBuf = NULL;
+    pBuf = nullptr;
   }
 
   return count;
@@ -205,9 +205,9 @@ static int split(char *buf, const char **argv)
   char *tok;
   char *pBuf = buf;
 
-  while((tok = strtok_r(pBuf, " ", &ctx)) != NULL) {
+  while((tok = strtok_r(pBuf, " ", &ctx)) != nullptr) {
     argv[count++] = tok;
-    pBuf = NULL;
+    pBuf = nullptr;
   }
 
   return count;
@@ -216,7 +216,7 @@ static int split(char *buf, const char **argv)
 static const char* get_location_from_path(const char* path) {
     static constexpr char kLocationSeparator = '/';
     const char *location = strrchr(path, kLocationSeparator);
-    if (location == NULL) {
+    if (location == nullptr) {
         return path;
     } else {
         // Skip the separator character.
@@ -243,17 +243,17 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     const char* relative_input_file_name = get_location_from_path(input_file_name);
 
     char dex2oat_Xms_flag[kPropertyValueMax];
-    bool have_dex2oat_Xms_flag = get_property("dalvik.vm.dex2oat-Xms", dex2oat_Xms_flag, NULL) > 0;
+    bool have_dex2oat_Xms_flag = get_property("dalvik.vm.dex2oat-Xms", dex2oat_Xms_flag, nullptr) > 0;
 
     char dex2oat_Xmx_flag[kPropertyValueMax];
-    bool have_dex2oat_Xmx_flag = get_property("dalvik.vm.dex2oat-Xmx", dex2oat_Xmx_flag, NULL) > 0;
+    bool have_dex2oat_Xmx_flag = get_property("dalvik.vm.dex2oat-Xmx", dex2oat_Xmx_flag, nullptr) > 0;
 
     char dex2oat_threads_buf[kPropertyValueMax];
     bool have_dex2oat_threads_flag = get_property(post_bootcomplete
                                                       ? "dalvik.vm.dex2oat-threads"
                                                       : "dalvik.vm.boot-dex2oat-threads",
                                                   dex2oat_threads_buf,
-                                                  NULL) > 0;
+                                                  nullptr) > 0;
     char dex2oat_threads_arg[kPropertyValueMax + 2];
     if (have_dex2oat_threads_flag) {
         sprintf(dex2oat_threads_arg, "-j%s", dex2oat_threads_buf);
@@ -263,20 +263,20 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     sprintf(dex2oat_isa_features_key, "dalvik.vm.isa.%s.features", instruction_set);
     char dex2oat_isa_features[kPropertyValueMax];
     bool have_dex2oat_isa_features = get_property(dex2oat_isa_features_key,
-                                                  dex2oat_isa_features, NULL) > 0;
+                                                  dex2oat_isa_features, nullptr) > 0;
 
     char dex2oat_isa_variant_key[kPropertyKeyMax];
     sprintf(dex2oat_isa_variant_key, "dalvik.vm.isa.%s.variant", instruction_set);
     char dex2oat_isa_variant[kPropertyValueMax];
     bool have_dex2oat_isa_variant = get_property(dex2oat_isa_variant_key,
-                                                 dex2oat_isa_variant, NULL) > 0;
+                                                 dex2oat_isa_variant, nullptr) > 0;
 
     const char *dex2oat_norelocation = "-Xnorelocate";
     bool have_dex2oat_relocation_skip_flag = false;
 
     char dex2oat_flags[kPropertyValueMax];
     int dex2oat_flags_count = get_property("dalvik.vm.dex2oat-flags",
-                                 dex2oat_flags, NULL) <= 0 ? 0 : split_count(dex2oat_flags);
+                                 dex2oat_flags, nullptr) <= 0 ? 0 : split_count(dex2oat_flags);
     ALOGV("dalvik.vm.dex2oat-flags=%s\n", dex2oat_flags);
 
     // If we are booting without the real /data, don't spend time compiling.
@@ -291,14 +291,14 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     char app_image_format[kPropertyValueMax];
     char image_format_arg[strlen("--image-format=") + kPropertyValueMax];
     bool have_app_image_format =
-            image_fd >= 0 && get_property("dalvik.vm.appimageformat", app_image_format, NULL) > 0;
+            image_fd >= 0 && get_property("dalvik.vm.appimageformat", app_image_format, nullptr) > 0;
     if (have_app_image_format) {
         sprintf(image_format_arg, "--image-format=%s", app_image_format);
     }
 
     char dex2oat_large_app_threshold[kPropertyValueMax];
     bool have_dex2oat_large_app_threshold =
-            get_property("dalvik.vm.dex2oat-very-large", dex2oat_large_app_threshold, NULL) > 0;
+            get_property("dalvik.vm.dex2oat-very-large", dex2oat_large_app_threshold, nullptr) > 0;
     char dex2oat_large_app_threshold_arg[strlen("--very-large-app-threshold=") + kPropertyValueMax];
     if (have_dex2oat_large_app_threshold) {
         sprintf(dex2oat_large_app_threshold_arg,
@@ -400,7 +400,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     if (!have_dex2oat_compiler_filter_flag) {
         char dex2oat_compiler_filter_flag[kPropertyValueMax];
         have_dex2oat_compiler_filter_flag = get_property("dalvik.vm.dex2oat-filter",
-                                                         dex2oat_compiler_filter_flag, NULL) > 0;
+                                                         dex2oat_compiler_filter_flag, nullptr) > 0;
         if (have_dex2oat_compiler_filter_flag) {
             sprintf(dex2oat_compiler_filter_arg,
                     "--compiler-filter=%s",
@@ -552,7 +552,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
         argv[i++] = compilation_reason_arg.c_str();
     }
     // Do not add after dex2oat_flags, they should override others for debugging.
-    argv[i] = NULL;
+    argv[i] = nullptr;
 
     execv(dex2oat_bin, (char * const *)argv);
     PLOG(ERROR) << "execv(" << dex2oat_bin << ") failed";
@@ -792,7 +792,7 @@ static void run_profman(const std::vector<unique_fd>& profile_fds,
     }
 
     // Do not add after dex2oat_flags, they should override others for debugging.
-    argv[i] = NULL;
+    argv[i] = nullptr;
 
     execv(profman_bin, (char * const *)argv);
     PLOG(ERROR) << "execv(" << profman_bin << ") failed";
@@ -948,7 +948,7 @@ static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
     for (const std::string& profman_arg : profman_args) {
         argv[i++] = profman_arg.c_str();
     }
-    argv[i] = NULL;
+    argv[i] = nullptr;
 
     execv(PROFMAN_BIN, (char * const *)argv);
     PLOG(ERROR) << "execv(" << PROFMAN_BIN << ") failed";
@@ -1308,7 +1308,7 @@ Dex2oatFileWrapper maybe_open_app_image(const char* out_oat_path,
     }
     char app_image_format[kPropertyValueMax];
     bool have_app_image_format =
-            get_property("dalvik.vm.appimageformat", app_image_format, NULL) > 0;
+            get_property("dalvik.vm.appimageformat", app_image_format, nullptr) > 0;
     if (!have_app_image_format) {
         return Dex2oatFileWrapper();
     }
@@ -1629,7 +1629,7 @@ static void exec_dexoptanalyzer(const std::string& dex_file, int vdex_fd, int oa
     if (class_loader_context != nullptr) {
         argv[i++] = class_loader_context_arg.c_str();
     }
-    argv[i] = NULL;
+    argv[i] = nullptr;
 
     execv(dexoptanalyzer_bin, (char * const *)argv);
     ALOGE("execv(%s) failed: %s\n", dexoptanalyzer_bin, strerror(errno));
