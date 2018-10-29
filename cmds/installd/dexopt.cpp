@@ -287,6 +287,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
                              (strcmp(vold_decrypt, "1") == 0)));
 
     bool generate_debug_info = property_get_bool("debug.generate-debug-info", false);
+    const bool resolve_startup_strings =
+            property_get_bool("dalvik.vm.dex2oat-resolve-startup-strings", false);
 
     char app_image_format[kPropertyValueMax];
     char image_format_arg[strlen("--image-format=") + kPropertyValueMax];
@@ -442,7 +444,7 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     // supported.
     const bool disable_cdex = !generate_compact_dex || (input_vdex_fd == output_vdex_fd);
 
-    const char* argv[9  // program name, mandatory arguments and the final NULL
+    const char* argv[10  // program name, mandatory arguments and the final NULL
                      + (have_dex2oat_isa_variant ? 1 : 0)
                      + (have_dex2oat_isa_features ? 1 : 0)
                      + (have_dex2oat_Xms_flag ? 2 : 0)
@@ -475,6 +477,8 @@ static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vd
     argv[i++] = oat_fd_arg;
     argv[i++] = oat_location_arg;
     argv[i++] = instruction_set_arg;
+    argv[i++] = resolve_startup_strings ? "--resolve-startup-const-strings=true" :
+            "--resolve-startup-const-strings=false";
     if (have_dex2oat_isa_variant) {
         argv[i++] = instruction_set_variant_arg;
     }
