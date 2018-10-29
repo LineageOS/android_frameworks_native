@@ -522,18 +522,6 @@ static void* load_angle_from_namespace(const char* kind, android_namespace_t* ns
     return nullptr;
 }
 
-static ANGLEPreference getAnglePref(const char* app_pref) {
-    if (app_pref == nullptr)
-        return ANGLE_NO_PREFERENCE;
-
-    if (strcmp(app_pref, "angle") == 0) {
-        return ANGLE_PREFER_ANGLE;
-    } else if (strcmp(app_pref, "native") == 0) {
-        return ANGLE_PREFER_NATIVE;
-    }
-    return ANGLE_NO_PREFERENCE;
-}
-
 static void* load_angle(const char* kind, android_namespace_t* ns, egl_connection_t* cnx) {
     // Only attempt to load ANGLE libs
     if (strcmp(kind, "EGL") != 0 && strcmp(kind, "GLESv2") != 0 && strcmp(kind, "GLESv1_CM") != 0)
@@ -543,15 +531,13 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     char prop[PROPERTY_VALUE_MAX];
 
     const char* app_name = android::GraphicsEnv::getInstance().getAngleAppName();
-    const char* app_pref = android::GraphicsEnv::getInstance().getAngleAppPref();
     bool developer_opt_in = android::GraphicsEnv::getInstance().getAngleDeveloperOptIn();
     const int rules_fd = android::GraphicsEnv::getInstance().getAngleRulesFd();
     const long rules_offset = android::GraphicsEnv::getInstance().getAngleRulesOffset();
     const long rules_length = android::GraphicsEnv::getInstance().getAngleRulesLength();
 
     // Determine whether or not to use ANGLE:
-    ANGLEPreference developer_option = developer_opt_in ? ANGLE_PREFER_ANGLE : ANGLE_NO_PREFERENCE;
-    bool use_angle = (developer_option == ANGLE_PREFER_ANGLE);
+    bool use_angle = developer_opt_in;
 
     if (use_angle) {
         ALOGV("User set \"Developer Options\" to force the use of ANGLE");
@@ -604,10 +590,8 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
                 fpANGLEUseForApplication ANGLEUseForApplication =
                         (fpANGLEUseForApplication)dlsym(cnx->featureSo, "ANGLEUseForApplication");
                 if (ANGLEUseForApplication) {
-                    ANGLEPreference app_preference =
-                            getAnglePref(android::GraphicsEnv::getInstance().getAngleAppPref());
                     use_angle = (ANGLEUseForApplication)(app_name_str.c_str(), manufacturer, model,
-                                                         developer_option, app_preference);
+                                                         developer_option, ANGLE_NO_PREFERENCE);
                     ALOGV("Result of opt-in/out logic is %s", use_angle ? "true" : "false");
                 } else {
                     ALOGW("Cannot find ANGLEUseForApplication in library");

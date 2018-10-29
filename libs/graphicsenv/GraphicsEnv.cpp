@@ -68,8 +68,7 @@ void GraphicsEnv::setDriverPath(const std::string path) {
 }
 
 void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName,
-                               const std::string appPref, bool developerOptIn,
-                               const int rulesFd, const long rulesOffset,
+                               bool developerOptIn, const int rulesFd, const long rulesOffset,
                                const long rulesLength) {
     if (!mAnglePath.empty()) {
         ALOGV("ignoring attempt to change ANGLE path from '%s' to '%s'", mAnglePath.c_str(),
@@ -85,14 +84,6 @@ void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName
     } else {
         ALOGV("setting ANGLE app name to '%s'", appName.c_str());
         mAngleAppName = appName;
-    }
-
-    if (!mAngleAppPref.empty()) {
-        ALOGV("ignoring attempt to change ANGLE application opt-in from '%s' to '%s'",
-              mAngleAppPref.c_str(), appPref.c_str());
-    } else {
-        ALOGV("setting ANGLE application opt-in to '%s'", appPref.c_str());
-        mAngleAppPref = appPref;
     }
 
     mAngleDeveloperOptIn = developerOptIn;
@@ -126,11 +117,6 @@ const char* GraphicsEnv::getAngleAppName() {
 
 bool GraphicsEnv::getAngleDeveloperOptIn() {
     return mAngleDeveloperOptIn;
-}
-
-const char* GraphicsEnv::getAngleAppPref() {
-    if (mAngleAppPref.empty()) return nullptr;
-    return mAngleAppPref.c_str();
 }
 
 int GraphicsEnv::getAngleRulesFd() {
