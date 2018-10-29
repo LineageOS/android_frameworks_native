@@ -2645,7 +2645,7 @@ void CursorInputMapper::configure(nsecs_t when,
             // Should not happen during first time configuration.
             ALOGE("Cannot start a device in MODE_POINTER_RELATIVE, starting in MODE_POINTER");
             mParameters.mode = Parameters::MODE_POINTER;
-            // fall through.
+            [[fallthrough]];
         case Parameters::MODE_POINTER:
             mSource = AINPUT_SOURCE_MOUSE;
             mXPrecision = 1.0f;
