@@ -34,6 +34,10 @@ BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count,
   }
 
   metadata_ = BufferHubMetadata::Create(user_metadata_size);
+  if (!metadata_.IsValid()) {
+    ALOGE("BufferNode::BufferNode: Failed to allocate metadata.");
+    return;
+  }
   InitializeMetadata();
 }
 
