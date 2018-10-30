@@ -556,6 +556,7 @@ VKAPI_ATTR PFN_vkVoidFunction GetDeviceProcAddr(VkDevice device, const char* pNa
         "vkGetDisplayModeProperties2KHR",
         "vkGetDisplayPlaneCapabilities2KHR",
         "vkGetInstanceProcAddr",
+        "vkGetPhysicalDeviceCalibrateableTimeDomainsEXT",
         "vkGetPhysicalDeviceDisplayPlaneProperties2KHR",
         "vkGetPhysicalDeviceDisplayProperties2KHR",
         "vkGetPhysicalDeviceExternalBufferProperties",
