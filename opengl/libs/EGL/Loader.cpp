@@ -523,34 +523,41 @@ static bool check_angle_rules(void* so, const char* app_name) {
     property_get("ro.product.manufacturer", manufacturer, "UNSET");
     property_get("ro.product.model", model, "UNSET");
 
-    bool use_version1_API = false;
     fpANGLEGetUtilityAPI ANGLEGetUtilityAPI =
             (fpANGLEGetUtilityAPI)dlsym(so, "ANGLEGetUtilityAPI");
+
     if (ANGLEGetUtilityAPI) {
+
+        // Negotiate the interface version by requesting most recent known to the platform
         unsigned int versionToUse = 1;
         if ((ANGLEGetUtilityAPI)(&versionToUse)) {
-            if (versionToUse == 1) {
-                use_version1_API = true;
-            } else {
-                ALOGW("Could not find supported ANGLEGetUtilityAPI version, found %u", versionToUse);
+
+            // Add and remove versions below as needed
+            switch(versionToUse) {
+            case 1: {
+                ALOGV("Using version 1 of ANGLE opt-in/out logic interface");
+                fpAndroidUseANGLEForApplication AndroidUseANGLEForApplication =
+                        (fpAndroidUseANGLEForApplication)dlsym(so, "AndroidUseANGLEForApplication");
+
+                if (AndroidUseANGLEForApplication) {
+                    use_angle = (AndroidUseANGLEForApplication)(rules_fd, rules_offset,
+                                                                rules_length, app_name_str.c_str(),
+                                                                manufacturer, model);
+                } else {
+                    ALOGW("Cannot find AndroidUseANGLEForApplication in ANGLE feature-support library");
+                }
             }
+            break;
+            default:
+                ALOGW("Cannot find supported version of ANGLE feature-support library, found version %u", versionToUse);
+            }
+        } else {
+            ALOGW("Cannot use ANGLE feature-support library, it is older than supported by EGL, requested version %u", versionToUse);
         }
     } else {
-        ALOGV("Cannot find ANGLEGetUtilityAPI in library");
+        ALOGW("Cannot find ANGLEGetUtilityAPI function");
     }
-    if (use_version1_API) {
-        // Use the new version 1 API to determine if the
-        // application should use the ANGLE or the native driver.
-        fpAndroidUseANGLEForApplication AndroidUseANGLEForApplication =
-                (fpAndroidUseANGLEForApplication)dlsym(so, "AndroidUseANGLEForApplication");
-        if (AndroidUseANGLEForApplication) {
-            use_angle = (AndroidUseANGLEForApplication)(rules_fd, rules_offset,
-                                                        rules_length, app_name_str.c_str(),
-                                                        manufacturer, model);
-        } else {
-            ALOGW("Cannot find AndroidUseANGLEForApplication in library");
-        }
-    }
+
     ALOGV("Close temporarily-loaded ANGLE opt-in/out logic");
     return use_angle;
 }
