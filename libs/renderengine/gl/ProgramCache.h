@@ -159,14 +159,10 @@ public:
 
         // for use by std::unordered_map
 
-        bool operator==(const Key& other) const {
-            return mKey == other.mKey;
-        }
+        bool operator==(const Key& other) const { return mKey == other.mKey; }
 
         struct Hash {
-            size_t operator()(const Key& key) const {
-                return static_cast<size_t>(key.mKey);
-            }
+            size_t operator()(const Key& key) const { return static_cast<size_t>(key.mKey); }
         };
     };
 
@@ -205,11 +201,11 @@ private:
     std::unordered_map<Key, std::unique_ptr<Program>, Key::Hash> mCache;
 };
 
-}  // namespace gl
-}  // namespace renderengine
+} // namespace gl
+} // namespace renderengine
 
 ANDROID_BASIC_TYPES_TRAITS(renderengine::gl::ProgramCache::Key)
 
-}  // namespace android
+} // namespace android
 
 #endif /* SF_RENDER_ENGINE_PROGRAMCACHE_H */

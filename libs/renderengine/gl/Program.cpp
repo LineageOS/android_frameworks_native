@@ -130,16 +130,15 @@ void Program::setUniforms(const Description& desc) {
         // The output transform matrix and color matrix can be combined as one matrix
         // that is applied right before applying OETF.
         mat4 outputTransformMatrix = desc.colorMatrix * desc.outputTransformMatrix;
-        glUniformMatrix4fv(mOutputTransformMatrixLoc, 1, GL_FALSE,
-                           outputTransformMatrix.asArray());
+        glUniformMatrix4fv(mOutputTransformMatrixLoc, 1, GL_FALSE, outputTransformMatrix.asArray());
     }
     if (mDisplayMaxLuminanceLoc >= 0) {
-        glUniform1f(mDisplayMaxLuminanceLoc, desc.displayMaxLuminance) ;
+        glUniform1f(mDisplayMaxLuminanceLoc, desc.displayMaxLuminance);
     }
     // these uniforms are always present
     glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.projectionMatrix.asArray());
 }
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

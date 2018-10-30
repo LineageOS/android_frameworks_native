@@ -16,21 +16,134 @@
 
 #pragma once
 
+#include "BufferQueueLayer.h"
+#include "BufferStateLayer.h"
+#include "ColorLayer.h"
+#include "ContainerLayer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
+#include "NativeWindowSurface.h"
+#include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
+#include "SurfaceFlingerFactory.h"
+#include "SurfaceInterceptor.h"
 
 namespace android {
 
 class EventThread;
 
 namespace renderengine {
+
 class RenderEngine;
-}
+
+} // namespace renderengine
 
 namespace Hwc2 {
+
 class Composer;
-}
+
+} // namespace Hwc2
+
+namespace surfaceflinger::test {
+
+class Factory final : public surfaceflinger::Factory {
+public:
+    ~Factory() = default;
+
+    std::unique_ptr<DispSync> createDispSync(const char*, bool, int64_t) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    std::unique_ptr<EventControlThread> createEventControlThread(
+            std::function<void(bool)>) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    std::unique_ptr<HWComposer> createHWComposer(const std::string&) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    std::unique_ptr<MessageQueue> createMessageQueue() override {
+        // TODO: Use test-fixture controlled factory
+        return std::make_unique<android::impl::MessageQueue>();
+    }
+
+    std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    std::unique_ptr<SurfaceInterceptor> createSurfaceInterceptor(SurfaceFlinger* flinger) override {
+        // TODO: Use test-fixture controlled factory
+        return std::make_unique<android::impl::SurfaceInterceptor>(flinger);
+    }
+
+    sp<StartPropertySetThread> createStartPropertySetThread(bool timestampPropertyValue) override {
+        // TODO: Use test-fixture controlled factory
+        return new StartPropertySetThread(timestampPropertyValue);
+    }
+
+    sp<DisplayDevice> createDisplayDevice(DisplayDeviceCreationArgs&& creationArgs) override {
+        // TODO: Use test-fixture controlled factory
+        return new DisplayDevice(std::move(creationArgs));
+    }
+
+    sp<GraphicBuffer> createGraphicBuffer(uint32_t width, uint32_t height, PixelFormat format,
+                                          uint32_t layerCount, uint64_t usage,
+                                          std::string requestorName) override {
+        // TODO: Use test-fixture controlled factory
+        return new GraphicBuffer(width, height, format, layerCount, usage, requestorName);
+    }
+
+    void createBufferQueue(sp<IGraphicBufferProducer>* outProducer,
+                           sp<IGraphicBufferConsumer>* outConsumer,
+                           bool consumerIsSurfaceFlinger) override {
+        if (!mCreateBufferQueue) return;
+        mCreateBufferQueue(outProducer, outConsumer, consumerIsSurfaceFlinger);
+    }
+
+    std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
+            const sp<IGraphicBufferProducer>& producer) override {
+        if (!mCreateNativeWindowSurface) return nullptr;
+        return mCreateNativeWindowSurface(producer);
+    }
+
+    sp<BufferQueueLayer> createBufferQueueLayer(const LayerCreationArgs&) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    sp<BufferStateLayer> createBufferStateLayer(const LayerCreationArgs&) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    sp<ColorLayer> createColorLayer(const LayerCreationArgs&) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
+        // TODO: Use test-fixture controlled factory
+        return nullptr;
+    }
+
+    using CreateBufferQueueFunction =
+            std::function<void(sp<IGraphicBufferProducer>* /* outProducer */,
+                               sp<IGraphicBufferConsumer>* /* outConsumer */,
+                               bool /* consumerIsSurfaceFlinger */)>;
+    CreateBufferQueueFunction mCreateBufferQueue;
+
+    using CreateNativeWindowSurfaceFunction =
+            std::function<std::unique_ptr<surfaceflinger::NativeWindowSurface>(
+                    const sp<IGraphicBufferProducer>&)>;
+    CreateNativeWindowSurfaceFunction mCreateNativeWindowSurface;
+};
+
+} // namespace surfaceflinger::test
 
 class TestableSurfaceFlinger {
 public:
@@ -45,14 +158,15 @@ public:
         mFlinger->getBE().mHwc.reset(new HWComposer(std::move(composer)));
     }
 
-    using CreateBufferQueueFunction = SurfaceFlinger::CreateBufferQueueFunction;
+    using CreateBufferQueueFunction = surfaceflinger::test::Factory::CreateBufferQueueFunction;
     void setCreateBufferQueueFunction(CreateBufferQueueFunction f) {
-        mFlinger->mCreateBufferQueue = f;
+        mFactory.mCreateBufferQueue = f;
     }
 
-    using CreateNativeWindowSurfaceFunction = SurfaceFlinger::CreateNativeWindowSurfaceFunction;
+    using CreateNativeWindowSurfaceFunction =
+            surfaceflinger::test::Factory::CreateNativeWindowSurfaceFunction;
     void setCreateNativeWindowSurface(CreateNativeWindowSurfaceFunction f) {
-        mFlinger->mCreateNativeWindowSurface = f;
+        mFactory.mCreateNativeWindowSurface = f;
     }
 
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
@@ -405,7 +519,8 @@ public:
         DisplayDeviceCreationArgs mCreationArgs;
     };
 
-    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(SurfaceFlinger::SkipInitialization);
+    surfaceflinger::test::Factory mFactory;
+    sp<SurfaceFlinger> mFlinger = new SurfaceFlinger(mFactory, SurfaceFlinger::SkipInitialization);
 
     // We need to keep a reference to these so they are properly destroyed.
     std::vector<std::unique_ptr<HWC2Display>> mFakeHwcDisplays;

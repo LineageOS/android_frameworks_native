@@ -20,7 +20,8 @@
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include <renderengine/Framebuffer.h>
+#include <android-base/macros.h>
+#include <renderengine/Image.h>
 
 struct ANativeWindowBuffer;
 
@@ -30,27 +31,22 @@ namespace gl {
 
 class GLES20RenderEngine;
 
-class GLFramebuffer : public renderengine::Framebuffer {
+class GLImage : public renderengine::Image {
 public:
-    explicit GLFramebuffer(const GLES20RenderEngine& engine);
-    ~GLFramebuffer() override;
+    explicit GLImage(const GLES20RenderEngine& engine);
+    ~GLImage() override;
 
-    bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) override;
+    bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) override;
+
     EGLImageKHR getEGLImage() const { return mEGLImage; }
-    uint32_t getTextureName() const { return mTextureName; }
-    uint32_t getFramebufferName() const { return mFramebufferName; }
-    int32_t getBufferHeight() const { return mBufferHeight; }
-    int32_t getBufferWidth() const { return mBufferWidth; }
 
 private:
     EGLDisplay mEGLDisplay;
-    EGLImageKHR mEGLImage;
-    uint32_t mTextureName, mFramebufferName;
+    EGLImageKHR mEGLImage = EGL_NO_IMAGE_KHR;
 
-    int32_t mBufferHeight = 0;
-    int32_t mBufferWidth = 0;
+    DISALLOW_COPY_AND_ASSIGN(GLImage);
 };
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android

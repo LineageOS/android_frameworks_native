@@ -30,5 +30,5 @@ public:
     virtual bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) = 0;
 };
 
-}   // namespace renderengine
-}   // namespace android
+} // namespace renderengine
+} // namespace android

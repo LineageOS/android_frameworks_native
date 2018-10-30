@@ -87,8 +87,8 @@ private:
     GLint mOutputTransformMatrixLoc;
 };
 
-}  // namespace gl
-}  // namespace renderengine
-}  // namespace android
+} // namespace gl
+} // namespace renderengine
+} // namespace android
 
 #endif /* SF_RENDER_ENGINE_PROGRAM_H */

@@ -17,8 +17,8 @@
 #ifndef SF_RENDER_ENGINE_DESCRIPTION_H_
 #define SF_RENDER_ENGINE_DESCRIPTION_H_
 
-#include <ui/GraphicTypes.h>
 #include <renderengine/Texture.h>
+#include <ui/GraphicTypes.h>
 
 namespace android {
 namespace renderengine {
@@ -33,7 +33,7 @@ struct Description {
         LINEAR,
         SRGB,
         ST2084,
-        HLG,  // Hybrid Log-Gamma for HDR.
+        HLG, // Hybrid Log-Gamma for HDR.
     };
 
     static TransferFunction dataSpaceToTransferFunction(ui::Dataspace dataSpace);
@@ -75,7 +75,7 @@ struct Description {
     mat4 outputTransformMatrix;
 };
 
-}  // namespace renderengine
-}  // namespace android
+} // namespace renderengine
+} // namespace android
 
 #endif /* SF_RENDER_ENGINE_DESCRIPTION_H_ */

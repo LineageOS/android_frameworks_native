@@ -16,31 +16,16 @@
 
 #pragma once
 
-#include <cstdint>
-
-struct ANativeWindow;
+struct ANativeWindowBuffer;
 
 namespace android {
 namespace renderengine {
 
-class Surface {
+class Image {
 public:
-    virtual ~Surface() = default;
-
-    virtual void setCritical(bool enable) = 0;
-    virtual void setAsync(bool enable) = 0;
-
-    virtual void setNativeWindow(ANativeWindow* window) = 0;
-    virtual void swapBuffers() const = 0;
-
-    virtual int32_t queryRedSize() const = 0;
-    virtual int32_t queryGreenSize() const = 0;
-    virtual int32_t queryBlueSize() const = 0;
-    virtual int32_t queryAlphaSize() const = 0;
-
-    virtual int32_t getWidth() const = 0;
-    virtual int32_t getHeight() const = 0;
+    virtual ~Image() = default;
+    virtual bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) = 0;
 };
 
-}  // namespace renderengine
-}  // namespace android
+} // namespace renderengine
+} // namespace android

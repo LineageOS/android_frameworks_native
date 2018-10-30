@@ -75,7 +75,9 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "NativeWindowSurface.h"
+#include "StartPropertySetThread.h"
 #include "SurfaceFlinger.h"
+#include "SurfaceInterceptor.h"
 
 #include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/DisplayIdentification.h"
@@ -88,6 +90,7 @@
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/InjectVSyncSource.h"
+#include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
 
 #include <cutils/compiler.h>
@@ -233,8 +236,10 @@ SurfaceFlingerBE::SurfaceFlingerBE()
         mComposerSequenceId(0) {
 }
 
-SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
+SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
+                               SurfaceFlinger::SkipInitializationTag)
       : BnSurfaceComposer(),
+        mFactory(factory),
         mTransactionPending(false),
         mAnimTransactionPending(false),
         mLayersRemoved(false),
@@ -258,11 +263,10 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mHasPoweredOff(false),
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
-        mMainThreadId(std::this_thread::get_id()),
-        mCreateBufferQueue(&BufferQueue::createBufferQueue),
-        mCreateNativeWindowSurface(&surfaceflinger::impl::createNativeWindowSurface) {}
+        mMainThreadId(std::this_thread::get_id()) {}
 
-SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
+SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
+      : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
 
     vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
@@ -329,13 +333,9 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     }
     ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
-    // Note: We create a local temporary with the real DispSync implementation
-    // type temporarily so we can initialize it with the configured values,
-    // before storing it for more generic use using the interface type.
-    auto primaryDispSync = std::make_unique<impl::DispSync>("PrimaryDispSync");
-    primaryDispSync->init(SurfaceFlinger::hasSyncFramework,
-                          SurfaceFlinger::dispSyncPresentTimeOffset);
-    mPrimaryDispSync = std::move(primaryDispSync);
+    mPrimaryDispSync =
+            getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
+                                        SurfaceFlinger::dispSyncPresentTimeOffset);
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -585,7 +585,7 @@ void SurfaceFlinger::init() {
 
     // start the EventThread
     if (mUseScheduler) {
-        mScheduler = std::make_unique<Scheduler>(
+        mScheduler = getFactory().createScheduler(
                 [this](bool enabled) { setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled); });
         mAppConnectionHandle =
                 mScheduler->createConnection("appConnection", SurfaceFlinger::vsyncPhaseOffsetNs,
@@ -640,8 +640,7 @@ void SurfaceFlinger::init() {
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
             "Starting with vr flinger active is not currently supported.");
-    getBE().mHwc.reset(
-            new HWComposer(std::make_unique<Hwc2::impl::Composer>(getBE().mHwcServiceName)));
+    getBE().mHwc = getFactory().createHWComposer(getBE().mHwcServiceName);
     getBE().mHwc->registerCallback(this, getBE().mComposerSequenceId);
     // Process any initial hotplug and resulting display changes.
     processDisplayHotplugEventsLocked();
@@ -678,7 +677,7 @@ void SurfaceFlinger::init() {
         }
     }
 
-    mEventControlThread = std::make_unique<impl::EventControlThread>(
+    mEventControlThread = getFactory().createEventControlThread(
             [this](bool enabled) { setVsyncEnabled(HWC_DISPLAY_PRIMARY, enabled); });
 
     // initialize our drawing state
@@ -690,12 +689,10 @@ void SurfaceFlinger::init() {
     getBE().mRenderEngine->primeCache();
 
     // Inform native graphics APIs whether the present timestamp is supported:
-    if (getHwComposer().hasCapability(
-            HWC2::Capability::PresentFenceIsNotReliable)) {
-        mStartPropertySetThread = new StartPropertySetThread(false);
-    } else {
-        mStartPropertySetThread = new StartPropertySetThread(true);
-    }
+
+    const bool presentFenceReliable =
+            !getHwComposer().hasCapability(HWC2::Capability::PresentFenceIsNotReliable);
+    mStartPropertySetThread = getFactory().createStartPropertySetThread(presentFenceReliable);
 
     if (mStartPropertySetThread->Start() != NO_ERROR) {
         ALOGE("Run StartPropertySetThread failed!");
@@ -1420,8 +1417,8 @@ void SurfaceFlinger::updateVrFlinger() {
 
     resetDisplayState();
     getBE().mHwc.reset(); // Delete the current instance before creating the new one
-    getBE().mHwc.reset(new HWComposer(std::make_unique<Hwc2::impl::Composer>(
-            vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName)));
+    getBE().mHwc = getFactory().createHWComposer(
+            vrFlingerRequestsDisplay ? "vr" : getBE().mHwcServiceName);
     getBE().mHwc->registerCallback(this, ++getBE().mComposerSequenceId);
 
     LOG_ALWAYS_FATAL_IF(!getBE().mHwc->getComposer()->isRemote(),
@@ -2345,7 +2342,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
                 getHwComposer().getSupportedPerFrameMetadata(displayId);
     }
 
-    auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
+    auto nativeWindowSurface = getFactory().createNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
     creationArgs.nativeWindow = nativeWindow;
 
@@ -2378,7 +2375,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     // virtual displays are always considered enabled
     creationArgs.initialPowerMode = state.isVirtual() ? HWC_POWER_MODE_NORMAL : HWC_POWER_MODE_OFF;
 
-    sp<DisplayDevice> display = new DisplayDevice(std::move(creationArgs));
+    sp<DisplayDevice> display = getFactory().createDisplayDevice(std::move(creationArgs));
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2493,7 +2490,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 sp<IGraphicBufferProducer> producer;
                 sp<IGraphicBufferProducer> bqProducer;
                 sp<IGraphicBufferConsumer> bqConsumer;
-                mCreateBufferQueue(&bqProducer, &bqConsumer, false);
+                getFactory().createBufferQueue(&bqProducer, &bqConsumer, false);
 
                 int32_t displayId = -1;
                 if (state.isVirtual()) {
@@ -3763,7 +3760,7 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
     }
 
     sp<BufferQueueLayer> layer =
-            new BufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
+            getFactory().createBufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -3779,7 +3776,7 @@ status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const 
                                                 uint32_t w, uint32_t h, uint32_t flags,
                                                 sp<IBinder>* handle, sp<Layer>* outLayer) {
     sp<BufferStateLayer> layer =
-            new BufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
+            getFactory().createBufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = layer->getHandle();
     *outLayer = layer;
 
@@ -3790,7 +3787,7 @@ status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
+    *outLayer = getFactory().createColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -3799,7 +3796,8 @@ status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
         const String8& name, uint32_t w, uint32_t h, uint32_t flags,
         sp<IBinder>* handle, sp<Layer>* outLayer)
 {
-    *outLayer = new ContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
+    *outLayer =
+            getFactory().createContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -5076,10 +5074,6 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         display = getDisplayDeviceLocked(displayToken);
         if (!display) return BAD_VALUE;
 
-        // ignore sourceCrop (i.e., use the projected logical display
-        // viewport) until the framework is fixed
-        sourceCrop.clear();
-
         // set the requested width/height to the logical display viewport size
         // by default
         if (reqWidth == 0 || reqHeight == 0) {
@@ -5155,7 +5149,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 drawLayers();
             } else {
                 Rect bounds = getBounds();
-                screenshotParentLayer = new ContainerLayer(
+                screenshotParentLayer = mFlinger->getFactory().createContainerLayer(
                         LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
                                           bounds.getWidth(), bounds.getHeight(), 0));
 
@@ -5240,9 +5234,10 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
     // TODO(b/116112787) Make buffer usage a parameter.
     const uint32_t usage = GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
             GRALLOC_USAGE_HW_RENDER | GRALLOC_USAGE_HW_TEXTURE;
-    *outBuffer = new GraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
-                                   static_cast<android_pixel_format>(reqPixelFormat), 1, usage,
-                                   "screenshot");
+    *outBuffer =
+            getFactory().createGraphicBuffer(renderArea.getReqWidth(), renderArea.getReqHeight(),
+                                             static_cast<android_pixel_format>(reqPixelFormat), 1,
+                                             usage, "screenshot");
 
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
