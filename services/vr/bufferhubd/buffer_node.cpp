@@ -15,12 +15,6 @@ void BufferNode::InitializeMetadata() {
       new (&metadata_header->active_clients_bit_mask) std::atomic<uint64_t>(0);
 }
 
-BufferNode::BufferNode(IonBuffer buffer, size_t user_metadata_size)
-    : buffer_(std::move(buffer)) {
-  metadata_ = BufferHubMetadata::Create(user_metadata_size);
-  InitializeMetadata();
-}
-
 // Allocates a new BufferNode.
 BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count,
                        uint32_t format, uint64_t usage,

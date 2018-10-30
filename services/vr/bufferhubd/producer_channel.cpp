@@ -216,11 +216,6 @@ bool ProducerChannel::HandleMessage(Message& message) {
           *this, &ProducerChannel::OnProducerGain, message);
       return true;
 
-    case BufferHubRPC::ProducerBufferDetach::Opcode:
-      DispatchRemoteMethod<BufferHubRPC::ProducerBufferDetach>(
-          *this, &ProducerChannel::OnProducerDetach, message);
-      return true;
-
     default:
       return false;
   }
@@ -403,7 +398,9 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   return {std::move(returned_fence_)};
 }
 
-Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
+// TODO(b/112338294) Keep here for reference. Remove it after new logic is
+// written.
+/* Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
     Message& message) {
   ATRACE_NAME("ProducerChannel::OnProducerDetach");
   ALOGD_IF(TRACE, "ProducerChannel::OnProducerDetach: buffer_id=%d",
@@ -455,7 +452,7 @@ Status<RemoteChannelHandle> ProducerChannel::OnProducerDetach(
   }
 
   return status;
-}
+} */
 
 Status<LocalFence> ProducerChannel::OnConsumerAcquire(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnConsumerAcquire");

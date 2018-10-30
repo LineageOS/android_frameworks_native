@@ -314,7 +314,6 @@ struct BufferHubRPC {
     kOpProducerGain,
     kOpConsumerAcquire,
     kOpConsumerRelease,
-    kOpProducerBufferDetach,
     kOpConsumerBufferDetach,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
@@ -344,8 +343,6 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ConsumerAcquire, kOpConsumerAcquire, LocalFence(Void));
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
                     void(LocalFence release_fence));
-  PDX_REMOTE_METHOD(ProducerBufferDetach, kOpProducerBufferDetach,
-                    LocalChannelHandle(Void));
 
   // Detaches a ConsumerBuffer from an existing producer/consumer set. Can only
   // be called when the consumer is the only consumer and it has exclusive

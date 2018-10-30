@@ -256,15 +256,6 @@ pdx::Status<void> BufferHubService::HandleMessage(Message& message) {
           *this, &BufferHubService::OnCreateProducerQueue, message);
       return {};
 
-    case BufferHubRPC::ProducerBufferDetach::Opcode:
-      // In addition to the message handler in the ProducerChannel's
-      // HandleMessage method, we also need to invalid the producer channel (and
-      // all associated consumer channels). Note that this has to be done after
-      // HandleMessage returns to make sure the IPC request has went back to the
-      // client first.
-      SetChannel(channel->channel_id(), nullptr);
-      return {};
-
     default:
       return DefaultHandleMessage(message);
   }
