@@ -167,7 +167,7 @@ static bool addAnglePlatformAttributes(egl_connection_t* const cnx,
 // Initialize function ptrs for ANGLE PlatformMethods struct, used for systrace
 bool initializeAnglePlatform(EGLDisplay dpy) {
     // Since we're inside libEGL, use dlsym to lookup fptr for ANGLEGetDisplayPlatform
-    android_namespace_t* ns = android_getAngleNamespace();
+    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     const android_dlextinfo dlextinfo = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
             .library_namespace = ns,
