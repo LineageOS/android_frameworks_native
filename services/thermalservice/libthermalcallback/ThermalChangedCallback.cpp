@@ -68,6 +68,8 @@ Return<void> ThermalChangedCallback::notifyThrottling(
                              static_cast<size_t>(ThrottlingSeverity::SEVERE))
                 ? true
                 : false;
+        value = temperature.value == UNKNOWN_TEMPERATURE ? NAN :
+                temperature.value;
         android::os::Temperature thermal_svc_temp(value, type);
         mThermalService->notifyThrottling(isThrottling, thermal_svc_temp);
     } else {
