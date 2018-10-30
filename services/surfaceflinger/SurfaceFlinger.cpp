@@ -5074,10 +5074,6 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
         display = getDisplayDeviceLocked(displayToken);
         if (!display) return BAD_VALUE;
 
-        // ignore sourceCrop (i.e., use the projected logical display
-        // viewport) until the framework is fixed
-        sourceCrop.clear();
-
         // set the requested width/height to the logical display viewport size
         // by default
         if (reqWidth == 0 || reqHeight == 0) {
