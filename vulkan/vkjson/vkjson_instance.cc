@@ -71,11 +71,16 @@ VkJsonDevice VkJsonGetDevice(VkInstance instance,
                              const char* const* instance_extensions) {
   VkJsonDevice device;
 
+  PFN_vkGetPhysicalDeviceProperties2KHR vkpGetPhysicalDeviceProperties2KHR =
+      nullptr;
   PFN_vkGetPhysicalDeviceFeatures2KHR vkpGetPhysicalDeviceFeatures2KHR =
       nullptr;
   if (instance != VK_NULL_HANDLE &&
       HasExtension("VK_KHR_get_physical_device_properties2",
                    instance_extension_count, instance_extensions)) {
+    vkpGetPhysicalDeviceProperties2KHR =
+        reinterpret_cast<PFN_vkGetPhysicalDeviceProperties2KHR>(
+            vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties2KHR"));
     vkpGetPhysicalDeviceFeatures2KHR =
         reinterpret_cast<PFN_vkGetPhysicalDeviceFeatures2KHR>(
             vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceFeatures2KHR"));
@@ -98,15 +103,32 @@ VkJsonDevice VkJsonGetDevice(VkInstance instance,
                                      device.layers.data());
   }
 
-  vkGetPhysicalDeviceProperties(physical_device, &device.properties);
   if (HasExtension("VK_KHR_get_physical_device_properties2",
                    instance_extension_count, instance_extensions)) {
+    VkPhysicalDeviceProperties2KHR properties = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2_KHR,
+        nullptr,
+        {} // properties
+    };
+    if (HasExtension("VK_KHR_driver_properties", device.extensions)) {
+      device.ext_driver_properties.reported = true;
+      device.ext_driver_properties.driver_properties_khr.sType =
+          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES_KHR;
+      device.ext_driver_properties.driver_properties_khr.pNext =
+          properties.pNext;
+      properties.pNext =
+          &device.ext_driver_properties.driver_properties_khr;
+    }
+    vkpGetPhysicalDeviceProperties2KHR(physical_device, &properties);
+    device.properties = properties.properties;
+
     VkPhysicalDeviceFeatures2KHR features = {
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
         nullptr,
         {}  // features
     };
     if (HasExtension("VK_KHR_variable_pointers", device.extensions)) {
+      device.ext_variable_pointer_features.reported = true;
       device.ext_variable_pointer_features.variable_pointer_features_khr.sType =
           VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VARIABLE_POINTER_FEATURES_KHR;
       device.ext_variable_pointer_features.variable_pointer_features_khr.pNext =
@@ -117,6 +139,7 @@ VkJsonDevice VkJsonGetDevice(VkInstance instance,
     vkpGetPhysicalDeviceFeatures2KHR(physical_device, &features);
     device.features = features.features;
   } else {
+    vkGetPhysicalDeviceProperties(physical_device, &device.properties);
     vkGetPhysicalDeviceFeatures(physical_device, &device.features);
   }
   vkGetPhysicalDeviceMemoryProperties(physical_device, &device.memory);
