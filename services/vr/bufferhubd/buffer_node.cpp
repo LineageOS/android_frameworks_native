@@ -44,8 +44,8 @@ uint64_t BufferNode::AddNewActiveClientsBitToMask() {
   uint64_t client_state_mask = 0ULL;
   uint64_t updated_active_clients_bit_mask = 0ULL;
   do {
-    client_state_mask =
-        BufferHubDefs::FindNextClearedBit(current_active_clients_bit_mask);
+    client_state_mask = BufferHubDefs::FindNextAvailableClientStateMask(
+        current_active_clients_bit_mask);
     if (client_state_mask == 0ULL) {
       ALOGE(
           "BufferNode::AddNewActiveClientsBitToMask: reached the maximum "
