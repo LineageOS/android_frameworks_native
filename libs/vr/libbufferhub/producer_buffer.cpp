@@ -102,8 +102,9 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
     return error;
 
   // Set the producer bit atomically to transit into posted state.
+  // The producer state bit mask is kFirstClientBitMask for now.
   BufferHubDefs::ModifyBufferState(buffer_state_, 0ULL,
-                                   BufferHubDefs::kProducerStateBit);
+                                   BufferHubDefs::kFirstClientBitMask);
   return 0;
 }
 

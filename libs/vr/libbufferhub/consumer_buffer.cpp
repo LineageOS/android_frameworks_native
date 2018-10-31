@@ -59,7 +59,8 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
 
   uint64_t fence_state = fence_state_->load(std::memory_order_acquire);
   // If there is an acquire fence from producer, we need to return it.
-  if (fence_state & BufferHubDefs::kProducerStateBit) {
+  // The producer state bit mask is kFirstClientBitMask for now.
+  if (fence_state & BufferHubDefs::kFirstClientBitMask) {
     *out_fence = shared_acquire_fence_.Duplicate();
   }
 
