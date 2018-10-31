@@ -75,6 +75,8 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
     int id1 = b1->id();
+    uint64_t bufferStateMask1 = b1->client_state_mask();
+    EXPECT_NE(bufferStateMask1, 0ULL);
     EXPECT_TRUE(b1->IsValid());
     EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
 
@@ -96,16 +98,14 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
 
     int id2 = b2->id();
+    uint64_t bufferStateMask2 = b2->client_state_mask();
+    EXPECT_NE(bufferStateMask2, 0ULL);
 
     // These two buffer instances are based on the same physical buffer under the
     // hood, so they should share the same id.
     EXPECT_EQ(id1, id2);
     // We use client_state_mask() to tell those two instances apart.
-    EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
-    EXPECT_NE(b1->client_state_mask(), 0ULL);
-    EXPECT_NE(b2->client_state_mask(), 0ULL);
-    EXPECT_NE(b1->client_state_mask(), kProducerStateBit);
-    EXPECT_NE(b2->client_state_mask(), kProducerStateBit);
+    EXPECT_NE(bufferStateMask1, bufferStateMask2);
 
     // Both buffer instances should be in gained state.
     EXPECT_TRUE(IsBufferGained(b1->buffer_state()));
