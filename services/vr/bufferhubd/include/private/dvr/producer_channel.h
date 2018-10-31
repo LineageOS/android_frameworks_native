@@ -42,7 +42,9 @@ class ProducerChannel : public BufferHubChannel {
 
   ~ProducerChannel() override;
 
-  uint64_t buffer_state() const { return buffer_state_->load(); }
+  uint64_t buffer_state() const {
+    return buffer_state_->load(std::memory_order_acquire);
+  }
 
   bool HandleMessage(Message& message) override;
   void HandleImpulse(Message& message) override;
