@@ -284,8 +284,8 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
   if (!active_clients_bit_mask_->compare_exchange_weak(
           current_active_clients_bit_mask, updated_active_clients_bit_mask,
           std::memory_order_acq_rel, std::memory_order_acquire)) {
-    ALOGE("Current active clients bit mask is changed to %" PRIu64
-          ", which was expected to be %" PRIu64 ".",
+    ALOGE("Current active clients bit mask is changed to %" PRIx64
+          ", which was expected to be %" PRIx64 ".",
           updated_active_clients_bit_mask, current_active_clients_bit_mask);
     return ErrorStatus(EBUSY);
   }
