@@ -710,7 +710,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c1 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c1.get() != nullptr);
-  const uint64_t consumer_state_bit1 = c1->client_state_mask();
+  const uint64_t client_state_mask1 = c1->client_state_mask();
 
   DvrNativeBufferMetadata meta;
   EXPECT_EQ(0, p->PostAsync(&meta, LocalHandle()));
@@ -726,8 +726,8 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c2 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
-  const uint64_t consumer_state_bit2 = c2->client_state_mask();
-  EXPECT_NE(consumer_state_bit1, consumer_state_bit2);
+  const uint64_t client_state_mask2 = c2->client_state_mask();
+  EXPECT_NE(client_state_mask1, client_state_mask2);
 
   // The new consumer is available for acquire.
   EXPECT_LT(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
@@ -742,8 +742,8 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c3 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c3.get() != nullptr);
-  const uint64_t consumer_state_bit3 = c3->client_state_mask();
-  EXPECT_NE(consumer_state_bit2, consumer_state_bit3);
+  const uint64_t client_state_mask3 = c3->client_state_mask();
+  EXPECT_NE(client_state_mask2, client_state_mask3);
   // The consumer buffer is not acquirable.
   EXPECT_GE(0, RETRY_EINTR(c3->Poll(kPollTimeoutMs)));
   EXPECT_EQ(-EBUSY, c3->AcquireAsync(&meta, &fence));

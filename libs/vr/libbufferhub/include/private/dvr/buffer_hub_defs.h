@@ -60,12 +60,12 @@ static inline bool IsBufferReleased(uint64_t state) {
   return !(state & kProducerStateBit) && (state & kConsumerStateMask);
 }
 
-static inline uint64_t FindNextClearedBit(uint64_t bits) {
+static inline uint64_t FindNextAvailableClientStateMask(uint64_t bits) {
   return ~bits - (~bits & (~bits - 1));
 }
 
 static inline uint64_t FindFirstClearedBit() {
-  return FindNextClearedBit(kProducerStateBit);
+  return FindNextAvailableClientStateMask(kProducerStateBit);
 }
 
 struct __attribute__((packed, aligned(8))) MetadataHeader {

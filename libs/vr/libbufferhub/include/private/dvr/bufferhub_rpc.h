@@ -122,9 +122,7 @@ class BufferDescription {
   int buffer_cid() const { return buffer_cid_; }
 
   // State mask of the buffer client. Each BufferHub client backed by the
-  // same buffer channel has uniqued state bit among its siblings. For a
-  // producer buffer the bit must be kProducerStateBit; for a consumer the bit
-  // must be one of the kConsumerStateMask.
+  // same buffer channel has uniqued state bit among its siblings.
   uint64_t client_state_mask() const { return client_state_mask_; }
   FileHandleType take_acquire_fence() { return std::move(acquire_fence_fd_); }
   FileHandleType take_release_fence() { return std::move(release_fence_fd_); }
