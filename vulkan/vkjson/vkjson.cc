@@ -325,6 +325,13 @@ struct EnumTraits<VkExternalSemaphoreHandleTypeFlagBits> {
   }
 };
 
+template <>
+struct EnumTraits<VkDriverIdKHR> {
+  static uint32_t min() { return VK_DRIVER_ID_BEGIN_RANGE_KHR; }
+  static uint32_t max() { return VK_DRIVER_ID_END_RANGE_KHR; }
+  static bool exist(uint32_t e) { return e >= min() && e <= max(); }
+};
+
 // VkSparseImageFormatProperties
 
 template <typename Visitor>

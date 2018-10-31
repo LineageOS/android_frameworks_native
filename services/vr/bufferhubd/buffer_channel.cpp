@@ -25,9 +25,13 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              uint32_t width, uint32_t height,
                              uint32_t layer_count, uint32_t format,
                              uint64_t usage, size_t user_metadata_size)
-    : BufferHubChannel(service, buffer_id, buffer_id, kDetachedBufferType),
-      buffer_node_(std::make_shared<BufferNode>(
-          width, height, layer_count, format, usage, user_metadata_size)) {
+    : BufferHubChannel(service, buffer_id, buffer_id, kDetachedBufferType) {
+  buffer_node_ = std::make_shared<BufferNode>(
+      width, height, layer_count, format, usage, user_metadata_size);
+  if (!buffer_node_->IsValid()) {
+    ALOGE("BufferChannel::BufferChannel: Failed to create BufferNode.");
+    return;
+  }
   client_state_mask_ = buffer_node_->AddNewActiveClientsBitToMask();
 }
 
