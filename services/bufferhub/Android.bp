@@ -22,6 +22,7 @@ cc_library_shared {
         "-Wextra",
     ],
     srcs: [
+        "BufferClient.cpp",
         "BufferHubService.cpp",
         "BufferNode.cpp",
     ],

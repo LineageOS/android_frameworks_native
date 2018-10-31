@@ -16,6 +16,7 @@
 
 #define LOG_TAG "BufferHubBufferTest"
 
+#include <android/frameworks/bufferhub/1.0/IBufferClient.h>
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <gtest/gtest.h>
 #include <hidl/ServiceManagement.h>
@@ -33,11 +34,11 @@ const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const size_t kUserMetadataSize = 0;
 
-} // namespace
-
 using dvr::BufferHubDefs::IsBufferGained;
 using dvr::BufferHubDefs::kFirstClientBitMask;
 using dvr::BufferHubDefs::kMetadataHeaderSize;
+using frameworks::bufferhub::V1_0::BufferHubStatus;
+using frameworks::bufferhub::V1_0::IBufferClient;
 using frameworks::bufferhub::V1_0::IBufferHub;
 using hardware::hidl_handle;
 using hidl::base::V1_0::IBase;
@@ -129,8 +130,14 @@ TEST_F(BufferHubBufferTest, ConnectHidlServer) {
 
     // TODO(b/116681016): Fill in real test once the interface gets implemented..
     hidl_handle handle;
-    sp<IBase> interface = bufferhub->importBuffer(handle);
-    EXPECT_EQ(nullptr, interface.get());
+    EXPECT_TRUE(bufferhub
+                        ->importBuffer(handle,
+                                       [](const auto& client, const auto& ret) {
+                                           EXPECT_EQ(client, nullptr);
+                                           EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
+                                       })
+                        .isOk());
 }
 
+} // namespace
 } // namespace android

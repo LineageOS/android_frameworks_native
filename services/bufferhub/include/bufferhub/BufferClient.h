@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
-#define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
+#ifndef ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_CLIENT_H
+#define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_CLIENT_H
 
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
-#include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 
 namespace android {
 namespace frameworks {
@@ -26,16 +25,11 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
-using ::android::hardware::hidl_handle;
-using ::android::hardware::Return;
-using ::android::hardware::graphics::common::V1_2::HardwareBufferDescription;
+using hardware::Return;
 
-class BufferHubService : public IBufferHub {
+class BufferClient : public IBufferClient {
 public:
-    Return<void> allocateBuffer(const HardwareBufferDescription& description,
-                                const uint32_t userMetadataSize,
-                                allocateBuffer_cb _hidl_cb) override;
-    Return<void> importBuffer(const hidl_handle& nativeHandle, importBuffer_cb _hidl_cb) override;
+    Return<void> duplicate(duplicate_cb _hidl_cb) override;
 };
 
 } // namespace implementation
@@ -44,4 +38,4 @@ public:
 } // namespace frameworks
 } // namespace android
 
-#endif // ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
+#endif
