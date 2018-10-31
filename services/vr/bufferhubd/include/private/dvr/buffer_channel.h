@@ -33,9 +33,6 @@ class BufferChannel : public BufferHubChannel {
   void HandleImpulse(pdx::Message& message) override;
 
  private:
-  // Creates a detached buffer from existing IonBuffers.
-  BufferChannel(BufferHubService* service, int buffer_id, int channel_id,
-                IonBuffer buffer, size_t user_metadata_size);
 
   // Allocates a new detached buffer.
   BufferChannel(BufferHubService* service, int buffer_id, uint32_t width,

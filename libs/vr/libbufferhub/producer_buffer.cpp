@@ -228,7 +228,9 @@ Status<LocalChannelHandle> ProducerBuffer::Detach() {
   ALOGW("ProducerBuffer::Detach: not supported operation during migration");
   return {};
 
-  uint64_t buffer_state = buffer_state_->load();
+  // TODO(b/112338294) Keep here for reference. Remove it after new logic is
+  // written.
+  /* uint64_t buffer_state = buffer_state_->load();
   if (!BufferHubDefs::IsBufferGained(buffer_state)) {
     // Can only detach a ProducerBuffer when it's in gained state.
     ALOGW("ProducerBuffer::Detach: The buffer (id=%d, state=0x%" PRIx64
@@ -242,7 +244,7 @@ Status<LocalChannelHandle> ProducerBuffer::Detach() {
   ALOGE_IF(!status,
            "ProducerBuffer::Detach: Failed to detach buffer (id=%d): %s.", id(),
            status.GetErrorMessage().c_str());
-  return status;
+  return status; */
 }
 
 }  // namespace dvr

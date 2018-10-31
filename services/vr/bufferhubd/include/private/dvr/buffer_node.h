@@ -9,10 +9,6 @@ namespace dvr {
 
 class BufferNode {
  public:
-  // Creates a BufferNode from existing IonBuffers, i.e. creating from an
-  // existing ProducerChannel. Allocate a new BufferHubMetadata.
-  BufferNode(IonBuffer buffer, size_t user_metadata_size);
-
   // Allocates a new BufferNode.
   BufferNode(uint32_t width, uint32_t height, uint32_t layer_count,
              uint32_t format, uint64_t usage, size_t user_metadata_size);

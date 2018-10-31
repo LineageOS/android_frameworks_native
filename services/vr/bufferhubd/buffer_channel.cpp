@@ -13,15 +13,6 @@ namespace android {
 namespace dvr {
 
 BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
-                             int channel_id, IonBuffer buffer,
-                             size_t user_metadata_size)
-    : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
-      buffer_node_(
-          std::make_shared<BufferNode>(std::move(buffer), user_metadata_size)) {
-  client_state_mask_ = buffer_node_->AddNewActiveClientsBitToMask();
-}
-
-BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
                              uint32_t width, uint32_t height,
                              uint32_t layer_count, uint32_t format,
                              uint64_t usage, size_t user_metadata_size)
