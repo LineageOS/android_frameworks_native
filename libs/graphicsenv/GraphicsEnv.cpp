@@ -145,11 +145,11 @@ long GraphicsEnv::getAngleRulesLength() {
     return mAngleRulesLength;
 }
 
-const std::string GraphicsEnv::getLayerPaths(){
+const std::string& GraphicsEnv::getLayerPaths() {
     return mLayerPaths;
 }
 
-const std::string GraphicsEnv::getDebugLayers() {
+const std::string& GraphicsEnv::getDebugLayers() {
     return mDebugLayers;
 }
 
@@ -196,36 +196,3 @@ android_namespace_t* GraphicsEnv::getAngleNamespace() {
 }
 
 } // namespace android
-
-extern "C" {
-android_namespace_t* android_getDriverNamespace() {
-    return android::GraphicsEnv::getInstance().getDriverNamespace();
-}
-android_namespace_t* android_getAngleNamespace() {
-    return android::GraphicsEnv::getInstance().getAngleNamespace();
-}
-const char* android_getAngleAppName() {
-    return android::GraphicsEnv::getInstance().getAngleAppName();
-}
-bool android_getAngleDeveloperOptIn() {
-    return android::GraphicsEnv::getInstance().getAngleDeveloperOptIn();
-}
-const char* android_getAngleAppPref() {
-    return android::GraphicsEnv::getInstance().getAngleAppPref();
-}
-int android_getAngleRulesFd() {
-   return android::GraphicsEnv::getInstance().getAngleRulesFd();
-}
-long android_getAngleRulesOffset() {
-   return android::GraphicsEnv::getInstance().getAngleRulesOffset();
-}
-long android_getAngleRulesLength() {
-   return android::GraphicsEnv::getInstance().getAngleRulesLength();
-}
-const char* android_getLayerPaths() {
-    return android::GraphicsEnv::getInstance().getLayerPaths().c_str();
-}
-const char* android_getDebugLayers() {
-    return android::GraphicsEnv::getInstance().getDebugLayers().c_str();
-}
-}

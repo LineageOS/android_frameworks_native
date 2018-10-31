@@ -529,12 +529,12 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     std::string name;
     char prop[PROPERTY_VALUE_MAX];
 
-    const char* app_name = android_getAngleAppName();
-    const char* app_pref = android_getAngleAppPref();
-    bool developer_opt_in = android_getAngleDeveloperOptIn();
-    const int rules_fd = android_getAngleRulesFd();
-    const long rules_offset = android_getAngleRulesOffset();
-    const long rules_length = android_getAngleRulesLength();
+    const char* app_name = android::GraphicsEnv::getInstance().getAngleAppName();
+    const char* app_pref = android::GraphicsEnv::getInstance().getAngleAppPref();
+    bool developer_opt_in = android::GraphicsEnv::getInstance().getAngleDeveloperOptIn();
+    const int rules_fd = android::GraphicsEnv::getInstance().getAngleRulesFd();
+    const long rules_offset = android::GraphicsEnv::getInstance().getAngleRulesOffset();
+    const long rules_length = android::GraphicsEnv::getInstance().getAngleRulesLength();
 
     // Determine whether or not to use ANGLE:
     ANGLEPreference developer_option = developer_opt_in ? ANGLE_PREFER_ANGLE : ANGLE_NO_PREFERENCE;
@@ -596,7 +596,8 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
                 fpANGLEUseForApplication ANGLEUseForApplication =
                         (fpANGLEUseForApplication)dlsym(so, "ANGLEUseForApplication");
                 if (ANGLEUseForApplication) {
-                    ANGLEPreference app_preference = getAnglePref(android_getAngleAppPref());
+                    ANGLEPreference app_preference =
+                            getAnglePref(android::GraphicsEnv::getInstance().getAngleAppPref());
                     use_angle = (ANGLEUseForApplication)(app_name_str.c_str(), manufacturer, model,
                                                          developer_option, app_preference);
                     ALOGV("Result of opt-in/out logic is %s", use_angle ? "true" : "false");
@@ -688,13 +689,13 @@ void *Loader::load_driver(const char* kind,
     ATRACE_CALL();
 
     void* dso = nullptr;
-    android_namespace_t* ns = android_getAngleNamespace();
+    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     if (ns) {
         dso = load_angle(kind, ns, cnx);
     }
 #ifndef __ANDROID_VNDK__
     if (!dso) {
-        android_namespace_t* ns = android_getDriverNamespace();
+        android_namespace_t* ns = android::GraphicsEnv::getInstance().getDriverNamespace();
         if (ns) {
             dso = load_updated_driver(kind, ns);
         }

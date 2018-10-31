@@ -145,7 +145,7 @@ const char kSystemLayerLibraryDir[] = "/data/local/debug/gles";
 std::string LayerLoader::GetDebugLayers() {
     // Layers can be specified at the Java level in GraphicsEnvironemnt
     // gpu_debug_layers = layer1:layer2:layerN
-    std::string debug_layers = android_getDebugLayers();
+    std::string debug_layers = android::GraphicsEnv::getInstance().getDebugLayers();
 
     if (debug_layers.empty()) {
         // Only check system properties if Java settings are empty
@@ -339,7 +339,9 @@ void LayerLoader::LoadLayers() {
     // Load the layers in reverse order so we start with the driver's entrypoint and work our way up
     for (int32_t i = layers.size() - 1; i >= 0; i--) {
         // Check each layer path for the layer
-        std::vector<std::string> paths = android::base::Split(android_getLayerPaths(), ":");
+        std::vector<std::string> paths =
+                android::base::Split(android::GraphicsEnv::getInstance().getLayerPaths().c_str(),
+                                     ":");
 
         if (!system_path.empty()) {
             // Prepend the system paths so they override other layers
