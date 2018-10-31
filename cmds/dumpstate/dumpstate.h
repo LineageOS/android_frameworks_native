@@ -183,6 +183,8 @@ class Dumpstate {
     friend class DumpstateTest;
 
   public:
+    enum RunStatus { OK, HELP, INVALID_INPUT, ERROR };
+
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
 
     static Dumpstate& GetInstance();
@@ -290,22 +292,12 @@ class Dumpstate {
     /* Returns true if the current version supports priority dump feature. */
     bool CurrentVersionSupportsPriorityDumps() const;
 
-    // TODO: revisit the return values later.
-    /*
-     * Parses commandline arguments and sets runtime options accordingly.
-     *
-     * Returns 0 or positive number if the caller should exit with returned value as
-     * exit code, or returns -1 if caller should proceed with execution.
-     */
-    int ParseCommandlineOptions(int argc, char* argv[]);
+    struct DumpOptions;
 
-    /* Sets runtime options from the system properties. */
-    void SetOptionsFromProperties();
+    /* Main entry point for running a complete bugreport. Takes ownership of options. */
+    RunStatus RunWithOptions(std::unique_ptr<DumpOptions> options);
 
-    /* Returns true if the options set so far are consistent. */
-    bool ValidateOptions();
-
-    // TODO: add update_progress_ & other options from DumpState.
+    // TODO: add other options from DumpState.
     /*
      * Structure to hold options that determine the behavior of dumpstate.
      */
@@ -322,7 +314,22 @@ class Dumpstate {
         bool do_start_service = false;
         bool telephony_only = false;
         bool wifi_only = false;
+        // Whether progress updates should be published.
+        bool do_progress_updates = false;
         std::string use_outfile;
+        // Extra options passed as system property.
+        std::string extra_options;
+        // Command-line arguments as string
+        std::string args;
+        // Notification title and description
+        std::string notification_title;
+        std::string notification_description;
+
+        /* Initializes options from commandline arguments and system properties. */
+        RunStatus Initialize(int argc, char* argv[]);
+
+        /* Returns true if the options set so far are consistent. */
+        bool ValidateOptions() const;
     };
 
     // TODO: initialize fields on constructor
@@ -333,10 +340,7 @@ class Dumpstate {
     pid_t pid_;
 
     // Runtime options.
-    DumpOptions options_;
-
-    // Whether progress updates should be published.
-    bool update_progress_ = false;
+    std::unique_ptr<DumpOptions> options_;
 
     // How frequently the progess should be updated;the listener will only be notificated when the
     // delta from the previous update is more than the threshold.
@@ -355,12 +359,6 @@ class Dumpstate {
 
     // Bugreport format version;
     std::string version_ = VERSION_CURRENT;
-
-    // Command-line arguments as string
-    std::string args_;
-
-    // Extra options passed as system property.
-    std::string extra_options_;
 
     // Full path of the directory where the bugreport files will be written.
     std::string bugreport_dir_;
@@ -397,10 +395,6 @@ class Dumpstate {
     android::sp<android::os::IDumpstateListener> listener_;
     std::string listener_name_;
     bool report_section_;
-
-    // Notification title and description
-    std::string notification_title;
-    std::string notification_description;
 
     // List of open tombstone dump files.
     std::vector<DumpData> tombstone_data_;
