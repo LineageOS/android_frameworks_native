@@ -647,7 +647,7 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 }
 
 std::string DisplayDevice::getDebugName() const {
-    const auto id = mId ? base::StringPrintf("%" PRIu64 ", ", *mId) : std::string();
+    const auto id = mId ? to_string(*mId) + ", " : std::string();
     return base::StringPrintf("DisplayDevice{%s%s%s\"%s\"}", id.c_str(),
                               isPrimary() ? "primary, " : "", isVirtual() ? "virtual, " : "",
                               mDisplayName.c_str());

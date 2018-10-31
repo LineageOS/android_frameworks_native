@@ -65,7 +65,7 @@ constexpr hwc2_display_t HWC_DISPLAY = FakeHwcDisplayInjector::DEFAULT_HWC_DISPL
 constexpr hwc2_layer_t HWC_LAYER = 5000;
 constexpr Transform DEFAULT_TRANSFORM = static_cast<Transform>(0);
 
-constexpr DisplayId DEFAULT_DISPLAY_ID = 42;
+constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
 constexpr int DEFAULT_DISPLAY_WIDTH = 1920;
 constexpr int DEFAULT_DISPLAY_HEIGHT = 1024;
 

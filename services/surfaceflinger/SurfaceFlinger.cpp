@@ -1043,9 +1043,9 @@ void SurfaceFlinger::setActiveColorModeInternal(const sp<DisplayDevice>& display
     LOG_ALWAYS_FATAL_IF(!displayId);
     getHwComposer().setActiveColorMode(*displayId, mode, renderIntent);
 
-    ALOGV("Set active color mode: %s (%d), active render intent: %s (%d), display=%" PRIu64,
+    ALOGV("Set active color mode: %s (%d), active render intent: %s (%d), display=%s",
           decodeColorMode(mode).c_str(), mode, decodeRenderIntent(renderIntent).c_str(),
-          renderIntent, *displayId);
+          renderIntent, to_string(*displayId).c_str());
 }
 
 status_t SurfaceFlinger::setActiveColorMode(const sp<IBinder>& displayToken, ColorMode mode) {
@@ -1640,8 +1640,8 @@ void SurfaceFlinger::calculateWorkingSet() {
             display->setColorTransform(mDrawingState.colorMatrix);
             status_t result =
                     getHwComposer().setColorTransform(*displayId, mDrawingState.colorMatrix);
-            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display %" PRIu64 ": %d",
-                     *displayId, result);
+            ALOGE_IF(result != NO_ERROR, "Failed to set color transform on display %s: %d",
+                     to_string(*displayId).c_str(), result);
         }
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
             if (layer->isHdrY410()) {
@@ -2275,7 +2275,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 
         if (event.connection == HWC2::Connection::Connected) {
             if (!mPhysicalDisplayTokens.count(info->id)) {
-                ALOGV("Creating display %" PRIu64, info->id);
+                ALOGV("Creating display %s", to_string(info->id).c_str());
                 mPhysicalDisplayTokens[info->id] = new BBinder();
                 DisplayDeviceState state;
                 state.displayId = info->id;
@@ -2285,7 +2285,7 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
                 mInterceptor->saveDisplayCreation(state);
             }
         } else {
-            ALOGV("Removing display %" PRIu64, info->id);
+            ALOGV("Removing display %s", to_string(info->id).c_str());
 
             ssize_t index = mCurrentState.displays.indexOfKey(mPhysicalDisplayTokens[info->id]);
             if (index >= 0) {
@@ -2978,8 +2978,7 @@ void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& display
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
     // 2) There is work to be done (the dirty region isn't empty)
-    bool isHwcDisplay = display->getId() >= 0;
-    if (!isHwcDisplay && inDirtyRegion.isEmpty()) {
+    if (!display->getId() && inDirtyRegion.isEmpty()) {
         ALOGV("Skipping display composition");
         return;
     }
@@ -3854,7 +3853,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
 
-    ALOGD("Setting power mode %d on display %" PRIu64, mode, *displayId);
+    ALOGD("Setting power mode %d on display %s", mode, to_string(*displayId).c_str());
 
     int currentMode = display->getPowerMode();
     if (mode == currentMode) {
@@ -3953,7 +3952,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         mTimeStats.setPowerMode(mode);
     }
 
-    ALOGD("Finished setting power mode %d on display %" PRIu64, mode, *displayId);
+    ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
 }
 
 void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
@@ -4284,7 +4283,7 @@ void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
             continue;
         }
 
-        result.appendFormat("Display %" PRIu64 " (HWC display %" PRIu64 "): ", *displayId,
+        result.appendFormat("Display %s (HWC display %" PRIu64 "): ", to_string(*displayId).c_str(),
                             *hwcDisplayId);
         uint8_t port;
         DisplayIdentificationData data;
@@ -4332,7 +4331,7 @@ void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
             continue;
         }
 
-        result.appendFormat("Display %" PRIu64 " color modes:\n", *displayId);
+        result.appendFormat("Display %s color modes:\n", to_string(*displayId).c_str());
         std::vector<ColorMode> modes = getHwComposer().getColorModes(*displayId);
         for (auto&& mode : modes) {
             result.appendFormat("    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
@@ -4451,15 +4450,15 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     if (const auto displayId = getInternalDisplayId();
         displayId && getHwComposer().isConnected(*displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
-        result.appendFormat("Display %" PRIu64 ": app phase %" PRId64 " ns, "
+        result.appendFormat("Display %s: app phase %" PRId64 " ns, "
                             "sf phase %" PRId64 " ns, "
                             "early app phase %" PRId64 " ns, "
                             "early sf phase %" PRId64 " ns, "
                             "early app gl phase %" PRId64 " ns, "
                             "early sf gl phase %" PRId64 " ns, "
                             "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
-                            *displayId, vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset,
-                            sfEarlyOffset, appEarlyGlOffset, sfEarlyGlOffset,
+                            to_string(*displayId).c_str(), vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
+                            appEarlyOffset, sfEarlyOffset, appEarlyGlOffset, sfEarlyGlOffset,
                             dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     }
     result.append("\n");
@@ -4563,7 +4562,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
             continue;
         }
 
-        result.appendFormat("Display %" PRIu64 " HWC layers:\n", *displayId);
+        result.appendFormat("Display %s HWC layers:\n", to_string(*displayId).c_str());
         Layer::miniDumpHeader(result);
         mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, *displayId); });
         result.append("\n");
@@ -4604,7 +4603,7 @@ const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(DisplayI
         }
     }
 
-    ALOGE("%s: Invalid display %" PRIu64, __FUNCTION__, displayId);
+    ALOGE("%s: Invalid display %s", __FUNCTION__, to_string(displayId).c_str());
     static const Vector<sp<Layer>> empty;
     return empty;
 }

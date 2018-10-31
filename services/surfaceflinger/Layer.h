@@ -499,7 +499,7 @@ public:
     bool destroyHwcLayer(DisplayId displayId);
     void destroyAllHwcLayers();
 
-    bool hasHwcLayer(DisplayId displayId) { return getBE().mHwcLayers.count(displayId) > 0; }
+    bool hasHwcLayer(DisplayId displayId) const { return getBE().mHwcLayers.count(displayId) > 0; }
 
     HWC2::Layer* getHwcLayer(DisplayId displayId) {
         if (!hasHwcLayer(displayId)) {
@@ -784,8 +784,15 @@ private:
                                           const std::vector<Layer*>& layersInTree);
 };
 
-// ---------------------------------------------------------------------------
+} // namespace android
 
-}; // namespace android
+#define RETURN_IF_NO_HWC_LAYER(displayId, ...)                                         \
+    do {                                                                               \
+        if (!hasHwcLayer(displayId)) {                                                 \
+            ALOGE("[%s] %s failed: no HWC layer found for display %s", mName.string(), \
+                  __FUNCTION__, to_string(displayId).c_str());                         \
+            return __VA_ARGS__;                                                        \
+        }                                                                              \
+    } while (false)
 
 #endif // ANDROID_LAYER_H

@@ -64,12 +64,16 @@ char getPnpLetter(uint16_t id) {
     return letter < 'A' || letter > 'Z' ? '\0' : letter;
 }
 
-DisplayId getEdidDisplayId(uint8_t port, uint16_t manufacturerId, uint32_t displayNameHash) {
-    return (static_cast<DisplayId>(manufacturerId) << 40) |
-            (static_cast<DisplayId>(displayNameHash) << 8) | port;
+} // namespace
+
+uint16_t DisplayId::manufacturerId() const {
+    return static_cast<uint16_t>(value >> 40);
 }
 
-} // namespace
+DisplayId DisplayId::fromEdid(uint8_t port, uint16_t manufacturerId, uint32_t displayNameHash) {
+    return {(static_cast<Type>(manufacturerId) << 40) | (static_cast<Type>(displayNameHash) << 8) |
+            port};
+}
 
 bool isEdid(const DisplayIdentificationData& data) {
     const uint8_t kMagic[] = {0, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0};
@@ -168,6 +172,10 @@ std::optional<PnpId> getPnpId(uint16_t manufacturerId) {
     return a && b && c ? std::make_optional(PnpId{a, b, c}) : std::nullopt;
 }
 
+std::optional<PnpId> getPnpId(DisplayId displayId) {
+    return getPnpId(displayId.manufacturerId());
+}
+
 std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
         uint8_t port, const DisplayIdentificationData& data) {
     if (!isEdid(data)) {
@@ -183,16 +191,16 @@ std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
     // Hash display name instead of using product code or serial number, since the latter have been
     // observed to change on some displays with multiple inputs.
     const auto hash = static_cast<uint32_t>(std::hash<std::string_view>()(edid->displayName));
-    return DisplayIdentificationInfo{getEdidDisplayId(port, edid->manufacturerId, hash),
+    return DisplayIdentificationInfo{DisplayId::fromEdid(port, edid->manufacturerId, hash),
                                      std::string(edid->displayName)};
 }
 
 DisplayId getFallbackDisplayId(uint8_t port) {
-    return getEdidDisplayId(port, kFallbackEdidManufacturerId, 0);
+    return DisplayId::fromEdid(port, kFallbackEdidManufacturerId, 0);
 }
 
 DisplayId getVirtualDisplayId(uint32_t id) {
-    return getEdidDisplayId(0, kVirtualEdidManufacturerId, id);
+    return DisplayId::fromEdid(0, kVirtualEdidManufacturerId, id);
 }
 
 } // namespace android

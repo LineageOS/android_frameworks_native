@@ -231,15 +231,12 @@ bool BufferLayer::isHdrY410() const {
 
 void BufferLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
                                   const Rect& viewport, int32_t supportedPerFrameMetadata) {
+    RETURN_IF_NO_HWC_LAYER(displayId);
+
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
     Region visible = transform.transform(visibleRegion.intersect(viewport));
 
-    if (!hasHwcLayer(displayId)) {
-        ALOGE("[%s] failed to setPerFrameData: no HWC layer found for display %" PRIu64,
-              mName.string(), displayId);
-        return;
-    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);

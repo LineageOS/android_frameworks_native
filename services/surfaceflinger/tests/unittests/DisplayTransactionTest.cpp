@@ -249,8 +249,8 @@ const DisplayDeviceState& DisplayTransactionTest::getDrawingDisplayState(sp<IBin
 template <typename PhysicalDisplay>
 struct PhysicalDisplayId {};
 
-template <DisplayId displayId>
-using VirtualDisplayId = std::integral_constant<DisplayId, displayId>;
+template <DisplayId::Type displayId>
+using VirtualDisplayId = std::integral_constant<DisplayId::Type, displayId>;
 
 struct NoDisplayId {};
 
@@ -279,9 +279,9 @@ struct DisplayIdGetter<PhysicalDisplayId<PhysicalDisplay>> {
     }
 };
 
-template <DisplayId displayId>
+template <DisplayId::Type displayId>
 struct DisplayIdGetter<VirtualDisplayId<displayId>> {
-    static std::optional<DisplayId> get() { return displayId; }
+    static std::optional<DisplayId> get() { return DisplayId{displayId}; }
 };
 
 template <>
@@ -1090,7 +1090,7 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
  */
 class GetBestColorModeTest : public DisplayTransactionTest {
 public:
-    static constexpr DisplayId DEFAULT_DISPLAY_ID = 777;
+    static constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{777};
 
     GetBestColorModeTest()
           : DisplayTransactionTest(),
