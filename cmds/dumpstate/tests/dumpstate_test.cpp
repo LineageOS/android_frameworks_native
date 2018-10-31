@@ -137,6 +137,175 @@ class DumpstateBaseTest : public Test {
     }
 };
 
+class DumpOptionsTest : public Test {
+  public:
+    virtual ~DumpOptionsTest() {
+    }
+    virtual void SetUp() {
+        options_ = Dumpstate::DumpOptions();
+    }
+
+    Dumpstate::DumpOptions options_;
+};
+
+TEST_F(DumpOptionsTest, InitializeNone) {
+    // clang-format off
+    char* argv[] = {
+        const_cast<char*>("dumpstate")
+    };
+    // clang-format on
+
+    Dumpstate::DumpOptions options;
+    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
+
+    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    EXPECT_FALSE(options_.do_add_date);
+    EXPECT_FALSE(options_.do_zip_file);
+    EXPECT_EQ("", options_.use_outfile);
+    EXPECT_FALSE(options_.use_socket);
+    EXPECT_FALSE(options_.use_control_socket);
+    EXPECT_FALSE(options_.show_header_only);
+    EXPECT_TRUE(options_.do_vibrate);
+    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_progress_updates);
+    EXPECT_FALSE(options_.is_remote_mode);
+    EXPECT_FALSE(options_.do_broadcast);
+}
+
+TEST_F(DumpOptionsTest, InitializePartial1) {
+    // clang-format off
+    char* argv[] = {
+        const_cast<char*>("dumpstate"),
+        const_cast<char*>("-d"),
+        const_cast<char*>("-z"),
+        const_cast<char*>("-o abc"),
+        const_cast<char*>("-s"),
+        const_cast<char*>("-S"),
+
+    };
+    // clang-format on
+
+    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
+
+    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    EXPECT_TRUE(options_.do_add_date);
+    EXPECT_TRUE(options_.do_zip_file);
+    // TODO: Maybe we should trim the filename
+    EXPECT_EQ(" abc", std::string(options_.use_outfile));
+    EXPECT_TRUE(options_.use_socket);
+    EXPECT_TRUE(options_.use_control_socket);
+
+    // Other options retain default values
+    EXPECT_FALSE(options_.show_header_only);
+    EXPECT_TRUE(options_.do_vibrate);
+    EXPECT_FALSE(options_.do_fb);
+    EXPECT_FALSE(options_.do_progress_updates);
+    EXPECT_FALSE(options_.is_remote_mode);
+    EXPECT_FALSE(options_.do_broadcast);
+}
+
+TEST_F(DumpOptionsTest, InitializePartial2) {
+    // clang-format off
+    char* argv[] = {
+        const_cast<char*>("dumpstate"),
+        const_cast<char*>("-v"),
+        const_cast<char*>("-q"),
+        const_cast<char*>("-p"),
+        const_cast<char*>("-P"),
+        const_cast<char*>("-R"),
+        const_cast<char*>("-B"),
+    };
+    // clang-format on
+
+    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
+
+    EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+    EXPECT_TRUE(options_.show_header_only);
+    EXPECT_FALSE(options_.do_vibrate);
+    EXPECT_TRUE(options_.do_fb);
+    EXPECT_TRUE(options_.do_progress_updates);
+    EXPECT_TRUE(options_.is_remote_mode);
+    EXPECT_TRUE(options_.do_broadcast);
+
+    // Other options retain default values
+    EXPECT_FALSE(options_.do_add_date);
+    EXPECT_FALSE(options_.do_zip_file);
+    EXPECT_EQ("", options_.use_outfile);
+    EXPECT_FALSE(options_.use_socket);
+    EXPECT_FALSE(options_.use_control_socket);
+}
+
+TEST_F(DumpOptionsTest, InitializeHelp) {
+    // clang-format off
+    char* argv[] = {
+        const_cast<char*>("dumpstate"),
+        const_cast<char*>("-h")
+    };
+    // clang-format on
+
+    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
+
+    // -h is for help.
+    EXPECT_EQ(status, Dumpstate::RunStatus::HELP);
+}
+
+TEST_F(DumpOptionsTest, InitializeUnknown) {
+    // clang-format off
+    char* argv[] = {
+        const_cast<char*>("dumpstate"),
+        const_cast<char*>("-u")  // unknown flag
+    };
+    // clang-format on
+
+    Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
+
+    // -u is unknown.
+    EXPECT_EQ(status, Dumpstate::RunStatus::INVALID_INPUT);
+}
+
+TEST_F(DumpOptionsTest, ValidateOptionsNeedOutfile1) {
+    options_.do_zip_file = true;
+    EXPECT_FALSE(options_.ValidateOptions());
+    options_.use_outfile = "a/b/c";
+    EXPECT_TRUE(options_.ValidateOptions());
+}
+
+TEST_F(DumpOptionsTest, ValidateOptionsNeedOutfile2) {
+    options_.do_broadcast = true;
+    EXPECT_FALSE(options_.ValidateOptions());
+    options_.use_outfile = "a/b/c";
+    EXPECT_TRUE(options_.ValidateOptions());
+}
+
+TEST_F(DumpOptionsTest, ValidateOptionsNeedZipfile) {
+    options_.use_control_socket = true;
+    EXPECT_FALSE(options_.ValidateOptions());
+
+    options_.do_zip_file = true;
+    options_.use_outfile = "a/b/c";  // do_zip_file needs outfile
+    EXPECT_TRUE(options_.ValidateOptions());
+}
+
+TEST_F(DumpOptionsTest, ValidateOptionsUpdateProgressNeedsBroadcast) {
+    options_.do_progress_updates = true;
+    options_.use_outfile = "a/b/c";  // do_progress_updates needs outfile
+    EXPECT_FALSE(options_.ValidateOptions());
+
+    options_.do_broadcast = true;
+    EXPECT_TRUE(options_.ValidateOptions());
+}
+
+TEST_F(DumpOptionsTest, ValidateOptionsRemoteMode) {
+    options_.is_remote_mode = true;
+    EXPECT_FALSE(options_.ValidateOptions());
+
+    options_.do_broadcast = true;
+    options_.do_zip_file = true;
+    options_.do_add_date = true;
+    options_.use_outfile = "a/b/c";  // do_broadcast needs outfile
+    EXPECT_TRUE(options_.ValidateOptions());
+}
+
 class DumpstateTest : public DumpstateBaseTest {
   public:
     void SetUp() {
@@ -144,9 +313,8 @@ class DumpstateTest : public DumpstateBaseTest {
         SetDryRun(false);
         SetBuildType(android::base::GetProperty("ro.build.type", "(unknown)"));
         ds.progress_.reset(new Progress());
-        ds.update_progress_ = false;
         ds.update_progress_threshold_ = 0;
-        ds.options_ = Dumpstate::DumpOptions();
+        ds.options_.reset(new Dumpstate::DumpOptions());
     }
 
     // Runs a command and capture `stdout` and `stderr`.
@@ -171,7 +339,7 @@ class DumpstateTest : public DumpstateBaseTest {
     }
 
     void SetProgress(long progress, long initial_max, long threshold = 0) {
-        ds.update_progress_ = true;
+        ds.options_->do_progress_updates = true;
         ds.update_progress_threshold_ = threshold;
         ds.last_updated_progress_ = 0;
         ds.progress_.reset(new Progress(initial_max, progress, 1.2));
@@ -203,157 +371,6 @@ class DumpstateTest : public DumpstateBaseTest {
 
     Dumpstate& ds = Dumpstate::GetInstance();
 };
-
-TEST_F(DumpstateTest, ParseCommandlineOptionsNone) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("dumpstate")
-    };
-    // clang-format on
-
-    int ret = ds.ParseCommandlineOptions(ARRAY_SIZE(argv), argv);
-    EXPECT_EQ(-1, ret);
-    EXPECT_FALSE(ds.options_.do_add_date);
-    EXPECT_FALSE(ds.options_.do_zip_file);
-    EXPECT_EQ("", ds.options_.use_outfile);
-    EXPECT_FALSE(ds.options_.use_socket);
-    EXPECT_FALSE(ds.options_.use_control_socket);
-    EXPECT_FALSE(ds.options_.show_header_only);
-    EXPECT_TRUE(ds.options_.do_vibrate);
-    EXPECT_FALSE(ds.options_.do_fb);
-    EXPECT_FALSE(ds.update_progress_);
-    EXPECT_FALSE(ds.options_.is_remote_mode);
-    EXPECT_FALSE(ds.options_.do_broadcast);
-}
-
-TEST_F(DumpstateTest, ParseCommandlineOptionsPartial1) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("dumpstate"),
-        const_cast<char*>("-d"),
-        const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
-        const_cast<char*>("-s"),
-        const_cast<char*>("-S"),
-
-    };
-    // clang-format on
-    int ret = ds.ParseCommandlineOptions(ARRAY_SIZE(argv), argv);
-    EXPECT_EQ(-1, ret);
-    EXPECT_TRUE(ds.options_.do_add_date);
-    EXPECT_TRUE(ds.options_.do_zip_file);
-    // TODO: Maybe we should trim the filename
-    EXPECT_EQ(" abc", std::string(ds.options_.use_outfile));
-    EXPECT_TRUE(ds.options_.use_socket);
-    EXPECT_TRUE(ds.options_.use_control_socket);
-
-    // Other options retain default values
-    EXPECT_FALSE(ds.options_.show_header_only);
-    EXPECT_TRUE(ds.options_.do_vibrate);
-    EXPECT_FALSE(ds.options_.do_fb);
-    EXPECT_FALSE(ds.update_progress_);
-    EXPECT_FALSE(ds.options_.is_remote_mode);
-    EXPECT_FALSE(ds.options_.do_broadcast);
-}
-
-TEST_F(DumpstateTest, ParseCommandlineOptionsPartial2) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("dumpstate"),
-        const_cast<char*>("-v"),
-        const_cast<char*>("-q"),
-        const_cast<char*>("-p"),
-        const_cast<char*>("-P"),
-        const_cast<char*>("-R"),
-        const_cast<char*>("-B"),
-    };
-    // clang-format on
-    int ret = ds.ParseCommandlineOptions(ARRAY_SIZE(argv), argv);
-    EXPECT_EQ(-1, ret);
-    EXPECT_TRUE(ds.options_.show_header_only);
-    EXPECT_FALSE(ds.options_.do_vibrate);
-    EXPECT_TRUE(ds.options_.do_fb);
-    EXPECT_TRUE(ds.update_progress_);
-    EXPECT_TRUE(ds.options_.is_remote_mode);
-    EXPECT_TRUE(ds.options_.do_broadcast);
-
-    // Other options retain default values
-    EXPECT_FALSE(ds.options_.do_add_date);
-    EXPECT_FALSE(ds.options_.do_zip_file);
-    EXPECT_EQ("", ds.options_.use_outfile);
-    EXPECT_FALSE(ds.options_.use_socket);
-    EXPECT_FALSE(ds.options_.use_control_socket);
-}
-
-TEST_F(DumpstateTest, ParseCommandlineOptionsHelp) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("dumpstate"),
-        const_cast<char*>("-h")
-    };
-    // clang-format on
-    int ret = ds.ParseCommandlineOptions(ARRAY_SIZE(argv), argv);
-
-    // -h is for help. Caller exit with code = 0 after printing usage, so expect return = 0.
-    EXPECT_EQ(0, ret);
-}
-
-TEST_F(DumpstateTest, ParseCommandlineOptionsUnknown) {
-    // clang-format off
-    char* argv[] = {
-        const_cast<char*>("dumpstate"),
-        const_cast<char*>("-u")  // unknown flag
-    };
-    // clang-format on
-    int ret = ds.ParseCommandlineOptions(ARRAY_SIZE(argv), argv);
-
-    // -u is unknown. Caller exit with code = 1 to show execution failure, after printing usage,
-    // so expect return = 1.
-    EXPECT_EQ(1, ret);
-}
-
-TEST_F(DumpstateTest, ValidateOptionsNeedOutfile1) {
-    ds.options_.do_zip_file = true;
-    EXPECT_FALSE(ds.ValidateOptions());
-    ds.options_.use_outfile = "a/b/c";
-    EXPECT_TRUE(ds.ValidateOptions());
-}
-
-TEST_F(DumpstateTest, ValidateOptionsNeedOutfile2) {
-    ds.options_.do_broadcast = true;
-    EXPECT_FALSE(ds.ValidateOptions());
-    ds.options_.use_outfile = "a/b/c";
-    EXPECT_TRUE(ds.ValidateOptions());
-}
-
-TEST_F(DumpstateTest, ValidateOptionsNeedZipfile) {
-    ds.options_.use_control_socket = true;
-    EXPECT_FALSE(ds.ValidateOptions());
-
-    ds.options_.do_zip_file = true;
-    ds.options_.use_outfile = "a/b/c";  // do_zip_file needs outfile
-    EXPECT_TRUE(ds.ValidateOptions());
-}
-
-TEST_F(DumpstateTest, ValidateOptionsUpdateProgressNeedsBroadcast) {
-    ds.update_progress_ = true;
-    ds.options_.use_outfile = "a/b/c";  // update_progress_ needs outfile
-    EXPECT_FALSE(ds.ValidateOptions());
-
-    ds.options_.do_broadcast = true;
-    EXPECT_TRUE(ds.ValidateOptions());
-}
-
-TEST_F(DumpstateTest, ValidateOptionsRemoteMode) {
-    ds.options_.is_remote_mode = true;
-    EXPECT_FALSE(ds.ValidateOptions());
-
-    ds.options_.do_broadcast = true;
-    ds.options_.do_zip_file = true;
-    ds.options_.do_add_date = true;
-    ds.options_.use_outfile = "a/b/c";  // do_broadcast needs outfile
-    EXPECT_TRUE(ds.ValidateOptions());
-}
 
 TEST_F(DumpstateTest, RunCommandNoArgs) {
     EXPECT_EQ(-1, RunCommand("", {}));
