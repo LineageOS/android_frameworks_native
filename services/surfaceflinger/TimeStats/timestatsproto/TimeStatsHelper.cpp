@@ -39,7 +39,7 @@ void TimeStatsHelper::Histogram::insert(int32_t delta) {
     if (delta < 0) return;
     // std::lower_bound won't work on out of range values
     if (delta > histogramConfig[HISTOGRAM_SIZE - 1]) {
-        hist[histogramConfig[HISTOGRAM_SIZE - 1]]++;
+        hist[histogramConfig[HISTOGRAM_SIZE - 1]] += delta / histogramConfig[HISTOGRAM_SIZE - 1];
         return;
     }
     auto iter = std::lower_bound(histogramConfig.begin(), histogramConfig.end(), delta);

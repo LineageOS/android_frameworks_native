@@ -451,6 +451,8 @@ void TimeStats::removeTimeRecord(int32_t layerID, uint64_t frameNumber) {
 }
 
 void TimeStats::flushPowerTimeLocked() {
+    if (!mEnabled.load()) return;
+
     nsecs_t curTime = systemTime();
     // elapsedTime is in milliseconds.
     int64_t elapsedTime = (curTime - mPowerTime.prevTime) / 1000000;
@@ -500,10 +502,14 @@ void TimeStats::flushAvailableGlobalRecordsToStatsLocked() {
         ALOGV("GlobalPresentFenceTime[%" PRId64 "]",
               mGlobalRecord.presentFences.front()->getSignalTime());
 
-        const int32_t presentToPresentMs = msBetween(mGlobalRecord.prevPresentTime, curPresentTime);
-        ALOGV("Global present2present[%d]", presentToPresentMs);
+        if (mGlobalRecord.prevPresentTime != 0) {
+            const int32_t presentToPresentMs =
+                    msBetween(mGlobalRecord.prevPresentTime, curPresentTime);
+            ALOGV("Global present2present[%d] prev[%" PRId64 "] curr[%" PRId64 "]",
+                  presentToPresentMs, mGlobalRecord.prevPresentTime, curPresentTime);
+            mTimeStats.presentToPresent.insert(presentToPresentMs);
+        }
 
-        mTimeStats.presentToPresent.insert(presentToPresentMs);
         mGlobalRecord.prevPresentTime = curPresentTime;
         mGlobalRecord.presentFences.pop_front();
     }
@@ -514,7 +520,15 @@ void TimeStats::setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentF
 
     ATRACE_CALL();
     std::lock_guard<std::mutex> lock(mMutex);
-    if (presentFence == nullptr) {
+    if (presentFence == nullptr || !presentFence->isValid()) {
+        mGlobalRecord.prevPresentTime = 0;
+        return;
+    }
+
+    if (mPowerTime.powerMode != HWC_POWER_MODE_NORMAL) {
+        // Try flushing the last present fence on HWC_POWER_MODE_NORMAL.
+        flushAvailableGlobalRecordsToStatsLocked();
+        mGlobalRecord.presentFences.clear();
         mGlobalRecord.prevPresentTime = 0;
         return;
     }
@@ -537,10 +551,10 @@ void TimeStats::enable() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    ALOGD("Enabled");
     mEnabled.store(true);
     mTimeStats.statsStart = static_cast<int64_t>(std::time(0));
     mPowerTime.prevTime = systemTime();
+    ALOGD("Enabled");
 }
 
 void TimeStats::disable() {
@@ -549,16 +563,17 @@ void TimeStats::disable() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    ALOGD("Disabled");
+    flushPowerTimeLocked();
     mEnabled.store(false);
     mTimeStats.statsEnd = static_cast<int64_t>(std::time(0));
+    ALOGD("Disabled");
 }
 
 void TimeStats::clear() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
-    ALOGD("Cleared");
+    mTimeStatsTracker.clear();
     mTimeStats.stats.clear();
     mTimeStats.statsStart = (mEnabled.load() ? static_cast<int64_t>(std::time(0)) : 0);
     mTimeStats.statsEnd = 0;
@@ -568,6 +583,9 @@ void TimeStats::clear() {
     mTimeStats.displayOnTime = 0;
     mTimeStats.presentToPresent.hist.clear();
     mPowerTime.prevTime = systemTime();
+    mGlobalRecord.prevPresentTime = 0;
+    mGlobalRecord.presentFences.clear();
+    ALOGD("Cleared");
 }
 
 bool TimeStats::isEnabled() {
