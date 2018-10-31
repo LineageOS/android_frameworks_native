@@ -14,6 +14,10 @@ class IBufferClient : public IInterface {
 
   // Checks if the buffer node is valid.
   virtual bool isValid() = 0;
+
+  // Duplicates the client. Token_out will be set to a new token when succeed,
+  // and not changed when failed.
+  virtual status_t duplicate(uint64_t* outToken) = 0;
 };
 
 // BnInterface for IBufferClient. Should only be created in bufferhub service.

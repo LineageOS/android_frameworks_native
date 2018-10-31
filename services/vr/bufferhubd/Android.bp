@@ -29,6 +29,7 @@ cc_library_static {
     name: "libbufferhubd",
     srcs: [
         "buffer_channel.cpp",
+        "buffer_client.cpp",
         "buffer_hub.cpp",
         "buffer_hub_binder.cpp",
         "buffer_node.cpp",
