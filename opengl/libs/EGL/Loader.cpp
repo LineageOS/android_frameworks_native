@@ -36,6 +36,7 @@
 #include "egl_platform_entries.h"
 #include "egl_trace.h"
 #include "egldefs.h"
+#include <EGL/eglext_angle.h>
 
 extern "C" {
   android_namespace_t* android_get_exported_namespace(const char*);
@@ -541,6 +542,8 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
 
     if (use_angle) {
         ALOGV("User set \"Developer Options\" to force the use of ANGLE");
+    } else if (cnx->angleDecided) {
+        use_angle = cnx->useAngle;
     } else {
         // The "Developer Options" value wasn't set to force the use of ANGLE.  Need to temporarily
         // load ANGLE and call the updatable opt-in/out logic:
@@ -610,6 +613,7 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
             use_angle = false;
             ALOGV("Could not temporarily-load the ANGLE opt-in/out logic, cannot use ANGLE.");
         }
+        cnx->angleDecided = true;
     }
     if (use_angle) {
         so = load_angle_from_namespace(kind, ns);
@@ -618,13 +622,30 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     if (so) {
         ALOGV("Loaded ANGLE %s library for %s (instead of native)",
               kind, app_name ? app_name : "nullptr");
-        property_get("debug.angle.backend", prop, "UNSET");
-        ALOGV("ANGLE's backend set to %s", prop);
         property_get("debug.hwui.renderer", prop, "UNSET");
         ALOGV("Skia's renderer set to %s", prop);
         cnx->useAngle = true;
-        // Find and load vendor libEGL for ANGLE
-        if (!cnx->vendorEGL) {
+
+        EGLint angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
+
+        char prop[PROPERTY_VALUE_MAX];
+        property_get("debug.angle.backend", prop, "0");
+        switch (atoi(prop)) {
+            case 1:
+                ALOGV("%s: Requesting OpenGLES back-end", __FUNCTION__);
+                angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE;
+                break;
+            case 2:
+                ALOGV("%s: Requesting Vulkan back-end", __FUNCTION__);
+                angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
+                break;
+            default:
+                break;
+        }
+
+        cnx->angleBackend = angleBackendDefault;
+        if (!cnx->vendorEGL && (cnx->angleBackend == EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE)) {
+            // Find and load vendor libEGL for ANGLE's GL back-end to use.
             cnx->vendorEGL = load_system_driver("EGL");
         }
         return so;
