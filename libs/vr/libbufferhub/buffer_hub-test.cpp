@@ -41,7 +41,10 @@ const int kLayerCount = 1;
 const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const size_t kUserMetadataSize = 0;
-const size_t kMaxConsumerCount = 63;
+// Maximum number of consumers for the buffer that only has one producer in the
+// test.
+const size_t kMaxConsumerCount =
+    android::dvr::BufferHubDefs::kMaxNumberOfClients - 1;
 const int kPollTimeoutMs = 100;
 
 using LibBufferHubTest = ::testing::Test;

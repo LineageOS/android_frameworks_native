@@ -31,6 +31,7 @@ static constexpr uint32_t kMetadataUsage =
 // Post'ed state:     [1|..|0|0]
 // Acquired'ed state: [1|..|X|X] -> At least one bit is set in lower 63 bits
 // Released'ed state: [0|..|X|X] -> At least one bit is set in lower 63 bits
+static constexpr int kMaxNumberOfClients = 64;
 static constexpr uint64_t kProducerStateBit = 1ULL << 63;
 static constexpr uint64_t kConsumerStateMask = (1ULL << 63) - 1;
 
