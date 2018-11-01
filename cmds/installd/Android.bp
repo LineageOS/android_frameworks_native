@@ -34,6 +34,21 @@ cc_defaults {
         "libutils",
     ],
 
+    product_variables: {
+        arc: {
+            exclude_srcs: [
+                "QuotaUtils.cpp",
+            ],
+            static_libs: [
+                "libarcdiskquota",
+                "arc_services_aidl",
+            ],
+            cflags: [
+                "-DUSE_ARC",
+            ],
+        },
+    },
+
     clang: true,
 
     tidy: true,
@@ -60,6 +75,26 @@ cc_library_static {
     aidl: {
         export_aidl_headers: true,
     },
+
+    product_variables: {
+        arc: {
+            exclude_srcs: [
+                "QuotaUtils.cpp",
+            ],
+            static_libs: [
+                "libarcdiskquota",
+                "arc_services_aidl",
+            ],
+            cflags: [
+                "-DUSE_ARC",
+            ],
+        },
+    },
+}
+
+cc_library_headers {
+    name: "libinstalld_headers",
+    export_include_dirs: ["."],
 }
 
 //
@@ -74,6 +109,21 @@ cc_binary {
     static_libs: ["libdiskusage"],
 
     init_rc: ["installd.rc"],
+
+    product_variables: {
+        arc: {
+            exclude_srcs: [
+                "QuotaUtils.cpp",
+            ],
+            static_libs: [
+                "libarcdiskquota",
+                "arc_services_aidl",
+            ],
+            cflags: [
+                "-DUSE_ARC",
+            ],
+        },
+    },
 }
 
 // OTA chroot tool
