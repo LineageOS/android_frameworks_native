@@ -36,8 +36,8 @@ const size_t kUserMetadataSize = 0;
 } // namespace
 
 using dvr::BufferHubDefs::IsBufferGained;
+using dvr::BufferHubDefs::kFirstClientBitMask;
 using dvr::BufferHubDefs::kMetadataHeaderSize;
-using dvr::BufferHubDefs::kProducerStateBit;
 using frameworks::bufferhub::V1_0::IBufferHub;
 using hardware::hidl_handle;
 using hidl::base::V1_0::IBase;
