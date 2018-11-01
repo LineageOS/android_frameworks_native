@@ -20,7 +20,6 @@
 #include <log/log.h>
 #include <system/window.h>
 #include <ui/BufferHubBuffer.h>
-#include <ui/DetachedBufferHandle.h>
 
 namespace android {
 
@@ -276,14 +275,10 @@ status_t BufferHubProducer::DetachBufferLocked(size_t slot) {
               status_or_handle.error());
         return BAD_VALUE;
     }
-    std::unique_ptr<DetachedBufferHandle> handle =
-            DetachedBufferHandle::Create(status_or_handle.take());
-    if (!handle->isValid()) {
-        ALOGE("detachBuffer: Failed to create a DetachedBufferHandle at slot %zu.", slot);
-        return BAD_VALUE;
-    }
 
-    return graphic_buffer->setDetachedBufferHandle(std::move(handle));
+    // TODO(b/70912269): Reimplement BufferHubProducer::DetachBufferLocked() once GraphicBuffer can
+    // be directly backed by BufferHub.
+    return INVALID_OPERATION;
 }
 
 status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<Fence>* out_fence) {
@@ -373,7 +368,7 @@ status_t BufferHubProducer::attachBuffer(int* out_slot, const sp<GraphicBuffer>&
         ALOGE("attachBuffer: out_slot cannot be NULL.");
         return BAD_VALUE;
     }
-    if (buffer == nullptr || !buffer->isDetachedBuffer()) {
+    if (buffer == nullptr) {
         ALOGE("attachBuffer: invalid GraphicBuffer.");
         return BAD_VALUE;
     }
@@ -394,45 +389,9 @@ status_t BufferHubProducer::attachBuffer(int* out_slot, const sp<GraphicBuffer>&
         return BAD_VALUE;
     }
 
-    // Creates a BufferProducer from the GraphicBuffer.
-    std::unique_ptr<DetachedBufferHandle> detached_handle = buffer->takeDetachedBufferHandle();
-    if (detached_handle == nullptr) {
-        ALOGE("attachBuffer: DetachedBufferHandle cannot be NULL.");
-        return BAD_VALUE;
-    }
-    std::shared_ptr<BufferProducer> buffer_producer =
-            BufferProducer::Import(std::move(detached_handle->handle()));
-    if (buffer_producer == nullptr) {
-        ALOGE("attachBuffer: Failed to import BufferProducer.");
-        return BAD_VALUE;
-    }
-
-    // Adds the BufferProducer into the Queue.
-    auto status_or_slot = queue_->InsertBuffer(buffer_producer);
-    if (!status_or_slot.ok()) {
-        ALOGE("attachBuffer: Failed to insert buffer, error=%d.", status_or_slot.error());
-        return BAD_VALUE;
-    }
-
-    size_t slot = status_or_slot.get();
-    ALOGV("attachBuffer: returning slot %zu.", slot);
-    if (slot >= static_cast<size_t>(max_buffer_count_)) {
-        ALOGE("attachBuffer: Invalid slot: %zu.", slot);
-        return BAD_VALUE;
-    }
-
-    // The just attached buffer should be in dequeued state according to IGraphicBufferProducer
-    // interface. In BufferHub's language the buffer should be in Gained state.
-    buffers_[slot].mGraphicBuffer = buffer;
-    buffers_[slot].mBufferState.attachProducer();
-    buffers_[slot].mEglFence = EGL_NO_SYNC_KHR;
-    buffers_[slot].mFence = Fence::NO_FENCE;
-    buffers_[slot].mRequestBufferCalled = true;
-    buffers_[slot].mAcquireCalled = false;
-    buffers_[slot].mNeedsReallocation = false;
-
-    *out_slot = static_cast<int>(slot);
-    return NO_ERROR;
+    // TODO(b/70912269): Reimplement BufferHubProducer::DetachBufferLocked() once GraphicBuffer can
+    // be directly backed by BufferHub.
+    return INVALID_OPERATION;
 }
 
 status_t BufferHubProducer::queueBuffer(int slot, const QueueBufferInput& input,

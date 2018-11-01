@@ -777,14 +777,6 @@ TEST_P(IGraphicBufferProducerTest,
     ASSERT_OK(mProducer->detachBuffer(slot));
     EXPECT_OK(buffer->initCheck());
 
-    if (GetParam() == USE_BUFFER_HUB_PRODUCER) {
-        // For a GraphicBuffer backed by BufferHub, once detached from an IGBP, it should have
-        // isDetachedBuffer() set. Note that this only applies to BufferHub.
-        EXPECT_TRUE(buffer->isDetachedBuffer());
-    } else {
-        EXPECT_FALSE(buffer->isDetachedBuffer());
-    }
-
     ASSERT_OK(mProducer->disconnect(TEST_API));
 
     ASSERT_EQ(NO_INIT, mProducer->attachBuffer(&slot, buffer));
@@ -801,16 +793,7 @@ TEST_P(IGraphicBufferProducerTest, DetachThenAttach_Succeeds) {
     ASSERT_OK(mProducer->detachBuffer(slot));
     EXPECT_OK(buffer->initCheck());
 
-    if (GetParam() == USE_BUFFER_HUB_PRODUCER) {
-        // For a GraphicBuffer backed by BufferHub, once detached from an IGBP, it should have
-        // isDetachedBuffer() set. Note that this only applies to BufferHub.
-        EXPECT_TRUE(buffer->isDetachedBuffer());
-    } else {
-        EXPECT_FALSE(buffer->isDetachedBuffer());
-    }
-
     EXPECT_OK(mProducer->attachBuffer(&slot, buffer));
-    EXPECT_FALSE(buffer->isDetachedBuffer());
     EXPECT_OK(buffer->initCheck());
 }
 
