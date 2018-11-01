@@ -1555,8 +1555,7 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
     for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[displayId]) {
+        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[token]) {
             compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
@@ -1653,16 +1652,16 @@ void SurfaceFlinger::calculateWorkingSet() {
     mDrawingState.colorMatrixChanged = false;
 
     for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        getBE().mCompositionInfo[displayId].clear();
+        getBE().mCompositionInfo[token].clear();
+
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            auto displayId = display->getId();
+            const auto displayId = display->getId();
             layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
             if (!layer->setHwcLayer(displayId)) {
                 ALOGV("Need to create HWCLayer for %s", layer->getName().string());
             }
             layer->getBE().compositionInfo.hwc.displayId = displayId;
-            getBE().mCompositionInfo[displayId].push_back(layer->getBE().compositionInfo);
+            getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
             layer->getBE().compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
@@ -1670,7 +1669,6 @@ void SurfaceFlinger::calculateWorkingSet() {
 
 void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)
 {
-    const auto displayId = display->getId();
     // is debugging enabled
     if (CC_LIKELY(!mDebugRegion))
         return;
@@ -1696,14 +1694,7 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
         usleep(mDebugRegion * 1000);
     }
 
-    if (display->isPoweredOn()) {
-        status_t result = display->prepareFrame(
-                *getBE().mHwc, getBE().mCompositionInfo[displayId]);
-        ALOGE_IF(result != NO_ERROR,
-                 "prepareFrame for display %d failed:"
-                 " %d (%s)",
-                 display->getId(), result, strerror(-result));
-    }
+    prepareFrame(display);
 }
 
 void SurfaceFlinger::doTracing(const char* where) {
@@ -2115,13 +2106,12 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 
 void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
 {
-    const auto displayId = display->getId();
     if (!display->isPoweredOn()) {
         return;
     }
 
-    status_t result = display->prepareFrame(
-            *getBE().mHwc, getBE().mCompositionInfo[displayId]);
+    status_t result = display->prepareFrame(getHwComposer(),
+                                            getBE().mCompositionInfo[display->getDisplayToken()]);
     ALOGE_IF(result != NO_ERROR,
              "prepareFrame for display %d failed:"
              " %d (%s)",
@@ -4377,17 +4367,13 @@ void SurfaceFlinger::dumpFrameCompositionInfo(String8& result) const {
     std::string stringResult;
 
     for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+        const auto it = getBE().mEndOfFrameCompositionInfo.find(token);
+        if (it == getBE().mEndOfFrameCompositionInfo.end()) {
             continue;
         }
 
-        const auto& compositionInfoIt = getBE().mEndOfFrameCompositionInfo.find(displayId);
-        if (compositionInfoIt == getBE().mEndOfFrameCompositionInfo.end()) {
-            break;
-        }
-        const auto& compositionInfoList = compositionInfoIt->second;
-        stringResult += base::StringPrintf("Display: %d\n", displayId);
+        const auto& compositionInfoList = it->second;
+        stringResult += base::StringPrintf("%s\n", display->getDebugName().c_str());
         stringResult += base::StringPrintf("numComponents: %zu\n", compositionInfoList.size());
         for (const auto& compositionInfo : compositionInfoList) {
             compositionInfo.dump(stringResult, nullptr);
