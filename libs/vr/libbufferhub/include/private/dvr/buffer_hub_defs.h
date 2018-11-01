@@ -31,6 +31,7 @@ static constexpr uint32_t kMetadataUsage =
 // Post'ed state:     [1|..|0|0]
 // Acquired'ed state: [1|..|X|X] -> At least one bit is set in lower 63 bits
 // Released'ed state: [0|..|X|X] -> At least one bit is set in lower 63 bits
+static constexpr int kMaxNumberOfClients = 64;
 static constexpr uint64_t kProducerStateBit = 1ULL << 63;
 static constexpr uint64_t kConsumerStateMask = (1ULL << 63) - 1;
 
@@ -59,12 +60,12 @@ static inline bool IsBufferReleased(uint64_t state) {
   return !(state & kProducerStateBit) && (state & kConsumerStateMask);
 }
 
-static inline uint64_t FindNextClearedBit(uint64_t bits) {
+static inline uint64_t FindNextAvailableClientStateMask(uint64_t bits) {
   return ~bits - (~bits & (~bits - 1));
 }
 
 static inline uint64_t FindFirstClearedBit() {
-  return FindNextClearedBit(kProducerStateBit);
+  return FindNextAvailableClientStateMask(kProducerStateBit);
 }
 
 struct __attribute__((packed, aligned(8))) MetadataHeader {

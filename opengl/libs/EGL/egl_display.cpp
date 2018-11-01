@@ -128,55 +128,9 @@ EGLDisplay egl_display_t::getFromNativeDisplay(EGLNativeDisplayType disp,
     return sDisplay[uintptr_t(disp)].getPlatformDisplay(disp, attrib_list);
 }
 
-static bool addAnglePlatformAttributes(egl_connection_t* const cnx, const EGLAttrib* attrib_list,
+static bool addAnglePlatformAttributes(egl_connection_t* const cnx,
                                        std::vector<EGLAttrib>& attrs) {
     intptr_t vendorEGL = (intptr_t)cnx->vendorEGL;
-
-    EGLint angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
-    if (attrib_list) {
-        while (*attrib_list != EGL_NONE) {
-            EGLAttrib attr = *attrib_list++;
-            EGLAttrib value = *attrib_list++;
-            if (attr == EGL_PLATFORM_ANGLE_TYPE_ANGLE) {
-                switch (value) {
-                    case EGL_PLATFORM_ANGLE_TYPE_DEFAULT_ANGLE:
-                        angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
-                        break;
-                    case EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE:
-                    case EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE:
-                        angleBackendDefault = value;
-                        break;
-                    default:
-                        ALOGW("Invalid EGL_PLATFORM_ANGLE_TYPE_ANGLE attribute: 0x%" PRIxPTR,
-                              value);
-                        break;
-                }
-            }
-        }
-    }
-
-    // Allow debug property to override application's
-    char prop[PROPERTY_VALUE_MAX];
-    property_get("debug.angle.backend", prop, "0");
-    switch (atoi(prop)) {
-        case 1:
-            ALOGV("addAnglePlatformAttributes: Requesting OpenGLES back-end");
-            angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_OPENGLES_ANGLE;
-            break;
-        case 2:
-            ALOGV("addAnglePlatformAttributes: Requesting Vulkan back-end");
-            angleBackendDefault = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
-            break;
-        default:
-            break;
-    }
-
-    if (cnx->angleBackend == 0) {
-        // Haven't been initialized yet, so set it.
-        cnx->angleBackend = angleBackendDefault;
-    } else if (cnx->angleBackend != angleBackendDefault) {
-        return false;
-    }
 
     attrs.reserve(4 * 2);
 
@@ -186,6 +140,7 @@ static bool addAnglePlatformAttributes(egl_connection_t* const cnx, const EGLAtt
     switch (cnx->angleBackend) {
         case EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE:
             ALOGV("%s: Requesting Vulkan ANGLE back-end", __FUNCTION__);
+            char prop[PROPERTY_VALUE_MAX];
             property_get("debug.angle.validation", prop, "0");
             attrs.push_back(EGL_PLATFORM_ANGLE_DEBUG_LAYERS_ENABLED_ANGLE);
             attrs.push_back(atoi(prop));
@@ -212,7 +167,7 @@ static bool addAnglePlatformAttributes(egl_connection_t* const cnx, const EGLAtt
 // Initialize function ptrs for ANGLE PlatformMethods struct, used for systrace
 bool initializeAnglePlatform(EGLDisplay dpy) {
     // Since we're inside libEGL, use dlsym to lookup fptr for ANGLEGetDisplayPlatform
-    android_namespace_t* ns = android_getAngleNamespace();
+    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     const android_dlextinfo dlextinfo = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
             .library_namespace = ns,
@@ -260,7 +215,7 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
             }
         }
 
-        if (!addAnglePlatformAttributes(cnx, attrib_list, attrs)) {
+        if (!addAnglePlatformAttributes(cnx, attrs)) {
             ALOGE("eglGetDisplay(%p) failed: Mismatch display request", display);
             *error = EGL_BAD_PARAMETER;
             return EGL_NO_DISPLAY;

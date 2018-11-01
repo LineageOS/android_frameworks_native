@@ -58,10 +58,10 @@ public:
     void setLayerPaths(NativeLoaderNamespace* appNamespace, const std::string layerPaths);
     NativeLoaderNamespace* getAppNamespace();
 
-    const std::string getLayerPaths();
+    const std::string& getLayerPaths();
 
     void setDebugLayers(const std::string layers);
-    const std::string getDebugLayers();
+    const std::string& getDebugLayers();
 
 private:
     GraphicsEnv() = default;
@@ -81,29 +81,5 @@ private:
 };
 
 } // namespace android
-
-/* FIXME
- * Export an un-mangled function that just does
- *     return android::GraphicsEnv::getInstance().getDriverNamespace();
- * This allows libEGL to get the function pointer via dlsym, since it can't
- * directly link against libgui. In a future release, we'll fix this so that
- * libgui does not depend on graphics API libraries, and libEGL can link
- * against it. The current dependencies from libgui -> libEGL are:
- *  - the GLConsumer class, which should be moved to its own library
- *  - the EGLsyncKHR synchronization in BufferQueue, which is deprecated and
- *    will be removed soon.
- */
-extern "C" {
-    android_namespace_t* android_getDriverNamespace();
-    android_namespace_t* android_getAngleNamespace();
-    const char* android_getAngleAppName();
-    const char* android_getAngleAppPref();
-    bool android_getAngleDeveloperOptIn();
-    int android_getAngleRulesFd();
-    long android_getAngleRulesOffset();
-    long android_getAngleRulesLength();
-    const char* android_getLayerPaths();
-    const char* android_getDebugLayers();
-}
 
 #endif // ANDROID_UI_GRAPHICS_ENV_H

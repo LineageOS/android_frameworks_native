@@ -122,9 +122,7 @@ class BufferDescription {
   int buffer_cid() const { return buffer_cid_; }
 
   // State mask of the buffer client. Each BufferHub client backed by the
-  // same buffer channel has uniqued state bit among its siblings. For a
-  // producer buffer the bit must be kProducerStateBit; for a consumer the bit
-  // must be one of the kConsumerStateMask.
+  // same buffer channel has uniqued state bit among its siblings.
   uint64_t client_state_mask() const { return client_state_mask_; }
   FileHandleType take_acquire_fence() { return std::move(acquire_fence_fd_); }
   FileHandleType take_release_fence() { return std::move(release_fence_fd_); }
@@ -314,7 +312,6 @@ struct BufferHubRPC {
     kOpProducerGain,
     kOpConsumerAcquire,
     kOpConsumerRelease,
-    kOpProducerBufferDetach,
     kOpConsumerBufferDetach,
     kOpCreateProducerQueue,
     kOpCreateConsumerQueue,
@@ -344,8 +341,6 @@ struct BufferHubRPC {
   PDX_REMOTE_METHOD(ConsumerAcquire, kOpConsumerAcquire, LocalFence(Void));
   PDX_REMOTE_METHOD(ConsumerRelease, kOpConsumerRelease,
                     void(LocalFence release_fence));
-  PDX_REMOTE_METHOD(ProducerBufferDetach, kOpProducerBufferDetach,
-                    LocalChannelHandle(Void));
 
   // Detaches a ConsumerBuffer from an existing producer/consumer set. Can only
   // be called when the consumer is the only consumer and it has exclusive

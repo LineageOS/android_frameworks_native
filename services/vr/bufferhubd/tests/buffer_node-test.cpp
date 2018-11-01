@@ -14,6 +14,7 @@ const uint32_t kLayerCount = 1;
 const uint32_t kFormat = 1;
 const uint64_t kUsage = 0;
 const size_t kUserMetadataSize = 0;
+const size_t kMaxClientsCount = BufferHubDefs::kMaxNumberOfClients;
 
 class BufferNodeTest : public ::testing::Test {
  protected:
@@ -55,7 +56,7 @@ TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_32NewClients) {
   uint64_t current_mask = 0ULL;
   uint64_t expected_mask = 0ULL;
 
-  for (int i = 0; i < 64; ++i) {
+  for (int i = 0; i < kMaxClientsCount; ++i) {
     new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
     EXPECT_NE(new_client_state_mask, 0);
     EXPECT_FALSE(new_client_state_mask & current_mask);

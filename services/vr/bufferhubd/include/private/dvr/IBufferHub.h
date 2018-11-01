@@ -17,6 +17,9 @@ class IBufferHub : public IInterface {
                                          uint32_t layer_count, uint32_t format,
                                          uint64_t usage,
                                          uint64_t user_metadata_size) = 0;
+
+  virtual status_t importBuffer(uint64_t token,
+                                sp<IBufferClient>* outClient) = 0;
 };
 
 class BnBufferHub : public BnInterface<IBufferHub> {

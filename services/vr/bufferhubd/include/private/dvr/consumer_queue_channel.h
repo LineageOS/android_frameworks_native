@@ -42,7 +42,7 @@ class ConsumerQueueChannel : public BufferHubChannel {
  private:
   std::shared_ptr<ProducerQueueChannel> GetProducer() const;
 
-  // Pointer to the prodcuer channel
+  // Pointer to the producer channel.
   std::weak_ptr<Channel> producer_;
 
   // Tracks newly allocated buffer producers along with it's slot number.

@@ -17,10 +17,10 @@ namespace android {
 namespace dvr {
 
 ConsumerChannel::ConsumerChannel(BufferHubService* service, int buffer_id,
-                                 int channel_id, uint64_t consumer_state_bit,
+                                 int channel_id, uint64_t client_state_mask,
                                  const std::shared_ptr<Channel> producer)
     : BufferHubChannel(service, buffer_id, channel_id, kConsumerType),
-      consumer_state_bit_(consumer_state_bit),
+      client_state_mask_(client_state_mask),
       producer_(producer) {
   GetProducer()->AddConsumer(this);
 }
@@ -41,7 +41,7 @@ BufferHubChannel::BufferInfo ConsumerChannel::GetBufferInfo() const {
     // If producer has not hung up, copy most buffer info from the producer.
     info = producer->GetBufferInfo();
   } else {
-    info.signaled_mask = consumer_state_bit();
+    info.signaled_mask = client_state_mask();
   }
   info.id = buffer_id();
   return info;
@@ -100,7 +100,7 @@ Status<BufferDescription<BorrowedHandle>> ConsumerChannel::OnGetBuffer(
   ATRACE_NAME("ConsumerChannel::OnGetBuffer");
   ALOGD_IF(TRACE, "ConsumerChannel::OnGetBuffer: buffer=%d", buffer_id());
   if (auto producer = GetProducer()) {
-    return {producer->GetBuffer(consumer_state_bit_)};
+    return {producer->GetBuffer(client_state_mask_)};
   } else {
     return ErrorStatus(EPIPE);
   }
