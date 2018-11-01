@@ -51,7 +51,7 @@ public:
     ~Loader();
 
     void* open(egl_connection_t* cnx);
-    void close(void* driver);
+    void close(egl_connection_t* cnx);
 
 private:
     Loader();
