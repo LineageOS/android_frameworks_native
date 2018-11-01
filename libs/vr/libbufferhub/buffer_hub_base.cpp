@@ -123,17 +123,17 @@ int BufferHubBase::ImportBuffer() {
   buffer_state_ = &metadata_header_->buffer_state;
   ALOGD_IF(TRACE,
            "BufferHubBase::ImportBuffer: id=%d, buffer_state=%" PRIx64 ".",
-           id(), buffer_state_->load());
+           id(), buffer_state_->load(std::memory_order_acquire));
   fence_state_ = &metadata_header_->fence_state;
   ALOGD_IF(TRACE,
            "BufferHubBase::ImportBuffer: id=%d, fence_state=%" PRIx64 ".", id(),
-           fence_state_->load());
+           fence_state_->load(std::memory_order_acquire));
   active_clients_bit_mask_ = &metadata_header_->active_clients_bit_mask;
   ALOGD_IF(
       TRACE,
       "BufferHubBase::ImportBuffer: id=%d, active_clients_bit_mask=%" PRIx64
       ".",
-      id(), active_clients_bit_mask_->load());
+      id(), active_clients_bit_mask_->load(std::memory_order_acquire));
 
   return 0;
 }

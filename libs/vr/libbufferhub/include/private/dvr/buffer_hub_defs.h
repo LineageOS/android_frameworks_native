@@ -40,7 +40,7 @@ static inline void ModifyBufferState(std::atomic<uint64_t>* buffer_state,
   uint64_t old_state;
   uint64_t new_state;
   do {
-    old_state = buffer_state->load();
+    old_state = buffer_state->load(std::memory_order_acquire);
     new_state = (old_state & ~clear_mask) | set_mask;
   } while (!buffer_state->compare_exchange_weak(old_state, new_state));
 }

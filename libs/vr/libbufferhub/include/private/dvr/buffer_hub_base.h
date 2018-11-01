@@ -90,7 +90,9 @@ class BufferHubBase : public pdx::Client {
   int cid() const { return cid_; }
 
   // Returns the buffer buffer state.
-  uint64_t buffer_state() { return buffer_state_->load(); };
+  uint64_t buffer_state() {
+    return buffer_state_->load(std::memory_order_acquire);
+  };
 
   // A state mask which is unique to a buffer hub client among all its siblings
   // sharing the same concrete graphic buffer.
