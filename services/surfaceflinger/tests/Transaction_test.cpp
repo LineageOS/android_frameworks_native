@@ -318,7 +318,7 @@ protected:
 
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
         sp<IBinder> binder = sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
-        mColorManagementUsed = sf->isColorManagementUsed();
+        ASSERT_NO_FATAL_FAILURE(sf->getColorManagement(&mColorManagementUsed));
     }
 
     virtual void TearDown() {

@@ -588,19 +588,16 @@ public:
         return error;
     }
 
-    virtual bool isColorManagementUsed() const {
+    virtual status_t getColorManagement(bool* outGetColorManagement) const {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::IS_COLOR_MANAGEMET_USED, data, &reply);
-        int32_t result = 0;
-        status_t err = reply.readInt32(&result);
-        if (err != NO_ERROR) {
-            ALOGE("ISurfaceComposer::isColorManagementUsed: error "
-                  "retrieving result: %s (%d)",
-                  strerror(-err), -err);
-            return false;
+        remote()->transact(BnSurfaceComposer::GET_COLOR_MANAGEMENT, data, &reply);
+        bool result;
+        status_t err = reply.readBool(&result);
+        if (err == NO_ERROR) {
+            *outGetColorManagement = result;
         }
-        return result != 0;
+        return err;
     }
 };
 
@@ -945,11 +942,14 @@ status_t BnSurfaceComposer::onTransact(
             }
             return NO_ERROR;
         }
-        case IS_COLOR_MANAGEMET_USED: {
+        case GET_COLOR_MANAGEMENT: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int32_t result = isColorManagementUsed() ? 1 : 0;
-            reply->writeInt32(result);
-            return NO_ERROR;
+            bool result;
+            status_t error = getColorManagement(&result);
+            if (error == NO_ERROR) {
+                reply->writeBool(result);
+            }
+            return result;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

@@ -635,7 +635,7 @@ public:
         return NO_ERROR;
     }
 
-    virtual bool isColorManagementUsed() const { return false; }
+    virtual status_t getColorManagement(bool* /*outGetColorManagement*/) const { return NO_ERROR; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

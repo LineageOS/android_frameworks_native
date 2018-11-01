@@ -280,7 +280,7 @@ public:
      */
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const = 0;
 
-    virtual bool isColorManagementUsed() const = 0;
+    virtual status_t getColorManagement(bool* outGetColorManagement) const = 0;
 
     /* Gets the composition preference of the default data space and default pixel format,
      * as well as the wide color gamut data space and wide color gamut pixel format.
@@ -331,7 +331,7 @@ public:
         GET_LAYER_DEBUG_INFO,
         CREATE_SCOPED_CONNECTION,
         GET_COMPOSITION_PREFERENCE,
-        IS_COLOR_MANAGEMET_USED,
+        GET_COLOR_MANAGEMENT,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,
