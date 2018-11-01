@@ -25,6 +25,7 @@ cc_test {
         "libhidltransport",
         "liblog",
         "libutils",
+        "libnativewindow",
     ],
 
     include_dirs: [
