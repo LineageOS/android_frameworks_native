@@ -29,7 +29,6 @@
 #include <displayservice/DisplayService.h>
 #include <hidl/LegacySupport.h>
 #include <configstore/Utils.h>
-#include "GpuService.h"
 #include "SurfaceFlinger.h"
 
 using namespace android;
@@ -103,10 +102,6 @@ int main(int, char**) {
     sp<IServiceManager> sm(defaultServiceManager());
     sm->addService(String16(SurfaceFlinger::getServiceName()), flinger, false,
                    IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL | IServiceManager::DUMP_FLAG_PROTO);
-
-    // publish GpuService
-    sp<GpuService> gpuservice = new GpuService();
-    sm->addService(String16(GpuService::SERVICE_NAME), gpuservice, false);
 
     startDisplayService(); // dependency on SF getting registered above
 

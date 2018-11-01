@@ -17,6 +17,8 @@
 #ifndef ANDROID_GPUSERVICE_H
 #define ANDROID_GPUSERVICE_H
 
+#include <vector>
+
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
 
@@ -34,22 +36,21 @@ public:
 class BnGpuService: public BnInterface<IGpuService> {
 protected:
     virtual status_t shellCommand(int in, int out, int err,
-        Vector<String16>& args) = 0;
+                                  std::vector<String16>& args) = 0;
 
-    virtual status_t onTransact(uint32_t code, const Parcel& data,
+    status_t onTransact(uint32_t code, const Parcel& data,
             Parcel* reply, uint32_t flags = 0) override;
 };
 
-class GpuService : public BnGpuService
-{
+class GpuService : public BnGpuService {
 public:
     static const char* const SERVICE_NAME ANDROID_API;
 
     GpuService() ANDROID_API;
 
 protected:
-    virtual status_t shellCommand(int in, int out, int err,
-        Vector<String16>& args) override;
+    status_t shellCommand(int in, int out, int err,
+                          std::vector<String16>& args) override;
 };
 
 } // namespace android
