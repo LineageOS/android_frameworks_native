@@ -17,8 +17,11 @@
 #ifndef ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
 #define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
 
-#include <android/frameworks/bufferhub/1.0/IBufferClient.h>
+#include <mutex>
+
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
+#include <bufferhub/BufferClient.h>
+#include <utils/Mutex.h>
 
 namespace android {
 namespace frameworks {
@@ -36,6 +39,11 @@ public:
                                 const uint32_t userMetadataSize,
                                 allocateBuffer_cb _hidl_cb) override;
     Return<void> importBuffer(const hidl_handle& nativeHandle, importBuffer_cb _hidl_cb) override;
+
+private:
+    // List of active BufferClient for bookkeeping.
+    std::mutex mClientListMutex;
+    std::vector<sp<BufferClient>> mClientList GUARDED_BY(mClientListMutex);
 };
 
 } // namespace implementation

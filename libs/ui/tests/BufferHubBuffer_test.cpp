@@ -18,6 +18,7 @@
 
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
+#include <android/hardware_buffer.h>
 #include <gtest/gtest.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
@@ -41,6 +42,7 @@ using frameworks::bufferhub::V1_0::BufferHubStatus;
 using frameworks::bufferhub::V1_0::IBufferClient;
 using frameworks::bufferhub::V1_0::IBufferHub;
 using hardware::hidl_handle;
+using hardware::graphics::common::V1_2::HardwareBufferDescription;
 using hidl::base::V1_0::IBase;
 using pdx::LocalChannelHandle;
 
@@ -124,19 +126,22 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     return;
 }
 
-TEST_F(BufferHubBufferTest, ConnectHidlServer) {
-    sp<IBufferHub> bufferhub = IBufferHub::getService();
-    ASSERT_NE(nullptr, bufferhub.get());
+TEST_F(BufferHubBufferTest, AllocateBuffer) {
+    // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
+    sp<IBufferHub> bufferHub = IBufferHub::getService();
+    ASSERT_NE(nullptr, bufferHub.get());
 
-    // TODO(b/116681016): Fill in real test once the interface gets implemented..
-    hidl_handle handle;
-    EXPECT_TRUE(bufferhub
-                        ->importBuffer(handle,
-                                       [](const auto& client, const auto& ret) {
-                                           EXPECT_EQ(client, nullptr);
-                                           EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
-                                       })
-                        .isOk());
+    // Stride is an output, rfu0 and rfu1 are reserved data slot for future use.
+    AHardwareBuffer_Desc aDesc = {kWidth, kHeight,        kLayerCount,  kFormat,
+                                  kUsage, /*stride=*/0UL, /*rfu0=*/0UL, /*rfu1=*/0ULL};
+    HardwareBufferDescription desc;
+    memcpy(&desc, &aDesc, sizeof(HardwareBufferDescription));
+
+    IBufferHub::allocateBuffer_cb callback = [](const auto& client, const auto& status) {
+        EXPECT_EQ(status, BufferHubStatus::NO_ERROR);
+        EXPECT_NE(nullptr, client.get());
+    };
+    EXPECT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
 }
 
 } // namespace
