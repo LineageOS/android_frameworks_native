@@ -280,10 +280,19 @@ public:
      */
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const = 0;
 
-    virtual status_t getCompositionPreference(ui::Dataspace* dataSpace,
-                                              ui::PixelFormat* pixelFormat) const = 0;
-
     virtual bool isColorManagementUsed() const = 0;
+
+    /* Gets the composition preference of the default data space and default pixel format,
+     * as well as the wide color gamut data space and wide color gamut pixel format.
+     * If the wide color gamut data space is V0_SRGB, then it implies that the platform
+     * has no wide color gamut support.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t getCompositionPreference(ui::Dataspace* defaultDataspace,
+                                              ui::PixelFormat* defaultPixelFormat,
+                                              ui::Dataspace* wideColorGamutDataspace,
+                                              ui::PixelFormat* wideColorGamutPixelFormat) const = 0;
 };
 
 // ----------------------------------------------------------------------------

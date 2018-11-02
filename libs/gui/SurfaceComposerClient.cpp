@@ -866,9 +866,12 @@ void SurfaceComposerClient::setDisplayPowerMode(const sp<IBinder>& token,
     ComposerService::getComposerService()->setPowerMode(token, mode);
 }
 
-status_t SurfaceComposerClient::getCompositionPreference(ui::Dataspace* dataSpace,
-                                                         ui::PixelFormat* pixelFormat) {
-    return ComposerService::getComposerService()->getCompositionPreference(dataSpace, pixelFormat);
+status_t SurfaceComposerClient::getCompositionPreference(
+        ui::Dataspace* defaultDataspace, ui::PixelFormat* defaultPixelFormat,
+        ui::Dataspace* wideColorGamutDataspace, ui::PixelFormat* wideColorGamutPixelFormat) {
+    return ComposerService::getComposerService()
+            ->getCompositionPreference(defaultDataspace, defaultPixelFormat,
+                                       wideColorGamutDataspace, wideColorGamutPixelFormat);
 }
 
 status_t SurfaceComposerClient::clearAnimationFrameStats() {
