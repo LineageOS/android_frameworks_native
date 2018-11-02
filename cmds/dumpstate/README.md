@@ -52,6 +52,12 @@ mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest/dump
 adb shell setprop dumpstate.dry_run true
 ```
 
+## To emulate a device with user build
+
+```
+adb shell setprop dumpstate.unroot true
+```
+
 ## To change the `dumpstate` version
 
 ```
