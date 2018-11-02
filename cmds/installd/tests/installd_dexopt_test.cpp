@@ -143,6 +143,20 @@ static const char kDexFile[] =
     "AAAACADojmFLPcugSwoBAAAUAgAACwAYAAAAAAAAAAAAoIEAAAAAY2xhc3Nlcy5kZXhVVAUAA/Ns"
     "+ll1eAsAAQQj5QIABIgTAABQSwUGAAAAAAEAAQBRAAAATwEAAAAA";
 
+class DexoptTestEnvTest : public testing::Test {
+};
+
+TEST_F(DexoptTestEnvTest, CheckSelinux) {
+    ASSERT_EQ(1, is_selinux_enabled());
+
+    // Crude cutout for virtual devices.
+#if !defined(__i386__) && !defined(__x86_64__)
+    constexpr bool kIsX86 = false;
+#else
+    constexpr bool kIsX86 = true;
+#endif
+    ASSERT_TRUE(1 == security_getenforce() || kIsX86);
+}
 
 class DexoptTest : public testing::Test {
 protected:
