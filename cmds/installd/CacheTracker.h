@@ -39,7 +39,7 @@ namespace installd {
  */
 class CacheTracker {
 public:
-    CacheTracker(userid_t userId, appid_t appId, const std::string& quotaDevice);
+    CacheTracker(userid_t userId, appid_t appId, const std::string& uuid);
     ~CacheTracker();
 
     std::string toString();
@@ -61,8 +61,8 @@ public:
 private:
     userid_t mUserId;
     appid_t mAppId;
-    std::string mQuotaDevice;
     bool mItemsLoaded;
+    const std::string& mUuid;
 
     std::vector<std::string> mDataPaths;
 
