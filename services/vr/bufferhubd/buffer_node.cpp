@@ -1,6 +1,9 @@
 #include <errno.h>
+
+#include <private/dvr/IBufferHub.h>
 #include <private/dvr/buffer_hub_defs.h>
 #include <private/dvr/buffer_node.h>
+#include <ui/GraphicBufferAllocator.h>
 
 namespace android {
 namespace dvr {
@@ -19,13 +22,25 @@ void BufferNode::InitializeMetadata() {
 BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count,
                        uint32_t format, uint64_t usage,
                        size_t user_metadata_size) {
-  if (int ret = buffer_.Alloc(width, height, layer_count, format, usage)) {
-    ALOGE(
-        "DetachedBufferChannel::DetachedBufferChannel: Failed to allocate "
-        "buffer: %s",
-        strerror(-ret));
+  uint32_t out_stride = 0;
+  // graphicBufferId is not used in GraphicBufferAllocator::allocate
+  int ret = GraphicBufferAllocator::get().allocate(
+      width, height, format, layer_count, usage,
+      const_cast<const native_handle_t**>(&buffer_handle_), &out_stride,
+      /*graphicBufferId=*/0, IBufferHub::getServiceName());
+
+  if (ret != OK || buffer_handle_ == nullptr) {
+    ALOGE("BufferNode::BufferNode: Failed to allocate buffer: %s",
+          strerror(-ret));
     return;
   }
+
+  buffer_desc_.width = width;
+  buffer_desc_.height = height;
+  buffer_desc_.layers = layer_count;
+  buffer_desc_.format = format;
+  buffer_desc_.usage = usage;
+  buffer_desc_.stride = out_stride;
 
   metadata_ = BufferHubMetadata::Create(user_metadata_size);
   if (!metadata_.IsValid()) {
@@ -33,6 +48,17 @@ BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count,
     return;
   }
   InitializeMetadata();
+}
+
+// Free the handle
+BufferNode::~BufferNode() {
+  if (buffer_handle_ != nullptr) {
+    status_t ret = GraphicBufferAllocator::get().free(buffer_handle_);
+    if (ret != OK) {
+      ALOGE("BufferNode::~BufferNode: Failed to free handle; Got error: %d",
+            ret);
+    }
+  }
 }
 
 uint64_t BufferNode::GetActiveClientsBitMask() const {

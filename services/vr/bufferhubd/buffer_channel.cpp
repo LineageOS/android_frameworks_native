@@ -49,9 +49,9 @@ BufferChannel::~BufferChannel() {
 
 BufferHubChannel::BufferInfo BufferChannel::GetBufferInfo() const {
   return BufferInfo(
-      buffer_id(), /*consumer_count=*/0, buffer_node_->buffer().width(),
-      buffer_node_->buffer().height(), buffer_node_->buffer().layer_count(),
-      buffer_node_->buffer().format(), buffer_node_->buffer().usage(),
+      buffer_id(), /*consumer_count=*/0, buffer_node_->buffer_desc().width,
+      buffer_node_->buffer_desc().height, buffer_node_->buffer_desc().layers,
+      buffer_node_->buffer_desc().format, buffer_node_->buffer_desc().usage,
       /*pending_count=*/0, /*state=*/0, /*signaled_mask=*/0,
       /*index=*/0);
 }
@@ -85,17 +85,17 @@ Status<BufferTraits<BorrowedHandle>> BufferChannel::OnImport(
 
   // TODO(b/112057680) Move away from the GraphicBuffer-based IonBuffer.
   return BufferTraits<BorrowedHandle>{
-      /*buffer_handle=*/buffer_node_->buffer().handle(),
+      /*buffer_handle=*/buffer_node_->buffer_handle(),
       /*metadata_handle=*/buffer_node_->metadata().ashmem_handle().Borrow(),
       /*id=*/buffer_id(),
       /*client_state_mask=*/client_state_mask_,
       /*metadata_size=*/buffer_node_->metadata().metadata_size(),
-      /*width=*/buffer_node_->buffer().width(),
-      /*height=*/buffer_node_->buffer().height(),
-      /*layer_count=*/buffer_node_->buffer().layer_count(),
-      /*format=*/buffer_node_->buffer().format(),
-      /*usage=*/buffer_node_->buffer().usage(),
-      /*stride=*/buffer_node_->buffer().stride(),
+      /*width=*/buffer_node_->buffer_desc().width,
+      /*height=*/buffer_node_->buffer_desc().height,
+      /*layer_count=*/buffer_node_->buffer_desc().layers,
+      /*format=*/buffer_node_->buffer_desc().format,
+      /*usage=*/buffer_node_->buffer_desc().usage,
+      /*stride=*/buffer_node_->buffer_desc().stride,
       /*acquire_fence_fd=*/BorrowedHandle{},
       /*released_fence_fd=*/BorrowedHandle{}};
 }
