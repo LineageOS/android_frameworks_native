@@ -2545,6 +2545,9 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
     uint32_t policyFlags = args->policyFlags;
     int32_t flags = args->flags;
     int32_t metaState = args->metaState;
+    // InputDispatcher tracks and generates key repeats on behalf of
+    // whatever notifies it, so repeatCount should always be set to 0
+    constexpr int32_t repeatCount = 0;
     if ((policyFlags & POLICY_FLAG_VIRTUAL) || (flags & AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY)) {
         policyFlags |= POLICY_FLAG_VIRTUAL;
         flags |= AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY;
@@ -2560,7 +2563,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 
     KeyEvent event;
     event.initialize(args->deviceId, args->source, args->displayId, args->action,
-            flags, keyCode, args->scanCode, metaState, 0,
+            flags, keyCode, args->scanCode, metaState, repeatCount,
             args->downTime, args->eventTime);
 
     android::base::Timer t;
@@ -2585,7 +2588,6 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
             mLock.lock();
         }
 
-        int32_t repeatCount = 0;
         KeyEntry* newEntry = new KeyEntry(args->eventTime,
                 args->deviceId, args->source, args->displayId, policyFlags,
                 args->action, flags, keyCode, args->scanCode,
@@ -2756,7 +2758,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         accelerateMetaShortcuts(keyEvent.getDeviceId(), action,
                 /*byref*/ keyCode, /*byref*/ metaState);
         keyEvent.initialize(keyEvent.getDeviceId(), keyEvent.getSource(), keyEvent.getDisplayId(),
-            action, flags, keyCode, keyEvent.getScanCode(), metaState, 0,
+            action, flags, keyCode, keyEvent.getScanCode(), metaState, keyEvent.getRepeatCount(),
             keyEvent.getDownTime(), keyEvent.getEventTime());
 
         if (flags & AKEY_EVENT_FLAG_VIRTUAL_HARD_KEY) {
