@@ -15,6 +15,7 @@
 sharedLibraries = [
     "libbase",
     "libbinder",
+    "libbufferhubservice",
     "libcutils",
     "libgtest_prod",
     "libgui",
@@ -32,7 +33,6 @@ cc_library_static {
         "buffer_client.cpp",
         "buffer_hub.cpp",
         "buffer_hub_binder.cpp",
-        "buffer_node.cpp",
         "consumer_channel.cpp",
         "consumer_queue_channel.cpp",
         "IBufferHub.cpp",
