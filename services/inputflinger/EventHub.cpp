@@ -193,8 +193,6 @@ bool EventHub::Device::hasValidFd() {
 
 // --- EventHub ---
 
-const uint32_t EventHub::EPOLL_ID_INOTIFY;
-const uint32_t EventHub::EPOLL_ID_WAKE;
 const int EventHub::EPOLL_SIZE_HINT;
 const int EventHub::EPOLL_MAX_EVENTS;
 
@@ -217,7 +215,7 @@ EventHub::EventHub(void) :
     struct epoll_event eventItem;
     memset(&eventItem, 0, sizeof(eventItem));
     eventItem.events = EPOLLIN;
-    eventItem.data.u32 = EPOLL_ID_INOTIFY;
+    eventItem.data.fd = mINotifyFd;
     result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);
 
@@ -236,7 +234,7 @@ EventHub::EventHub(void) :
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not make wake write pipe non-blocking.  errno=%d",
             errno);
 
-    eventItem.data.u32 = EPOLL_ID_WAKE;
+    eventItem.data.fd = mWakeReadPipeFd;
     result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mWakeReadPipeFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add wake read pipe to epoll instance.  errno=%d",
             errno);
@@ -735,6 +733,16 @@ EventHub::Device* EventHub::getDeviceByPathLocked(const char* devicePath) const 
     return nullptr;
 }
 
+EventHub::Device* EventHub::getDeviceByFdLocked(int fd) const {
+    for (size_t i = 0; i < mDevices.size(); i++) {
+        Device* device = mDevices.valueAt(i);
+        if (device->fd == fd) {
+            return device;
+        }
+    }
+    return nullptr;
+}
+
 size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) {
     ALOG_ASSERT(bufferSize >= 1);
 
@@ -811,7 +819,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
         bool deviceChanged = false;
         while (mPendingEventIndex < mPendingEventCount) {
             const struct epoll_event& eventItem = mPendingEventItems[mPendingEventIndex++];
-            if (eventItem.data.u32 == EPOLL_ID_INOTIFY) {
+            if (eventItem.data.fd == mINotifyFd) {
                 if (eventItem.events & EPOLLIN) {
                     mPendingINotify = true;
                 } else {
@@ -820,7 +828,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                 continue;
             }
 
-            if (eventItem.data.u32 == EPOLL_ID_WAKE) {
+            if (eventItem.data.fd == mWakeReadPipeFd) {
                 if (eventItem.events & EPOLLIN) {
                     ALOGV("awoken after wake()");
                     awoken = true;
@@ -836,14 +844,13 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                 continue;
             }
 
-            ssize_t deviceIndex = mDevices.indexOfKey(eventItem.data.u32);
-            if (deviceIndex < 0) {
-                ALOGW("Received unexpected epoll event 0x%08x for unknown device id %d.",
-                        eventItem.events, eventItem.data.u32);
+            Device* device = getDeviceByFdLocked(eventItem.data.fd);
+            if (device == nullptr) {
+                ALOGW("Received unexpected epoll event 0x%08x for unknown device fd %d.",
+                        eventItem.events, eventItem.data.fd);
                 continue;
             }
 
-            Device* device = mDevices.valueAt(deviceIndex);
             if (eventItem.events & EPOLLIN) {
                 int32_t readSize = read(device->fd, readBuffer,
                         sizeof(struct input_event) * capacity);
@@ -1089,7 +1096,7 @@ status_t EventHub::registerDeviceForEpollLocked(Device* device) {
     if (mUsingEpollWakeup) {
         eventItem.events |= EPOLLWAKEUP;
     }
-    eventItem.data.u32 = device->id;
+    eventItem.data.fd = device->fd;
     if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, device->fd, &eventItem)) {
         ALOGE("Could not add device fd to epoll instance.  errno=%d", errno);
         return -errno;
