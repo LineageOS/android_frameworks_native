@@ -49,6 +49,7 @@ cc_defaults {
         "liblog",
 	"libnativewindow",
         "libpdx_default_transport",
+        "libprocessgroup",
         "libprotobuf-cpp-lite",
         "libsync",
         "libtimestats_proto",
@@ -194,6 +195,7 @@ cc_defaults {
         "libinput",
         "liblayers_proto",
         "liblog",
+        "libprocessgroup",
         "libsync",
         "libtimestats_proto",
         "libutils",
@@ -226,6 +228,7 @@ cc_library_shared {
         "libcutils",
         "libdl",
         "liblog",
+        "libprocessgroup",
     ],
     product_variables: {
         // uses jni which may not be available in PDK
