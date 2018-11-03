@@ -220,7 +220,6 @@ bool EventHub::Device::hasValidFd() {
 
 // --- EventHub ---
 
-const int EventHub::EPOLL_SIZE_HINT;
 const int EventHub::EPOLL_MAX_EVENTS;
 
 EventHub::EventHub(void) :
@@ -762,13 +761,27 @@ EventHub::Device* EventHub::getDeviceByPathLocked(const char* devicePath) const 
     return nullptr;
 }
 
+/**
+ * The file descriptor could be either input device, or a video device (associated with a
+ * specific input device). Check both cases here, and return the device that this event
+ * belongs to. Caller can compare the fd's once more to determine event type.
+ * Looks through all input devices, and only attached video devices. Unattached video
+ * devices are ignored.
+ */
 EventHub::Device* EventHub::getDeviceByFdLocked(int fd) const {
     for (size_t i = 0; i < mDevices.size(); i++) {
         Device* device = mDevices.valueAt(i);
         if (device->fd == fd) {
+            // This is an input device event
+            return device;
+        }
+        if (device->videoDevice && device->videoDevice->getFd() == fd) {
+            // This is a video device event
             return device;
         }
     }
+    // We do not check mUnattachedVideoDevices here because they should not participate in epoll,
+    // and therefore should never be looked up by fd.
     return nullptr;
 }
 
@@ -874,12 +887,33 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
             }
 
             Device* device = getDeviceByFdLocked(eventItem.data.fd);
-            if (device == nullptr) {
-                ALOGW("Received unexpected epoll event 0x%08x for unknown device fd %d.",
+            if (!device) {
+                ALOGE("Received unexpected epoll event 0x%08x for unknown fd %d.",
                         eventItem.events, eventItem.data.fd);
+                ALOG_ASSERT(!DEBUG);
                 continue;
             }
-
+            if (device->videoDevice && eventItem.data.fd == device->videoDevice->getFd()) {
+                if (eventItem.events & EPOLLIN) {
+                    size_t numFrames = device->videoDevice->readAndQueueFrames();
+                    if (numFrames == 0) {
+                        ALOGE("Received epoll event for video device %s, but could not read frame",
+                                device->videoDevice->getName().c_str());
+                    }
+                } else if (eventItem.events & EPOLLHUP) {
+                    // TODO(b/121395353) - consider adding EPOLLRDHUP
+                    ALOGI("Removing video device %s due to epoll hang-up event.",
+                            device->videoDevice->getName().c_str());
+                    unregisterVideoDeviceFromEpollLocked(*device->videoDevice);
+                    device->videoDevice = nullptr;
+                } else {
+                    ALOGW("Received unexpected epoll event 0x%08x for device %s.",
+                            eventItem.events, device->videoDevice->getName().c_str());
+                    ALOG_ASSERT(!DEBUG);
+                }
+                continue;
+            }
+            // This must be an input event
             if (eventItem.events & EPOLLIN) {
                 int32_t readSize = read(device->fd, readBuffer,
                         sizeof(struct input_event) * capacity);
@@ -1044,6 +1078,7 @@ static const int32_t GAMEPAD_KEYCODES[] = {
 };
 
 status_t EventHub::registerFdForEpoll(int fd) {
+    // TODO(b/121395353) - consider adding EPOLLRDHUP
     struct epoll_event eventItem = {};
     eventItem.events = EPOLLIN | EPOLLWAKEUP;
     eventItem.data.fd = fd;
@@ -1072,8 +1107,19 @@ status_t EventHub::registerDeviceForEpollLocked(Device* device) {
     status_t result = registerFdForEpoll(device->fd);
     if (result != OK) {
         ALOGE("Could not add input device fd to epoll for device %" PRId32, device->id);
+        return result;
+    }
+    if (device->videoDevice) {
+        registerVideoDeviceForEpollLocked(*device->videoDevice);
     }
     return result;
+}
+
+void EventHub::registerVideoDeviceForEpollLocked(const TouchVideoDevice& videoDevice) {
+    status_t result = registerFdForEpoll(videoDevice.getFd());
+    if (result != OK) {
+        ALOGE("Could not add video device %s to epoll", videoDevice.getName().c_str());
+    }
 }
 
 status_t EventHub::unregisterDeviceFromEpollLocked(Device* device) {
@@ -1084,10 +1130,23 @@ status_t EventHub::unregisterDeviceFromEpollLocked(Device* device) {
             return result;
         }
     }
+    if (device->videoDevice) {
+        unregisterVideoDeviceFromEpollLocked(*device->videoDevice);
+    }
     return OK;
 }
 
-status_t EventHub::openDeviceLocked(const char *devicePath) {
+void EventHub::unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& videoDevice) {
+    if (videoDevice.hasValidFd()) {
+        status_t result = unregisterFdFromEpoll(videoDevice.getFd());
+        if (result != OK) {
+            ALOGW("Could not remove video device fd from epoll for device: %s",
+                    videoDevice.getName().c_str());
+        }
+    }
+}
+
+status_t EventHub::openDeviceLocked(const char* devicePath) {
     char buffer[80];
 
     ALOGV("Opening device: %s", devicePath);
@@ -1345,6 +1404,7 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
     }
 
     // Find a matching video device by comparing device names
+    // This should be done before registerDeviceForEpollLocked, so that both fds are added to epoll
     for (std::unique_ptr<TouchVideoDevice>& videoDevice : mUnattachedVideoDevices) {
         if (device->identifier.name == videoDevice->getName()) {
             device->videoDevice = std::move(videoDevice);
@@ -1422,6 +1482,9 @@ void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
         Device* device = mDevices.valueAt(i);
         if (videoDevice->getName() == device->identifier.name) {
             device->videoDevice = std::move(videoDevice);
+            if (device->enabled) {
+                registerVideoDeviceForEpollLocked(*device->videoDevice);
+            }
             return;
         }
     }
@@ -1632,6 +1695,7 @@ void EventHub::closeVideoDeviceByPathLocked(const std::string& devicePath) {
     for (size_t i = 0; i < mDevices.size(); i++) {
         Device* device = mDevices.valueAt(i);
         if (device->videoDevice && device->videoDevice->getPath() == devicePath) {
+            unregisterVideoDeviceFromEpollLocked(*device->videoDevice);
             device->videoDevice = nullptr;
             return;
         }
@@ -1662,6 +1726,7 @@ void EventHub::closeDeviceLocked(Device* device) {
 
     unregisterDeviceFromEpollLocked(device);
     if (device->videoDevice) {
+        // This must be done after the video device is removed from epoll
         mUnattachedVideoDevices.push_back(std::move(device->videoDevice));
     }
 

@@ -381,7 +381,7 @@ private:
         }
     };
 
-    status_t openDeviceLocked(const char *devicePath);
+    status_t openDeviceLocked(const char* devicePath);
     void openVideoDeviceLocked(const std::string& devicePath);
     void createVirtualKeyboardLocked();
     void addDeviceLocked(Device* device);
@@ -400,7 +400,9 @@ private:
     status_t registerFdForEpoll(int fd);
     status_t unregisterFdFromEpoll(int fd);
     status_t registerDeviceForEpollLocked(Device* device);
+    void registerVideoDeviceForEpollLocked(const TouchVideoDevice& videoDevice);
     status_t unregisterDeviceFromEpollLocked(Device* device);
+    void unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& videoDevice);
 
     status_t scanDirLocked(const char *dirname);
     status_t scanVideoDirLocked(const std::string& dirname);
@@ -410,6 +412,10 @@ private:
     Device* getDeviceByDescriptorLocked(const std::string& descriptor) const;
     Device* getDeviceLocked(int32_t deviceId) const;
     Device* getDeviceByPathLocked(const char* devicePath) const;
+    /**
+     * Look through all available fd's (both for input devices and for video devices),
+     * and return the device pointer.
+     */
     Device* getDeviceByFdLocked(int fd) const;
 
     bool hasKeycodeLocked(Device* device, int keycode) const;
@@ -469,9 +475,6 @@ private:
 
     int mInputWd;
     int mVideoWd;
-
-    // Epoll FD list size hint.
-    static const int EPOLL_SIZE_HINT = 8;
 
     // Maximum number of signalled FDs to handle at a time.
     static const int EPOLL_MAX_EVENTS = 16;
