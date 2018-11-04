@@ -5,7 +5,6 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <ui/BufferHubBuffer.h>
-#include <ui/DetachedBufferHandle.h>
 
 #include <mutex>
 #include <thread>
@@ -29,8 +28,8 @@ using android::dvr::BufferHubDefs::IsBufferGained;
 using android::dvr::BufferHubDefs::IsBufferPosted;
 using android::dvr::BufferHubDefs::IsBufferReleased;
 using android::dvr::BufferHubDefs::kConsumerStateMask;
+using android::dvr::BufferHubDefs::kFirstClientBitMask;
 using android::dvr::BufferHubDefs::kMetadataHeaderSize;
-using android::dvr::BufferHubDefs::kProducerStateBit;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
@@ -62,14 +61,14 @@ TEST_F(LibBufferHubTest, TestBasicUsage) {
   ASSERT_TRUE(c2.get() != nullptr);
 
   // Producer state mask is unique, i.e. 1.
-  EXPECT_EQ(p->client_state_mask(), kProducerStateBit);
+  EXPECT_EQ(p->client_state_mask(), kFirstClientBitMask);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c->client_state_mask() & kProducerStateBit, 0U);
+  EXPECT_EQ(c->client_state_mask() & kFirstClientBitMask, 0U);
   // Consumer state mask must be a single, i.e. power of 2.
   EXPECT_NE(c->client_state_mask(), 0U);
   EXPECT_EQ(c->client_state_mask() & (c->client_state_mask() - 1), 0U);
   // Consumer state mask cannot have producer bit on.
-  EXPECT_EQ(c2->client_state_mask() & kProducerStateBit, 0U);
+  EXPECT_EQ(c2->client_state_mask() & kFirstClientBitMask, 0U);
   // Consumer state mask must be a single, i.e. power of 2.
   EXPECT_NE(c2->client_state_mask(), 0U);
   EXPECT_EQ(c2->client_state_mask() & (c2->client_state_mask() - 1), 0U);
@@ -190,7 +189,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     EXPECT_EQ(client_state_masks & cs[i]->client_state_mask(), 0U);
     client_state_masks |= cs[i]->client_state_mask();
   }
-  EXPECT_EQ(client_state_masks, kProducerStateBit | kConsumerStateMask);
+  EXPECT_EQ(client_state_masks, kFirstClientBitMask | kConsumerStateMask);
 
   // The 64th creation will fail with out-of-memory error.
   auto state = p->CreateConsumer();
@@ -205,7 +204,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     // The released state mask will be reused.
     EXPECT_EQ(client_state_masks & cs[i]->client_state_mask(), 0U);
     client_state_masks |= cs[i]->client_state_mask();
-    EXPECT_EQ(client_state_masks, kProducerStateBit | kConsumerStateMask);
+    EXPECT_EQ(client_state_masks, kFirstClientBitMask | kConsumerStateMask);
   }
 }
 
@@ -891,6 +890,7 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
   int b1_id = b1->id();
   EXPECT_TRUE(b1->IsValid());
   EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
+  EXPECT_NE(b1->client_state_mask(), 0ULL);
 
   auto status_or_handle = b1->Duplicate();
   EXPECT_TRUE(status_or_handle);
@@ -908,6 +908,7 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
   ASSERT_TRUE(b2 != nullptr);
   EXPECT_TRUE(b2->IsValid());
   EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
+  EXPECT_NE(b2->client_state_mask(), 0ULL);
 
   int b2_id = b2->id();
 
@@ -916,10 +917,6 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
   EXPECT_EQ(b1_id, b2_id);
   // We use client_state_mask() to tell those two instances apart.
   EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
-  EXPECT_NE(b1->client_state_mask(), 0ULL);
-  EXPECT_NE(b2->client_state_mask(), 0ULL);
-  EXPECT_NE(b1->client_state_mask(), kProducerStateBit);
-  EXPECT_NE(b2->client_state_mask(), kProducerStateBit);
 
   // Both buffer instances should be in gained state.
   EXPECT_TRUE(IsBufferGained(b1->buffer_state()));

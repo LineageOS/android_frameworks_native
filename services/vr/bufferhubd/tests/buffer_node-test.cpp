@@ -2,11 +2,14 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <private/dvr/buffer_node.h>
+#include <ui/GraphicBufferMapper.h>
 
 namespace android {
 namespace dvr {
 
 namespace {
+
+using testing::NotNull;
 
 const uint32_t kWidth = 640;
 const uint32_t kHeight = 480;
@@ -35,6 +38,16 @@ class BufferNodeTest : public ::testing::Test {
 
 TEST_F(BufferNodeTest, TestCreateBufferNode) {
   EXPECT_EQ(buffer_node->user_metadata_size(), kUserMetadataSize);
+  // Test the handle just allocated is good (i.e. able to be imported)
+  GraphicBufferMapper& mapper = GraphicBufferMapper::get();
+  const native_handle_t* outHandle;
+  status_t ret = mapper.importBuffer(
+      buffer_node->buffer_handle(), buffer_node->buffer_desc().width,
+      buffer_node->buffer_desc().height, buffer_node->buffer_desc().layers,
+      buffer_node->buffer_desc().format, buffer_node->buffer_desc().usage,
+      buffer_node->buffer_desc().stride, &outHandle);
+  EXPECT_EQ(ret, OK);
+  EXPECT_THAT(outHandle, NotNull());
 }
 
 TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_twoNewClients) {

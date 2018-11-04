@@ -26,21 +26,21 @@ static constexpr uint32_t kMetadataUsage =
 // MSB           LSB
 //  |             |
 //  v             v
-// [P|C62|...|C1|C0]
-// Gain'ed state:     [0|..|0|0] -> Exclusively Writable.
-// Post'ed state:     [1|..|0|0]
-// Acquired'ed state: [1|..|X|X] -> At least one bit is set in lower 63 bits
-// Released'ed state: [0|..|X|X] -> At least one bit is set in lower 63 bits
+// [C62|...|C1|C0|P]
+// Gain'ed state:     [..|0|0|0] -> Exclusively Writable.
+// Post'ed state:     [..|0|0|1]
+// Acquired'ed state: [..|X|X|1] -> At least one bit is set in higher 63 bits
+// Released'ed state: [..|X|X|0] -> At least one bit is set in higher 63 bits
 static constexpr int kMaxNumberOfClients = 64;
-static constexpr uint64_t kProducerStateBit = 1ULL << 63;
-static constexpr uint64_t kConsumerStateMask = (1ULL << 63) - 1;
+static constexpr uint64_t kFirstClientBitMask = 1ULL;
+static constexpr uint64_t kConsumerStateMask = ~kFirstClientBitMask;
 
 static inline void ModifyBufferState(std::atomic<uint64_t>* buffer_state,
                                      uint64_t clear_mask, uint64_t set_mask) {
   uint64_t old_state;
   uint64_t new_state;
   do {
-    old_state = buffer_state->load();
+    old_state = buffer_state->load(std::memory_order_acquire);
     new_state = (old_state & ~clear_mask) | set_mask;
   } while (!buffer_state->compare_exchange_weak(old_state, new_state));
 }
@@ -49,15 +49,15 @@ static inline bool IsBufferGained(uint64_t state) { return state == 0; }
 
 static inline bool IsBufferPosted(uint64_t state,
                                   uint64_t consumer_bit = kConsumerStateMask) {
-  return (state & kProducerStateBit) && !(state & consumer_bit);
+  return (state & kFirstClientBitMask) && !(state & consumer_bit);
 }
 
 static inline bool IsBufferAcquired(uint64_t state) {
-  return (state & kProducerStateBit) && (state & kConsumerStateMask);
+  return (state & kFirstClientBitMask) && (state & kConsumerStateMask);
 }
 
 static inline bool IsBufferReleased(uint64_t state) {
-  return !(state & kProducerStateBit) && (state & kConsumerStateMask);
+  return !(state & kFirstClientBitMask) && (state & kConsumerStateMask);
 }
 
 static inline uint64_t FindNextAvailableClientStateMask(uint64_t bits) {
@@ -65,7 +65,7 @@ static inline uint64_t FindNextAvailableClientStateMask(uint64_t bits) {
 }
 
 static inline uint64_t FindFirstClearedBit() {
-  return FindNextAvailableClientStateMask(kProducerStateBit);
+  return FindNextAvailableClientStateMask(kFirstClientBitMask);
 }
 
 struct __attribute__((packed, aligned(8))) MetadataHeader {
@@ -123,7 +123,7 @@ class BufferTraits {
 
   // State mask of the buffer client. Each BufferHubBuffer client backed by the
   // same buffer channel has uniqued state bit among its siblings. For a
-  // producer buffer the bit must be kProducerStateBit; for a consumer the bit
+  // producer buffer the bit must be kFirstClientBitMask; for a consumer the bit
   // must be one of the kConsumerStateMask.
   uint64_t client_state_mask() const { return client_state_mask_; }
   uint64_t metadata_size() const { return metadata_size_; }

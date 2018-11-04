@@ -80,6 +80,7 @@ struct egl_connection_t {
     bool                useAngle;
     EGLint              angleBackend;
     void*               vendorEGL;
+    void*               featureSo;
 };
 // clang-format on
 

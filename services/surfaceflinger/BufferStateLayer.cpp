@@ -470,8 +470,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     }
 
     // TODO(marissaw): properly support mTimeStats
-    mTimeStats.setLayerName(layerID, getName().c_str());
-    mTimeStats.setPostTime(layerID, getFrameNumber(), latchTime);
+    mTimeStats.setPostTime(layerID, getFrameNumber(), getName().c_str(), latchTime);
     mTimeStats.setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
     mTimeStats.setLatchTime(layerID, getFrameNumber(), latchTime);
 

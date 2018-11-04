@@ -1476,9 +1476,8 @@ void Layer::onDisconnect() {
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                      FrameEventHistoryDelta* outDelta) {
     if (newTimestamps) {
-        const int32_t layerID = getSequence();
-        mTimeStats.setLayerName(layerID, getName().c_str());
-        mTimeStats.setPostTime(layerID, newTimestamps->frameNumber, newTimestamps->postedTime);
+        mTimeStats.setPostTime(getSequence(), newTimestamps->frameNumber, getName().c_str(),
+                               newTimestamps->postedTime);
     }
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);

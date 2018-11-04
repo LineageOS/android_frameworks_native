@@ -241,25 +241,18 @@ static bool layerNameIsValid(const std::string& layerName) {
     return std::regex_match(layerName.begin(), layerName.end(), layerNameRegex);
 }
 
-void TimeStats::setLayerName(int32_t layerID, const std::string& layerName) {
+void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, const std::string& layerName,
+                            nsecs_t postTime) {
     if (!mEnabled.load()) return;
 
     ATRACE_CALL();
-    ALOGV("[%d]-[%s]", layerID, layerName.c_str());
+    ALOGV("[%d]-[%" PRIu64 "]-[%s]-PostTime[%" PRId64 "]", layerID, frameNumber, layerName.c_str(),
+          postTime);
 
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID) && layerNameIsValid(layerName)) {
         mTimeStatsTracker[layerID].layerName = layerName;
     }
-}
-
-void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, nsecs_t postTime) {
-    if (!mEnabled.load()) return;
-
-    ATRACE_CALL();
-    ALOGV("[%d]-[%" PRIu64 "]-PostTime[%" PRId64 "]", layerID, frameNumber, postTime);
-
-    std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     if (layerRecord.timeRecords.size() == MAX_NUM_TIME_RECORDS) {

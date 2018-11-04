@@ -775,4 +775,169 @@ TEST_F(EGLTest, EGLConfig1010102) {
 
     EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
 }
+
+TEST_F(EGLTest, EGLInvalidColorspaceAttribute) {
+    EGLConfig config;
+
+    ASSERT_NO_FATAL_FAILURE(get8BitConfig(config));
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    EGLint winAttrs[] = {
+            // clang-format off
+            EGL_GL_COLORSPACE_KHR, EGL_BACK_BUFFER,
+            EGL_NONE,
+            // clang-format on
+    };
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_BAD_ATTRIBUTE, eglGetError());
+    ASSERT_EQ(EGL_NO_SURFACE, eglSurface);
+}
+
+TEST_F(EGLTest, EGLUnsupportedColorspaceFormatCombo) {
+    EGLint numConfigs;
+    EGLConfig config;
+    EGLBoolean success;
+
+    const EGLint attrs[] = {
+            // clang-format off
+            EGL_SURFACE_TYPE,             EGL_WINDOW_BIT,
+            EGL_RENDERABLE_TYPE,          EGL_OPENGL_ES2_BIT,
+            EGL_RED_SIZE,                 16,
+            EGL_GREEN_SIZE,               16,
+            EGL_BLUE_SIZE,                16,
+            EGL_ALPHA_SIZE,               16,
+            EGL_COLOR_COMPONENT_TYPE_EXT, EGL_COLOR_COMPONENT_TYPE_FLOAT_EXT,
+            EGL_NONE,
+            // clang-format on
+    };
+    success = eglChooseConfig(mEglDisplay, attrs, &config, 1, &numConfigs);
+    ASSERT_EQ(EGL_UNSIGNED_TRUE, success);
+    ASSERT_EQ(1, numConfigs);
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    const EGLint winAttrs[] = {
+            // clang-format off
+            EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_DISPLAY_P3_EXT,
+            EGL_NONE,
+            // clang-format on
+    };
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_BAD_MATCH, eglGetError());
+    ASSERT_EQ(EGL_NO_SURFACE, eglSurface);
+}
+
+TEST_F(EGLTest, EGLCreateWindowFailAndSucceed) {
+    EGLConfig config;
+
+    ASSERT_NO_FATAL_FAILURE(get8BitConfig(config));
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    EGLint winAttrs[] = {
+            // clang-format off
+            EGL_GL_COLORSPACE_KHR, EGL_BACK_BUFFER,
+            EGL_NONE,
+            // clang-format on
+    };
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_BAD_ATTRIBUTE, eglGetError());
+    ASSERT_EQ(EGL_NO_SURFACE, eglSurface);
+
+    // Now recreate surface with a valid colorspace. Ensure proper cleanup is done
+    // in the first failed attempt (e.g. native_window_api_disconnect).
+    winAttrs[1] = EGL_GL_COLORSPACE_LINEAR_KHR;
+    eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
+
+TEST_F(EGLTest, EGLCreateWindowTwoColorspaces) {
+    EGLConfig config;
+
+    ASSERT_NO_FATAL_FAILURE(get8BitConfig(config));
+
+    struct DummyConsumer : public BnConsumerListener {
+        void onFrameAvailable(const BufferItem& /* item */) override {}
+        void onBuffersReleased() override {}
+        void onSidebandStreamChanged() override {}
+    };
+
+    // Create a EGLSurface
+    sp<IGraphicBufferProducer> producer;
+    sp<IGraphicBufferConsumer> consumer;
+    BufferQueue::createBufferQueue(&producer, &consumer);
+    consumer->consumerConnect(new DummyConsumer, false);
+    sp<Surface> mSTC = new Surface(producer);
+    sp<ANativeWindow> mANW = mSTC;
+
+    const EGLint winAttrs[] = {
+            // clang-format off
+            EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_DISPLAY_P3_EXT,
+            EGL_NONE,
+            // clang-format on
+    };
+
+    EGLSurface eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), winAttrs);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    android_dataspace dataspace = static_cast<android_dataspace>(ANativeWindow_getBuffersDataSpace(mANW.get()));
+    ASSERT_EQ(dataspace, HAL_DATASPACE_DISPLAY_P3);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+
+    // Now create with default attribute (EGL_GL_COLORSPACE_LINEAR_KHR)
+    eglSurface = eglCreateWindowSurface(mEglDisplay, config, mANW.get(), NULL);
+    ASSERT_EQ(EGL_SUCCESS, eglGetError());
+    ASSERT_NE(EGL_NO_SURFACE, eglSurface);
+
+    dataspace = static_cast<android_dataspace>(ANativeWindow_getBuffersDataSpace(mANW.get()));
+    // Make sure the dataspace has been reset to UNKNOWN
+    ASSERT_NE(dataspace, HAL_DATASPACE_DISPLAY_P3);
+
+    EXPECT_TRUE(eglDestroySurface(mEglDisplay, eglSurface));
+}
 }

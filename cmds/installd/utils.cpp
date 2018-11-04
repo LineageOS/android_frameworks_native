@@ -43,6 +43,7 @@
 #define DEBUG_XATTRS 0
 
 using android::base::EndsWith;
+using android::base::Fdopendir;
 using android::base::StringPrintf;
 using android::base::unique_fd;
 
@@ -1036,7 +1037,7 @@ static bool collect_profiles(DIR* d,
                 continue;
             }
 
-            DIR* subdir = fdopendir(subdir_fd);
+            DIR* subdir = Fdopendir(std::move(subdir_fd));
             if (subdir == nullptr) {
                 PLOG(WARNING) << "Could not open dir path " << local_path;
                 result = false;

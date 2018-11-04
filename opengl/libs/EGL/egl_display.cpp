@@ -275,8 +275,7 @@ EGLDisplay egl_display_t::getPlatformDisplay(EGLNativeDisplayType display,
 
         disp.dpy = dpy;
         if (dpy == EGL_NO_DISPLAY) {
-            loader.close(cnx->dso);
-            cnx->dso = nullptr;
+            loader.close(cnx);
         }
     }
 

@@ -38,7 +38,7 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
   // Only check producer bit and this consumer buffer's particular consumer bit.
   // The buffer is can be acquired iff: 1) producer bit is set; 2) consumer bit
   // is not set.
-  uint64_t buffer_state = buffer_state_->load();
+  uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsBufferPosted(buffer_state, client_state_mask())) {
     ALOGE("ConsumerBuffer::LocalAcquire: not posted, id=%d state=%" PRIx64
           " client_state_mask=%" PRIx64 ".",
@@ -57,9 +57,10 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
     out_meta->user_metadata_ptr = 0;
   }
 
-  uint64_t fence_state = fence_state_->load();
+  uint64_t fence_state = fence_state_->load(std::memory_order_acquire);
   // If there is an acquire fence from producer, we need to return it.
-  if (fence_state & BufferHubDefs::kProducerStateBit) {
+  // The producer state bit mask is kFirstClientBitMask for now.
+  if (fence_state & BufferHubDefs::kFirstClientBitMask) {
     *out_fence = shared_acquire_fence_.Duplicate();
   }
 
@@ -118,7 +119,7 @@ int ConsumerBuffer::LocalRelease(const DvrNativeBufferMetadata* meta,
     return error;
 
   // Check invalid state transition.
-  uint64_t buffer_state = buffer_state_->load();
+  uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsBufferAcquired(buffer_state)) {
     ALOGE("ConsumerBuffer::LocalRelease: not acquired id=%d state=%" PRIx64 ".",
           id(), buffer_state);

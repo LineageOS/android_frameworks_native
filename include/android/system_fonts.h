@@ -150,17 +150,79 @@ void ASystemFontIterator_close(ASystemFontIterator* _Nullable iterator) __INTROD
  * Move to the next system font.
  *
  * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
- * \return true if more system fonts are available, otherwise false.
+ * \return a font. If no more font is available, returns nullptr. You need to release the returned
+ *         font by ASystemFont_close when it is no longer needed.
  */
 ASystemFont* _Nullable ASystemFontIterator_next(ASystemFontIterator* _Nonnull iterator) __INTRODUCED_IN(29);
 
 /**
  * Close an ASystemFont returned by ASystemFontIterator_next.
  *
- * \param font a font returned by ASystemFontIterator_next. Do nothing if NULL is passed.
+ * \param font a font returned by ASystemFontIterator_next or ASystemFont_matchFamilyStyleCharacter.
+ *        Do nothing if NULL is passed.
  */
 void ASystemFont_close(ASystemFont* _Nullable font) __INTRODUCED_IN(29);
 
+
+/**
+ * Select the best font from given parameters.
+ *
+ * Only generic font families are supported.
+ * For more information about generic font families, read [W3C spec](https://www.w3.org/TR/css-fonts-4/#generic-font-families)
+ *
+ * Even if no font can render the given text, this function will return a non-null result for
+ * drawing Tofu character.
+ *
+ * Examples:
+ * <code>
+ *  // Simple font query for the ASCII character.
+ *  std::vector<uint16_t> text = { 'A' };
+ *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
+ *      "sans", 400, false, "en-US", text.data(), text.length(), &runLength);
+ *  // runLength will be 1 and the font will points a valid font file.
+ *
+ *  // Querying font for CJK characters
+ *  std::vector<uint16_t> text = { 0x9AA8 };
+ *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
+ *      "sans", 400, false, "zh-CN,ja-JP", text.data(), text.length(), &runLength);
+ *  // runLength will be 1 and the font will points a Simplified Chinese font.
+ *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
+ *      "sans", 400, false, "ja-JP,zh-CN", text.data(), text.length(), &runLength);
+ *  // runLength will be 1 and the font will points a Japanese font.
+ *
+ *  // Querying font for text/color emoji
+ *  std::vector<uint16_t> text = { 0xD83D, 0xDC68, 0x200D, 0x2764, 0xFE0F, 0x200D, 0xD83D, 0xDC68 };
+ *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
+ *      "sans", 400, false, "en-US", text.data(), text.length(), &runLength);
+ *  // runLength will be 8 and the font will points a color emoji font.
+ *
+ *  // Mixture of multiple script of characters.
+ *  // 0x05D0 is a Hebrew character and 0x0E01 is a Thai character.
+ *  std::vector<uint16_t> text = { 0x05D0, 0x0E01 };
+ *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
+ *      "sans", 400, false, "en-US", text.data(), text.length(), &runLength);
+ *  // runLength will be 1 and the font will points a Hebrew font.
+ * </code>
+ *
+ * \param familyName a null character terminated font family name
+ * \param weight a font weight value. Only from 0 to 1000 value is valid
+ * \param italic true if italic, otherwise false.
+ * \param languageTags a null character terminated comma separated IETF BCP47 compliant language
+ *                     tags.
+ * \param text a UTF-16 encoded text buffer to be rendered.
+ * \param textLength a length of the given text buffer.
+ * \param runLengthOut if not null, the font run length will be filled.
+ * \return a font to be used for given text and params. You need to release the returned font by
+ *         ASystemFont_close when it is no longer needed.
+ */
+ASystemFont* _Nonnull ASystemFont_matchFamilyStyleCharacter(
+        const char* _Nonnull familyName,
+        uint16_t weight,
+        bool italic,
+        const char* _Nonnull languageTags,
+        const uint16_t* _Nonnull text,
+        uint32_t textLength,
+        uint32_t* _Nullable runLengthOut) __INTRODUCED_IN(29);
 
 /**
  * Return an absolute path to the current font file.

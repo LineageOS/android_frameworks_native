@@ -150,14 +150,11 @@ private:
 
     /* Map of all storage mounts from source to target */
     std::unordered_map<std::string, std::string> mStorageMounts;
-    /* Map of all quota mounts from target to source */
-    std::unordered_map<std::string, std::string> mQuotaReverseMounts;
 
     /* Map from UID to cache quota size */
     std::unordered_map<uid_t, int64_t> mCacheQuotas;
 
     std::string findDataMediaPath(const std::unique_ptr<std::string>& uuid, userid_t userid);
-    std::string findQuotaDeviceForUuid(const std::unique_ptr<std::string>& uuid);
 };
 
 }  // namespace installd

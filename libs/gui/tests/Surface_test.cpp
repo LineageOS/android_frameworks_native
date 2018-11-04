@@ -628,10 +628,14 @@ public:
     status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* /*layers*/) const override {
         return NO_ERROR;
     }
-    status_t getCompositionPreference(ui::Dataspace* /*outDataSpace*/,
-                                      ui::PixelFormat* /*outPixelFormat*/) const override {
+    status_t getCompositionPreference(
+            ui::Dataspace* /*outDefaultDataspace*/, ui::PixelFormat* /*outDefaultPixelFormat*/,
+            ui::Dataspace* /*outWideColorGamutDataspace*/,
+            ui::PixelFormat* /*outWideColorGamutPixelFormat*/) const override {
         return NO_ERROR;
     }
+
+    virtual bool isColorManagementUsed() const { return false; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }

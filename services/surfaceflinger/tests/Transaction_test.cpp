@@ -30,6 +30,7 @@
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
 
+#include <ui/ColorSpace.h>
 #include <ui/DisplayInfo.h>
 #include <ui/Rect.h>
 #include <utils/String8.h>
@@ -314,6 +315,10 @@ protected:
         ASSERT_EQ(NO_ERROR, mClient->initCheck()) << "failed to create SurfaceComposerClient";
 
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
+
+        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+        sp<IBinder> binder = sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
+        mColorManagementUsed = sf->isColorManagementUsed();
     }
 
     virtual void TearDown() {
@@ -470,6 +475,8 @@ protected:
     void setMatrixWithResizeHelper(uint32_t layerType);
 
     sp<SurfaceControl> mBlackBgSurface;
+    bool mColorManagementUsed;
+
 private:
     void SetUpDisplay() {
         mDisplay = mClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
@@ -2064,6 +2071,47 @@ TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
     Transaction().setSidebandStream(layer, nullptr).apply();
 }
 
+class ColorTransformHelper {
+public:
+    static void DegammaColorSingle(half& s) {
+        if (s <= 0.03928f)
+            s = s / 12.92f;
+        else
+            s = pow((s + 0.055f) / 1.055f, 2.4f);
+    }
+
+    static void DegammaColor(half3& color) {
+        DegammaColorSingle(color.r);
+        DegammaColorSingle(color.g);
+        DegammaColorSingle(color.b);
+    }
+
+    static void GammaColorSingle(half& s) {
+        if (s <= 0.0031308f) {
+            s = s * 12.92f;
+        } else {
+            s = 1.055f * pow(s, (1.0f / 2.4f)) - 0.055f;
+        }
+    }
+
+    static void GammaColor(half3& color) {
+        GammaColorSingle(color.r);
+        GammaColorSingle(color.g);
+        GammaColorSingle(color.b);
+    }
+
+    static void applyMatrix(half3& color, const mat3& mat) {
+        half3 ret = half3(0);
+
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                ret[i] = ret[i] + color[j] * mat[j][i];
+            }
+        }
+        color = ret;
+    }
+};
+
 TEST_F(LayerTransactionTest, SetColorTransformBasic) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(
@@ -2076,19 +2124,35 @@ TEST_F(LayerTransactionTest, SetColorTransformBasic) {
     }
 
     const half3 color(50.0f / 255.0f, 100.0f / 255.0f, 150.0f / 255.0f);
-    const Color expected = {90, 90, 90, 255};
-    // this is handwavy, but the precison loss scaled by 255 (8-bit per
-    // channel) should be less than one
-    const uint8_t tolerance = 1;
+    half3 expected = color;
     mat3 matrix;
     matrix[0][0] = 0.3; matrix[1][0] = 0.59; matrix[2][0] = 0.11;
     matrix[0][1] = 0.3; matrix[1][1] = 0.59; matrix[2][1] = 0.11;
     matrix[0][2] = 0.3; matrix[1][2] = 0.59; matrix[2][2] = 0.11;
+
+    // degamma before applying the matrix
+    if (mColorManagementUsed) {
+        ColorTransformHelper::DegammaColor(expected);
+    }
+
+    ColorTransformHelper::applyMatrix(expected, matrix);
+
+    if (mColorManagementUsed) {
+        ColorTransformHelper::GammaColor(expected);
+    }
+
+    const Color expectedColor = {uint8_t(expected.r * 255), uint8_t(expected.g * 255),
+                                 uint8_t(expected.b * 255), 255};
+
+    // this is handwavy, but the precison loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+
     Transaction().setColor(colorLayer, color)
         .setColorTransform(colorLayer, matrix, vec3()).apply();
     {
         SCOPED_TRACE("new color");
-        screenshot()->expectColor(Rect(0, 0, 32, 32), expected, tolerance);
+        screenshot()->expectColor(Rect(0, 0, 32, 32), expectedColor, tolerance);
     }
 }
 

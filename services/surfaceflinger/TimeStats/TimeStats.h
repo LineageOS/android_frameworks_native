@@ -86,8 +86,8 @@ public:
     void incrementMissedFrames();
     void incrementClientCompositionFrames();
 
-    void setLayerName(int32_t layerID, const std::string& layerName);
-    void setPostTime(int32_t layerID, uint64_t frameNumber, nsecs_t postTime);
+    void setPostTime(int32_t layerID, uint64_t frameNumber, const std::string& layerName,
+                     nsecs_t postTime);
     void setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latchTime);
     void setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t desiredTime);
     void setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t acquireTime);

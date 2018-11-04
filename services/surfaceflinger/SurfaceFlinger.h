@@ -294,8 +294,14 @@ public:
     // The data space and pixel format that SurfaceFlinger expects hardware composer
     // to composite efficiently. Meaning under most scenarios, hardware composer
     // will accept layers with the data space and pixel format.
-    static ui::Dataspace compositionDataSpace;
-    static ui::PixelFormat compositionPixelFormat;
+    static ui::Dataspace defaultCompositionDataspace;
+    static ui::PixelFormat defaultCompositionPixelFormat;
+
+    // The data space and pixel format that SurfaceFlinger expects hardware composer
+    // to composite efficiently for wide color gamut surfaces. Meaning under most scenarios,
+    // hardware composer will accept layers with the data space and pixel format.
+    static ui::Dataspace wideColorGamutCompositionDataspace;
+    static ui::PixelFormat wideColorGamutCompositionPixelFormat;
 
     static char const* getServiceName() ANDROID_API {
         return "SurfaceFlinger";
@@ -460,8 +466,10 @@ private:
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
-    status_t getCompositionPreference(ui::Dataspace* outDataSpace,
-                                      ui::PixelFormat* outPixelFormat) const override;
+    virtual bool isColorManagementUsed() const;
+    status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
+                                      ui::Dataspace* outWideColorGamutDataspace,
+                                      ui::PixelFormat* outWideColorGamutPixelFormat) const override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface

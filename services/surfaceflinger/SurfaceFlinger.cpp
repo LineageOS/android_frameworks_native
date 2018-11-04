@@ -196,8 +196,10 @@ bool SurfaceFlinger::hasWideColorDisplay;
 int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 bool SurfaceFlinger::useColorManagement;
 bool SurfaceFlinger::useContextPriority;
-Dataspace SurfaceFlinger::compositionDataSpace = Dataspace::V0_SRGB;
-ui::PixelFormat SurfaceFlinger::compositionPixelFormat = ui::PixelFormat::RGBA_8888;
+Dataspace SurfaceFlinger::defaultCompositionDataspace = Dataspace::V0_SRGB;
+ui::PixelFormat SurfaceFlinger::defaultCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
+Dataspace SurfaceFlinger::wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
+ui::PixelFormat SurfaceFlinger::wideColorGamutCompositionPixelFormat = ui::PixelFormat::RGBA_8888;
 
 std::string getHwcServiceName() {
     char value[PROPERTY_VALUE_MAX] = {};
@@ -303,10 +305,13 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
     if (surfaceFlingerConfigsServiceV1_2) {
         surfaceFlingerConfigsServiceV1_2->getCompositionPreference(
-            [&](Dataspace tmpDataSpace, ui::PixelFormat tmpPixelFormat) {
-                compositionDataSpace = tmpDataSpace;
-                compositionPixelFormat = tmpPixelFormat;
-            });
+                [&](auto tmpDefaultDataspace, auto tmpDefaultPixelFormat,
+                    auto tmpWideColorGamutDataspace, auto tmpWideColorGamutPixelFormat) {
+                    defaultCompositionDataspace = tmpDefaultDataspace;
+                    defaultCompositionPixelFormat = tmpDefaultPixelFormat;
+                    wideColorGamutCompositionDataspace = tmpWideColorGamutDataspace;
+                    wideColorGamutCompositionPixelFormat = tmpWideColorGamutPixelFormat;
+                });
     }
 
     useContextPriority = getBool<ISurfaceFlingerConfigs,
@@ -513,6 +518,10 @@ sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
     return mDisplayTokens[id];
 }
 
+bool SurfaceFlinger::isColorManagementUsed() const {
+    return useColorManagement;
+}
+
 void SurfaceFlinger::bootFinished()
 {
     if (mStartPropertySetThread->join() != NO_ERROR) {
@@ -634,8 +643,8 @@ void SurfaceFlinger::init() {
 
     // TODO(b/77156734): We need to stop casting and use HAL types when possible.
     getBE().mRenderEngine =
-        renderengine::RenderEngine::create(static_cast<int32_t>(compositionPixelFormat),
-                                           renderEngineFeature);
+            renderengine::RenderEngine::create(static_cast<int32_t>(defaultCompositionPixelFormat),
+                                               renderEngineFeature);
     LOG_ALWAYS_FATAL_IF(getBE().mRenderEngine == nullptr, "couldn't create RenderEngine");
 
     LOG_ALWAYS_FATAL_IF(mVrFlingerRequestsDisplay,
@@ -1153,10 +1162,14 @@ status_t SurfaceFlinger::getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayer
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getCompositionPreference(Dataspace* outDataSpace,
-                                                  ui::PixelFormat* outPixelFormat) const {
-    *outDataSpace = compositionDataSpace;
-    *outPixelFormat = compositionPixelFormat;
+status_t SurfaceFlinger::getCompositionPreference(
+        Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
+        Dataspace* outWideColorGamutDataspace,
+        ui::PixelFormat* outWideColorGamutPixelFormat) const {
+    *outDataspace = defaultCompositionDataspace;
+    *outPixelFormat = defaultCompositionPixelFormat;
+    *outWideColorGamutDataspace = wideColorGamutCompositionDataspace;
+    *outWideColorGamutPixelFormat = wideColorGamutCompositionPixelFormat;
     return NO_ERROR;
 }
 
@@ -4744,6 +4757,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_TRANSACTION_STATE:
         // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
         case CREATE_SCOPED_CONNECTION:
+        case IS_COLOR_MANAGEMET_USED:
         case GET_COMPOSITION_PREFERENCE: {
             return OK;
         }

@@ -80,7 +80,7 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
     return error;
 
   // Check invalid state transition.
-  uint64_t buffer_state = buffer_state_->load();
+  uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsBufferGained(buffer_state)) {
     ALOGE("ProducerBuffer::LocalPost: not gained, id=%d state=%" PRIx64 ".",
           id(), buffer_state);
@@ -102,8 +102,9 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
     return error;
 
   // Set the producer bit atomically to transit into posted state.
+  // The producer state bit mask is kFirstClientBitMask for now.
   BufferHubDefs::ModifyBufferState(buffer_state_, 0ULL,
-                                   BufferHubDefs::kProducerStateBit);
+                                   BufferHubDefs::kFirstClientBitMask);
   return 0;
 }
 
@@ -135,7 +136,7 @@ int ProducerBuffer::PostAsync(const DvrNativeBufferMetadata* meta,
 
 int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
                               LocalHandle* out_fence, bool gain_posted_buffer) {
-  uint64_t buffer_state = buffer_state_->load();
+  uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   ALOGD_IF(TRACE, "ProducerBuffer::LocalGain: buffer=%d, state=%" PRIx64 ".",
            id(), buffer_state);
 
@@ -168,7 +169,7 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
     out_meta->user_metadata_ptr = 0;
   }
 
-  uint64_t fence_state = fence_state_->load();
+  uint64_t fence_state = fence_state_->load(std::memory_order_acquire);
   // If there is an release fence from consumer, we need to return it.
   if (fence_state & BufferHubDefs::kConsumerStateMask) {
     *out_fence = shared_release_fence_.Duplicate();
@@ -230,7 +231,7 @@ Status<LocalChannelHandle> ProducerBuffer::Detach() {
 
   // TODO(b/112338294) Keep here for reference. Remove it after new logic is
   // written.
-  /* uint64_t buffer_state = buffer_state_->load();
+  /* uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsBufferGained(buffer_state)) {
     // Can only detach a ProducerBuffer when it's in gained state.
     ALOGW("ProducerBuffer::Detach: The buffer (id=%d, state=0x%" PRIx64
