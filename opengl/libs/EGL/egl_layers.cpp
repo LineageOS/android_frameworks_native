@@ -144,8 +144,8 @@ const char kSystemLayerLibraryDir[] = "/data/local/debug/gles";
 
 std::string LayerLoader::GetDebugLayers() {
     // Layers can be specified at the Java level in GraphicsEnvironemnt
-    // gpu_debug_layers = layer1:layer2:layerN
-    std::string debug_layers = android::GraphicsEnv::getInstance().getDebugLayers();
+    // gpu_debug_layers_gles = layer1:layer2:layerN
+    std::string debug_layers = android::GraphicsEnv::getInstance().getDebugLayersGLES();
 
     if (debug_layers.empty()) {
         // Only check system properties if Java settings are empty
