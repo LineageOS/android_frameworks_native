@@ -1,4 +1,3 @@
-// TODO(b/112585051) Add to VNDK once moved to libs/
 cc_defaults {
     name: "renderengine_defaults",
     cflags: [
@@ -60,8 +59,11 @@ filegroup {
 cc_library_static {
     name: "librenderengine",
     defaults: ["librenderengine_defaults"],
+    vendor_available: true,
+    vndk: {
+        enabled: true,
+    },
     double_loadable: true,
-
     clang: true,
     cflags: [
         "-fvisibility=hidden",
