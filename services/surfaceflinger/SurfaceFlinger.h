@@ -937,6 +937,9 @@ private:
     // Applied on Display P3 layers when the render intent is non-colorimetric.
     mat4 mEnhancedSaturationMatrix;
 
+    ui::Dataspace mDefaultCompositionDataspace;
+    ui::Dataspace mWideColorGamutCompositionDataspace;
+
     SurfaceFlingerBE mBE;
 
     bool mUseScheduler = false;
