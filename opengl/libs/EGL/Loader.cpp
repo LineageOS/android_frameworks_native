@@ -539,7 +539,6 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     if (strcmp(kind, "EGL") != 0 && strcmp(kind, "GLESv2") != 0 && strcmp(kind, "GLESv1_CM") != 0)
         return nullptr;
 
-    void* so = nullptr;
     std::string name;
     char prop[PROPERTY_VALUE_MAX];
 
@@ -573,7 +572,7 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
             bool use_version0_API = false;
             bool use_version1_API = false;
             fpANGLEGetUtilityAPI ANGLEGetUtilityAPI =
-                    (fpANGLEGetUtilityAPI)dlsym(so, "ANGLEGetUtilityAPI");
+                    (fpANGLEGetUtilityAPI)dlsym(cnx->featureSo, "ANGLEGetUtilityAPI");
             if (ANGLEGetUtilityAPI) {
                 unsigned int versionToUse = 1;
                 if ((ANGLEGetUtilityAPI)(&versionToUse)) {
@@ -585,12 +584,13 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
                 }
             } else {
                 use_version0_API = true;
+                ALOGV("Cannot find ANGLEGetUtilityAPI in library");
             }
             if (use_version1_API) {
                 // Use the new version 1 API to determine if the
                 // application should use the ANGLE or the native driver.
                 fpAndroidUseANGLEForApplication AndroidUseANGLEForApplication =
-                        (fpAndroidUseANGLEForApplication)dlsym(so, "AndroidUseANGLEForApplication");
+                        (fpAndroidUseANGLEForApplication)dlsym(cnx->featureSo, "AndroidUseANGLEForApplication");
                 if (AndroidUseANGLEForApplication) {
                     use_angle = (AndroidUseANGLEForApplication)(rules_fd, rules_offset,
                                                                 rules_length, app_name_str.c_str(),
@@ -602,7 +602,7 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
                 // Use the old version 0 API to determine if the
                 // application should use the ANGLE or the native driver.
                 fpANGLEUseForApplication ANGLEUseForApplication =
-                        (fpANGLEUseForApplication)dlsym(so, "ANGLEUseForApplication");
+                        (fpANGLEUseForApplication)dlsym(cnx->featureSo, "ANGLEUseForApplication");
                 if (ANGLEUseForApplication) {
                     ANGLEPreference app_preference =
                             getAnglePref(android::GraphicsEnv::getInstance().getAngleAppPref());
@@ -621,6 +621,7 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
         }
         cnx->angleDecided = true;
     }
+    void* so = nullptr;
     if (use_angle) {
         so = load_angle_from_namespace(kind, ns);
     }
