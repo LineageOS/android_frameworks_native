@@ -201,23 +201,53 @@ static const char* get_location_from_path(const char* path) {
     }
 }
 
-// Automatically adds binary and null terminator arg.
-static inline void ExecVWithArgs(const char* bin, const std::vector<std::string>& args) {
-    std::vector<const char*> argv = {bin};
-    for (const std::string& arg : args) {
-        argv.push_back(arg.c_str());
-    }
-    // Add null terminator.
-    argv.push_back(nullptr);
-    execv(bin, (char * const *)&argv[0]);
-}
+// ExecVHelper prepares and holds pointers to parsed command line arguments so that no allocations
+// need to be performed between the fork and exec.
+class ExecVHelper {
+  public:
+    // Store a placeholder for the binary name.
+    ExecVHelper() : args_(1u, std::string()) {}
 
-static inline void AddArgIfNonEmpty(const std::string& arg, std::vector<std::string>* args) {
-    DCHECK(args != nullptr);
-    if (!arg.empty()) {
-        args->push_back(arg);
+    void PrepareArgs(const std::string& bin) {
+        CHECK(!args_.empty());
+        CHECK(args_[0].empty());
+        args_[0] = bin;
+        // Write char* into array.
+        for (const std::string& arg : args_) {
+            argv_.push_back(arg.c_str());
+        }
+        argv_.push_back(nullptr);  // Add null terminator.
     }
-}
+
+    [[ noreturn ]]
+    void Exec(int exit_code) {
+        execv(argv_[0], (char * const *)&argv_[0]);
+        PLOG(ERROR) << "execv(" << argv_[0] << ") failed";
+        exit(exit_code);
+    }
+
+    // Add an arg if it's not empty.
+    void AddArg(const std::string& arg) {
+        if (!arg.empty()) {
+            args_.push_back(arg);
+        }
+    }
+
+    // Add a runtime arg if it's not empty.
+    void AddRuntimeArg(const std::string& arg) {
+        if (!arg.empty()) {
+            args_.push_back("--runtime-arg");
+            args_.push_back(arg);
+        }
+    }
+
+  protected:
+    // Holder arrays for backing arg storage.
+    std::vector<std::string> args_;
+
+    // Argument poiners.
+    std::vector<const char*> argv_;
+};
 
 static std::string MapPropertyToArg(const std::string& property,
                                     const std::string& format,
@@ -229,212 +259,220 @@ static std::string MapPropertyToArg(const std::string& property,
   return "";
 }
 
-[[ noreturn ]]
-static void run_dex2oat(int zip_fd, int oat_fd, int input_vdex_fd, int output_vdex_fd, int image_fd,
-        const char* input_file_name, const char* output_file_name, int swap_fd,
-        const char* instruction_set, const char* compiler_filter,
-        bool debuggable, bool post_bootcomplete, bool background_job_compile, int profile_fd,
-        const char* class_loader_context, int target_sdk_version, bool enable_hidden_api_checks,
-        bool generate_compact_dex, int dex_metadata_fd, const char* compilation_reason) {
-    // Get the relative path to the input file.
-    const char* relative_input_file_name = get_location_from_path(input_file_name);
+class RunDex2Oat : public ExecVHelper {
+  public:
+    RunDex2Oat(int zip_fd,
+               int oat_fd,
+               int input_vdex_fd,
+               int output_vdex_fd,
+               int image_fd,
+               const char* input_file_name,
+               const char* output_file_name,
+               int swap_fd,
+               const char* instruction_set,
+               const char* compiler_filter,
+               bool debuggable,
+               bool post_bootcomplete,
+               bool background_job_compile,
+               int profile_fd,
+               const char* class_loader_context,
+               int target_sdk_version,
+               bool enable_hidden_api_checks,
+               bool generate_compact_dex,
+               int dex_metadata_fd,
+               const char* compilation_reason) {
+        // Get the relative path to the input file.
+        const char* relative_input_file_name = get_location_from_path(input_file_name);
 
-    std::string dex2oat_Xms_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xms", "-Xms%s");
-    std::string dex2oat_Xmx_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xmx", "-Xmx%s");
+        std::string dex2oat_Xms_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xms", "-Xms%s");
+        std::string dex2oat_Xmx_arg = MapPropertyToArg("dalvik.vm.dex2oat-Xmx", "-Xmx%s");
 
-    const char* threads_property = post_bootcomplete
-            ? "dalvik.vm.dex2oat-threads"
-            : "dalvik.vm.boot-dex2oat-threads";
-    std::string dex2oat_threads_arg = MapPropertyToArg(threads_property, "-j%s");
+        const char* threads_property = post_bootcomplete
+                ? "dalvik.vm.dex2oat-threads"
+                : "dalvik.vm.boot-dex2oat-threads";
+        std::string dex2oat_threads_arg = MapPropertyToArg(threads_property, "-j%s");
 
-    const std::string dex2oat_isa_features_key =
-            StringPrintf("dalvik.vm.isa.%s.features", instruction_set);
-    std::string instruction_set_features_arg =
-        MapPropertyToArg(dex2oat_isa_features_key, "--instruction-set-features=%s");
+        const std::string dex2oat_isa_features_key =
+                StringPrintf("dalvik.vm.isa.%s.features", instruction_set);
+        std::string instruction_set_features_arg =
+            MapPropertyToArg(dex2oat_isa_features_key, "--instruction-set-features=%s");
 
-    const std::string dex2oat_isa_variant_key =
-            StringPrintf("dalvik.vm.isa.%s.variant", instruction_set);
-    std::string instruction_set_variant_arg =
-        MapPropertyToArg(dex2oat_isa_variant_key, "--instruction-set-variant=%s");
+        const std::string dex2oat_isa_variant_key =
+                StringPrintf("dalvik.vm.isa.%s.variant", instruction_set);
+        std::string instruction_set_variant_arg =
+            MapPropertyToArg(dex2oat_isa_variant_key, "--instruction-set-variant=%s");
 
-    const char *dex2oat_norelocation = "-Xnorelocate";
+        const char* dex2oat_norelocation = "-Xnorelocate";
 
-    const std::string dex2oat_flags = GetProperty("dalvik.vm.dex2oat-flags", "");
-    std::vector<std::string> dex2oat_flags_args = SplitBySpaces(dex2oat_flags);
-    ALOGV("dalvik.vm.dex2oat-flags=%s\n", dex2oat_flags.c_str());
+        const std::string dex2oat_flags = GetProperty("dalvik.vm.dex2oat-flags", "");
+        std::vector<std::string> dex2oat_flags_args = SplitBySpaces(dex2oat_flags);
+        ALOGV("dalvik.vm.dex2oat-flags=%s\n", dex2oat_flags.c_str());
 
-    // If we are booting without the real /data, don't spend time compiling.
-    std::string vold_decrypt = GetProperty("vold.decrypt", "");
-    bool skip_compilation = vold_decrypt == "trigger_restart_min_framework" ||
-                            vold_decrypt == "1";
+        // If we are booting without the real /data, don't spend time compiling.
+        std::string vold_decrypt = GetProperty("vold.decrypt", "");
+        bool skip_compilation = vold_decrypt == "trigger_restart_min_framework" ||
+                                vold_decrypt == "1";
 
-    const std::string resolve_startup_string_arg  =
-            MapPropertyToArg("dalvik.vm.dex2oat-resolve-startup-strings",
-                             "--resolve-startup-const-strings=%s");
-    const bool generate_debug_info = GetBoolProperty("debug.generate-debug-info", false);
+        const std::string resolve_startup_string_arg  =
+                MapPropertyToArg("dalvik.vm.dex2oat-resolve-startup-strings",
+                                 "--resolve-startup-const-strings=%s");
+        const bool generate_debug_info = GetBoolProperty("debug.generate-debug-info", false);
 
-    std::string image_format_arg;
-    if (image_fd >= 0) {
-        image_format_arg = MapPropertyToArg("dalvik.vm.appimageformat", "--image-format=%s");
-    }
-
-    std::string dex2oat_large_app_threshold_arg =
-        MapPropertyToArg("dalvik.vm.dex2oat-very-large", "--very-large-app-threshold=%s");
-
-    // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
-    const char* dex2oat_bin = "/system/bin/dex2oat";
-    constexpr const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
-    // Do not use dex2oatd for release candidates (give dex2oat more soak time).
-    bool is_release = android::base::GetProperty("ro.build.version.codename", "") == "REL";
-    if (is_debug_runtime() || (background_job_compile && is_debuggable_build() && !is_release)) {
-        if (access(kDex2oatDebugPath, X_OK) == 0) {
-            dex2oat_bin = kDex2oatDebugPath;
+        std::string image_format_arg;
+        if (image_fd >= 0) {
+            image_format_arg = MapPropertyToArg("dalvik.vm.appimageformat", "--image-format=%s");
         }
-    }
 
-    bool generate_minidebug_info = kEnableMinidebugInfo &&
-            android::base::GetBoolProperty(kMinidebugInfoSystemProperty,
-                                           kMinidebugInfoSystemPropertyDefault);
+        std::string dex2oat_large_app_threshold_arg =
+            MapPropertyToArg("dalvik.vm.dex2oat-very-large", "--very-large-app-threshold=%s");
 
-    // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
-    // use arraysize instead.
-    std::string zip_fd_arg = StringPrintf("--zip-fd=%d", zip_fd);
-    std::string zip_location_arg = StringPrintf("--zip-location=%s", relative_input_file_name);
-    std::string input_vdex_fd_arg = StringPrintf("--input-vdex-fd=%d", input_vdex_fd);
-    std::string output_vdex_fd_arg = StringPrintf("--output-vdex-fd=%d", output_vdex_fd);
-    std::string oat_fd_arg = StringPrintf("--oat-fd=%d", oat_fd);
-    std::string oat_location_arg = StringPrintf("--oat-location=%s", output_file_name);
-    std::string instruction_set_arg = StringPrintf("--instruction-set=%s", instruction_set);
-    std::string dex2oat_compiler_filter_arg;
-    std::string dex2oat_swap_fd;
-    std::string dex2oat_image_fd;
-    std::string target_sdk_version_arg;
-    if (target_sdk_version != 0) {
-        StringPrintf("-Xtarget-sdk-version:%d", target_sdk_version);
-    }
-    std::string class_loader_context_arg;
-    if (class_loader_context != nullptr) {
-        class_loader_context_arg = StringPrintf("--class-loader-context=%s", class_loader_context);
-    }
+        // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
+        const char* dex2oat_bin = "/system/bin/dex2oat";
+        constexpr const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
+        // Do not use dex2oatd for release candidates (give dex2oat more soak time).
+        bool is_release = android::base::GetProperty("ro.build.version.codename", "") == "REL";
+        if (is_debug_runtime() ||
+                (background_job_compile && is_debuggable_build() && !is_release)) {
+            if (access(kDex2oatDebugPath, X_OK) == 0) {
+                dex2oat_bin = kDex2oatDebugPath;
+            }
+        }
 
-    if (swap_fd >= 0) {
-        dex2oat_swap_fd = StringPrintf("--swap-fd=%d", swap_fd);
-    }
-    if (image_fd >= 0) {
-        dex2oat_image_fd = StringPrintf("--app-image-fd=%d", image_fd);
-    }
+        bool generate_minidebug_info = kEnableMinidebugInfo &&
+                GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
-    // Compute compiler filter.
-    bool have_dex2oat_relocation_skip_flag = false;
-    if (skip_compilation) {
-        dex2oat_compiler_filter_arg = "--compiler-filter=extract";
-        have_dex2oat_relocation_skip_flag = true;
-    } else if (compiler_filter != nullptr) {
-        dex2oat_compiler_filter_arg = StringPrintf("--compiler-filter=%s", compiler_filter);
-    }
+        // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
+        // use arraysize instead.
+        std::string zip_fd_arg = StringPrintf("--zip-fd=%d", zip_fd);
+        std::string zip_location_arg = StringPrintf("--zip-location=%s", relative_input_file_name);
+        std::string input_vdex_fd_arg = StringPrintf("--input-vdex-fd=%d", input_vdex_fd);
+        std::string output_vdex_fd_arg = StringPrintf("--output-vdex-fd=%d", output_vdex_fd);
+        std::string oat_fd_arg = StringPrintf("--oat-fd=%d", oat_fd);
+        std::string oat_location_arg = StringPrintf("--oat-location=%s", output_file_name);
+        std::string instruction_set_arg = StringPrintf("--instruction-set=%s", instruction_set);
+        std::string dex2oat_compiler_filter_arg;
+        std::string dex2oat_swap_fd;
+        std::string dex2oat_image_fd;
+        std::string target_sdk_version_arg;
+        if (target_sdk_version != 0) {
+            StringPrintf("-Xtarget-sdk-version:%d", target_sdk_version);
+        }
+        std::string class_loader_context_arg;
+        if (class_loader_context != nullptr) {
+            class_loader_context_arg = StringPrintf("--class-loader-context=%s",
+                                                    class_loader_context);
+        }
 
-    if (dex2oat_compiler_filter_arg.empty()) {
-        dex2oat_compiler_filter_arg = MapPropertyToArg("dalvik.vm.dex2oat-filter",
-                                                       "--compiler-filter=%s");
-    }
+        if (swap_fd >= 0) {
+            dex2oat_swap_fd = StringPrintf("--swap-fd=%d", swap_fd);
+        }
+        if (image_fd >= 0) {
+            dex2oat_image_fd = StringPrintf("--app-image-fd=%d", image_fd);
+        }
 
-    // Check whether all apps should be compiled debuggable.
-    if (!debuggable) {
-        debuggable = GetProperty("dalvik.vm.always_debuggable", "") == "1";
-    }
-    std::string profile_arg;
-    if (profile_fd != -1) {
-        profile_arg = StringPrintf("--profile-file-fd=%d", profile_fd);
-    }
+        // Compute compiler filter.
+        bool have_dex2oat_relocation_skip_flag = false;
+        if (skip_compilation) {
+            dex2oat_compiler_filter_arg = "--compiler-filter=extract";
+            have_dex2oat_relocation_skip_flag = true;
+        } else if (compiler_filter != nullptr) {
+            dex2oat_compiler_filter_arg = StringPrintf("--compiler-filter=%s", compiler_filter);
+        }
 
-    // Get the directory of the apk to pass as a base classpath directory.
-    std::string base_dir;
-    std::string apk_dir(input_file_name);
-    unsigned long dir_index = apk_dir.rfind('/');
-    bool has_base_dir = dir_index != std::string::npos;
-    if (has_base_dir) {
-        apk_dir = apk_dir.substr(0, dir_index);
-        base_dir = StringPrintf("--classpath-dir=%s", apk_dir.c_str());
+        if (dex2oat_compiler_filter_arg.empty()) {
+            dex2oat_compiler_filter_arg = MapPropertyToArg("dalvik.vm.dex2oat-filter",
+                                                           "--compiler-filter=%s");
+        }
+
+        // Check whether all apps should be compiled debuggable.
+        if (!debuggable) {
+            debuggable = GetProperty("dalvik.vm.always_debuggable", "") == "1";
+        }
+        std::string profile_arg;
+        if (profile_fd != -1) {
+            profile_arg = StringPrintf("--profile-file-fd=%d", profile_fd);
+        }
+
+        // Get the directory of the apk to pass as a base classpath directory.
+        std::string base_dir;
+        std::string apk_dir(input_file_name);
+        unsigned long dir_index = apk_dir.rfind('/');
+        bool has_base_dir = dir_index != std::string::npos;
+        if (has_base_dir) {
+            apk_dir = apk_dir.substr(0, dir_index);
+            base_dir = StringPrintf("--classpath-dir=%s", apk_dir.c_str());
+        }
+
+        std::string dex_metadata_fd_arg = "--dm-fd=" + std::to_string(dex_metadata_fd);
+
+        std::string compilation_reason_arg = compilation_reason == nullptr
+                ? ""
+                : std::string("--compilation-reason=") + compilation_reason;
+
+        ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, relative_input_file_name, output_file_name);
+
+        // Disable cdex if update input vdex is true since this combination of options is not
+        // supported.
+        const bool disable_cdex = !generate_compact_dex || (input_vdex_fd == output_vdex_fd);
+
+        AddArg(zip_fd_arg);
+        AddArg(zip_location_arg);
+        AddArg(input_vdex_fd_arg);
+        AddArg(output_vdex_fd_arg);
+        AddArg(oat_fd_arg);
+        AddArg(oat_location_arg);
+        AddArg(instruction_set_arg);
+
+        AddArg(instruction_set_variant_arg);
+        AddArg(instruction_set_features_arg);
+
+        AddRuntimeArg(dex2oat_Xms_arg);
+        AddRuntimeArg(dex2oat_Xmx_arg);
+
+        AddArg(resolve_startup_string_arg);
+        AddArg(dex2oat_compiler_filter_arg);
+        AddArg(dex2oat_threads_arg);
+        AddArg(dex2oat_swap_fd);
+        AddArg(dex2oat_image_fd);
+
+        if (generate_debug_info) {
+            AddArg("--generate-debug-info");
+        }
+        if (debuggable) {
+            AddArg("--debuggable");
+        }
+        AddArg(image_format_arg);
+        AddArg(dex2oat_large_app_threshold_arg);
+
+        if (have_dex2oat_relocation_skip_flag) {
+            AddRuntimeArg(dex2oat_norelocation);
+        }
+        AddArg(profile_arg);
+        AddArg(base_dir);
+        AddArg(class_loader_context_arg);
+        if (generate_minidebug_info) {
+            AddArg(kMinidebugDex2oatFlag);
+        }
+        if (disable_cdex) {
+            AddArg(kDisableCompactDexFlag);
+        }
+        AddArg(target_sdk_version_arg);
+        if (enable_hidden_api_checks) {
+            AddRuntimeArg("-Xhidden-api-checks");
+        }
+
+        if (dex_metadata_fd > -1) {
+            AddArg(dex_metadata_fd_arg);
+        }
+
+        AddArg(compilation_reason_arg);
+
+        // Do not add args after dex2oat_flags, they should override others for debugging.
+        args_.insert(args_.end(), dex2oat_flags_args.begin(), dex2oat_flags_args.end());
+
+        PrepareArgs(dex2oat_bin);
     }
-
-    std::string dex_metadata_fd_arg = "--dm-fd=" + std::to_string(dex_metadata_fd);
-
-    std::string compilation_reason_arg = compilation_reason == nullptr
-            ? ""
-            : std::string("--compilation-reason=") + compilation_reason;
-
-    ALOGV("Running %s in=%s out=%s\n", dex2oat_bin, relative_input_file_name, output_file_name);
-
-    // Disable cdex if update input vdex is true since this combination of options is not
-    // supported.
-    const bool disable_cdex = !generate_compact_dex || (input_vdex_fd == output_vdex_fd);
-
-    std::vector<std::string> args = {
-        zip_fd_arg,
-        zip_location_arg,
-        input_vdex_fd_arg,
-        output_vdex_fd_arg,
-        oat_fd_arg,
-        oat_location_arg,
-        instruction_set_arg,
-    };
-    auto add_runtime_arg = [&](const std::string& arg) {
-        args.push_back("--runtime-arg");
-        args.push_back(arg);
-    };
-
-    AddArgIfNonEmpty(instruction_set_variant_arg, &args);
-    AddArgIfNonEmpty(instruction_set_features_arg, &args);
-    if (!dex2oat_Xms_arg.empty()) {
-        add_runtime_arg(dex2oat_Xms_arg);
-    }
-    if (!dex2oat_Xmx_arg.empty()) {
-        add_runtime_arg(dex2oat_Xmx_arg);
-    }
-    AddArgIfNonEmpty(resolve_startup_string_arg, &args);
-    AddArgIfNonEmpty(dex2oat_compiler_filter_arg, &args);
-    AddArgIfNonEmpty(dex2oat_threads_arg, &args);
-    AddArgIfNonEmpty(dex2oat_swap_fd, &args);
-    AddArgIfNonEmpty(dex2oat_image_fd, &args);
-
-    if (generate_debug_info) {
-        args.push_back("--generate-debug-info");
-    }
-    if (debuggable) {
-        args.push_back("--debuggable");
-    }
-    AddArgIfNonEmpty(image_format_arg, &args);
-    AddArgIfNonEmpty(dex2oat_large_app_threshold_arg, &args);
-    args.insert(args.end(), dex2oat_flags_args.begin(), dex2oat_flags_args.end());
-    if (have_dex2oat_relocation_skip_flag) {
-        add_runtime_arg(dex2oat_norelocation);
-    }
-    AddArgIfNonEmpty(profile_arg, &args);
-    AddArgIfNonEmpty(base_dir, &args);
-    AddArgIfNonEmpty(class_loader_context_arg, &args);
-    if (generate_minidebug_info) {
-        args.push_back(kMinidebugDex2oatFlag);
-    }
-    if (disable_cdex) {
-        args.push_back(kDisableCompactDexFlag);
-    }
-    AddArgIfNonEmpty(target_sdk_version_arg, &args);
-    if (enable_hidden_api_checks) {
-        add_runtime_arg("-Xhidden-api-checks");
-    }
-
-    if (dex_metadata_fd > -1) {
-        args.push_back(dex_metadata_fd_arg);
-    }
-
-    AddArgIfNonEmpty(compilation_reason_arg, &args);
-
-    // Do not add after dex2oat_flags, they should override others for debugging.
-
-    ExecVWithArgs(dex2oat_bin, args);
-    PLOG(ERROR) << "execv(" << dex2oat_bin << ") failed";
-    exit(DexoptReturnCodes::kDex2oatExec);
-}
+};
 
 /*
  * Whether dexopt should use a swap file when compiling an APK.
@@ -610,74 +648,85 @@ static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 2;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_IO = 3;
 static constexpr int PROFMAN_BIN_RETURN_CODE_ERROR_LOCKING = 4;
 
-[[ noreturn ]]
-static void run_profman(const std::vector<unique_fd>& profile_fds,
-                        const unique_fd& reference_profile_fd,
-                        const std::vector<unique_fd>* apk_fds,
-                        const std::vector<std::string>* dex_locations,
-                        bool copy_and_update) {
-    const char* profman_bin = is_debug_runtime() ? "/system/bin/profmand" : "/system/bin/profman";
+class RunProfman : public ExecVHelper {
+  public:
+   void SetupArgs(const std::vector<unique_fd>& profile_fds,
+                  const unique_fd& reference_profile_fd,
+                  const std::vector<unique_fd>& apk_fds,
+                  const std::vector<std::string>& dex_locations,
+                  bool copy_and_update) {
+        const char* profman_bin =
+                is_debug_runtime() ? "/system/bin/profmand" : "/system/bin/profman";
 
-    if (copy_and_update) {
-        CHECK_EQ(1u, profile_fds.size());
-        CHECK(apk_fds != nullptr);
-        CHECK_EQ(1u, apk_fds->size());
-    }
-    std::vector<std::string> args;
-    args.push_back("--reference-profile-file-fd=" + std::to_string(reference_profile_fd.get()));
-
-    for (const unique_fd& fd : profile_fds) {
-        args.push_back("--profile-file-fd=" + std::to_string(fd.get()));
-    }
-
-    if (apk_fds != nullptr) {
-        for (const unique_fd& fd : *apk_fds) {
-            args.push_back("--apk-fd=" + std::to_string(fd.get()));
+        if (copy_and_update) {
+            CHECK_EQ(1u, profile_fds.size());
+            CHECK_EQ(1u, apk_fds.size());
         }
-    }
-
-    std::vector<std::string> dex_location_args;
-    if (dex_locations != nullptr) {
-        for (const std::string& dex_location : *dex_locations) {
-            args.push_back("--dex-location=" + dex_location);
+        if (reference_profile_fd != -1) {
+            AddArg("--reference-profile-file-fd=" + std::to_string(reference_profile_fd.get()));
         }
+
+        for (const unique_fd& fd : profile_fds) {
+            AddArg("--profile-file-fd=" + std::to_string(fd.get()));
+        }
+
+        for (const unique_fd& fd : apk_fds) {
+            AddArg("--apk-fd=" + std::to_string(fd.get()));
+        }
+
+        for (const std::string& dex_location : dex_locations) {
+            AddArg("--dex-location=" + dex_location);
+        }
+
+        if (copy_and_update) {
+            AddArg("--copy-and-update-profile-key");
+        }
+
+        // Do not add after dex2oat_flags, they should override others for debugging.
+        PrepareArgs(profman_bin);
     }
 
-    if (copy_and_update) {
-        args.push_back("--copy-and-update-profile-key");
+    void SetupMerge(const std::vector<unique_fd>& profiles_fd,
+                    const unique_fd& reference_profile_fd,
+                    const std::vector<unique_fd>& apk_fds = std::vector<unique_fd>(),
+                    const std::vector<std::string>& dex_locations = std::vector<std::string>()) {
+        SetupArgs(profiles_fd,
+                    reference_profile_fd,
+                    apk_fds,
+                    dex_locations,
+                    /*copy_and_update=*/false);
     }
 
-    // Do not add after dex2oat_flags, they should override others for debugging.
+    void SetupCopyAndUpdate(unique_fd&& profile_fd,
+                            unique_fd&& reference_profile_fd,
+                            unique_fd&& apk_fd,
+                            const std::string& dex_location) {
+        std::vector<unique_fd> profiles_fd;
+        profiles_fd.push_back(std::move(profile_fd));
+        std::vector<unique_fd> apk_fds;
+        profiles_fd.push_back(std::move(apk_fd));
+        std::vector<std::string> dex_locations = {dex_location};
+        SetupArgs(profiles_fd, reference_profile_fd, apk_fds, dex_locations,
+                  /*copy_and_update=*/true);
+    }
 
-    ExecVWithArgs(profman_bin, args);
-    PLOG(ERROR) << "execv(" << profman_bin << ") failed";
-    exit(DexoptReturnCodes::kProfmanExec);   /* only get here on exec failure */
-}
+    void SetupDump(const std::vector<unique_fd>& profiles_fd,
+                   const unique_fd& reference_profile_fd,
+                   const std::vector<std::string>& dex_locations,
+                   const std::vector<unique_fd>& apk_fds,
+                   const unique_fd& output_fd) {
+        AddArg("--dump-only");
+        AddArg(StringPrintf("--dump-output-to-fd=%d", output_fd.get()));
+        SetupArgs(profiles_fd, reference_profile_fd, apk_fds, dex_locations,
+                  /*copy_and_update=*/false);
+    }
 
-[[ noreturn ]]
-static void run_profman_merge(const std::vector<unique_fd>& profiles_fd,
-                              const unique_fd& reference_profile_fd,
-                              const std::vector<unique_fd>* apk_fds = nullptr,
-                              const std::vector<std::string>* dex_locations = nullptr) {
-    run_profman(profiles_fd, reference_profile_fd, apk_fds, dex_locations,
-            /*copy_and_update*/false);
-}
+    void Exec() {
+        ExecVHelper::Exec(DexoptReturnCodes::kProfmanExec);
+    }
+};
 
-[[ noreturn ]]
-static void run_profman_copy_and_update(unique_fd&& profile_fd,
-                                        unique_fd&& reference_profile_fd,
-                                        unique_fd&& apk_fd,
-                                        const std::string& dex_location) {
-    std::vector<unique_fd> profiles_fd;
-    profiles_fd.push_back(std::move(profile_fd));
-    std::vector<unique_fd> apk_fds;
-    apk_fds.push_back(std::move(apk_fd));
-    std::vector<std::string> dex_locations;
-    dex_locations.push_back(dex_location);
 
-    run_profman(profiles_fd, reference_profile_fd, &apk_fds, &dex_locations,
-            /*copy_and_update*/true);
-}
 
 // Decides if profile guided compilation is needed or not based on existing profiles.
 // The location is the package name for primary apks or the dex path for secondary dex files.
@@ -697,11 +746,13 @@ static bool analyze_profiles(uid_t uid, const std::string& package_name,
         return false;
     }
 
+    RunProfman profman_merge;
+    profman_merge.SetupMerge(profiles_fd, reference_profile_fd);
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
-        run_profman_merge(profiles_fd, reference_profile_fd);
+        profman_merge.Exec();
     }
     /* parent */
     int return_code = wait_child(pid);
@@ -774,35 +825,6 @@ bool analyze_primary_profiles(uid_t uid, const std::string& package_name,
     return analyze_profiles(uid, package_name, profile_name, /*is_secondary_dex*/false);
 }
 
-[[ noreturn ]]
-static void run_profman_dump(const std::vector<unique_fd>& profile_fds,
-                             const unique_fd& reference_profile_fd,
-                             const std::vector<std::string>& dex_locations,
-                             const std::vector<unique_fd>& apk_fds,
-                             const unique_fd& output_fd) {
-    std::vector<std::string> profman_args;
-    static const char* PROFMAN_BIN = "/system/bin/profman";
-    profman_args.push_back("--dump-only");
-    profman_args.push_back(StringPrintf("--dump-output-to-fd=%d", output_fd.get()));
-    if (reference_profile_fd != -1) {
-        profman_args.push_back(StringPrintf("--reference-profile-file-fd=%d",
-                                            reference_profile_fd.get()));
-    }
-    for (size_t i = 0; i < profile_fds.size(); i++) {
-        profman_args.push_back(StringPrintf("--profile-file-fd=%d", profile_fds[i].get()));
-    }
-    for (const std::string& dex_location : dex_locations) {
-        profman_args.push_back(StringPrintf("--dex-location=%s", dex_location.c_str()));
-    }
-    for (size_t i = 0; i < apk_fds.size(); i++) {
-        profman_args.push_back(StringPrintf("--apk-fd=%d", apk_fds[i].get()));
-    }
-
-    ExecVWithArgs(PROFMAN_BIN, profman_args);
-    PLOG(ERROR) << "execv(" << PROFMAN_BIN << ") failed";
-    exit(DexoptReturnCodes::kProfmanExec);   /* only get here on exec failure */
-}
-
 bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& profile_name,
         const std::string& code_path) {
     std::vector<unique_fd> profile_fds;
@@ -839,12 +861,13 @@ bool dump_profiles(int32_t uid, const std::string& pkgname, const std::string& p
     apk_fds.push_back(std::move(apk_fd));
 
 
+    RunProfman profman_dump;
+    profman_dump.SetupDump(profile_fds, reference_profile_fd, dex_locations, apk_fds, output_fd);
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
-        run_profman_dump(profile_fds, reference_profile_fd, dex_locations,
-                         apk_fds, output_fd);
+        profman_dump.Exec();
     }
     /* parent */
     int return_code = wait_child(pid);
@@ -1416,55 +1439,60 @@ void update_out_oat_access_times(const char* apk_path, const char* out_oat_path)
 // The analyzer will check if the dex_file needs to be (re)compiled to match the compiler_filter.
 // If this is for a profile guided compilation, profile_was_updated will tell whether or not
 // the profile has changed.
-static void exec_dexoptanalyzer(const std::string& dex_file, int vdex_fd, int oat_fd,
-        int zip_fd, const std::string& instruction_set, const std::string& compiler_filter,
-        bool profile_was_updated, bool downgrade,
-        const char* class_loader_context) {
-    CHECK_GE(zip_fd, 0);
-    const char* dexoptanalyzer_bin =
-            is_debug_runtime()
-                    ? "/system/bin/dexoptanalyzerd"
-                    : "/system/bin/dexoptanalyzer";
+class RunDexoptAnalyzer : public ExecVHelper {
+ public:
+    RunDexoptAnalyzer(const std::string& dex_file,
+                    int vdex_fd,
+                    int oat_fd,
+                    int zip_fd,
+                    const std::string& instruction_set,
+                    const std::string& compiler_filter,
+                    bool profile_was_updated,
+                    bool downgrade,
+                    const char* class_loader_context) {
+        CHECK_GE(zip_fd, 0);
+        const char* dexoptanalyzer_bin =
+                is_debug_runtime()
+                        ? "/system/bin/dexoptanalyzerd"
+                        : "/system/bin/dexoptanalyzer";
 
-    std::string dex_file_arg = "--dex-file=" + dex_file;
-    std::string oat_fd_arg = "--oat-fd=" + std::to_string(oat_fd);
-    std::string vdex_fd_arg = "--vdex-fd=" + std::to_string(vdex_fd);
-    std::string zip_fd_arg = "--zip-fd=" + std::to_string(zip_fd);
-    std::string isa_arg = "--isa=" + instruction_set;
-    std::string compiler_filter_arg = "--compiler-filter=" + compiler_filter;
-    const char* assume_profile_changed = "--assume-profile-changed";
-    const char* downgrade_flag = "--downgrade";
-    std::string class_loader_context_arg = "--class-loader-context=";
-    if (class_loader_context != nullptr) {
-        class_loader_context_arg += class_loader_context;
-    }
+        std::string dex_file_arg = "--dex-file=" + dex_file;
+        std::string oat_fd_arg = "--oat-fd=" + std::to_string(oat_fd);
+        std::string vdex_fd_arg = "--vdex-fd=" + std::to_string(vdex_fd);
+        std::string zip_fd_arg = "--zip-fd=" + std::to_string(zip_fd);
+        std::string isa_arg = "--isa=" + instruction_set;
+        std::string compiler_filter_arg = "--compiler-filter=" + compiler_filter;
+        const char* assume_profile_changed = "--assume-profile-changed";
+        const char* downgrade_flag = "--downgrade";
+        std::string class_loader_context_arg = "--class-loader-context=";
+        if (class_loader_context != nullptr) {
+            class_loader_context_arg += class_loader_context;
+        }
 
-    // program name, dex file, isa, filter
-    std::vector<std::string> args = {
-      dex_file_arg,
-      isa_arg,
-      compiler_filter_arg,
-    };
-    if (oat_fd >= 0) {
-        args.push_back(oat_fd_arg);
-    }
-    if (vdex_fd >= 0) {
-        args.push_back(vdex_fd_arg);
-    }
-    args.push_back(zip_fd_arg.c_str());
-    if (profile_was_updated) {
-        args.push_back(assume_profile_changed);
-    }
-    if (downgrade) {
-        args.push_back(downgrade_flag);
-    }
-    if (class_loader_context != nullptr) {
-        args.push_back(class_loader_context_arg.c_str());
-    }
+        // program name, dex file, isa, filter
+        AddArg(dex_file_arg);
+        AddArg(isa_arg);
+        AddArg(compiler_filter_arg);
+        if (oat_fd >= 0) {
+            AddArg(oat_fd_arg);
+        }
+        if (vdex_fd >= 0) {
+            AddArg(vdex_fd_arg);
+        }
+        AddArg(zip_fd_arg.c_str());
+        if (profile_was_updated) {
+            AddArg(assume_profile_changed);
+        }
+        if (downgrade) {
+            AddArg(downgrade_flag);
+        }
+        if (class_loader_context != nullptr) {
+            AddArg(class_loader_context_arg.c_str());
+        }
 
-    ExecVWithArgs(dexoptanalyzer_bin, args);
-    ALOGE("execv(%s) failed: %s\n", dexoptanalyzer_bin, strerror(errno));
-}
+        PrepareArgs(dexoptanalyzer_bin);
+    }
+};
 
 // Prepares the oat dir for the secondary dex files.
 static bool prepare_secondary_dex_oat_dir(const std::string& dex_path, int uid,
@@ -1716,16 +1744,17 @@ static bool process_secondary_dex_dexopt(const std::string& dex_path, const char
                 /*is_secondary_dex*/true);
 
         // Run dexoptanalyzer to get dexopt_needed code. This is not expected to return.
-        exec_dexoptanalyzer(dex_path,
-                            vdex_file_fd.get(),
-                            oat_file_fd.get(),
-                            zip_fd.get(),
-                            instruction_set,
-                            compiler_filter, profile_was_updated,
-                            downgrade,
-                            class_loader_context);
-        PLOG(ERROR) << "Failed to exec dexoptanalyzer";
-        _exit(kSecondaryDexDexoptAnalyzerSkippedFailExec);
+        // Note that we do not do it before the fork since opening the files is required to happen
+        // after forking.
+        RunDexoptAnalyzer run_dexopt_analyzer(dex_path,
+                                              vdex_file_fd.get(),
+                                              oat_file_fd.get(),
+                                              zip_fd.get(),
+                                              instruction_set,
+                                              compiler_filter, profile_was_updated,
+                                              downgrade,
+                                              class_loader_context);
+        run_dexopt_analyzer.Exec(kSecondaryDexDexoptAnalyzerSkippedFailExec);
     }
 
     /* parent */
@@ -1894,6 +1923,27 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
 
     LOG(VERBOSE) << "DexInv: --- BEGIN '" << dex_path << "' ---";
 
+    RunDex2Oat runner(input_fd.get(),
+                      out_oat_fd.get(),
+                      in_vdex_fd.get(),
+                      out_vdex_fd.get(),
+                      image_fd.get(),
+                      dex_path,
+                      out_oat_path,
+                      swap_fd.get(),
+                      instruction_set,
+                      compiler_filter,
+                      debuggable,
+                      boot_complete,
+                      background_job_compile,
+                      reference_profile_fd.get(),
+                      class_loader_context,
+                      target_sdk_version,
+                      enable_hidden_api_checks,
+                      generate_compact_dex,
+                      dex_metadata_fd.get(),
+                      compilation_reason);
+
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
@@ -1905,26 +1955,7 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
             _exit(DexoptReturnCodes::kFlock);
         }
 
-        run_dex2oat(input_fd.get(),
-                    out_oat_fd.get(),
-                    in_vdex_fd.get(),
-                    out_vdex_fd.get(),
-                    image_fd.get(),
-                    dex_path,
-                    out_oat_path,
-                    swap_fd.get(),
-                    instruction_set,
-                    compiler_filter,
-                    debuggable,
-                    boot_complete,
-                    background_job_compile,
-                    reference_profile_fd.get(),
-                    class_loader_context,
-                    target_sdk_version,
-                    enable_hidden_api_checks,
-                    generate_compact_dex,
-                    dex_metadata_fd.get(),
-                    compilation_reason);
+        runner.Exec(DexoptReturnCodes::kDex2oatExec);
     } else {
         int res = wait_child(pid);
         if (res == 0) {
@@ -2488,11 +2519,13 @@ static bool create_app_profile_snapshot(int32_t app_id,
         return false;
     }
 
+    RunProfman args;
+    args.SetupMerge(profiles_fd, snapshot_fd, apk_fds, dex_locations);
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
         drop_capabilities(app_shared_gid);
-        run_profman_merge(profiles_fd, snapshot_fd, &apk_fds, &dex_locations);
+        args.Exec();
     }
 
     /* parent */
@@ -2572,6 +2605,8 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
                 profiles_fd.push_back(std::move(fd));
             }
         }
+        RunProfman args;
+        args.SetupMerge(profiles_fd, snapshot_fd, apk_fds, dex_locations);
         pid_t pid = fork();
         if (pid == 0) {
             /* child -- drop privileges before continuing */
@@ -2579,7 +2614,7 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
 
             // The introduction of new access flags into boot jars causes them to
             // fail dex file verification.
-            run_profman_merge(profiles_fd, snapshot_fd, &apk_fds, &dex_locations);
+            args.Exec();
         }
 
         /* parent */
@@ -2633,6 +2668,11 @@ bool prepare_app_profile(const std::string& package_name,
         return false;
     }
 
+    RunProfman args;
+    args.SetupCopyAndUpdate(std::move(dex_metadata_fd),
+                            std::move(ref_profile_fd),
+                            std::move(apk_fd),
+                            code_path);
     pid_t pid = fork();
     if (pid == 0) {
         /* child -- drop privileges before continuing */
@@ -2640,10 +2680,7 @@ bool prepare_app_profile(const std::string& package_name,
         drop_capabilities(app_shared_gid);
 
         // The copy and update takes ownership over the fds.
-        run_profman_copy_and_update(std::move(dex_metadata_fd),
-                                    std::move(ref_profile_fd),
-                                    std::move(apk_fd),
-                                    code_path);
+        args.Exec();
     }
 
     /* parent */
