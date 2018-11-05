@@ -61,7 +61,9 @@ public:
     const std::string& getLayerPaths();
 
     void setDebugLayers(const std::string layers);
+    void setDebugLayersGLES(const std::string layers);
     const std::string& getDebugLayers();
+    const std::string& getDebugLayersGLES();
 
 private:
     GraphicsEnv() = default;
@@ -74,6 +76,7 @@ private:
     long mAngleRulesOffset;
     long mAngleRulesLength;
     std::string mDebugLayers;
+    std::string mDebugLayersGLES;
     std::string mLayerPaths;
     android_namespace_t* mDriverNamespace = nullptr;
     android_namespace_t* mAngleNamespace = nullptr;
