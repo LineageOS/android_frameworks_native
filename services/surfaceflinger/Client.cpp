@@ -170,48 +170,8 @@ status_t Client::createSurface(
         }
     }
 
-    /*
-     * createSurface must be called from the GL thread so that it can
-     * have access to the GL context.
-     */
-    class MessageCreateLayer : public MessageBase {
-        SurfaceFlinger* flinger;
-        Client* client;
-        sp<IBinder>* handle;
-        sp<IGraphicBufferProducer>* gbp;
-        status_t result;
-        const String8& name;
-        uint32_t w, h;
-        PixelFormat format;
-        uint32_t flags;
-        sp<Layer>* parent;
-        int32_t windowType;
-        int32_t ownerUid;
-    public:
-        MessageCreateLayer(SurfaceFlinger* flinger,
-                const String8& name, Client* client,
-                uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-                sp<IBinder>* handle, int32_t windowType, int32_t ownerUid,
-                sp<IGraphicBufferProducer>* gbp,
-                sp<Layer>* parent)
-            : flinger(flinger), client(client),
-              handle(handle), gbp(gbp), result(NO_ERROR),
-              name(name), w(w), h(h), format(format), flags(flags),
-              parent(parent), windowType(windowType), ownerUid(ownerUid) {
-        }
-        status_t getResult() const { return result; }
-        virtual bool handler() {
-            result = flinger->createLayer(name, client, w, h, format, flags,
-                    windowType, ownerUid, handle, gbp, parent);
-            return true;
-        }
-    };
-
-    sp<MessageBase> msg = new MessageCreateLayer(mFlinger.get(),
-            name, this, w, h, format, flags, handle,
-            windowType, ownerUid, gbp, &parent);
-    mFlinger->postMessageSync(msg);
-    return static_cast<MessageCreateLayer*>( msg.get() )->getResult();
+    return mFlinger->createLayer(name, this, w, h, format, flags, windowType,
+                                 ownerUid, handle, gbp, &parent);
 }
 
 status_t Client::destroySurface(const sp<IBinder>& handle) {

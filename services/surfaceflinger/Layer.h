@@ -258,7 +258,7 @@ public:
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
     // producer specified transform.
-    bool setMatrix(const layer_state_t::matrix22_t& matrix);
+    bool setMatrix(const layer_state_t::matrix22_t& matrix, bool allowNonRectPreservingTransforms);
 
     // This second set of geometry attributes are controlled by
     // setGeometryAppliesWithResize, and their default mode is to be
@@ -359,6 +359,11 @@ public:
      * isFixedSize - true if content has a fixed size
      */
     virtual bool isFixedSize() const { return true; }
+
+    // Most layers aren't created from the main thread, and therefore need to
+    // grab the SF state lock to access HWC, but ContainerLayer does, so we need
+    // to avoid grabbing the lock again to avoid deadlock
+    virtual bool isCreatedFromMainThread() const { return false; }
 
 
     bool isPendingRemoval() const { return mPendingRemoval; }

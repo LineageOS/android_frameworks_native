@@ -37,6 +37,7 @@
 
 #include <dvr/vr_flinger.h>
 
+#include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/DisplayStatInfo.h>
@@ -222,6 +223,7 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mVisibleRegionsDirty(false),
         mGeometryInvalid(false),
         mAnimCompositionPending(false),
+        mBootStage(BootStage::BOOTLOADER),
         mDebugRegion(0),
         mDebugDDMS(0),
         mDebugDisableHWC(0),
@@ -230,7 +232,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mLastSwapBufferTime(0),
         mDebugInTransaction(0),
         mLastTransactionTime(0),
-        mBootFinished(false),
         mForceFullDamage(false),
         mPrimaryDispSync("PrimaryDispSync"),
         mPrimaryHWVsyncEnabled(false),
@@ -331,11 +332,26 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
-    property_get("debug.sf.early_phase_offset_ns", value, "0");
-    const int earlyWakeupOffsetOffsetNs = atoi(value);
-    ALOGI_IF(earlyWakeupOffsetOffsetNs != 0, "Enabling separate early offset");
-    mVsyncModulator.setPhaseOffsets(sfVsyncPhaseOffsetNs - earlyWakeupOffsetOffsetNs,
-            sfVsyncPhaseOffsetNs);
+    property_get("debug.sf.early_phase_offset_ns", value, "-1");
+    const int earlySfOffsetNs = atoi(value);
+
+    property_get("debug.sf.early_gl_phase_offset_ns", value, "-1");
+    const int earlyGlSfOffsetNs = atoi(value);
+
+    property_get("debug.sf.early_app_phase_offset_ns", value, "-1");
+    const int earlyAppOffsetNs = atoi(value);
+
+    property_get("debug.sf.early_gl_app_phase_offset_ns", value, "-1");
+    const int earlyGlAppOffsetNs = atoi(value);
+
+    const VSyncModulator::Offsets earlyOffsets =
+            {earlySfOffsetNs != -1 ? earlySfOffsetNs : sfVsyncPhaseOffsetNs,
+            earlyAppOffsetNs != -1 ? earlyAppOffsetNs : vsyncPhaseOffsetNs};
+    const VSyncModulator::Offsets earlyGlOffsets =
+            {earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs : sfVsyncPhaseOffsetNs,
+            earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs : vsyncPhaseOffsetNs};
+    mVsyncModulator.setPhaseOffsets(earlyOffsets, earlyGlOffsets,
+            {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs});
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -482,8 +498,30 @@ void SurfaceFlinger::bootFinished()
 
     sp<LambdaMessage> readProperties = new LambdaMessage([&]() {
         readPersistentProperties();
+        mBootStage = BootStage::FINISHED;
     });
     postMessageAsync(readProperties);
+}
+
+uint32_t SurfaceFlinger::getNewTexture() {
+    {
+        std::lock_guard lock(mTexturePoolMutex);
+        if (!mTexturePool.empty()) {
+            uint32_t name = mTexturePool.back();
+            mTexturePool.pop_back();
+            ATRACE_INT("TexturePoolSize", mTexturePool.size());
+            return name;
+        }
+
+        // The pool was too small, so increase it for the future
+        ++mTexturePoolSize;
+    }
+
+    // The pool was empty, so we need to get a new texture name directly using a
+    // blocking call to the main thread
+    uint32_t name = 0;
+    postMessageSync(new LambdaMessage([&]() { getRenderEngine().genTextures(1, &name); }));
+    return name;
 }
 
 void SurfaceFlinger::deleteTextureAsync(uint32_t texture) {
@@ -662,7 +700,7 @@ void SurfaceFlinger::init() {
                                                 },
                                                 "sfEventThread");
     mEventQueue->setEventThread(mSFEventThread.get());
-    mVsyncModulator.setEventThread(mSFEventThread.get());
+    mVsyncModulator.setEventThreads(mSFEventThread.get(), mEventThread.get());
 
     // Get a RenderEngine for the given display / config (can't fail)
     getBE().mRenderEngine =
@@ -732,8 +770,23 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    mLegacySrgbSaturationMatrix = getBE().mHwc->getDataspaceSaturationMatrix(HWC_DISPLAY_PRIMARY,
+    // This is a hack. Per definition of getDataspaceSaturationMatrix, the returned matrix
+    // is used to saturate legacy sRGB content. However, to make sure the same color under
+    // Display P3 will be saturated to the same color, we intentionally break the API spec
+    // and apply this saturation matrix on Display P3 content. Unless the risk of applying
+    // such saturation matrix on Display P3 is understood fully, the API should always return
+    // identify matrix.
+    mEnhancedSaturationMatrix = getBE().mHwc->getDataspaceSaturationMatrix(HWC_DISPLAY_PRIMARY,
             Dataspace::SRGB_LINEAR);
+
+    // we will apply this on Display P3.
+    if (mEnhancedSaturationMatrix != mat4()) {
+        ColorSpace srgb(ColorSpace::sRGB());
+        ColorSpace displayP3(ColorSpace::DisplayP3());
+        mat4 srgbToP3 = mat4(ColorSpaceConnector(srgb, displayP3).getTransform());
+        mat4 p3ToSrgb = mat4(ColorSpaceConnector(displayP3, srgb).getTransform());
+        mEnhancedSaturationMatrix = srgbToP3 * mEnhancedSaturationMatrix * p3ToSrgb;
+    }
 
     ALOGV("Done initializing");
 }
@@ -925,6 +978,21 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& /* display */,
     memset(stats, 0, sizeof(*stats));
     stats->vsyncTime   = mPrimaryDispSync.computeNextRefresh(0);
     stats->vsyncPeriod = mPrimaryDispSync.getPeriod();
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
+    if (outViewport == nullptr || display.get() == nullptr) {
+        return BAD_VALUE;
+    }
+
+    sp<const DisplayDevice> device(getDisplayDevice(display));
+    if (device == nullptr) {
+        return BAD_VALUE;
+    }
+
+    *outViewport = device->getViewport();
+
     return NO_ERROR;
 }
 
@@ -1496,7 +1564,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
             bool refreshNeeded = handleMessageTransaction();
             refreshNeeded |= handleMessageInvalidate();
             refreshNeeded |= mRepaintEverything;
-            if (refreshNeeded) {
+            if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
                 // Signal a refresh if a transaction modified the window state,
                 // a new buffer was latched, or if HWC has requested a full
                 // repaint
@@ -1809,6 +1877,17 @@ void SurfaceFlinger::postComposition(nsecs_t refreshStartTime)
         getBE().mTotalTime += elapsedTime;
     }
     getBE().mLastSwapTime = currentTime;
+
+    {
+        std::lock_guard lock(mTexturePoolMutex);
+        const size_t refillCount = mTexturePoolSize - mTexturePool.size();
+        if (refillCount > 0) {
+            const size_t offset = mTexturePool.size();
+            mTexturePool.resize(mTexturePoolSize);
+            getRenderEngine().genTextures(refillCount, mTexturePool.data() + offset);
+            ATRACE_INT("TexturePoolSize", mTexturePool.size());
+        }
+    }
 }
 
 void SurfaceFlinger::rebuildLayerStacks() {
@@ -2116,11 +2195,15 @@ void SurfaceFlinger::postFramebuffer()
         displayDevice->onSwapBuffersCompleted();
         displayDevice->makeCurrent();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+            sp<Fence> releaseFence = Fence::NO_FENCE;
+
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
             auto hwcLayer = layer->getHwcLayer(hwcId);
-            sp<Fence> releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            if (hwcId >= 0) {
+                releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            }
 
             // If the layer was client composited in the previous frame, we
             // need to merge with the previous client target acquire fence.
@@ -2267,8 +2350,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
     bool hasWideColorGamut = false;
     std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
+    HdrCapabilities hdrCapabilities;
+    int32_t supportedPerFrameMetadata = 0;
 
-    if (hasWideColorDisplay) {
+    if (hasWideColorDisplay && hwcId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(hwcId);
         for (ColorMode colorMode : modes) {
             switch (colorMode) {
@@ -2287,8 +2372,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         }
     }
 
-    HdrCapabilities hdrCapabilities;
-    getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+    if (hwcId >= 0) {
+        getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(hwcId);
+    }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
@@ -2322,8 +2409,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
                               hasWideColorGamut, hdrCapabilities,
-                              getHwComposer().getSupportedPerFrameMetadata(hwcId),
-                              hwcColorModes, initialPowerMode);
+                              supportedPerFrameMetadata, hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -2855,6 +2941,12 @@ bool SurfaceFlinger::handlePageFlip()
         signalLayerUpdate();
     }
 
+    // enter boot animation on first buffer latch
+    if (CC_UNLIKELY(mBootStage == BootStage::BOOTLOADER && newDataLatched)) {
+        ALOGI("Enter boot animation");
+        mBootStage = BootStage::BOOTANIMATION;
+    }
+
     // Only continue with the refresh if there is actually new work to do
     return !mLayersWithQueuedFrames.empty() && newDataLatched;
 }
@@ -2897,8 +2989,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
     ATRACE_INT("hasClientComposition", hasClientComposition);
 
     bool applyColorMatrix = false;
-    bool needsLegacyColorMatrix = false;
-    bool legacyColorMatrixApplied = false;
+    bool needsEnhancedColorMatrix = false;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
@@ -2915,15 +3006,23 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
         const bool skipClientColorTransform = getBE().mHwc->hasCapability(
             HWC2::Capability::SkipClientColorTransform);
 
+        mat4 colorMatrix;
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
-            getRenderEngine().setupColorTransform(mDrawingState.colorMatrix);
+            colorMatrix = mDrawingState.colorMatrix;
         }
 
-        needsLegacyColorMatrix =
+        // The current enhanced saturation matrix is designed to enhance Display P3,
+        // thus we only apply this matrix when the render intent is not colorimetric
+        // and the output color space is Display P3.
+        needsEnhancedColorMatrix =
             (displayDevice->getActiveRenderIntent() >= RenderIntent::ENHANCE &&
-             outputDataspace != Dataspace::UNKNOWN &&
-             outputDataspace != Dataspace::SRGB);
+             outputDataspace == Dataspace::DISPLAY_P3);
+        if (needsEnhancedColorMatrix) {
+            colorMatrix *= mEnhancedSaturationMatrix;
+        }
+
+        getRenderEngine().setupColorTransform(colorMatrix);
 
         if (!displayDevice->makeCurrent()) {
             ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
@@ -2961,22 +3060,17 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             }
         }
 
-        if (displayDevice->getDisplayType() != DisplayDevice::DISPLAY_PRIMARY) {
-            // just to be on the safe side, we don't set the
-            // scissor on the main display. It should never be needed
-            // anyways (though in theory it could since the API allows it).
-            const Rect& bounds(displayDevice->getBounds());
-            const Rect& scissor(displayDevice->getScissor());
-            if (scissor != bounds) {
-                // scissor doesn't match the screen's dimensions, so we
-                // need to clear everything outside of it and enable
-                // the GL scissor so we don't draw anything where we shouldn't
+        const Rect& bounds(displayDevice->getBounds());
+        const Rect& scissor(displayDevice->getScissor());
+        if (scissor != bounds) {
+            // scissor doesn't match the screen's dimensions, so we
+            // need to clear everything outside of it and enable
+            // the GL scissor so we don't draw anything where we shouldn't
 
-                // enable scissor for this frame
-                const uint32_t height = displayDevice->getHeight();
-                getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
-                        scissor.getWidth(), scissor.getHeight());
-            }
+            // enable scissor for this frame
+            const uint32_t height = displayDevice->getHeight();
+            getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
+                                              scissor.getWidth(), scissor.getHeight());
         }
     }
 
@@ -3010,17 +3104,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    // switch color matrices lazily
-                    if (layer->isLegacyDataSpace() && needsLegacyColorMatrix) {
-                        if (!legacyColorMatrixApplied) {
-                            getRenderEngine().setSaturationMatrix(mLegacySrgbSaturationMatrix);
-                            legacyColorMatrixApplied = true;
-                        }
-                    } else if (legacyColorMatrixApplied) {
-                        getRenderEngine().setSaturationMatrix(mat4());
-                        legacyColorMatrixApplied = false;
-                    }
-
                     layer->draw(renderArea, clip);
                     break;
                 }
@@ -3033,11 +3116,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
         firstLayer = false;
     }
 
-    if (applyColorMatrix) {
+    if (applyColorMatrix || needsEnhancedColorMatrix) {
         getRenderEngine().setupColorTransform(mat4());
-    }
-    if (needsLegacyColorMatrix && legacyColorMatrixApplied) {
-        getRenderEngine().setSaturationMatrix(mat4());
     }
 
     // disable scissor at the end of the frame
@@ -3327,6 +3407,18 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s)
     return flags;
 }
 
+bool callingThreadHasUnscopedSurfaceFlingerAccess() {
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+
+    if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
+            !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
+        return false;
+    }
+    return true;
+}
+
 uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState) {
     const layer_state_t& s = composerState.state;
     sp<Client> client(static_cast<Client*>(composerState.client.get()));
@@ -3408,7 +3500,22 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eMatrixChanged) {
-        if (layer->setMatrix(s.matrix))
+        // TODO: b/109894387
+        //
+        // SurfaceFlinger's renderer is not prepared to handle cropping in the face of arbitrary
+        // rotation. To see the problem observe that if we have a square parent, and a child
+        // of the same size, then we rotate the child 45 degrees around it's center, the child
+        // must now be cropped to a non rectangular 8 sided region.
+        //
+        // Of course we can fix this in the future. For now, we are lucky, SurfaceControl is
+        // private API, and the WindowManager only uses rotation in one case, which is on a top
+        // level layer in which cropping is not an issue.
+        //
+        // However given that abuse of rotation matrices could lead to surfaces extending outside
+        // of cropped areas, we need to prevent non-root clients without permission ACCESS_SURFACE_FLINGER
+        // (a.k.a. everyone except WindowManager and tests) from setting non rectangle preserving
+        // transformations.
+        if (layer->setMatrix(s.matrix, callingThreadHasUnscopedSurfaceFlingerAccess()))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTransparentRegionChanged) {
@@ -3574,10 +3681,13 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
     // Tack on our counter whether there is a hit or not, so everyone gets a tag
     String8 uniqueName = name + "#" + String8(std::to_string(dupeCounter).c_str());
 
+    // Grab the state lock since we're accessing mCurrentState
+    Mutex::Autolock lock(mStateLock);
+
     // Loop over layers until we're sure there is no matching name
     while (matchFound) {
         matchFound = false;
-        mDrawingState.traverseInZOrder([&](Layer* layer) {
+        mCurrentState.traverseInZOrder([&](Layer* layer) {
             if (layer->getName() == uniqueName) {
                 matchFound = true;
                 uniqueName = name + "#" + String8(std::to_string(++dupeCounter).c_str());
@@ -4207,9 +4317,22 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     colorizer.bold(result);
     result.append("DispSync configuration: ");
     colorizer.reset(result);
-    result.appendFormat("app phase %" PRId64 " ns, sf phase %" PRId64 " ns, early sf phase %" PRId64
-        " ns, present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
-        vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, mVsyncModulator.getEarlyPhaseOffset(),
+    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
+    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
+    result.appendFormat(
+        "app phase %" PRId64 " ns, "
+        "sf phase %" PRId64 " ns, "
+        "early app phase %" PRId64 " ns, "
+        "early sf phase %" PRId64 " ns, "
+        "early app gl phase %" PRId64 " ns, "
+        "early sf gl phase %" PRId64 " ns, "
+        "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
+        vsyncPhaseOffsetNs,
+        sfVsyncPhaseOffsetNs,
+        appEarlyOffset,
+        sfEarlyOffset,
+        appEarlyGlOffset,
+        sfEarlyOffset,
         dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     result.append("\n");
 
@@ -4412,12 +4535,10 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case INJECT_VSYNC:
         {
             // codes that require permission check
-            IPCThreadState* ipc = IPCThreadState::self();
-            const int pid = ipc->getCallingPid();
-            const int uid = ipc->getCallingUid();
-            if ((uid != AID_GRAPHICS && uid != AID_SYSTEM) &&
-                    !PermissionCache::checkPermission(sAccessSurfaceFlinger, pid, uid)) {
-                ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d", pid, uid);
+            if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
+                IPCThreadState* ipc = IPCThreadState::self();
+                ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
+                        ipc->getCallingPid(), ipc->getCallingUid());
                 return PERMISSION_DENIED;
             }
             break;
@@ -4716,6 +4837,16 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
 
     const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
     if (CC_UNLIKELY(device == 0)) return BAD_VALUE;
+
+    const Rect& dispScissor = device->getScissor();
+    if (!dispScissor.isEmpty()) {
+        sourceCrop.set(dispScissor);
+        // adb shell screencap will default reqWidth and reqHeight to zeros.
+        if (reqWidth == 0 || reqHeight == 0) {
+            reqWidth = uint32_t(device->getViewport().width());
+            reqHeight = uint32_t(device->getViewport().height());
+        }
+    }
 
     DisplayRenderArea renderArea(device, sourceCrop, reqHeight, reqWidth, rotation);
 
