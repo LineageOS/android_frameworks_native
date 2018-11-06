@@ -28,6 +28,7 @@
 #include <string.h>
 #include <math.h>
 
+#include <android-base/stringprintf.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
@@ -646,14 +647,21 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
     return sPrimaryDisplayOrientation;
 }
 
+std::string DisplayDevice::getDebugName() const {
+    const auto id = mId >= 0 ? base::StringPrintf("%d, ", mId) : std::string();
+    return base::StringPrintf("DisplayDevice{%s%s%s\"%s\"}", id.c_str(),
+                              isPrimary() ? "primary, " : "", isVirtual() ? "virtual, " : "",
+                              mDisplayName.c_str());
+}
+
 void DisplayDevice::dump(String8& result) const {
     const ui::Transform& tr(mGlobalTransform);
     ANativeWindow* const window = mNativeWindow.get();
-    result.appendFormat("+ DisplayDevice: %s\n", mDisplayName.c_str());
-    result.appendFormat("   type=%x, ID=%d, layerStack=%u, (%4dx%4d), ANativeWindow=%p "
+    result.appendFormat("+ %s\n", getDebugName().c_str());
+    result.appendFormat("  layerStack=%u, (%4dx%4d), ANativeWindow=%p "
                         "(%d:%d:%d:%d), orient=%2d (type=%08x), "
                         "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
-                        mType, mId, mLayerStack, mDisplayWidth, mDisplayHeight, window,
+                        mLayerStack, mDisplayWidth, mDisplayHeight, window,
                         mSurface->queryRedSize(), mSurface->queryGreenSize(),
                         mSurface->queryBlueSize(), mSurface->queryAlphaSize(), mOrientation,
                         tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
@@ -693,7 +701,7 @@ void DisplayDevice::addColorMode(
     const Dataspace dataspace = colorModeToDataspace(mode);
     const Dataspace hwcDataspace = colorModeToDataspace(hwcColorMode);
 
-    ALOGV("DisplayDevice %d/%d: map (%s, %s) to (%s, %s, %s)", mType, mId,
+    ALOGV("%s: map (%s, %s) to (%s, %s, %s)", getDebugName().c_str(),
           dataspaceDetails(static_cast<android_dataspace_t>(dataspace)).c_str(),
           decodeRenderIntent(intent).c_str(),
           dataspaceDetails(static_cast<android_dataspace_t>(hwcDataspace)).c_str(),
