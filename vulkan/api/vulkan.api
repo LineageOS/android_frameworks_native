@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 90
+define VERSION_PATCH 91
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -85,9 +85,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_wayland_surface") define VK_KHR_WAYLAND_SURFACE_SPEC_VERSION 6
 @extension("VK_KHR_wayland_surface") define VK_KHR_WAYLAND_SURFACE_NAME         "VK_KHR_wayland_surface"
 
-// 8
-@extension("VK_KHR_mir_surface") define VK_KHR_MIR_SURFACE_SPEC_VERSION         4
-@extension("VK_KHR_mir_surface") define VK_KHR_MIR_SURFACE_NAME                 "VK_KHR_mir_surface"
+// 8 - VK_KHR_mir_surface removed
 
 // 9
 @extension("VK_KHR_android_surface") define VK_KHR_ANDROID_SURFACE_SPEC_VERSION 6
@@ -526,8 +524,8 @@ define NULL_HANDLE 0
 @extension("VK_NV_shading_rate_image") define VK_NV_SHADING_RATE_IMAGE_EXTENSION_NAME "VK_NV_shading_rate_image"
 
 // 166
-@extension("VK_NVX_raytracing") define VK_NVX_RAYTRACING_SPEC_VERSION 1
-@extension("VK_NVX_raytracing") define VK_NVX_RAYTRACING_EXTENSION_NAME "VK_NVX_raytracing"
+@extension("VK_NV_raytracing") define VK_NV_RAYTRACING_SPEC_VERSION 2
+@extension("VK_NV_raytracing") define VK_NV_RAYTRACING_EXTENSION_NAME "VK_NV_raytracing"
 
 // 167
 @extension("VK_NV_representative_fragment_test") define VK_NV_REPRESENTATIVE_FRAGMENT_TEST_SPEC_VERSION 1
@@ -564,6 +562,10 @@ define NULL_HANDLE 0
 // 186
 @extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_SPEC_VERSION 1
 @extension("VK_AMD_shader_core_properties") define VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME "VK_AMD_shader_core_properties"
+
+// 190
+@extension("VK_AMD_memory_overallocation_behavior") define VK_AMD_MEMORY_OVERALLOCATION_BEHAVIOR_SPEC_VERSION 1
+@extension("VK_AMD_memory_overallocation_behavior") define VK_AMD_MEMORY_OVERALLOCATION_BEHAVIOR_EXTENSION_NAME "VK_AMD_memory_overallocation_behavior"
 
 // 191
 @extension("VK_EXT_vertex_attribute_divisor") define VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_SPEC_VERSION 2
@@ -693,7 +695,7 @@ type u32 VkSampleMask
 @extension("VK_EXT_validation_cache") @nonDispatchHandle type u64 VkValidationCacheEXT
 
 // 166
-@extension("VK_NVX_raytracing") @nonDispatchHandle type u64 VkAccelerationStructureNVX
+@extension("VK_NV_raytracing") @nonDispatchHandle type u64 VkAccelerationStructureNV
 
 /////////////
 //  Enums  //
@@ -794,8 +796,8 @@ enum VkDescriptorType {
     //@extension("VK_EXT_inline_uniform_block") // 139
     VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT             = 1000138000,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NVX           = 1000165000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_NV            = 1000165000,
 }
 
 enum VkQueryType {
@@ -806,8 +808,8 @@ enum VkQueryType {
     //@extension("VK_EXT_transform_feedback") // 29
     VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT             = 1000028004,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_QUERY_TYPE_COMPACTED_SIZE_NVX                        = 1000165000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_NV  = 1000165000,
 }
 
 enum VkBorderColor {
@@ -823,8 +825,8 @@ enum VkPipelineBindPoint {
     VK_PIPELINE_BIND_POINT_GRAPHICS                         = 0x00000000,
     VK_PIPELINE_BIND_POINT_COMPUTE                          = 0x00000001,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_PIPELINE_BIND_POINT_RAYTRACING_NVX                   = 1000165000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_PIPELINE_BIND_POINT_RAY_TRACING_NV                   = 1000165000,
 }
 
 enum VkPrimitiveTopology {
@@ -849,6 +851,9 @@ enum VkSharingMode {
 enum VkIndexType {
     VK_INDEX_TYPE_UINT16                                    = 0x00000000,
     VK_INDEX_TYPE_UINT32                                    = 0x00000001,
+
+    //@extension("VK_NV_raytracing") // 166
+    VK_INDEX_TYPE_NONE_NV                                   = 1000165000,
 }
 
 enum VkFilter {
@@ -1447,9 +1452,6 @@ enum VkStructureType {
     //@extension("VK_KHR_wayland_surface") // 7
     VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR           = 1000006000,
 
-    //@extension("VK_KHR_mir_surface") // 8
-    VK_STRUCTURE_TYPE_MIR_SURFACE_CREATE_INFO_KHR               = 1000007000,
-
     //@extension("VK_KHR_android_surface") // 9
     VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR           = 1000008000,
 
@@ -1786,18 +1788,18 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADING_RATE_IMAGE_PROPERTIES_NV = 1000164002,
     VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_COARSE_SAMPLE_ORDER_STATE_CREATE_INFO_NV = 1000164005,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_STRUCTURE_TYPE_RAYTRACING_PIPELINE_CREATE_INFO_NVX = 1000165000,
-    VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NVX = 1000165001,
-    VK_STRUCTURE_TYPE_GEOMETRY_INSTANCE_NVX = 1000165002,
-    VK_STRUCTURE_TYPE_GEOMETRY_NVX = 1000165003,
-    VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NVX = 1000165004,
-    VK_STRUCTURE_TYPE_GEOMETRY_AABB_NVX = 1000165005,
-    VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NVX = 1000165006,
-    VK_STRUCTURE_TYPE_DESCRIPTOR_ACCELERATION_STRUCTURE_INFO_NVX = 1000165007,
-    VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NVX = 1000165008,
-    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAYTRACING_PROPERTIES_NVX = 1000165009,
-    VK_STRUCTURE_TYPE_HIT_SHADER_MODULE_CREATE_INFO_NVX = 1000165010,
+    //@extension("VK_NV_raytracing") // 166
+    VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_NV                   = 1000165000,
+    VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV                 = 1000165001,
+    VK_STRUCTURE_TYPE_GEOMETRY_NV                                           = 1000165003,
+    VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV                                 = 1000165004,
+    VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV                                      = 1000165005,
+    VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV            = 1000165006,
+    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV        = 1000165007,
+    VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV    = 1000165008,
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV             = 1000165009,
+    VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_NV               = 1000165011,
+    VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV                        = 1000165012,
 
     //@extension("VK_NV_representative_fragment_test") // 167
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_REPRESENTATIVE_FRAGMENT_TEST_FEATURES_NV = 1000166000,
@@ -1829,6 +1831,9 @@ enum VkStructureType {
 
     //@extension("VK_AMD_shader_core_properties") // 186
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD        = 1000185000,
+
+    //@extension("VK_AMD_memory_overallocation_behavior") // 190
+    VK_STRUCTURE_TYPE_DEVICE_MEMORY_OVERALLOCATION_CREATE_INFO_AMD      = 1000189000,
 
     //@extension("VK_EXT_vertex_attribute_divisor") // 191
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_PROPERTIES_EXT   = 1000190000,
@@ -2011,8 +2016,8 @@ enum VkObjectType {
     //@extension("VK_EXT_validation_cache") // 161
     VK_OBJECT_TYPE_VALIDATION_CACHE_EXT                     = 1000160000,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NVX               = 1000165000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV                = 1000165000,
 }
 
 
@@ -2135,8 +2140,8 @@ enum VkDebugReportObjectTypeEXT {
     //@extension("VK_KHR_sampler_ycbcr_conversion") // 157
     VK_DEBUG_REPORT_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION_KHR_EXT = 1000156000,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_DEBUG_REPORT_OBJECT_TYPE_ACCELERATION_STRUCTURE_NVX_EXT  = 1000165000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_DEBUG_REPORT_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV_EXT   = 1000165000,
 }
 
 @extension("VK_AMD_rasterization_order") // 19
@@ -2311,22 +2316,36 @@ enum VkCoarseSampleOrderTypeNV {
     VK_COARSE_SAMPLE_ORDER_TYPE_SAMPLE_MAJOR_NV             = 3,
 }
 
-@extension("VK_NVX_raytracing") // 166
-enum VkGeometryTypeNVX {
-    VK_GEOMETRY_TYPE_TRIANGLES_NVX                          = 0,
-    VK_GEOMETRY_TYPE_AABBS_NVX                              = 1,
+@extension("VK_NV_raytracing") // 166
+enum VkRayTracingShaderGroupTypeNV {
+    VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_NV                 = 0,
+    VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_NV     = 1,
+    VK_RAY_TRACING_SHADER_GROUP_TYPE_PROCEDURAL_HIT_GROUP_NV    = 2,
 }
 
-@extension("VK_NVX_raytracing") // 166
-enum VkAccelerationStructureTypeNVX {
-    VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NVX            = 0,
-    VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NVX         = 1,
+@extension("VK_NV_raytracing") // 166
+enum VkGeometryTypeNV {
+    VK_GEOMETRY_TYPE_TRIANGLES_NV                           = 0,
+    VK_GEOMETRY_TYPE_AABBS_NV                               = 1,
 }
 
-@extension("VK_NVX_raytracing") // 166
-enum VkCopyAccelerationStructureModeNVX {
-    VK_COPY_ACCELERATION_STRUCTURE_MODE_CLONE_NVX           = 0,
-    VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_NVX         = 1,
+@extension("VK_NV_raytracing") // 166
+enum VkAccelerationStructureTypeNV {
+    VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV             = 0,
+    VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV          = 1,
+}
+
+@extension("VK_NV_raytracing") // 166
+enum VkCopyAccelerationStructureModeNV {
+    VK_COPY_ACCELERATION_STRUCTURE_MODE_CLONE_NV            = 0,
+    VK_COPY_ACCELERATION_STRUCTURE_MODE_COMPACT_NV          = 1,
+}
+
+@extension("VK_NV_raytracing") // 166
+enum VkAccelerationStructureMemoryRequirementsTypeNV {
+    VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_NV            = 0,
+    VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV     = 1,
+    VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_UPDATE_SCRATCH_NV    = 2,
 }
 
 @extension("VK_EXT_global_priority") // 175
@@ -2343,6 +2362,13 @@ enum VkTimeDomainEXT {
     VK_TIME_DOMAIN_CLOCK_MONOTONIC_EXT                      = 1,
     VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_EXT                  = 2,
     VK_TIME_DOMAIN_QUERY_PERFORMANCE_COUNTER_EXT            = 3,
+}
+
+@extension("VK_AMD_memory_overallocation_behavior") // 190
+enum VkMemoryOverallocationBehaviorAMD {
+    VK_MEMORY_OVERALLOCATION_BEHAVIOR_DEFAULT_AMD           = 0,
+    VK_MEMORY_OVERALLOCATION_BEHAVIOR_ALLOWED_AMD           = 1,
+    VK_MEMORY_OVERALLOCATION_BEHAVIOR_DISALLOWED_AMD        = 2,
 }
 
 @extension("VK_KHR_driver_properties") // 197
@@ -2433,9 +2459,9 @@ bitfield VkAccessFlagBits {
     //@extension("VK_NV_shading_rate_image") // 165
     VK_ACCESS_SHADING_RATE_IMAGE_READ_BIT_NV                = 0x00800000,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NVX           = 0x00200000,
-    VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NVX          = 0x00400000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV            = 0x00200000,
+    VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV           = 0x00400000,
 
     //@extension("VK_EXT_transform_feedback") // 29
     VK_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT              = 0x02000000,
@@ -2459,8 +2485,8 @@ bitfield VkBufferUsageFlagBits {
     //@extension("VK_EXT_conditional_rendering") // 82
     VK_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT           = 0x00000200,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_BUFFER_USAGE_RAYTRACING_BIT_NVX                      = 0x00000400,
+    //@extension("VK_NV_raytracing") // 166
+    VK_BUFFER_USAGE_RAY_TRACING_BIT_NV                      = 0x00000400,
 
     //@extension("VK_EXT_transform_feedback") // 29
     VK_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT           = 0x00000800,
@@ -2491,13 +2517,13 @@ bitfield VkShaderStageFlagBits {
 
     VK_SHADER_STAGE_ALL                                     = 0x7FFFFFFF,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_SHADER_STAGE_RAYGEN_BIT_NVX                          = 0x00000100,
-    VK_SHADER_STAGE_ANY_HIT_BIT_NVX                         = 0x00000200,
-    VK_SHADER_STAGE_CLOSEST_HIT_BIT_NVX                     = 0x00000400,
-    VK_SHADER_STAGE_MISS_BIT_NVX                            = 0x00000800,
-    VK_SHADER_STAGE_INTERSECTION_BIT_NVX                    = 0x00001000,
-    VK_SHADER_STAGE_CALLABLE_BIT_NVX                        = 0x00002000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_SHADER_STAGE_RAYGEN_BIT_NV                           = 0x00000100,
+    VK_SHADER_STAGE_ANY_HIT_BIT_NV                          = 0x00000200,
+    VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV                      = 0x00000400,
+    VK_SHADER_STAGE_MISS_BIT_NV                             = 0x00000800,
+    VK_SHADER_STAGE_INTERSECTION_BIT_NV                     = 0x00001000,
+    VK_SHADER_STAGE_CALLABLE_BIT_NV                         = 0x00002000,
 
     //@extension("VK_NV_mesh_shader") // 203
     VK_SHADER_STAGE_TASK_BIT_NV                             = 0x00000040,
@@ -2595,8 +2621,8 @@ bitfield VkPipelineCreateFlagBits {
     VK_PIPELINE_CREATE_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR = 0x00000008,
     VK_PIPELINE_CREATE_DISPATCH_BASE_KHR                    = 0x00000010,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_PIPELINE_CREATE_DEFER_COMPILE_BIT_NVX                = 0x00000020,
+    //@extension("VK_NV_raytracing") // 166
+    VK_PIPELINE_CREATE_DEFER_COMPILE_BIT_NV                 = 0x00000020,
 }
 
 /// Color component flags
@@ -2791,8 +2817,9 @@ bitfield VkPipelineStageFlagBits {
     //@extension("VK_NV_shading_rate_image") // 165
     VK_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV             = 0x00400000,
 
-    //@extension("VK_NVX_raytracing") // 166
-    VK_PIPELINE_STAGE_RAYTRACING_BIT_NVX                    = 0x00200000,
+    //@extension("VK_NV_raytracing") // 166
+    VK_PIPELINE_STAGE_RAY_TRACING_BIT_NV                    = 0x00200000,
+    VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV   = 0x02000000,
 
     //@extension("VK_NV_mesh_shader") // 203
     VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV                    = 0x00080000,
@@ -3194,12 +3221,6 @@ type VkFlags VkWaylandSurfaceCreateFlagsKHR
 //bitfield VkWaylandSurfaceCreateFlagBitsKHR {
 //}
 
-@extension("VK_KHR_mir_surface") // 8
-type VkFlags VkMirSurfaceCreateFlagsKHR
-//@extension("VK_KHR_mir_surface") // 8
-//bitfield VkMirSurfaceCreateFlagBitsKHR {
-//}
-
 @extension("VK_KHR_android_surface") // 9
 type VkFlags VkAndroidSurfaceCreateFlagsKHR
 //@extension("VK_KHR_android_surface") // 9
@@ -3484,33 +3505,33 @@ bitfield VkDescriptorBindingFlagBitsEXT {
     VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT_EXT     = 0x00000008,
 }
 
-@extension("VK_NVX_raytracing") // 166
-type VkFlags VkGeometryFlagsNVX
-@extension("VK_NVX_raytracing") // 166
-bitfield VkGeometryFlagBitsNVX {
-    VK_GEOMETRY_OPAQUE_BIT_NVX                          = 0x00000001,
-    VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_NVX = 0x00000002,
+@extension("VK_NV_raytracing") // 166
+type VkFlags VkGeometryFlagsNV
+@extension("VK_NV_raytracing") // 166
+bitfield VkGeometryFlagBitsNV {
+    VK_GEOMETRY_OPAQUE_BIT_NV                           = 0x00000001,
+    VK_GEOMETRY_NO_DUPLICATE_ANY_HIT_INVOCATION_BIT_NV  = 0x00000002,
 }
 
-@extension("VK_NVX_raytracing") // 166
-type VkFlags VkGeometryInstanceFlagsNVX
-@extension("VK_NVX_raytracing") // 166
-bitfield VkGeometryInstanceFlagBitsNVX {
-    VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NVX      = 0x00000001,
-    VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_FLIP_WINDING_BIT_NVX = 0x00000002,
-    VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_NVX               = 0x00000004,
-    VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_NVX            = 0x00000008,
+@extension("VK_NV_raytracing") // 166
+type VkFlags VkGeometryInstanceFlagsNV
+@extension("VK_NV_raytracing") // 166
+bitfield VkGeometryInstanceFlagBitsNV {
+    VK_GEOMETRY_INSTANCE_TRIANGLE_CULL_DISABLE_BIT_NV           = 0x00000001,
+    VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_NV = 0x00000002,
+    VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_NV                    = 0x00000004,
+    VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_NV                 = 0x00000008,
 }
 
-@extension("VK_NVX_raytracing") // 166
-type VkFlags VkBuildAccelerationStructureFlagsNVX
-@extension("VK_NVX_raytracing") // 166
-bitfield VkBuildAccelerationStructureFlagBitsNVX {
-    VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NVX        = 0x00000001,
-    VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_NVX    = 0x00000002,
-    VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NVX   = 0x00000004,
-    VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NVX   = 0x00000008,
-    VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_NVX          = 0x00000010,
+@extension("VK_NV_raytracing") // 166
+type VkFlags VkBuildAccelerationStructureFlagsNV
+@extension("VK_NV_raytracing") // 166
+bitfield VkBuildAccelerationStructureFlagBitsNV {
+    VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV         = 0x00000001,
+    VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_NV     = 0x00000002,
+    VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV    = 0x00000004,
+    VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV    = 0x00000008,
+    VK_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_NV           = 0x00000010,
 }
 
 @extension("VK_FUCHSIA_imagepipe_surface") // 215
@@ -5328,15 +5349,6 @@ class VkWaylandSurfaceCreateInfoKHR {
     VkWaylandSurfaceCreateFlagsKHR              flags
     platform.wl_display*                        display
     platform.wl_surface*                        surface
-}
-
-@extension("VK_KHR_mir_surface") // 8
-class VkMirSurfaceCreateInfoKHR {
-    VkStructureType                             sType
-    const void*                                 pNext
-    VkMirSurfaceCreateFlagsKHR                  flags
-    platform.MirConnection*                     connection
-    platform.MirSurface*                        mirSurface
 }
 
 @extension("VK_KHR_android_surface") // 9
@@ -7249,22 +7261,34 @@ class VkPipelineViewportCoarseSampleOrderStateCreateInfoNV {
     const VkCoarseSampleOrderCustomNV*              pCustomSampleOrders
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkRaytracingPipelineCreateInfoNVX {
-    VkStructureType                                 sType
-    const void*                                     pNext
-    VkPipelineCreateFlags                           flags
-    u32                                             stageCount
-    const VkPipelineShaderStageCreateInfo*          pStages
-    const u32*                                      pGroupNumbers
-    u32                                             maxRecursionDepth
-    VkPipelineLayout                                layout
-    VkPipeline                                      basePipelineHandle
-    s32                                             basePipelineIndex
+@extension("VK_NV_raytracing") // 166
+class VkRayTracingShaderGroupCreateInfoNV {
+    VkStructureType                  sType
+    const void*                      pNext
+    VkRayTracingShaderGroupTypeNV    type
+    u32                              generalShader
+    u32                              closestHitShader
+    u32                              anyHitShader
+    u32                              intersectionShader
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkGeometryTrianglesNVX {
+@extension("VK_NV_raytracing") // 166
+class VkRayTracingPipelineCreateInfoNV {
+    VkStructureType                               sType
+    const void*                                   pNext
+    VkPipelineCreateFlags                         flags
+    u32                                           stageCount
+    const VkPipelineShaderStageCreateInfo*        pStages
+    u32                                           groupCount
+    const VkRayTracingShaderGroupCreateInfoNV*    pGroups
+    u32                                           maxRecursionDepth
+    VkPipelineLayout                              layout
+    VkPipeline                                    basePipelineHandle
+    s32                                           basePipelineIndex
+}
+
+@extension("VK_NV_raytracing") // 166
+class VkGeometryTrianglesNV {
     VkStructureType                                 sType
     const void*                                     pNext
     VkBuffer                                        vertexData
@@ -7280,8 +7304,8 @@ class VkGeometryTrianglesNVX {
     VkDeviceSize                                    transformOffset
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkGeometryAABBNVX {
+@extension("VK_NV_raytracing") // 166
+class VkGeometryAABBNV {
     VkStructureType                                 sType
     const void*                                     pNext
     VkBuffer                                        aabbData
@@ -7290,66 +7314,79 @@ class VkGeometryAABBNVX {
     VkDeviceSize                                    offset
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkGeometryDataNVX {
-    VkGeometryTrianglesNVX                          triangles
-    VkGeometryAABBNVX                               aabbs
+@extension("VK_NV_raytracing") // 166
+class VkGeometryDataNV {
+    VkGeometryTrianglesNV                           triangles
+    VkGeometryAABBNV                                aabbs
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkGeometryNVX {
+@extension("VK_NV_raytracing") // 166
+class VkGeometryNV {
     VkStructureType                                 sType
     const void*                                     pNext
-    VkGeometryTypeNVX                               geometryType
-    VkGeometryDataNVX                               geometry
-    VkGeometryFlagsNVX                              flags
+    VkGeometryTypeNV                                geometryType
+    VkGeometryDataNV                                geometry
+    VkGeometryFlagsNV                               flags
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkAccelerationStructureCreateInfoNVX {
+@extension("VK_NV_raytracing") // 166
+class VkAccelerationStructureInfoNV {
     VkStructureType                                 sType
     const void*                                     pNext
-    VkAccelerationStructureTypeNVX                  type
-    VkBuildAccelerationStructureFlagsNVX            flags
-    VkDeviceSize                                    compactedSize
+    VkAccelerationStructureTypeNV                   type
+    VkBuildAccelerationStructureFlagsNV             flags
     u32                                             instanceCount
     u32                                             geometryCount
-    const VkGeometryNVX*                            pGeometries
+    const VkGeometryNV*                             pGeometries
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkBindAccelerationStructureMemoryInfoNVX {
+@extension("VK_NV_raytracing") // 166
+class VkAccelerationStructureCreateInfoNV {
     VkStructureType                                 sType
     const void*                                     pNext
-    VkAccelerationStructureNVX                      accelerationStructure
+    VkDeviceSize                                    compactedSize
+    VkAccelerationStructureInfoNV                   info
+}
+
+@extension("VK_NV_raytracing") // 166
+class VkBindAccelerationStructureMemoryInfoNV {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkAccelerationStructureNV                       accelerationStructure
     VkDeviceMemory                                  memory
     VkDeviceSize                                    memoryOffset
     u32                                             deviceIndexCount
     const u32*                                      pDeviceIndices
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkDescriptorAccelerationStructureInfoNVX {
+@extension("VK_NV_raytracing") // 166
+class VkDescriptorAccelerationStructureInfoNV {
     VkStructureType                                 sType
     const void*                                     pNext
     u32                                             accelerationStructureCount
-    const VkAccelerationStructureNVX*               pAccelerationStructures
+    const VkAccelerationStructureNV*                pAccelerationStructures
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkAccelerationStructureMemoryRequirementsInfoNVX {
+@extension("VK_NV_raytracing") // 166
+class VkAccelerationStructureMemoryRequirementsInfoNV {
     VkStructureType                                 sType
     const void*                                     pNext
-    VkAccelerationStructureNVX                      accelerationStructure
+    VkAccelerationStructureMemoryRequirementsTypeNV type
+    VkAccelerationStructureNV                       accelerationStructure
 }
 
-@extension("VK_NVX_raytracing") // 166
-class VkPhysicalDeviceRaytracingPropertiesNVX {
+@extension("VK_NV_raytracing") // 166
+class VkPhysicalDeviceRaytracingPropertiesNV {
     VkStructureType                                 sType
     void*                                           pNext
-    u32                                             shaderHeaderSize
+    u32                                             shaderGroupHandleSize
     u32                                             maxRecursionDepth
-    u32                                             maxGeometryCount
+    u32                                             maxShaderGroupStride
+    u32                                             shaderGroupBaseAlignment
+    u64                                             maxGeometryCount
+    u64                                             maxInstanceCount
+    u64                                             maxTriangleCount
+    u32                                             maxDescriptorSetAccelerationStructures
 }
 
 @extension("VK_NV_representative_fragment_test") // 167
@@ -7452,6 +7489,13 @@ class VkPhysicalDeviceShaderCorePropertiesAMD {
     u32                                             minVgprAllocation
     u32                                             maxVgprAllocation
     u32                                             vgprAllocationGranularity
+}
+
+@extension("VK_AMD_memory_overallocation_behavior") // 190
+class VkDeviceMemoryOverallocationCreateInfoAMD {
+    VkStructureType                                 sType
+    const void*                                     pNext
+    VkMemoryOverallocationBehaviorAMD               overallocationBehavior
 }
 
 @extension("VK_EXT_vertex_attribute_divisor") // 191
@@ -10370,25 +10414,6 @@ cmd VkBool32 vkGetPhysicalDeviceWaylandPresentationSupportKHR(
     return ?
 }
 
-@extension("VK_KHR_mir_surface") // 8
-cmd VkResult vkCreateMirSurfaceKHR(
-        VkInstance                              instance,
-        const VkMirSurfaceCreateInfoKHR*        pCreateInfo,
-        const VkAllocationCallbacks*            pAllocator,
-        VkSurfaceKHR*                           pSurface) {
-    instanceObject := GetInstance(instance)
-    return ?
-}
-
-@extension("VK_KHR_mir_surface") // 8
-cmd VkBool32 vkGetPhysicalDeviceMirPresentationSupportKHR(
-        VkPhysicalDevice                        physicalDevice,
-        u32                                     queueFamilyIndex,
-        platform.MirConnection*                 connection) {
-    physicalDeviceObject := GetPhysicalDevice(physicalDevice)
-    return ?
-}
-
 @extension("VK_KHR_android_surface") // 9
 cmd VkResult vkCreateAndroidSurfaceKHR(
         VkInstance                              instance,
@@ -11448,71 +11473,60 @@ cmd void vkCmdSetCoarseSampleOrderNV(
         const VkCoarseSampleOrderCustomNV*          pCustomSampleOrders) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd VkResult vkCreateAccelerationStructureNVX(
+@extension("VK_NV_raytracing") // 166
+cmd VkResult vkCreateAccelerationStructureNV(
         VkDevice                                    device,
-        const VkAccelerationStructureCreateInfoNVX* pCreateInfo,
+        const VkAccelerationStructureCreateInfoNV*  pCreateInfo,
         const VkAllocationCallbacks*                pAllocator,
-        VkAccelerationStructureNVX*                 pAccelerationStructure) {
+        VkAccelerationStructureNV*                  pAccelerationStructure) {
     return ?
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkDestroyAccelerationStructureNVX(
+@extension("VK_NV_raytracing") // 166
+cmd void vkDestroyAccelerationStructureNV(
         VkDevice                                    device,
-        VkAccelerationStructureNVX                  accelerationStructure,
+        VkAccelerationStructureNV                   accelerationStructure,
         const VkAllocationCallbacks*                pAllocator) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkGetAccelerationStructureMemoryRequirementsNVX(
+@extension("VK_NV_raytracing") // 166
+cmd void vkGetAccelerationStructureMemoryRequirementsNV(
         VkDevice                                                device,
-        const VkAccelerationStructureMemoryRequirementsInfoNVX* pInfo,
+        const VkAccelerationStructureMemoryRequirementsInfoNV*  pInfo,
         VkMemoryRequirements2KHR*                               pMemoryRequirements) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkGetAccelerationStructureScratchMemoryRequirementsNVX(
-        VkDevice                                                device,
-        const VkAccelerationStructureMemoryRequirementsInfoNVX* pInfo,
-        VkMemoryRequirements2KHR*                               pMemoryRequirements) {
-}
-
-@extension("VK_NVX_raytracing") // 166
-cmd VkResult vkBindAccelerationStructureMemoryNVX(
+@extension("VK_NV_raytracing") // 166
+cmd VkResult vkBindAccelerationStructureMemoryNV(
         VkDevice                                        device,
         u32                                             bindInfoCount,
-        const VkBindAccelerationStructureMemoryInfoNVX* pBindInfos) {
+        const VkBindAccelerationStructureMemoryInfoNV*  pBindInfos) {
     return ?
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkCmdBuildAccelerationStructureNVX(
+@extension("VK_NV_raytracing") // 166
+cmd void vkCmdBuildAccelerationStructureNV(
         VkCommandBuffer                             commandBuffer,
-        VkAccelerationStructureTypeNVX              type,
-        u32                                         instanceCount,
+        const VkAccelerationStructureInfoNV*        pInfo,
         VkBuffer                                    instanceData,
         VkDeviceSize                                instanceOffset,
-        u32                                         geometryCount,
-        const VkGeometryNVX*                        pGeometries,
-        VkBuildAccelerationStructureFlagsNVX        flags,
         VkBool32                                    update,
-        VkAccelerationStructureNVX                  dst,
-        VkAccelerationStructureNVX                  src,
+        VkAccelerationStructureNV                   dst,
+        VkAccelerationStructureNV                   src,
         VkBuffer                                    scratch,
         VkDeviceSize                                scratchOffset) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkCmdCopyAccelerationStructureNVX(
+@extension("VK_NV_raytracing") // 166
+cmd void vkCmdCopyAccelerationStructureNV(
         VkCommandBuffer                             commandBuffer,
-        VkAccelerationStructureNVX                  dst,
-        VkAccelerationStructureNVX                  src,
-        VkCopyAccelerationStructureModeNVX          mode) {
+        VkAccelerationStructureNV                   dst,
+        VkAccelerationStructureNV                   src,
+        VkCopyAccelerationStructureModeNV           mode) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkCmdTraceRaysNVX(
+@extension("VK_NV_raytracing") // 166
+cmd void vkCmdTraceRaysNV(
         VkCommandBuffer                             commandBuffer,
         VkBuffer                                    raygenShaderBindingTableBuffer,
         VkDeviceSize                                raygenShaderBindingOffset,
@@ -11522,23 +11536,27 @@ cmd void vkCmdTraceRaysNVX(
         VkBuffer                                    hitShaderBindingTableBuffer,
         VkDeviceSize                                hitShaderBindingOffset,
         VkDeviceSize                                hitShaderBindingStride,
+        VkBuffer                                    callableShaderBindingTableBuffer,
+        VkDeviceSize                                callableShaderBindingOffset,
+        VkDeviceSize                                callableShaderBindingStride,
         u32                                         width,
-        u32                                         height) {
+        u32                                         height,
+        u32                                         depth) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd VkResult vkCreateRaytracingPipelinesNVX(
+@extension("VK_NV_raytracing") // 166
+cmd VkResult vkCreateRaytracingPipelinesNV(
         VkDevice                                    device,
         VkPipelineCache                             pipelineCache,
         u32                                         createInfoCount,
-        const VkRaytracingPipelineCreateInfoNVX*    pCreateInfos,
+        const VkRayTracingPipelineCreateInfoNV*     pCreateInfos,
         const VkAllocationCallbacks*                pAllocator,
         VkPipeline*                                 pPipelines) {
     return ?
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd VkResult vkGetRaytracingShaderHandlesNVX(
+@extension("VK_NV_raytracing") // 166
+cmd VkResult vkGetRaytracingShaderHandlesNV(
         VkDevice                                    device,
         VkPipeline                                  pipeline,
         u32                                         firstGroup,
@@ -11548,26 +11566,27 @@ cmd VkResult vkGetRaytracingShaderHandlesNVX(
     return ?
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd VkResult vkGetAccelerationStructureHandleNVX(
+@extension("VK_NV_raytracing") // 166
+cmd VkResult vkGetAccelerationStructureHandleNV(
         VkDevice                                    device,
-        VkAccelerationStructureNVX                  accelerationStructure,
+        VkAccelerationStructureNV                   accelerationStructure,
         platform.size_t                             dataSize,
         void*                                       pData) {
     return ?
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd void vkCmdWriteAccelerationStructurePropertiesNVX(
+@extension("VK_NV_raytracing") // 166
+cmd void vkCmdWriteAccelerationStructurePropertiesNV(
         VkCommandBuffer                             commandBuffer,
-        VkAccelerationStructureNVX                  accelerationStructure,
+        u32                                         accelerationStructureCount,
+        const VkAccelerationStructureNV*            pAccelerationStructures,
         VkQueryType                                 queryType,
         VkQueryPool                                 queryPool,
-        u32                                         query) {
+        u32                                         firstQuery) {
 }
 
-@extension("VK_NVX_raytracing") // 166
-cmd VkResult vkCompileDeferredNVX(
+@extension("VK_NV_raytracing") // 166
+cmd VkResult vkCompileDeferredNV(
         VkDevice                                    device,
         VkPipeline                                  pipeline,
         u32                                         shader) {
