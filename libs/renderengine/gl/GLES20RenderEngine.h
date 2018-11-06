@@ -132,14 +132,18 @@ private:
     GLuint mVpHeight;
     Description mState;
 
-    mat4 mSrgbToDisplayP3;
-    mat4 mDisplayP3ToSrgb;
     mat4 mSrgbToXyz;
-    mat4 mBt2020ToXyz;
     mat4 mDisplayP3ToXyz;
+    mat4 mBt2020ToXyz;
     mat4 mXyzToSrgb;
     mat4 mXyzToDisplayP3;
     mat4 mXyzToBt2020;
+    mat4 mSrgbToDisplayP3;
+    mat4 mSrgbToBt2020;
+    mat4 mDisplayP3ToSrgb;
+    mat4 mDisplayP3ToBt2020;
+    mat4 mBt2020ToSrgb;
+    mat4 mBt2020ToDisplayP3;
 
     bool mRenderToFbo = false;
     int32_t mSurfaceHeight = 0;
