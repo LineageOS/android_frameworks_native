@@ -144,5 +144,33 @@ TEST_F(BufferHubBufferTest, AllocateBuffer) {
     EXPECT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
 }
 
+TEST_F(BufferHubBufferTest, DuplicateBuffer) {
+    // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
+    sp<IBufferHub> bufferhub = IBufferHub::getService();
+    ASSERT_NE(nullptr, bufferhub.get());
+
+    // Stride is an output, rfu0 and rfu1 are reserved data slot for future use.
+    AHardwareBuffer_Desc aDesc = {kWidth, kHeight,        kLayerCount,  kFormat,
+                                  kUsage, /*stride=*/0UL, /*rfu0=*/0UL, /*rfu1=*/0ULL};
+    HardwareBufferDescription desc;
+    memcpy(&desc, &aDesc, sizeof(HardwareBufferDescription));
+
+    sp<IBufferClient> client;
+    IBufferHub::allocateBuffer_cb alloc_cb = [&](const auto& outClient, const auto& status) {
+        ASSERT_EQ(status, BufferHubStatus::NO_ERROR);
+        ASSERT_NE(nullptr, outClient.get());
+        client = outClient;
+    };
+    ASSERT_TRUE(bufferhub->allocateBuffer(desc, kUserMetadataSize, alloc_cb).isOk());
+
+    IBufferClient::duplicate_cb dup_cb = [](const auto& token, const auto& status) {
+        ASSERT_EQ(status, BufferHubStatus::NO_ERROR);
+        ASSERT_NE(token.getNativeHandle(), nullptr);
+        EXPECT_EQ(token->numInts, 1);
+        EXPECT_EQ(token->numFds, 0);
+    };
+    EXPECT_TRUE(client->duplicate(dup_cb).isOk());
+}
+
 } // namespace
 } // namespace android
