@@ -364,6 +364,9 @@ public:
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
 
+    inline void onLayerCreated() { mNumLayers++; }
+    inline void onLayerDestroyed() { mNumLayers--; }
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
@@ -575,10 +578,12 @@ private:
     // ISurfaceComposerClient::destroySurface()
     status_t onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle);
 
+    void markLayerPendingRemovalLocked(const Mutex& /* mStateLock */, const sp<Layer>& layer);
+
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.
-    status_t onLayerDestroyed(const wp<Layer>& layer);
+    void onHandleDestroyed(const sp<Layer>& layer);
 
     // remove a layer from SurfaceFlinger immediately
     status_t removeLayer(const sp<Layer>& layer, bool topLevelOnly = false);
