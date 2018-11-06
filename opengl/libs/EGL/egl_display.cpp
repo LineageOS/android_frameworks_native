@@ -265,7 +265,12 @@ EGLDisplay egl_display_t::getPlatformDisplay(EGLNativeDisplayType display,
             if (cnx->egl.eglGetPlatformDisplay) {
                 dpy = cnx->egl.eglGetPlatformDisplay(EGL_PLATFORM_ANDROID_KHR, display,
                                                      attrib_list);
-            } else {
+            }
+
+            // It is possible that eglGetPlatformDisplay does not have a
+            // working implementation for Android platform; in that case,
+            // one last fallback to eglGetDisplay
+            if(dpy == EGL_NO_DISPLAY) {
                 if (attrib_list) {
                     ALOGW("getPlatformDisplay: unexpected attribute list, attributes ignored");
                 }
