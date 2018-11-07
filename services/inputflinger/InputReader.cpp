@@ -1041,7 +1041,7 @@ void InputDevice::setEnabled(bool enabled, nsecs_t when) {
 
 void InputDevice::dump(std::string& dump) {
     InputDeviceInfo deviceInfo;
-    getDeviceInfo(& deviceInfo);
+    getDeviceInfo(&deviceInfo);
 
     dump += StringPrintf(INDENT "Device %d: %s\n", deviceInfo.getId(),
             deviceInfo.getDisplayName().c_str());
