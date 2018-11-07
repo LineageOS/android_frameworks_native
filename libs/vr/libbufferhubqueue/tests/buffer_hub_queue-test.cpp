@@ -1,5 +1,6 @@
 #include <base/logging.h>
 #include <binder/Parcel.h>
+#include <dvr/dvr_api.h>
 #include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
 
@@ -119,6 +120,147 @@ TEST_F(BufferHubQueueTest, TestDequeue) {
 
     // Consumer releases the buffer.
     EXPECT_EQ(c1->ReleaseAsync(&mi, LocalHandle()), 0);
+  }
+}
+
+TEST_F(BufferHubQueueTest,
+       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_withBufferConsumer) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+
+  // Allocate 3 buffers to use.
+  const size_t test_queue_capacity = 3;
+  for (int64_t i = 0; i < test_queue_capacity; i++) {
+    AllocateBuffer();
+  }
+  EXPECT_EQ(producer_queue_->capacity(), test_queue_capacity);
+
+  size_t producer_slot, consumer_slot;
+  LocalHandle fence;
+  DvrNativeBufferMetadata mi, mo;
+
+  // Producer posts 2 buffers and remember their posted sequence.
+  std::deque<size_t> posted_slots;
+  for (int64_t i = 0; i < 2; i++) {
+    auto p1_status =
+        producer_queue_->Dequeue(kTimeoutMs, &producer_slot, &mo, &fence, true);
+    EXPECT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
+    ASSERT_NE(p1, nullptr);
+
+    // Producer should not be gaining posted buffer when there are still
+    // available buffers to gain.
+    auto found_iter =
+        std::find(posted_slots.begin(), posted_slots.end(), producer_slot);
+    EXPECT_EQ(found_iter, posted_slots.end());
+    posted_slots.push_back(producer_slot);
+
+    // Producer posts the buffer.
+    mi.index = i;
+    EXPECT_EQ(0, p1->PostAsync(&mi, LocalHandle()));
+  }
+
+  // Consumer acquires one buffer.
+  auto c1_status =
+      consumer_queue_->Dequeue(kTimeoutMs, &consumer_slot, &mo, &fence);
+  EXPECT_TRUE(c1_status.ok());
+  auto c1 = c1_status.take();
+  ASSERT_NE(c1, nullptr);
+  // Consumer should get the oldest posted buffer. No checks here.
+  // posted_slots[0] should be in acquired state now.
+  EXPECT_EQ(mo.index, 0);
+  // Consumer releases the buffer.
+  EXPECT_EQ(c1->ReleaseAsync(&mi, LocalHandle()), 0);
+  // posted_slots[0] should be in released state now.
+
+  // Producer gain and post 2 buffers.
+  for (int64_t i = 0; i < 2; i++) {
+    auto p1_status =
+        producer_queue_->Dequeue(kTimeoutMs, &producer_slot, &mo, &fence, true);
+    EXPECT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
+    ASSERT_NE(p1, nullptr);
+
+    // The gained buffer should be the one in released state or the one haven't
+    // been use.
+    EXPECT_NE(posted_slots[1], producer_slot);
+
+    mi.index = i + 2;
+    EXPECT_EQ(0, p1->PostAsync(&mi, LocalHandle()));
+  }
+
+  // Producer gains a buffer.
+  auto p1_status =
+      producer_queue_->Dequeue(kTimeoutMs, &producer_slot, &mo, &fence, true);
+  EXPECT_TRUE(p1_status.ok());
+  auto p1 = p1_status.take();
+  ASSERT_NE(p1, nullptr);
+
+  // The gained buffer should be the oldest posted buffer.
+  EXPECT_EQ(posted_slots[1], producer_slot);
+
+  // Producer posts the buffer.
+  mi.index = 4;
+  EXPECT_EQ(0, p1->PostAsync(&mi, LocalHandle()));
+}
+
+TEST_F(BufferHubQueueTest,
+       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_noBufferConsumer) {
+  ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
+
+  // Allocate 4 buffers to use.
+  const size_t test_queue_capacity = 4;
+  for (int64_t i = 0; i < test_queue_capacity; i++) {
+    AllocateBuffer();
+  }
+  EXPECT_EQ(producer_queue_->capacity(), test_queue_capacity);
+
+  // Post all allowed buffers and remember their posted sequence.
+  std::deque<size_t> posted_slots;
+  for (int64_t i = 0; i < test_queue_capacity; i++) {
+    size_t slot;
+    LocalHandle fence;
+    DvrNativeBufferMetadata mi, mo;
+
+    // Producer gains a buffer.
+    auto p1_status =
+        producer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence, true);
+    EXPECT_TRUE(p1_status.ok());
+    auto p1 = p1_status.take();
+    ASSERT_NE(p1, nullptr);
+
+    // Producer should not be gaining posted buffer when there are still
+    // available buffers to gain.
+    auto found_iter = std::find(posted_slots.begin(), posted_slots.end(), slot);
+    EXPECT_EQ(found_iter, posted_slots.end());
+    posted_slots.push_back(slot);
+
+    // Producer posts the buffer.
+    mi.index = i;
+    EXPECT_EQ(p1->PostAsync(&mi, LocalHandle()), 0);
+  }
+
+  // Gain posted buffers in sequence.
+  const int64_t nb_dequeue_all_times = 2;
+  for (int j = 0; j < nb_dequeue_all_times; ++j) {
+    for (int i = 0; i < test_queue_capacity; ++i) {
+      size_t slot;
+      LocalHandle fence;
+      DvrNativeBufferMetadata mi, mo;
+
+      // Producer gains a buffer.
+      auto p1_status =
+          producer_queue_->Dequeue(kTimeoutMs, &slot, &mo, &fence, true);
+      EXPECT_TRUE(p1_status.ok());
+      auto p1 = p1_status.take();
+      ASSERT_NE(p1, nullptr);
+
+      // The gained buffer should be the oldest posted buffer.
+      EXPECT_EQ(posted_slots[i], slot);
+
+      // Producer posts the buffer.
+      mi.index = i + test_queue_capacity * (j + 1);
+      EXPECT_EQ(p1->PostAsync(&mi, LocalHandle()), 0);
+    }
   }
 }
 
@@ -245,8 +387,8 @@ TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
 
   for (size_t i = 0; i < kBufferCount; i++) {
     Entry* entry = &buffers[i];
-    auto producer_status = producer_queue_->Dequeue(
-        kTimeoutMs, &entry->slot, &mo, &entry->fence);
+    auto producer_status =
+        producer_queue_->Dequeue(kTimeoutMs, &entry->slot, &mo, &entry->fence);
     ASSERT_TRUE(producer_status.ok());
     entry->buffer = producer_status.take();
     ASSERT_NE(nullptr, entry->buffer);
