@@ -311,8 +311,11 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(Message& message) {
     return ErrorStatus(ENOMEM);
   }
 
-  if (!producer_owns_ && !BufferHubDefs::IsBufferReleased(
-                             buffer_state_->load(std::memory_order_acquire))) {
+  uint64_t current_buffer_state =
+      buffer_state_->load(std::memory_order_acquire);
+  if (!producer_owns_ &&
+      (BufferHubDefs::IsBufferPosted(current_buffer_state) ||
+       BufferHubDefs::IsBufferAcquired(current_buffer_state))) {
     // Signal the new consumer when adding it to a posted producer.
     if (consumer->OnProducerPosted())
       pending_consumers_++;
