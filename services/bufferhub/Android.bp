@@ -23,6 +23,13 @@ cc_library_shared {
     ],
     srcs: [
         "BufferHubService.cpp",
+        "BufferNode.cpp",
+    ],
+    header_libs: [
+        "libbufferhub_headers",
+        "libdvr_headers",
+        "libnativewindow_headers",
+        "libpdx_headers",
     ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
@@ -30,6 +37,7 @@ cc_library_shared {
         "libhidltransport",
         "libhwbinder",
         "liblog",
+        "libui",
         "libutils",
     ],
     export_include_dirs: [
@@ -49,6 +57,7 @@ cc_binary {
         "libhidltransport",
         "libhwbinder",
         "liblog",
+        "libui",
         "libutils",
     ],
     cflags: [

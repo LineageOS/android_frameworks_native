@@ -111,6 +111,8 @@ Layer::Layer(const LayerCreationArgs& args)
     args.flinger->getCompositorTiming(&compositorTiming);
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
     mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
+
+    mFlinger->onLayerCreated();
 }
 
 Layer::~Layer() {
@@ -119,13 +121,11 @@ Layer::~Layer() {
         c->detachLayer(this);
     }
 
-    for (auto& point : mRemoteSyncPoints) {
-        point->setTransactionApplied();
-    }
-    for (auto& point : mLocalSyncPoints) {
-        point->setFrameAvailable();
-    }
     mFrameTracker.logAndResetStats(mName);
+
+    destroyAllHwcLayers();
+
+    mFlinger->onLayerDestroyed();
 }
 
 // ---------------------------------------------------------------------------
@@ -140,10 +140,9 @@ Layer::~Layer() {
 void Layer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {}
 
 void Layer::onRemovedFromCurrentState() {
+    mRemovedFromCurrentState = true;
+
     // the layer is removed from SF mCurrentState to mLayersPendingRemoval
-
-    mPendingRemoval = true;
-
     if (mCurrentState.zOrderRelativeOf != nullptr) {
         sp<Layer> strongRelative = mCurrentState.zOrderRelativeOf.promote();
         if (strongRelative != nullptr) {
@@ -153,19 +152,26 @@ void Layer::onRemovedFromCurrentState() {
         mCurrentState.zOrderRelativeOf = nullptr;
     }
 
+    // Since we are no longer reachable from CurrentState SurfaceFlinger
+    // will no longer invoke doTransaction for us, and so we will
+    // never finish applying transactions. We signal the sync point
+    // now so that another layer will not become indefinitely
+    // blocked.
+    for (auto& point: mRemoteSyncPoints) {
+        point->setTransactionApplied();
+    }
+    mRemoteSyncPoints.clear();
+
+    {
+    Mutex::Autolock syncLock(mLocalSyncPointMutex);
+    for (auto& point : mLocalSyncPoints) {
+        point->setFrameAvailable();
+    }
+    mLocalSyncPoints.clear();
+    }
+
     for (const auto& child : mCurrentChildren) {
         child->onRemovedFromCurrentState();
-    }
-}
-
-void Layer::onRemoved() {
-    // the layer is removed from SF mLayersPendingRemoval
-    abandon();
-
-    destroyAllHwcLayers();
-
-    for (const auto& child : mCurrentChildren) {
-        child->onRemoved();
     }
 }
 
@@ -228,6 +234,10 @@ void Layer::destroyAllHwcLayers() {
     }
     LOG_ALWAYS_FATAL_IF(!getBE().mHwcLayers.empty(),
                         "All hardware composer layers should have been destroyed");
+
+    for (const sp<Layer>& child : mDrawingChildren) {
+        child->destroyAllHwcLayers();
+    }
 }
 
 Rect Layer::getContentCrop() const {
@@ -752,6 +762,9 @@ bool Layer::addSyncPoint(const std::shared_ptr<SyncPoint>& point) {
         // relevant frame
         return false;
     }
+    if (isRemovedFromCurrentState()) {
+        return false;
+    }
 
     Mutex::Autolock lock(mLocalSyncPointMutex);
     mLocalSyncPoints.push_back(point);
@@ -825,7 +838,9 @@ void Layer::pushPendingState() {
 
     // If this transaction is waiting on the receipt of a frame, generate a sync
     // point and send it to the remote layer.
-    if (mCurrentState.barrierLayer_legacy != nullptr) {
+    // We don't allow installing sync points after we are removed from the current state
+    // as we won't be able to signal our end.
+    if (mCurrentState.barrierLayer_legacy != nullptr && !isRemovedFromCurrentState()) {
         sp<Layer> barrierLayer = mCurrentState.barrierLayer_legacy.promote();
         if (barrierLayer == nullptr) {
             ALOGE("[%s] Unable to promote barrier Layer.", mName.string());
@@ -1992,6 +2007,10 @@ void Layer::writeToProto(LayerProto* layerInfo, int32_t displayId) {
     } else {
         layerInfo->set_is_protected(false);
     }
+}
+
+bool Layer::isRemovedFromCurrentState() const  {
+    return mRemovedFromCurrentState;
 }
 
 // ---------------------------------------------------------------------------

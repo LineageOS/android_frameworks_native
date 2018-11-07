@@ -1568,8 +1568,7 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
     for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[displayId]) {
+        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[token]) {
             compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
@@ -1666,16 +1665,16 @@ void SurfaceFlinger::calculateWorkingSet() {
     mDrawingState.colorMatrixChanged = false;
 
     for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        getBE().mCompositionInfo[displayId].clear();
+        getBE().mCompositionInfo[token].clear();
+
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
-            auto displayId = display->getId();
+            const auto displayId = display->getId();
             layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
             if (!layer->setHwcLayer(displayId)) {
                 ALOGV("Need to create HWCLayer for %s", layer->getName().string());
             }
             layer->getBE().compositionInfo.hwc.displayId = displayId;
-            getBE().mCompositionInfo[displayId].push_back(layer->getBE().compositionInfo);
+            getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
             layer->getBE().compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
@@ -1683,7 +1682,6 @@ void SurfaceFlinger::calculateWorkingSet() {
 
 void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything)
 {
-    const auto displayId = display->getId();
     // is debugging enabled
     if (CC_LIKELY(!mDebugRegion))
         return;
@@ -1709,14 +1707,7 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
         usleep(mDebugRegion * 1000);
     }
 
-    if (display->isPoweredOn()) {
-        status_t result = display->prepareFrame(
-                *getBE().mHwc, getBE().mCompositionInfo[displayId]);
-        ALOGE_IF(result != NO_ERROR,
-                 "prepareFrame for display %d failed:"
-                 " %d (%s)",
-                 display->getId(), result, strerror(-result));
-    }
+    prepareFrame(display);
 }
 
 void SurfaceFlinger::doTracing(const char* where) {
@@ -2128,13 +2119,12 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& display)
 
 void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& display)
 {
-    const auto displayId = display->getId();
     if (!display->isPoweredOn()) {
         return;
     }
 
-    status_t result = display->prepareFrame(
-            *getBE().mHwc, getBE().mCompositionInfo[displayId]);
+    status_t result = display->prepareFrame(getHwComposer(),
+                                            getBE().mCompositionInfo[display->getDisplayToken()]);
     ALOGE_IF(result != NO_ERROR,
              "prepareFrame for display %d failed:"
              " %d (%s)",
@@ -2735,7 +2725,15 @@ void SurfaceFlinger::commitTransaction()
         for (const auto& l : mLayersPendingRemoval) {
             recordBufferingStats(l->getName().string(),
                     l->getOccupancyHistory(true));
-            l->onRemoved();
+
+            // We need to release the HWC layers when the Layer is removed
+            // from the current state otherwise the HWC layer just continues
+            // showing at its last configured state until we eventually
+            // abandon the buffer queue.
+            if (l->isRemovedFromCurrentState()) {
+                l->destroyAllHwcLayers();
+                l->releasePendingBuffer(systemTime());
+            }
         }
         mLayersPendingRemoval.clear();
     }
@@ -3168,7 +3166,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         if (parent == nullptr) {
             mCurrentState.layersSortedByZ.add(lbc);
         } else {
-            if (parent->isPendingRemoval()) {
+            if (parent->isRemovedFromCurrentState()) {
                 ALOGE("addClientLayer called with a removed parent");
                 return NAME_NOT_FOUND;
             }
@@ -3184,7 +3182,6 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
                                 mMaxGraphicBufferProducerListSize, mNumLayers);
         }
         mLayersAdded = true;
-        mNumLayers++;
     }
 
     // attach this layer to the client
@@ -3198,52 +3195,22 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) 
     return removeLayerLocked(mStateLock, layer, topLevelOnly);
 }
 
-status_t SurfaceFlinger::removeLayerLocked(const Mutex&, const sp<Layer>& layer,
+status_t SurfaceFlinger::removeLayerLocked(const Mutex& lock, const sp<Layer>& layer,
                                            bool topLevelOnly) {
-    if (layer->isPendingRemoval()) {
-        return NO_ERROR;
-    }
-
     const auto& p = layer->getParent();
     ssize_t index;
     if (p != nullptr) {
         if (topLevelOnly) {
             return NO_ERROR;
         }
-
-        sp<Layer> ancestor = p;
-        while (ancestor->getParent() != nullptr) {
-            ancestor = ancestor->getParent();
-        }
-        if (mCurrentState.layersSortedByZ.indexOf(ancestor) < 0) {
-            ALOGE("removeLayer called with a layer whose parent has been removed");
-            return NAME_NOT_FOUND;
-        }
-
         index = p->removeChild(layer);
     } else {
         index = mCurrentState.layersSortedByZ.remove(layer);
     }
 
-    // As a matter of normal operation, the LayerCleaner will produce a second
-    // attempt to remove the surface. The Layer will be kept alive in mDrawingState
-    // so we will succeed in promoting it, but it's already been removed
-    // from mCurrentState. As long as we can find it in mDrawingState we have no problem
-    // otherwise something has gone wrong and we are leaking the layer.
-    if (index < 0 && mDrawingState.layersSortedByZ.indexOf(layer) < 0) {
-        ALOGE("Failed to find layer (%s) in layer parent (%s).",
-                layer->getName().string(),
-                (p != nullptr) ? p->getName().string() : "no-parent");
-        return BAD_VALUE;
-    } else if (index < 0) {
-        return NO_ERROR;
-    }
-
     layer->onRemovedFromCurrentState();
-    mLayersPendingRemoval.add(layer);
-    mLayersRemoved = true;
-    mNumLayers -= 1 + layer->getChildrenCount();
-    setTransactionFlags(eTransactionNeeded);
+
+    markLayerPendingRemovalLocked(lock, layer);
     return NO_ERROR;
 }
 
@@ -3441,11 +3408,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
 
     sp<Layer> layer(client->getLayerUser(s.surface));
     if (layer == nullptr) {
-        return 0;
-    }
-
-    if (layer->isPendingRemoval()) {
-        ALOGW("Attempting to set client state on removed layer: %s", layer->getName().string());
         return 0;
     }
 
@@ -3652,11 +3614,6 @@ void SurfaceFlinger::setDestroyStateLocked(const ComposerState& composerState) {
         return;
     }
 
-    if (layer->isPendingRemoval()) {
-        ALOGW("Attempting to destroy on removed layer: %s", layer->getName().string());
-        return;
-    }
-
     if (state.what & layer_state_t::eDestroySurface) {
         removeLayerLocked(mStateLock, layer);
     }
@@ -3830,17 +3787,16 @@ status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBind
     return err;
 }
 
-status_t SurfaceFlinger::onLayerDestroyed(const wp<Layer>& layer)
+void SurfaceFlinger::markLayerPendingRemovalLocked(const Mutex&, const sp<Layer>& layer) {
+    mLayersPendingRemoval.add(layer);
+    mLayersRemoved = true;
+    setTransactionFlags(eTransactionNeeded);
+}
+
+void SurfaceFlinger::onHandleDestroyed(const sp<Layer>& layer)
 {
-    // called by ~LayerCleaner() when all references to the IBinder (handle)
-    // are gone
-    sp<Layer> l = layer.promote();
-    if (l == nullptr) {
-        // The layer has already been removed, carry on
-        return NO_ERROR;
-    }
-    // If we have a parent, then we can continue to live as long as it does.
-    return removeLayer(l, true);
+    Mutex::Autolock lock(mStateLock);
+    markLayerPendingRemovalLocked(mStateLock, layer);
 }
 
 // ---------------------------------------------------------------------------
@@ -4390,17 +4346,13 @@ void SurfaceFlinger::dumpFrameCompositionInfo(String8& result) const {
     std::string stringResult;
 
     for (const auto& [token, display] : mDisplays) {
-        const auto displayId = display->getId();
-        if (displayId == DisplayDevice::DISPLAY_ID_INVALID) {
+        const auto it = getBE().mEndOfFrameCompositionInfo.find(token);
+        if (it == getBE().mEndOfFrameCompositionInfo.end()) {
             continue;
         }
 
-        const auto& compositionInfoIt = getBE().mEndOfFrameCompositionInfo.find(displayId);
-        if (compositionInfoIt == getBE().mEndOfFrameCompositionInfo.end()) {
-            break;
-        }
-        const auto& compositionInfoList = compositionInfoIt->second;
-        stringResult += base::StringPrintf("Display: %d\n", displayId);
+        const auto& compositionInfoList = it->second;
+        stringResult += base::StringPrintf("%s\n", display->getDebugName().c_str());
         stringResult += base::StringPrintf("numComponents: %zu\n", compositionInfoList.size());
         for (const auto& compositionInfo : compositionInfoList) {
             compositionInfo.dump(stringResult, nullptr);
@@ -5189,7 +5141,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     auto layerHandle = reinterpret_cast<Layer::Handle*>(layerHandleBinder.get());
     auto parent = layerHandle->owner.promote();
 
-    if (parent == nullptr || parent->isPendingRemoval()) {
+    if (parent == nullptr || parent->isRemovedFromCurrentState()) {
         ALOGE("captureLayers called with a removed parent");
         return NAME_NOT_FOUND;
     }

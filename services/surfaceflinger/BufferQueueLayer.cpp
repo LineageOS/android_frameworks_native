@@ -23,7 +23,9 @@ namespace android {
 
 BufferQueueLayer::BufferQueueLayer(const LayerCreationArgs& args) : BufferLayer(args) {}
 
-BufferQueueLayer::~BufferQueueLayer() = default;
+BufferQueueLayer::~BufferQueueLayer() {
+    mConsumer->abandon();
+}
 
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
@@ -31,10 +33,6 @@ BufferQueueLayer::~BufferQueueLayer() = default;
 
 void BufferQueueLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
     mConsumer->setReleaseFence(releaseFence);
-}
-
-void BufferQueueLayer::abandon() {
-    mConsumer->abandon();
 }
 
 void BufferQueueLayer::setTransformHint(uint32_t orientation) const {
@@ -380,7 +378,17 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
 
     mFlinger->mInterceptor->saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
                                              item.mGraphicBuffer->getHeight(), item.mFrameNumber);
-    mFlinger->signalLayerUpdate();
+    
+    // If this layer is orphaned, then we run a fake vsync pulse so that
+    // dequeueBuffer doesn't block indefinitely.
+    if (isRemovedFromCurrentState()) {
+        bool ignored = false;
+        latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
+        usleep(16000);
+        releasePendingBuffer(systemTime());
+    } else {
+        mFlinger->signalLayerUpdate();
+    }
 }
 
 void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {

@@ -222,8 +222,8 @@ public:
     // instances. Each hardware composer instance gets a different sequence id.
     int32_t mComposerSequenceId;
 
-    std::unordered_map<int32_t, std::vector<CompositionInfo>> mCompositionInfo;
-    std::unordered_map<int32_t, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
+    std::map<wp<IBinder>, std::vector<CompositionInfo>> mCompositionInfo;
+    std::map<wp<IBinder>, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
 };
 
 
@@ -363,6 +363,9 @@ public:
 
     bool authenticateSurfaceTextureLocked(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
+
+    inline void onLayerCreated() { mNumLayers++; }
+    inline void onLayerDestroyed() { mNumLayers--; }
 
 private:
     friend class Client;
@@ -575,10 +578,12 @@ private:
     // ISurfaceComposerClient::destroySurface()
     status_t onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle);
 
+    void markLayerPendingRemovalLocked(const Mutex& /* mStateLock */, const sp<Layer>& layer);
+
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.
-    status_t onLayerDestroyed(const wp<Layer>& layer);
+    void onHandleDestroyed(const sp<Layer>& layer);
 
     // remove a layer from SurfaceFlinger immediately
     status_t removeLayer(const sp<Layer>& layer, bool topLevelOnly = false);
