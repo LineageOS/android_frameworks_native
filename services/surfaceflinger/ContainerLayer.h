@@ -36,6 +36,8 @@ public:
     void setPerFrameData(const sp<const DisplayDevice>& display) override;
 
     bool isCreatedFromMainThread() const override { return true; }
+
+    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
 };
 
 } // namespace android

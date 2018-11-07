@@ -403,7 +403,7 @@ public:
      * called before composition.
      * returns true if the layer has pending updates.
      */
-    virtual bool onPreComposition(nsecs_t /*refreshStartTime*/) { return true; }
+    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
 
     /*
      * called after composition.
