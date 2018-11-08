@@ -215,9 +215,13 @@ private:
         HWC2::Error presentError;
     };
 
-    std::unique_ptr<HWC2::Device>   mHwcDevice;
     std::vector<DisplayData> mDisplayData{HWC_NUM_PHYSICAL_DISPLAY_TYPES};
-    std::set<size_t>                mFreeDisplaySlots;
+
+    // This must be destroyed before mDisplayData, because destructor may call back into HWComposer
+    // and look up DisplayData.
+    std::unique_ptr<HWC2::Device> mHwcDevice;
+
+    std::set<size_t> mFreeDisplaySlots;
     std::unordered_map<hwc2_display_t, int32_t> mHwcDisplaySlots;
     // protect mDisplayData from races between prepare and dump
     mutable Mutex mDisplayLock;

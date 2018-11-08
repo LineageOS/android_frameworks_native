@@ -92,7 +92,9 @@ namespace android {
 HWComposer::HWComposer(std::unique_ptr<android::Hwc2::Composer> composer)
       : mHwcDevice(std::make_unique<HWC2::Device>(std::move(composer))) {}
 
-HWComposer::~HWComposer() = default;
+HWComposer::~HWComposer() {
+    mDisplayData.clear();
+}
 
 void HWComposer::registerCallback(HWC2::ComposerCallback* callback,
                                   int32_t sequenceId) {
