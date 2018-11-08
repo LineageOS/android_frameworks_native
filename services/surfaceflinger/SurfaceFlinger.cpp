@@ -173,6 +173,11 @@ private:
     bool mLocked;
 };
 
+// Currently we only support V0_SRGB and DISPLAY_P3 as composition preference.
+bool validateCompositionDataspace(Dataspace dataspace) {
+    return dataspace == Dataspace::V0_SRGB || dataspace == Dataspace::DISPLAY_P3;
+}
+
 }  // namespace anonymous
 
 // ---------------------------------------------------------------------------
@@ -191,7 +196,6 @@ uint64_t SurfaceFlinger::maxVirtualDisplaySize;
 bool SurfaceFlinger::hasSyncFramework;
 bool SurfaceFlinger::useVrFlinger;
 int64_t SurfaceFlinger::maxFrameBufferAcquiredBuffers;
-// TODO(courtneygo): Rename hasWideColorDisplay to clarify its actual meaning.
 bool SurfaceFlinger::hasWideColorDisplay;
 int SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientationDefault;
 bool SurfaceFlinger::useColorManagement;
@@ -313,6 +317,8 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
                     wideColorGamutCompositionPixelFormat = tmpWideColorGamutPixelFormat;
                 });
     }
+    mDefaultCompositionDataspace = defaultCompositionDataspace;
+    mWideColorGamutCompositionDataspace = wideColorGamutCompositionDataspace;
 
     useContextPriority = getBool<ISurfaceFlingerConfigs,
                                  &ISurfaceFlingerConfigs::useContextPriority>(true);
@@ -1170,9 +1176,9 @@ status_t SurfaceFlinger::getCompositionPreference(
         Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
         Dataspace* outWideColorGamutDataspace,
         ui::PixelFormat* outWideColorGamutPixelFormat) const {
-    *outDataspace = defaultCompositionDataspace;
+    *outDataspace = mDefaultCompositionDataspace;
     *outPixelFormat = defaultCompositionPixelFormat;
-    *outWideColorGamutDataspace = wideColorGamutCompositionDataspace;
+    *outWideColorGamutDataspace = mWideColorGamutCompositionDataspace;
     *outWideColorGamutPixelFormat = wideColorGamutCompositionPixelFormat;
     return NO_ERROR;
 }
@@ -4746,9 +4752,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1030 are currently use for backdoors. The code
+    // Numbers from 1000 to 1031 are currently use for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1030) {
+    if (code >= 1000 && code <= 1031) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5000,6 +5006,38 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             // Is device color managed?
             case 1030: {
                 reply->writeBool(useColorManagement);
+                return NO_ERROR;
+            }
+            // Override default composition data space
+            // adb shell service call SurfaceFlinger 1031 i32 1 DATASPACE_NUMBER DATASPACE_NUMBER \
+            // && adb shell stop zygote && adb shell start zygote
+            // to restore: adb shell service call SurfaceFlinger 1031 i32 0 && \
+            // adb shell stop zygote && adb shell start zygote
+            case 1031: {
+                Mutex::Autolock _l(mStateLock);
+                n = data.readInt32();
+                if (n) {
+                    n = data.readInt32();
+                    if (n) {
+                        Dataspace dataspace = static_cast<Dataspace>(n);
+                        if (!validateCompositionDataspace(dataspace)) {
+                            return BAD_VALUE;
+                        }
+                        mDefaultCompositionDataspace = dataspace;
+                    }
+                    n = data.readInt32();
+                    if (n) {
+                        Dataspace dataspace = static_cast<Dataspace>(n);
+                        if (!validateCompositionDataspace(dataspace)) {
+                            return BAD_VALUE;
+                        }
+                        mWideColorGamutCompositionDataspace = dataspace;
+                    }
+                } else {
+                    // restore composition data space.
+                    mDefaultCompositionDataspace = defaultCompositionDataspace;
+                    mWideColorGamutCompositionDataspace = wideColorGamutCompositionDataspace;
+                }
                 return NO_ERROR;
             }
         }
