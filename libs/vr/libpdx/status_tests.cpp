@@ -2,6 +2,8 @@
 
 #include <gtest/gtest.h>
 
+#include <memory>
+
 using android::pdx::ErrorStatus;
 using android::pdx::Status;
 
@@ -84,8 +86,8 @@ TEST(Status, Move) {
   Status<std::unique_ptr<int>> status1;
   Status<std::unique_ptr<int>> status2;
 
-  status1 = Status<std::unique_ptr<int>>{std::unique_ptr<int>{new int{11}}};
-  status2 = Status<std::unique_ptr<int>>{std::unique_ptr<int>{new int{12}}};
+  status1 = Status<std::unique_ptr<int>>{std::make_unique<int>(int{11})};
+  status2 = Status<std::unique_ptr<int>>{std::make_unique<int>(int{12})};
   EXPECT_FALSE(status1.empty());
   EXPECT_FALSE(status2.empty());
   EXPECT_TRUE(status1.ok());
@@ -114,7 +116,7 @@ TEST(Status, Move) {
 }
 
 TEST(Status, Take) {
-  Status<std::unique_ptr<int>> status{std::unique_ptr<int>{new int{123}}};
+  Status<std::unique_ptr<int>> status{std::make_unique<int>(int{123})};
   EXPECT_FALSE(status.empty());
   EXPECT_NE(nullptr, status.get());
 
