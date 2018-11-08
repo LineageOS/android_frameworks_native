@@ -33,6 +33,9 @@ using byte_view = std::basic_string_view<uint8_t>;
 
 constexpr size_t kEdidHeaderLength = 5;
 
+constexpr uint16_t kFallbackEdidManufacturerId = 0;
+constexpr uint16_t kVirtualEdidManufacturerId = 0xffffu;
+
 std::optional<uint8_t> getEdidDescriptorType(const byte_view& view) {
     if (view.size() < kEdidHeaderLength || view[0] || view[1] || view[2] || view[4]) {
         return {};
@@ -165,7 +168,8 @@ std::optional<PnpId> getPnpId(uint16_t manufacturerId) {
     return a && b && c ? std::make_optional(PnpId{a, b, c}) : std::nullopt;
 }
 
-std::optional<DisplayId> generateDisplayId(uint8_t port, const DisplayIdentificationData& data) {
+std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
+        uint8_t port, const DisplayIdentificationData& data) {
     if (!isEdid(data)) {
         ALOGE("Display identification data has unknown format.");
         return {};
@@ -179,7 +183,16 @@ std::optional<DisplayId> generateDisplayId(uint8_t port, const DisplayIdentifica
     // Hash display name instead of using product code or serial number, since the latter have been
     // observed to change on some displays with multiple inputs.
     const auto hash = static_cast<uint32_t>(std::hash<std::string_view>()(edid->displayName));
-    return getEdidDisplayId(port, edid->manufacturerId, hash);
+    return DisplayIdentificationInfo{getEdidDisplayId(port, edid->manufacturerId, hash),
+                                     std::string(edid->displayName)};
+}
+
+DisplayId getFallbackDisplayId(uint8_t port) {
+    return getEdidDisplayId(port, kFallbackEdidManufacturerId, 0);
+}
+
+DisplayId getVirtualDisplayId(uint32_t id) {
+    return getEdidDisplayId(0, kVirtualEdidManufacturerId, id);
 }
 
 } // namespace android

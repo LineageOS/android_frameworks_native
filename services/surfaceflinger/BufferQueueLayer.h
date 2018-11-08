@@ -94,8 +94,7 @@ private:
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void setHwcLayerBuffer(const sp<const DisplayDevice>& display) override;
-    // -----------------------------------------------------------------------
+    void setHwcLayerBuffer(DisplayId displayId) override;
 
     // -----------------------------------------------------------------------
     // Interface implementation for BufferLayerConsumer::ContentsChangedListener

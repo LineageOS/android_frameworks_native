@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,24 +14,14 @@
  * limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
-#undef LOG_TAG
-#define LOG_TAG "ContainerLayer"
+#pragma once
 
-#include "ContainerLayer.h"
+#include "DisplayHardware/DisplayIdentification.h"
 
 namespace android {
 
-ContainerLayer::ContainerLayer(const LayerCreationArgs& args) : Layer(args) {}
-
-ContainerLayer::~ContainerLayer() = default;
-
-void ContainerLayer::onDraw(const RenderArea&, const Region& /* clip */, bool) {}
-
-bool ContainerLayer::isVisible() const {
-    return !isHiddenByPolicy();
-}
-
-void ContainerLayer::setPerFrameData(DisplayId, const ui::Transform&, const Rect&, int32_t) {}
+const DisplayIdentificationData& getInternalEdid();
+const DisplayIdentificationData& getExternalEdid();
+const DisplayIdentificationData& getExternalEedid();
 
 } // namespace android

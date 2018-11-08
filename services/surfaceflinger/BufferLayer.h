@@ -80,10 +80,12 @@ public:
 
     bool isHdrY410() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& displayDevice) override;
+    void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
+                         int32_t supportedPerFrameMetadata) override;
 
     bool onPreComposition(nsecs_t refreshStartTime) override;
-    bool onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
+    bool onPostComposition(const std::optional<DisplayId>& displayId,
+                           const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
                            const CompositorTiming& compositorTiming) override;
 
@@ -145,7 +147,7 @@ private:
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& display) = 0;
+    virtual void setHwcLayerBuffer(DisplayId displayId) = 0;
 
     // -----------------------------------------------------------------------
 

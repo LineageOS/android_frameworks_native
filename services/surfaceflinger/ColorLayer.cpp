@@ -57,13 +57,12 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && getAlpha() > 0.0f;
 }
 
-void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
-    const ui::Transform& tr = display->getTransform();
-    const auto& viewport = display->getViewport();
-    Region visible = tr.transform(visibleRegion.intersect(viewport));
-    const auto displayId = display->getId();
+void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
+                                 const Rect& viewport, int32_t /* supportedPerFrameMetadata */) {
+    Region visible = transform.transform(visibleRegion.intersect(viewport));
+
     if (!hasHwcLayer(displayId)) {
-        ALOGE("[%s] failed to setPerFrameData: no HWC layer found (%d)",
+        ALOGE("[%s] failed to setPerFrameData: no HWC layer found for display %" PRIu64,
               mName.string(), displayId);
         return;
     }

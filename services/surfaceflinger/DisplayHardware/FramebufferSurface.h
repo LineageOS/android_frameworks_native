@@ -17,6 +17,7 @@
 #ifndef ANDROID_SF_FRAMEBUFFER_SURFACE_H
 #define ANDROID_SF_FRAMEBUFFER_SURFACE_H
 
+#include "DisplayIdentification.h"
 #include "DisplaySurface.h"
 #include "HWComposerBufferCache.h"
 
@@ -38,7 +39,8 @@ class HWComposer;
 class FramebufferSurface : public ConsumerBase,
                            public DisplaySurface {
 public:
-    FramebufferSurface(HWComposer& hwc, int disp, const sp<IGraphicBufferConsumer>& consumer);
+    FramebufferSurface(HWComposer& hwc, DisplayId displayId,
+                       const sp<IGraphicBufferConsumer>& consumer);
 
     virtual status_t beginFrame(bool mustRecompose);
     virtual status_t prepareFrame(CompositionType compositionType);
@@ -63,8 +65,7 @@ private:
     status_t nextBuffer(uint32_t& outSlot, sp<GraphicBuffer>& outBuffer,
             sp<Fence>& outFence, ui::Dataspace& outDataspace);
 
-    // mDisplayType must match one of the HWC display types
-    int mDisplayType;
+    const DisplayId mDisplayId;
 
     // mCurrentBufferIndex is the slot index of the current buffer or
     // INVALID_BUFFER_SLOT to indicate that either there is no current buffer

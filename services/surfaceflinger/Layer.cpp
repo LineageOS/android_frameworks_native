@@ -196,9 +196,9 @@ sp<IBinder> Layer::getHandle() {
 // h/w composer set-up
 // ---------------------------------------------------------------------------
 
-bool Layer::createHwcLayer(HWComposer* hwc, int32_t displayId) {
+bool Layer::createHwcLayer(HWComposer* hwc, DisplayId displayId) {
     LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(displayId) != 0,
-                        "Already have a layer for display %d", displayId);
+                        "Already have a layer for display %" PRIu64, displayId);
     auto layer = std::shared_ptr<HWC2::Layer>(
             hwc->createLayer(displayId),
             [hwc, displayId](HWC2::Layer* layer) {
@@ -214,7 +214,7 @@ bool Layer::createHwcLayer(HWComposer* hwc, int32_t displayId) {
     return true;
 }
 
-bool Layer::destroyHwcLayer(int32_t displayId) {
+bool Layer::destroyHwcLayer(DisplayId displayId) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         return false;
     }
@@ -461,12 +461,13 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
 
 void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     const auto displayId = display->getId();
-    if (!hasHwcLayer(displayId)) {
-        ALOGE("[%s] failed to setGeometry: no HWC layer found (%d)",
-              mName.string(), displayId);
+    LOG_ALWAYS_FATAL_IF(!displayId);
+    if (!hasHwcLayer(*displayId)) {
+        ALOGE("[%s] failed to setGeometry: no HWC layer found for display %" PRIu64, mName.string(),
+              *displayId);
         return;
     }
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
+    auto& hwcInfo = getBE().mHwcLayers[*displayId];
 
     // enable this layer
     hwcInfo.forceClientComposition = false;
@@ -618,7 +619,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     if (orientation & ui::Transform::ROT_INVALID) {
         // we can only handle simple transformation
         hwcInfo.forceClientComposition = true;
-        getBE().mHwcLayers[displayId].compositionType = HWC2::Composition::Client;
+        getBE().mHwcLayers[*displayId].compositionType = HWC2::Composition::Client;
     } else {
         auto transform = static_cast<HWC2::Transform>(orientation);
         hwcInfo.transform = transform;
@@ -632,18 +633,18 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     }
 }
 
-void Layer::forceClientComposition(int32_t displayId) {
+void Layer::forceClientComposition(DisplayId displayId) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
-        ALOGE("forceClientComposition: no HWC layer found (%d)", displayId);
+        ALOGE("forceClientComposition: no HWC layer found (display %" PRIu64 ")", displayId);
         return;
     }
 
     getBE().mHwcLayers[displayId].forceClientComposition = true;
 }
 
-bool Layer::getForceClientComposition(int32_t displayId) {
+bool Layer::getForceClientComposition(DisplayId displayId) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
-        ALOGE("getForceClientComposition: no HWC layer found (%d)", displayId);
+        ALOGE("getForceClientComposition: no HWC layer found (display %" PRIu64 ")", displayId);
         return false;
     }
 
@@ -652,7 +653,7 @@ bool Layer::getForceClientComposition(int32_t displayId) {
 
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     const auto displayId = display->getId();
-    if (getBE().mHwcLayers.count(displayId) == 0 ||
+    if (getBE().mHwcLayers.count(*displayId) == 0 ||
         getCompositionType(displayId) != HWC2::Composition::Cursor) {
         return;
     }
@@ -675,8 +676,8 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     auto position = displayTransform.transform(frame);
 
     auto error =
-            (getBE().mHwcLayers[displayId].layer)->setCursorPosition(
-                    position.left, position.top);
+            getBE().mHwcLayers[*displayId].layer->setCursorPosition(position.left, position.top);
+
     ALOGE_IF(error != HWC2::Error::None,
              "[%s] Failed to set cursor position "
              "to (%d, %d): %s (%d)",
@@ -708,7 +709,7 @@ void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
     clearWithOpenGL(renderArea, 0, 0, 0, 0);
 }
 
-void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool callIntoHwc) {
+void Layer::setCompositionType(DisplayId displayId, HWC2::Composition type, bool callIntoHwc) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         ALOGE("setCompositionType called without a valid HWC layer");
         return;
@@ -731,16 +732,20 @@ void Layer::setCompositionType(int32_t displayId, HWC2::Composition type, bool c
     }
 }
 
-HWC2::Composition Layer::getCompositionType(int32_t displayId) const {
-    if (getBE().mHwcLayers.count(displayId) == 0) {
+HWC2::Composition Layer::getCompositionType(const std::optional<DisplayId>& displayId) const {
+    if (!displayId) {
         // If we're querying the composition type for a display that does not
         // have a HWC counterpart, then it will always be Client
         return HWC2::Composition::Client;
     }
-    return getBE().mHwcLayers[displayId].compositionType;
+    if (getBE().mHwcLayers.count(*displayId) == 0) {
+        ALOGE("getCompositionType called with an invalid HWC layer");
+        return HWC2::Composition::Invalid;
+    }
+    return getBE().mHwcLayers.at(*displayId).compositionType;
 }
 
-void Layer::setClearClientTarget(int32_t displayId, bool clear) {
+void Layer::setClearClientTarget(DisplayId displayId, bool clear) {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         ALOGE("setClearClientTarget called without a valid HWC layer");
         return;
@@ -748,7 +753,7 @@ void Layer::setClearClientTarget(int32_t displayId, bool clear) {
     getBE().mHwcLayers[displayId].clearClientTarget = clear;
 }
 
-bool Layer::getClearClientTarget(int32_t displayId) const {
+bool Layer::getClearClientTarget(DisplayId displayId) const {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         ALOGE("getClearClientTarget called without a valid HWC layer");
         return false;
@@ -1416,7 +1421,7 @@ void Layer::miniDumpHeader(String8& result) {
     result.append("-----------------------------\n");
 }
 
-void Layer::miniDump(String8& result, int32_t displayId) const {
+void Layer::miniDump(String8& result, DisplayId displayId) const {
     if (getBE().mHwcLayers.count(displayId) == 0) {
         return;
     }
@@ -1980,7 +1985,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     }
 }
 
-void Layer::writeToProto(LayerProto* layerInfo, int32_t displayId) {
+void Layer::writeToProto(LayerProto* layerInfo, DisplayId displayId) {
     if (!hasHwcLayer(displayId)) {
         return;
     }

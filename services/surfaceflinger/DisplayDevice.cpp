@@ -212,15 +212,14 @@ RenderIntent getHwcRenderIntent(const std::vector<RenderIntent>& hwcIntents, Ren
 
 DisplayDeviceCreationArgs::DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger,
                                                      const wp<IBinder>& displayToken,
-                                                     DisplayDevice::DisplayType type, int32_t id)
-      : flinger(flinger), displayToken(displayToken), type(type), id(id) {}
+                                                     const std::optional<DisplayId>& displayId)
+      : flinger(flinger), displayToken(displayToken), displayId(displayId) {}
 
 DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
       : lastCompositionHadVisibleLayers(false),
         mFlinger(args.flinger),
-        mType(args.type),
-        mId(args.id),
         mDisplayToken(args.displayToken),
+        mId(args.displayId),
         mNativeWindow(args.nativeWindow),
         mDisplaySurface(args.displaySurface),
         mSurface{std::move(args.renderSurface)},
@@ -228,6 +227,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mDisplayHeight(args.displayHeight),
         mDisplayInstallOrientation(args.displayInstallOrientation),
         mPageFlipCount(0),
+        mIsVirtual(args.isVirtual),
         mIsSecure(args.isSecure),
         mLayerStack(NO_LAYER_STACK),
         mOrientation(),
@@ -240,7 +240,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mHasHdr10(false),
         mHasHLG(false),
         mHasDolbyVision(false),
-        mSupportedPerFrameMetadata(args.supportedPerFrameMetadata) {
+        mSupportedPerFrameMetadata(args.supportedPerFrameMetadata),
+        mIsPrimary(args.isPrimary) {
     populateColorModes(args.hwcColorModes);
 
     ALOGE_IF(!mNativeWindow, "No native window was set for display");
@@ -293,14 +294,10 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
 DisplayDevice::~DisplayDevice() = default;
 
 void DisplayDevice::disconnect(HWComposer& hwc) {
-    if (mId >= 0) {
-        hwc.disconnectDisplay(mId);
-        mId = -1;
+    if (mId) {
+        hwc.disconnectDisplay(*mId);
+        mId.reset();
     }
-}
-
-bool DisplayDevice::isValid() const {
-    return mFlinger != nullptr;
 }
 
 int DisplayDevice::getWidth() const {
@@ -334,9 +331,11 @@ status_t DisplayDevice::beginFrame(bool mustRecompose) const {
 
 status_t DisplayDevice::prepareFrame(HWComposer& hwc,
         std::vector<CompositionInfo>& compositionData) {
-    status_t error = hwc.prepare(*this, compositionData);
-    if (error != NO_ERROR) {
-        return error;
+    if (mId) {
+        status_t error = hwc.prepare(*mId, compositionData);
+        if (error != NO_ERROR) {
+            return error;
+        }
     }
 
     DisplaySurface::CompositionType compositionType;
@@ -600,7 +599,7 @@ void DisplayDevice::setProjection(int orientation,
 
     // need to take care of primary display rotation for mGlobalTransform
     // for case if the panel is not installed aligned with device orientation
-    if (mType == DisplayType::DISPLAY_PRIMARY) {
+    if (isPrimary()) {
         DisplayDevice::orientationToTransfrom(
                 (orientation + mDisplayInstallOrientation) % (DisplayState::eOrientation270 + 1),
                 w, h, &R);
@@ -648,7 +647,7 @@ uint32_t DisplayDevice::getPrimaryDisplayOrientationTransform() {
 }
 
 std::string DisplayDevice::getDebugName() const {
-    const auto id = mId >= 0 ? base::StringPrintf("%d, ", mId) : std::string();
+    const auto id = mId ? base::StringPrintf("%" PRIu64 ", ", *mId) : std::string();
     return base::StringPrintf("DisplayDevice{%s%s%s\"%s\"}", id.c_str(),
                               isPrimary() ? "primary, " : "", isVirtual() ? "virtual, " : "",
                               mDisplayName.c_str());

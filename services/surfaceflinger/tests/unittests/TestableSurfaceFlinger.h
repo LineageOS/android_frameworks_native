@@ -178,10 +178,6 @@ public:
         layer->getBE().compositionInfo.hwc.sidebandStream = sidebandStream;
     }
 
-    void setLayerCompositionType(sp<Layer> layer, HWC2::Composition type) {
-        layer->getBE().mHwcLayers[DisplayDevice::DISPLAY_PRIMARY].compositionType = type;
-    };
-
     void setLayerPotentialCursor(sp<Layer> layer, bool potentialCursor) {
         layer->mPotentialCursor = potentialCursor;
     }
@@ -200,7 +196,8 @@ public:
 
     auto resetDisplayState() { return mFlinger->resetDisplayState(); }
 
-    auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken, int32_t displayId,
+    auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
+                                       const std::optional<DisplayId>& displayId,
                                        const DisplayDeviceState& state,
                                        const sp<DisplaySurface>& dispSurface,
                                        const sp<IGraphicBufferProducer>& producer) {
@@ -263,7 +260,6 @@ public:
     auto& mutableCurrentState() { return mFlinger->mCurrentState; }
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
-    auto& mutableDisplayTokens() { return mFlinger->mDisplayTokens; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
     auto& mutableEventControlThread() { return mFlinger->mEventControlThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
@@ -273,6 +269,7 @@ public:
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
+    auto& mutablePhysicalDisplayTokens() { return mFlinger->mPhysicalDisplayTokens; }
     auto& mutablePrimaryDispSync() { return mFlinger->mPrimaryDispSync; }
     auto& mutablePrimaryHWVsyncEnabled() { return mFlinger->mPrimaryHWVsyncEnabled; }
     auto& mutableTexturePool() { return mFlinger->mTexturePool; }
@@ -280,8 +277,13 @@ public:
     auto& mutableUseHwcVirtualDisplays() { return mFlinger->mUseHwcVirtualDisplays; }
 
     auto& mutableComposerSequenceId() { return mFlinger->getBE().mComposerSequenceId; }
-    auto& mutableHwcDisplayData() { return mFlinger->getBE().mHwc->mDisplayData; }
-    auto& mutableHwcDisplaySlots() { return mFlinger->getBE().mHwc->mHwcDisplaySlots; }
+    auto& mutableHwcDisplayData() { return mFlinger->getHwComposer().mDisplayData; }
+    auto& mutableHwcPhysicalDisplayIdMap() {
+        return mFlinger->getHwComposer().mPhysicalDisplayIdMap;
+    }
+
+    auto& mutableInternalHwcDisplayId() { return mFlinger->getHwComposer().mInternalHwcDisplayId; }
+    auto& mutableExternalHwcDisplayId() { return mFlinger->getHwComposer().mExternalHwcDisplayId; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
@@ -333,8 +335,9 @@ public:
         static constexpr int32_t DEFAULT_DPI = 320;
         static constexpr int32_t DEFAULT_ACTIVE_CONFIG = 0;
 
-        FakeHwcDisplayInjector(DisplayDevice::DisplayType type, HWC2::DisplayType hwcDisplayType)
-              : mType(type), mHwcDisplayType(hwcDisplayType) {}
+        FakeHwcDisplayInjector(DisplayId displayId, HWC2::DisplayType hwcDisplayType,
+                               bool isPrimary)
+              : mDisplayId(displayId), mHwcDisplayType(hwcDisplayType), mIsPrimary(isPrimary) {}
 
         auto& setHwcDisplayId(hwc2_display_t displayId) {
             mHwcDisplayId = displayId;
@@ -403,17 +406,22 @@ public:
             display->mutableConfigs().emplace(mActiveConfig, config.build());
             display->mutableIsConnected() = true;
 
-            ASSERT_TRUE(flinger->mutableHwcDisplayData().size() > static_cast<size_t>(mType));
-            flinger->mutableHwcDisplayData()[mType] = HWComposer::DisplayData();
-            flinger->mutableHwcDisplayData()[mType].hwcDisplay = display.get();
-            flinger->mutableHwcDisplaySlots().emplace(mHwcDisplayId, mType);
+            flinger->mutableHwcDisplayData()[mDisplayId].hwcDisplay = display.get();
+
+            if (mHwcDisplayType == HWC2::DisplayType::Physical) {
+                flinger->mutableHwcPhysicalDisplayIdMap().emplace(mHwcDisplayId, mDisplayId);
+                (mIsPrimary ? flinger->mutableInternalHwcDisplayId()
+                            : flinger->mutableExternalHwcDisplayId()) = mHwcDisplayId;
+            }
 
             flinger->mFakeHwcDisplays.push_back(std::move(display));
         }
 
     private:
-        DisplayDevice::DisplayType mType;
-        HWC2::DisplayType mHwcDisplayType;
+        const DisplayId mDisplayId;
+        const HWC2::DisplayType mHwcDisplayType;
+        const bool mIsPrimary;
+
         hwc2_display_t mHwcDisplayId = DEFAULT_HWC_DISPLAY_ID;
         int32_t mWidth = DEFAULT_WIDTH;
         int32_t mHeight = DEFAULT_HEIGHT;
@@ -427,10 +435,13 @@ public:
 
     class FakeDisplayDeviceInjector {
     public:
-        FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger, DisplayDevice::DisplayType type,
-                                  int32_t displayId)
-              : mFlinger(flinger),
-                mCreationArgs(flinger.mFlinger.get(), mDisplayToken, type, displayId) {}
+        FakeDisplayDeviceInjector(TestableSurfaceFlinger& flinger,
+                                  const std::optional<DisplayId>& displayId, bool isVirtual,
+                                  bool isPrimary)
+              : mFlinger(flinger), mCreationArgs(flinger.mFlinger.get(), mDisplayToken, displayId) {
+            mCreationArgs.isVirtual = isVirtual;
+            mCreationArgs.isPrimary = isPrimary;
+        }
 
         sp<IBinder> token() const { return mDisplayToken; }
 
@@ -497,7 +508,7 @@ public:
 
         sp<DisplayDevice> inject() {
             DisplayDeviceState state;
-            state.type = mCreationArgs.type;
+            state.displayId = mCreationArgs.isVirtual ? std::nullopt : mCreationArgs.displayId;
             state.isSecure = mCreationArgs.isSecure;
 
             sp<DisplayDevice> device = new DisplayDevice(std::move(mCreationArgs));
@@ -505,9 +516,9 @@ public:
             mFlinger.mutableCurrentState().displays.add(mDisplayToken, state);
             mFlinger.mutableDrawingState().displays.add(mDisplayToken, state);
 
-            if (state.type >= DisplayDevice::DISPLAY_PRIMARY &&
-                state.type < DisplayDevice::DISPLAY_VIRTUAL) {
-                mFlinger.mutableDisplayTokens()[state.type] = mDisplayToken;
+            if (!mCreationArgs.isVirtual) {
+                LOG_ALWAYS_FATAL_IF(!state.displayId);
+                mFlinger.mutablePhysicalDisplayTokens()[*state.displayId] = mDisplayToken;
             }
 
             return device;
