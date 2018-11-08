@@ -385,17 +385,9 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
     // mColorBlindnessCorrection = M;
 
     if (mUseColorManagement) {
-        ColorSpace srgb(ColorSpace::sRGB());
-        ColorSpace displayP3(ColorSpace::DisplayP3());
-        ColorSpace bt2020(ColorSpace::BT2020());
-
-        // Compute sRGB to Display P3 transform matrix.
-        // NOTE: For now, we are limiting output wide color space support to
-        // Display-P3 only.
-        mSrgbToDisplayP3 = mat4(ColorSpaceConnector(srgb, displayP3).getTransform());
-
-        // Compute Display P3 to sRGB transform matrix.
-        mDisplayP3ToSrgb = mat4(ColorSpaceConnector(displayP3, srgb).getTransform());
+        const ColorSpace srgb(ColorSpace::sRGB());
+        const ColorSpace displayP3(ColorSpace::DisplayP3());
+        const ColorSpace bt2020(ColorSpace::BT2020());
 
         // no chromatic adaptation needed since all color spaces use D65 for their white points.
         mSrgbToXyz = mat4(srgb.getRGBtoXYZ());
@@ -404,6 +396,20 @@ GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
         mXyzToSrgb = mat4(srgb.getXYZtoRGB());
         mXyzToDisplayP3 = mat4(displayP3.getXYZtoRGB());
         mXyzToBt2020 = mat4(bt2020.getXYZtoRGB());
+
+        // Compute sRGB to Display P3 and BT2020 transform matrix.
+        // NOTE: For now, we are limiting output wide color space support to
+        // Display-P3 and BT2020 only.
+        mSrgbToDisplayP3 = mXyzToDisplayP3 * mSrgbToXyz;
+        mSrgbToBt2020 = mXyzToBt2020 * mSrgbToXyz;
+
+        // Compute Display P3 to sRGB and BT2020 transform matrix.
+        mDisplayP3ToSrgb = mXyzToSrgb * mDisplayP3ToXyz;
+        mDisplayP3ToBt2020 = mXyzToBt2020 * mDisplayP3ToXyz;
+
+        // Compute BT2020 to sRGB and Display P3 transform matrix
+        mBt2020ToSrgb = mXyzToSrgb * mBt2020ToXyz;
+        mBt2020ToDisplayP3 = mXyzToDisplayP3 * mBt2020ToXyz;
     }
 }
 
@@ -793,6 +799,13 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
                 static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
         bool needsXYZConversion = needsXYZTransformMatrix();
 
+        // NOTE: if the input standard of the input dataspace is not STANDARD_DCI_P3 or
+        // STANDARD_BT2020, it will be  treated as STANDARD_BT709
+        if (inputStandard != Dataspace::STANDARD_DCI_P3 &&
+            inputStandard != Dataspace::STANDARD_BT2020) {
+            inputStandard = Dataspace::STANDARD_BT709;
+        }
+
         if (needsXYZConversion) {
             // The supported input color spaces are standard RGB, Display P3 and BT2020.
             switch (inputStandard) {
@@ -827,13 +840,33 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
             // - scRGB non-linear
             // - sRGB
             // - Display P3
+            // - BT2020
             // The output data spaces could be
             // - sRGB
             // - Display P3
-            if (outputStandard == Dataspace::STANDARD_BT709) {
-                managedState.outputTransformMatrix = mDisplayP3ToSrgb;
-            } else if (outputStandard == Dataspace::STANDARD_DCI_P3) {
-                managedState.outputTransformMatrix = mSrgbToDisplayP3;
+            // - BT2020
+            switch (outputStandard) {
+                case Dataspace::STANDARD_BT2020:
+                    if (inputStandard == Dataspace::STANDARD_BT709) {
+                        managedState.outputTransformMatrix = mSrgbToBt2020;
+                    } else if (inputStandard == Dataspace::STANDARD_DCI_P3) {
+                        managedState.outputTransformMatrix = mDisplayP3ToBt2020;
+                    }
+                    break;
+                case Dataspace::STANDARD_DCI_P3:
+                    if (inputStandard == Dataspace::STANDARD_BT709) {
+                        managedState.outputTransformMatrix = mSrgbToDisplayP3;
+                    } else if (inputStandard == Dataspace::STANDARD_BT2020) {
+                        managedState.outputTransformMatrix = mBt2020ToDisplayP3;
+                    }
+                    break;
+                default:
+                    if (inputStandard == Dataspace::STANDARD_DCI_P3) {
+                        managedState.outputTransformMatrix = mDisplayP3ToSrgb;
+                    } else if (inputStandard == Dataspace::STANDARD_BT2020) {
+                        managedState.outputTransformMatrix = mBt2020ToSrgb;
+                    }
+                    break;
             }
         }
 

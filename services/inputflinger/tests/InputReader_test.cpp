@@ -1082,7 +1082,7 @@ protected:
 
 // --- InputReaderPolicyTest ---
 class InputReaderPolicyTest : public testing::Test {
-    protected:
+protected:
     sp<FakeInputReaderPolicy> mFakePolicy;
 
     virtual void SetUp() {
@@ -1101,7 +1101,7 @@ class InputReaderPolicyTest : public testing::Test {
  * Such configuration is not currently allowed.
  */
 TEST_F(InputReaderPolicyTest, Viewports_GetCleared) {
-    const std::string uniqueId = "local:0";
+    static const std::string uniqueId = "local:0";
 
     // We didn't add any viewports yet, so there shouldn't be any.
     std::optional<DisplayViewport> internalViewport =

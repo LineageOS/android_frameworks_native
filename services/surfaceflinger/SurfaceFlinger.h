@@ -469,7 +469,7 @@ private:
     virtual status_t enableVSyncInjections(bool enable);
     virtual status_t injectVSync(nsecs_t when);
     virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
-    virtual bool isColorManagementUsed() const;
+    virtual status_t getColorManagement(bool* outGetColorManagement) const;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
                                       ui::PixelFormat* outWideColorGamutPixelFormat) const override;

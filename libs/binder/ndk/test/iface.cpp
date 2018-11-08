@@ -18,10 +18,13 @@
 #include <android/binder_manager.h>
 #include <iface/iface.h>
 
+#include <android/binder_auto_utils.h>
+
 using ::android::sp;
 using ::android::wp;
 
 const char* IFoo::kSomeInstanceName = "libbinder_ndk-test-IFoo";
+const char* IFoo::kInstanceNameToDieFor = "libbinder_ndk-test-IFoo-to-die";
 const char* kIFooDescriptor = "my-special-IFoo-class";
 
 struct IFoo_Class_Data {
@@ -49,10 +52,16 @@ binder_status_t IFoo_Class_onTransact(AIBinder* binder, transaction_code_t code,
     switch (code) {
         case IFoo::DOFOO: {
             int32_t valueIn;
+            int32_t valueOut;
             stat = AParcel_readInt32(in, &valueIn);
             if (stat != STATUS_OK) break;
-            int32_t valueOut = foo->doubleNumber(valueIn);
+            stat = foo->doubleNumber(valueIn, &valueOut);
+            if (stat != STATUS_OK) break;
             stat = AParcel_writeInt32(out, valueOut);
+            break;
+        }
+        case IFoo::DIE: {
+            stat = foo->die();
             break;
         }
     }
@@ -64,29 +73,43 @@ AIBinder_Class* IFoo::kClass = AIBinder_Class_define(kIFooDescriptor, IFoo_Class
                                                      IFoo_Class_onDestroy, IFoo_Class_onTransact);
 
 class BpFoo : public IFoo {
-public:
+   public:
     BpFoo(AIBinder* binder) : mBinder(binder) {}
     virtual ~BpFoo() { AIBinder_decStrong(mBinder); }
 
-    virtual int32_t doubleNumber(int32_t in) {
+    virtual binder_status_t doubleNumber(int32_t in, int32_t* out) {
+        binder_status_t stat = STATUS_OK;
+
         AParcel* parcelIn;
-        CHECK(STATUS_OK == AIBinder_prepareTransaction(mBinder, &parcelIn));
+        stat = AIBinder_prepareTransaction(mBinder, &parcelIn);
+        if (stat != STATUS_OK) return stat;
 
-        CHECK(STATUS_OK == AParcel_writeInt32(parcelIn, in));
+        stat = AParcel_writeInt32(parcelIn, in);
+        if (stat != STATUS_OK) return stat;
 
-        AParcel* parcelOut;
-        CHECK(STATUS_OK ==
-              AIBinder_transact(mBinder, IFoo::DOFOO, &parcelIn, &parcelOut, 0 /*flags*/));
+        ::ndk::ScopedAParcel parcelOut;
+        stat = AIBinder_transact(mBinder, IFoo::DOFOO, &parcelIn, parcelOut.getR(), 0 /*flags*/);
+        if (stat != STATUS_OK) return stat;
 
-        int32_t out;
-        CHECK(STATUS_OK == AParcel_readInt32(parcelOut, &out));
+        stat = AParcel_readInt32(parcelOut.get(), out);
+        if (stat != STATUS_OK) return stat;
 
-        AParcel_delete(parcelOut);
-
-        return out;
+        return stat;
     }
 
-private:
+    virtual binder_status_t die() {
+        binder_status_t stat = STATUS_OK;
+
+        AParcel* parcelIn;
+        stat = AIBinder_prepareTransaction(mBinder, &parcelIn);
+
+        ::ndk::ScopedAParcel parcelOut;
+        stat = AIBinder_transact(mBinder, IFoo::DIE, &parcelIn, parcelOut.getR(), 0 /*flags*/);
+
+        return stat;
+    }
+
+   private:
     // Always assumes one refcount
     AIBinder* mBinder;
 };
@@ -117,8 +140,8 @@ binder_status_t IFoo::addService(const char* instance) {
     return status;
 }
 
-sp<IFoo> IFoo::getService(const char* instance) {
-    AIBinder* binder = AServiceManager_getService(instance); // maybe nullptr
+sp<IFoo> IFoo::getService(const char* instance, AIBinder** outBinder) {
+    AIBinder* binder = AServiceManager_getService(instance);  // maybe nullptr
     if (binder == nullptr) {
         return nullptr;
     }
@@ -128,14 +151,19 @@ sp<IFoo> IFoo::getService(const char* instance) {
         return nullptr;
     }
 
+    if (outBinder != nullptr) {
+        AIBinder_incStrong(binder);
+        *outBinder = binder;
+    }
+
     if (AIBinder_isRemote(binder)) {
-        sp<IFoo> ret = new BpFoo(binder); // takes ownership of binder
+        sp<IFoo> ret = new BpFoo(binder);  // takes ownership of binder
         return ret;
     }
 
     IFoo_Class_Data* data = static_cast<IFoo_Class_Data*>(AIBinder_getUserData(binder));
 
-    CHECK(data != nullptr); // always created with non-null data
+    CHECK(data != nullptr);  // always created with non-null data
 
     sp<IFoo> ret = data->foo;
 
@@ -143,7 +171,6 @@ sp<IFoo> IFoo::getService(const char* instance) {
     CHECK(held == binder);
     AIBinder_decStrong(held);
 
-    // IFoo only keeps a weak reference to AIBinder, so we can drop this
     AIBinder_decStrong(binder);
     return ret;
 }

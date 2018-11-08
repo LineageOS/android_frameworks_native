@@ -19,6 +19,8 @@
 #include <hardware/gralloc1.h>
 #include <log/log.h>
 
+#include <memory>
+
 #include "impl/vr_hwc.h"
 #include "impl/vr_composer_client.h"
 
@@ -39,7 +41,7 @@ VrComposerClient::~VrComposerClient() {}
 
 std::unique_ptr<ComposerCommandEngine>
 VrComposerClient::createCommandEngine() {
-  return std::unique_ptr<VrCommandEngine>(new VrCommandEngine(*this));
+  return std::make_unique<VrCommandEngine>(*this);
 }
 
 VrComposerClient::VrCommandEngine::VrCommandEngine(VrComposerClient& client)
