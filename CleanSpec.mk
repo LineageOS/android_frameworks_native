@@ -1,4 +1,4 @@
-# Copyright (C) 2012 The Android Open Source Project
+# Copyright (C) 2018 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,19 +34,23 @@
 # made today requires touching the same file, just copy the old
 # touch step and add it to the end of the list.
 #
-# ************************************************
-# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
-# ************************************************
+# *****************************************************************
+# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST ABOVE THE BANNER
+# *****************************************************************
 
 # For example:
 #$(call add-clean-step, rm -rf $(OUT_DIR)/target/common/obj/APPS/AndroidTests_intermediates)
 #$(call add-clean-step, rm -rf $(OUT_DIR)/target/common/obj/JAVA_LIBRARIES/core_intermediates)
 #$(call add-clean-step, find $(OUT_DIR) -type f -name "IGTalkSession*" -print0 | xargs -0 rm -f)
 #$(call add-clean-step, rm -rf $(PRODUCT_OUT)/data/*)
-
-# ************************************************
-# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
-# ************************************************
+$(call add-clean-step, find $(PRODUCT_OUT) -type f -name "libdvr.so" -print0 | xargs -0 rm -f)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libdvr_intermediates)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libdvr_intermediates)
 $(call add-clean-step, find $(PRODUCT_OUT) -type f -name "libgui*" -print0 | xargs -0 rm -f)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libgui_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libgui_intermediates)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/bin/thermalserviced)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/etc/init/thermalservice.rc)
+# ******************************************************************
+# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST ABOVE THIS BANNER
+# ******************************************************************
