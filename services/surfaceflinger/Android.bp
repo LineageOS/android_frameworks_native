@@ -19,10 +19,6 @@ cc_defaults {
         "-DGL_GLEXT_PROTOTYPES",
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
-    include_dirs: [
-        "frameworks/native/vulkan/vkjson",
-        "frameworks/native/vulkan/include",
-    ],
     shared_libs: [
         "android.frameworks.vr.composer@1.0",
         "android.hardware.configstore-utils",
@@ -59,13 +55,11 @@ cc_defaults {
         "libtimestats_proto",
         "libui",
         "libutils",
-        "libvulkan",
     ],
     static_libs: [
         "librenderengine",
         "libserviceutils",
         "libtrace_proto",
-        "libvkjson",
         "libvr_manager",
         "libvrflinger",
     ],
@@ -132,7 +126,6 @@ filegroup {
         "Effects/Daltonizer.cpp",
         "EventLog/EventLog.cpp",
         "FrameTracker.cpp",
-        "GpuService.cpp",
         "Layer.cpp",
         "LayerBE.cpp",
         "LayerProtoHelper.cpp",
