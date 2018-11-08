@@ -44,9 +44,8 @@ public:
     // (libraries must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /system/app/ANGLEPrebuilt/ANGLEPrebuilt.apk!/lib/arm64-v8a
-    void setAngleInfo(const std::string path, const std::string appName, const std::string appPref,
-                      bool devOptIn, const int rulesFd, const long rulesOffset,
-                      const long rulesLength);
+    void setAngleInfo(const std::string path, const std::string appName, bool devOptIn,
+                      const int rulesFd, const long rulesOffset, const long rulesLength);
     android_namespace_t* getAngleNamespace();
     const char* getAngleAppName();
     const char* getAngleAppPref();
@@ -70,7 +69,6 @@ private:
     std::string mDriverPath;
     std::string mAnglePath;
     std::string mAngleAppName;
-    std::string mAngleAppPref;
     bool mAngleDeveloperOptIn;
     int mAngleRulesFd;
     long mAngleRulesOffset;
