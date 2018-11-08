@@ -35,6 +35,8 @@ public:
 
     void setPerFrameData(const sp<const DisplayDevice>& display) override;
 
+    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
+
 protected:
     FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
 };

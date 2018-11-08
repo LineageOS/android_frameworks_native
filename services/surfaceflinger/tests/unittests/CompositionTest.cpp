@@ -553,10 +553,6 @@ struct BaseLayerProperties {
                                   IComposerClient::Color({0xff, 0xff, 0xff, 0xff})))
                 .Times(1);
 
-        // TODO: ColorLayer::onPreComposition() always returns true, triggering an
-        // extra layer update in SurfaceFlinger::preComposition(). This seems
-        // wrong on the surface.
-        EXPECT_CALL(*test->mMessageQueue, invalidate()).Times(1);
     }
 
     static void setupHwcSetPerFrameBufferCallExpectations(CompositionTest* test) {
