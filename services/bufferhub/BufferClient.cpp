@@ -14,7 +14,8 @@
  * limitations under the License.
  */
 
-#include <bufferhub/BufferHubService.h>
+#include <bufferhub/BufferClient.h>
+#include <hidl/HidlSupport.h>
 
 namespace android {
 namespace frameworks {
@@ -22,20 +23,12 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
+using hardware::hidl_handle;
 using hardware::Void;
 
-Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& /*description*/,
-                                              const uint32_t /*userMetadataSize*/,
-                                              allocateBuffer_cb _hidl_cb) {
-    // TODO(b/118614333): implement buffer allocation
-    _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::NO_ERROR);
-    return Void();
-}
-
-Return<void> BufferHubService::importBuffer(const hidl_handle& /*nativeHandle*/,
-                                            importBuffer_cb _hidl_cb) {
-    // TODO(b/118614157): implement buffer import
-    _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::NO_ERROR);
+Return<void> BufferClient::duplicate(duplicate_cb _hidl_cb) {
+    // TODO(b/118614157): implement token generation and registration
+    _hidl_cb(/*token=*/hidl_handle(), /*status=*/BufferHubStatus::NO_ERROR);
     return Void();
 }
 
