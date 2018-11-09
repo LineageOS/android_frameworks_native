@@ -12,16 +12,16 @@
 #include <thread>
 #include <utility>
 
+#include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 #include <dvr/performance_client_api.h>
 #include <gtest/gtest.h>
 #include <private/android_filesystem_config.h>
 
 #include "stdio_filebuf.h"
-#include "string_trim.h"
 #include "unique_file.h"
 
-using android::dvr::Trim;
+using android::base::Trim;
 using android::dvr::UniqueFile;
 using android::dvr::stdio_filebuf;
 
