@@ -57,6 +57,7 @@
 #include <android-base/stringprintf.h>
 #include <input/Keyboard.h>
 #include <input/VirtualKeyMap.h>
+#include <statslog.h>
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -71,18 +72,21 @@ namespace android {
 // --- Constants ---
 
 // Maximum number of slots supported when using the slot-based Multitouch Protocol B.
-static const size_t MAX_SLOTS = 32;
+static constexpr size_t MAX_SLOTS = 32;
 
 // Maximum amount of latency to add to touch events while waiting for data from an
 // external stylus.
-static const nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
+static constexpr nsecs_t EXTERNAL_STYLUS_DATA_TIMEOUT = ms2ns(72);
 
 // Maximum amount of time to wait on touch data before pushing out new pressure data.
-static const nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
+static constexpr nsecs_t TOUCH_DATA_TIMEOUT = ms2ns(20);
 
 // Artificial latency on synthetic events created from stylus data without corresponding touch
 // data.
-static const nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
+static constexpr nsecs_t STYLUS_DATA_LATENCY = ms2ns(10);
+
+// How often to report input event statistics
+static constexpr nsecs_t STATISTICS_REPORT_FREQUENCY = seconds_to_nanoseconds(5 * 60);
 
 // --- Static Functions ---
 
@@ -4287,12 +4291,25 @@ void TouchInputMapper::clearStylusDataPendingFlags() {
     mExternalStylusFusionTimeout = LLONG_MAX;
 }
 
+void TouchInputMapper::reportEventForStatistics(nsecs_t evdevTime) {
+    nsecs_t now = systemTime(CLOCK_MONOTONIC);
+    nsecs_t latency = now - evdevTime;
+    mStatistics.addValue(nanoseconds_to_microseconds(latency));
+    nsecs_t timeSinceLastReport = now - mStatistics.lastReportTime;
+    if (timeSinceLastReport > STATISTICS_REPORT_FREQUENCY) {
+        android::util::stats_write(android::util::TOUCH_EVENT_REPORTED,
+                mStatistics.min, mStatistics.max, mStatistics.mean(), mStatistics.stdev());
+        mStatistics.reset(now);
+    }
+}
+
 void TouchInputMapper::process(const RawEvent* rawEvent) {
     mCursorButtonAccumulator.process(rawEvent);
     mCursorScrollAccumulator.process(rawEvent);
     mTouchButtonAccumulator.process(rawEvent);
 
     if (rawEvent->type == EV_SYN && rawEvent->code == SYN_REPORT) {
+        reportEventForStatistics(rawEvent->when);
         sync(rawEvent->when);
     }
 }
