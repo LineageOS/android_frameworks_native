@@ -10,10 +10,10 @@
 #include <memory>
 #include <sstream>
 
+#include <android-base/strings.h>
 #include <android-base/unique_fd.h>
 
 #include "stdio_filebuf.h"
-#include "string_trim.h"
 
 namespace {
 
@@ -102,7 +102,7 @@ std::string Task::GetStatusField(const std::string& field) const {
 
       // The status file has lines with the format <field>:<value>. Extract the
       // value after the colon.
-      return Trim(line.substr(offset + field.size() + 1));
+      return android::base::Trim(line.substr(offset + field.size() + 1));
     }
   }
 
@@ -123,7 +123,7 @@ void Task::ReadStatusFields() {
       }
 
       std::string key = line.substr(0, offset);
-      std::string value = Trim(line.substr(offset + 1));
+      std::string value = android::base::Trim(line.substr(offset + 1));
 
       ALOGD_IF(TRACE, "Task::ReadStatusFields: key=\"%s\" value=\"%s\"",
                key.c_str(), value.c_str());
@@ -156,7 +156,7 @@ std::string Task::GetCpuSetPath() const {
     std::string line = "";
     std::getline(file_stream, line);
 
-    return Trim(line);
+    return android::base::Trim(line);
   } else {
     return "";
   }
