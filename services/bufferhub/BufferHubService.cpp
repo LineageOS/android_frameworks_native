@@ -51,10 +51,44 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
     return Void();
 }
 
-Return<void> BufferHubService::importBuffer(const hidl_handle& /*nativeHandle*/,
+Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
                                             importBuffer_cb _hidl_cb) {
-    // TODO(b/118614157): implement buffer import
-    _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::NO_ERROR);
+    if (!tokenHandle.getNativeHandle() || tokenHandle->numFds != 0 || tokenHandle->numInts != 1) {
+        // nullptr handle or wrong format
+        _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::INVALID_TOKEN);
+        return Void();
+    }
+
+    uint32_t token = tokenHandle->data[0];
+
+    wp<BufferClient> originClientWp;
+    {
+        std::lock_guard<std::mutex> lock(mTokenMapMutex);
+        auto iter = mTokenMap.find(token);
+        if (iter == mTokenMap.end()) {
+            // Invalid token
+            _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::INVALID_TOKEN);
+            return Void();
+        }
+
+        originClientWp = iter->second;
+        mTokenMap.erase(iter);
+    }
+
+    // Check if original client is dead
+    sp<BufferClient> originClient = originClientWp.promote();
+    if (!originClient) {
+        // Should not happen since token should be removed if already gone
+        ALOGE("%s: original client %p gone!", __FUNCTION__, originClientWp.unsafe_get());
+        _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::BUFFER_FREED);
+        return Void();
+    }
+
+    sp<BufferClient> client = new BufferClient(*originClient);
+
+    std::lock_guard<std::mutex> lock(mClientListMutex);
+    mClientList.push_back(client);
+    _hidl_cb(/*bufferClient=*/client, /*status=*/BufferHubStatus::NO_ERROR);
     return Void();
 }
 

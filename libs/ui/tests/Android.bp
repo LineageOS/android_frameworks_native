@@ -53,6 +53,7 @@ cc_test {
     ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
+        "libcutils",
         "libhidlbase",
         "libhwbinder",
         "libpdx_default_transport",
