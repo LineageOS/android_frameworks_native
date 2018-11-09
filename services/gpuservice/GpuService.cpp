@@ -23,10 +23,7 @@
 
 namespace android {
 
-// ----------------------------------------------------------------------------
-
-class BpGpuService : public BpInterface<IGpuService>
-{
+class BpGpuService : public BpInterface<IGpuService> {
 public:
     explicit BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
 };
@@ -34,19 +31,15 @@ public:
 IMPLEMENT_META_INTERFACE(GpuService, "android.ui.IGpuService");
 
 status_t BnGpuService::onTransact(uint32_t code, const Parcel& data,
-        Parcel* reply, uint32_t flags)
-{
+        Parcel* reply, uint32_t flags) {
     status_t status;
     switch (code) {
     case SHELL_COMMAND_TRANSACTION: {
         int in = data.readFileDescriptor();
         int out = data.readFileDescriptor();
         int err = data.readFileDescriptor();
-        int argc = data.readInt32();
-        Vector<String16> args;
-        for (int i = 0; i < argc && data.dataAvail() > 0; i++) {
-           args.add(data.readString16());
-        }
+        std::vector<String16> args;
+        data.readString16Vector(&args);
         sp<IBinder> unusedCallback;
         sp<IResultReceiver> resultReceiver;
         if ((status = data.readNullableStrongBinder(&unusedCallback)) != OK)
@@ -64,20 +57,17 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data,
     }
 }
 
-// ----------------------------------------------------------------------------
-
 namespace {
     status_t cmd_help(int out);
     status_t cmd_vkjson(int out, int err);
 }
 
-const char* const GpuService::SERVICE_NAME = "gpu";
+const char* const GpuService::SERVICE_NAME = "gpuservice";
 
-GpuService::GpuService() {}
+GpuService::GpuService() = default;
 
 status_t GpuService::shellCommand(int /*in*/, int out, int err,
-        Vector<String16>& args)
-{
+                                  std::vector<String16>& args) {
     ALOGV("GpuService::shellCommand");
     for (size_t i = 0, n = args.size(); i < n; i++)
         ALOGV("  arg[%zu]: '%s'", i, String8(args[i]).string());
@@ -92,8 +82,6 @@ status_t GpuService::shellCommand(int /*in*/, int out, int err,
     cmd_help(err);
     return BAD_VALUE;
 }
-
-// ----------------------------------------------------------------------------
 
 namespace {
 
