@@ -41,6 +41,12 @@
 extern "C" {
   android_namespace_t* android_get_exported_namespace(const char*);
 
+  typedef enum ANGLEPreference {
+      ANGLE_PREFER_DEFAULT = 0,
+      ANGLE_PREFER_NATIVE = 1,
+      ANGLE_PREFER_ANGLE = 2,
+  } ANGLEPreference;
+
   // TODO(ianelliott@): Get the following from an ANGLE header:
   // Version-1 API:
   typedef bool (*fpANGLEGetUtilityAPI)(unsigned int* versionToUse);
@@ -524,6 +530,17 @@ static void* load_angle_from_namespace(const char* kind, android_namespace_t* ns
     return nullptr;
 }
 
+static ANGLEPreference getAngleDevOption(const char* devOption) {
+    if (devOption == nullptr)
+        return ANGLE_PREFER_DEFAULT;
+
+    if (strcmp(devOption, "angle") == 0) {
+        return ANGLE_PREFER_ANGLE;
+    } else if (strcmp(devOption, "native") == 0) {
+        return ANGLE_PREFER_NATIVE;
+    }
+    return ANGLE_PREFER_DEFAULT;
+}
 
 static bool check_angle_rules(void* so, const char* app_name) {
     bool use_angle = false;
@@ -646,15 +663,19 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
     char prop[PROPERTY_VALUE_MAX];
 
     const char* app_name = android::GraphicsEnv::getInstance().getAngleAppName();
-    bool developer_opt_in = android::GraphicsEnv::getInstance().getAngleDeveloperOptIn();
+    const char* developer_opt_in = android::GraphicsEnv::getInstance().getAngleDeveloperOptIn();
 
     // Determine whether or not to use ANGLE:
-    bool use_angle = developer_opt_in;
+    ANGLEPreference developer_option = getAngleDevOption(developer_opt_in);
+    bool use_angle = (developer_option == ANGLE_PREFER_ANGLE);
 
     if (use_angle) {
         ALOGV("User set \"Developer Options\" to force the use of ANGLE");
     } else if (cnx->angleDecided) {
         use_angle = cnx->useAngle;
+    } else if (developer_option == ANGLE_PREFER_NATIVE) {
+        ALOGV("User set \"Developer Options\" to force the use of Native");
+        use_angle = false;
     } else {
         // The "Developer Options" value wasn't set to force the use of ANGLE.  Need to temporarily
         // load ANGLE and call the updatable opt-in/out logic:
