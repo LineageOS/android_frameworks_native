@@ -35,7 +35,7 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
 
     std::shared_ptr<BufferNode> node =
             std::make_shared<BufferNode>(desc.width, desc.height, desc.layers, desc.format,
-                                         desc.usage, userMetadataSize);
+                                         desc.usage, userMetadataSize, nodeIdGenerator.getId());
     if (node == nullptr || !node->IsValid()) {
         ALOGE("%s: creating BufferNode failed.", __FUNCTION__);
         _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::ALLOCATION_FAILED);

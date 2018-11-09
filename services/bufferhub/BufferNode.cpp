@@ -1,5 +1,6 @@
 #include <errno.h>
 
+#include <bufferhub/BufferHubService.h>
 #include <bufferhub/BufferNode.h>
 #include <private/dvr/buffer_hub_defs.h>
 #include <ui/GraphicBufferAllocator.h>
@@ -22,7 +23,8 @@ void BufferNode::InitializeMetadata() {
 
 // Allocates a new BufferNode.
 BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
-                       uint64_t usage, size_t user_metadata_size) {
+                       uint64_t usage, size_t user_metadata_size, uint32_t id)
+      : mId(id) {
     uint32_t out_stride = 0;
     // graphicBufferId is not used in GraphicBufferAllocator::allocate
     // TODO(b/112338294) After move to the service folder, stop using the
@@ -54,12 +56,21 @@ BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, ui
     InitializeMetadata();
 }
 
-// Free the handle
 BufferNode::~BufferNode() {
+    // Free the handle
     if (buffer_handle_ != nullptr) {
         status_t ret = GraphicBufferAllocator::get().free(buffer_handle_);
         if (ret != OK) {
             ALOGE("%s: Failed to free handle; Got error: %d", __FUNCTION__, ret);
+        }
+    }
+
+    // Free the id, if valid
+    if (id() != UniqueIdGenerator::kInvalidId) {
+        if (nodeIdGenerator.freeId(id())) {
+            ALOGI("%s: id #%u is freed.", __FUNCTION__, id());
+        } else {
+            ALOGE("%s: Cannot free nonexistent id #%u", __FUNCTION__, id());
         }
     }
 }
