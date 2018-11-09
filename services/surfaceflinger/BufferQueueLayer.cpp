@@ -352,6 +352,11 @@ void BufferQueueLayer::setHwcLayerBuffer(DisplayId displayId) {
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
+        // Report the timestamp to the Scheduler.
+        if (mFlinger->mUseScheduler) {
+            mFlinger->mScheduler->addNewFrameTimestamp(item.mTimestamp, item.mIsAutoTimestamp);
+        }
+
         Mutex::Autolock lock(mQueueItemLock);
         // Reset the frame number tracker when we receive the first buffer after
         // a frame number reset

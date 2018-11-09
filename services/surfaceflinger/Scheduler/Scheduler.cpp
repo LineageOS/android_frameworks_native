@@ -14,11 +14,14 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "Scheduler.h"
 
 #include <cinttypes>
 #include <cstdint>
 #include <memory>
+#include <numeric>
 
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
@@ -27,6 +30,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <ui/DisplayStatInfo.h>
+#include <utils/Trace.h>
 
 #include "DispSync.h"
 #include "DispSyncSource.h"
@@ -194,6 +198,60 @@ void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
 
 void Scheduler::setIgnorePresentFences(bool ignore) {
     mPrimaryDispSync->setIgnorePresentFences(ignore);
+}
+
+void Scheduler::makeHWSyncAvailable(bool makeAvailable) {
+    std::lock_guard<std::mutex> lock(mHWVsyncLock);
+    mHWVsyncAvailable = makeAvailable;
+}
+
+void Scheduler::addNewFrameTimestamp(const nsecs_t newFrameTimestamp, bool isAutoTimestamp) {
+    ATRACE_INT("AutoTimestamp", isAutoTimestamp);
+    // Video does not have timestamp automatically set, so we discard timestamps that are
+    // coming in from other sources for now.
+    if (isAutoTimestamp) {
+        return;
+    }
+    int64_t differenceMs = (newFrameTimestamp - mPreviousFrameTimestamp) / 1000000;
+    mPreviousFrameTimestamp = newFrameTimestamp;
+
+    if (differenceMs < 10 || differenceMs > 100) {
+        // Dismiss noise.
+        return;
+    }
+    ATRACE_INT("TimestampDiff", differenceMs);
+
+    mTimeDifferences[mCounter % ARRAY_SIZE] = differenceMs;
+    mCounter++;
+    nsecs_t average = calculateAverage();
+    ATRACE_INT("TimestampAverage", average);
+
+    // TODO(b/113612090): This are current numbers from trial and error while running videos
+    // from YouTube at 24, 30, and 60 fps.
+    if (average > 14 && average < 18) {
+        ATRACE_INT("FPS", 60);
+    } else if (average > 31 && average < 34) {
+        ATRACE_INT("FPS", 30);
+        updateFrameSkipping(1);
+        return;
+    } else if (average > 39 && average < 42) {
+        ATRACE_INT("FPS", 24);
+    }
+    updateFrameSkipping(0);
+}
+
+nsecs_t Scheduler::calculateAverage() const {
+    nsecs_t sum = std::accumulate(mTimeDifferences.begin(), mTimeDifferences.end(), 0);
+    return (sum / ARRAY_SIZE);
+}
+
+void Scheduler::updateFrameSkipping(const int64_t skipCount) {
+    ATRACE_INT("FrameSkipCount", skipCount);
+    if (mSkipCount != skipCount) {
+        // Only update DispSync if it hasn't been updated yet.
+        mPrimaryDispSync->setRefreshSkipCount(skipCount);
+        mSkipCount = skipCount;
+    }
 }
 
 } // namespace android

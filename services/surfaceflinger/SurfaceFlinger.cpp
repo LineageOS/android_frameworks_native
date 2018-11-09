@@ -1255,6 +1255,10 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable) {
 
     if (makeAvailable) {
         mHWVsyncAvailable = true;
+        // TODO(b/113612090): This is silly, but necessary evil until we turn on the flag for good.
+        if (mUseScheduler) {
+            mScheduler->makeHWSyncAvailable(true);
+        }
     } else if (!mHWVsyncAvailable) {
         // Hardware vsync is not currently available, so abort the resync
         // attempt for now
