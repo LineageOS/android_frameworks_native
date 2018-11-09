@@ -2730,7 +2730,11 @@ void SurfaceFlinger::commitTransaction()
             // abandon the buffer queue.
             if (l->isRemovedFromCurrentState()) {
                 l->destroyAllHwcLayers();
-                l->releasePendingBuffer(systemTime());
+                // destroyAllHwcLayers traverses to children, but releasePendingBuffer
+                // doesn't in other scenarios. So we have to traverse explicitly here.
+                l->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* child) {
+                    child->releasePendingBuffer(systemTime());
+                });
             }
         }
         mLayersPendingRemoval.clear();
