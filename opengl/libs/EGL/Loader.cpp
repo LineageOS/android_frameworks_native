@@ -584,7 +584,13 @@ static void* load_angle(const char* kind, android_namespace_t* ns, egl_connectio
         // The "Developer Options" value wasn't set to force the use of ANGLE.  Need to temporarily
         // load ANGLE and call the updatable opt-in/out logic:
 
-        cnx->featureSo = load_angle_from_namespace("feature_support", ns);
+        // Check if ANGLE is enabled. Workaround for several bugs:
+        // b/119305693 b/119322355 b/119305887
+        // Something is not working correctly in the feature library
+        property_get("debug.angle.enable", prop, "0");
+        if (atoi(prop)) {
+            cnx->featureSo = load_angle_from_namespace("feature_support", ns);
+        }
         if (cnx->featureSo) {
             ALOGV("loaded ANGLE's opt-in/out logic from namespace");
             use_angle = check_angle_rules(cnx->featureSo, app_name);
