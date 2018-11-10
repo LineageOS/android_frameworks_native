@@ -15,12 +15,31 @@
  */
 
 /**
- * @addtogroup NativeActivity Native Activity
- * @{
- */
-
-/**
  * @file hardware_buffer.h
+ * @brief API for native hardware buffers.
+ */
+/**
+ * @defgroup AHardwareBuffer Native Hardware Buffer
+ *
+ * AHardwareBuffer objects represent chunks of memory that can be
+ * accessed by various hardware components in the system. It can be
+ * easily converted to the Java counterpart
+ * android.hardware.HardwareBuffer and passed between processes using
+ * Binder. All operations involving AHardwareBuffer and HardwareBuffer
+ * are zero-copy, i.e., passing AHardwareBuffer to another process
+ * creates a shared view of the same region of memory.
+ *
+ * AHardwareBuffers can be bound to EGL/OpenGL and Vulkan primitives.
+ * For EGL, use the extension function eglGetNativeClientBufferANDROID
+ * to obtain an EGLClientBuffer and pass it directly to
+ * eglCreateImageKHR. Refer to the EGL extensions
+ * EGL_ANDROID_get_native_client_buffer and
+ * EGL_ANDROID_image_native_buffer for more information. In Vulkan,
+ * the contents of the AHardwareBuffer can be accessed as external
+ * memory. See the VK_ANDROID_external_memory_android_hardware_buffer
+ * extension for details.
+ *
+ * @{
  */
 
 #ifndef ANDROID_HARDWARE_BUFFER_H
@@ -37,7 +56,7 @@ __BEGIN_DECLS
 /**
  * Buffer pixel formats.
  */
-enum {
+enum AHardwareBuffer_Format {
     /**
      * Corresponding formats:
      *   Vulkan: VK_FORMAT_R8G8B8A8_UNORM
@@ -134,27 +153,47 @@ enum {
 /**
  * Buffer usage flags, specifying how the buffer will be accessed.
  */
-enum {
-    /// The buffer will never be read by the CPU.
+enum AHardwareBuffer_UsageFlags {
+    /// The buffer will never be locked for direct CPU reads using the
+    /// AHardwareBuffer_lock() function. Note that reading the buffer
+    /// using OpenGL or Vulkan functions or memory mappings is still
+    /// allowed.
     AHARDWAREBUFFER_USAGE_CPU_READ_NEVER        = 0UL,
-    /// The buffer will sometimes be read by the CPU.
+    /// The buffer will sometimes be locked for direct CPU reads using
+    /// the AHardwareBuffer_lock() function. Note that reading the
+    /// buffer using OpenGL or Vulkan functions or memory mappings
+    /// does not require the presence of this flag.
     AHARDWAREBUFFER_USAGE_CPU_READ_RARELY       = 2UL,
-    /// The buffer will often be read by the CPU.
+    /// The buffer will often be locked for direct CPU reads using
+    /// the AHardwareBuffer_lock() function. Note that reading the
+    /// buffer using OpenGL or Vulkan functions or memory mappings
+    /// does not require the presence of this flag.
     AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN        = 3UL,
     /// CPU read value mask.
     AHARDWAREBUFFER_USAGE_CPU_READ_MASK         = 0xFUL,
 
-    /// The buffer will never be written by the CPU.
+    /// The buffer will never be locked for direct CPU writes using the
+    /// AHardwareBuffer_lock() function. Note that writing the buffer
+    /// using OpenGL or Vulkan functions or memory mappings is still
+    /// allowed.
     AHARDWAREBUFFER_USAGE_CPU_WRITE_NEVER       = 0UL << 4,
-    /// The buffer will sometimes be written to by the CPU.
+    /// The buffer will sometimes be locked for direct CPU writes using
+    /// the AHardwareBuffer_lock() function. Note that writing the
+    /// buffer using OpenGL or Vulkan functions or memory mappings
+    /// does not require the presence of this flag.
     AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY      = 2UL << 4,
-    /// The buffer will often be written to by the CPU.
+    /// The buffer will often be locked for direct CPU writes using
+    /// the AHardwareBuffer_lock() function. Note that writing the
+    /// buffer using OpenGL or Vulkan functions or memory mappings
+    /// does not require the presence of this flag.
     AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN       = 3UL << 4,
     /// CPU write value mask.
     AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK        = 0xFUL << 4,
 
     /// The buffer will be read from by the GPU as a texture.
     AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE      = 1UL << 8,
+    /// The buffer will be written to by the GPU as a framebuffer attachment.
+    AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER        = 1UL << 9,
     /**
      * The buffer will be written to by the GPU as a framebuffer attachment.
      * Note that the name of this flag is somewhat misleading: it does not imply
@@ -162,16 +201,33 @@ enum {
      * format that will be used as a framebuffer attachment should also have
      * this flag.
      */
-    AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT       = 1UL << 9,
-    /// The buffer must not be used outside of a protected hardware path.
+    AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT       = AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER,
+    /**
+     * The buffer is protected from direct CPU access or being read by non-secure
+     * hardware, such as video encoders. This flag is incompatible with CPU
+     * read and write flags. It is mainly used when handling DRM video.
+     * Refer to the EGL extension EGL_EXT_protected_content and GL extension
+     * EXT_protected_textures for more information on how these buffers are expected
+     * to behave.
+     */
     AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT      = 1UL << 14,
     /// The buffer will be read by a hardware video encoder.
     AHARDWAREBUFFER_USAGE_VIDEO_ENCODE           = 1UL << 16,
-    /// The buffer will be used for direct writes from sensors.
+    /**
+     * The buffer will be used for direct writes from sensors.
+     * When this flag is present, the format must be AHARDWAREBUFFER_FORMAT_BLOB.
+     */
     AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA     = 1UL << 23,
-    /// The buffer will be used as a shader storage or uniform buffer object.
+    /**
+     * The buffer will be used as a shader storage or uniform buffer object.
+     * When this flag is present, the format must be AHARDWAREBUFFER_FORMAT_BLOB.
+     */
     AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER        = 1UL << 24,
-    /// The buffer will be used as a cube map texture.
+    /**
+     * The buffer will be used as a cube map texture.
+     * When this flag is present, the buffer must have a layer count that is
+     * a multiple of 6.
+     */
     AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP               = 1UL << 25,
     /// The buffer contains a complete mipmap hierarchy.
     AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE        = 1UL << 26,
@@ -206,20 +262,27 @@ typedef struct AHardwareBuffer_Desc {
     uint32_t    width;      ///< Width in pixels.
     uint32_t    height;     ///< Height in pixels.
     uint32_t    layers;     ///< Number of images in an image array.
-    uint32_t    format;     ///< One of AHARDWAREBUFFER_FORMAT_*
-    uint64_t    usage;      ///< Combination of AHARDWAREBUFFER_USAGE_*
+    uint32_t    format;     ///< One of AHardwareBuffer_Format.
+    uint64_t    usage;      ///< Combination of AHardwareBuffer_UsageFlags.
     uint32_t    stride;     ///< Row stride in pixels, ignored for AHardwareBuffer_allocate()
     uint32_t    rfu0;       ///< Initialize to zero, reserved for future use.
     uint64_t    rfu1;       ///< Initialize to zero, reserved for future use.
 } AHardwareBuffer_Desc;
 
+/**
+ * Opaque handle for a native hardware buffer.
+ */
 typedef struct AHardwareBuffer AHardwareBuffer;
 
 #if __ANDROID_API__ >= 26
 
 /**
- * Allocates a buffer that backs an AHardwareBuffer using the passed
- * AHardwareBuffer_Desc.
+ * Allocates a buffer that matches the passed AHardwareBuffer_Desc.
+ *
+ * If allocation succeeds, the buffer can be used according to the
+ * usage flags specified in its description. If a buffer is used in ways
+ * not compatible with its usage flags, the results are undefined and
+ * may include program termination.
  *
  * \return 0 on success, or an error number of the allocation fails for
  * any reason. The returned buffer has a reference count of 1.
@@ -234,7 +297,7 @@ void AHardwareBuffer_acquire(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
 /**
  * Remove a reference that was previously acquired with
- * AHardwareBuffer_acquire().
+ * AHardwareBuffer_acquire() or AHardwareBuffer_allocate().
  */
 void AHardwareBuffer_release(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
