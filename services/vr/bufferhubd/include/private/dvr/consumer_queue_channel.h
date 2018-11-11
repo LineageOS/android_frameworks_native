@@ -3,8 +3,8 @@
 
 #include <queue>
 
-#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/buffer_hub.h>
+#include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/consumer_channel.h>
 #include <private/dvr/producer_queue_channel.h>
 
@@ -28,7 +28,8 @@ class ConsumerQueueChannel : public BufferHubChannel {
   // Called by ProdcuerQueueChannel to notify consumer queue that a new
   // buffer has been allocated.
   void RegisterNewBuffer(
-      const std::shared_ptr<ProducerChannel>& producer_channel, size_t slot);
+      const std::shared_ptr<ProducerChannel>& producer_channel,
+      size_t producer_slot);
 
   // Called after clients been signaled by service that new buffer has been
   // allocated. Clients uses kOpConsumerQueueImportBuffers to import new
@@ -40,14 +41,29 @@ class ConsumerQueueChannel : public BufferHubChannel {
   void OnProducerClosed();
 
  private:
+  // Data structure to store relavant info of a newly allocated producer buffer
+  // so that consumer channel and buffer can be created later.
+  struct PendingBuffer {
+    PendingBuffer(std::shared_ptr<ProducerChannel> channel, size_t slot,
+                  uint64_t mask) {
+      producer_channel = channel;
+      producer_slot = slot;
+      consumer_state_mask = mask;
+    }
+    PendingBuffer() = delete;
+
+    std::weak_ptr<ProducerChannel> producer_channel;
+    size_t producer_slot;
+    uint64_t consumer_state_mask;
+  };
+
   std::shared_ptr<ProducerQueueChannel> GetProducer() const;
 
   // Pointer to the producer channel.
   std::weak_ptr<Channel> producer_;
 
   // Tracks newly allocated buffer producers along with it's slot number.
-  std::queue<std::pair<std::weak_ptr<ProducerChannel>, size_t>>
-      pending_buffer_slots_;
+  std::queue<PendingBuffer> pending_buffer_slots_;
 
   // Tracks how many buffers have this queue imported.
   size_t capacity_;

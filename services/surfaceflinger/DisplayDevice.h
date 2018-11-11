@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -37,6 +38,7 @@
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
+#include "DisplayHardware/DisplayIdentification.h"
 #include "RenderArea.h"
 
 struct ANativeWindow;
@@ -66,25 +68,15 @@ public:
     Region undefinedRegion;
     bool lastCompositionHadVisibleLayers;
 
-    enum DisplayType {
-        DISPLAY_ID_INVALID = -1,
-        DISPLAY_PRIMARY     = HWC_DISPLAY_PRIMARY,
-        DISPLAY_EXTERNAL    = HWC_DISPLAY_EXTERNAL,
-        DISPLAY_VIRTUAL     = HWC_DISPLAY_VIRTUAL,
-        NUM_BUILTIN_DISPLAY_TYPES = HWC_NUM_PHYSICAL_DISPLAY_TYPES,
-    };
-
     enum {
         NO_LAYER_STACK = 0xFFFFFFFF,
     };
 
     explicit DisplayDevice(DisplayDeviceCreationArgs&& args);
-
     ~DisplayDevice();
 
-    // whether this is a valid object. An invalid DisplayDevice is returned
-    // when an non existing id is requested
-    bool isValid() const;
+    bool isVirtual() const { return mIsVirtual; }
+    bool isPrimary() const { return mIsPrimary; }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
@@ -118,11 +110,9 @@ public:
     bool                    needsFiltering() const { return mNeedsFiltering; }
 
     uint32_t                getLayerStack() const { return mLayerStack; }
-    int32_t                 getDisplayType() const { return mType; }
-    bool                    isPrimary() const { return mType == DISPLAY_PRIMARY; }
-    bool                    isVirtual() const { return mType == DISPLAY_VIRTUAL; }
-    int32_t                 getId() const { return mId; }
-    const wp<IBinder>&      getDisplayToken() const { return mDisplayToken; }
+
+    const std::optional<DisplayId>& getId() const { return mId; }
+    const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
 
     int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
 
@@ -207,13 +197,10 @@ public:
     void dump(String8& result) const;
 
 private:
-    /*
-     *  Constants, set during initialization
-     */
-    sp<SurfaceFlinger> mFlinger;
-    DisplayType mType;
-    int32_t mId;
-    wp<IBinder> mDisplayToken;
+    const sp<SurfaceFlinger> mFlinger;
+    const wp<IBinder> mDisplayToken;
+
+    std::optional<DisplayId> mId;
 
     // ANativeWindow this display is rendering into
     sp<ANativeWindow> mNativeWindow;
@@ -225,7 +212,9 @@ private:
     const int       mDisplayInstallOrientation;
     mutable uint32_t mPageFlipCount;
     std::string     mDisplayName;
-    bool            mIsSecure;
+
+    const bool mIsVirtual;
+    const bool mIsSecure;
 
     /*
      * Can only accessed from the main thread, these members
@@ -299,13 +288,16 @@ private:
             const ui::ColorMode mode, const ui::RenderIntent intent);
 
     std::unordered_map<ColorModeKey, ColorModeValue> mColorModes;
+
+    // TODO(b/74619554): Remove special cases for primary display.
+    const bool mIsPrimary;
 };
 
 struct DisplayDeviceState {
-    bool isVirtual() const { return type >= DisplayDevice::DISPLAY_VIRTUAL; }
+    bool isVirtual() const { return !displayId.has_value(); }
 
     int32_t sequenceId = sNextSequenceId++;
-    DisplayDevice::DisplayType type = DisplayDevice::DISPLAY_ID_INVALID;
+    std::optional<DisplayId> displayId;
     sp<IGraphicBufferProducer> surface;
     uint32_t layerStack = DisplayDevice::NO_LAYER_STACK;
     Rect viewport;
@@ -324,13 +316,13 @@ struct DisplayDeviceCreationArgs {
     // We use a constructor to ensure some of the values are set, without
     // assuming a default value.
     DisplayDeviceCreationArgs(const sp<SurfaceFlinger>& flinger, const wp<IBinder>& displayToken,
-                              DisplayDevice::DisplayType type, int32_t id);
+                              const std::optional<DisplayId>& displayId);
 
     const sp<SurfaceFlinger> flinger;
     const wp<IBinder> displayToken;
-    const DisplayDevice::DisplayType type;
-    const int32_t id;
+    const std::optional<DisplayId> displayId;
 
+    bool isVirtual{false};
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<DisplaySurface> displaySurface;
@@ -343,6 +335,7 @@ struct DisplayDeviceCreationArgs {
     int32_t supportedPerFrameMetadata{0};
     std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>> hwcColorModes;
     int initialPowerMode{HWC_POWER_MODE_NORMAL};
+    bool isPrimary{false};
 };
 
 class DisplayRenderArea : public RenderArea {

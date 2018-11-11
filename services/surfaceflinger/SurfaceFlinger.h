@@ -76,10 +76,11 @@
 #include <map>
 #include <mutex>
 #include <queue>
+#include <set>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
-#include "RenderArea.h"
 
 #include <layerproto/LayerProtoHeader.h>
 
@@ -348,7 +349,7 @@ public:
 
     // enable/disable h/w composer event
     // TODO: this should be made accessible only to EventThread
-    void setVsyncEnabled(int disp, int enabled);
+    void setVsyncEnabled(EventThread::DisplayType displayType, bool enabled);
 
     // called on the main thread by MessageQueue when an internal message
     // is received
@@ -357,7 +358,7 @@ public:
 
     // for debugging only
     // TODO: this should be made accessible only to HWComposer
-    const Vector< sp<Layer> >& getLayerSortedByZForHwcDisplay(int id);
+    const Vector<sp<Layer>>& getLayerSortedByZForHwcDisplay(DisplayId displayId);
 
     renderengine::RenderEngine& getRenderEngine() const { return *getBE().mRenderEngine; }
 
@@ -659,7 +660,10 @@ private:
     }
 
     sp<DisplayDevice> getDefaultDisplayDeviceLocked() {
-        return getDisplayDeviceLocked(mDisplayTokens[DisplayDevice::DISPLAY_PRIMARY]);
+        if (const auto token = getInternalDisplayToken()) {
+            return getDisplayDeviceLocked(token);
+        }
+        return nullptr;
     }
 
     // mark a region of a layer stack dirty. this updates the dirty
@@ -724,10 +728,8 @@ private:
     /* ------------------------------------------------------------------------
      * Display management
      */
-    DisplayDevice::DisplayType determineDisplayType(hwc2_display_t hwcDisplayId,
-                                                    HWC2::Connection connection) const;
     sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
-                                                    int32_t displayId,
+                                                    const std::optional<DisplayId>& displayId,
                                                     const DisplayDeviceState& state,
                                                     const sp<DisplaySurface>& dispSurface,
                                                     const sp<IGraphicBufferProducer>& producer);
@@ -759,6 +761,37 @@ public:
     }
 
 private:
+    sp<IBinder> getPhysicalDisplayToken(DisplayId displayId) const {
+        const auto it = mPhysicalDisplayTokens.find(displayId);
+        return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
+    }
+
+    std::optional<DisplayId> getPhysicalDisplayId(const sp<IBinder>& displayToken) const {
+        for (const auto& [id, token] : mPhysicalDisplayTokens) {
+            if (token == displayToken) {
+                return id;
+            }
+        }
+        return {};
+    }
+
+    // TODO(b/74619554): Remove special cases for primary display.
+    sp<IBinder> getInternalDisplayToken() const {
+        const auto displayId = getInternalDisplayId();
+        return displayId ? getPhysicalDisplayToken(*displayId) : nullptr;
+    }
+
+    std::optional<DisplayId> getInternalDisplayId() const {
+        const auto hwcDisplayId = getHwComposer().getInternalHwcDisplayId();
+        return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
+    }
+
+    // TODO(b/74619554): Remove special cases for external display.
+    std::optional<DisplayId> getExternalDisplayId() const {
+        const auto hwcDisplayId = getHwComposer().getExternalHwcDisplayId();
+        return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
+    }
+
     void listLayersLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     void dumpStatsLocked(const Vector<String16>& args, size_t& index, String8& result) const;
     void clearStatsLocked(const Vector<String16>& args, size_t& index, String8& result);
@@ -836,7 +869,7 @@ private:
     std::unique_ptr<VSyncSource> mSfEventThreadSource;
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
-    sp<IBinder> mDisplayTokens[DisplayDevice::NUM_BUILTIN_DISPLAY_TYPES];
+    std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
 
     VSyncModulator mVsyncModulator;
 
@@ -936,6 +969,9 @@ private:
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
     // Applied on Display P3 layers when the render intent is non-colorimetric.
     mat4 mEnhancedSaturationMatrix;
+
+    ui::Dataspace mDefaultCompositionDataspace;
+    ui::Dataspace mWideColorGamutCompositionDataspace;
 
     SurfaceFlingerBE mBE;
 

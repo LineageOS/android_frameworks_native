@@ -80,27 +80,35 @@ BufferHubChannel::BufferInfo ConsumerQueueChannel::GetBufferInfo() const {
 }
 
 void ConsumerQueueChannel::RegisterNewBuffer(
-    const std::shared_ptr<ProducerChannel>& producer_channel, size_t slot) {
-  ALOGD_IF(TRACE,
-           "ConsumerQueueChannel::RegisterNewBuffer: queue_id=%d buffer_id=%d "
-           "slot=%zu silent=%d",
-           buffer_id(), producer_channel->buffer_id(), slot, silent_);
+    const std::shared_ptr<ProducerChannel>& producer_channel,
+    size_t producer_slot) {
+  ALOGD_IF(TRACE, "%s: queue_id=%d buffer_id=%d slot=%zu silent=%d",
+           __FUNCTION__, buffer_id(), producer_channel->buffer_id(),
+           producer_slot, silent_);
   // Only register buffers if the queue is not silent.
-  if (!silent_) {
-    pending_buffer_slots_.emplace(producer_channel, slot);
-
-    // Signal the client that there is new buffer available.
-    SignalAvailable();
+  if (silent_) {
+    return;
   }
+
+  auto status = producer_channel->CreateConsumerStateMask();
+  if (!status.ok()) {
+    ALOGE("%s: Failed to create consumer state mask: %s", __FUNCTION__,
+          status.GetErrorMessage().c_str());
+    return;
+  }
+  uint64_t consumer_state_mask = status.get();
+
+  pending_buffer_slots_.emplace(producer_channel, producer_slot,
+                                consumer_state_mask);
+  // Signal the client that there is new buffer available.
+  SignalAvailable();
 }
 
 Status<std::vector<std::pair<RemoteChannelHandle, size_t>>>
 ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
   std::vector<std::pair<RemoteChannelHandle, size_t>> buffer_handles;
-  ATRACE_NAME("ConsumerQueueChannel::OnConsumerQueueImportBuffers");
-  ALOGD_IF(TRACE,
-           "ConsumerQueueChannel::OnConsumerQueueImportBuffers: "
-           "pending_buffer_slots=%zu",
+  ATRACE_NAME(__FUNCTION__);
+  ALOGD_IF(TRACE, "%s: pending_buffer_slots=%zu", __FUNCTION__,
            pending_buffer_slots_.size());
 
   // Indicate this is a silent queue that will not import buffers.
@@ -108,30 +116,30 @@ ConsumerQueueChannel::OnConsumerQueueImportBuffers(Message& message) {
     return ErrorStatus(EBADR);
 
   while (!pending_buffer_slots_.empty()) {
-    auto producer_channel = pending_buffer_slots_.front().first.lock();
-    size_t producer_slot = pending_buffer_slots_.front().second;
+    auto producer_channel =
+        pending_buffer_slots_.front().producer_channel.lock();
+    size_t producer_slot = pending_buffer_slots_.front().producer_slot;
+    uint64_t consumer_state_mask =
+        pending_buffer_slots_.front().consumer_state_mask;
     pending_buffer_slots_.pop();
 
     // It's possible that the producer channel has expired. When this occurs,
     // ignore the producer channel.
     if (producer_channel == nullptr) {
-      ALOGW(
-          "ConsumerQueueChannel::OnConsumerQueueImportBuffers: producer "
-          "channel has already been expired.");
+      ALOGW("%s: producer channel has already been expired.", __FUNCTION__);
       continue;
     }
 
-    auto status = producer_channel->CreateConsumer(message);
+    auto status =
+        producer_channel->CreateConsumer(message, consumer_state_mask);
 
     // If no buffers are imported successfully, clear available and return an
     // error. Otherwise, return all consumer handles already imported
     // successfully, but keep available bits on, so that the client can retry
     // importing remaining consumer buffers.
     if (!status) {
-      ALOGE(
-          "ConsumerQueueChannel::OnConsumerQueueImportBuffers: Failed create "
-          "consumer: %s",
-          status.GetErrorMessage().c_str());
+      ALOGE("%s: Failed create consumer: %s", __FUNCTION__,
+            status.GetErrorMessage().c_str());
       if (buffer_handles.empty()) {
         ClearAvailable();
         return status.error_status();

@@ -19,6 +19,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -26,6 +27,11 @@ namespace android {
 
 using DisplayId = uint64_t;
 using DisplayIdentificationData = std::vector<uint8_t>;
+
+struct DisplayIdentificationInfo {
+    DisplayId id;
+    std::string name;
+};
 
 // NUL-terminated plug and play ID.
 using PnpId = std::array<char, 4>;
@@ -40,6 +46,10 @@ bool isEdid(const DisplayIdentificationData&);
 std::optional<Edid> parseEdid(const DisplayIdentificationData&);
 std::optional<PnpId> getPnpId(uint16_t manufacturerId);
 
-std::optional<DisplayId> generateDisplayId(uint8_t port, const DisplayIdentificationData&);
+std::optional<DisplayIdentificationInfo> parseDisplayIdentificationData(
+        uint8_t port, const DisplayIdentificationData&);
+
+DisplayId getFallbackDisplayId(uint8_t port);
+DisplayId getVirtualDisplayId(uint32_t id);
 
 } // namespace android

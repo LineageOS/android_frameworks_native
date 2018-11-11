@@ -229,15 +229,14 @@ bool BufferLayer::isHdrY410() const {
             getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
-void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
+void BufferLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
+                                  const Rect& viewport, int32_t supportedPerFrameMetadata) {
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
-    const ui::Transform& tr = display->getTransform();
-    const auto& viewport = display->getViewport();
-    Region visible = tr.transform(visibleRegion.intersect(viewport));
-    const auto displayId = display->getId();
+    Region visible = transform.transform(visibleRegion.intersect(viewport));
+
     if (!hasHwcLayer(displayId)) {
-        ALOGE("[%s] failed to setPerFrameData: no HWC layer found (%d)",
+        ALOGE("[%s] failed to setPerFrameData: no HWC layer found for display %" PRIu64,
               mName.string(), displayId);
         return;
     }
@@ -290,7 +289,7 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     }
 
     const HdrMetadata& metadata = getDrawingHdrMetadata();
-    error = hwcLayer->setPerFrameMetadata(display->getSupportedPerFrameMetadata(), metadata);
+    error = hwcLayer->setPerFrameMetadata(supportedPerFrameMetadata, metadata);
     if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
         ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
@@ -303,10 +302,10 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& display) {
     }
     getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
     getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
-    getBE().compositionInfo.hwc.supportedPerFrameMetadata = display->getSupportedPerFrameMetadata();
+    getBE().compositionInfo.hwc.supportedPerFrameMetadata = supportedPerFrameMetadata;
     getBE().compositionInfo.hwc.colorTransform = getColorTransform();
 
-    setHwcLayerBuffer(display);
+    setHwcLayerBuffer(displayId);
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
@@ -318,10 +317,10 @@ bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
     return hasReadyFrame();
 }
 
-bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFence,
+bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
+                                    const std::shared_ptr<FenceTime>& glDoneFence,
                                     const std::shared_ptr<FenceTime>& presentFence,
                                     const CompositorTiming& compositorTiming) {
-
     // mFrameLatencyNeeded is true when a new frame was latched for the
     // composition.
     if (!mFrameLatencyNeeded) return false;
@@ -352,11 +351,10 @@ bool BufferLayer::onPostComposition(const std::shared_ptr<FenceTime>& glDoneFenc
     if (presentFence->isValid()) {
         mTimeStats.setPresentFence(layerID, mCurrentFrameNumber, presentFence);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
-    } else if (mFlinger->getHwComposer().isConnected(HWC_DISPLAY_PRIMARY)) {
+    } else if (displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
-        const nsecs_t actualPresentTime =
-                mFlinger->getHwComposer().getRefreshTimestamp(HWC_DISPLAY_PRIMARY);
+        const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
         mTimeStats.setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
         mFrameTracker.setActualPresentTime(actualPresentTime);
     }

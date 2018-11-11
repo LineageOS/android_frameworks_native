@@ -102,6 +102,8 @@ public:
     void addResyncSample(const nsecs_t timestamp);
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
+    void makeHWSyncAvailable(bool makeAvailable);
+    void addNewFrameTimestamp(const nsecs_t newFrameTimestamp, bool isAutoTimestamp);
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
@@ -110,6 +112,9 @@ protected:
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
+    nsecs_t calculateAverage() const;
+    void updateFrameSkipping(const int64_t skipCount);
+
     // TODO(b/113612090): Instead of letting BufferQueueLayer to access mDispSync directly, it
     // should make request to Scheduler to compute next refresh.
     friend class BufferQueueLayer;
@@ -133,6 +138,18 @@ private:
 
     std::unique_ptr<DispSync> mPrimaryDispSync;
     std::unique_ptr<EventControlThread> mEventControlThread;
+
+    // TODO(b/113612090): The following set of variables needs to be revised. For now, this is
+    // a proof of concept. We turn on frame skipping if the difference between the timestamps
+    // is between 32 and 34ms. We expect this currently for 30fps videos, so we render them at 30Hz.
+    nsecs_t mPreviousFrameTimestamp = 0;
+    // Keeping track of whether we are skipping the refresh count. If we want to
+    // simulate 30Hz rendering, we skip every other frame, and this variable is set
+    // to 1.
+    int64_t mSkipCount = 0;
+    static constexpr size_t ARRAY_SIZE = 30;
+    std::array<int64_t, ARRAY_SIZE> mTimeDifferences;
+    size_t mCounter = 0;
 };
 
 } // namespace android

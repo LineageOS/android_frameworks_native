@@ -325,8 +325,7 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
-    const auto displayId = display->getId();
+void BufferQueueLayer::setHwcLayerBuffer(DisplayId displayId) {
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
 
@@ -353,6 +352,11 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
+        // Report the timestamp to the Scheduler.
+        if (mFlinger->mUseScheduler) {
+            mFlinger->mScheduler->addNewFrameTimestamp(item.mTimestamp, item.mIsAutoTimestamp);
+        }
+
         Mutex::Autolock lock(mQueueItemLock);
         // Reset the frame number tracker when we receive the first buffer after
         // a frame number reset

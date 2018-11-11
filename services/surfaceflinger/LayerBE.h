@@ -24,6 +24,7 @@
 #include <renderengine/Texture.h>
 #include <ui/Region.h>
 
+#include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/HWComposer.h"
 #include "DisplayHardware/HWComposerBufferCache.h"
 #include "SurfaceFlinger.h"
@@ -41,7 +42,7 @@ struct CompositionInfo {
     std::shared_ptr<LayerBE> layer;
     struct {
         std::shared_ptr<HWC2::Layer> hwcLayer;
-        int32_t displayId = -1;
+        DisplayId displayId;
         sp<Fence> fence;
         HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
         Rect displayFrame;
@@ -123,12 +124,11 @@ private:
         HWC2::Transform transform;
     };
 
-
     // A layer can be attached to multiple displays when operating in mirror mode
     // (a.k.a: when several displays are attached with equal layerStack). In this
     // case we need to keep track. In non-mirror mode, a layer will have only one
-    // HWCInfo. This map key is a display layerStack.
-    std::unordered_map<int32_t, HWCInfo> mHwcLayers;
+    // HWCInfo.
+    std::unordered_map<DisplayId, HWCInfo> mHwcLayers;
 
     CompositionInfo compositionInfo;
 };

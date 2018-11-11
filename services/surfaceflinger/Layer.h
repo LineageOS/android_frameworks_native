@@ -38,6 +38,7 @@
 
 #include <cstdint>
 #include <list>
+#include <optional>
 #include <vector>
 
 #include "Client.h"
@@ -351,7 +352,7 @@ public:
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
-    void writeToProto(LayerProto* layerInfo, int32_t displayId);
+    void writeToProto(LayerProto* layerInfo, DisplayId displayId);
 
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
     virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
@@ -377,16 +378,17 @@ public:
     virtual bool isHdrY410() const { return false; }
 
     void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
-    void forceClientComposition(int32_t displayId);
-    bool getForceClientComposition(int32_t displayId);
-    virtual void setPerFrameData(const sp<const DisplayDevice>& display) = 0;
+    void forceClientComposition(DisplayId displayId);
+    bool getForceClientComposition(DisplayId displayId);
+    virtual void setPerFrameData(DisplayId displayId, const ui::Transform& transform,
+                                 const Rect& viewport, int32_t supportedPerFrameMetadata) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
-    void setCompositionType(int32_t displayId, HWC2::Composition type, bool callIntoHwc = true);
-    HWC2::Composition getCompositionType(int32_t displayId) const;
-    void setClearClientTarget(int32_t displayId, bool clear);
-    bool getClearClientTarget(int32_t displayId) const;
+    void setCompositionType(DisplayId displayId, HWC2::Composition type, bool callIntoHwc = true);
+    HWC2::Composition getCompositionType(const std::optional<DisplayId>& displayId) const;
+    void setClearClientTarget(DisplayId displayId, bool clear);
+    bool getClearClientTarget(DisplayId displayId) const;
     void updateCursorPosition(const sp<const DisplayDevice>& display);
 
     /*
@@ -401,13 +403,14 @@ public:
      * called before composition.
      * returns true if the layer has pending updates.
      */
-    virtual bool onPreComposition(nsecs_t /*refreshStartTime*/) { return true; }
+    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
 
     /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */
-    virtual bool onPostComposition(const std::shared_ptr<FenceTime>& /*glDoneFence*/,
+    virtual bool onPostComposition(const std::optional<DisplayId>& /*displayId*/,
+                                   const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
                                    const CompositorTiming& /*compositorTiming*/) {
         return false;
@@ -492,24 +495,24 @@ public:
 
     // -----------------------------------------------------------------------
 
-    bool createHwcLayer(HWComposer* hwc, int32_t displayId);
-    bool destroyHwcLayer(int32_t displayId);
+    bool createHwcLayer(HWComposer* hwc, DisplayId displayId);
+    bool destroyHwcLayer(DisplayId displayId);
     void destroyAllHwcLayers();
 
-    bool hasHwcLayer(int32_t displayId) { return getBE().mHwcLayers.count(displayId) > 0; }
+    bool hasHwcLayer(DisplayId displayId) { return getBE().mHwcLayers.count(displayId) > 0; }
 
-    HWC2::Layer* getHwcLayer(int32_t displayId) {
-        if (getBE().mHwcLayers.count(displayId) == 0) {
+    HWC2::Layer* getHwcLayer(DisplayId displayId) {
+        if (!hasHwcLayer(displayId)) {
             return nullptr;
         }
         return getBE().mHwcLayers[displayId].layer.get();
     }
 
-    bool setHwcLayer(int32_t hwcId) {
-        if (getBE().mHwcLayers.count(hwcId) == 0) {
+    bool setHwcLayer(DisplayId displayId) {
+        if (!hasHwcLayer(displayId)) {
             return false;
         }
-        getBE().compositionInfo.hwc.hwcLayer = getBE().mHwcLayers[hwcId].layer;
+        getBE().compositionInfo.hwc.hwcLayer = getBE().mHwcLayers[displayId].layer;
         return true;
     }
 
@@ -524,7 +527,7 @@ public:
 
     /* always call base class first */
     static void miniDumpHeader(String8& result);
-    void miniDump(String8& result, int32_t displayId) const;
+    void miniDump(String8& result, DisplayId displayId) const;
     void dumpFrameStats(String8& result) const;
     void dumpFrameEvents(String8& result);
     void clearFrameStats();

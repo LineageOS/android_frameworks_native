@@ -33,7 +33,10 @@ public:
                         bool useIdentityTransform);
     bool isVisible() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& display) override;
+    void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
+                         int32_t supportedPerFrameMetadata) override;
+
+    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
 
 protected:
     FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }

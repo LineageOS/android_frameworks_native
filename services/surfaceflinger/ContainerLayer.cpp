@@ -32,6 +32,6 @@ bool ContainerLayer::isVisible() const {
     return !isHiddenByPolicy();
 }
 
-void ContainerLayer::setPerFrameData(const sp<const DisplayDevice>&) {}
+void ContainerLayer::setPerFrameData(DisplayId, const ui::Transform&, const Rect&, int32_t) {}
 
 } // namespace android
