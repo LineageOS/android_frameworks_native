@@ -26,6 +26,7 @@ cc_defaults {
         "libgui",
         "liblog",
         "libnativewindow",
+        "libsync",
         "libui",
         "libutils",
     ],
