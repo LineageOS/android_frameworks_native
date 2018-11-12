@@ -51,9 +51,10 @@ struct DisplaySettings {
     // to the output dataspace.
     mat4 colorTransform = mat4();
 
-    // Region that will be cleared to (0, 0, 0, 0) prior to rendering.
-    // clearRegion will first be transformed by globalTransform so that it will
-    // be in the same coordinate space as the rendered layers.
+    // Region that will be cleared to (0, 0, 0, 1) prior to rendering.
+    // RenderEngine will transform the clearRegion passed in here, by
+    // globalTransform, so that it will be in the same coordinate space as the
+    // rendered layers.
     Region clearRegion = Region::INVALID_REGION;
 };
 

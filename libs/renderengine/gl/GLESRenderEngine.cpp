@@ -714,6 +714,10 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     setDisplayMaxLuminance(display.maxLuminance);
 
     mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
+    mState.projectionMatrix = projectionMatrix;
+    if (!display.clearRegion.isEmpty()) {
+        fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
+    }
 
     Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
     for (auto layer : layers) {
