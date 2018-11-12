@@ -337,8 +337,6 @@ Status<void> BufferHubQueue::RemoveBuffer(size_t slot) {
 
 Status<void> BufferHubQueue::Enqueue(Entry entry) {
   if (!is_full()) {
-    available_buffers_.push(std::move(entry));
-
     // Find and remove the enqueued buffer from unavailable_buffers_slot if
     // exist.
     auto enqueued_buffer_iter = std::find_if(
@@ -347,6 +345,8 @@ Status<void> BufferHubQueue::Enqueue(Entry entry) {
     if (enqueued_buffer_iter != unavailable_buffers_slot_.end()) {
       unavailable_buffers_slot_.erase(enqueued_buffer_iter);
     }
+
+    available_buffers_.push(std::move(entry));
 
     // Trigger OnBufferAvailable callback if registered.
     if (on_buffer_available_)
