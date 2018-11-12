@@ -20,31 +20,12 @@
 #define LOG_TAG "HWComposer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <inttypes.h>
-#include <math.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/types.h>
-
 #include <utils/Errors.h>
-#include <utils/misc.h>
-#include <utils/NativeHandle.h>
-#include <utils/String8.h>
-#include <utils/Thread.h>
 #include <utils/Trace.h>
-#include <utils/Vector.h>
 
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
 
-#include <hardware/hardware.h>
-#include <hardware/hwcomposer.h>
-
-#include <android/configuration.h>
-
-#include <cutils/properties.h>
 #include <log/log.h>
 
 #include "HWComposer.h"
@@ -85,11 +66,7 @@
 
 namespace android {
 
-#define MIN_HWC_HEADER_VERSION HWC_HEADER_VERSION
-
-// ---------------------------------------------------------------------------
-
-HWComposer::HWComposer(std::unique_ptr<android::Hwc2::Composer> composer)
+HWComposer::HWComposer(std::unique_ptr<Hwc2::Composer> composer)
       : mHwcDevice(std::make_unique<HWC2::Device>(std::move(composer))) {}
 
 HWComposer::~HWComposer() {
@@ -184,30 +161,31 @@ bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp) {
 
     RETURN_IF_INVALID_DISPLAY(*displayId, false);
 
-    const auto& displayData = mDisplayData[*displayId];
+    auto& displayData = mDisplayData[*displayId];
     if (displayData.isVirtual) {
         LOG_DISPLAY_ERROR(*displayId, "Invalid operation on virtual display");
         return false;
     }
 
     {
-        Mutex::Autolock _l(mLock);
+        std::lock_guard lock(displayData.lastHwVsyncLock);
 
         // There have been reports of HWCs that signal several vsync events
         // with the same timestamp when turning the display off and on. This
         // is a bug in the HWC implementation, but filter the extra events
         // out here so they don't cause havoc downstream.
-        if (timestamp == mLastHwVSync[*displayId]) {
+        if (timestamp == displayData.lastHwVsync) {
             ALOGW("Ignoring duplicate VSYNC event from HWC for display %s (t=%" PRId64 ")",
                   to_string(*displayId).c_str(), timestamp);
             return false;
         }
 
-        mLastHwVSync[*displayId] = timestamp;
+        displayData.lastHwVsync = timestamp;
     }
 
     const auto tag = "HW_VSYNC_" + to_string(*displayId);
-    ATRACE_INT(tag.c_str(), ++mVSyncCounts[*displayId] & 1);
+    ATRACE_INT(tag.c_str(), displayData.vsyncTraceToggle);
+    displayData.vsyncTraceToggle = !displayData.vsyncTraceToggle;
 
     return true;
 }
@@ -270,13 +248,14 @@ void HWComposer::destroyLayer(DisplayId displayId, HWC2::Layer* layer) {
 
 nsecs_t HWComposer::getRefreshTimestamp(DisplayId displayId) const {
     RETURN_IF_INVALID_DISPLAY(displayId, 0);
+    const auto& displayData = mDisplayData.at(displayId);
     // this returns the last refresh timestamp.
     // if the last one is not available, we estimate it based on
     // the refresh period and whatever closest timestamp we have.
-    Mutex::Autolock _l(mLock);
+    std::lock_guard lock(displayData.lastHwVsyncLock);
     nsecs_t now = systemTime(CLOCK_MONOTONIC);
     auto vsyncPeriod = getActiveConfig(displayId)->getVsyncPeriod();
-    return now - ((now - mLastHwVSync[displayId]) % vsyncPeriod);
+    return now - ((now - displayData.lastHwVsync) % vsyncPeriod);
 }
 
 bool HWComposer::isConnected(DisplayId displayId) const {
@@ -375,17 +354,19 @@ void HWComposer::setVsyncEnabled(DisplayId displayId, HWC2::Vsync enabled) {
     // into the HWC with the lock held, and we want to make sure
     // that even if HWC blocks (which it shouldn't), it won't
     // affect other threads.
-    Mutex::Autolock _l(mVsyncLock);
-    if (enabled != displayData.vsyncEnabled) {
-        ATRACE_CALL();
-        auto error = displayData.hwcDisplay->setVsyncEnabled(enabled);
-        RETURN_IF_HWC_ERROR(error, displayId);
-
-        displayData.vsyncEnabled = enabled;
-
-        const auto tag = "HW_VSYNC_ON_" + to_string(displayId);
-        ATRACE_INT(tag.c_str(), enabled == HWC2::Vsync::Enable ? 1 : 0);
+    std::lock_guard lock(displayData.vsyncEnabledLock);
+    if (enabled == displayData.vsyncEnabled) {
+        return;
     }
+
+    ATRACE_CALL();
+    auto error = displayData.hwcDisplay->setVsyncEnabled(enabled);
+    RETURN_IF_HWC_ERROR(error, displayId);
+
+    displayData.vsyncEnabled = enabled;
+
+    const auto tag = "HW_VSYNC_ON_" + to_string(displayId);
+    ATRACE_INT(tag.c_str(), enabled == HWC2::Vsync::Enable ? 1 : 0);
 }
 
 status_t HWComposer::setClientTarget(DisplayId displayId, uint32_t slot,
@@ -404,8 +385,6 @@ status_t HWComposer::prepare(DisplayId displayId, std::vector<CompositionInfo>& 
     ATRACE_CALL();
 
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
-
-    Mutex::Autolock _l(mDisplayLock);
 
     auto& displayData = mDisplayData[displayId];
     auto& hwcDisplay = displayData.hwcDisplay;
@@ -428,7 +407,7 @@ status_t HWComposer::prepare(DisplayId displayId, std::vector<CompositionInfo>& 
     // back to validate when there is any client layer.
     displayData.validateWasSkipped = false;
     if (!displayData.hasClientComposition) {
-        sp<android::Fence> outPresentFence;
+        sp<Fence> outPresentFence;
         uint32_t state = UINT32_MAX;
         error = hwcDisplay->presentOrValidate(&numTypes, &numRequests, &outPresentFence , &state);
         if (error != HWC2::Error::HasChanges) {
@@ -689,7 +668,6 @@ void HWComposer::disconnectDisplay(DisplayId displayId) {
     const auto hwcDisplayId = displayData.hwcDisplay->getId();
     mPhysicalDisplayIdMap.erase(hwcDisplayId);
     mDisplayData.erase(displayId);
-    mVSyncCounts.erase(displayId);
 
     // TODO(b/74619554): Select internal/external display from remaining displays.
     if (hwcDisplayId == mInternalHwcDisplayId) {
@@ -754,26 +732,6 @@ mat4 HWComposer::getDataspaceSaturationMatrix(DisplayId displayId, ui::Dataspace
     RETURN_IF_HWC_ERROR(error, displayId, {});
     return matrix;
 }
-
-// Converts a PixelFormat to a human-readable string.  Max 11 chars.
-// (Could use a table of prefab String8 objects.)
-/*
-static String8 getFormatStr(PixelFormat format) {
-    switch (format) {
-    case PIXEL_FORMAT_RGBA_8888:    return String8("RGBA_8888");
-    case PIXEL_FORMAT_RGBX_8888:    return String8("RGBx_8888");
-    case PIXEL_FORMAT_RGB_888:      return String8("RGB_888");
-    case PIXEL_FORMAT_RGB_565:      return String8("RGB_565");
-    case PIXEL_FORMAT_BGRA_8888:    return String8("BGRA_8888");
-    case HAL_PIXEL_FORMAT_IMPLEMENTATION_DEFINED:
-                                    return String8("ImplDef");
-    default:
-        String8 result;
-        result.appendFormat("? %08x", format);
-        return result;
-    }
-}
-*/
 
 bool HWComposer::isUsingVrComposer() const {
     return getComposer()->isUsingVrComposer();

@@ -1270,7 +1270,7 @@ TEST_F(SetupNewDisplayDeviceInternalTest, createHwcVirtualDisplay) {
     // Insert display data so that the HWC thinks it created the virtual display.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(displayId);
-    mFlinger.mutableHwcDisplayData()[*displayId] = {};
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
 
     setupNewDisplayDeviceInternalTest<Case>();
 }
@@ -1783,7 +1783,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
     // A virtual display is set up but is removed from the current state.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(displayId);
-    mFlinger.mutableHwcDisplayData()[*displayId] = {};
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
     Case::Display::injectHwcDisplay(this);
     auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
     existing.inject();
@@ -2908,7 +2908,7 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfVirtualDisplay
     // Insert display data so that the HWC thinks it created the virtual display.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(displayId);
-    mFlinger.mutableHwcDisplayData()[*displayId] = {};
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
 
     // A virtual display device is set up
     Case::Display::injectHwcDisplay(this);
