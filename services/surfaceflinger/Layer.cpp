@@ -1054,6 +1054,7 @@ uint32_t Layer::doTransaction(uint32_t flags) {
 
     // Commit the transaction
     commitTransaction(c);
+    mCurrentState.callbackHandles = {};
     return flags;
 }
 

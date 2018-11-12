@@ -82,7 +82,7 @@ bool BufferQueueLayer::shouldPresentNow(nsecs_t expectedPresentTime) const {
         return true;
     }
 
-    if (!hasDrawingBuffer()) {
+    if (!hasFrameUpdate()) {
         return false;
     }
 
@@ -110,7 +110,7 @@ bool BufferQueueLayer::fenceHasSignaled() const {
         return true;
     }
 
-    if (!hasDrawingBuffer()) {
+    if (!hasFrameUpdate()) {
         return true;
     }
 
@@ -206,7 +206,7 @@ std::optional<Region> BufferQueueLayer::latchSidebandStream(bool& recomputeVisib
     return {};
 }
 
-bool BufferQueueLayer::hasDrawingBuffer() const {
+bool BufferQueueLayer::hasFrameUpdate() const {
     return mQueuedFrames > 0;
 }
 
@@ -407,7 +407,7 @@ void BufferQueueLayer::onFrameReplaced(const BufferItem& item) {
             }
         }
 
-        if (!hasDrawingBuffer()) {
+        if (!hasFrameUpdate()) {
             ALOGE("Can't replace a frame on an empty queue");
             return;
         }

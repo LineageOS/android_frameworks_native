@@ -146,6 +146,7 @@ filegroup {
         "SurfaceInterceptor.cpp",
         "SurfaceTracing.cpp",
         "TimeStats/TimeStats.cpp",
+        "TransactionCompletedThread.cpp",
     ],
 }
 

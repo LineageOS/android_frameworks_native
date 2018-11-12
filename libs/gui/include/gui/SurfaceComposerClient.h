@@ -19,7 +19,9 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <set>
 #include <unordered_map>
+#include <unordered_set>
 
 #include <binder/IBinder.h>
 
@@ -33,9 +35,10 @@
 #include <ui/PixelFormat.h>
 
 #include <gui/CpuConsumer.h>
+#include <gui/ITransactionCompletedListener.h>
+#include <gui/LayerState.h>
 #include <gui/SurfaceControl.h>
 #include <math/vec3.h>
-#include <gui/LayerState.h>
 
 namespace android {
 
@@ -46,6 +49,37 @@ class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
 class Region;
+
+// ---------------------------------------------------------------------------
+
+using TransactionCompletedCallbackTakesContext =
+        std::function<void(void* /*context*/, const TransactionStats&)>;
+using TransactionCompletedCallback = std::function<void(const TransactionStats&)>;
+
+class TransactionCompletedListener : public BnTransactionCompletedListener {
+    TransactionCompletedListener();
+
+    CallbackId getNextIdLocked() REQUIRES(mMutex);
+
+    std::mutex mMutex;
+
+    bool mListening GUARDED_BY(mMutex) = false;
+
+    CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
+
+    std::map<CallbackId, TransactionCompletedCallback> mCallbacks GUARDED_BY(mMutex);
+
+public:
+    static sp<TransactionCompletedListener> getInstance();
+    static sp<ITransactionCompletedListener> getIInstance();
+
+    void startListeningLocked() REQUIRES(mMutex);
+
+    CallbackId addCallback(const TransactionCompletedCallback& callback);
+
+    // Overrides BnTransactionCompletedListener's onTransactionCompleted
+    void onTransactionCompleted(ListenerStats stats) override;
+};
 
 // ---------------------------------------------------------------------------
 
@@ -158,9 +192,27 @@ public:
         }
     };
 
+    struct TCLHash {
+        std::size_t operator()(const sp<ITransactionCompletedListener>& tcl) const {
+            return std::hash<IBinder*>{}((tcl) ? IInterface::asBinder(tcl).get() : nullptr);
+        }
+    };
+
+    struct CallbackInfo {
+        // All the callbacks that have been requested for a TransactionCompletedListener in the
+        // Transaction
+        std::unordered_set<CallbackId> callbackIds;
+        // All the SurfaceControls that have been modified in this TransactionCompletedListener's
+        // process that require a callback if there is one or more callbackIds set.
+        std::unordered_set<sp<SurfaceControl>, SCHash> surfaceControls;
+    };
+
     class Transaction {
         std::unordered_map<sp<SurfaceControl>, ComposerState, SCHash> mComposerStates;
         SortedVector<DisplayState > mDisplayStates;
+        std::unordered_map<sp<ITransactionCompletedListener>, CallbackInfo, TCLHash>
+                mListenerCallbacks;
+
         uint32_t                    mForceSynchronous = 0;
         uint32_t                    mTransactionNestCount = 0;
         bool                        mAnimation = false;
@@ -170,6 +222,8 @@ public:
 
         layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
         DisplayState& getDisplayState(const sp<IBinder>& token);
+
+        void registerSurfaceControlForCallback(const sp<SurfaceControl>& sc);
 
     public:
         Transaction() = default;
@@ -249,6 +303,9 @@ public:
         Transaction& setApi(const sp<SurfaceControl>& sc, int32_t api);
         Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
                                        const sp<NativeHandle>& sidebandStream);
+
+        Transaction& addTransactionCompletedCallback(
+                TransactionCompletedCallbackTakesContext callback, void* callbackContext);
 
         // Detaches all child surfaces (and their children recursively)
         // from their SurfaceControl.
@@ -349,6 +406,7 @@ public:
 };
 
 // ---------------------------------------------------------------------------
+
 }; // namespace android
 
 #endif // ANDROID_GUI_SURFACE_COMPOSER_CLIENT_H
