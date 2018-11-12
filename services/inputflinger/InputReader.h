@@ -772,6 +772,8 @@ struct RawPointerAxes {
     RawAbsoluteAxisInfo slot;
 
     RawPointerAxes();
+    inline int32_t getRawWidth() const { return x.maxValue - x.minValue + 1; }
+    inline int32_t getRawHeight() const { return y.maxValue - y.minValue + 1; }
     void clear();
 };
 
