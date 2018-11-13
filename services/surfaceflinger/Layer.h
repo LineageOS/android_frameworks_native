@@ -575,7 +575,7 @@ public:
     ssize_t removeChild(const sp<Layer>& layer);
     sp<Layer> getParent() const { return mCurrentParent.promote(); }
     bool hasParent() const { return getParent() != nullptr; }
-    Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
+    Rect computeScreenBounds() const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
     bool setChildRelativeLayer(const sp<Layer>& childLayer,
             const sp<IBinder>& relativeToHandle, int32_t relativeZ);
@@ -785,6 +785,27 @@ private:
                                        const LayerVector::Visitor& visitor);
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
+
+    /**
+     * Retuns the child bounds in layer space cropped to its bounds as well all its parent bounds.
+     * The cropped bounds must be transformed back from parent layer space to child layer space by
+     * applying the inverse of the child's transformation.
+     */
+    FloatRect cropChildBounds(const FloatRect& childBounds) const;
+
+    /**
+     * Returns the cropped buffer size or the layer crop if the layer has no buffer. Return
+     * INVALID_RECT if the layer has no buffer and no crop.
+     * A layer with an invalid buffer size and no crop is considered to be boundless. The layer
+     * bounds are constrained by its parent bounds.
+     */
+    Rect getCroppedBufferSize(const Layer::State& s) const;
+
+    /**
+     * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
+     * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
+     */
+    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
 };
 
 // ---------------------------------------------------------------------------

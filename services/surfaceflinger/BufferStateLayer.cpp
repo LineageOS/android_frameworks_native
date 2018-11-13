@@ -35,7 +35,9 @@ const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
 };
 // clang-format on
 
-BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args) : BufferLayer(args) {}
+BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args) : BufferLayer(args) {
+    mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+}
 BufferStateLayer::~BufferStateLayer() = default;
 
 // -----------------------------------------------------------------------
@@ -394,7 +396,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         }
     }
 
-    if (mOverrideScalingMode == NATIVE_WINDOW_SCALING_MODE_FREEZE &&
+    if (getEffectiveScalingMode() == NATIVE_WINDOW_SCALING_MODE_FREEZE &&
         (s.active.w != bufferWidth || s.active.h != bufferHeight)) {
         ALOGE("[%s] rejecting buffer: "
               "bufferWidth=%d, bufferHeight=%d, front.active.{w=%d, h=%d}",

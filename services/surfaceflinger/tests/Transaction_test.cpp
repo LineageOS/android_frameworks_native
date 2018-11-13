@@ -328,10 +328,14 @@ protected:
                 mClient->createSurface(String8(name), width, height, PIXEL_FORMAT_RGBA_8888, flags);
         EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
 
-        status_t error = Transaction()
-                                 .setLayerStack(layer, mDisplayLayerStack)
-                                 .setLayer(layer, mLayerZBase)
-                                 .apply();
+        Transaction t;
+        t.setLayerStack(layer, mDisplayLayerStack).setLayer(layer, mLayerZBase);
+        // If we are creating a color layer, set its crop since its size will be ignored.
+        if (flags == ISurfaceComposerClient::eFXSurfaceColor) {
+            t.setCrop_legacy(layer, Rect(0, 0, width, height));
+        }
+
+        status_t error = t.apply();
         if (error != NO_ERROR) {
             ADD_FAILURE() << "failed to initialize SurfaceControl";
             layer.clear();
@@ -495,6 +499,7 @@ private:
         // set layer stack (b/68888219)
         Transaction t;
         t.setDisplayLayerStack(mDisplay, mDisplayLayerStack);
+        t.setCrop_legacy(mBlackBgSurface, Rect(0, 0, mDisplayWidth, mDisplayHeight));
         t.setLayerStack(mBlackBgSurface, mDisplayLayerStack);
         t.setColor(mBlackBgSurface, half3{0, 0, 0});
         t.setLayer(mBlackBgSurface, mLayerZBase);
@@ -2330,17 +2335,19 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
             mClient->createSurface(String8("Buffered child"), 20, 20,
                                            PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
     fillSurfaceRGBA8(childBuffer, 200, 200, 200);
-
-    SurfaceComposerClient::Transaction{}.show(childNoBuffer).show(childBuffer).apply(true);
-
+    SurfaceComposerClient::Transaction{}
+            .setCrop_legacy(childNoBuffer, Rect(0, 0, 10, 10))
+            .show(childNoBuffer)
+            .show(childBuffer)
+            .apply(true);
     {
         ScreenCapture::captureScreen(&sc);
         sc->expectChildColor(73, 73);
         sc->expectFGColor(74, 74);
     }
-
-    SurfaceComposerClient::Transaction{}.setSize(childNoBuffer, 20, 20).apply(true);
-
+    SurfaceComposerClient::Transaction{}
+            .setCrop_legacy(childNoBuffer, Rect(0, 0, 20, 20))
+            .apply(true);
     {
         ScreenCapture::captureScreen(&sc);
         sc->expectChildColor(73, 73);
@@ -2842,6 +2849,221 @@ TEST_F(ChildLayerTest, ChildLayerRelativeLayer) {
         mCapture->expectChildColor(0, 0);
         mCapture->expectChildColor(9, 9);
         mCapture->checkPixel(10, 10, 255, 255, 255);
+    }
+}
+class BoundlessLayerTest : public LayerUpdateTest {
+protected:
+    std::unique_ptr<ScreenCapture> mCapture;
+};
+
+// Verify setting a size on a buffer layer has no effect.
+TEST_F(BoundlessLayerTest, BufferLayerIgnoresSize) {
+    sp<SurfaceControl> bufferLayer =
+            mClient->createSurface(String8("BufferLayer"), 45, 45, PIXEL_FORMAT_RGBA_8888, 0,
+                                   mFGSurfaceControl.get());
+    ASSERT_TRUE(bufferLayer != nullptr);
+    ASSERT_TRUE(bufferLayer->isValid());
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::BLACK, 30, 30));
+    asTransaction([&](Transaction& t) { t.show(bufferLayer); });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Foreground Surface bounds must be color layer
+        mCapture->expectColor(Rect(64, 64, 94, 94), Color::BLACK);
+        // Buffer layer should not extend past buffer bounds
+        mCapture->expectFGColor(95, 95);
+    }
+}
+
+// Verify a boundless color layer will fill its parent bounds. The parent has a buffer size
+// which will crop the color layer.
+TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentBufferBounds) {
+    sp<SurfaceControl> colorLayer =
+            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceColor,
+                                   mFGSurfaceControl.get());
+    ASSERT_TRUE(colorLayer != nullptr);
+    ASSERT_TRUE(colorLayer->isValid());
+    asTransaction([&](Transaction& t) {
+        t.setColor(colorLayer, half3{0, 0, 0});
+        t.show(colorLayer);
+    });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Foreground Surface bounds must be color layer
+        mCapture->expectColor(Rect(64, 64, 128, 128), Color::BLACK);
+        // Color layer should not extend past foreground bounds
+        mCapture->expectBGColor(129, 129);
+    }
+}
+
+// Verify a boundless color layer will fill its parent bounds. The parent has no buffer but has
+// a crop which will be used to crop the color layer.
+TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentCropBounds) {
+    sp<SurfaceControl> cropLayer =
+            mClient->createSurface(String8("CropLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   0 /* flags */, mFGSurfaceControl.get());
+    ASSERT_TRUE(cropLayer != nullptr);
+    ASSERT_TRUE(cropLayer->isValid());
+    sp<SurfaceControl> colorLayer =
+            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceColor, cropLayer.get());
+    ASSERT_TRUE(colorLayer != nullptr);
+    ASSERT_TRUE(colorLayer->isValid());
+    asTransaction([&](Transaction& t) {
+        t.setCrop_legacy(cropLayer, Rect(5, 5, 10, 10));
+        t.setColor(colorLayer, half3{0, 0, 0});
+        t.show(cropLayer);
+        t.show(colorLayer);
+    });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // 5 pixels from the foreground we should see the child surface
+        mCapture->expectColor(Rect(69, 69, 74, 74), Color::BLACK);
+        // 10 pixels from the foreground we should be back to the foreground surface
+        mCapture->expectFGColor(74, 74);
+    }
+}
+
+// Verify for boundless layer with no children, their transforms have no effect.
+TEST_F(BoundlessLayerTest, BoundlessColorLayerTransformHasNoEffect) {
+    sp<SurfaceControl> colorLayer =
+            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceColor,
+                                   mFGSurfaceControl.get());
+    ASSERT_TRUE(colorLayer != nullptr);
+    ASSERT_TRUE(colorLayer->isValid());
+    asTransaction([&](Transaction& t) {
+        t.setPosition(colorLayer, 320, 320);
+        t.setMatrix(colorLayer, 2, 0, 0, 2);
+        t.setColor(colorLayer, half3{0, 0, 0});
+        t.show(colorLayer);
+    });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Foreground Surface bounds must be color layer
+        mCapture->expectColor(Rect(64, 64, 128, 128), Color::BLACK);
+        // Color layer should not extend past foreground bounds
+        mCapture->expectBGColor(129, 129);
+    }
+}
+
+// Verify for boundless layer with children, their transforms have an effect.
+TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerCanSetTransform) {
+    sp<SurfaceControl> boundlessLayerRightShift =
+            mClient->createSurface(String8("BoundlessLayerRightShift"), 0, 0,
+                                   PIXEL_FORMAT_RGBA_8888, 0 /* flags */, mFGSurfaceControl.get());
+    ASSERT_TRUE(boundlessLayerRightShift != nullptr);
+    ASSERT_TRUE(boundlessLayerRightShift->isValid());
+    sp<SurfaceControl> boundlessLayerDownShift =
+            mClient->createSurface(String8("BoundlessLayerLeftShift"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   0 /* flags */, boundlessLayerRightShift.get());
+    ASSERT_TRUE(boundlessLayerDownShift != nullptr);
+    ASSERT_TRUE(boundlessLayerDownShift->isValid());
+    sp<SurfaceControl> colorLayer =
+            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceColor,
+                                   boundlessLayerDownShift.get());
+    ASSERT_TRUE(colorLayer != nullptr);
+    ASSERT_TRUE(colorLayer->isValid());
+    asTransaction([&](Transaction& t) {
+        t.setPosition(boundlessLayerRightShift, 32, 0);
+        t.show(boundlessLayerRightShift);
+        t.setPosition(boundlessLayerDownShift, 0, 32);
+        t.show(boundlessLayerDownShift);
+        t.setCrop_legacy(colorLayer, Rect(0, 0, 64, 64));
+        t.setColor(colorLayer, half3{0, 0, 0});
+        t.show(colorLayer);
+    });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Top left of foreground must now be visible
+        mCapture->expectFGColor(64, 64);
+        // Foreground Surface bounds must be color layer
+        mCapture->expectColor(Rect(96, 96, 128, 128), Color::BLACK);
+        // Color layer should not extend past foreground bounds
+        mCapture->expectBGColor(129, 129);
+    }
+}
+
+// Verify child layers do not get clipped if they temporarily move into the negative
+// coordinate space as the result of an intermediate transformation.
+TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerDoNotCrop) {
+    sp<SurfaceControl> boundlessLayer =
+            mClient->createSurface(String8("BoundlessLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   0 /* flags */, mFGSurfaceControl.get());
+    ASSERT_TRUE(boundlessLayer != nullptr);
+    ASSERT_TRUE(boundlessLayer->isValid());
+    sp<SurfaceControl> colorLayer =
+            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceColor, boundlessLayer.get());
+    ASSERT_TRUE(colorLayer != nullptr);
+    ASSERT_TRUE(colorLayer->isValid());
+    asTransaction([&](Transaction& t) {
+        // shift child layer off bounds. If this layer was not boundless, we will
+        // expect the child layer to be cropped.
+        t.setPosition(boundlessLayer, 32, 32);
+        t.show(boundlessLayer);
+        t.setCrop_legacy(colorLayer, Rect(0, 0, 64, 64));
+        // undo shift by parent
+        t.setPosition(colorLayer, -32, -32);
+        t.setColor(colorLayer, half3{0, 0, 0});
+        t.show(colorLayer);
+    });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Foreground Surface bounds must be color layer
+        mCapture->expectColor(Rect(64, 64, 128, 128), Color::BLACK);
+        // Color layer should not extend past foreground bounds
+        mCapture->expectBGColor(129, 129);
+    }
+}
+
+// Verify for boundless root layers with children, their transforms have an effect.
+TEST_F(BoundlessLayerTest, RootBoundlessLayerCanSetTransform) {
+    sp<SurfaceControl> rootBoundlessLayer =
+            mClient->createSurface(String8("RootBoundlessLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   0 /* flags */);
+    ASSERT_TRUE(rootBoundlessLayer != nullptr);
+    ASSERT_TRUE(rootBoundlessLayer->isValid());
+    sp<SurfaceControl> colorLayer =
+            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceColor,
+                                   rootBoundlessLayer.get());
+    ASSERT_TRUE(colorLayer != nullptr);
+    ASSERT_TRUE(colorLayer->isValid());
+    asTransaction([&](Transaction& t) {
+        t.setLayer(rootBoundlessLayer, INT32_MAX - 1);
+        t.setPosition(rootBoundlessLayer, 32, 32);
+        t.show(rootBoundlessLayer);
+        t.setCrop_legacy(colorLayer, Rect(0, 0, 64, 64));
+        t.setColor(colorLayer, half3{0, 0, 0});
+        t.show(colorLayer);
+        t.hide(mFGSurfaceControl);
+    });
+    {
+        mCapture = screenshot();
+        // Top left of background must now be visible
+        mCapture->expectBGColor(0, 0);
+        // Top left of foreground must now be visible
+        mCapture->expectBGColor(31, 31);
+        // Foreground Surface bounds must be color layer
+        mCapture->expectColor(Rect(32, 32, 96, 96), Color::BLACK);
+        // Color layer should not extend past foreground bounds
+        mCapture->expectBGColor(97, 97);
     }
 }
 

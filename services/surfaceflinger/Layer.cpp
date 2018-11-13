@@ -265,39 +265,12 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
 }
 
-Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
-    const State& s(getDrawingState());
-    Rect win(getActiveWidth(s), getActiveHeight(s));
-
-    Rect crop = getCrop(s);
-    if (!crop.isEmpty()) {
-        win.intersect(crop, &win);
-    }
-
+Rect Layer::computeScreenBounds() const {
+    FloatRect bounds = computeBounds();
     ui::Transform t = getTransform();
-    win = t.transform(win);
-
-    const sp<Layer>& p = mDrawingParent.promote();
-    // Now we need to calculate the parent bounds, so we can clip ourselves to those.
-    // When calculating the parent bounds for purposes of clipping,
-    // we don't need to constrain the parent to its transparent region.
-    // The transparent region is an optimization based on the
-    // buffer contents of the layer, but does not affect the space allocated to
-    // it by policy, and thus children should be allowed to extend into the
-    // parent's transparent region. In fact one of the main uses, is to reduce
-    // buffer allocation size in cases where a child window sits behind a main window
-    // (by marking the hole in the parent window as a transparent region)
-    if (p != nullptr) {
-        Rect bounds = p->computeScreenBounds(false);
-        bounds.intersect(win, &win);
-    }
-
-    if (reduceTransparentRegion) {
-        auto const screenTransparentRegion = t.transform(getActiveTransparentRegion(s));
-        win = reduce(win, screenTransparentRegion);
-    }
-
-    return win;
+    // Transform to screen space.
+    bounds = t.transform(bounds);
+    return Rect{bounds};
 }
 
 FloatRect Layer::computeBounds() const {
@@ -307,32 +280,72 @@ FloatRect Layer::computeBounds() const {
 
 FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
     const State& s(getDrawingState());
-    Rect win(getActiveWidth(s), getActiveHeight(s));
+    Rect bounds = getCroppedBufferSize(s);
+    FloatRect floatBounds = bounds.toFloatRect();
+    if (bounds.isValid()) {
+        // Layer has bounds. Pass in our bounds as a special case. Then pass on to our parents so
+        // that they can clip it.
+        floatBounds = cropChildBounds(floatBounds);
+    } else {
+        // Layer does not have bounds, so we fill to our parent bounds. This is done by getting our
+        // parent bounds and inverting the transform to get the maximum bounds we can have that
+        // will fit within our parent bounds.
+        const auto& p = mDrawingParent.promote();
+        if (p != nullptr) {
+            ui::Transform t = s.active_legacy.transform;
+            // When calculating the parent bounds for purposes of clipping, we don't need to
+            // constrain the parent to its transparent region. The transparent region is an
+            // optimization based on the buffer contents of the layer, but does not affect the
+            // space allocated to it by policy, and thus children should be allowed to extend into
+            // the parent's transparent region.
+            // One of the main uses is a parent window with a child sitting behind the parent
+            // window, marked by a transparent region. When computing the parent bounds from the
+            // parent's perspective we pass in the transparent region to reduce buffer allocation
+            // size. When computing the parent bounds from the child's perspective, we pass in an
+            // empty transparent region in order to extend into the the parent bounds.
+            floatBounds = p->computeBounds(Region());
+            // Transform back to layer space.
+            floatBounds = t.inverse().transform(floatBounds);
+        }
+    }
 
-    Rect crop = getCrop(s);
-    if (!crop.isEmpty()) {
-        win.intersect(crop, &win);
+    // Subtract the transparent region and snap to the bounds.
+    return reduce(floatBounds, activeTransparentRegion);
+}
+
+FloatRect Layer::cropChildBounds(const FloatRect& childBounds) const {
+    const State& s(getDrawingState());
+    Rect bounds = getCroppedBufferSize(s);
+    FloatRect croppedBounds = childBounds;
+
+    // If the layer has bounds, then crop the passed in child bounds and pass
+    // it to our parents so they can crop it as well. If the layer has no bounds,
+    // then pass on the child bounds.
+    if (bounds.isValid()) {
+        croppedBounds = croppedBounds.intersect(bounds.toFloatRect());
     }
 
     const auto& p = mDrawingParent.promote();
-    FloatRect floatWin = win.toFloatRect();
-    FloatRect parentBounds = floatWin;
     if (p != nullptr) {
-        // We pass an empty Region here for reasons mirroring that of the case described in
-        // the computeScreenBounds reduceTransparentRegion=false case.
-        parentBounds = p->computeBounds(Region());
+        // Transform to parent space and allow parent layer to crop the
+        // child bounds as well.
+        ui::Transform t = s.active_legacy.transform;
+        croppedBounds = t.transform(croppedBounds);
+        croppedBounds = p->cropChildBounds(croppedBounds);
+        croppedBounds = t.inverse().transform(croppedBounds);
     }
+    return croppedBounds;
+}
 
-    ui::Transform t = s.active_legacy.transform;
-
-    if (p != nullptr) {
-        floatWin = t.transform(floatWin);
-        floatWin = floatWin.intersect(parentBounds);
-        floatWin = t.inverse().transform(floatWin);
+Rect Layer::getCroppedBufferSize(const State& s) const {
+    Rect size = getBufferSize(s);
+    Rect crop = getCrop(s);
+    if (!crop.isEmpty() && size.isValid()) {
+        size.intersect(crop, &size);
+    } else if (!crop.isEmpty()) {
+        size = crop;
     }
-
-    // subtract the transparent region and snap to the bounds
-    return reduce(floatWin, activeTransparentRegion);
+    return size;
 }
 
 Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {

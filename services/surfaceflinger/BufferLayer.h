@@ -186,6 +186,8 @@ private:
     mutable renderengine::Texture mTexture;
 
     bool mRefreshPending{false};
+
+    Rect getBufferSize(const State& s) const override;
 };
 
 } // namespace android
