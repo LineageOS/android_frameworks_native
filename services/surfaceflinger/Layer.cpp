@@ -1337,7 +1337,10 @@ uint32_t Layer::getEffectiveUsage(uint32_t usage) const {
 
 void Layer::updateTransformHint(const sp<const DisplayDevice>& display) const {
     uint32_t orientation = 0;
-    if (!mFlinger->mDebugDisableTransformHint) {
+    // Disable setting transform hint if the debug flag is set or if the
+    // getTransformToDisplayInverse flag is set and the client wants to submit buffers
+    // in one orientation.
+    if (!mFlinger->mDebugDisableTransformHint && !getTransformToDisplayInverse()) {
         // The transform hint is used to improve performance, but we can
         // only have a single transform hint, it cannot
         // apply to all displays.
@@ -1969,6 +1972,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     layerInfo->set_window_type(state.type);
     layerInfo->set_app_id(state.appId);
     layerInfo->set_curr_frame(mCurrentFrameNumber);
+    layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
     for (const auto& pendingState : mPendingStates) {
         auto barrierLayer = pendingState.barrierLayer_legacy.promote();
