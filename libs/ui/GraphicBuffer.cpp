@@ -65,12 +65,11 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
 {
 }
 
-GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
-        PixelFormat inFormat, uint32_t inLayerCount, uint64_t usage, std::string requestorName)
-    : GraphicBuffer()
-{
-    mInitCheck = initWithSize(inWidth, inHeight, inFormat, inLayerCount,
-            usage, std::move(requestorName));
+GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+                             uint32_t inLayerCount, uint64_t inUsage, std::string requestorName)
+      : GraphicBuffer() {
+    mInitCheck = initWithSize(inWidth, inHeight, inFormat, inLayerCount, inUsage,
+                              std::move(requestorName));
 }
 
 // deprecated
@@ -83,15 +82,12 @@ GraphicBuffer::GraphicBuffer(uint32_t inWidth, uint32_t inHeight,
 {
 }
 
-GraphicBuffer::GraphicBuffer(const native_handle_t* handle,
-        HandleWrapMethod method, uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t layerCount,
-        uint64_t usage,
-        uint32_t stride)
-    : GraphicBuffer()
-{
-    mInitCheck = initWithHandle(handle, method, width, height, format,
-            layerCount, usage, stride);
+GraphicBuffer::GraphicBuffer(const native_handle_t* inHandle, HandleWrapMethod method,
+                             uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+                             uint32_t inLayerCount, uint64_t inUsage, uint32_t inStride)
+      : GraphicBuffer() {
+    mInitCheck = initWithHandle(inHandle, method, inWidth, inHeight, inFormat, inLayerCount,
+                                inUsage, inStride);
 }
 
 GraphicBuffer::~GraphicBuffer()
@@ -183,26 +179,24 @@ status_t GraphicBuffer::initWithSize(uint32_t inWidth, uint32_t inHeight,
     return err;
 }
 
-status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
-        HandleWrapMethod method, uint32_t width, uint32_t height,
-        PixelFormat format, uint32_t layerCount, uint64_t usage,
-        uint32_t stride)
-{
-    ANativeWindowBuffer::width  = static_cast<int>(width);
-    ANativeWindowBuffer::height = static_cast<int>(height);
-    ANativeWindowBuffer::stride = static_cast<int>(stride);
-    ANativeWindowBuffer::format = format;
-    ANativeWindowBuffer::usage  = usage;
-    ANativeWindowBuffer::usage_deprecated = int(usage);
+status_t GraphicBuffer::initWithHandle(const native_handle_t* inHandle, HandleWrapMethod method,
+                                       uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+                                       uint32_t inLayerCount, uint64_t inUsage, uint32_t inStride) {
+    ANativeWindowBuffer::width = static_cast<int>(inWidth);
+    ANativeWindowBuffer::height = static_cast<int>(inHeight);
+    ANativeWindowBuffer::stride = static_cast<int>(inStride);
+    ANativeWindowBuffer::format = inFormat;
+    ANativeWindowBuffer::usage = inUsage;
+    ANativeWindowBuffer::usage_deprecated = int(inUsage);
 
-    ANativeWindowBuffer::layerCount = layerCount;
+    ANativeWindowBuffer::layerCount = inLayerCount;
 
     mOwner = (method == WRAP_HANDLE) ? ownNone : ownHandle;
 
     if (method == TAKE_UNREGISTERED_HANDLE || method == CLONE_HANDLE) {
         buffer_handle_t importedHandle;
-        status_t err = mBufferMapper.importBuffer(handle, width, height,
-                layerCount, format, usage, stride, &importedHandle);
+        status_t err = mBufferMapper.importBuffer(inHandle, inWidth, inHeight, inLayerCount,
+                                                  inFormat, inUsage, inStride, &importedHandle);
         if (err != NO_ERROR) {
             initWithHandle(nullptr, WRAP_HANDLE, 0, 0, 0, 0, 0, 0);
 
@@ -210,15 +204,15 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* handle,
         }
 
         if (method == TAKE_UNREGISTERED_HANDLE) {
-            native_handle_close(handle);
-            native_handle_delete(const_cast<native_handle_t*>(handle));
+            native_handle_close(inHandle);
+            native_handle_delete(const_cast<native_handle_t*>(inHandle));
         }
 
-        handle = importedHandle;
-        mBufferMapper.getTransportSize(handle, &mTransportNumFds, &mTransportNumInts);
+        inHandle = importedHandle;
+        mBufferMapper.getTransportSize(inHandle, &mTransportNumFds, &mTransportNumInts);
     }
 
-    ANativeWindowBuffer::handle = handle;
+    ANativeWindowBuffer::handle = inHandle;
 
     return NO_ERROR;
 }
