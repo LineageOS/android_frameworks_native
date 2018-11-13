@@ -3126,6 +3126,11 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 #endif
                 mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
             }
+
+            if (mFocusedDisplayId == displayId) {
+                onFocusChangedLocked(newFocusedWindowHandle);
+            }
+
         }
 
         ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(displayId);
@@ -3241,6 +3246,8 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             // Sanity check
             sp<InputWindowHandle> newFocusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
+            onFocusChangedLocked(newFocusedWindowHandle);
+
             if (newFocusedWindowHandle == nullptr) {
                 ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
                 if (!mFocusedWindowHandlesByDisplay.empty()) {
@@ -3799,6 +3806,13 @@ void InputDispatcher::onDispatchCycleBrokenLocked(
     commandEntry->connection = connection;
 }
 
+void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& newFocus) {
+    sp<IBinder> token = newFocus != nullptr ? newFocus->getToken() : nullptr;
+    CommandEntry* commandEntry = postCommandLocked(
+            & InputDispatcher::doNotifyFocusChangedLockedInterruptible);
+    commandEntry->token = token;
+}
+
 void InputDispatcher::onANRLocked(
         nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
         const sp<InputWindowHandle>& windowHandle,
@@ -3854,6 +3868,14 @@ void InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible(
 
         mLock.lock();
     }
+}
+
+void InputDispatcher::doNotifyFocusChangedLockedInterruptible(
+        CommandEntry* commandEntry) {
+    sp<IBinder> token = commandEntry->token;
+    mLock.unlock();
+    mPolicy->notifyFocusChanged(token);
+    mLock.lock();
 }
 
 void InputDispatcher::doNotifyANRLockedInterruptible(
