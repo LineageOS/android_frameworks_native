@@ -634,10 +634,10 @@ status_t BnSurfaceComposer::onTransact(
             if (count > data.dataSize()) {
                 return BAD_VALUE;
             }
-            ComposerState s;
             Vector<ComposerState> state;
             state.setCapacity(count);
             for (size_t i = 0; i < count; i++) {
+                ComposerState s;
                 if (s.read(data) == BAD_VALUE) {
                     return BAD_VALUE;
                 }

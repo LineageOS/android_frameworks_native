@@ -41,9 +41,11 @@ BufferStateLayer::~BufferStateLayer() = default;
 // -----------------------------------------------------------------------
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
-void BufferStateLayer::onLayerDisplayed(const sp<Fence>& /*releaseFence*/) {
-    // TODO(marissaw): send the release fence back to buffer owner
-    return;
+void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
+    // The transaction completed callback can only be sent if the release fence from the PREVIOUS
+    // frame has fired. In practice, we should never actually wait on the previous release fence
+    // but we should store it just in case.
+    mPreviousReleaseFence = releaseFence;
 }
 
 void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
@@ -52,7 +54,6 @@ void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
 }
 
 void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
-    // TODO(marissaw): use this to signal the buffer owner
     return;
 }
 
@@ -61,7 +62,13 @@ bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
         return true;
     }
 
-    return hasDrawingBuffer();
+    return hasFrameUpdate();
+}
+
+bool BufferStateLayer::willPresentCurrentTransaction() const {
+    // Returns true if the most recent Transaction applied to CurrentState will be presented.
+    return getSidebandStreamChanged() || getAutoRefresh() ||
+            (mCurrentState.modified && mCurrentState.buffer != nullptr);
 }
 
 bool BufferStateLayer::getTransformToDisplayInverse() const {
@@ -81,6 +88,7 @@ bool BufferStateLayer::applyPendingStates(Layer::State* stateToCommit) {
     while (!mPendingStates.empty()) {
         popPendingState(stateToCommit);
     }
+    mCurrentStateModified = stateUpdateAvailable && mCurrentState.modified;
     mCurrentState.modified = false;
     return stateUpdateAvailable;
 }
@@ -118,7 +126,11 @@ bool BufferStateLayer::setCrop(const Rect& crop) {
     return true;
 }
 
-bool BufferStateLayer::setBuffer(sp<GraphicBuffer> buffer) {
+bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer) {
+    if (mCurrentState.buffer) {
+        mReleasePreviousBuffer = true;
+    }
+
     mCurrentState.sequence++;
     mCurrentState.buffer = buffer;
     mCurrentState.modified = true;
@@ -127,6 +139,9 @@ bool BufferStateLayer::setBuffer(sp<GraphicBuffer> buffer) {
 }
 
 bool BufferStateLayer::setAcquireFence(const sp<Fence>& fence) {
+    // The acquire fences of BufferStateLayers have already signaled before they are set
+    mCallbackHandleAcquireTime = fence->getSignalTime();
+
     mCurrentState.acquireFence = fence;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -180,6 +195,44 @@ bool BufferStateLayer::setSidebandStream(const sp<NativeHandle>& sidebandStream)
         mFlinger->signalLayerUpdate();
     }
     return true;
+}
+
+bool BufferStateLayer::setTransactionCompletedListeners(
+        const std::vector<sp<CallbackHandle>>& handles) {
+    // If there is no handle, we will not send a callback so reset mReleasePreviousBuffer and return
+    if (handles.empty()) {
+        mReleasePreviousBuffer = false;
+        return false;
+    }
+
+    const bool willPresent = willPresentCurrentTransaction();
+
+    for (const auto& handle : handles) {
+        // If this transaction set a buffer on this layer, release its previous buffer
+        handle->releasePreviousBuffer = mReleasePreviousBuffer;
+
+        // If this layer will be presented in this frame
+        if (willPresent) {
+            // If this transaction set an acquire fence on this layer, set its acquire time
+            handle->acquireTime = mCallbackHandleAcquireTime;
+
+            // Notify the transaction completed thread that there is a pending latched callback
+            // handle
+            mFlinger->getTransactionCompletedThread().registerPendingLatchedCallbackHandle(handle);
+
+            // Store so latched time and release fence can be set
+            mCurrentState.callbackHandles.push_back(handle);
+
+        } else { // If this layer will NOT need to be relatched and presented this frame
+            // Notify the transaction completed thread this handle is done
+            mFlinger->getTransactionCompletedThread().addUnlatchedCallbackHandle(handle);
+        }
+    }
+
+    mReleasePreviousBuffer = false;
+    mCallbackHandleAcquireTime = -1;
+
+    return willPresent;
 }
 
 bool BufferStateLayer::setSize(uint32_t w, uint32_t h) {
@@ -265,7 +318,7 @@ Rect BufferStateLayer::getDrawingCrop() const {
 }
 
 uint32_t BufferStateLayer::getDrawingScalingMode() const {
-    return NATIVE_WINDOW_SCALING_MODE_FREEZE;
+    return NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
 }
 
 Region BufferStateLayer::getDrawingSurfaceDamage() const {
@@ -314,8 +367,8 @@ std::optional<Region> BufferStateLayer::latchSidebandStream(bool& recomputeVisib
     return {};
 }
 
-bool BufferStateLayer::hasDrawingBuffer() const {
-    return getDrawingState().buffer != nullptr;
+bool BufferStateLayer::hasFrameUpdate() const {
+    return mCurrentStateModified && getCurrentState().buffer != nullptr;
 }
 
 void BufferStateLayer::setFilteringEnabled(bool enabled) {
@@ -402,6 +455,10 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         mTimeStats.removeTimeRecord(layerID, getFrameNumber());
         return BAD_VALUE;
     }
+
+    mFlinger->getTransactionCompletedThread()
+            .addLatchedCallbackHandles(getDrawingState().callbackHandles, latchTime,
+                                       mPreviousReleaseFence);
 
     // Handle sync fences
     if (SyncFeatures::getInstance().useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {
@@ -512,6 +569,7 @@ void BufferStateLayer::setHwcLayerBuffer(DisplayId displayId) {
               s.buffer->handle, to_string(error).c_str(), static_cast<int32_t>(error));
     }
 
+    mCurrentStateModified = false;
     mFrameNumber++;
 }
 

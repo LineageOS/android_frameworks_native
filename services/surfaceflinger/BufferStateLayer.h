@@ -62,13 +62,14 @@ public:
     bool setTransform(uint32_t transform) override;
     bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
     bool setCrop(const Rect& crop) override;
-    bool setBuffer(sp<GraphicBuffer> buffer) override;
+    bool setBuffer(const sp<GraphicBuffer>& buffer) override;
     bool setAcquireFence(const sp<Fence>& fence) override;
     bool setDataspace(ui::Dataspace dataspace) override;
     bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
     bool setSurfaceDamageRegion(const Region& surfaceDamage) override;
     bool setApi(int32_t api) override;
     bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
+    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
 
     bool setSize(uint32_t w, uint32_t h) override;
     bool setPosition(float x, float y, bool immediate) override;
@@ -110,7 +111,7 @@ private:
 
     std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override;
 
-    bool hasDrawingBuffer() const override;
+    bool hasFrameUpdate() const override;
 
     void setFilteringEnabled(bool enabled) override;
 
@@ -125,6 +126,7 @@ private:
 
 private:
     void onFirstRef() override;
+    bool willPresentCurrentTransaction() const;
 
     static const std::array<float, 16> IDENTITY_MATRIX;
 
@@ -135,6 +137,12 @@ private:
     std::atomic<bool> mSidebandStreamChanged{false};
 
     uint32_t mFrameNumber{0};
+
+    sp<Fence> mPreviousReleaseFence;
+
+    bool mCurrentStateModified = false;
+    bool mReleasePreviousBuffer = false;
+    nsecs_t mCallbackHandleAcquireTime = -1;
 
     // TODO(marissaw): support sticky transform for LEGACY camera mode
 };

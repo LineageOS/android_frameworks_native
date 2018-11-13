@@ -520,7 +520,7 @@ void BufferLayer::notifyAvailableFrames() {
 }
 
 bool BufferLayer::hasReadyFrame() const {
-    return hasDrawingBuffer() || getSidebandStreamChanged() || getAutoRefresh();
+    return hasFrameUpdate() || getSidebandStreamChanged() || getAutoRefresh();
 }
 
 uint32_t BufferLayer::getEffectiveScalingMode() const {
@@ -658,7 +658,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 }
 
 uint64_t BufferLayer::getHeadFrameNumber() const {
-    if (hasDrawingBuffer()) {
+    if (hasFrameUpdate()) {
         return getFrameNumber();
     } else {
         return mCurrentFrameNumber;

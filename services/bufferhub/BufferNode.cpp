@@ -35,7 +35,7 @@ BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, ui
                                                      /*requestor=*/"bufferhub");
 
     if (ret != OK || buffer_handle_ == nullptr) {
-        ALOGE("BufferNode::BufferNode: Failed to allocate buffer: %s", strerror(-ret));
+        ALOGE("%s: Failed to allocate buffer: %s", __FUNCTION__, strerror(-ret));
         return;
     }
 
@@ -48,7 +48,7 @@ BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, ui
 
     metadata_ = BufferHubMetadata::Create(user_metadata_size);
     if (!metadata_.IsValid()) {
-        ALOGE("BufferNode::BufferNode: Failed to allocate metadata.");
+        ALOGE("%s: Failed to allocate metadata.", __FUNCTION__);
         return;
     }
     InitializeMetadata();
@@ -59,7 +59,7 @@ BufferNode::~BufferNode() {
     if (buffer_handle_ != nullptr) {
         status_t ret = GraphicBufferAllocator::get().free(buffer_handle_);
         if (ret != OK) {
-            ALOGE("BufferNode::~BufferNode: Failed to free handle; Got error: %d", ret);
+            ALOGE("%s: Failed to free handle; Got error: %d", __FUNCTION__, ret);
         }
     }
 }
@@ -76,8 +76,7 @@ uint64_t BufferNode::AddNewActiveClientsBitToMask() {
         client_state_mask = dvr::BufferHubDefs::FindNextAvailableClientStateMask(
                 current_active_clients_bit_mask);
         if (client_state_mask == 0ULL) {
-            ALOGE("BufferNode::AddNewActiveClientsBitToMask: reached the maximum "
-                  "mumber of channels per buffer node: 32.");
+            ALOGE("%s: reached the maximum number of channels per buffer node: 32.", __FUNCTION__);
             errno = E2BIG;
             return 0ULL;
         }

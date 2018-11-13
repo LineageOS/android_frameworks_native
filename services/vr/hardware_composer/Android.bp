@@ -55,7 +55,6 @@ cc_library_shared {
     "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     "-Wall",
     "-Werror",
-    // mVrClient unused in vr_composer_client.cpp
     "-Wno-error=unused-private-field",
     // Warnings in vr_hwc.cpp to be fixed after sync of goog/master.
     "-Wno-sign-compare",

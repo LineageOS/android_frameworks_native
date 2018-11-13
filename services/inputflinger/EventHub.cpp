@@ -147,8 +147,7 @@ EventHub::Device::Device(int fd, int32_t id, const std::string& path,
         fd(fd), id(id), path(path), identifier(identifier),
         classes(0), configuration(nullptr), virtualKeyMap(nullptr),
         ffEffectPlaying(false), ffEffectId(-1), controllerNumber(0),
-        timestampOverrideSec(0), timestampOverrideUsec(0), enabled(true),
-        isVirtual(fd < 0) {
+        enabled(true), isVirtual(fd < 0) {
     memset(keyBitmask, 0, sizeof(keyBitmask));
     memset(absBitmask, 0, sizeof(absBitmask));
     memset(relBitmask, 0, sizeof(relBitmask));
@@ -870,31 +869,6 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                                 device->path.c_str(),
                                 (int) iev.time.tv_sec, (int) iev.time.tv_usec,
                                 iev.type, iev.code, iev.value);
-
-                        // Some input devices may have a better concept of the time
-                        // when an input event was actually generated than the kernel
-                        // which simply timestamps all events on entry to evdev.
-                        // This is a custom Android extension of the input protocol
-                        // mainly intended for use with uinput based device drivers.
-                        if (iev.type == EV_MSC) {
-                            if (iev.code == MSC_ANDROID_TIME_SEC) {
-                                device->timestampOverrideSec = iev.value;
-                                continue;
-                            } else if (iev.code == MSC_ANDROID_TIME_USEC) {
-                                device->timestampOverrideUsec = iev.value;
-                                continue;
-                            }
-                        }
-                        if (device->timestampOverrideSec || device->timestampOverrideUsec) {
-                            iev.time.tv_sec = device->timestampOverrideSec;
-                            iev.time.tv_usec = device->timestampOverrideUsec;
-                            if (iev.type == EV_SYN && iev.code == SYN_REPORT) {
-                                device->timestampOverrideSec = 0;
-                                device->timestampOverrideUsec = 0;
-                            }
-                            ALOGV("applied override time %d.%06d",
-                                    int(iev.time.tv_sec), int(iev.time.tv_usec));
-                        }
 
                         // Use the time specified in the event instead of the current time
                         // so that downstream code can get more accurate estimates of
