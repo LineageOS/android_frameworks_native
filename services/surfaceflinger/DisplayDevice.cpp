@@ -35,6 +35,8 @@
 #include <gui/Surface.h>
 #include <hardware/gralloc.h>
 #include <renderengine/RenderEngine.h>
+#include <sync/sync.h>
+#include <system/window.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
@@ -221,10 +223,8 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mDisplayToken(args.displayToken),
         mId(args.displayId),
         mNativeWindow(args.nativeWindow),
+        mGraphicBuffer(nullptr),
         mDisplaySurface(args.displaySurface),
-        mSurface{std::move(args.renderSurface)},
-        mDisplayWidth(args.displayWidth),
-        mDisplayHeight(args.displayHeight),
         mDisplayInstallOrientation(args.displayInstallOrientation),
         mPageFlipCount(0),
         mIsVirtual(args.isVirtual),
@@ -246,9 +246,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
 
     ALOGE_IF(!mNativeWindow, "No native window was set for display");
     ALOGE_IF(!mDisplaySurface, "No display surface was set for display");
-    ALOGE_IF(!mSurface, "No render surface was set for display");
-    ALOGE_IF(mDisplayWidth <= 0 || mDisplayHeight <= 0,
-             "Invalid dimensions of %d x %d were set for display", mDisplayWidth, mDisplayHeight);
 
     std::vector<Hdr> types = args.hdrCapabilities.getSupportedHdrTypes();
     for (Hdr hdrType : types) {
@@ -287,6 +284,14 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     }
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
 
+    ANativeWindow* const window = mNativeWindow.get();
+
+    int status = native_window_api_connect(mNativeWindow.get(), NATIVE_WINDOW_API_EGL);
+    ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
+
+    mDisplayWidth = ANativeWindow_getWidth(window);
+    mDisplayHeight = ANativeWindow_getHeight(window);
+
     // initialize the display orientation transform.
     setProjection(DisplayState::eOrientationDefault, mViewport, mFrame);
 }
@@ -321,7 +326,6 @@ uint32_t DisplayDevice::getPageFlipCount() const {
 
 void DisplayDevice::flip() const
 {
-    mFlinger->getRenderEngine().checkErrors();
     mPageFlipCount++;
 }
 
@@ -356,9 +360,71 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc,
     return mDisplaySurface->prepareFrame(compositionType);
 }
 
-void DisplayDevice::swapBuffers(HWComposer& hwc) const {
+sp<GraphicBuffer> DisplayDevice::dequeueBuffer() {
+    int fd;
+    ANativeWindowBuffer* buffer;
+
+    status_t res = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buffer, &fd);
+
+    if (res != NO_ERROR) {
+        ALOGE("ANativeWindow::dequeueBuffer failed for display [%s] with error: %d",
+              getDisplayName().c_str(), res);
+        // Return fast here as we can't do much more - any rendering we do
+        // now will just be wrong.
+        return mGraphicBuffer;
+    }
+
+    ALOGW_IF(mGraphicBuffer != nullptr, "Clobbering a non-null pointer to a buffer [%p].",
+             mGraphicBuffer->getNativeBuffer()->handle);
+    mGraphicBuffer = GraphicBuffer::from(buffer);
+
+    // Block until the buffer is ready
+    // TODO(alecmouri): it's perhaps more appropriate to block renderengine so
+    // that the gl driver can block instead.
+    if (fd >= 0) {
+        sync_wait(fd, -1);
+        close(fd);
+    }
+
+    return mGraphicBuffer;
+}
+
+void DisplayDevice::queueBuffer(HWComposer& hwc) {
     if (hwc.hasClientComposition(mId) || hwc.hasFlipClientTargetRequest(mId)) {
-        mSurface->swapBuffers();
+        // hasFlipClientTargetRequest could return true even if we haven't
+        // dequeued a buffer before. Try dequeueing one if we don't have a
+        // buffer ready.
+        if (mGraphicBuffer == nullptr) {
+            ALOGI("Attempting to queue a client composited buffer without one "
+                  "previously dequeued for display [%s]. Attempting to dequeue "
+                  "a scratch buffer now",
+                  mDisplayName.c_str());
+            // We shouldn't deadlock here, since mGraphicBuffer == nullptr only
+            // after a successful call to queueBuffer, or if dequeueBuffer has
+            // never been called.
+            dequeueBuffer();
+        }
+
+        if (mGraphicBuffer == nullptr) {
+            ALOGE("No buffer is ready for display [%s]", mDisplayName.c_str());
+        } else {
+            int fd = mBufferReady.release();
+
+            status_t res = mNativeWindow->queueBuffer(mNativeWindow.get(),
+                                                      mGraphicBuffer->getNativeBuffer(), fd);
+            if (res != NO_ERROR) {
+                ALOGE("Error when queueing buffer for display [%s]: %d", mDisplayName.c_str(), res);
+                // We risk blocking on dequeueBuffer if the primary display failed
+                // to queue up its buffer, so crash here.
+                if (isPrimary()) {
+                    LOG_ALWAYS_FATAL("ANativeWindow::queueBuffer failed with error: %d", res);
+                } else {
+                    mNativeWindow->cancelBuffer(mNativeWindow.get(),
+                                                mGraphicBuffer->getNativeBuffer(), fd);
+                }
+            }
+            mGraphicBuffer = nullptr;
+        }
     }
 
     status_t result = mDisplaySurface->advanceFrame();
@@ -367,14 +433,8 @@ void DisplayDevice::swapBuffers(HWComposer& hwc) const {
     }
 }
 
-void DisplayDevice::onSwapBuffersCompleted() const {
+void DisplayDevice::onPresentDisplayCompleted() {
     mDisplaySurface->onFrameCommitted();
-}
-
-bool DisplayDevice::makeCurrent() const {
-    bool success = mFlinger->getRenderEngine().setCurrentSurface(*mSurface);
-    setViewportAndProjection();
-    return success;
 }
 
 void DisplayDevice::setViewportAndProjection() const {
@@ -382,6 +442,13 @@ void DisplayDevice::setViewportAndProjection() const {
     size_t h = mDisplayHeight;
     Rect sourceCrop(0, 0, w, h);
     mFlinger->getRenderEngine().setViewportAndProjection(w, h, sourceCrop, ui::Transform::ROT_0);
+}
+
+void DisplayDevice::finishBuffer() {
+    mBufferReady = mFlinger->getRenderEngine().flush();
+    if (mBufferReady.get() < 0) {
+        mFlinger->getRenderEngine().finish();
+    }
 }
 
 const sp<Fence>& DisplayDevice::getClientTargetAcquireFence() const {
@@ -532,19 +599,10 @@ status_t DisplayDevice::orientationToTransfrom(
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
     dirtyRegion.set(getBounds());
 
-    mSurface->setNativeWindow(nullptr);
-
     mDisplaySurface->resizeBuffers(newWidth, newHeight);
 
-    ANativeWindow* const window = mNativeWindow.get();
-    mSurface->setNativeWindow(window);
-    mDisplayWidth = mSurface->getWidth();
-    mDisplayHeight = mSurface->getHeight();
-
-    LOG_FATAL_IF(mDisplayWidth != newWidth,
-                "Unable to set new width to %d", newWidth);
-    LOG_FATAL_IF(mDisplayHeight != newHeight,
-                "Unable to set new height to %d", newHeight);
+    mDisplayWidth = newWidth;
+    mDisplayHeight = newHeight;
 }
 
 void DisplayDevice::setProjection(int orientation,
@@ -658,12 +716,11 @@ void DisplayDevice::dump(String8& result) const {
     ANativeWindow* const window = mNativeWindow.get();
     result.appendFormat("+ %s\n", getDebugName().c_str());
     result.appendFormat("  layerStack=%u, (%4dx%4d), ANativeWindow=%p "
-                        "(%d:%d:%d:%d), orient=%2d (type=%08x), "
-                        "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
+                        "format=%d, orient=%2d (type=%08x), flips=%u, isSecure=%d, "
+                        "powerMode=%d, activeConfig=%d, numLayers=%zu\n",
                         mLayerStack, mDisplayWidth, mDisplayHeight, window,
-                        mSurface->queryRedSize(), mSurface->queryGreenSize(),
-                        mSurface->queryBlueSize(), mSurface->queryAlphaSize(), mOrientation,
-                        tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
+                        ANativeWindow_getFormat(window), mOrientation, tr.getType(),
+                        getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
                         mVisibleLayersSortedByZ.size());
     result.appendFormat("   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
                         "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
@@ -674,9 +731,9 @@ void DisplayDevice::dump(String8& result) const {
     auto const surface = static_cast<Surface*>(window);
     ui::Dataspace dataspace = surface->getBuffersDataSpace();
     result.appendFormat("   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
-                        mHasWideColorGamut, mHasHdr10,
-                        decodeColorMode(mActiveColorMode).c_str(),
-                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
+                        mHasWideColorGamut, mHasHdr10, decodeColorMode(mActiveColorMode).c_str(),
+                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(),
+                        dataspace);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
