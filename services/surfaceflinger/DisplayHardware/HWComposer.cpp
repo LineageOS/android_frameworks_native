@@ -58,11 +58,11 @@
     ALOGE("%s failed for HWC display %" PRIu64 ": %s", __FUNCTION__, hwcDisplayId, msg)
 
 #define LOG_DISPLAY_ERROR(displayId, msg) \
-    ALOGE("%s failed for display %" PRIu64 ": %s", __FUNCTION__, displayId, msg)
+    ALOGE("%s failed for display %s: %s", __FUNCTION__, to_string(displayId).c_str(), msg)
 
-#define LOG_HWC_ERROR(what, error, displayId)                                              \
-    ALOGE("%s: %s failed for display %" PRIu64 ": %s (%d)", __FUNCTION__, what, displayId, \
-          to_string(error).c_str(), static_cast<int32_t>(error))
+#define LOG_HWC_ERROR(what, error, displayId)                          \
+    ALOGE("%s: %s failed for display %s: %s (%d)", __FUNCTION__, what, \
+          to_string(displayId).c_str(), to_string(error).c_str(), static_cast<int32_t>(error))
 
 #define RETURN_IF_INVALID_DISPLAY(displayId, ...)            \
     do {                                                     \
@@ -159,9 +159,9 @@ std::optional<DisplayIdentificationInfo> HWComposer::onHotplug(hwc2_display_t hw
         if (!info) return {};
     }
 
-    ALOGV("%s: %s %s display %" PRIu64 " with HWC ID %" PRIu64, __FUNCTION__,
-          to_string(connection).c_str(),
-          hwcDisplayId == mInternalHwcDisplayId ? "internal" : "external", info->id, hwcDisplayId);
+    ALOGV("%s: %s %s display %s with HWC ID %" PRIu64, __FUNCTION__, to_string(connection).c_str(),
+          hwcDisplayId == mInternalHwcDisplayId ? "internal" : "external",
+          to_string(info->id).c_str(), hwcDisplayId);
 
     mHwcDevice->onHotplug(hwcDisplayId, connection);
 
@@ -198,15 +198,15 @@ bool HWComposer::onVsync(hwc2_display_t hwcDisplayId, int64_t timestamp) {
         // is a bug in the HWC implementation, but filter the extra events
         // out here so they don't cause havoc downstream.
         if (timestamp == mLastHwVSync[*displayId]) {
-            ALOGW("Ignoring duplicate VSYNC event from HWC for display %" PRIu64 " (t=%" PRId64 ")",
-                  *displayId, timestamp);
+            ALOGW("Ignoring duplicate VSYNC event from HWC for display %s (t=%" PRId64 ")",
+                  to_string(*displayId).c_str(), timestamp);
             return false;
         }
 
         mLastHwVSync[*displayId] = timestamp;
     }
 
-    const auto tag = "HW_VSYNC_" + std::to_string(*displayId);
+    const auto tag = "HW_VSYNC_" + to_string(*displayId);
     ATRACE_INT(tag.c_str(), ++mVSyncCounts[*displayId] & 1);
 
     return true;
@@ -383,7 +383,7 @@ void HWComposer::setVsyncEnabled(DisplayId displayId, HWC2::Vsync enabled) {
 
         displayData.vsyncEnabled = enabled;
 
-        const auto tag = "HW_VSYNC_ON_" + std::to_string(displayId);
+        const auto tag = "HW_VSYNC_ON_" + to_string(displayId);
         ATRACE_INT(tag.c_str(), enabled == HWC2::Vsync::Enable ? 1 : 0);
     }
 }
@@ -393,7 +393,7 @@ status_t HWComposer::setClientTarget(DisplayId displayId, uint32_t slot,
                                      ui::Dataspace dataspace) {
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
 
-    ALOGV("setClientTarget for display %" PRIu64, displayId);
+    ALOGV("%s for display %s", __FUNCTION__, to_string(displayId).c_str());
     auto& hwcDisplay = mDisplayData[displayId].hwcDisplay;
     auto error = hwcDisplay->setClientTarget(slot, target, acquireFence, dataspace);
     RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
