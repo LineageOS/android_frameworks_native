@@ -795,6 +795,9 @@ struct ColorLayerVariant : public BaseLayerVariant<LayerProperties> {
                                                     LayerProperties::HEIGHT,
                                                     LayerProperties::LAYER_FLAGS));
         });
+
+        auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
+        layerDrawingState.crop_legacy = Rect(0, 0, LayerProperties::HEIGHT, LayerProperties::WIDTH);
         return layer;
     }
 

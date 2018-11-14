@@ -175,6 +175,7 @@ public:
     auto& mutableLayerDrawingState(sp<Layer> layer) { return layer->mDrawingState; }
 
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
+        layer->mDrawingState.sidebandStream = sidebandStream;
         layer->getBE().compositionInfo.hwc.sidebandStream = sidebandStream;
     }
 

@@ -665,6 +665,36 @@ uint64_t BufferLayer::getHeadFrameNumber() const {
     }
 }
 
+Rect BufferLayer::getBufferSize(const State& s) const {
+    // If we have a sideband stream, or we are scaling the buffer then return the layer size since
+    // we cannot determine the buffer size.
+    if ((s.sidebandStream != nullptr) ||
+        (getEffectiveScalingMode() != NATIVE_WINDOW_SCALING_MODE_FREEZE)) {
+        return Rect(getActiveWidth(s), getActiveHeight(s));
+    }
+
+    if (mActiveBuffer == nullptr) {
+        return Rect::INVALID_RECT;
+    }
+
+    uint32_t bufWidth = mActiveBuffer->getWidth();
+    uint32_t bufHeight = mActiveBuffer->getHeight();
+
+    // Undo any transformations on the buffer and return the result.
+    if (mCurrentTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+
+    if (getTransformToDisplayInverse()) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufWidth, bufHeight);
+        }
+    }
+
+    return Rect(bufWidth, bufHeight);
+}
+
 } // namespace android
 
 #if defined(__gl_h_)
