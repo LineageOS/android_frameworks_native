@@ -183,7 +183,6 @@ cc_defaults {
         "libhidltransport",
         "liblayers_proto",
         "liblog",
-        "libsync",
         "libtimestats_proto",
         "libutils",
     ],

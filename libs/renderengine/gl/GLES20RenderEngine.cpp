@@ -275,8 +275,6 @@ std::unique_ptr<GLES20RenderEngine> GLES20RenderEngine::create(int hwcFormat,
 
     // now figure out what version of GL did we actually get
     // NOTE: a dummy surface is not needed if KHR_create_context is supported
-    // TODO(alecmouri): don't create this surface if EGL_KHR_surfaceless_context
-    // is supported.
 
     EGLConfig dummyConfig = config;
     if (dummyConfig == EGL_NO_CONFIG) {
@@ -303,10 +301,10 @@ std::unique_ptr<GLES20RenderEngine> GLES20RenderEngine::create(int hwcFormat,
             break;
         case GLES_VERSION_2_0:
         case GLES_VERSION_3_0:
-            engine = std::make_unique<GLES20RenderEngine>(featureFlags, display, config, ctxt,
-                                                          dummy);
+            engine = std::make_unique<GLES20RenderEngine>(featureFlags);
             break;
     }
+    engine->setEGLHandles(display, config, ctxt);
 
     ALOGI("OpenGL ES informations:");
     ALOGI("vendor    : %s", extensions.getVendor());
@@ -315,6 +313,9 @@ std::unique_ptr<GLES20RenderEngine> GLES20RenderEngine::create(int hwcFormat,
     ALOGI("extensions: %s", extensions.getExtensions());
     ALOGI("GL_MAX_TEXTURE_SIZE = %zu", engine->getMaxTextureSize());
     ALOGI("GL_MAX_VIEWPORT_DIMS = %zu", engine->getMaxViewportDims());
+
+    eglMakeCurrent(display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+    eglDestroySurface(display, dummy);
 
     return engine;
 }
@@ -358,13 +359,11 @@ EGLConfig GLES20RenderEngine::chooseEglConfig(EGLDisplay display, int format, bo
     return config;
 }
 
-GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags, EGLDisplay display, EGLConfig config,
-                                       EGLContext ctxt, EGLSurface dummy)
+GLES20RenderEngine::GLES20RenderEngine(uint32_t featureFlags)
       : renderengine::impl::RenderEngine(featureFlags),
-        mEGLDisplay(display),
-        mEGLConfig(config),
-        mEGLContext(ctxt),
-        mDummySurface(dummy),
+        mEGLDisplay(EGL_NO_DISPLAY),
+        mEGLConfig(nullptr),
+        mEGLContext(EGL_NO_CONTEXT),
         mVpWidth(0),
         mVpHeight(0),
         mUseColorManagement(featureFlags & USE_COLOR_MANAGEMENT) {
@@ -637,6 +636,12 @@ void GLES20RenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
 
     // back to main framebuffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // Workaround for b/77935566 to force the EGL driver to release the
+    // screenshot buffer
+    setScissor(Rect::EMPTY_RECT);
+    clearWithColor(0.0, 0.0, 0.0, 0.0);
+    disableScissor();
 }
 
 void GLES20RenderEngine::checkErrors() const {
@@ -967,6 +972,12 @@ bool GLES20RenderEngine::needsXYZTransformMatrix() const {
             static_cast<Dataspace>(mOutputDataSpace & Dataspace::TRANSFER_MASK);
 
     return (isInputHdrDataSpace || isOutputHdrDataSpace) && inputTransfer != outputTransfer;
+}
+
+void GLES20RenderEngine::setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt) {
+    mEGLDisplay = display;
+    mEGLConfig = config;
+    mEGLContext = ctxt;
 }
 
 } // namespace gl
