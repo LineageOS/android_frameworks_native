@@ -120,7 +120,6 @@ public:
     mock::EventThread* mEventThread = new mock::EventThread();
     mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
     sp<mock::NativeWindow> mNativeWindow = new mock::NativeWindow();
-    sp<GraphicBuffer> mBuffer = new GraphicBuffer();
 
     // These mocks are created by the test, but are destroyed by SurfaceFlinger
     // by virtue of being stored into a std::unique_ptr. However we still need
@@ -341,6 +340,7 @@ struct DisplayVariant {
     static void setupNativeWindowSurfaceCreationCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mNativeWindowSurface, getNativeWindow())
                 .WillOnce(Return(test->mNativeWindow));
+        EXPECT_CALL(*test->mNativeWindow, perform(19)).WillRepeatedly(Return(NO_ERROR));
 
         // For simplicity, we only expect to create a single render surface for
         // each test.
@@ -349,15 +349,17 @@ struct DisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, createSurface())
                 .WillOnce(Return(ByMove(
                         std::unique_ptr<renderengine::Surface>(test->mRenderSurface))));
+
+        // Creating a DisplayDevice requires getting default dimensions from the
+        // native window.
         EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(WIDTH), Return(0)));
         EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(HEIGHT), Return(0)));
 
-        // Creating a DisplayDevice requires getting default dimensions from the
-        // native window.
         EXPECT_CALL(*test->mRenderSurface, setAsync(static_cast<bool>(ASYNC))).Times(1);
         EXPECT_CALL(*test->mRenderSurface, setCritical(static_cast<bool>(CRITICAL))).Times(1);
+        EXPECT_CALL(*test->mRenderSurface, setNativeWindow(test->mNativeWindow.get())).Times(1);
     }
 
     static void setupFramebufferConsumerBufferQueueCallExpectations(DisplayTransactionTest* test) {
@@ -1068,6 +1070,9 @@ TEST_F(DisplayTransactionTest, resetDisplayStateClearsState) {
     // The call disable vsyncs
     EXPECT_CALL(*mEventControlThread, setVsyncEnabled(false)).Times(1);
 
+    // The call clears the current render engine surface
+    EXPECT_CALL(*mRenderEngine, resetCurrentSurface());
+
     // The call ends any display resyncs
     EXPECT_CALL(*mPrimaryDispSync, endResync()).Times(1);
 
@@ -1127,7 +1132,6 @@ public:
                 .WillRepeatedly(DoAll(SetArgPointee<1>(1080 /* arbitrary */), Return(0)));
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(1920 /* arbitrary */), Return(0)));
-        EXPECT_CALL(*mNativeWindow, perform(13)).Times(1);
         auto displayDevice = mInjector.inject();
 
         displayDevice->getBestColorMode(mInputDataspace, mInputRenderIntent, &mOutDataspace,
@@ -1721,6 +1725,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayAdded) {
 
     EXPECT_CALL(*surface, setAsyncMode(true)).Times(1);
 
+    EXPECT_CALL(*mProducer, connect(_, _, _, _)).Times(1);
     EXPECT_CALL(*mProducer, disconnect(_, _)).Times(1);
 
     Case::Display::setupHwcVirtualDisplayCreationCallExpectations(this);
@@ -1945,17 +1950,10 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     auto nativeWindow = new mock::NativeWindow();
     auto displaySurface = new mock::DisplaySurface();
     auto renderSurface = new renderengine::mock::Surface();
-    sp<GraphicBuffer> buf = new GraphicBuffer();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
     display.setRenderSurface(std::unique_ptr<renderengine::Surface>(renderSurface));
-    // Setup injection expections
-    EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_WIDTH, _))
-            .WillOnce(DoAll(SetArgPointee<1>(oldWidth), Return(0)));
-    EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
-            .WillOnce(DoAll(SetArgPointee<1>(oldHeight), Return(0)));
-    EXPECT_CALL(*nativeWindow, perform(13)).Times(1);
     display.inject();
 
     // There is a change to the viewport state
@@ -1967,7 +1965,9 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     // --------------------------------------------------------------------
     // Call Expectations
 
+    EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
     EXPECT_CALL(*displaySurface, resizeBuffers(newWidth, oldHeight)).Times(1);
+    EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation
@@ -1989,17 +1989,10 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     auto nativeWindow = new mock::NativeWindow();
     auto displaySurface = new mock::DisplaySurface();
     auto renderSurface = new renderengine::mock::Surface();
-    sp<GraphicBuffer> buf = new GraphicBuffer();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
     display.setRenderSurface(std::unique_ptr<renderengine::Surface>(renderSurface));
-    // Setup injection expections
-    EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_WIDTH, _))
-            .WillOnce(DoAll(SetArgPointee<1>(oldWidth), Return(0)));
-    EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
-            .WillOnce(DoAll(SetArgPointee<1>(oldHeight), Return(0)));
-    EXPECT_CALL(*nativeWindow, perform(13)).Times(1);
     display.inject();
 
     // There is a change to the viewport state
@@ -2011,7 +2004,9 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // --------------------------------------------------------------------
     // Call Expectations
 
+    EXPECT_CALL(*renderSurface, setNativeWindow(nullptr)).Times(1);
     EXPECT_CALL(*displaySurface, resizeBuffers(oldWidth, newHeight)).Times(1);
+    EXPECT_CALL(*renderSurface, setNativeWindow(nativeWindow)).Times(1);
 
     // --------------------------------------------------------------------
     // Invocation

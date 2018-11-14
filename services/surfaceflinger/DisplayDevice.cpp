@@ -35,8 +35,6 @@
 #include <gui/Surface.h>
 #include <hardware/gralloc.h>
 #include <renderengine/RenderEngine.h>
-#include <sync/sync.h>
-#include <system/window.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
 #include <ui/PixelFormat.h>
@@ -223,7 +221,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mDisplayToken(args.displayToken),
         mId(args.displayId),
         mNativeWindow(args.nativeWindow),
-        mGraphicBuffer(nullptr),
         mDisplaySurface(args.displaySurface),
         mSurface{std::move(args.renderSurface)},
         mDisplayInstallOrientation(args.displayInstallOrientation),
@@ -287,10 +284,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
 
     ANativeWindow* const window = mNativeWindow.get();
-
-    int status = native_window_api_connect(mNativeWindow.get(), NATIVE_WINDOW_API_EGL);
-    ALOGE_IF(status != NO_ERROR, "Unable to connect BQ producer: %d", status);
-
     mDisplayWidth = ANativeWindow_getWidth(window);
     mDisplayHeight = ANativeWindow_getHeight(window);
 
@@ -328,6 +321,7 @@ uint32_t DisplayDevice::getPageFlipCount() const {
 
 void DisplayDevice::flip() const
 {
+    mFlinger->getRenderEngine().checkErrors();
     mPageFlipCount++;
 }
 
@@ -362,71 +356,9 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc,
     return mDisplaySurface->prepareFrame(compositionType);
 }
 
-sp<GraphicBuffer> DisplayDevice::dequeueBuffer() {
-    int fd;
-    ANativeWindowBuffer* buffer;
-
-    status_t res = mNativeWindow->dequeueBuffer(mNativeWindow.get(), &buffer, &fd);
-
-    if (res != NO_ERROR) {
-        ALOGE("ANativeWindow::dequeueBuffer failed for display [%s] with error: %d",
-              getDisplayName().c_str(), res);
-        // Return fast here as we can't do much more - any rendering we do
-        // now will just be wrong.
-        return mGraphicBuffer;
-    }
-
-    ALOGW_IF(mGraphicBuffer != nullptr, "Clobbering a non-null pointer to a buffer [%p].",
-             mGraphicBuffer->getNativeBuffer()->handle);
-    mGraphicBuffer = GraphicBuffer::from(buffer);
-
-    // Block until the buffer is ready
-    // TODO(alecmouri): it's perhaps more appropriate to block renderengine so
-    // that the gl driver can block instead.
-    if (fd >= 0) {
-        sync_wait(fd, -1);
-        close(fd);
-    }
-
-    return mGraphicBuffer;
-}
-
-void DisplayDevice::queueBuffer(HWComposer& hwc) {
+void DisplayDevice::swapBuffers(HWComposer& hwc) const {
     if (hwc.hasClientComposition(mId) || hwc.hasFlipClientTargetRequest(mId)) {
-        // hasFlipClientTargetRequest could return true even if we haven't
-        // dequeued a buffer before. Try dequeueing one if we don't have a
-        // buffer ready.
-        if (mGraphicBuffer == nullptr) {
-            ALOGI("Attempting to queue a client composited buffer without one "
-                  "previously dequeued for display [%s]. Attempting to dequeue "
-                  "a scratch buffer now",
-                  mDisplayName.c_str());
-            // We shouldn't deadlock here, since mGraphicBuffer == nullptr only
-            // after a successful call to queueBuffer, or if dequeueBuffer has
-            // never been called.
-            dequeueBuffer();
-        }
-
-        if (mGraphicBuffer == nullptr) {
-            ALOGE("No buffer is ready for display [%s]", mDisplayName.c_str());
-        } else {
-            int fd = mBufferReady.release();
-
-            status_t res = mNativeWindow->queueBuffer(mNativeWindow.get(),
-                                                      mGraphicBuffer->getNativeBuffer(), fd);
-            if (res != NO_ERROR) {
-                ALOGE("Error when queueing buffer for display [%s]: %d", mDisplayName.c_str(), res);
-                // We risk blocking on dequeueBuffer if the primary display failed
-                // to queue up its buffer, so crash here.
-                if (isPrimary()) {
-                    LOG_ALWAYS_FATAL("ANativeWindow::queueBuffer failed with error: %d", res);
-                } else {
-                    mNativeWindow->cancelBuffer(mNativeWindow.get(),
-                                                mGraphicBuffer->getNativeBuffer(), fd);
-                }
-            }
-            mGraphicBuffer = nullptr;
-        }
+        mSurface->swapBuffers();
     }
 
     status_t result = mDisplaySurface->advanceFrame();
@@ -435,7 +367,7 @@ void DisplayDevice::queueBuffer(HWComposer& hwc) {
     }
 }
 
-void DisplayDevice::onPresentDisplayCompleted() {
+void DisplayDevice::onSwapBuffersCompleted() const {
     mDisplaySurface->onFrameCommitted();
 }
 
@@ -450,13 +382,6 @@ void DisplayDevice::setViewportAndProjection() const {
     size_t h = mDisplayHeight;
     Rect sourceCrop(0, 0, w, h);
     mFlinger->getRenderEngine().setViewportAndProjection(w, h, sourceCrop, ui::Transform::ROT_0);
-}
-
-void DisplayDevice::finishBuffer() {
-    mBufferReady = mFlinger->getRenderEngine().flush();
-    if (mBufferReady.get() < 0) {
-        mFlinger->getRenderEngine().finish();
-    }
 }
 
 const sp<Fence>& DisplayDevice::getClientTargetAcquireFence() const {
