@@ -212,9 +212,8 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
   LocalHandle fence;
   EXPECT_EQ(0, p->GainAsync());
 
-  // Acquire and gain in gained state should fail.
+  // Acquire in gained state should fail.
   EXPECT_EQ(-EBUSY, c->Acquire(&fence));
-  EXPECT_EQ(-EALREADY, p->Gain(&fence));
 
   // Post in gained state should succeed.
   EXPECT_EQ(0, p->Post(LocalHandle()));
@@ -242,9 +241,8 @@ TEST_F(LibBufferHubTest, TestStateTransitions) {
   // Gain in released state should succeed.
   EXPECT_EQ(0, p->Gain(&fence));
 
-  // Acquire and gain in gained state should fail.
+  // Acquire in gained state should fail.
   EXPECT_EQ(-EBUSY, c->Acquire(&fence));
-  EXPECT_EQ(-EALREADY, p->Gain(&fence));
 }
 
 TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
@@ -259,10 +257,9 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   LocalHandle invalid_fence;
   EXPECT_EQ(0, p->GainAsync());
 
-  // Acquire and gain in gained state should fail.
+  // Acquire in gained state should fail.
   EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_FALSE(invalid_fence.IsValid());
-  EXPECT_EQ(-EALREADY, p->GainAsync(&metadata, &invalid_fence));
   EXPECT_FALSE(invalid_fence.IsValid());
 
   // Post in gained state should succeed.
@@ -309,8 +306,15 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   // Acquire and gain in gained state should fail.
   EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_FALSE(invalid_fence.IsValid());
-  EXPECT_EQ(-EALREADY, p->GainAsync(&metadata, &invalid_fence));
-  EXPECT_FALSE(invalid_fence.IsValid());
+}
+
+TEST_F(LibBufferHubTest, TestGainTwiceByTheSameProducer) {
+  std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
+      kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
+  ASSERT_TRUE(p.get() != nullptr);
+
+  ASSERT_EQ(0, p->GainAsync());
+  ASSERT_EQ(0, p->GainAsync());
 }
 
 TEST_F(LibBufferHubTest, TestGainPostedBuffer) {
