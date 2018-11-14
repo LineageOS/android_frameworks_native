@@ -24,13 +24,12 @@
 #include <string>
 #include <unordered_map>
 
-#include <android/native_window.h>
 #include <binder/IBinder.h>
 #include <gui/LayerState.h>
 #include <hardware/hwcomposer_defs.h>
 #include <math/mat4.h>
 #include <renderengine/RenderEngine.h>
-#include <system/window.h>
+#include <renderengine/Surface.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
@@ -42,6 +41,8 @@
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "RenderArea.h"
+
+struct ANativeWindow;
 
 namespace android {
 
@@ -162,6 +163,7 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
+    bool makeCurrent() const;
     // Acquires a new buffer for GPU composition.
     void readyNewBuffer();
     // Marks the current buffer has finished, so that it can be presented and
@@ -218,6 +220,7 @@ private:
     // that drawing to the buffer is now complete.
     base::unique_fd mBufferReady;
 
+    std::unique_ptr<renderengine::Surface> mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
     const int       mDisplayInstallOrientation;
@@ -337,6 +340,7 @@ struct DisplayDeviceCreationArgs {
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<DisplaySurface> displaySurface;
+    std::unique_ptr<renderengine::Surface> renderSurface;
     int displayInstallOrientation{DisplayState::eOrientationDefault};
     bool hasWideColorGamut{false};
     HdrCapabilities hdrCapabilities;
