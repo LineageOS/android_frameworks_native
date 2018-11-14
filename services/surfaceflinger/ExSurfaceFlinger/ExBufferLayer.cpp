@@ -94,16 +94,13 @@ bool ExBufferLayer::isHDRLayer() const {
     if (!buffer)
         return false;
 
-    private_handle_t* hnd = static_cast<private_handle_t*>
+    const private_handle_t* hnd = static_cast<private_handle_t*>
             (const_cast<native_handle_t*>(buffer->handle));
     if (!hnd)
         return false;
 
-    const MetaData_t *metaData = NULL;
-    metaData = reinterpret_cast<MetaData_t *>(hnd->base_metadata);
-
-    if (metaData && (metaData->operation & COLOR_METADATA)) {
-        const ColorMetaData &colorData = metaData->color;
+    ColorMetaData colorData;
+    if (getMetaData(const_cast<private_handle_t *>(hnd), GET_COLOR_METADATA, &colorData) == 0) {
         if (colorData.colorPrimaries == ColorPrimaries_BT2020 &&
             (colorData.transfer == Transfer_SMPTE_ST2084 ||
             colorData.transfer == Transfer_HLG)) {
