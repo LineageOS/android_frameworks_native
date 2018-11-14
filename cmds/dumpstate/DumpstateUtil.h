@@ -97,9 +97,16 @@ class CommandOptions {
       public:
         /* Sets the command to always run, even on `dry-run` mode. */
         CommandOptionsBuilder& Always();
-        /* Sets the command's PrivilegeMode as `SU_ROOT` */
+        /*
+         * Sets the command's PrivilegeMode as `SU_ROOT` unless overridden by system property
+         * 'dumpstate.unroot'.
+         */
         CommandOptionsBuilder& AsRoot();
-        /* If !IsUserBuild(), sets the command's PrivilegeMode as `SU_ROOT` */
+        /*
+         * Runs AsRoot() on userdebug builds. No-op on user builds since 'su' is
+         * not available. This is used for commands that return some useful information even
+         * when run as shell.
+         */
         CommandOptionsBuilder& AsRootIfAvailable();
         /* Sets the command's PrivilegeMode as `DROP_ROOT` */
         CommandOptionsBuilder& DropRoot();
@@ -162,9 +169,17 @@ class PropertiesHelper {
      */
     static bool IsDryRun();
 
+    /**
+     * Checks whether root availability should be overridden.
+     *
+     * Useful to verify how dumpstate would work in a device with an user build.
+     */
+    static bool IsUnroot();
+
   private:
     static std::string build_type_;
     static int dry_run_;
+    static int unroot_;
 };
 
 /*
