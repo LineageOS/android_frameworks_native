@@ -32,6 +32,7 @@ cc_test {
         "LayerHistoryTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
+        "TimeStatsTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplaySurface.cpp",
         "mock/DisplayHardware/MockPowerAdvisor.cpp",
