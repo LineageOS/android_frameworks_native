@@ -116,17 +116,36 @@ struct InputWindowInfo {
         INPUT_FEATURE_NO_INPUT_CHANNEL = 0x00000002,
         INPUT_FEATURE_DISABLE_USER_ACTIVITY = 0x00000004,
     };
-
+    
+    /* These values are filled in by the WM and passed through SurfaceFlinger
+     * unless specified otherwise.
+     */
     sp<IBinder> token;
     std::string name;
     int32_t layoutParamsFlags;
     int32_t layoutParamsType;
     nsecs_t dispatchingTimeout;
+
+    /* These values are filled in by SurfaceFlinger. */
     int32_t frameLeft;
     int32_t frameTop;
     int32_t frameRight;
     int32_t frameBottom;
+
+    /*
+     * SurfaceFlinger consumes this value to shrink the computed frame. This is
+     * different from shrinking the touchable region in that it DOES shift the coordinate
+     * space where-as the touchable region does not and is more like "cropping". This
+     * is used for window shadows.
+     */
+    int32_t surfaceInset = 0;
+
     float scaleFactor;
+
+    /*
+     * This is filled in by the WM relative to the frame and then translated
+     * to absolute coordinates by SurfaceFlinger once the frame is computed.
+     */
     Region touchableRegion;
     bool visible;
     bool canReceiveKeys;

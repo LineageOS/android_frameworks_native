@@ -81,6 +81,7 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(frameTop);
     output.writeInt32(frameRight);
     output.writeInt32(frameBottom);
+    output.writeInt32(surfaceInset);
     output.writeFloat(scaleFactor);
     output.writeBool(visible);
     output.writeBool(canReceiveKeys);
@@ -119,6 +120,7 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.frameTop = from.readInt32();
     ret.frameRight = from.readInt32();
     ret.frameBottom = from.readInt32();
+    ret.surfaceInset = from.readInt32();
     ret.scaleFactor = from.readFloat();
     ret.visible = from.readBool();
     ret.canReceiveKeys = from.readBool();

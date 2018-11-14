@@ -2069,12 +2069,12 @@ bool Layer::isRemovedFromCurrentState() const  {
 
 InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
     InputWindowInfo info = mDrawingState.inputInfo;
-    info.frameLeft = screenBounds.left;
-    info.inputInfo.frameTop = screenBounds.top;
-    info.inputInfo.frameRight = screenBounds.right;
-    info.inputInfo.frameBottom = screenBounds.bottom;
+    info.frameLeft = screenBounds.left + info.surfaceInset;
+    info.frameTop = screenBounds.top + info.surfaceInset;
+    info.frameRight = screenBounds.right - info.surfaceInset;
+    info.frameBottom = screenBounds.bottom - info.surfaceInset;
 
-    info.touchableRegion = mDrawingState.inputInfo.touchableRegion.translate(
+    info.touchableRegion = info.touchableRegion.translate(
             screenBounds.left,
             screenBounds.top);
     info.visible = isVisible();
