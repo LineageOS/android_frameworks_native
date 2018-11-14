@@ -401,6 +401,7 @@ private:
     Device* getDeviceByDescriptorLocked(const std::string& descriptor) const;
     Device* getDeviceLocked(int32_t deviceId) const;
     Device* getDeviceByPathLocked(const char* devicePath) const;
+    Device* getDeviceByFdLocked(int fd) const;
 
     bool hasKeycodeLocked(Device* device, int keycode) const;
 
@@ -448,10 +449,6 @@ private:
     int mINotifyFd;
     int mWakeReadPipeFd;
     int mWakeWritePipeFd;
-
-    // Ids used for epoll notifications not associated with devices.
-    static const uint32_t EPOLL_ID_INOTIFY = 0x80000001;
-    static const uint32_t EPOLL_ID_WAKE = 0x80000002;
 
     // Epoll FD list size hint.
     static const int EPOLL_SIZE_HINT = 8;
