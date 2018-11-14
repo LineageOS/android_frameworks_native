@@ -47,6 +47,7 @@ cc_library {
     cflags: [
         "-Wall",
         "-Werror",
+        "-Wno-enum-compare",
         "-Wno-unused-function",
     ],
 
