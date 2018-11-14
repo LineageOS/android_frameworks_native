@@ -167,6 +167,25 @@ namespace android {
             kSecurityLevelHwSecureAll
         };
 
+        // An offline license may be usable or inactive. The keys in a
+        // usable offline license are available for decryption. When
+        // the offline license state is inactive, the keys have been
+        // marked for release using getKeyRequest with
+        // kKeyType_Release but the key response has not been
+        // received. The keys in an inactive offline license are not
+        // usable for decryption.
+
+        enum OfflineLicenseState {
+            // The offline license state is unknown due to an error
+            kOfflineLicenseStateUnknown,
+            // Offline license state is usable, the keys may be used for decryption.
+            kOfflineLicenseStateUsable,
+            // Offline license state is inactive, the keys have been marked for
+            // release using getKeyRequest() with kKeyType_Release but the
+            // key response has not been received.
+            kOfflineLicenseStateInactive
+        };
+
         DrmPlugin() {}
         virtual ~DrmPlugin() {}
 

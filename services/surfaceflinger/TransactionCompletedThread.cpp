@@ -36,7 +36,9 @@ TransactionCompletedThread::~TransactionCompletedThread() {
         mConditionVariable.notify_all();
     }
 
-    mThread.join();
+    if (mThread.joinable()) {
+        mThread.join();
+    }
 
     {
         std::lock_guard lock(mMutex);

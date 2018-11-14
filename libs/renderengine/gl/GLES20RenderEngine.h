@@ -47,7 +47,8 @@ public:
     static std::unique_ptr<GLES20RenderEngine> create(int hwcFormat, uint32_t featureFlags);
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
-    GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
+    GLES20RenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
+                       EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
     ~GLES20RenderEngine() override;
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
@@ -120,11 +121,12 @@ private:
     // with PQ or HLG transfer function.
     bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
     bool needsXYZTransformMatrix() const;
-    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
+    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
     EGLContext mEGLContext;
+    EGLSurface mDummySurface;
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
