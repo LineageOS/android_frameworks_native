@@ -52,6 +52,7 @@ cc_defaults {
         "libui",
         "libutils",
         "libvulkan",
+        "libqdMetaData.system",
     ],
     static_libs: [
         "libserviceutils",
