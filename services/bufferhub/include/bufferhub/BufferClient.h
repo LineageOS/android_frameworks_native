@@ -18,6 +18,7 @@
 #define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_CLIENT_H
 
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
+#include <bufferhub/BufferNode.h>
 
 namespace android {
 namespace frameworks {
@@ -27,9 +28,19 @@ namespace implementation {
 
 using hardware::Return;
 
+// Forward declaration to avoid circular dependency
+class BufferHubService;
+
 class BufferClient : public IBufferClient {
 public:
+    // Creates a server-side buffer client from an existing BufferNode. Note that
+    // this funciton takes ownership of the shared_ptr.
+    explicit BufferClient(const std::shared_ptr<BufferNode>& node) : mBufferNode(node){};
+
     Return<void> duplicate(duplicate_cb _hidl_cb) override;
+
+private:
+    std::shared_ptr<BufferNode> mBufferNode;
 };
 
 } // namespace implementation
