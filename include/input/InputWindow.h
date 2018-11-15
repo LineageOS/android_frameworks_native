@@ -168,17 +168,17 @@ public:
     const sp<InputApplicationHandle> inputApplicationHandle;
 
     inline const InputWindowInfo* getInfo() const {
-        return mInfo;
+        return &mInfo;
     }
 
     sp<InputChannel> getInputChannel() const;
 
     inline std::string getName() const {
-        return mInfo ? mInfo->name : "<invalid>";
+        return mInfo.inputChannel ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo ? mInfo->dispatchingTimeout : defaultValue;
+        return mInfo.inputChannel? mInfo.dispatchingTimeout : defaultValue;
     }
 
     /**
@@ -193,16 +193,16 @@ public:
     virtual bool updateInfo() = 0;
 
     /**
-     * Releases the storage used by the associated information when it is
+     * Releases the channel used by the associated information when it is
      * no longer needed.
      */
-    void releaseInfo();
+    void releaseChannel();
 
 protected:
     explicit InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle);
     virtual ~InputWindowHandle();
 
-    InputWindowInfo* mInfo;
+    InputWindowInfo mInfo;
 };
 
 } // namespace android
