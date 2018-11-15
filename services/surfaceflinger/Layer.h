@@ -48,7 +48,6 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
-#include "TimeStats/TimeStats.h"
 #include "TransactionCompletedThread.h"
 
 #include "DisplayHardware/HWComposer.h"
@@ -788,8 +787,6 @@ protected:
     ConsumerFrameEventHistory mFrameEventHistory;
     FenceTimeline mAcquireTimeline;
     FenceTimeline mReleaseTimeline;
-
-    TimeStats& mTimeStats = TimeStats::getInstance();
 
     // main thread
     sp<GraphicBuffer> mActiveBuffer;

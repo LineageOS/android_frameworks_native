@@ -28,6 +28,8 @@
 #include "SurfaceFlingerFactory.h"
 #include "SurfaceInterceptor.h"
 
+#include "TimeStats/TimeStats.h"
+
 namespace android {
 
 class EventThread;
@@ -129,6 +131,11 @@ public:
     sp<ContainerLayer> createContainerLayer(const LayerCreationArgs&) override {
         // TODO: Use test-fixture controlled factory
         return nullptr;
+    }
+
+    std::unique_ptr<TimeStats> createTimeStats() override {
+        // TODO: Use test-fixture controlled factory
+        return std::make_unique<TimeStats>();
     }
 
     using CreateBufferQueueFunction =

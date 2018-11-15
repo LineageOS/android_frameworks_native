@@ -80,8 +80,11 @@ class TimeStats {
     };
 
 public:
-    static TimeStats& getInstance();
+    TimeStats() = default;
+    ~TimeStats() = default;
+
     void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, String8& result);
+
     void incrementTotalFrames();
     void incrementMissedFrames();
     void incrementClientCompositionFrames();
@@ -109,8 +112,6 @@ public:
     void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence);
 
 private:
-    TimeStats() = default;
-
     bool recordReadyLocked(int32_t layerID, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerID);
     void flushPowerTimeLocked();

@@ -72,7 +72,6 @@
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
-#include "TimeStats/TimeStats.h"
 
 #include <map>
 #include <mutex>
@@ -103,6 +102,7 @@ class InjectVSyncSource;
 class Layer;
 class Surface;
 class SurfaceFlingerBE;
+class TimeStats;
 class VSyncSource;
 struct CompositionInfo;
 
@@ -926,7 +926,7 @@ private:
     std::unique_ptr<SurfaceInterceptor> mInterceptor{mFactory.createSurfaceInterceptor(this)};
     SurfaceTracing mTracing;
     LayerStats mLayerStats;
-    TimeStats& mTimeStats = TimeStats::getInstance();
+    std::unique_ptr<TimeStats> mTimeStats;
     bool mUseHwcVirtualDisplays = false;
     std::atomic<uint32_t> mFrameMissedCount{0};
 

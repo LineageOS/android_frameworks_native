@@ -95,6 +95,7 @@
 #include "Scheduler/InjectVSyncSource.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
+#include "TimeStats/TimeStats.h"
 
 #include <cutils/compiler.h>
 
@@ -263,6 +264,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mDebugInTransaction(0),
         mLastTransactionTime(0),
         mForceFullDamage(false),
+        mTimeStats(factory.createTimeStats()),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
         mRefreshStartTime(0),
@@ -1526,7 +1528,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
             mFrameMissedCount += frameMissed;
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (frameMissed) {
-                mTimeStats.incrementMissedFrames();
+                mTimeStats->incrementMissedFrames();
                 if (mPropagateBackpressure) {
                     signalLayerUpdate();
                     break;
@@ -1951,12 +1953,12 @@ void SurfaceFlinger::postComposition()
         mAnimFrameTracker.advanceFrame();
     }
 
-    mTimeStats.incrementTotalFrames();
+    mTimeStats->incrementTotalFrames();
     if (mHadClientComposition) {
-        mTimeStats.incrementClientCompositionFrames();
+        mTimeStats->incrementClientCompositionFrames();
     }
 
-    mTimeStats.setPresentFenceGlobal(presentFenceTime);
+    mTimeStats->setPresentFenceGlobal(presentFenceTime);
 
     if (display && getHwComposer().isConnected(*display->getId()) && !display->isPoweredOn()) {
         return;
@@ -4056,7 +4058,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     }
 
     if (display->isPrimary()) {
-        mTimeStats.setPowerMode(mode);
+        mTimeStats->setPowerMode(mode);
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
@@ -4199,7 +4201,7 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
 
             if ((index < numArgs) && (args[index] == String16("--timestats"))) {
                 index++;
-                mTimeStats.parseArgs(asProto, args, index, result);
+                mTimeStats->parseArgs(asProto, args, index, result);
                 dumpAll = false;
             }
         }

@@ -21,6 +21,8 @@
 
 #include "BufferStateLayer.h"
 
+#include "TimeStats/TimeStats.h"
+
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
@@ -457,7 +459,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         ALOGE("[%s] rejecting buffer: "
               "bufferWidth=%d, bufferHeight=%d, front.active.{w=%d, h=%d}",
               mName.string(), bufferWidth, bufferHeight, s.active.w, s.active.h);
-        mTimeStats.removeTimeRecord(layerID, getFrameNumber());
+        mFlinger->mTimeStats->removeTimeRecord(layerID, getFrameNumber());
         return BAD_VALUE;
     }
 
@@ -469,7 +471,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     if (SyncFeatures::getInstance().useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {
         // TODO(alecmouri): Fail somewhere upstream if the fence is invalid.
         if (!releaseFence->isValid()) {
-            mTimeStats.clearLayerRecord(layerID);
+            mFlinger->mTimeStats->clearLayerRecord(layerID);
             return UNKNOWN_ERROR;
         }
 
@@ -479,7 +481,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         auto currentStatus = s.acquireFence->getStatus();
         if (currentStatus == Fence::Status::Invalid) {
             ALOGE("Existing fence has invalid state");
-            mTimeStats.clearLayerRecord(layerID);
+            mFlinger->mTimeStats->clearLayerRecord(layerID);
             return BAD_VALUE;
         }
 
@@ -487,7 +489,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         if (incomingStatus == Fence::Status::Invalid) {
             ALOGE("New fence has invalid state");
             mDrawingState.acquireFence = releaseFence;
-            mTimeStats.clearLayerRecord(layerID);
+            mFlinger->mTimeStats->clearLayerRecord(layerID);
             return BAD_VALUE;
         }
 
@@ -503,7 +505,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
                 // synchronization is broken, the best we can do is hope fences
                 // signal in order so the new fence will act like a union
                 mDrawingState.acquireFence = releaseFence;
-                mTimeStats.clearLayerRecord(layerID);
+                mFlinger->mTimeStats->clearLayerRecord(layerID);
                 return BAD_VALUE;
             }
             mDrawingState.acquireFence = mergedFence;
@@ -526,15 +528,15 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         // a GL-composited layer) not at all.
         status_t err = bindTextureImage();
         if (err != NO_ERROR) {
-            mTimeStats.clearLayerRecord(layerID);
+            mFlinger->mTimeStats->clearLayerRecord(layerID);
             return BAD_VALUE;
         }
     }
 
     // TODO(marissaw): properly support mTimeStats
-    mTimeStats.setPostTime(layerID, getFrameNumber(), getName().c_str(), latchTime);
-    mTimeStats.setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
-    mTimeStats.setLatchTime(layerID, getFrameNumber(), latchTime);
+    mFlinger->mTimeStats->setPostTime(layerID, getFrameNumber(), getName().c_str(), latchTime);
+    mFlinger->mTimeStats->setAcquireFence(layerID, getFrameNumber(), getCurrentFenceTime());
+    mFlinger->mTimeStats->setLatchTime(layerID, getFrameNumber(), latchTime);
 
     return NO_ERROR;
 }

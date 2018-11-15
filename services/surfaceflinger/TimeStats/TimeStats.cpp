@@ -32,11 +32,6 @@
 
 namespace android {
 
-TimeStats& TimeStats::getInstance() {
-    static TimeStats sInstance;
-    return sInstance;
-}
-
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, size_t& index,
                           String8& result) {
     ATRACE_CALL();
