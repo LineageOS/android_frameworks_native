@@ -864,11 +864,11 @@ void InputDispatcher::logOutboundKeyDetailsLocked(const char* prefix, const KeyE
 #if DEBUG_OUTBOUND_EVENT_DETAILS
     ALOGD("%seventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32 ", "
             "policyFlags=0x%x, action=0x%x, flags=0x%x, keyCode=0x%x, scanCode=0x%x, "
-            "metaState=0x%x, repeatCount=%d, downTime=%" PRId64 ", displayId=%" PRId32,
+            "metaState=0x%x, repeatCount=%d, downTime=%" PRId64,
             prefix,
             entry->eventTime, entry->deviceId, entry->source, entry->displayId, entry->policyFlags,
             entry->action, entry->flags, entry->keyCode, entry->scanCode, entry->metaState,
-            entry->repeatCount, entry->downTime, entry->displayId);
+            entry->repeatCount, entry->downTime);
 #endif
 }
 
@@ -940,13 +940,13 @@ void InputDispatcher::logOutboundMotionDetailsLocked(const char* prefix, const M
             ", policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, "
             "metaState=0x%x, buttonState=0x%x,"
-            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64", displayId=%" PRId32,
+            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
             prefix,
             entry->eventTime, entry->deviceId, entry->source, entry->displayId, entry->policyFlags,
             entry->action, entry->actionButton, entry->flags,
             entry->metaState, entry->buttonState,
             entry->edgeFlags, entry->xPrecision, entry->yPrecision,
-            entry->downTime, entry->displayId);
+            entry->downTime);
 
     for (uint32_t i = 0; i < entry->pointerCount; i++) {
         ALOGD("  Pointer %d: id=%d, toolType=%d, "
@@ -2539,11 +2539,10 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
 #if DEBUG_INBOUND_EVENT_DETAILS
     ALOGD("notifyKey - eventTime=%" PRId64
             ", deviceId=%d, source=0x%x, displayId=%" PRId32 "policyFlags=0x%x, action=0x%x, "
-            "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64
-            ", displayId=%" PRId32,
+            "flags=0x%x, keyCode=0x%x, scanCode=0x%x, metaState=0x%x, downTime=%" PRId64,
             args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
             args->action, args->flags, args->keyCode, args->scanCode,
-            args->metaState, args->downTime, args->displayId);
+            args->metaState, args->downTime);
 #endif
     if (!validateKeyEvent(args->action)) {
         return;
@@ -2618,10 +2617,10 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     ALOGD("notifyMotion - eventTime=%" PRId64 ", deviceId=%d, source=0x%x, displayId=%" PRId32
             ", policyFlags=0x%x, "
             "action=0x%x, actionButton=0x%x, flags=0x%x, metaState=0x%x, buttonState=0x%x,"
-            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", displayId=%" PRId32
-            , args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
+            "edgeFlags=0x%x, xPrecision=%f, yPrecision=%f, downTime=%" PRId64,
+            args->eventTime, args->deviceId, args->source, args->displayId, args->policyFlags,
             args->action, args->actionButton, args->flags, args->metaState, args->buttonState,
-            args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime, args->displayId);
+            args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime);
     for (uint32_t i = 0; i < args->pointerCount; i++) {
         ALOGD("  Pointer %d: id=%d, toolType=%d, "
                 "x=%f, y=%f, pressure=%f, size=%f, "
