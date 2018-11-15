@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2017 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,33 @@
  * limitations under the License.
  */
 
-#include "mock/RenderEngine/MockRenderEngine.h"
+#pragma once
 
-#include <ui/Region.h>
+#include <cstdint>
+
+struct ANativeWindow;
 
 namespace android {
 namespace renderengine {
-namespace mock {
 
-// Explicit default instantiation is recommended.
-RenderEngine::RenderEngine() = default;
-RenderEngine::~RenderEngine() = default;
+class Surface {
+public:
+    virtual ~Surface() = default;
 
-Surface::Surface() = default;
-Surface::~Surface() = default;
+    virtual void setCritical(bool enable) = 0;
+    virtual void setAsync(bool enable) = 0;
 
-Image::Image() = default;
-Image::~Image() = default;
+    virtual void setNativeWindow(ANativeWindow* window) = 0;
+    virtual void swapBuffers() const = 0;
 
-Framebuffer::Framebuffer() = default;
-Framebuffer::~Framebuffer() = default;
+    virtual int32_t queryRedSize() const = 0;
+    virtual int32_t queryGreenSize() const = 0;
+    virtual int32_t queryBlueSize() const = 0;
+    virtual int32_t queryAlphaSize() const = 0;
 
-} // namespace mock
+    virtual int32_t getWidth() const = 0;
+    virtual int32_t getHeight() const = 0;
+};
+
 } // namespace renderengine
 } // namespace android
