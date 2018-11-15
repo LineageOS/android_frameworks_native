@@ -330,6 +330,10 @@ public:
         // freezing the total geometry of a surface until a resize is completed.
         Transaction& setGeometryAppliesWithResize(const sp<SurfaceControl>& sc);
 
+#ifndef NO_INPUT
+        Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
+#endif
+
         Transaction& destroySurface(const sp<SurfaceControl>& sc);
 
         // Set a color transform matrix on the given layer on the built-in display.

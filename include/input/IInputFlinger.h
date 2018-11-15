@@ -22,6 +22,9 @@
 
 #include <binder/IInterface.h>
 
+#include <utils/Vector.h>
+#include <input/InputWindow.h>
+
 namespace android {
 
 /*
@@ -31,6 +34,8 @@ namespace android {
 class IInputFlinger : public IInterface {
 public:
     DECLARE_META_INTERFACE(InputFlinger)
+
+    virtual void setInputWindows(const Vector<InputWindowInfo>& inputHandles) = 0;
 };
 
 
@@ -40,7 +45,7 @@ public:
 class BnInputFlinger : public BnInterface<IInputFlinger> {
 public:
     enum {
-        DO_SOMETHING_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
+        SET_INPUT_WINDOWS_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

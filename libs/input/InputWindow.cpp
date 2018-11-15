@@ -135,6 +135,10 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     return ret;
 }
 
+InputWindowInfo::InputWindowInfo(const Parcel& from) {
+    *this = read(from);
+}
+
 // --- InputWindowHandle ---
 
 InputWindowHandle::InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle) :

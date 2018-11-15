@@ -17,6 +17,8 @@
 #ifndef _LIBINPUT_INPUT_TRANSPORT_H
 #define _LIBINPUT_INPUT_TRANSPORT_H
 
+#pragma GCC system_header
+
 /**
  * Native input transport.
  *
@@ -29,6 +31,7 @@
 
 #include <string>
 
+#include <binder/IBinder.h>
 #include <input/Input.h>
 #include <utils/Errors.h>
 #include <utils/Timers.h>
@@ -188,11 +191,16 @@ public:
     status_t write(Parcel& out) const;
     status_t read(const Parcel& from);
 
+    sp<IBinder> getToken() const;
+    void setToken(const sp<IBinder>& token);
+
 private:
     void setFd(int fd);
 
     std::string mName;
     int mFd = -1;
+
+    sp<IBinder> mToken = nullptr;
 };
 
 /*

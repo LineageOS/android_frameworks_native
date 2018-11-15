@@ -50,6 +50,9 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeFloat(color.r);
     output.writeFloat(color.g);
     output.writeFloat(color.b);
+#ifndef NO_INPUT
+    inputInfo.write(output);
+#endif
     output.write(transparentRegion);
     output.writeUint32(transform);
     output.writeBool(transformToDisplayInverse);
@@ -120,6 +123,11 @@ status_t layer_state_t::read(const Parcel& input)
     color.r = input.readFloat();
     color.g = input.readFloat();
     color.b = input.readFloat();
+
+#ifndef NO_INPUT
+    inputInfo = InputWindowInfo::read(input);
+#endif
+
     input.read(transparentRegion);
     transform = input.readUint32();
     transformToDisplayInverse = input.readBool();
@@ -342,6 +350,13 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eListenerCallbacksChanged;
         listenerCallbacks = other.listenerCallbacks;
     }
+
+#ifndef NO_INPUT
+    if (other.what & eInputInfoChanged) {
+        what |= eInputInfoChanged;
+        inputInfo = other.inputInfo;
+    }
+#endif
 
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

@@ -135,6 +135,7 @@ cc_library_shared {
         "libutils",
         "libnativewindow",
         "liblog",
+        "libinput",
         "libhidlbase",
         "libhidltransport",
         "android.hidl.token@1.0-utils",
@@ -146,7 +147,7 @@ cc_library_shared {
     // bufferhub is not used when building libgui for vendors
     target: {
         vendor: {
-            cflags: ["-DNO_BUFFERHUB"],
+            cflags: ["-DNO_BUFFERHUB", "-DNO_INPUT"],
             exclude_srcs: [
                 "BufferHubConsumer.cpp",
                 "BufferHubProducer.cpp",
@@ -155,6 +156,7 @@ cc_library_shared {
                 "libbufferhub",
                 "libbufferhubqueue",
                 "libpdx_default_transport",
+                "libinput"
             ],
         },
     },

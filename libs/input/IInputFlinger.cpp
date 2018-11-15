@@ -23,7 +23,6 @@
 
 #include <input/IInputFlinger.h>
 
-
 namespace android {
 
 class BpInputFlinger : public BpInterface<IInputFlinger> {
@@ -31,23 +30,35 @@ public:
     explicit BpInputFlinger(const sp<IBinder>& impl) :
             BpInterface<IInputFlinger>(impl) { }
 
-    virtual status_t doSomething() {
+    virtual void setInputWindows(const Vector<InputWindowInfo>& inputInfo) {
         Parcel data, reply;
         data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
-        remote()->transact(BnInputFlinger::DO_SOMETHING_TRANSACTION, data, &reply);
-        return reply.readInt32();
+
+        data.writeUint32(static_cast<uint32_t>(inputInfo.size()));
+        for (const auto& info : inputInfo) {
+            info.write(data);
+        }
+        remote()->transact(BnInputFlinger::SET_INPUT_WINDOWS_TRANSACTION, data, &reply);
     }
 };
 
 IMPLEMENT_META_INTERFACE(InputFlinger, "android.input.IInputFlinger");
 
-
 status_t BnInputFlinger::onTransact(
         uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) {
     switch(code) {
-    case DO_SOMETHING_TRANSACTION: {
+    case SET_INPUT_WINDOWS_TRANSACTION: {
         CHECK_INTERFACE(IInputFlinger, data, reply);
-        reply->writeInt32(0);
+        size_t count = data.readUint32();
+        if (count > data.dataSize()) {
+            return BAD_VALUE;
+        }
+        Vector<InputWindowInfo> handles;
+        handles.setCapacity(count);
+        for (size_t i = 0; i < count; i++) {
+            handles.add(InputWindowInfo(data));
+        }
+        setInputWindows(handles);
         break;
     }
     default:
