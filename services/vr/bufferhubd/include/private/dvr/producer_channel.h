@@ -91,7 +91,6 @@ class ProducerChannel : public BufferHubChannel {
   // highest bit is reserved for the producer and should not be set.
   uint64_t orphaned_consumer_bit_mask_{0ULL};
 
-  bool producer_owns_;
   LocalFence post_fence_;
   LocalFence returned_fence_;
   size_t user_metadata_size_;  // size of user requested buffer buffer size.
