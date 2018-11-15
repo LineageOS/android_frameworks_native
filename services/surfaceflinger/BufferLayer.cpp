@@ -231,15 +231,12 @@ bool BufferLayer::isHdrY410() const {
 
 void BufferLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
                                   const Rect& viewport, int32_t supportedPerFrameMetadata) {
+    RETURN_IF_NO_HWC_LAYER(displayId);
+
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
     Region visible = transform.transform(visibleRegion.intersect(viewport));
 
-    if (!hasHwcLayer(displayId)) {
-        ALOGE("[%s] failed to setPerFrameData: no HWC layer found for display %" PRIu64,
-              mName.string(), displayId);
-        return;
-    }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
     auto& hwcLayer = hwcInfo.layer;
     auto error = hwcLayer->setVisibleRegion(visible);
@@ -663,6 +660,36 @@ uint64_t BufferLayer::getHeadFrameNumber() const {
     } else {
         return mCurrentFrameNumber;
     }
+}
+
+Rect BufferLayer::getBufferSize(const State& s) const {
+    // If we have a sideband stream, or we are scaling the buffer then return the layer size since
+    // we cannot determine the buffer size.
+    if ((s.sidebandStream != nullptr) ||
+        (getEffectiveScalingMode() != NATIVE_WINDOW_SCALING_MODE_FREEZE)) {
+        return Rect(getActiveWidth(s), getActiveHeight(s));
+    }
+
+    if (mActiveBuffer == nullptr) {
+        return Rect::INVALID_RECT;
+    }
+
+    uint32_t bufWidth = mActiveBuffer->getWidth();
+    uint32_t bufHeight = mActiveBuffer->getHeight();
+
+    // Undo any transformations on the buffer and return the result.
+    if (mCurrentTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+
+    if (getTransformToDisplayInverse()) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufWidth, bufHeight);
+        }
+    }
+
+    return Rect(bufWidth, bufHeight);
 }
 
 } // namespace android

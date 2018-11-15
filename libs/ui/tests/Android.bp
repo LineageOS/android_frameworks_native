@@ -32,7 +32,8 @@ cc_test {
     name: "BufferHubBuffer_test",
     header_libs: [
         "libbufferhub_headers",
-        "libdvr_headers"
+        "libdvr_headers",
+        "libnativewindow_headers",
     ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",

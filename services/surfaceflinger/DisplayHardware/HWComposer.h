@@ -233,7 +233,7 @@ private:
     cb_context* mCBContext = nullptr;
     std::unordered_map<DisplayId, size_t> mVSyncCounts;
 
-    std::unordered_set<uint32_t> mFreeVirtualDisplayIds;
+    std::unordered_set<DisplayId> mFreeVirtualDisplayIds;
     uint32_t mNextVirtualDisplayId = 0;
     uint32_t mRemainingHwcVirtualDisplays{mHwcDevice->getMaxVirtualDisplayCount()};
 

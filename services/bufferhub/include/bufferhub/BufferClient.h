@@ -17,7 +17,10 @@
 #ifndef ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_CLIENT_H
 #define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_CLIENT_H
 
+#include <mutex>
+
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
+#include <bufferhub/BufferNode.h>
 
 namespace android {
 namespace frameworks {
@@ -25,11 +28,27 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
+using hardware::hidl_handle;
 using hardware::Return;
+
+// Forward declaration to avoid circular dependency
+class BufferHubService;
 
 class BufferClient : public IBufferClient {
 public:
+    // Creates a server-side buffer client from an existing BufferNode. Note that
+    // this funciton takes ownership of the shared_ptr.
+    // Returns a raw pointer to the BufferClient on success, nullptr on failure.
+    static BufferClient* create(BufferHubService* service, const std::shared_ptr<BufferNode>& node);
+
     Return<void> duplicate(duplicate_cb _hidl_cb) override;
+
+private:
+    BufferClient(wp<BufferHubService> service, const std::shared_ptr<BufferNode>& node)
+          : mService(service), mBufferNode(node){};
+
+    wp<BufferHubService> mService;
+    std::shared_ptr<BufferNode> mBufferNode;
 };
 
 } // namespace implementation

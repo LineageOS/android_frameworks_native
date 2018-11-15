@@ -3480,8 +3480,8 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     }
 
     // Raw width and height in the natural orientation.
-    int32_t rawWidth = mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue + 1;
-    int32_t rawHeight = mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue + 1;
+    int32_t rawWidth = mRawPointerAxes.getRawWidth();
+    int32_t rawHeight = mRawPointerAxes.getRawHeight();
 
     // Get associated display dimensions.
     DisplayViewport newViewport;
@@ -3913,8 +3913,8 @@ void TouchInputMapper::configureVirtualKeys() {
 
     int32_t touchScreenLeft = mRawPointerAxes.x.minValue;
     int32_t touchScreenTop = mRawPointerAxes.y.minValue;
-    int32_t touchScreenWidth = mRawPointerAxes.x.maxValue - mRawPointerAxes.x.minValue + 1;
-    int32_t touchScreenHeight = mRawPointerAxes.y.maxValue - mRawPointerAxes.y.minValue + 1;
+    int32_t touchScreenWidth = mRawPointerAxes.getRawWidth();
+    int32_t touchScreenHeight = mRawPointerAxes.getRawHeight();
 
     for (size_t i = 0; i < virtualKeyDefinitions.size(); i++) {
         const VirtualKeyDefinition& virtualKeyDefinition =

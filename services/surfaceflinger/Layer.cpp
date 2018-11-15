@@ -197,8 +197,8 @@ sp<IBinder> Layer::getHandle() {
 // ---------------------------------------------------------------------------
 
 bool Layer::createHwcLayer(HWComposer* hwc, DisplayId displayId) {
-    LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.count(displayId) != 0,
-                        "Already have a layer for display %" PRIu64, displayId);
+    LOG_ALWAYS_FATAL_IF(hasHwcLayer(displayId), "Already have a layer for display %s",
+                        to_string(displayId).c_str());
     auto layer = std::shared_ptr<HWC2::Layer>(
             hwc->createLayer(displayId),
             [hwc, displayId](HWC2::Layer* layer) {
@@ -215,7 +215,7 @@ bool Layer::createHwcLayer(HWComposer* hwc, DisplayId displayId) {
 }
 
 bool Layer::destroyHwcLayer(DisplayId displayId) {
-    if (getBE().mHwcLayers.count(displayId) == 0) {
+    if (!hasHwcLayer(displayId)) {
         return false;
     }
     auto& hwcInfo = getBE().mHwcLayers[displayId];
@@ -275,39 +275,12 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
 }
 
-Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
-    const State& s(getDrawingState());
-    Rect win(getActiveWidth(s), getActiveHeight(s));
-
-    Rect crop = getCrop(s);
-    if (!crop.isEmpty()) {
-        win.intersect(crop, &win);
-    }
-
+Rect Layer::computeScreenBounds() const {
+    FloatRect bounds = computeBounds();
     ui::Transform t = getTransform();
-    win = t.transform(win);
-
-    const sp<Layer>& p = mDrawingParent.promote();
-    // Now we need to calculate the parent bounds, so we can clip ourselves to those.
-    // When calculating the parent bounds for purposes of clipping,
-    // we don't need to constrain the parent to its transparent region.
-    // The transparent region is an optimization based on the
-    // buffer contents of the layer, but does not affect the space allocated to
-    // it by policy, and thus children should be allowed to extend into the
-    // parent's transparent region. In fact one of the main uses, is to reduce
-    // buffer allocation size in cases where a child window sits behind a main window
-    // (by marking the hole in the parent window as a transparent region)
-    if (p != nullptr) {
-        Rect bounds = p->computeScreenBounds(false);
-        bounds.intersect(win, &win);
-    }
-
-    if (reduceTransparentRegion) {
-        auto const screenTransparentRegion = t.transform(getActiveTransparentRegion(s));
-        win = reduce(win, screenTransparentRegion);
-    }
-
-    return win;
+    // Transform to screen space.
+    bounds = t.transform(bounds);
+    return Rect{bounds};
 }
 
 FloatRect Layer::computeBounds() const {
@@ -317,32 +290,72 @@ FloatRect Layer::computeBounds() const {
 
 FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
     const State& s(getDrawingState());
-    Rect win(getActiveWidth(s), getActiveHeight(s));
+    Rect bounds = getCroppedBufferSize(s);
+    FloatRect floatBounds = bounds.toFloatRect();
+    if (bounds.isValid()) {
+        // Layer has bounds. Pass in our bounds as a special case. Then pass on to our parents so
+        // that they can clip it.
+        floatBounds = cropChildBounds(floatBounds);
+    } else {
+        // Layer does not have bounds, so we fill to our parent bounds. This is done by getting our
+        // parent bounds and inverting the transform to get the maximum bounds we can have that
+        // will fit within our parent bounds.
+        const auto& p = mDrawingParent.promote();
+        if (p != nullptr) {
+            ui::Transform t = s.active_legacy.transform;
+            // When calculating the parent bounds for purposes of clipping, we don't need to
+            // constrain the parent to its transparent region. The transparent region is an
+            // optimization based on the buffer contents of the layer, but does not affect the
+            // space allocated to it by policy, and thus children should be allowed to extend into
+            // the parent's transparent region.
+            // One of the main uses is a parent window with a child sitting behind the parent
+            // window, marked by a transparent region. When computing the parent bounds from the
+            // parent's perspective we pass in the transparent region to reduce buffer allocation
+            // size. When computing the parent bounds from the child's perspective, we pass in an
+            // empty transparent region in order to extend into the the parent bounds.
+            floatBounds = p->computeBounds(Region());
+            // Transform back to layer space.
+            floatBounds = t.inverse().transform(floatBounds);
+        }
+    }
 
-    Rect crop = getCrop(s);
-    if (!crop.isEmpty()) {
-        win.intersect(crop, &win);
+    // Subtract the transparent region and snap to the bounds.
+    return reduce(floatBounds, activeTransparentRegion);
+}
+
+FloatRect Layer::cropChildBounds(const FloatRect& childBounds) const {
+    const State& s(getDrawingState());
+    Rect bounds = getCroppedBufferSize(s);
+    FloatRect croppedBounds = childBounds;
+
+    // If the layer has bounds, then crop the passed in child bounds and pass
+    // it to our parents so they can crop it as well. If the layer has no bounds,
+    // then pass on the child bounds.
+    if (bounds.isValid()) {
+        croppedBounds = croppedBounds.intersect(bounds.toFloatRect());
     }
 
     const auto& p = mDrawingParent.promote();
-    FloatRect floatWin = win.toFloatRect();
-    FloatRect parentBounds = floatWin;
     if (p != nullptr) {
-        // We pass an empty Region here for reasons mirroring that of the case described in
-        // the computeScreenBounds reduceTransparentRegion=false case.
-        parentBounds = p->computeBounds(Region());
+        // Transform to parent space and allow parent layer to crop the
+        // child bounds as well.
+        ui::Transform t = s.active_legacy.transform;
+        croppedBounds = t.transform(croppedBounds);
+        croppedBounds = p->cropChildBounds(croppedBounds);
+        croppedBounds = t.inverse().transform(croppedBounds);
     }
+    return croppedBounds;
+}
 
-    ui::Transform t = s.active_legacy.transform;
-
-    if (p != nullptr) {
-        floatWin = t.transform(floatWin);
-        floatWin = floatWin.intersect(parentBounds);
-        floatWin = t.inverse().transform(floatWin);
+Rect Layer::getCroppedBufferSize(const State& s) const {
+    Rect size = getBufferSize(s);
+    Rect crop = getCrop(s);
+    if (!crop.isEmpty() && size.isValid()) {
+        size.intersect(crop, &size);
+    } else if (!crop.isEmpty()) {
+        size = crop;
     }
-
-    // subtract the transparent region and snap to the bounds
-    return reduce(floatWin, activeTransparentRegion);
+    return size;
 }
 
 Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
@@ -462,11 +475,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
 void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
-    if (!hasHwcLayer(*displayId)) {
-        ALOGE("[%s] failed to setGeometry: no HWC layer found for display %" PRIu64, mName.string(),
-              *displayId);
-        return;
-    }
+    RETURN_IF_NO_HWC_LAYER(*displayId);
     auto& hwcInfo = getBE().mHwcLayers[*displayId];
 
     // enable this layer
@@ -634,27 +643,19 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
 }
 
 void Layer::forceClientComposition(DisplayId displayId) {
-    if (getBE().mHwcLayers.count(displayId) == 0) {
-        ALOGE("forceClientComposition: no HWC layer found (display %" PRIu64 ")", displayId);
-        return;
-    }
-
+    RETURN_IF_NO_HWC_LAYER(displayId);
     getBE().mHwcLayers[displayId].forceClientComposition = true;
 }
 
 bool Layer::getForceClientComposition(DisplayId displayId) {
-    if (getBE().mHwcLayers.count(displayId) == 0) {
-        ALOGE("getForceClientComposition: no HWC layer found (display %" PRIu64 ")", displayId);
-        return false;
-    }
-
+    RETURN_IF_NO_HWC_LAYER(displayId, false);
     return getBE().mHwcLayers[displayId].forceClientComposition;
 }
 
 void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     const auto displayId = display->getId();
-    if (getBE().mHwcLayers.count(*displayId) == 0 ||
-        getCompositionType(displayId) != HWC2::Composition::Cursor) {
+    LOG_ALWAYS_FATAL_IF(!displayId);
+    if (!hasHwcLayer(*displayId) || getCompositionType(displayId) != HWC2::Composition::Cursor) {
         return;
     }
 
@@ -1423,7 +1424,7 @@ void Layer::miniDumpHeader(String8& result) {
 }
 
 void Layer::miniDump(String8& result, DisplayId displayId) const {
-    if (getBE().mHwcLayers.count(displayId) == 0) {
+    if (!hasHwcLayer(displayId)) {
         return;
     }
 

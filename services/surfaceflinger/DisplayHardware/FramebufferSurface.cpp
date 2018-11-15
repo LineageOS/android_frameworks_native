@@ -63,7 +63,7 @@ FramebufferSurface::FramebufferSurface(HWComposer& hwc, DisplayId displayId,
         mHasPendingRelease(false),
         mPreviousBufferSlot(BufferQueue::INVALID_BUFFER_SLOT),
         mPreviousBuffer() {
-    ALOGV("Creating for display %" PRIu64, displayId);
+    ALOGV("Creating for display %s", to_string(displayId).c_str());
 
     mName = "FramebufferSurface";
     mConsumer->setConsumerName(mName);
