@@ -40,21 +40,24 @@ class Texture;
 namespace gl {
 
 class GLImage;
+class GLSurface;
 
 class GLES20RenderEngine : public impl::RenderEngine {
 public:
     static std::unique_ptr<GLES20RenderEngine> create(int hwcFormat, uint32_t featureFlags);
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
-    GLES20RenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
-                       EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
+    GLES20RenderEngine(uint32_t featureFlags); // See RenderEngine::FeatureFlag
     ~GLES20RenderEngine() override;
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
+    std::unique_ptr<Surface> createSurface() override;
     std::unique_ptr<Image> createImage() override;
 
     void primeCache() const override;
     bool isCurrent() const override;
+    bool setCurrentSurface(const Surface& surface) override;
+    void resetCurrentSurface() override;
     base::unique_fd flush() override;
     bool finish() override;
     bool waitFence(base::unique_fd fenceFd) override;
@@ -117,12 +120,11 @@ private:
     // with PQ or HLG transfer function.
     bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
     bool needsXYZTransformMatrix() const;
-    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
+    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
     EGLContext mEGLContext;
-    EGLSurface mDummySurface;
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
@@ -143,6 +145,8 @@ private:
     mat4 mBt2020ToSrgb;
     mat4 mBt2020ToDisplayP3;
 
+    bool mRenderToFbo = false;
+    int32_t mSurfaceHeight = 0;
     int32_t mFboHeight = 0;
 
     // Current dataspace of layer being rendered

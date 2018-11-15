@@ -24,24 +24,24 @@
 #include <string>
 #include <unordered_map>
 
-#include <android/native_window.h>
 #include <binder/IBinder.h>
 #include <gui/LayerState.h>
 #include <hardware/hwcomposer_defs.h>
 #include <math/mat4.h>
-#include <renderengine/RenderEngine.h>
-#include <system/window.h>
+#include <renderengine/Surface.h>
 #include <ui/GraphicTypes.h>
 #include <ui/HdrCapabilities.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
-#include <utils/Mutex.h>
 #include <utils/RefBase.h>
+#include <utils/Mutex.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "RenderArea.h"
+
+struct ANativeWindow;
 
 namespace android {
 
@@ -146,13 +146,10 @@ public:
                           ui::Dataspace* outDataspace, ui::ColorMode* outMode,
                           ui::RenderIntent* outIntent) const;
 
-    // Queues the drawn buffer for consumption by HWC.
-    void queueBuffer(HWComposer& hwc);
-    // Allocates a buffer as scratch space for GPU composition
-    sp<GraphicBuffer> dequeueBuffer();
+    void swapBuffers(HWComposer& hwc) const;
 
     // called after h/w composer has completed its set() call
-    void onPresentDisplayCompleted();
+    void onSwapBuffersCompleted() const;
 
     Rect getBounds() const {
         return Rect(mDisplayWidth, mDisplayHeight);
@@ -162,11 +159,7 @@ public:
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
 
-    // Acquires a new buffer for GPU composition.
-    void readyNewBuffer();
-    // Marks the current buffer has finished, so that it can be presented and
-    // swapped out.
-    void finishBuffer();
+    bool makeCurrent() const;
     void setViewportAndProjection() const;
 
     const sp<Fence>& getClientTargetAcquireFence() const;
@@ -211,13 +204,9 @@ private:
 
     // ANativeWindow this display is rendering into
     sp<ANativeWindow> mNativeWindow;
-    // Current buffer that this display can render to.
-    sp<GraphicBuffer> mGraphicBuffer;
     sp<DisplaySurface> mDisplaySurface;
-    // File descriptor indicating that mGraphicBuffer is ready for display, i.e.
-    // that drawing to the buffer is now complete.
-    base::unique_fd mBufferReady;
 
+    std::unique_ptr<renderengine::Surface> mSurface;
     int             mDisplayWidth;
     int             mDisplayHeight;
     const int       mDisplayInstallOrientation;
@@ -337,6 +326,7 @@ struct DisplayDeviceCreationArgs {
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
     sp<DisplaySurface> displaySurface;
+    std::unique_ptr<renderengine::Surface> renderSurface;
     int displayInstallOrientation{DisplayState::eOrientationDefault};
     bool hasWideColorGamut{false};
     HdrCapabilities hdrCapabilities;

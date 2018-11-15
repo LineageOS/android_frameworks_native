@@ -45,7 +45,6 @@
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
 #include <gui/IDisplayEventConnection.h>
-#include <gui/IProducerListener.h>
 #include <gui/LayerDebugInfo.h>
 #include <gui/Surface.h>
 #include <renderengine/RenderEngine.h>
@@ -676,6 +675,10 @@ void SurfaceFlinger::init() {
     LOG_ALWAYS_FATAL_IF(!display, "Missing internal display after registering composer callback.");
     LOG_ALWAYS_FATAL_IF(!getHwComposer().isConnected(*display->getId()),
                         "Internal display is disconnected.");
+
+    // make the default display GLContext current so that we can create textures
+    // when creating Layers (which may happens before we render something)
+    display->makeCurrent();
 
     if (useVrFlinger) {
         auto vrFlingerRequestDisplayCallback = [this](bool requestDisplay) {
@@ -1406,6 +1409,7 @@ void SurfaceFlinger::resetDisplayState() {
     // mCurrentState and mDrawingState and re-apply all changes when we make the
     // transition.
     mDrawingState.displays.clear();
+    getRenderEngine().resetCurrentSurface();
     mDisplays.clear();
 }
 
@@ -1715,7 +1719,7 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& display, bool 
             auto& engine(getRenderEngine());
             engine.fillRegionWithColor(dirtyRegion, 1, 0, 1, 1);
 
-            display->queueBuffer(getHwComposer());
+            display->swapBuffers(getHwComposer());
         }
     }
 
@@ -2190,7 +2194,8 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& display)
         if (displayId) {
             getHwComposer().presentAndGetReleaseFences(*displayId);
         }
-        display->onPresentDisplayCompleted();
+        display->onSwapBuffersCompleted();
+        display->makeCurrent();
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
             sp<Fence> releaseFence = Fence::NO_FENCE;
 
@@ -2337,9 +2342,22 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
     creationArgs.nativeWindow = nativeWindow;
 
+    /*
+     * Create our display's surface
+     */
+    std::unique_ptr<renderengine::Surface> renderSurface = getRenderEngine().createSurface();
+    renderSurface->setCritical(isInternalDisplay);
+    renderSurface->setAsync(state.isVirtual());
+    renderSurface->setNativeWindow(nativeWindow.get());
+    creationArgs.renderSurface = std::move(renderSurface);
+
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
-    // here, in case the display is composed entirely by HWC.
+    // in two places:
+    // * Here, in case the display is composed entirely by HWC.
+    // * In makeCurrent(), using eglSwapInterval. Some EGL drivers set the
+    //   window's swap interval in eglMakeCurrent, so they'll override the
+    //   interval we set here.
     if (state.isVirtual()) {
         nativeWindow->setSwapInterval(nativeWindow.get(), 0);
     }
@@ -2399,6 +2417,12 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                 const auto externalDisplayId = getExternalDisplayId();
 
                 // in drawing state but not in current state
+                // Call makeCurrent() on the primary display so we can
+                // be sure that nothing associated with this display
+                // is current.
+                if (const auto defaultDisplay = getDefaultDisplayDeviceLocked()) {
+                    defaultDisplay->makeCurrent();
+                }
                 if (const auto display = getDisplayDeviceLocked(draw.keyAt(i))) {
                     display->disconnect(getHwComposer());
                 }
@@ -2949,7 +2973,7 @@ void SurfaceFlinger::invalidateHwcGeometry()
     mGeometryInvalid = true;
 }
 
-void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& display,
+void SurfaceFlinger::doDisplayComposition(const sp<const DisplayDevice>& display,
                                           const Region& inDirtyRegion) {
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
@@ -2964,10 +2988,10 @@ void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& display,
     if (!doComposeSurfaces(display)) return;
 
     // swap buffers (presentation)
-    display->queueBuffer(getHwComposer());
+    display->swapBuffers(getHwComposer());
 }
 
-bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
+bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& display) {
     ALOGV("doComposeSurfaces");
 
     const Region bounds(display->bounds());
@@ -2980,30 +3004,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
     bool applyColorMatrix = false;
     bool needsEnhancedColorMatrix = false;
 
-    // Framebuffer will live in this scope for GPU composition.
-    std::unique_ptr<renderengine::BindNativeBufferAsFramebuffer> fbo;
-
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
-
-        sp<GraphicBuffer> buf = display->dequeueBuffer();
-
-        if (buf == nullptr) {
-            ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
-                  "client composition for this frame",
-                  display->getDisplayName().c_str());
-            return false;
-        }
-
-        // Bind the framebuffer in this scope.
-        fbo = std::make_unique<renderengine::BindNativeBufferAsFramebuffer>(getRenderEngine(),
-                                                                            buf->getNativeBuffer());
-
-        if (fbo->getStatus() != NO_ERROR) {
-            ALOGW("Binding buffer for display [%s] failed with status: %d",
-                  display->getDisplayName().c_str(), fbo->getStatus());
-            return false;
-        }
 
         Dataspace outputDataspace = Dataspace::UNKNOWN;
         if (display->hasWideColorGamut()) {
@@ -3033,7 +3035,18 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
             colorMatrix *= mEnhancedSaturationMatrix;
         }
 
-        display->setViewportAndProjection();
+        if (!display->makeCurrent()) {
+            ALOGW("DisplayDevice::makeCurrent failed. Aborting surface composition for display %s",
+                  display->getDisplayName().c_str());
+            getRenderEngine().resetCurrentSurface();
+
+            // |mStateLock| not needed as we are on the main thread
+            const auto defaultDisplay = getDefaultDisplayDeviceLocked();
+            if (!defaultDisplay || !defaultDisplay->makeCurrent()) {
+                ALOGE("DisplayDevice::makeCurrent on default display failed. Aborting.");
+            }
+            return false;
+        }
 
         // Never touch the framebuffer if we don't have any framebuffer layers
         if (hasDeviceComposition) {
@@ -3126,15 +3139,11 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
         firstLayer = false;
     }
 
-    // Perform some cleanup steps if we used client composition.
-    if (hasClientComposition) {
-        getRenderEngine().setColorTransform(mat4());
-        getBE().mRenderEngine->disableScissor();
-        display->finishBuffer();
-        // Clear out error flags here so that we don't wait until next
-        // composition to log.
-        getRenderEngine().checkErrors();
-    }
+    // Clear color transform matrix at the end of the frame.
+    getRenderEngine().setColorTransform(mat4());
+
+    // disable scissor at the end of the frame
+    getBE().mRenderEngine->disableScissor();
     return true;
 }
 
