@@ -13,12 +13,12 @@ status_t BnVsyncCallback::onTransact(
       CHECK_INTERFACE(IVsyncCallback, data, reply);
       int64_t vsync_timestamp = 0;
       status_t result = data.readInt64(&vsync_timestamp);
-      if (result != NO_ERROR) {
+      if (result != OK) {
         ALOGE("onVsync failed to readInt64: %d", result);
         return result;
       }
       onVsync(vsync_timestamp);
-      return NO_ERROR;
+      return OK;
     }
     default: {
       return BBinder::onTransact(code, data, reply, flags);
@@ -36,18 +36,18 @@ public:
     Parcel data, reply;
     status_t result = data.writeInterfaceToken(
         IVsyncCallback::getInterfaceDescriptor());
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("onVsync failed to writeInterfaceToken: %d", result);
       return result;
     }
     result = data.writeInt64(vsync_timestamp);
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("onVsync failed to writeInt64: %d", result);
       return result;
     }
     result = remote()->transact(
         BnVsyncCallback::ON_VSYNC, data, &reply, TF_ONE_WAY);
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("onVsync failed to transact: %d", result);
       return result;
     }
@@ -65,23 +65,23 @@ status_t BnVsyncService::onTransact(
       CHECK_INTERFACE(IVsyncService, data, reply);
       sp<IBinder> callback;
       status_t result = data.readStrongBinder(&callback);
-      if (result != NO_ERROR) {
+      if (result != OK) {
         ALOGE("registerCallback failed to readStrongBinder: %d", result);
         return result;
       }
       registerCallback(interface_cast<IVsyncCallback>(callback));
-      return NO_ERROR;
+      return OK;
     }
     case UNREGISTER_CALLBACK: {
       CHECK_INTERFACE(IVsyncService, data, reply);
       sp<IBinder> callback;
       status_t result = data.readStrongBinder(&callback);
-      if (result != NO_ERROR) {
+      if (result != OK) {
         ALOGE("unregisterCallback failed to readStrongBinder: %d", result);
         return result;
       }
       unregisterCallback(interface_cast<IVsyncCallback>(callback));
-      return NO_ERROR;
+      return OK;
     }
     default: {
       return BBinder::onTransact(code, data, reply, flags);
@@ -99,18 +99,18 @@ public:
     Parcel data, reply;
     status_t result = data.writeInterfaceToken(
         IVsyncService::getInterfaceDescriptor());
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("registerCallback failed to writeInterfaceToken: %d", result);
       return result;
     }
     result = data.writeStrongBinder(IInterface::asBinder(callback));
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("registerCallback failed to writeStrongBinder: %d", result);
       return result;
     }
     result = remote()->transact(
         BnVsyncService::REGISTER_CALLBACK, data, &reply);
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("registerCallback failed to transact: %d", result);
       return result;
     }
@@ -121,18 +121,18 @@ public:
     Parcel data, reply;
     status_t result = data.writeInterfaceToken(
         IVsyncService::getInterfaceDescriptor());
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("unregisterCallback failed to writeInterfaceToken: %d", result);
       return result;
     }
     result = data.writeStrongBinder(IInterface::asBinder(callback));
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("unregisterCallback failed to writeStrongBinder: %d", result);
       return result;
     }
     result = remote()->transact(
         BnVsyncService::UNREGISTER_CALLBACK, data, &reply);
-    if (result != NO_ERROR) {
+    if (result != OK) {
       ALOGE("unregisterCallback failed to transact: %d", result);
       return result;
     }

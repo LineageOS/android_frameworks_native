@@ -47,24 +47,24 @@ TEST_F(BufferHubBinderServiceTest, TestDuplicateAndImportBuffer) {
 
   uint64_t token1 = 0ULL;
   status_t ret = bufferClient->duplicate(&token1);
-  EXPECT_EQ(ret, NO_ERROR);
+  EXPECT_EQ(ret, OK);
 
   // Tokens should be unique even corresponding to the same buffer
   uint64_t token2 = 0ULL;
   ret = bufferClient->duplicate(&token2);
-  EXPECT_EQ(ret, NO_ERROR);
+  EXPECT_EQ(ret, OK);
   EXPECT_NE(token2, token1);
 
   sp<IBufferClient> bufferClient1;
   ret = service->importBuffer(token1, &bufferClient1);
-  EXPECT_EQ(ret, NO_ERROR);
+  EXPECT_EQ(ret, OK);
   ASSERT_THAT(bufferClient1, NotNull());
   EXPECT_TRUE(bufferClient1->isValid());
 
   // Consumes the token to keep the service clean
   sp<IBufferClient> bufferClient2;
   ret = service->importBuffer(token2, &bufferClient2);
-  EXPECT_EQ(ret, NO_ERROR);
+  EXPECT_EQ(ret, OK);
   ASSERT_THAT(bufferClient2, NotNull());
   EXPECT_TRUE(bufferClient2->isValid());
 }
