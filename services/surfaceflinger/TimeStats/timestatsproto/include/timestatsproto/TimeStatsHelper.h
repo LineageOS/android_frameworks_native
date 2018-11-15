@@ -34,6 +34,7 @@ public:
         std::unordered_map<int32_t, int32_t> hist;
 
         void insert(int32_t delta);
+        int64_t totalTime() const;
         float averageTime() const;
         std::string toString() const;
     };
