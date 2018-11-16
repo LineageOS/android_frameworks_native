@@ -1911,7 +1911,7 @@ static void SendBugreportFinishedBroadcast() {
             am_args.push_back("android.intent.extra.SCREENSHOT");
             am_args.push_back(ds.screenshot_path_);
         }
-        if (ds.options_->notification_title.empty()) {
+        if (!ds.options_->notification_title.empty()) {
             am_args.push_back("--es");
             am_args.push_back("android.intent.extra.TITLE");
             am_args.push_back(ds.options_->notification_title);
