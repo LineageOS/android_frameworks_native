@@ -27,6 +27,7 @@
 
 #include <android-base/macros.h>
 #include <android-base/unique_fd.h>
+#include <android/os/IDumpstate.h>
 #include <android/os/IDumpstateListener.h>
 #include <utils/StrongPointer.h>
 #include <ziparchive/zip_writer.h>
@@ -188,15 +189,14 @@ class Dumpstate {
   public:
     enum RunStatus { OK, HELP, INVALID_INPUT, ERROR };
 
-    // TODO(117177665): should enumerate constants in the AIDL file.
     // The mode under which the bugreport should be run. Each mode encapsulates a few options.
     enum BugreportMode {
-        BUGREPORT_FULL,
-        BUGREPORT_INTERACTIVE,
-        BUGREPORT_REMOTE,
-        BUGREPORT_WEAR,
-        BUGREPORT_TELEPHONY,
-        BUGREPORT_WIFI
+        BUGREPORT_FULL = android::os::IDumpstate::BUGREPORT_MODE_FULL,
+        BUGREPORT_INTERACTIVE = android::os::IDumpstate::BUGREPORT_MODE_INTERACTIVE,
+        BUGREPORT_REMOTE = android::os::IDumpstate::BUGREPORT_MODE_REMOTE,
+        BUGREPORT_WEAR = android::os::IDumpstate::BUGREPORT_MODE_WEAR,
+        BUGREPORT_TELEPHONY = android::os::IDumpstate::BUGREPORT_MODE_TELEPHONY,
+        BUGREPORT_WIFI = android::os::IDumpstate::BUGREPORT_MODE_WIFI
     };
 
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
@@ -308,8 +308,11 @@ class Dumpstate {
 
     struct DumpOptions;
 
-    /* Main entry point for running a complete bugreport. Takes ownership of options. */
-    RunStatus RunWithOptions(std::unique_ptr<DumpOptions> options);
+    /* Main entry point for running a complete bugreport. */
+    RunStatus Run();
+
+    /* Sets runtime options. */
+    void SetOptions(std::unique_ptr<DumpOptions> options);
 
     // TODO: add other options from DumpState.
     /*
