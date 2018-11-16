@@ -46,6 +46,7 @@ using testing::_;
 using testing::AtLeast;
 using testing::ByMove;
 using testing::DoAll;
+using testing::Invoke;
 using testing::IsNull;
 using testing::Mock;
 using testing::NotNull;
@@ -141,6 +142,9 @@ public:
     sp<mock::DisplaySurface> mDisplaySurface = new mock::DisplaySurface();
     renderengine::mock::Surface* mRenderSurface = new renderengine::mock::Surface();
     mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
+
+    sp<GraphicBuffer> mBuffer = new GraphicBuffer();
+    ANativeWindowBuffer* mNativeWindowBuffer = mBuffer->getNativeBuffer();
 
     mock::EventThread* mEventThread = new mock::EventThread();
     mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
@@ -266,13 +270,9 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mRenderEngine, checkErrors()).WillRepeatedly(Return());
         EXPECT_CALL(*test->mRenderEngine, isCurrent()).WillRepeatedly(Return(true));
 
-        EXPECT_CALL(*test->mRenderEngine, setCurrentSurface(Ref(*test->mRenderSurface)))
-                .WillOnce(Return(true));
-        EXPECT_CALL(*test->mRenderEngine,
-                    setViewportAndProjection(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
-                                             Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                             ui::Transform::ROT_0))
-                .Times(1);
+        EXPECT_CALL(*test->mRenderEngine, flush()).WillRepeatedly(Invoke([]() {
+            return base::unique_fd(0);
+        }));
 
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
         EXPECT_CALL(*test->mDisplaySurface, advanceFrame()).Times(1);
@@ -323,8 +323,6 @@ struct BaseDisplayVariant {
 
     static void setupHwcCompositionCallExpectations(CompositionTest* test) {
         EXPECT_CALL(*test->mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_HWC)).Times(1);
-
-        EXPECT_CALL(*test->mRenderEngine, disableScissor()).Times(1);
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
@@ -344,12 +342,18 @@ struct BaseDisplayVariant {
                     setViewportAndProjection(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
                                              Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                              ui::Transform::ROT_0))
-                .Times(1)
-                .RetiresOnSaturation();
-        EXPECT_CALL(*test->mRenderEngine, setCurrentSurface(Ref(*test->mRenderSurface)))
-                .WillOnce(Return(true))
-                .RetiresOnSaturation();
-        EXPECT_CALL(*test->mRenderSurface, swapBuffers()).Times(1);
+                .Times(1);
+        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull())).WillOnce(Return(true));
+        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull())).WillOnce(Return(true));
+        EXPECT_CALL(*test->mRenderEngine, createFramebuffer())
+                .WillOnce(Return(
+                        ByMove(std::unique_ptr<renderengine::Framebuffer>(test->mReFrameBuffer))));
+        EXPECT_CALL(*test->mRenderEngine, bindFrameBuffer(test->mReFrameBuffer)).Times(1);
+        EXPECT_CALL(*test->mRenderEngine, unbindFrameBuffer(test->mReFrameBuffer)).Times(1);
+        EXPECT_CALL(*test->mNativeWindow, queueBuffer(_, _)).WillOnce(Return(0));
+        EXPECT_CALL(*test->mNativeWindow, dequeueBuffer(_, _))
+                .WillOnce(DoAll(SetArgPointee<0>(test->mNativeWindowBuffer), SetArgPointee<1>(-1),
+                                Return(0)));
     }
 
     template <typename Case>
