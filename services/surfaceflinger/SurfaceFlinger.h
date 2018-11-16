@@ -547,6 +547,7 @@ private:
     // Can only be called from the main thread or with mStateLock held
     uint32_t setTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
+    void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);

@@ -485,6 +485,11 @@ public:
      */
     void onRemovedFromCurrentState();
 
+    /*
+     * Called when the layer is added back to the current state list.
+     */
+    void addToCurrentState();
+
     // Updates the transform hint in our SurfaceFlingerConsumer to match
     // the current orientation of the display device.
     void updateTransformHint(const sp<const DisplayDevice>& display) const;
@@ -506,7 +511,8 @@ public:
 
     bool createHwcLayer(HWComposer* hwc, DisplayId displayId);
     bool destroyHwcLayer(DisplayId displayId);
-    void destroyAllHwcLayers();
+    void destroyHwcLayersForAllDisplays();
+    void destroyAllHwcLayersPlusChildren();
 
     bool hasHwcLayer(DisplayId displayId) const { return getBE().mHwcLayers.count(displayId) > 0; }
 

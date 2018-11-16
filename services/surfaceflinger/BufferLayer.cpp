@@ -68,7 +68,7 @@ BufferLayer::~BufferLayer() {
         ALOGE("Found stale hardware composer layers when destroying "
               "surface flinger layer %s",
               mName.string());
-        destroyAllHwcLayers();
+        destroyAllHwcLayersPlusChildren();
     }
 
     mTimeStats.onDestroy(getSequence());

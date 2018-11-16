@@ -123,7 +123,7 @@ Layer::~Layer() {
 
     mFrameTracker.logAndResetStats(mName);
 
-    destroyAllHwcLayers();
+    destroyAllHwcLayersPlusChildren();
 
     mFlinger->onLayerDestroyed();
 }
@@ -172,6 +172,14 @@ void Layer::onRemovedFromCurrentState() {
 
     for (const auto& child : mCurrentChildren) {
         child->onRemovedFromCurrentState();
+    }
+}
+
+void Layer::addToCurrentState() {
+    mRemovedFromCurrentState = false;
+
+    for (const auto& child : mCurrentChildren) {
+        child->addToCurrentState();
     }
 }
 
@@ -226,17 +234,21 @@ bool Layer::destroyHwcLayer(DisplayId displayId) {
     return true;
 }
 
-void Layer::destroyAllHwcLayers() {
+void Layer::destroyHwcLayersForAllDisplays() {
     size_t numLayers = getBE().mHwcLayers.size();
     for (size_t i = 0; i < numLayers; ++i) {
         LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.empty(), "destroyAllHwcLayers failed");
         destroyHwcLayer(getBE().mHwcLayers.begin()->first);
     }
+}
+
+void Layer::destroyAllHwcLayersPlusChildren() {
+    destroyHwcLayersForAllDisplays();
     LOG_ALWAYS_FATAL_IF(!getBE().mHwcLayers.empty(),
                         "All hardware composer layers should have been destroyed");
 
     for (const sp<Layer>& child : mDrawingChildren) {
-        child->destroyAllHwcLayers();
+        child->destroyAllHwcLayersPlusChildren();
     }
 }
 
@@ -1586,6 +1598,10 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         parent->removeChild(this);
     }
     newParent->addChild(this);
+
+    if (!newParent->isRemovedFromCurrentState()) {
+        addToCurrentState();
+    }
 
     sp<Client> client(mClientRef.promote());
     sp<Client> newParentClient(newParent->mClientRef.promote());
