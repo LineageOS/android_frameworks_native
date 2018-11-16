@@ -58,7 +58,7 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& /*nativeHandle*/,
     return Void();
 }
 
-hidl_handle BufferHubService::registerToken(const BufferClient* client) {
+hidl_handle BufferHubService::registerToken(const wp<BufferClient>& client) {
     uint32_t token;
     std::lock_guard<std::mutex> lock(mTokenMapMutex);
     do {
