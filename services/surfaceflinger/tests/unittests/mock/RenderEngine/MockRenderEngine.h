@@ -23,6 +23,7 @@
 #include <renderengine/LayerSettings.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
+#include <renderengine/Surface.h>
 #include <renderengine/Texture.h>
 #include <ui/GraphicBuffer.h>
 
@@ -36,12 +37,15 @@ public:
     ~RenderEngine() override;
 
     MOCK_METHOD0(createFramebuffer, std::unique_ptr<Framebuffer>());
+    MOCK_METHOD0(createSurface, std::unique_ptr<renderengine::Surface>());
     MOCK_METHOD0(createImage, std::unique_ptr<renderengine::Image>());
     MOCK_CONST_METHOD0(primeCache, void());
     MOCK_METHOD1(dump, void(String8&));
     MOCK_CONST_METHOD0(useNativeFenceSync, bool());
     MOCK_CONST_METHOD0(useWaitSync, bool());
     MOCK_CONST_METHOD0(isCurrent, bool());
+    MOCK_METHOD1(setCurrentSurface, bool(const renderengine::Surface&));
+    MOCK_METHOD0(resetCurrentSurface, void());
     MOCK_METHOD0(flush, base::unique_fd());
     MOCK_METHOD0(finish, bool());
     MOCK_METHOD1(waitFence, bool(base::unique_fd*));
@@ -76,6 +80,23 @@ public:
     MOCK_CONST_METHOD4(drawLayers,
                        status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
                                 ANativeWindowBuffer* const, base::unique_fd*));
+};
+
+class Surface : public renderengine::Surface {
+public:
+    Surface();
+    ~Surface() override;
+
+    MOCK_METHOD1(setCritical, void(bool));
+    MOCK_METHOD1(setAsync, void(bool));
+    MOCK_METHOD1(setNativeWindow, void(ANativeWindow*));
+    MOCK_CONST_METHOD0(swapBuffers, void());
+    MOCK_CONST_METHOD0(queryRedSize, int32_t());
+    MOCK_CONST_METHOD0(queryGreenSize, int32_t());
+    MOCK_CONST_METHOD0(queryBlueSize, int32_t());
+    MOCK_CONST_METHOD0(queryAlphaSize, int32_t());
+    MOCK_CONST_METHOD0(getWidth, int32_t());
+    MOCK_CONST_METHOD0(getHeight, int32_t());
 };
 
 class Image : public renderengine::Image {

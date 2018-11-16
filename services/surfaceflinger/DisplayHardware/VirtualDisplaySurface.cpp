@@ -107,6 +107,8 @@ VirtualDisplaySurface::VirtualDisplaySurface(HWComposer& hwc,
     mConsumer->setConsumerUsageBits(GRALLOC_USAGE_HW_COMPOSER);
     mConsumer->setDefaultBufferSize(sinkWidth, sinkHeight);
     sink->setAsyncMode(true);
+    IGraphicBufferProducer::QueueBufferOutput output;
+    mSource[SOURCE_SCRATCH]->connect(nullptr, NATIVE_WINDOW_API_EGL, false, &output);
 }
 
 VirtualDisplaySurface::~VirtualDisplaySurface() {
