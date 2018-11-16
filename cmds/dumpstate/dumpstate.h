@@ -42,6 +42,9 @@
 // TODO: and then remove explicitly android::os::dumpstate:: prefixes
 namespace android {
 namespace os {
+
+struct DumpstateOptions;
+
 namespace dumpstate {
 
 class DumpstateTest;
@@ -185,6 +188,17 @@ class Dumpstate {
   public:
     enum RunStatus { OK, HELP, INVALID_INPUT, ERROR };
 
+    // TODO(117177665): should enumerate constants in the AIDL file.
+    // The mode under which the bugreport should be run. Each mode encapsulates a few options.
+    enum BugreportMode {
+        BUGREPORT_FULL,
+        BUGREPORT_INTERACTIVE,
+        BUGREPORT_REMOTE,
+        BUGREPORT_WEAR,
+        BUGREPORT_TELEPHONY,
+        BUGREPORT_WIFI
+    };
+
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
 
     static Dumpstate& GetInstance();
@@ -317,6 +331,7 @@ class Dumpstate {
         // Whether progress updates should be published.
         bool do_progress_updates = false;
         std::string use_outfile;
+        // TODO: rename to MODE.
         // Extra options passed as system property.
         std::string extra_options;
         // Command-line arguments as string
@@ -327,6 +342,9 @@ class Dumpstate {
 
         /* Initializes options from commandline arguments and system properties. */
         RunStatus Initialize(int argc, char* argv[]);
+
+        /* Initializes options from the requested mode. */
+        void Initialize(BugreportMode bugreport_mode);
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
