@@ -1127,7 +1127,9 @@ public:
                 .WillRepeatedly(DoAll(SetArgPointee<1>(1080 /* arbitrary */), Return(0)));
         EXPECT_CALL(*mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(1920 /* arbitrary */), Return(0)));
+        EXPECT_CALL(*mNativeWindow, perform(9)).Times(1);
         EXPECT_CALL(*mNativeWindow, perform(13)).Times(1);
+        EXPECT_CALL(*mNativeWindow, perform(30)).Times(1);
         auto displayDevice = mInjector.inject();
 
         displayDevice->getBestColorMode(mInputDataspace, mInputRenderIntent, &mOutDataspace,
@@ -1955,7 +1957,9 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
             .WillOnce(DoAll(SetArgPointee<1>(oldWidth), Return(0)));
     EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
             .WillOnce(DoAll(SetArgPointee<1>(oldHeight), Return(0)));
+    EXPECT_CALL(*nativeWindow, perform(9)).Times(1);
     EXPECT_CALL(*nativeWindow, perform(13)).Times(1);
+    EXPECT_CALL(*nativeWindow, perform(30)).Times(1);
     display.inject();
 
     // There is a change to the viewport state
@@ -1999,7 +2003,9 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
             .WillOnce(DoAll(SetArgPointee<1>(oldWidth), Return(0)));
     EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
             .WillOnce(DoAll(SetArgPointee<1>(oldHeight), Return(0)));
+    EXPECT_CALL(*nativeWindow, perform(9)).Times(1);
     EXPECT_CALL(*nativeWindow, perform(13)).Times(1);
+    EXPECT_CALL(*nativeWindow, perform(30)).Times(1);
     display.inject();
 
     // There is a change to the viewport state
