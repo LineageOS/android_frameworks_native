@@ -103,6 +103,27 @@ public:
     // to read from and/or write into.
     bool IsValid() const { return mBufferHandle.IsValid(); }
 
+    // Gains the buffer for exclusive write permission. Read permission is implied once a buffer is
+    // gained.
+    // The buffer can be gained as long as there is no other client in acquired or gained state.
+    int Gain();
+
+    // Posts the gained buffer for other buffer clients to use the buffer.
+    // The buffer can be posted iff the buffer state for this client is gained.
+    // After posting the buffer, this client is put to released state and does not have access to
+    // the buffer for this cycle of the usage of the buffer.
+    int Post();
+
+    // Acquires the buffer for shared read permission.
+    // The buffer can be acquired iff the buffer state for this client is posted.
+    int Acquire();
+
+    // Releases the buffer.
+    // The buffer can be released from any buffer state.
+    // After releasing the buffer, this client no longer have any permissions to the buffer for the
+    // current cycle of the usage of the buffer.
+    int Release();
+
     // Returns the event mask for all the events that are pending on this buffer (see sys/poll.h for
     // all possible bits).
     pdx::Status<int> GetEventMask(int events) {
@@ -130,6 +151,9 @@ private:
 
     // Global id for the buffer that is consistent across processes.
     int mId = -1;
+
+    // Client state mask of this BufferHubBuffer object. It is unique amoung all
+    // clients/users of the buffer.
     uint64_t mClientStateMask = 0;
 
     // Stores ground truth of the buffer.
@@ -141,6 +165,10 @@ private:
     // An ashmem-based metadata object. The same shared memory are mapped to the
     // bufferhubd daemon and all buffer clients.
     BufferHubMetadata mMetadata;
+    // Shortcuts to the atomics inside the header of mMetadata.
+    std::atomic<uint64_t>* buffer_state_{nullptr};
+    std::atomic<uint64_t>* fence_state_{nullptr};
+    std::atomic<uint64_t>* active_clients_bit_mask_{nullptr};
 
     // PDX backend.
     BufferHubClient mClient;

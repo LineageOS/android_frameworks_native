@@ -36,7 +36,14 @@ const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const size_t kUserMetadataSize = 0;
 
+using dvr::BufferHubDefs::AnyClientAcquired;
+using dvr::BufferHubDefs::AnyClientGained;
+using dvr::BufferHubDefs::AnyClientPosted;
 using dvr::BufferHubDefs::IsBufferReleased;
+using dvr::BufferHubDefs::IsClientAcquired;
+using dvr::BufferHubDefs::IsClientGained;
+using dvr::BufferHubDefs::IsClientPosted;
+using dvr::BufferHubDefs::IsClientReleased;
 using dvr::BufferHubDefs::kFirstClientBitMask;
 using dvr::BufferHubDefs::kMetadataHeaderSize;
 using frameworks::bufferhub::V1_0::BufferHubStatus;
@@ -48,8 +55,39 @@ using hidl::base::V1_0::IBase;
 using pdx::LocalChannelHandle;
 
 class BufferHubBufferTest : public ::testing::Test {
+protected:
     void SetUp() override { android::hardware::ProcessState::self()->startThreadPool(); }
 };
+
+class BufferHubBufferStateTransitionTest : public BufferHubBufferTest {
+protected:
+    void SetUp() override {
+        BufferHubBufferTest::SetUp();
+        CreateTwoClientsOfABuffer();
+    }
+
+    std::unique_ptr<BufferHubBuffer> b1;
+    uint64_t b1ClientMask = 0ULL;
+    std::unique_ptr<BufferHubBuffer> b2;
+    uint64_t b2ClientMask = 0ULL;
+
+private:
+    // Creates b1 and b2 as the clients of the same buffer for testing.
+    void CreateTwoClientsOfABuffer();
+};
+
+void BufferHubBufferStateTransitionTest::CreateTwoClientsOfABuffer() {
+    b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
+    b1ClientMask = b1->client_state_mask();
+    ASSERT_NE(b1ClientMask, 0ULL);
+    auto statusOrHandle = b1->Duplicate();
+    ASSERT_TRUE(statusOrHandle);
+    LocalChannelHandle h2 = statusOrHandle.take();
+    b2 = BufferHubBuffer::Import(std::move(h2));
+    b2ClientMask = b2->client_state_mask();
+    ASSERT_NE(b2ClientMask, 0ULL);
+    ASSERT_NE(b2ClientMask, b1ClientMask);
+}
 
 TEST_F(BufferHubBufferTest, CreateBufferHubBufferFails) {
     // Buffer Creation will fail: BLOB format requires height to be 1.
@@ -313,6 +351,181 @@ TEST_F(BufferHubBufferTest, ImportFreedBuffer) {
     EXPECT_TRUE(bufferhub->importBuffer(token, import_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
     EXPECT_EQ(nullptr, client2.get());
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromReleasedState) {
+    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+
+    // Successful gaining the buffer should change the buffer state bit of b1 to
+    // gained state, other client state bits to released state.
+    EXPECT_EQ(b1->Gain(), 0);
+    EXPECT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromGainedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    auto current_buffer_state = b1->buffer_state();
+    ASSERT_TRUE(IsClientGained(current_buffer_state, b1ClientMask));
+
+    // Gaining from gained state by the same client should not return error.
+    EXPECT_EQ(b1->Gain(), 0);
+
+    // Gaining from gained state by another client should return error.
+    EXPECT_EQ(b2->Gain(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromAcquiredState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_EQ(b2->Acquire(), 0);
+    ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
+
+    // Gaining from acquired state should fail.
+    EXPECT_EQ(b1->Gain(), -EBUSY);
+    EXPECT_EQ(b2->Gain(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromOtherClientInPostedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+
+    // Gaining a buffer who has other posted client should succeed.
+    EXPECT_EQ(b1->Gain(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromSelfInPostedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+
+    // A posted client should be able to gain the buffer when there is no other clients in
+    // acquired state.
+    EXPECT_EQ(b2->Gain(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromOtherInGainedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
+
+    EXPECT_EQ(b2->Post(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromSelfInGainedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
+
+    EXPECT_EQ(b1->Post(), 0);
+    auto current_buffer_state = b1->buffer_state();
+    EXPECT_TRUE(IsClientReleased(current_buffer_state, b1ClientMask));
+    EXPECT_TRUE(IsClientPosted(current_buffer_state, b2ClientMask));
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromPostedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+
+    // Post from posted state should fail.
+    EXPECT_EQ(b1->Post(), -EBUSY);
+    EXPECT_EQ(b2->Post(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromAcquiredState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_EQ(b2->Acquire(), 0);
+    ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
+
+    // Posting from acquired state should fail.
+    EXPECT_EQ(b1->Post(), -EBUSY);
+    EXPECT_EQ(b2->Post(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromReleasedState) {
+    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+
+    // Posting from released state should fail.
+    EXPECT_EQ(b1->Post(), -EBUSY);
+    EXPECT_EQ(b2->Post(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromSelfInPostedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_TRUE(IsClientPosted(b1->buffer_state(), b2ClientMask));
+
+    // Acquire from posted state should pass.
+    EXPECT_EQ(b2->Acquire(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromOtherInPostedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_TRUE(IsClientPosted(b1->buffer_state(), b2ClientMask));
+
+    // Acquire from released state should fail, although there are other clients
+    // in posted state.
+    EXPECT_EQ(b1->Acquire(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromSelfInAcquiredState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_EQ(b2->Acquire(), 0);
+    auto current_buffer_state = b1->buffer_state();
+    ASSERT_TRUE(IsClientAcquired(current_buffer_state, b2ClientMask));
+
+    // Acquiring from acquired state by the same client should not error out.
+    EXPECT_EQ(b2->Acquire(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromReleasedState) {
+    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+
+    // Acquiring form released state should fail.
+    EXPECT_EQ(b1->Acquire(), -EBUSY);
+    EXPECT_EQ(b2->Acquire(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromGainedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_TRUE(AnyClientGained(b1->buffer_state()));
+
+    // Acquiring from gained state should fail.
+    EXPECT_EQ(b1->Acquire(), -EBUSY);
+    EXPECT_EQ(b2->Acquire(), -EBUSY);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInReleasedState) {
+    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+
+    EXPECT_EQ(b1->Release(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInGainedState) {
+    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_TRUE(AnyClientGained(b1->buffer_state()));
+
+    EXPECT_EQ(b1->Release(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInPostedState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+
+    EXPECT_EQ(b2->Release(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInAcquiredState) {
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_EQ(b2->Acquire(), 0);
+    ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
+
+    EXPECT_EQ(b2->Release(), 0);
 }
 
 } // namespace
