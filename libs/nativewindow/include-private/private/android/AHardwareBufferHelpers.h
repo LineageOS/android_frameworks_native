@@ -28,9 +28,14 @@
 #include <stdint.h>
 
 struct AHardwareBuffer;
+struct AHardwareBuffer_Desc;
 struct ANativeWindowBuffer;
 
 namespace android {
+
+// Validates whether the passed description does not have conflicting
+// parameters. Note: this does not verify any platform-specific contraints.
+bool AHardwareBuffer_isValidDescription(const AHardwareBuffer_Desc* desc, bool log);
 
 // whether this AHardwareBuffer format is valid
 bool AHardwareBuffer_isValidPixelFormat(uint32_t ahardwarebuffer_format);
