@@ -1683,8 +1683,6 @@ void SurfaceFlinger::calculateWorkingSet() {
     mDrawingState.colorMatrixChanged = false;
 
     for (const auto& [token, display] : mDisplays) {
-        getBE().mCompositionInfo[token].clear();
-
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
             const auto displayId = display->getId();
             layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
@@ -1967,6 +1965,17 @@ void SurfaceFlinger::postComposition()
 void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
     ALOGV("rebuildLayerStacks");
+
+    // We need to clear these out now as these may be holding on to a
+    // HWC2::Layer reference at the same time as the LayerBE::HWCInfo structure
+    // also holds a reference. When the set of visible layers is recomputed,
+    // some layers may be destroyed if the only thing keeping them alive was
+    // that list of visible layers associated with each display. The layer
+    // destruction code asserts that the HWC2::Layer is properly destroyed, but
+    // that doesn't happen if SurfaceFlingerBE::mCompositionInfo keeps it alive.
+    for (const auto& [token, display] : mDisplays) {
+        getBE().mCompositionInfo[token].clear();
+    }
 
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
