@@ -39,6 +39,13 @@ namespace android {
 
 /*
  * Intermediate representation used to send input events and related signals.
+ *
+ * Since the struct must be aligned to an 8-byte boundary, there could be uninitialized bytes
+ * in-between the defined fields. This padding data should be explicitly accounted for by adding
+ * "empty" fields into the struct. This data is memset to zero before sending the struct across
+ * the socket. Adding the explicit fields ensures that the memset is not optimized away by the
+ * compiler. When a new field is added to the struct, the corresponding change
+ * in StructLayout_test should be made.
  */
 struct InputMessage {
     enum {
@@ -55,6 +62,7 @@ struct InputMessage {
     union Body {
         struct Key {
             uint32_t seq;
+            uint32_t empty1;
             nsecs_t eventTime;
             int32_t deviceId;
             int32_t source;
@@ -73,6 +81,7 @@ struct InputMessage {
 
         struct Motion {
             uint32_t seq;
+            uint32_t empty1;
             nsecs_t eventTime;
             int32_t deviceId;
             int32_t source;
@@ -87,6 +96,7 @@ struct InputMessage {
             float xPrecision;
             float yPrecision;
             size_t pointerCount;
+            uint32_t empty2;
             struct Pointer {
                 PointerProperties properties;
                 PointerCoords coords;
@@ -116,6 +126,7 @@ struct InputMessage {
 
     bool isValid(size_t actualSize) const;
     size_t size() const;
+    void getSanitizedCopy(InputMessage* msg) const;
 };
 
 /*
