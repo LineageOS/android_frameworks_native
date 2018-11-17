@@ -34,23 +34,21 @@
 # made today requires touching the same file, just copy the old
 # touch step and add it to the end of the list.
 #
-# *****************************************************************
-# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST ABOVE THE BANNER
-# *****************************************************************
+# ************************************************
+# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST
+# ************************************************
 
 # For example:
 #$(call add-clean-step, rm -rf $(OUT_DIR)/target/common/obj/APPS/AndroidTests_intermediates)
 #$(call add-clean-step, rm -rf $(OUT_DIR)/target/common/obj/JAVA_LIBRARIES/core_intermediates)
 #$(call add-clean-step, find $(OUT_DIR) -type f -name "IGTalkSession*" -print0 | xargs -0 rm -f)
 #$(call add-clean-step, rm -rf $(PRODUCT_OUT)/data/*)
+
 $(call add-clean-step, find $(PRODUCT_OUT) -type f -name "libdvr.so" -print0 | xargs -0 rm -f)
-$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libdvr_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libdvr_intermediates)
 $(call add-clean-step, find $(PRODUCT_OUT) -type f -name "libgui*" -print0 | xargs -0 rm -f)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libgui_intermediates)
-$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/SHARED_LIBRARIES/libgui_intermediates)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/bin/thermalserviced)
 $(call add-clean-step, rm -rf $(PRODUCT_OUT)/system/etc/init/thermalservice.rc)
-# ******************************************************************
-# NEWER CLEAN STEPS MUST BE AT THE END OF THE LIST ABOVE THIS BANNER
-# ******************************************************************
+$(call add-clean-step, find $(PRODUCT_OUT) -type f -name "gpuservice*" -print0 | xargs -0 rm -f)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/EXECUTABLES/gpuservice_intermediates)
