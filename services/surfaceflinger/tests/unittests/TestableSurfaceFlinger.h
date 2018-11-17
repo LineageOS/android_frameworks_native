@@ -474,11 +474,6 @@ public:
             return *this;
         }
 
-        auto& setRenderSurface(std::unique_ptr<renderengine::Surface> renderSurface) {
-            mCreationArgs.renderSurface = std::move(renderSurface);
-            return *this;
-        }
-
         auto& setSecure(bool secure) {
             mCreationArgs.isSecure = secure;
             return *this;

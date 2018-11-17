@@ -2337,14 +2337,6 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
     creationArgs.nativeWindow = nativeWindow;
 
-    /*
-     * Create our display's surface
-     */
-    std::unique_ptr<renderengine::Surface> renderSurface = getRenderEngine().createSurface();
-    renderSurface->setCritical(isInternalDisplay);
-    renderSurface->setAsync(state.isVirtual());
-    creationArgs.renderSurface = std::move(renderSurface);
-
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
     // here, in case the display is composed entirely by HWC.
