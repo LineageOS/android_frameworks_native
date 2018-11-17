@@ -62,7 +62,7 @@ namespace {
     status_t cmd_vkjson(int out, int err);
 }
 
-const char* const GpuService::SERVICE_NAME = "gpuservice";
+const char* const GpuService::SERVICE_NAME = "gpu";
 
 GpuService::GpuService() = default;
 
