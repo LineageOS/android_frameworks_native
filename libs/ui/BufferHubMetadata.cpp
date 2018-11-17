@@ -48,47 +48,47 @@ BufferHubMetadata BufferHubMetadata::Create(size_t userMetadataSize) {
         return {};
     }
 
-    // Hand over the ownership of the fd to a pdx::LocalHandle immediately after the successful
-    // return of ashmem_create_region. The ashmemHandle is going to own the fd and to prevent fd
+    // Hand over the ownership of the fd to a unique_fd immediately after the successful
+    // return of ashmem_create_region. The ashmemFd is going to own the fd and to prevent fd
     // leaks during error handling.
-    pdx::LocalHandle ashmemHandle{fd};
+    unique_fd ashmemFd{fd};
 
-    if (ashmem_set_prot_region(ashmemHandle.Get(), kAshmemProt) != 0) {
+    if (ashmem_set_prot_region(ashmemFd.get(), kAshmemProt) != 0) {
         ALOGE("BufferHubMetadata::Create: failed to set protect region.");
         return {};
     }
 
-    return BufferHubMetadata::Import(std::move(ashmemHandle));
+    return BufferHubMetadata::Import(std::move(ashmemFd));
 }
 
 /* static */
-BufferHubMetadata BufferHubMetadata::Import(pdx::LocalHandle ashmemHandle) {
-    if (!ashmem_valid(ashmemHandle.Get())) {
+BufferHubMetadata BufferHubMetadata::Import(unique_fd ashmemFd) {
+    if (!ashmem_valid(ashmemFd.get())) {
         ALOGE("BufferHubMetadata::Import: invalid ashmem fd.");
         return {};
     }
 
-    size_t metadataSize = static_cast<size_t>(ashmem_get_size_region(ashmemHandle.Get()));
+    size_t metadataSize = static_cast<size_t>(ashmem_get_size_region(ashmemFd.get()));
     size_t userMetadataSize = metadataSize - kMetadataHeaderSize;
 
     // Note that here the buffer state is mapped from shared memory as an atomic object. The
     // std::atomic's constructor will not be called so that the original value stored in the memory
     // region can be preserved.
     auto metadataHeader = static_cast<MetadataHeader*>(mmap(nullptr, metadataSize, kAshmemProt,
-                                                            MAP_SHARED, ashmemHandle.Get(),
+                                                            MAP_SHARED, ashmemFd.get(),
                                                             /*offset=*/0));
     if (metadataHeader == nullptr) {
         ALOGE("BufferHubMetadata::Import: failed to map region.");
         return {};
     }
 
-    return BufferHubMetadata(userMetadataSize, std::move(ashmemHandle), metadataHeader);
+    return BufferHubMetadata(userMetadataSize, std::move(ashmemFd), metadataHeader);
 }
 
-BufferHubMetadata::BufferHubMetadata(size_t userMetadataSize, pdx::LocalHandle ashmemHandle,
+BufferHubMetadata::BufferHubMetadata(size_t userMetadataSize, unique_fd ashmemFd,
                                      MetadataHeader* metadataHeader)
       : mUserMetadataSize(userMetadataSize),
-        mAshmemHandle(std::move(ashmemHandle)),
+        mAshmemFd(std::move(ashmemFd)),
         mMetadataHeader(metadataHeader) {}
 
 BufferHubMetadata::~BufferHubMetadata() {

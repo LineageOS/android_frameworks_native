@@ -43,11 +43,11 @@ TEST_F(BufferHubMetadataTest, Import_Success) {
   EXPECT_TRUE(m1.IsValid());
   EXPECT_NE(m1.metadata_header(), nullptr);
 
-  pdx::LocalHandle h2 = m1.ashmem_handle().Duplicate();
-  EXPECT_TRUE(h2.IsValid());
+  unique_fd h2 = unique_fd(dup(m1.ashmem_fd().get()));
+  EXPECT_NE(h2.get(), -1);
 
   BufferHubMetadata m2 = BufferHubMetadata::Import(std::move(h2));
-  EXPECT_FALSE(h2.IsValid());
+  EXPECT_EQ(h2.get(), -1);
   EXPECT_TRUE(m1.IsValid());
   BufferHubDefs::MetadataHeader* mh1 = m1.metadata_header();
   EXPECT_NE(mh1, nullptr);
@@ -71,31 +71,29 @@ TEST_F(BufferHubMetadataTest, MoveMetadataInvalidatesOldOne) {
   BufferHubMetadata m1 = BufferHubMetadata::Create(sizeof(int));
   EXPECT_TRUE(m1.IsValid());
   EXPECT_NE(m1.metadata_header(), nullptr);
-  EXPECT_TRUE(m1.ashmem_handle().IsValid());
+  EXPECT_NE(m1.ashmem_fd().get(), -1);
   EXPECT_EQ(m1.user_metadata_size(), sizeof(int));
 
   BufferHubMetadata m2 = std::move(m1);
 
-  // After the move, the metadata header (a raw pointer) should be reset in the
-  // older buffer.
+  // After the move, the metadata header (a raw pointer) should be reset in the older buffer.
   EXPECT_EQ(m1.metadata_header(), nullptr);
   EXPECT_NE(m2.metadata_header(), nullptr);
 
-  EXPECT_FALSE(m1.ashmem_handle().IsValid());
-  EXPECT_TRUE(m2.ashmem_handle().IsValid());
+  EXPECT_EQ(m1.ashmem_fd().get(), -1);
+  EXPECT_NE(m2.ashmem_fd().get(), -1);
 
   EXPECT_EQ(m1.user_metadata_size(), 0U);
   EXPECT_EQ(m2.user_metadata_size(), sizeof(int));
 
   BufferHubMetadata m3{std::move(m2)};
 
-  // After the move, the metadata header (a raw pointer) should be reset in the
-  // older buffer.
+  // After the move, the metadata header (a raw pointer) should be reset in the older buffer.
   EXPECT_EQ(m2.metadata_header(), nullptr);
   EXPECT_NE(m3.metadata_header(), nullptr);
 
-  EXPECT_FALSE(m2.ashmem_handle().IsValid());
-  EXPECT_TRUE(m3.ashmem_handle().IsValid());
+  EXPECT_EQ(m2.ashmem_fd().get(), -1);
+  EXPECT_NE(m3.ashmem_fd().get(), -1);
 
   EXPECT_EQ(m2.user_metadata_size(), 0U);
   EXPECT_EQ(m3.user_metadata_size(), sizeof(int));

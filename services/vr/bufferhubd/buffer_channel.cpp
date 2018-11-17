@@ -83,10 +83,13 @@ Status<BufferTraits<BorrowedHandle>> BufferChannel::OnImport(
   ATRACE_NAME("BufferChannel::OnImport");
   ALOGD_IF(TRACE, "BufferChannel::OnImport: buffer=%d.", buffer_id());
 
+  BorrowedHandle ashmem_handle =
+      BorrowedHandle(buffer_node_->metadata().ashmem_fd().get());
+
   // TODO(b/112057680) Move away from the GraphicBuffer-based IonBuffer.
   return BufferTraits<BorrowedHandle>{
       /*buffer_handle=*/buffer_node_->buffer_handle(),
-      /*metadata_handle=*/buffer_node_->metadata().ashmem_handle().Borrow(),
+      /*metadata_handle=*/ashmem_handle,
       /*id=*/buffer_id(),
       /*client_state_mask=*/client_state_mask_,
       /*metadata_size=*/buffer_node_->metadata().metadata_size(),
