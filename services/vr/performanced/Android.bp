@@ -1,4 +1,4 @@
-// Copyright (C) 2013 The Android Open Source Project
+// Copyright (C) 2016 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,45 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-cc_library_shared {
-    name: "libinputflinger",
-
-    cpp_std: "c++17",
-
-    srcs: [
-        "EventHub.cpp",
-        "InputDispatcher.cpp",
-        "InputListener.cpp",
-        "InputManager.cpp",
-        "InputReader.cpp",
+cc_defaults {
+    name: "performanced_defaults",
+    static_libs: [
+        "libperformance",
+        "libvr_manager",
     ],
-
     shared_libs: [
-        "libbase",
         "libbinder",
-        "libcrypto",
+        "libbase",
         "libcutils",
-        "libinput",
         "liblog",
         "libutils",
-        "libui",
-        "libhardware_legacy",
-        "libutils"
+        "libpdx_default_transport",
     ],
-
-    cflags: [
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-Wno-unused-parameter",
-        // TODO: Move inputflinger to its own process and mark it hidden
-        //-fvisibility=hidden
-    ],
-
-    export_include_dirs: ["."],
 }
 
-subdirs = [
-    "host",
-    "tests",
-]
+cc_binary {
+    name: "performanced",
+    defaults: ["performanced_defaults"],
+    srcs: [
+        "cpu_set.cpp",
+        "main.cpp",
+        "performance_service.cpp",
+        "task.cpp",
+    ],
+    cflags: [
+        "-DLOG_TAG=\"performanced\"",
+        "-DTRACE=0",
+        "-Wall",
+        "-Werror",
+    ],
+    init_rc: ["performanced.rc"],
+}
+
+cc_test {
+    name: "performance_service_tests",
+    defaults: ["performanced_defaults"],
+    srcs: ["performance_service_tests.cpp"],
+}

@@ -1917,7 +1917,7 @@ static void SendBugreportFinishedBroadcast() {
             am_args.push_back("android.intent.extra.SCREENSHOT");
             am_args.push_back(ds.screenshot_path_);
         }
-        if (ds.options_->notification_title.empty()) {
+        if (!ds.options_->notification_title.empty()) {
             am_args.push_back("--es");
             am_args.push_back("android.intent.extra.TITLE");
             am_args.push_back(ds.options_->notification_title);
@@ -1977,7 +1977,8 @@ static void SetOptionsFromProperties(Dumpstate::DumpOptions* options) {
         // Reset the property
         android::base::SetProperty(PROPERTY_EXTRA_TITLE, "");
 
-        options->extra_options = android::base::GetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
+        options->notification_description =
+            android::base::GetProperty(PROPERTY_EXTRA_DESCRIPTION, "");
         if (!options->notification_description.empty()) {
             // Reset the property
             android::base::SetProperty(PROPERTY_EXTRA_DESCRIPTION, "");

@@ -3193,19 +3193,15 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer, bool topLevelOnly) {
+status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
     Mutex::Autolock _l(mStateLock);
-    return removeLayerLocked(mStateLock, layer, topLevelOnly);
+    return removeLayerLocked(mStateLock, layer);
 }
 
-status_t SurfaceFlinger::removeLayerLocked(const Mutex& lock, const sp<Layer>& layer,
-                                           bool topLevelOnly) {
+status_t SurfaceFlinger::removeLayerLocked(const Mutex& lock, const sp<Layer>& layer) {
     const auto& p = layer->getParent();
     ssize_t index;
     if (p != nullptr) {
-        if (topLevelOnly) {
-            return NO_ERROR;
-        }
         index = p->removeChild(layer);
     } else {
         index = mCurrentState.layersSortedByZ.remove(layer);

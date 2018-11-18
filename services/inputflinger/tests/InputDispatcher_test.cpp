@@ -16,6 +16,8 @@
 
 #include "../InputDispatcher.h"
 
+#include <binder/Binder.h>
+
 #include <gtest/gtest.h>
 #include <linux/input.h>
 
@@ -53,12 +55,12 @@ private:
     }
 
     virtual nsecs_t notifyANR(const sp<InputApplicationHandle>&,
-            const sp<InputWindowHandle>&,
+            const sp<IBinder>&,
             const std::string&) {
         return 0;
     }
 
-    virtual void notifyInputChannelBroken(const sp<InputWindowHandle>&) {
+    virtual void notifyInputChannelBroken(const sp<IBinder>&) {
     }
 
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) {
@@ -75,12 +77,12 @@ private:
     virtual void interceptMotionBeforeQueueing(nsecs_t, uint32_t&) {
     }
 
-    virtual nsecs_t interceptKeyBeforeDispatching(const sp<InputWindowHandle>&,
+    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&,
             const KeyEvent*, uint32_t) {
         return 0;
     }
 
-    virtual bool dispatchUnhandledKey(const sp<InputWindowHandle>&,
+    virtual bool dispatchUnhandledKey(const sp<IBinder>&,
             const KeyEvent*, uint32_t, KeyEvent*) {
         return false;
     }
@@ -336,6 +338,7 @@ protected:
             const std::string name, int32_t displayId) :
                 mDispatcher(dispatcher), mName(name), mDisplayId(displayId) {
             InputChannel::openInputChannelPair(name, mServerChannel, mClientChannel);
+
             mConsumer = new InputConsumer(mClientChannel);
         }
 
@@ -366,34 +369,32 @@ public:
             InputWindowHandle(inputApplicationHandle),
             FakeInputReceiver(dispatcher, name, displayId),
             mFocused(false) {
-            mDispatcher->registerInputChannel(mServerChannel, this, displayId);
+            mServerChannel->setToken(new BBinder());
+            mDispatcher->registerInputChannel(mServerChannel, displayId);
     }
 
     virtual bool updateInfo() {
-        if (!mInfo) {
-            mInfo = new InputWindowInfo();
-        }
-        mInfo->inputChannel = mServerChannel;
-        mInfo->name = mName;
-        mInfo->layoutParamsFlags = 0;
-        mInfo->layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
-        mInfo->dispatchingTimeout = DISPATCHING_TIMEOUT;
-        mInfo->frameLeft = 0;
-        mInfo->frameTop = 0;
-        mInfo->frameRight = WIDTH;
-        mInfo->frameBottom = HEIGHT;
-        mInfo->scaleFactor = 1.0;
-        mInfo->addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
-        mInfo->visible = true;
-        mInfo->canReceiveKeys = true;
-        mInfo->hasFocus = mFocused;
-        mInfo->hasWallpaper = false;
-        mInfo->paused = false;
-        mInfo->layer = 0;
-        mInfo->ownerPid = INJECTOR_PID;
-        mInfo->ownerUid = INJECTOR_UID;
-        mInfo->inputFeatures = 0;
-        mInfo->displayId = mDisplayId;
+        mInfo.inputChannel = mServerChannel;
+        mInfo.name = mName;
+        mInfo.layoutParamsFlags = 0;
+        mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
+        mInfo.dispatchingTimeout = DISPATCHING_TIMEOUT;
+        mInfo.frameLeft = 0;
+        mInfo.frameTop = 0;
+        mInfo.frameRight = WIDTH;
+        mInfo.frameBottom = HEIGHT;
+        mInfo.scaleFactor = 1.0;
+        mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
+        mInfo.visible = true;
+        mInfo.canReceiveKeys = true;
+        mInfo.hasFocus = mFocused;
+        mInfo.hasWallpaper = false;
+        mInfo.paused = false;
+        mInfo.layer = 0;
+        mInfo.ownerPid = INJECTOR_PID;
+        mInfo.ownerUid = INJECTOR_UID;
+        mInfo.inputFeatures = 0;
+        mInfo.displayId = mDisplayId;
 
         return true;
     }
@@ -529,6 +530,34 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     windowSecond->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
 }
 
+TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+
+    sp<FakeWindowHandle> windowTop = new FakeWindowHandle(application, mDispatcher, "Top",
+            ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
+            ADISPLAY_ID_DEFAULT);
+
+    windowTop->setFocus();
+
+    Vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.add(windowTop);
+    inputWindowHandles.add(windowSecond);
+
+    mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
+
+    // Release channel for window is no longer valid.
+    windowTop->releaseChannel();
+
+    // Test inject a motion down, should timeout because of no target channel.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+
+    // Top window is invalid, so it should not receive any input event.
+    windowTop->assertNoEvents();
+    windowSecond->assertNoEvents();
+}
+
 /* Test InputDispatcher for MultiDisplay */
 class InputDispatcherFocusOnTwoDisplaysTest : public InputDispatcherTest {
 public:
@@ -624,7 +653,7 @@ class FakeMonitorReceiver : public FakeInputReceiver, public RefBase {
 public:
     FakeMonitorReceiver(const sp<InputDispatcher>& dispatcher, const std::string name,
             int32_t displayId) : FakeInputReceiver(dispatcher, name, displayId) {
-        mDispatcher->registerInputChannel(mServerChannel, nullptr, displayId);
+        mDispatcher->registerInputChannel(mServerChannel, displayId);
     }
 };
 

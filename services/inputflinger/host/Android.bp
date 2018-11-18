@@ -30,6 +30,9 @@ cc_library_shared {
         "libutils",
         "libhardware",
     ],
+    static_libs: [
+        "libarect",
+    ],
 
     cflags: [
         "-Wall",
@@ -54,7 +57,10 @@ cc_binary {
     shared_libs: [
         "libbinder",
         "libinputflingerhost",
-        "libutils",
+        "libutils"
+    ],
+    static_libs: [
+        "libarect",
     ],
 
     init_rc: ["inputflinger.rc"],

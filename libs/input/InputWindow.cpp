@@ -135,25 +135,25 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     return ret;
 }
 
+InputWindowInfo::InputWindowInfo(const Parcel& from) {
+    *this = read(from);
+}
+
 // --- InputWindowHandle ---
 
 InputWindowHandle::InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle) :
-    inputApplicationHandle(inputApplicationHandle), mInfo(nullptr) {
+    inputApplicationHandle(inputApplicationHandle) {
 }
 
 InputWindowHandle::~InputWindowHandle() {
-    delete mInfo;
 }
 
-void InputWindowHandle::releaseInfo() {
-    if (mInfo) {
-        delete mInfo;
-        mInfo = nullptr;
-    }
+void InputWindowHandle::releaseChannel() {
+    mInfo.inputChannel.clear();
 }
 
 sp<InputChannel> InputWindowHandle::getInputChannel() const {
-    return mInfo ? mInfo->inputChannel : nullptr;
+    return mInfo.inputChannel;
 }
 
 } // namespace android

@@ -28,28 +28,34 @@ mmm -j frameworks/native/cmds/dumpstate && adb push ${OUT}/system/bin/dumpstate 
 
 ## To build, deploy, and run unit tests
 
-First create `/data/nativetest`:
+First create `/data/nativetest64`:
 
 ```
-adb shell mkdir /data/nativetest
+adb shell mkdir /data/nativetest64
 ```
 
 Then run:
 
 ```
-mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest/dumpstate_test* /data/nativetest && adb shell /data/nativetest/dumpstate_test/dumpstate_test
+mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest64/dumpstate_test* /data/nativetest64 && adb shell /data/nativetest/dumpstate_test/dumpstate_test
 ```
 
 And to run just one test (for example, `DumpstateTest.RunCommandNoArgs`):
 
 ```
-mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest/dumpstate_test* /data/nativetest && adb shell /data/nativetest/dumpstate_test/dumpstate_test --gtest_filter=DumpstateTest.RunCommandNoArgs
+mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest64/dumpstate_test* /data/nativetest64 && adb shell /data/nativetest/dumpstate_test/dumpstate_test --gtest_filter=DumpstateTest.RunCommandNoArgs
 ```
 
 ## To take quick bugreports
 
 ```
 adb shell setprop dumpstate.dry_run true
+```
+
+## To emulate a device with user build
+
+```
+adb shell setprop dumpstate.unroot true
 ```
 
 ## To change the `dumpstate` version

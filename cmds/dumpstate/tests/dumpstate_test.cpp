@@ -85,6 +85,10 @@ class DumpstateBaseTest : public Test {
         PropertiesHelper::build_type_ = build_type;
     }
 
+    void SetUnroot(bool unroot) const {
+        PropertiesHelper::unroot_ = unroot;
+    }
+
     bool IsStandalone() const {
         return calls_ == 1;
     }
@@ -650,6 +654,32 @@ TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild) {
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 
+TEST_F(DumpstateTest, RunCommandAsRootNonUserBuild_withUnroot) {
+    if (!IsStandalone()) {
+        // TODO: temporarily disabled because it might cause other tests to fail after dropping
+        // to Shell - need to refactor tests to avoid this problem)
+        MYLOGE(
+            "Skipping DumpstateTest.RunCommandAsRootNonUserBuild_withUnroot() "
+            "on test suite\n")
+        return;
+    }
+    if (PropertiesHelper::IsUserBuild()) {
+        ALOGI("Skipping RunCommandAsRootNonUserBuild_withUnroot on user builds\n");
+        return;
+    }
+
+    // Same test as above, but with unroot property set, which will override su availability.
+    SetUnroot(true);
+    DropRoot();
+
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"},
+                            CommandOptions::WithTimeout(1).AsRoot().Build()));
+
+    // AsRoot is ineffective.
+    EXPECT_THAT(out, StrEq("2000\nstdout\n"));
+    EXPECT_THAT(err, StrEq("drop_root_user(): already running as Shell\nstderr\n"));
+}
+
 TEST_F(DumpstateTest, RunCommandAsRootIfAvailableOnUserBuild) {
     if (!IsStandalone()) {
         // TODO: temporarily disabled because it might cause other tests to fail after dropping
@@ -689,6 +719,32 @@ TEST_F(DumpstateTest, RunCommandAsRootIfAvailableOnDebugBuild) {
                             CommandOptions::WithTimeout(1).AsRootIfAvailable().Build()));
 
     EXPECT_THAT(out, StrEq("0\nstdout\n"));
+    EXPECT_THAT(err, StrEq("stderr\n"));
+}
+
+TEST_F(DumpstateTest, RunCommandAsRootIfAvailableOnDebugBuild_withUnroot) {
+    if (!IsStandalone()) {
+        // TODO: temporarily disabled because it might cause other tests to fail after dropping
+        // to Shell - need to refactor tests to avoid this problem)
+        MYLOGE(
+            "Skipping DumpstateTest.RunCommandAsRootIfAvailableOnDebugBuild_withUnroot() "
+            "on test suite\n")
+        return;
+    }
+    if (PropertiesHelper::IsUserBuild()) {
+        ALOGI("Skipping RunCommandAsRootIfAvailableOnDebugBuild_withUnroot on user builds\n");
+        return;
+    }
+    // Same test as above, but with unroot property set, which will override su availability.
+    SetUnroot(true);
+
+    DropRoot();
+
+    EXPECT_EQ(0, RunCommand("", {kSimpleCommand, "--uid"},
+                            CommandOptions::WithTimeout(1).AsRootIfAvailable().Build()));
+
+    // It's a userdebug build, so "su root" should be available, but unroot=true overrides it.
+    EXPECT_THAT(out, StrEq("2000\nstdout\n"));
     EXPECT_THAT(err, StrEq("stderr\n"));
 }
 

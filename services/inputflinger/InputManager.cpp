@@ -21,6 +21,7 @@
 #include "InputManager.h"
 
 #include <log/log.h>
+#include <unordered_map>
 
 namespace android {
 
@@ -88,6 +89,41 @@ sp<InputReaderInterface> InputManager::getReader() {
 
 sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
+}
+
+class BinderApplicationHandle : public InputApplicationHandle {
+public:
+    BinderApplicationHandle() = default;
+
+    bool updateInfo() override {
+        return true;
+    }
+};
+
+class BinderWindowHandle : public InputWindowHandle {
+public:
+    BinderWindowHandle(const InputWindowInfo& info) :
+        InputWindowHandle(new BinderApplicationHandle()) {
+
+        mInfo = info;
+    }
+
+    bool updateInfo() override {
+        return true;
+    }
+};
+
+void InputManager::setInputWindows(const Vector<InputWindowInfo>& infos) {
+    std::unordered_map<int32_t, Vector<sp<InputWindowHandle>>> handlesPerDisplay;
+
+    Vector<sp<InputWindowHandle>> handles;
+    for (const auto& info : infos) {
+        handlesPerDisplay.emplace(info.displayId, Vector<sp<InputWindowHandle>>());
+        handlesPerDisplay[info.displayId].add(new BinderWindowHandle(info));
+    }
+    for (auto const& i : handlesPerDisplay) {
+        mDispatcher->setInputWindows(i.second, i.first);
+    }
 }
 
 } // namespace android

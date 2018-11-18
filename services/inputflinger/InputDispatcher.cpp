@@ -58,6 +58,7 @@
 #include <utils/Trace.h>
 #include <powermanager/PowerManager.h>
 #include <ui/Region.h>
+#include <binder/Binder.h>
 
 #define INDENT "  "
 #define INDENT2 "    "
@@ -818,7 +819,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
             sp<InputWindowHandle> focusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, getTargetDisplayId(entry));
             if (focusedWindowHandle != nullptr) {
-                commandEntry->inputWindowHandle = focusedWindowHandle;
+                commandEntry->inputChannel = focusedWindowHandle->getInputChannel();
             }
             commandEntry->keyEntry = entry;
             entry->refCount += 1;
@@ -1064,6 +1065,13 @@ int32_t InputDispatcher::handleTargetsNotReadyLocked(nsecs_t currentTime,
     }
 }
 
+void InputDispatcher::removeWindowByTokenLocked(const sp<IBinder>& token) {
+    for (size_t d = 0; d < mTouchStatesByDisplay.size(); d++) {
+        TouchState& state = mTouchStatesByDisplay.editValueAt(d);
+        state.removeWindowByToken(token);
+    }
+}
+
 void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
         const sp<InputChannel>& inputChannel) {
     if (newTimeout > 0) {
@@ -1078,17 +1086,10 @@ void InputDispatcher::resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout
             ssize_t connectionIndex = getConnectionIndexLocked(inputChannel);
             if (connectionIndex >= 0) {
                 sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-                sp<InputWindowHandle> windowHandle = connection->inputWindowHandle;
+                sp<IBinder> token = connection->inputChannel->getToken();
 
-                if (windowHandle != nullptr) {
-                    const InputWindowInfo* info = windowHandle->getInfo();
-                    if (info) {
-                        ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(info->displayId);
-                        if (stateIndex >= 0) {
-                            mTouchStatesByDisplay.editValueAt(stateIndex).removeWindow(
-                                    windowHandle);
-                        }
-                    }
+                if (token != nullptr) {
+                    removeWindowByTokenLocked(token);
                 }
 
                 if (connection->status == Connection::STATUS_NORMAL) {
@@ -1168,7 +1169,8 @@ int32_t InputDispatcher::findFocusedWindowTargetsLocked(nsecs_t currentTime,
             goto Unresponsive;
         }
 
-        ALOGI("Dropping event because there is no focused window or focused application.");
+        ALOGI("Dropping event because there is no focused window or focused application in display "
+                "%" PRId32 ".", displayId);
         injectionResult = INPUT_EVENT_INJECTION_FAILED;
         goto Failed;
     }
@@ -1254,7 +1256,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         bool down = maskedAction == AMOTION_EVENT_ACTION_DOWN;
         if (switchedDevice && mTempTouchState.down && !down && !isHoverAction) {
 #if DEBUG_FOCUS
-            ALOGD("Dropping event because a pointer for a different device is already down.");
+            ALOGD("Dropping event because a pointer for a different device is already down "
+                    "in display %" PRId32, displayId);
 #endif
             // TODO: test multiple simultaneous input streams.
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
@@ -1270,7 +1273,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         isSplit = false;
     } else if (switchedDevice && maskedAction == AMOTION_EVENT_ACTION_MOVE) {
 #if DEBUG_FOCUS
-        ALOGI("Dropping move event because a pointer for a different device is already active.");
+        ALOGI("Dropping move event because a pointer for a different device is already active "
+                "in display %" PRId32, displayId);
 #endif
         // TODO: test multiple simultaneous input streams.
         injectionResult = INPUT_EVENT_INJECTION_PERMISSION_DENIED;
@@ -1335,7 +1339,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             // Try to assign the pointer to the first foreground window we find, if there is one.
             newTouchedWindowHandle = mTempTouchState.getFirstForegroundWindowHandle();
             if (newTouchedWindowHandle == nullptr) {
-                ALOGI("Dropping event because there is no touchable window at (%d, %d).", x, y);
+                ALOGI("Dropping event because there is no touchable window at (%d, %d) in display "
+                        "%" PRId32 ".", x, y, displayId);
                 injectionResult = INPUT_EVENT_INJECTION_FAILED;
                 goto Failed;
             }
@@ -1373,7 +1378,7 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         if (! mTempTouchState.down) {
 #if DEBUG_FOCUS
             ALOGD("Dropping event because the pointer is not down or we previously "
-                    "dropped the pointer down event.");
+                    "dropped the pointer down event in display %" PRId32, displayId);
 #endif
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             goto Failed;
@@ -1393,9 +1398,10 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
             if (oldTouchedWindowHandle != newTouchedWindowHandle
                     && newTouchedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
-                ALOGD("Touch is slipping out of window %s into window %s.",
+                ALOGD("Touch is slipping out of window %s into window %s in display %" PRId32,
                         oldTouchedWindowHandle->getName().c_str(),
-                        newTouchedWindowHandle->getName().c_str());
+                        newTouchedWindowHandle->getName().c_str(),
+                        displayId);
 #endif
                 // Make a slippery exit from the old window.
                 mTempTouchState.addOrUpdateWindow(oldTouchedWindowHandle,
@@ -1464,7 +1470,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
         }
         if (! haveForegroundWindow) {
 #if DEBUG_FOCUS
-            ALOGD("Dropping event because there is no touched foreground window to receive it.");
+            ALOGD("Dropping event because there is no touched foreground window in display %" PRId32
+                    " to receive it.", displayId);
 #endif
             injectionResult = INPUT_EVENT_INJECTION_FAILED;
             goto Failed;
@@ -1689,7 +1696,7 @@ void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTarge
     } else {
         // If there is no monitor channel registered or all monitor channel unregistered,
         // the display can't detect the extra system gesture by a copy of input events.
-        ALOGW("There is no monitor channel found in display=%" PRId32, displayId);
+        ALOGW("There is no monitor channel found in display %" PRId32, displayId);
     }
 }
 
@@ -3011,11 +3018,13 @@ bool InputDispatcher::hasWindowHandleLocked(
         const Vector<sp<InputWindowHandle>> windowHandles = it.second;
         size_t numWindows = windowHandles.size();
         for (size_t i = 0; i < numWindows; i++) {
-            if (windowHandles.itemAt(i) == windowHandle) {
+            if (windowHandles.itemAt(i)->getInputChannel()->getToken()
+                    == windowHandle->getInputChannel()->getToken()) {
                 if (windowHandle->getInfo()->displayId != it.first) {
-                    ALOGE("Found window %s in display %d, but it should belong to display %d",
-                        windowHandle->getName().c_str(), it.first,
-                        windowHandle->getInfo()->displayId);
+                    ALOGE("Found window %s in display %" PRId32
+                            ", but it should belong to display %" PRId32,
+                            windowHandle->getName().c_str(), it.first,
+                            windowHandle->getInfo()->displayId);
                 }
                 return true;
             }
@@ -3034,7 +3043,7 @@ bool InputDispatcher::hasWindowHandleLocked(
 void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& inputWindowHandles,
         int32_t displayId) {
 #if DEBUG_FOCUS
-    ALOGD("setInputWindows");
+    ALOGD("setInputWindows displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
         AutoMutex _l(mLock);
@@ -3085,8 +3094,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
         if (oldFocusedWindowHandle != newFocusedWindowHandle) {
             if (oldFocusedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
-                ALOGD("Focus left window: %s",
-                        oldFocusedWindowHandle->getName().c_str());
+                ALOGD("Focus left window: %s in display %" PRId32,
+                        oldFocusedWindowHandle->getName().c_str(), displayId);
 #endif
                 sp<InputChannel> focusedInputChannel = oldFocusedWindowHandle->getInputChannel();
                 if (focusedInputChannel != nullptr) {
@@ -3099,8 +3108,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             }
             if (newFocusedWindowHandle != nullptr) {
 #if DEBUG_FOCUS
-                ALOGD("Focus entered window: %s",
-                        newFocusedWindowHandle->getName().c_str());
+                ALOGD("Focus entered window: %s in display %" PRId32,
+                        newFocusedWindowHandle->getName().c_str(), displayId);
 #endif
                 mFocusedWindowHandlesByDisplay[displayId] = newFocusedWindowHandle;
             }
@@ -3113,8 +3122,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
                 TouchedWindow& touchedWindow = state.windows.editItemAt(i);
                 if (!hasWindowHandleLocked(touchedWindow.windowHandle)) {
 #if DEBUG_FOCUS
-                    ALOGD("Touched window was removed: %s",
-                            touchedWindow.windowHandle->getName().c_str());
+                    ALOGD("Touched window was removed: %s in display %" PRId32,
+                            touchedWindow.windowHandle->getName().c_str(), displayId);
 #endif
                     sp<InputChannel> touchedInputChannel =
                             touchedWindow.windowHandle->getInputChannel();
@@ -3142,7 +3151,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 #if DEBUG_FOCUS
                 ALOGD("Window went away: %s", oldWindowHandle->getName().c_str());
 #endif
-                oldWindowHandle->releaseInfo();
+                oldWindowHandle->releaseChannel();
             }
         }
     } // release lock
@@ -3154,7 +3163,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 void InputDispatcher::setFocusedApplication(
         int32_t displayId, const sp<InputApplicationHandle>& inputApplicationHandle) {
 #if DEBUG_FOCUS
-    ALOGD("setFocusedApplication");
+    ALOGD("setFocusedApplication displayId=%" PRId32, displayId);
 #endif
     { // acquire lock
         AutoMutex _l(mLock);
@@ -3469,7 +3478,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     if (!mWindowHandlesByDisplay.empty()) {
        for (auto& it : mWindowHandlesByDisplay) {
             const Vector<sp<InputWindowHandle>> windowHandles = it.second;
-            dump += StringPrintf(INDENT "Display: %d\n", it.first);
+            dump += StringPrintf(INDENT "Display: %" PRId32 "\n", it.first);
             if (!windowHandles.isEmpty()) {
                 dump += INDENT2 "Windows:\n";
                 for (size_t i = 0; i < windowHandles.size(); i++) {
@@ -3509,7 +3518,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
     if (!mMonitoringChannelsByDisplay.empty()) {
        for (auto& it : mMonitoringChannelsByDisplay) {
             const Vector<sp<InputChannel>>& monitoringChannels = it.second;
-            dump += INDENT "MonitoringChannels in Display %d:\n";
+            dump += StringPrintf(INDENT "MonitoringChannels in display %" PRId32 ":\n", it.first);
             const size_t numChannels = monitoringChannels.size();
             for (size_t i = 0; i < numChannels; i++) {
                 const sp<InputChannel>& channel = monitoringChannels[i];
@@ -3632,8 +3641,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             mConfig.keyRepeatTimeout * 0.000001f);
 }
 
-status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel,
-        const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId) {
+status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChannel, int32_t displayId) {
 #if DEBUG_REGISTRATION
     ALOGD("channel '%s' ~ registerInputChannel - displayId=%" PRId32,
             inputChannel->getName().c_str(), displayId);
@@ -3642,17 +3650,20 @@ status_t InputDispatcher::registerInputChannel(const sp<InputChannel>& inputChan
     { // acquire lock
         AutoMutex _l(mLock);
 
+        // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
+        // treat inputChannel as monitor channel for displayId.
+        bool monitor = inputChannel->getToken() == nullptr && displayId != ADISPLAY_ID_NONE;
+        if (monitor) {
+            inputChannel->setToken(new BBinder());
+        }
+
         if (getConnectionIndexLocked(inputChannel) >= 0) {
             ALOGW("Attempted to register already registered input channel '%s'",
                     inputChannel->getName().c_str());
             return BAD_VALUE;
         }
 
-        // If InputWindowHandle is null and displayId is not ADISPLAY_ID_NONE,
-        // treat inputChannel as monitor channel for displayId.
-        bool monitor = inputWindowHandle == nullptr && displayId != ADISPLAY_ID_NONE;
-
-        sp<Connection> connection = new Connection(inputChannel, inputWindowHandle, monitor);
+        sp<Connection> connection = new Connection(inputChannel, monitor);
 
         int fd = inputChannel->getFd();
         mConnectionsByFd.add(fd, connection);
@@ -3737,11 +3748,14 @@ void InputDispatcher::removeMonitorChannelLocked(const sp<InputChannel>& inputCh
 }
 
 ssize_t InputDispatcher::getConnectionIndexLocked(const sp<InputChannel>& inputChannel) {
-    ssize_t connectionIndex = mConnectionsByFd.indexOfKey(inputChannel->getFd());
-    if (connectionIndex >= 0) {
-        sp<Connection> connection = mConnectionsByFd.valueAt(connectionIndex);
-        if (connection->inputChannel.get() == inputChannel.get()) {
-            return connectionIndex;
+    if (inputChannel == nullptr) {
+        return -1;
+    }
+
+    for (size_t i = 0; i < mConnectionsByFd.size(); i++) {
+        sp<Connection> connection = mConnectionsByFd.valueAt(i);
+        if (connection->inputChannel->getToken() == inputChannel->getToken()) {
+            return i;
         }
     }
 
@@ -3798,7 +3812,7 @@ void InputDispatcher::onANRLocked(
     CommandEntry* commandEntry = postCommandLocked(
             & InputDispatcher::doNotifyANRLockedInterruptible);
     commandEntry->inputApplicationHandle = applicationHandle;
-    commandEntry->inputWindowHandle = windowHandle;
+    commandEntry->inputChannel = windowHandle != nullptr ? windowHandle->getInputChannel() : nullptr;
     commandEntry->reason = reason;
 }
 
@@ -3818,7 +3832,7 @@ void InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible(
     if (connection->status != Connection::STATUS_ZOMBIE) {
         mLock.unlock();
 
-        mPolicy->notifyInputChannelBroken(connection->inputWindowHandle);
+        mPolicy->notifyInputChannelBroken(connection->inputChannel->getToken());
 
         mLock.lock();
     }
@@ -3829,14 +3843,14 @@ void InputDispatcher::doNotifyANRLockedInterruptible(
     mLock.unlock();
 
     nsecs_t newTimeout = mPolicy->notifyANR(
-            commandEntry->inputApplicationHandle, commandEntry->inputWindowHandle,
+            commandEntry->inputApplicationHandle,
+            commandEntry->inputChannel ? commandEntry->inputChannel->getToken() : nullptr,
             commandEntry->reason);
 
     mLock.lock();
 
     resumeAfterTargetsNotReadyTimeoutLocked(newTimeout,
-            commandEntry->inputWindowHandle != nullptr
-                    ? commandEntry->inputWindowHandle->getInputChannel() : nullptr);
+            commandEntry->inputChannel);
 }
 
 void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
@@ -3849,7 +3863,9 @@ void InputDispatcher::doInterceptKeyBeforeDispatchingLockedInterruptible(
     mLock.unlock();
 
     android::base::Timer t;
-    nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(commandEntry->inputWindowHandle,
+    sp<IBinder> token = commandEntry->inputChannel != nullptr ?
+        commandEntry->inputChannel->getToken() : nullptr;
+    nsecs_t delay = mPolicy->interceptKeyBeforeDispatching(token,
             &event, entry->policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptKeyBeforeDispatching; took %s ms",
@@ -3950,7 +3966,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
                 mLock.unlock();
 
-                mPolicy->dispatchUnhandledKey(connection->inputWindowHandle,
+                mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
                         &event, keyEntry->policyFlags, &event);
 
                 mLock.lock();
@@ -3995,7 +4011,7 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 
             mLock.unlock();
 
-            bool fallback = mPolicy->dispatchUnhandledKey(connection->inputWindowHandle,
+            bool fallback = mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
                     &event, keyEntry->policyFlags, &event);
 
             mLock.lock();
@@ -4711,9 +4727,8 @@ bool InputDispatcher::InputState::shouldCancelMotion(const MotionMemento& mement
 
 // --- InputDispatcher::Connection ---
 
-InputDispatcher::Connection::Connection(const sp<InputChannel>& inputChannel,
-        const sp<InputWindowHandle>& inputWindowHandle, bool monitor) :
-        status(STATUS_NORMAL), inputChannel(inputChannel), inputWindowHandle(inputWindowHandle),
+InputDispatcher::Connection::Connection(const sp<InputChannel>& inputChannel, bool monitor) :
+        status(STATUS_NORMAL), inputChannel(inputChannel),
         monitor(monitor),
         inputPublisher(inputChannel), inputPublisherBlocked(false) {
 }
@@ -4722,8 +4737,8 @@ InputDispatcher::Connection::~Connection() {
 }
 
 const std::string InputDispatcher::Connection::getWindowName() const {
-    if (inputWindowHandle != nullptr) {
-        return inputWindowHandle->getName();
+    if (inputChannel != nullptr) {
+        return inputChannel->getName();
     }
     if (monitor) {
         return "monitor";
@@ -4824,6 +4839,15 @@ void InputDispatcher::TouchState::addOrUpdateWindow(const sp<InputWindowHandle>&
 void InputDispatcher::TouchState::removeWindow(const sp<InputWindowHandle>& windowHandle) {
     for (size_t i = 0; i < windows.size(); i++) {
         if (windows.itemAt(i).windowHandle == windowHandle) {
+            windows.removeAt(i);
+            return;
+        }
+    }
+}
+
+void InputDispatcher::TouchState::removeWindowByToken(const sp<IBinder>& token) {
+    for (size_t i = 0; i < windows.size(); i++) {
+        if (windows.itemAt(i).windowHandle->getInputChannel()->getToken() == token) {
             windows.removeAt(i);
             return;
         }

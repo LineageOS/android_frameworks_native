@@ -25,6 +25,11 @@
 #include <gui/IGraphicBufferProducer.h>
 #include <gui/ITransactionCompletedListener.h>
 #include <math/mat4.h>
+
+#ifndef NO_INPUT
+#include <input/InputWindow.h>
+#endif
+
 #include <math/vec3.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -76,6 +81,7 @@ struct layer_state_t {
         eSidebandStreamChanged = 0x08000000,
         eColorTransformChanged = 0x10000000,
         eListenerCallbacksChanged = 0x20000000,
+        eInputInfoChanged = 0x40000000,
     };
 
     layer_state_t()
@@ -158,6 +164,9 @@ struct layer_state_t {
     mat4 colorTransform;
 
     std::vector<ListenerCallbacks> listenerCallbacks;
+#ifndef NO_INPUT
+    InputWindowInfo inputInfo;
+#endif
 };
 
 struct ComposerState {

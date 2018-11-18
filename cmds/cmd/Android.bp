@@ -1,0 +1,18 @@
+cc_binary {
+    name: "cmd",
+
+    srcs: ["cmd.cpp"],
+
+    shared_libs: [
+        "libutils",
+        "liblog",
+        "libselinux",
+        "libbinder",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-DXP_UNIX",
+    ],
+}

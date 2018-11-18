@@ -247,6 +247,10 @@ status_t InputChannel::write(Parcel& out) const {
     if (s != OK) {
         return s;
     }
+    s = out.writeStrongBinder(mToken);
+    if (s != OK) {
+        return s;
+    }
 
     s = out.writeDupFileDescriptor(getFd());
 
@@ -255,6 +259,7 @@ status_t InputChannel::write(Parcel& out) const {
 
 status_t InputChannel::read(const Parcel& from) {
     mName = from.readString8();
+    mToken = from.readStrongBinder();
 
     int rawFd = from.readFileDescriptor();
     setFd(::dup(rawFd));
@@ -264,6 +269,17 @@ status_t InputChannel::read(const Parcel& from) {
     }
 
     return OK;
+}
+
+sp<IBinder> InputChannel::getToken() const {
+    return mToken;
+}
+
+void InputChannel::setToken(const sp<IBinder>& token) {
+    if (mToken != nullptr) {
+        ALOGE("Assigning InputChannel (%s) a second handle?", mName.c_str());
+    }
+    mToken = token;
 }
 
 // --- InputPublisher ---

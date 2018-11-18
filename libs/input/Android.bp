@@ -43,12 +43,12 @@ cc_library {
     target: {
         android: {
             srcs: [
-                "IInputFlinger.cpp",
                 "InputTransport.cpp",
                 "VelocityControl.cpp",
                 "VelocityTracker.cpp",
                 "InputApplication.cpp",
-                "InputWindow.cpp"
+                "InputWindow.cpp",
+                "IInputFlinger.cpp"
             ],
 
             shared_libs: [

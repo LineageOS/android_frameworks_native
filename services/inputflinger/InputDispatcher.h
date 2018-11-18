@@ -208,11 +208,11 @@ public:
     /* Notifies the system that an application is not responding.
      * Returns a new timeout to continue waiting, or 0 to abort dispatch. */
     virtual nsecs_t notifyANR(const sp<InputApplicationHandle>& inputApplicationHandle,
-            const sp<InputWindowHandle>& inputWindowHandle,
+            const sp<IBinder>& token,
             const std::string& reason) = 0;
 
     /* Notifies the system that an input channel is unrecoverably broken. */
-    virtual void notifyInputChannelBroken(const sp<InputWindowHandle>& inputWindowHandle) = 0;
+    virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
 
     /* Gets the input dispatcher configuration. */
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) = 0;
@@ -243,12 +243,12 @@ public:
     virtual void interceptMotionBeforeQueueing(nsecs_t when, uint32_t& policyFlags) = 0;
 
     /* Allows the policy a chance to intercept a key before dispatching. */
-    virtual nsecs_t interceptKeyBeforeDispatching(const sp<InputWindowHandle>& inputWindowHandle,
+    virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>& token,
             const KeyEvent* keyEvent, uint32_t policyFlags) = 0;
 
     /* Allows the policy a chance to perform default processing for an unhandled key.
      * Returns an alternate keycode to redispatch as a fallback, or 0 to give up. */
-    virtual bool dispatchUnhandledKey(const sp<InputWindowHandle>& inputWindowHandle,
+    virtual bool dispatchUnhandledKey(const sp<IBinder>& token,
             const KeyEvent* keyEvent, uint32_t policyFlags, KeyEvent* outFallbackKeyEvent) = 0;
 
     /* Notifies the policy about switch events.
@@ -352,8 +352,8 @@ public:
      *
      * This method may be called on any thread (usually by the input manager).
      */
-    virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-            const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId) = 0;
+    virtual status_t registerInputChannel(
+            const sp<InputChannel>& inputChannel, int32_t displayId) = 0;
 
     /* Unregister input channels that will no longer receive input events.
      *
@@ -413,7 +413,7 @@ public:
             const sp<InputChannel>& toChannel);
 
     virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
-            const sp<InputWindowHandle>& inputWindowHandle, int32_t displayId);
+            int32_t displayId);
     virtual status_t unregisterInputChannel(const sp<InputChannel>& inputChannel);
 
 private:
@@ -617,11 +617,11 @@ private:
         nsecs_t eventTime;
         KeyEntry* keyEntry;
         sp<InputApplicationHandle> inputApplicationHandle;
-        sp<InputWindowHandle> inputWindowHandle;
         std::string reason;
         int32_t userActivityEventType;
         uint32_t seq;
         bool handled;
+        sp<InputChannel> inputChannel;
     };
 
     // Generic queue implementation.
@@ -834,7 +834,6 @@ private:
 
         Status status;
         sp<InputChannel> inputChannel; // never null
-        sp<InputWindowHandle> inputWindowHandle; // may be null
         bool monitor;
         InputPublisher inputPublisher;
         InputState inputState;
@@ -850,8 +849,7 @@ private:
         // yet received a "finished" response from the application.
         Queue<DispatchEntry> waitQueue;
 
-        explicit Connection(const sp<InputChannel>& inputChannel,
-                const sp<InputWindowHandle>& inputWindowHandle, bool monitor);
+        explicit Connection(const sp<InputChannel>& inputChannel, bool monitor);
 
         inline const std::string getInputChannelName() const { return inputChannel->getName(); }
 
@@ -1007,6 +1005,7 @@ private:
         void addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle,
                 int32_t targetFlags, BitSet32 pointerIds);
         void removeWindow(const sp<InputWindowHandle>& windowHandle);
+        void removeWindowByToken(const sp<IBinder>& token);
         void filterNonAsIsTouchWindows();
         sp<InputWindowHandle> getFirstForegroundWindowHandle() const;
         bool isSlippery() const;
@@ -1062,6 +1061,9 @@ private:
             const sp<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle,
             nsecs_t* nextWakeupTime, const char* reason);
+
+    void removeWindowByTokenLocked(const sp<IBinder>& token);
+
     void resumeAfterTargetsNotReadyTimeoutLocked(nsecs_t newTimeout,
             const sp<InputChannel>& inputChannel);
     nsecs_t getTimeSpentWaitingForApplicationLocked(nsecs_t currentTime);
