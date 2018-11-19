@@ -86,6 +86,7 @@ message LayerProto {
   repeated BarrierLayerProto barrier_layer = 38;
   // If active_buffer is not null, record its transform.
   optional TransformProto buffer_transform = 39;
+  optional int32 effective_scaling_mode = 40;
 }
 
 message PositionProto {
