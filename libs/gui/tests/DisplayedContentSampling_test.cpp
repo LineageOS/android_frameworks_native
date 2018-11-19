@@ -36,7 +36,12 @@ protected:
         ASSERT_TRUE(mDisplayToken);
     }
 
-    bool shouldSkipTest(status_t status) {
+    bool shouldSkipTest() {
+        ui::PixelFormat format;
+        ui::Dataspace dataspace;
+        status_t status =
+                mComposerClient->getDisplayedContentSamplingAttributes(mDisplayToken, &format,
+                                                                       &dataspace, &componentMask);
         if (status == PERMISSION_DENIED) {
             SUCCEED() << "permissions denial, skipping test";
             return true;
@@ -50,19 +55,53 @@ protected:
 
     sp<SurfaceComposerClient> mComposerClient;
     sp<IBinder> mDisplayToken;
+    uint8_t componentMask = 0;
 };
 
 TEST_F(DisplayedContentSamplingTest, GetDisplayedContentSamplingAttributesAreSane) {
+    // tradefed infrastructure does not support use of GTEST_SKIP
+    if (shouldSkipTest()) return;
+
     ui::PixelFormat format;
     ui::Dataspace dataspace;
-    uint8_t componentMask = 0;
     status_t status =
             mComposerClient->getDisplayedContentSamplingAttributes(mDisplayToken, &format,
                                                                    &dataspace, &componentMask);
-    if (shouldSkipTest(status)) {
-        return;
-    }
     EXPECT_EQ(OK, status);
     EXPECT_LE(componentMask, INVALID_MASK);
+}
+
+TEST_F(DisplayedContentSamplingTest, EnableWithInvalidMaskReturnsBadValue) {
+    if (shouldSkipTest()) return;
+
+    status_t status =
+            mComposerClient->setDisplayContentSamplingEnabled(mDisplayToken, true, INVALID_MASK, 0);
+    EXPECT_EQ(BAD_VALUE, status);
+}
+
+TEST_F(DisplayedContentSamplingTest, EnableAndDisableSucceed) {
+    if (shouldSkipTest()) return;
+
+    status_t status = mComposerClient->setDisplayContentSamplingEnabled(mDisplayToken, true,
+                                                                        componentMask, 10);
+    EXPECT_EQ(OK, status);
+
+    status = mComposerClient->setDisplayContentSamplingEnabled(mDisplayToken, false, componentMask,
+                                                               0);
+    EXPECT_EQ(OK, status);
+}
+
+TEST_F(DisplayedContentSamplingTest, SelectivelyDisableComponentOk) {
+    if (shouldSkipTest()) return;
+
+    status_t status = mComposerClient->setDisplayContentSamplingEnabled(mDisplayToken, true,
+                                                                        componentMask, 0);
+    EXPECT_EQ(OK, status);
+
+    // Clear the lowest bit.
+    componentMask &= (componentMask - 1);
+    status = mComposerClient->setDisplayContentSamplingEnabled(mDisplayToken, false, componentMask,
+                                                               0);
+    EXPECT_EQ(OK, status);
 }
 } // namespace android

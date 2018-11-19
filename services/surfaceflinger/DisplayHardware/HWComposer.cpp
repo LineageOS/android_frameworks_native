@@ -756,6 +756,20 @@ status_t HWComposer::getDisplayedContentSamplingAttributes(DisplayId displayId,
     return NO_ERROR;
 }
 
+status_t HWComposer::setDisplayContentSamplingEnabled(DisplayId displayId, bool enabled,
+                                                      uint8_t componentMask, uint64_t maxFrames) {
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto error =
+            mDisplayData[displayId].hwcDisplay->setDisplayContentSamplingEnabled(enabled,
+                                                                                 componentMask,
+                                                                                 maxFrames);
+
+    if (error == HWC2::Error::Unsupported) RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
+    if (error == HWC2::Error::BadParameter) RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
+    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
+    return NO_ERROR;
+}
+
 bool HWComposer::isUsingVrComposer() const {
     return getComposer()->isUsingVrComposer();
 }

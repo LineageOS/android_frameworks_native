@@ -647,6 +647,11 @@ public:
                                                    uint8_t* /*outComponentMask*/) const override {
         return NO_ERROR;
     }
+    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& /*display*/, bool /*enable*/,
+                                              uint8_t /*componentMask*/,
+                                              uint64_t /*maxFrames*/) const override {
+        return NO_ERROR;
+    }
 
     virtual status_t getColorManagement(bool* /*outGetColorManagement*/) const { return NO_ERROR; }
 

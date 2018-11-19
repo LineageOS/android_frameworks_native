@@ -1067,6 +1067,18 @@ Error Composer::getDisplayCapabilities(Display display,
     return error;
 }
 
+Error Composer::setDisplayContentSamplingEnabled(Display display, bool enabled,
+                                                 uint8_t componentMask, uint64_t maxFrames) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    auto enable = enabled ? V2_3::IComposerClient::DisplayedContentSampling::ENABLE
+                          : V2_3::IComposerClient::DisplayedContentSampling::DISABLE;
+    return mClient_2_3->setDisplayedContentSamplingEnabled(display, enable, componentMask,
+                                                           maxFrames);
+}
+
 CommandReader::~CommandReader()
 {
     resetData();

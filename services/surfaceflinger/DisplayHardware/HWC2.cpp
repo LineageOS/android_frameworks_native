@@ -555,6 +555,13 @@ Error Display::getDisplayedContentSamplingAttributes(PixelFormat* outFormat,
     return static_cast<Error>(intError);
 }
 
+Error Display::setDisplayContentSamplingEnabled(bool enabled, uint8_t componentMask,
+                                                uint64_t maxFrames) const {
+    auto intError =
+            mComposer.setDisplayContentSamplingEnabled(mId, enabled, componentMask, maxFrames);
+    return static_cast<Error>(intError);
+}
+
 Error Display::getReleaseFences(
         std::unordered_map<Layer*, sp<Fence>>* outFences) const
 {
