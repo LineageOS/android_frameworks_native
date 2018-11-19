@@ -82,8 +82,12 @@ static const long STATS_MAX_AVERAGE = 100000;
 
 CommandOptions Dumpstate::DEFAULT_DUMPSYS = CommandOptions::WithTimeout(30).Build();
 
+// TODO(111441001): Default DumpOptions to sensible values.
 Dumpstate::Dumpstate(const std::string& version)
-    : pid_(getpid()), version_(version), now_(time(nullptr)) {
+    : pid_(getpid()),
+      options_(new Dumpstate::DumpOptions()),
+      version_(version),
+      now_(time(nullptr)) {
 }
 
 Dumpstate& Dumpstate::GetInstance() {
