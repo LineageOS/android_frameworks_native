@@ -48,7 +48,12 @@ public:
     // Internal help function for IBufferClient::duplicate.
     hidl_handle registerToken(const wp<BufferClient>& client);
 
+    void onClientClosed(const BufferClient* client);
+
 private:
+    // Helper function to remove all the token belongs to a specific client.
+    void removeTokenByClient(const BufferClient* client);
+
     // List of active BufferClient for bookkeeping.
     std::mutex mClientListMutex;
     std::vector<wp<BufferClient>> mClientList GUARDED_BY(mClientListMutex);

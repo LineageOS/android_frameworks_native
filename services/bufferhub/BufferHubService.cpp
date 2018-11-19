@@ -111,6 +111,30 @@ hidl_handle BufferHubService::registerToken(const wp<BufferClient>& client) {
     return returnToken;
 }
 
+void BufferHubService::onClientClosed(const BufferClient* client) {
+    removeTokenByClient(client);
+
+    std::lock_guard<std::mutex> lock(mClientListMutex);
+    auto iter = std::find(mClientList.begin(), mClientList.end(), client);
+    if (iter != mClientList.end()) {
+        mClientList.erase(iter);
+    }
+}
+
+void BufferHubService::removeTokenByClient(const BufferClient* client) {
+    std::lock_guard<std::mutex> lock(mTokenMapMutex);
+    auto iter = mTokenMap.begin();
+    while (iter != mTokenMap.end()) {
+        if (iter->second == client) {
+            auto oldIter = iter;
+            ++iter;
+            mTokenMap.erase(oldIter);
+        } else {
+            ++iter;
+        }
+    }
+}
+
 } // namespace implementation
 } // namespace V1_0
 } // namespace bufferhub
