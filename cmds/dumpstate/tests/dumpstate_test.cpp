@@ -159,10 +159,11 @@ TEST_F(DumpOptionsTest, InitializeNone) {
     };
     // clang-format on
 
-    Dumpstate::DumpOptions options;
     Dumpstate::RunStatus status = options_.Initialize(ARRAY_SIZE(argv), argv);
 
     EXPECT_EQ(status, Dumpstate::RunStatus::OK);
+
+    // These correspond to bugreport_mode = full, because that's the default.
     EXPECT_FALSE(options_.do_add_date);
     EXPECT_FALSE(options_.do_zip_file);
     EXPECT_EQ("", options_.use_outfile);
@@ -170,10 +171,10 @@ TEST_F(DumpOptionsTest, InitializeNone) {
     EXPECT_FALSE(options_.use_control_socket);
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_TRUE(options_.do_vibrate);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_TRUE(options_.do_fb);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.do_broadcast);
+    EXPECT_TRUE(options_.do_broadcast);
 }
 
 TEST_F(DumpOptionsTest, InitializePartial1) {
@@ -202,10 +203,10 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
     // Other options retain default values
     EXPECT_FALSE(options_.show_header_only);
     EXPECT_TRUE(options_.do_vibrate);
-    EXPECT_FALSE(options_.do_fb);
+    EXPECT_TRUE(options_.do_fb);
     EXPECT_FALSE(options_.do_progress_updates);
     EXPECT_FALSE(options_.is_remote_mode);
-    EXPECT_FALSE(options_.do_broadcast);
+    EXPECT_TRUE(options_.do_broadcast);
 }
 
 TEST_F(DumpOptionsTest, InitializePartial2) {

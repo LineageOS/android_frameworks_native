@@ -1934,37 +1934,95 @@ static void SendBugreportFinishedBroadcast() {
     }
 }
 
-// TODO: Move away from system properties when we have options passed via binder calls.
-/* Sets runtime options from the system properties and then clears those properties. */
-static void SetOptionsFromProperties(Dumpstate::DumpOptions* options) {
-    options->extra_options = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
-    if (!options->extra_options.empty()) {
-        // Framework uses a system property to override some command-line args.
-        // Currently, it contains the type of the requested bugreport.
-        if (options->extra_options == "bugreportplus") {
+static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
+    switch (mode) {
+        case Dumpstate::BugreportMode::BUGREPORT_FULL:
+            return "BUGREPORT_FULL";
+        case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
+            return "BUGREPORT_INTERACTIVE";
+        case Dumpstate::BugreportMode::BUGREPORT_REMOTE:
+            return "BUGREPORT_REMOTE";
+        case Dumpstate::BugreportMode::BUGREPORT_WEAR:
+            return "BUGREPORT_WEAR";
+        case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
+            return "BUGREPORT_TELEPHONY";
+        case Dumpstate::BugreportMode::BUGREPORT_WIFI:
+            return "BUGREPORT_WIFI";
+    }
+}
+
+static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOptions* options) {
+    switch (mode) {
+        case Dumpstate::BugreportMode::BUGREPORT_FULL:
+            options->do_broadcast = true;
+            options->do_fb = true;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE:
             // Currently, the dumpstate binder is only used by Shell to update progress.
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_fb = false;
-        } else if (options->extra_options == "bugreportremote") {
+            options->do_broadcast = true;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_REMOTE:
             options->do_vibrate = false;
             options->is_remote_mode = true;
             options->do_fb = false;
-        } else if (options->extra_options == "bugreportwear") {
+            options->do_broadcast = true;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_WEAR:
             options->do_start_service = true;
             options->do_progress_updates = true;
             options->do_zip_file = true;
-        } else if (options->extra_options == "bugreporttelephony") {
+            options->do_fb = true;
+            options->do_broadcast = true;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_TELEPHONY:
             options->telephony_only = true;
-        } else if (options->extra_options == "bugreportwifi") {
+            options->do_fb = true;
+            options->do_broadcast = true;
+            break;
+        case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             options->wifi_only = true;
             options->do_zip_file = true;
+            options->do_fb = true;
+            options->do_broadcast = true;
+            break;
+    }
+}
+
+static Dumpstate::BugreportMode getBugreportModeFromProperty() {
+    // If the system property is not set, it's assumed to be a full bugreport.
+    Dumpstate::BugreportMode mode = Dumpstate::BugreportMode::BUGREPORT_FULL;
+
+    std::string extra_options = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
+    if (!extra_options.empty()) {
+        // Framework uses a system property to override some command-line args.
+        // Currently, it contains the type of the requested bugreport.
+        if (extra_options == "bugreportplus") {
+            mode = Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE;
+        } else if (extra_options == "bugreportremote") {
+            mode = Dumpstate::BugreportMode::BUGREPORT_REMOTE;
+        } else if (extra_options == "bugreportwear") {
+            mode = Dumpstate::BugreportMode::BUGREPORT_WEAR;
+        } else if (extra_options == "bugreporttelephony") {
+            mode = Dumpstate::BugreportMode::BUGREPORT_TELEPHONY;
+        } else if (extra_options == "bugreportwifi") {
+            mode = Dumpstate::BugreportMode::BUGREPORT_WIFI;
         } else {
-            MYLOGE("Unknown extra option: %s\n", options->extra_options.c_str());
+            MYLOGE("Unknown extra option: %s\n", extra_options.c_str());
         }
         // Reset the property
         android::base::SetProperty(PROPERTY_EXTRA_OPTIONS, "");
     }
+    return mode;
+}
+
+// TODO: Move away from system properties when we have options passed via binder calls.
+/* Sets runtime options from the system properties and then clears those properties. */
+static void SetOptionsFromProperties(Dumpstate::DumpOptions* options) {
+    Dumpstate::BugreportMode mode = getBugreportModeFromProperty();
+    SetOptionsFromMode(mode, options);
 
     options->notification_title = android::base::GetProperty(PROPERTY_EXTRA_TITLE, "");
     if (!options->notification_title.empty()) {
@@ -1980,6 +2038,40 @@ static void SetOptionsFromProperties(Dumpstate::DumpOptions* options) {
         MYLOGD("notification (title:  %s, description: %s)\n", options->notification_title.c_str(),
                options->notification_description.c_str());
     }
+}
+
+static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
+    MYLOGI("do_zip_file: %d\n", options.do_zip_file);
+    MYLOGI("do_add_date: %d\n", options.do_add_date);
+    MYLOGI("do_vibrate: %d\n", options.do_vibrate);
+    MYLOGI("use_socket: %d\n", options.use_socket);
+    MYLOGI("use_control_socket: %d\n", options.use_control_socket);
+    MYLOGI("do_fb: %d\n", options.do_fb);
+    MYLOGI("do_broadcast: %d\n", options.do_broadcast);
+    MYLOGI("is_remote_mode: %d\n", options.is_remote_mode);
+    MYLOGI("show_header_only: %d\n", options.show_header_only);
+    MYLOGI("do_start_service: %d\n", options.do_start_service);
+    MYLOGI("telephony_only: %d\n", options.telephony_only);
+    MYLOGI("wifi_only: %d\n", options.wifi_only);
+    MYLOGI("do_progress_updates: %d\n", options.do_progress_updates);
+    MYLOGI("use_outfile: %s\n", options.use_outfile.c_str());
+    MYLOGI("extra_options: %s\n", options.extra_options.c_str());
+    MYLOGI("args: %s\n", options.args.c_str());
+    MYLOGI("notification_title: %s\n", options.notification_title.c_str());
+    MYLOGI("notification_description: %s\n", options.notification_description.c_str());
+}
+
+void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode) {
+    // In the new API world, date is always added; output is always a zip file.
+    // TODO(111441001): remove these options once they are obsolete.
+    do_add_date = true;
+    do_zip_file = true;
+
+    // STOPSHIP b/111441001: Remove hardcoded output file path; accept fd.
+    use_outfile = "/data/user_de/0/com.android.shell/files/bugreports/bugreport";
+
+    extra_options = ModeToString(bugreport_mode);
+    SetOptionsFromMode(bugreport_mode, this);
 }
 
 Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) {
@@ -2048,6 +2140,8 @@ bool Dumpstate::DumpOptions::ValidateOptions() const {
 
 Dumpstate::RunStatus Dumpstate::RunWithOptions(std::unique_ptr<DumpOptions> options) {
     if (!options->ValidateOptions()) {
+        MYLOGE("Invalid options specified\n");
+        LogDumpOptions(*options);
         return RunStatus::INVALID_INPUT;
     }
     options_ = std::move(options);
