@@ -39,10 +39,27 @@ interface IDumpstate {
     IDumpstateToken setListener(@utf8InCpp String name, IDumpstateListener listener,
                                 boolean getSectionDetails);
 
+    // These modes encapsulate a set of run time options for generating bugreports.
+    // A zipped bugreport; default mode.
+    const int BUGREPORT_MODE_FULL = 0;
+
+    // Interactive bugreport, i.e. triggered by the user.
+    const int BUGREPORT_MODE_INTERACTIVE = 1;
+
+    // Remote bugreport triggered by DevicePolicyManager, for e.g.
+    const int BUGREPORT_MODE_REMOTE = 2;
+
+    // Bugreport triggered on a wear device.
+    const int BUGREPORT_MODE_WEAR = 3;
+
+    // Bugreport limited to only telephony info.
+    const int BUGREPORT_MODE_TELEPHONY = 4;
+
+    // Bugreport limited to only wifi info.
+    const int BUGREPORT_MODE_WIFI = 5;
+
     /*
-     * Starts a bugreport in a child process.
-     *
-     * Returns an identifier of the bugreport process running in the background.
+     * Starts a bugreport in the background.
      */
-    int startBugreport(int fd, IDumpstateListener listener, in DumpstateOptions options);
+    int startBugreport(int fd, int bugreportMode);
 }

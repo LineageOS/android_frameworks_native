@@ -2144,13 +2144,16 @@ bool Dumpstate::DumpOptions::ValidateOptions() const {
     return true;
 }
 
-Dumpstate::RunStatus Dumpstate::RunWithOptions(std::unique_ptr<DumpOptions> options) {
-    if (!options->ValidateOptions()) {
+void Dumpstate::SetOptions(std::unique_ptr<DumpOptions> options) {
+    options_ = std::move(options);
+}
+
+Dumpstate::RunStatus Dumpstate::Run() {
+    if (!options_->ValidateOptions()) {
         MYLOGE("Invalid options specified\n");
-        LogDumpOptions(*options);
+        LogDumpOptions(*options_);
         return RunStatus::INVALID_INPUT;
     }
-    options_ = std::move(options);
     /* set as high priority, and protect from OOM killer */
     setpriority(PRIO_PROCESS, 0, -20);
 
@@ -2372,7 +2375,8 @@ int run_main(int argc, char* argv[]) {
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     Dumpstate::RunStatus status = options->Initialize(argc, argv);
     if (status == Dumpstate::RunStatus::OK) {
-        status = ds.RunWithOptions(std::move(options));
+        ds.SetOptions(std::move(options));
+        status = ds.Run();
     }
 
     switch (status) {
