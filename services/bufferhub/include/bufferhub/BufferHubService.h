@@ -22,7 +22,7 @@
 
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <bufferhub/BufferClient.h>
-#include <bufferhub/UniqueIdGenerator.h>
+#include <bufferhub/BufferHubIdGenerator.h>
 #include <utils/Mutex.h>
 
 namespace android {
@@ -34,8 +34,6 @@ namespace implementation {
 using hardware::hidl_handle;
 using hardware::Return;
 using hardware::graphics::common::V1_2::HardwareBufferDescription;
-
-static UniqueIdGenerator nodeIdGenerator;
 
 class BufferHubService : public IBufferHub {
 public:

@@ -2,7 +2,7 @@
 #define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_NODE_H_
 
 #include <android/hardware_buffer.h>
-#include <bufferhub/UniqueIdGenerator.h>
+#include <bufferhub/BufferHubIdGenerator.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {
@@ -16,7 +16,7 @@ public:
     // Allocates a new BufferNode.
     BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
                uint64_t usage, size_t user_metadata_size,
-               uint32_t id = UniqueIdGenerator::kInvalidId);
+               uint32_t id = BufferHubIdGenerator::kInvalidId);
 
     ~BufferNode();
 

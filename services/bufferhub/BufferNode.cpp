@@ -66,8 +66,8 @@ BufferNode::~BufferNode() {
     }
 
     // Free the id, if valid
-    if (id() != UniqueIdGenerator::kInvalidId) {
-        if (nodeIdGenerator.freeId(id())) {
+    if (id() != BufferHubIdGenerator::kInvalidId) {
+        if (BufferHubIdGenerator::getInstance().freeId(id())) {
             ALOGI("%s: id #%u is freed.", __FUNCTION__, id());
         } else {
             ALOGE("%s: Cannot free nonexistent id #%u", __FUNCTION__, id());
