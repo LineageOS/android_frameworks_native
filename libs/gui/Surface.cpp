@@ -965,6 +965,9 @@ int Surface::perform(int operation, va_list args)
     case NATIVE_WINDOW_SET_BUFFERS_CTA861_3_METADATA:
         res = dispatchSetBuffersCta8613Metadata(args);
         break;
+    case NATIVE_WINDOW_SET_BUFFERS_HDR10_PLUS_METADATA:
+        res = dispatchSetBuffersHdr10PlusMetadata(args);
+        break;
     case NATIVE_WINDOW_SET_SURFACE_DAMAGE:
         res = dispatchSetSurfaceDamage(args);
         break;
@@ -1118,6 +1121,12 @@ int Surface::dispatchSetBuffersCta8613Metadata(va_list args) {
     const android_cta861_3_metadata* metadata =
         va_arg(args, const android_cta861_3_metadata*);
     return setBuffersCta8613Metadata(metadata);
+}
+
+int Surface::dispatchSetBuffersHdr10PlusMetadata(va_list args) {
+    const size_t size = va_arg(args, size_t);
+    const uint8_t* metadata = va_arg(args, const uint8_t*);
+    return setBuffersHdr10PlusMetadata(size, metadata);
 }
 
 int Surface::dispatchSetSurfaceDamage(va_list args) {
@@ -1564,6 +1573,19 @@ int Surface::setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata
         mHdrMetadata.validTypes |= HdrMetadata::CTA861_3;
     } else {
         mHdrMetadata.validTypes &= ~HdrMetadata::CTA861_3;
+    }
+    return NO_ERROR;
+}
+
+int Surface::setBuffersHdr10PlusMetadata(const size_t size, const uint8_t* metadata) {
+    ALOGV("Surface::setBuffersBlobMetadata");
+    Mutex::Autolock lock(mMutex);
+    if (size > 0) {
+        mHdrMetadata.hdr10plus.assign(metadata, metadata + size);
+        mHdrMetadata.validTypes |= HdrMetadata::HDR10PLUS;
+    } else {
+        mHdrMetadata.validTypes &= ~HdrMetadata::HDR10PLUS;
+        mHdrMetadata.hdr10plus.clear();
     }
     return NO_ERROR;
 }
