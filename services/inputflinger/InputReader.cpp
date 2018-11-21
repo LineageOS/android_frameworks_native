@@ -254,47 +254,6 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 }
 
 
-// --- InputReaderConfiguration ---
-
-std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewport(
-        ViewportType viewportType, const std::string& uniqueDisplayId) const {
-    for (const DisplayViewport& currentViewport : mDisplays) {
-        if (currentViewport.type == viewportType) {
-            if (uniqueDisplayId.empty() ||
-                    (!uniqueDisplayId.empty() && uniqueDisplayId == currentViewport.uniqueId)) {
-                return std::make_optional(currentViewport);
-            }
-        }
-    }
-    return std::nullopt;
-}
-
-void InputReaderConfiguration::setDisplayViewports(const std::vector<DisplayViewport>& viewports) {
-    mDisplays = viewports;
-}
-
-void InputReaderConfiguration::dump(std::string& dump) const {
-    for (const DisplayViewport& viewport : mDisplays) {
-        dumpViewport(dump, viewport);
-    }
-}
-
-void InputReaderConfiguration::dumpViewport(std::string& dump, const DisplayViewport& viewport)
-        const {
-    dump += StringPrintf(INDENT4 "%s\n", viewport.toString().c_str());
-}
-
-
-// -- TouchAffineTransformation --
-void TouchAffineTransformation::applyTo(float& x, float& y) const {
-    float newX, newY;
-    newX = x * x_scale + y * x_ymix + x_offset;
-    newY = x * y_xmix + y * y_scale + y_offset;
-
-    x = newX;
-    y = newY;
-}
-
 
 // --- InputReader ---
 
@@ -984,21 +943,6 @@ InputListenerInterface* InputReader::ContextImpl::getListener() {
 
 EventHubInterface* InputReader::ContextImpl::getEventHub() {
     return mReader->mEventHub.get();
-}
-
-
-// --- InputReaderThread ---
-
-InputReaderThread::InputReaderThread(const sp<InputReaderInterface>& reader) :
-        Thread(/*canCallJava*/ true), mReader(reader) {
-}
-
-InputReaderThread::~InputReaderThread() {
-}
-
-bool InputReaderThread::threadLoop() {
-    mReader->loopOnce();
-    return true;
 }
 
 

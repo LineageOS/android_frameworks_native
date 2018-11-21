@@ -19,6 +19,7 @@
 //#define LOG_NDEBUG 0
 
 #include "InputManager.h"
+#include "InputReaderFactory.h"
 
 #include <log/log.h>
 #include <unordered_map>
@@ -26,19 +27,10 @@
 namespace android {
 
 InputManager::InputManager(
-        const sp<EventHubInterface>& eventHub,
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = new InputDispatcher(dispatcherPolicy);
-    mReader = new InputReader(eventHub, readerPolicy, mDispatcher);
-    initialize();
-}
-
-InputManager::InputManager(
-        const sp<InputReaderInterface>& reader,
-        const sp<InputDispatcherInterface>& dispatcher) :
-        mReader(reader),
-        mDispatcher(dispatcher) {
+    mReader = createInputReader(readerPolicy, mDispatcher);
     initialize();
 }
 

@@ -24,6 +24,8 @@ cc_test {
         "libui",
         "libinput",
         "libinputflinger",
+        "libinputreader",
+        "libinputflinger_base",
         "libinputservice",
     ],
 }
