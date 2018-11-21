@@ -59,6 +59,8 @@ protected:
     SchedulerTest();
     ~SchedulerTest() override;
 
+    int64_t calculateMedian(std::vector<int64_t>* v);
+
     sp<Scheduler::ConnectionHandle> mConnectionHandle;
     mock::DispSync* mPrimaryDispSync = new mock::DispSync();
     mock::EventThread* mEventThread;
@@ -93,6 +95,10 @@ SchedulerTest::~SchedulerTest() {
     const ::testing::TestInfo* const test_info =
             ::testing::UnitTest::GetInstance()->current_test_info();
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
+}
+
+int64_t SchedulerTest::calculateMedian(std::vector<int64_t>* v) {
+    return mScheduler->calculateMedian(v);
 }
 
 namespace {
@@ -183,6 +189,38 @@ TEST_F(SchedulerTest, validConnectionHandle) {
 
     EXPECT_CALL(*mEventThread, setPhaseOffset(10)).Times(1);
     ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(mConnectionHandle, 10));
+}
+
+TEST_F(SchedulerTest, calculateMedian) {
+    std::vector<int64_t> testVector;
+    // Calling the function on empty vector returns 0.
+    EXPECT_EQ(0, calculateMedian(&testVector));
+
+    testVector.push_back(33);
+    EXPECT_EQ(33, calculateMedian(&testVector));
+    testVector.push_back(33);
+    testVector.push_back(33);
+    EXPECT_EQ(33, calculateMedian(&testVector));
+    testVector.push_back(42);
+    EXPECT_EQ(33, calculateMedian(&testVector));
+    testVector.push_back(33);
+    EXPECT_EQ(33, calculateMedian(&testVector));
+    testVector.push_back(42);
+    EXPECT_EQ(33, calculateMedian(&testVector));
+    testVector.push_back(42);
+    EXPECT_EQ(33, calculateMedian(&testVector));
+    testVector.push_back(42);
+    EXPECT_EQ(42, calculateMedian(&testVector));
+    testVector.push_back(60);
+    EXPECT_EQ(42, calculateMedian(&testVector));
+    testVector.push_back(60);
+    EXPECT_EQ(42, calculateMedian(&testVector));
+    testVector.push_back(33);
+    EXPECT_EQ(42, calculateMedian(&testVector));
+    testVector.push_back(33);
+    EXPECT_EQ(42, calculateMedian(&testVector));
+    testVector.push_back(33);
+    EXPECT_EQ(33, calculateMedian(&testVector));
 }
 
 } // namespace

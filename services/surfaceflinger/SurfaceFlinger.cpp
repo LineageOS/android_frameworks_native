@@ -1489,6 +1489,10 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            if (mUseScheduler) {
+                // This call is made each time SF wakes up and creates a new frame.
+                mScheduler->incrementFrameCounter();
+            }
             bool frameMissed = !mHadClientComposition &&
                     mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getSignalTime() ==

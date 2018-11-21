@@ -30,6 +30,7 @@
 
 #include <gui/ISurfaceComposer.h>
 #include <ui/DisplayStatInfo.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
 
 #include "DispSync.h"
@@ -205,15 +206,95 @@ void Scheduler::makeHWSyncAvailable(bool makeAvailable) {
     mHWVsyncAvailable = makeAvailable;
 }
 
-void Scheduler::addNewFrameTimestamp(const nsecs_t newFrameTimestamp, bool isAutoTimestamp) {
+void Scheduler::addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
+                                            const std::string layerName) {
+    // This is V1 logic. It calculates the average FPS based on the timestamp frequency
+    // regardless of which layer the timestamp came from.
+    // For now, the averages and FPS are recorded in the systrace.
+    determineTimestampAverage(isAutoTimestamp, framePresentTime);
+
+    // This is V2 logic. It calculates the average and median timestamp difference based on the
+    // individual layer history. The results are recorded in the systrace.
+    determineLayerTimestampStats(layerName, framePresentTime);
+}
+
+void Scheduler::incrementFrameCounter() {
+    mLayerHistory.incrementCounter();
+}
+
+nsecs_t Scheduler::calculateAverage() const {
+    nsecs_t sum = std::accumulate(mTimeDifferences.begin(), mTimeDifferences.end(), 0);
+    return (sum / ARRAY_SIZE);
+}
+
+void Scheduler::updateFrameSkipping(const int64_t skipCount) {
+    ATRACE_INT("FrameSkipCount", skipCount);
+    if (mSkipCount != skipCount) {
+        // Only update DispSync if it hasn't been updated yet.
+        mPrimaryDispSync->setRefreshSkipCount(skipCount);
+        mSkipCount = skipCount;
+    }
+}
+
+void Scheduler::determineLayerTimestampStats(const std::string layerName,
+                                             const nsecs_t framePresentTime) {
+    mLayerHistory.insert(layerName, framePresentTime);
+    std::vector<int64_t> differencesMs;
+
+    // Traverse through the layer history, and determine the differences in present times.
+    nsecs_t newestPresentTime = framePresentTime;
+    for (int i = 1; i < mLayerHistory.getSize(); i++) {
+        std::unordered_map<std::string, nsecs_t> layers = mLayerHistory.get(i);
+        for (auto layer : layers) {
+            if (layer.first != layerName) {
+                continue;
+            }
+            int64_t differenceMs = (newestPresentTime - layer.second) / 1000000;
+            ALOGD("%d Layer %s: %" PRId64, i, layerName.c_str(), differenceMs);
+            // Dismiss noise.
+            if (differenceMs > 10 && differenceMs < 60) {
+                differencesMs.push_back(differenceMs);
+            }
+            newestPresentTime = layer.second;
+        }
+    }
+    // Average is a good indicator for when 24fps videos are playing, because the frames come in
+    // 33, and 49 ms intervals with occasional 41ms.
+    int64_t average =
+            std::accumulate(differencesMs.begin(), differencesMs.end(), 0) / differencesMs.size();
+    const auto tag = "TimestampAvg_" + layerName;
+    ATRACE_INT(tag.c_str(), average);
+
+    // Mode and median are good indicators for 30 and 60 fps videos, because the majority of frames
+    // come in 16, or 33 ms intervals.
+    // TODO(b/113612090): Calculate mode. Median is good for now, since we want a given interval to
+    // repeat at least ARRAY_SIZE/2 + 1 times.
+    if (differencesMs.size() > 0) {
+        const auto tagMedian = "TimestampMedian_" + layerName;
+        ATRACE_INT(tagMedian.c_str(), calculateMedian(&differencesMs));
+    }
+}
+
+int64_t Scheduler::calculateMedian(std::vector<int64_t>* v) {
+    if (!v || v->size() == 0) {
+        return 0;
+    }
+
+    size_t n = v->size() / 2;
+    nth_element(v->begin(), v->begin() + n, v->end());
+    return v->at(n);
+}
+
+void Scheduler::determineTimestampAverage(bool isAutoTimestamp, const nsecs_t framePresentTime) {
     ATRACE_INT("AutoTimestamp", isAutoTimestamp);
+
     // Video does not have timestamp automatically set, so we discard timestamps that are
     // coming in from other sources for now.
     if (isAutoTimestamp) {
         return;
     }
-    int64_t differenceMs = (newFrameTimestamp - mPreviousFrameTimestamp) / 1000000;
-    mPreviousFrameTimestamp = newFrameTimestamp;
+    int64_t differenceMs = (framePresentTime - mPreviousFrameTimestamp) / 1000000;
+    mPreviousFrameTimestamp = framePresentTime;
 
     if (differenceMs < 10 || differenceMs > 100) {
         // Dismiss noise.
@@ -238,20 +319,6 @@ void Scheduler::addNewFrameTimestamp(const nsecs_t newFrameTimestamp, bool isAut
         ATRACE_INT("FPS", 24);
     }
     updateFrameSkipping(0);
-}
-
-nsecs_t Scheduler::calculateAverage() const {
-    nsecs_t sum = std::accumulate(mTimeDifferences.begin(), mTimeDifferences.end(), 0);
-    return (sum / ARRAY_SIZE);
-}
-
-void Scheduler::updateFrameSkipping(const int64_t skipCount) {
-    ATRACE_INT("FrameSkipCount", skipCount);
-    if (mSkipCount != skipCount) {
-        // Only update DispSync if it hasn't been updated yet.
-        mPrimaryDispSync->setRefreshSkipCount(skipCount);
-        mSkipCount = skipCount;
-    }
 }
 
 } // namespace android

@@ -352,9 +352,10 @@ void BufferQueueLayer::setHwcLayerBuffer(DisplayId displayId) {
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
-        // Report the timestamp to the Scheduler.
+        // Report the requested present time to the Scheduler.
         if (mFlinger->mUseScheduler) {
-            mFlinger->mScheduler->addNewFrameTimestamp(item.mTimestamp, item.mIsAutoTimestamp);
+            mFlinger->mScheduler->addFramePresentTimeForLayer(item.mTimestamp,
+                                                              item.mIsAutoTimestamp, mName.c_str());
         }
 
         Mutex::Autolock lock(mQueueItemLock);
@@ -382,7 +383,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
 
     mFlinger->mInterceptor->saveBufferUpdate(this, item.mGraphicBuffer->getWidth(),
                                              item.mGraphicBuffer->getHeight(), item.mFrameNumber);
-    
+
     // If this layer is orphaned, then we run a fake vsync pulse so that
     // dequeueBuffer doesn't block indefinitely.
     if (isRemovedFromCurrentState()) {
