@@ -24,10 +24,31 @@
 
 #include "DumpstateInternal.h"
 
+using android::base::StringPrintf;
+
 namespace android {
 namespace os {
 
 namespace {
+
+static binder::Status exception(uint32_t code, const std::string& msg) {
+    MYLOGE("%s (%d) ", msg.c_str(), code);
+    return binder::Status::fromExceptionCode(code, String8(msg.c_str()));
+}
+
+static binder::Status error(uint32_t code, const std::string& msg) {
+    MYLOGE("%s (%d) ", msg.c_str(), code);
+    return binder::Status::fromServiceSpecificError(code, String8(msg.c_str()));
+}
+
+static void* callAndNotify(void* data) {
+    Dumpstate& ds = *static_cast<Dumpstate*>(data);
+    // TODO(111441001): Return status on listener.
+    ds.Run();
+    MYLOGE("Finished Run()\n");
+    return nullptr;
+}
+
 class DumpstateToken : public BnDumpstateToken {};
 }
 
@@ -77,10 +98,30 @@ binder::Status DumpstateService::setListener(const std::string& name,
     return binder::Status::ok();
 }
 
-binder::Status DumpstateService::startBugreport(int, const sp<IDumpstateListener>&,
-                                                const DumpstateOptions&, int32_t* returned_id) {
-    // TODO: fork to handle the bugreport request and return the process id or a request id here.
+binder::Status DumpstateService::startBugreport(int, int bugreport_mode, int32_t* returned_id) {
+    // TODO(111441001): return a request id here.
     *returned_id = -1;
+    MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
+
+    if (bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_FULL &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_REMOTE &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WEAR &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_TELEPHONY &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WIFI) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                         StringPrintf("Invalid bugreport mode: %d", bugreport_mode));
+    }
+
+    std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
+    options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode));
+    ds_.SetOptions(std::move(options));
+
+    pthread_t thread;
+    status_t err = pthread_create(&thread, nullptr, callAndNotify, &ds_);
+    if (err != 0) {
+        return error(err, "Could not create a background thread.");
+    }
     return binder::Status::ok();
 }
 

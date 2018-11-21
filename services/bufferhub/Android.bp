@@ -25,6 +25,7 @@ cc_library_shared {
         "BufferClient.cpp",
         "BufferHubService.cpp",
         "BufferNode.cpp",
+        "UniqueIdGenerator.cpp",
     ],
     header_libs: [
         "libbufferhub_headers",

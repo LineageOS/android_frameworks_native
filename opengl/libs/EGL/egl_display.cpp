@@ -164,43 +164,6 @@ static bool addAnglePlatformAttributes(egl_connection_t* const cnx,
     return true;
 }
 
-// Initialize function ptrs for ANGLE PlatformMethods struct, used for systrace
-bool initializeAnglePlatform(EGLDisplay dpy) {
-    // Since we're inside libEGL, use dlsym to lookup fptr for ANGLEGetDisplayPlatform
-    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
-    const android_dlextinfo dlextinfo = {
-            .flags = ANDROID_DLEXT_USE_NAMESPACE,
-            .library_namespace = ns,
-    };
-    void* so = android_dlopen_ext("libEGL_angle.so", RTLD_LOCAL | RTLD_NOW, &dlextinfo);
-    angle::AnglePlatformImpl::angleGetDisplayPlatform =
-            reinterpret_cast<angle::GetDisplayPlatformFunc>(dlsym(so, "ANGLEGetDisplayPlatform"));
-
-    if (!angle::AnglePlatformImpl::angleGetDisplayPlatform) {
-        ALOGE("dlsym lookup of ANGLEGetDisplayPlatform in libEGL_angle failed!");
-        return false;
-    }
-
-    angle::AnglePlatformImpl::angleResetDisplayPlatform =
-            reinterpret_cast<angle::ResetDisplayPlatformFunc>(
-                    eglGetProcAddress("ANGLEResetDisplayPlatform"));
-
-    angle::PlatformMethods* platformMethods = nullptr;
-    if (!((angle::AnglePlatformImpl::angleGetDisplayPlatform)(dpy, angle::g_PlatformMethodNames,
-                                                              angle::g_NumPlatformMethods, nullptr,
-                                                              &platformMethods))) {
-        ALOGE("ANGLEGetDisplayPlatform call failed!");
-        return false;
-    }
-    if (platformMethods) {
-        angle::AnglePlatformImpl::assignAnglePlatformMethods(platformMethods);
-    } else {
-        ALOGE("In initializeAnglePlatform() platformMethods struct ptr is NULL. Not assigning "
-              "tracing function ptrs!");
-    }
-    return true;
-}
-
 static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_connection_t* const cnx,
                                           const EGLAttrib* attrib_list, EGLint* error) {
     EGLDisplay dpy = EGL_NO_DISPLAY;
@@ -228,7 +191,7 @@ static EGLDisplay getPlatformDisplayAngle(EGLNativeDisplayType display, egl_conn
         if (dpy == EGL_NO_DISPLAY) {
             ALOGE("eglGetPlatformDisplay failed!");
         } else {
-            if (!initializeAnglePlatform(dpy)) {
+            if (!angle::initializeAnglePlatform(dpy)) {
                 ALOGE("initializeAnglePlatform failed!");
             }
         }
@@ -505,8 +468,8 @@ EGLBoolean egl_display_t::terminate() {
         egl_connection_t* const cnx = &gEGLImpl;
         if (cnx->dso && disp.state == egl_display_t::INITIALIZED) {
             // If we're using ANGLE reset any custom DisplayPlatform
-            if (cnx->useAngle && angle::AnglePlatformImpl::angleResetDisplayPlatform) {
-                (angle::AnglePlatformImpl::angleResetDisplayPlatform)(disp.dpy);
+            if (cnx->useAngle) {
+                angle::resetAnglePlatform(disp.dpy);
             }
             if (cnx->egl.eglTerminate(disp.dpy) == EGL_FALSE) {
                 ALOGW("eglTerminate(%p) failed (%s)", disp.dpy,

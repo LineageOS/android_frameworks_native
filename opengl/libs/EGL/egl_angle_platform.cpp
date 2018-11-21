@@ -16,52 +16,53 @@
 
 #if defined(__ANDROID__)
 
+#include <cutils/properties.h>
+#include "Loader.h"
 #include "egl_angle_platform.h"
-#include <time.h>
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#include <EGL/Platform.h>
+#pragma GCC diagnostic pop
+
+#include <android/dlext.h>
+#include <dlfcn.h>
+#include <graphicsenv/GraphicsEnv.h>
+#include <time.h>
 #include <log/log.h>
 
 namespace angle {
 
-GetDisplayPlatformFunc AnglePlatformImpl::angleGetDisplayPlatform = nullptr;
-ResetDisplayPlatformFunc AnglePlatformImpl::angleResetDisplayPlatform = nullptr;
-// Initialize start time
-time_t AnglePlatformImpl::startTime = time(nullptr);
+static GetDisplayPlatformFunc angleGetDisplayPlatform = nullptr;
+static ResetDisplayPlatformFunc angleResetDisplayPlatform = nullptr;
 
-void AnglePlatformImpl::assignAnglePlatformMethods(PlatformMethods* platformMethods) {
-    platformMethods->addTraceEvent = addTraceEvent;
-    platformMethods->getTraceCategoryEnabledFlag = getTraceCategoryEnabledFlag;
-    platformMethods->monotonicallyIncreasingTime = monotonicallyIncreasingTime;
-    platformMethods->logError = logError;
-    platformMethods->logWarning = logWarning;
-    platformMethods->logInfo = logInfo;
-}
+static time_t startTime = time(nullptr);
 
-const unsigned char* AnglePlatformImpl::getTraceCategoryEnabledFlag(PlatformMethods* /*platform*/,
-                                                                    const char* /*categoryName*/) {
+static const unsigned char* getTraceCategoryEnabledFlag(PlatformMethods* /*platform*/,
+                                                        const char* /*categoryName*/) {
     // Returning ptr to 'g' (non-zero) to ALWAYS enable tracing initially.
     // This ptr is what will be passed into "category_group_enabled" of addTraceEvent
     static const unsigned char traceEnabled = 'g';
     return &traceEnabled;
 }
 
-double AnglePlatformImpl::monotonicallyIncreasingTime(PlatformMethods* /*platform*/) {
+static double monotonicallyIncreasingTime(PlatformMethods* /*platform*/) {
     return difftime(time(nullptr), startTime);
 }
 
-void AnglePlatformImpl::logError(PlatformMethods* /*platform*/, const char* errorMessage) {
+static void logError(PlatformMethods* /*platform*/, const char* errorMessage) {
     ALOGE("ANGLE Error:%s", errorMessage);
 }
 
-void AnglePlatformImpl::logWarning(PlatformMethods* /*platform*/, const char* warningMessage) {
+static void logWarning(PlatformMethods* /*platform*/, const char* warningMessage) {
     ALOGW("ANGLE Warn:%s", warningMessage);
 }
 
-void AnglePlatformImpl::logInfo(PlatformMethods* /*platform*/, const char* infoMessage) {
+static void logInfo(PlatformMethods* /*platform*/, const char* infoMessage) {
     ALOGD("ANGLE Info:%s", infoMessage);
 }
 
-TraceEventHandle AnglePlatformImpl::addTraceEvent(
+static TraceEventHandle addTraceEvent(
         PlatformMethods* /**platform*/, char phase, const unsigned char* /*category_group_enabled*/,
         const char* name, unsigned long long /*id*/, double /*timestamp*/, int /*num_args*/,
         const char** /*arg_names*/, const unsigned char* /*arg_types*/,
@@ -86,6 +87,58 @@ TraceEventHandle AnglePlatformImpl::addTraceEvent(
     // Return any non-zero handle to avoid assert in ANGLE
     TraceEventHandle result = 1.0;
     return result;
+}
+
+static void assignAnglePlatformMethods(PlatformMethods* platformMethods) {
+    platformMethods->addTraceEvent = addTraceEvent;
+    platformMethods->getTraceCategoryEnabledFlag = getTraceCategoryEnabledFlag;
+    platformMethods->monotonicallyIncreasingTime = monotonicallyIncreasingTime;
+    platformMethods->logError = logError;
+    platformMethods->logWarning = logWarning;
+    platformMethods->logInfo = logInfo;
+}
+
+// Initialize function ptrs for ANGLE PlatformMethods struct, used for systrace
+bool initializeAnglePlatform(EGLDisplay dpy) {
+    // Since we're inside libEGL, use dlsym to lookup fptr for ANGLEGetDisplayPlatform
+    android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
+    const android_dlextinfo dlextinfo = {
+            .flags = ANDROID_DLEXT_USE_NAMESPACE,
+            .library_namespace = ns,
+    };
+    void* so = android_dlopen_ext("libEGL_angle.so", RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+    angleGetDisplayPlatform =
+            reinterpret_cast<GetDisplayPlatformFunc>(dlsym(so, "ANGLEGetDisplayPlatform"));
+
+    if (!angleGetDisplayPlatform) {
+        ALOGE("dlsym lookup of ANGLEGetDisplayPlatform in libEGL_angle failed!");
+        return false;
+    }
+
+    angleResetDisplayPlatform =
+            reinterpret_cast<ResetDisplayPlatformFunc>(
+                    eglGetProcAddress("ANGLEResetDisplayPlatform"));
+
+    PlatformMethods* platformMethods = nullptr;
+    if (!((angleGetDisplayPlatform)(dpy, g_PlatformMethodNames,
+                                                              g_NumPlatformMethods, nullptr,
+                                                              &platformMethods))) {
+        ALOGE("ANGLEGetDisplayPlatform call failed!");
+        return false;
+    }
+    if (platformMethods) {
+        assignAnglePlatformMethods(platformMethods);
+    } else {
+        ALOGE("In initializeAnglePlatform() platformMethods struct ptr is NULL. Not assigning "
+              "tracing function ptrs!");
+    }
+    return true;
+}
+
+void resetAnglePlatform(EGLDisplay dpy) {
+    if (angleResetDisplayPlatform) {
+        angleResetDisplayPlatform(dpy);
+    }
 }
 
 }; // namespace angle

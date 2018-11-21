@@ -22,32 +22,54 @@
 
 #include <memory>
 #include <mutex>
+#include <queue>
 
 using namespace android::surfaceflinger;
 
 namespace android {
+
+constexpr auto operator""_MB(unsigned long long const num) {
+    return num * 1024 * 1024;
+}
 
 /*
  * SurfaceTracing records layer states during surface flinging.
  */
 class SurfaceTracing {
 public:
-    void enable();
+    void enable() { enable(kDefaultBufferCapInByte); }
+    void enable(size_t bufferSizeInByte);
     status_t disable();
-    bool isEnabled() const;
-
     void traceLayers(const char* where, LayersProto);
+
+    bool isEnabled() const;
     void dump(String8& result) const;
 
 private:
-    static constexpr auto DEFAULT_FILENAME = "/data/misc/wmtrace/layers_trace.pb";
+    static constexpr auto kDefaultBufferCapInByte = 100_MB;
+    static constexpr auto kDefaultFileName = "/data/misc/wmtrace/layers_trace.pb";
+
+    class LayersTraceBuffer { // ring buffer
+    public:
+        size_t size() const { return mSizeInBytes; }
+        size_t used() const { return mUsedInBytes; }
+        size_t frameCount() const { return mStorage.size(); }
+
+        void reset(size_t newSize);
+        void emplace(LayersTraceProto&& proto);
+        void flush(LayersTraceFileProto* fileProto);
+
+    private:
+        size_t mUsedInBytes = 0U;
+        size_t mSizeInBytes = 0U;
+        std::queue<LayersTraceProto> mStorage;
+    };
 
     status_t writeProtoFileLocked();
 
     bool mEnabled = false;
-    std::string mOutputFileName = DEFAULT_FILENAME;
     mutable std::mutex mTraceMutex;
-    std::unique_ptr<LayersTraceFileProto> mTrace;
+    LayersTraceBuffer mBuffer;
 };
 
 } // namespace android

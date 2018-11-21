@@ -27,6 +27,7 @@
 
 #include <android-base/macros.h>
 #include <android-base/unique_fd.h>
+#include <android/os/IDumpstate.h>
 #include <android/os/IDumpstateListener.h>
 #include <utils/StrongPointer.h>
 #include <ziparchive/zip_writer.h>
@@ -42,6 +43,9 @@
 // TODO: and then remove explicitly android::os::dumpstate:: prefixes
 namespace android {
 namespace os {
+
+struct DumpstateOptions;
+
 namespace dumpstate {
 
 class DumpstateTest;
@@ -185,6 +189,16 @@ class Dumpstate {
   public:
     enum RunStatus { OK, HELP, INVALID_INPUT, ERROR };
 
+    // The mode under which the bugreport should be run. Each mode encapsulates a few options.
+    enum BugreportMode {
+        BUGREPORT_FULL = android::os::IDumpstate::BUGREPORT_MODE_FULL,
+        BUGREPORT_INTERACTIVE = android::os::IDumpstate::BUGREPORT_MODE_INTERACTIVE,
+        BUGREPORT_REMOTE = android::os::IDumpstate::BUGREPORT_MODE_REMOTE,
+        BUGREPORT_WEAR = android::os::IDumpstate::BUGREPORT_MODE_WEAR,
+        BUGREPORT_TELEPHONY = android::os::IDumpstate::BUGREPORT_MODE_TELEPHONY,
+        BUGREPORT_WIFI = android::os::IDumpstate::BUGREPORT_MODE_WIFI
+    };
+
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
 
     static Dumpstate& GetInstance();
@@ -294,8 +308,11 @@ class Dumpstate {
 
     struct DumpOptions;
 
-    /* Main entry point for running a complete bugreport. Takes ownership of options. */
-    RunStatus RunWithOptions(std::unique_ptr<DumpOptions> options);
+    /* Main entry point for running a complete bugreport. */
+    RunStatus Run();
+
+    /* Sets runtime options. */
+    void SetOptions(std::unique_ptr<DumpOptions> options);
 
     // TODO: add other options from DumpState.
     /*
@@ -317,6 +334,7 @@ class Dumpstate {
         // Whether progress updates should be published.
         bool do_progress_updates = false;
         std::string use_outfile;
+        // TODO: rename to MODE.
         // Extra options passed as system property.
         std::string extra_options;
         // Command-line arguments as string
@@ -327,6 +345,9 @@ class Dumpstate {
 
         /* Initializes options from commandline arguments and system properties. */
         RunStatus Initialize(int argc, char* argv[]);
+
+        /* Initializes options from the requested mode. */
+        void Initialize(BugreportMode bugreport_mode);
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
