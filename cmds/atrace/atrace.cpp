@@ -228,6 +228,10 @@ static const TracingCategory k_categories[] = {
         { OPT,      "events/kmem/rss_stat/enable" },
         { OPT,      "events/kmem/ion_heap_grow/enable" },
         { OPT,      "events/kmem/ion_heap_shrink/enable" },
+        { OPT,      "events/oom/oom_score_adj_update/enable" },
+        { OPT,      "events/sched/sched_process_exit/enable" },
+        { OPT,      "events/task/task_rename/enable" },
+        { OPT,      "events/task/task_newtask/enable" },
     } },
 };
 
