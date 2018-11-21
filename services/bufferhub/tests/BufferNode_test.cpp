@@ -1,7 +1,9 @@
-#include <bufferhub/BufferNode.h>
 #include <errno.h>
+
+#include <bufferhub/BufferNode.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <private/dvr/buffer_hub_defs.h>
 #include <ui/GraphicBufferMapper.h>
 
 namespace android {

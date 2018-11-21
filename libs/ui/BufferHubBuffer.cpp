@@ -40,6 +40,7 @@
 
 #include <android-base/unique_fd.h>
 #include <ui/BufferHubBuffer.h>
+#include <ui/BufferHubDefs.h>
 
 using android::base::unique_fd;
 using android::dvr::BufferTraits;
@@ -69,7 +70,6 @@ using dvr::BufferHubDefs::IsClientGained;
 using dvr::BufferHubDefs::IsClientPosted;
 using dvr::BufferHubDefs::IsClientReleased;
 using dvr::BufferHubDefs::kHighBitsMask;
-using dvr::BufferHubDefs::kMetadataHeaderSize;
 
 } // namespace
 
@@ -161,7 +161,7 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     }
 
     size_t metadataSize = static_cast<size_t>(bufferTraits.metadata_size());
-    if (metadataSize < kMetadataHeaderSize) {
+    if (metadataSize < BufferHubDefs::kMetadataHeaderSize) {
         ALOGE("BufferHubBuffer::ImportGraphicBuffer: metadata too small: %zu", metadataSize);
         return -EINVAL;
     }

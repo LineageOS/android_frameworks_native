@@ -73,10 +73,13 @@ cc_test {
 
 cc_test {
     name: "BufferHubMetadata_test",
-    header_libs: ["libbufferhub_headers", "libdvr_headers"],
+    header_libs: [
+        "libbufferhub_headers",
+        "libdvr_headers",
+        "libpdx_headers",
+    ],
     shared_libs: [
         "libbase",
-        "libpdx_default_transport",
         "libui",
         "libutils",
     ],

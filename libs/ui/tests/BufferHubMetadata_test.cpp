@@ -15,8 +15,10 @@
  */
 
 #include <gtest/gtest.h>
+#include <private/dvr/buffer_hub_defs.h>
 #include <ui/BufferHubMetadata.h>
 
+// TODO(b/118893702): move this function to ui/BufferHubDefs.h after ag/5483995 is landed
 using android::dvr::BufferHubDefs::IsBufferReleased;
 
 namespace android {

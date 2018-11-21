@@ -17,26 +17,8 @@
 #ifndef ANDROID_BUFFER_HUB_METADATA_H_
 #define ANDROID_BUFFER_HUB_METADATA_H_
 
-// We would eliminate the clang warnings introduced by libdpx.
-// TODO(b/112338294): Remove those once BufferHub moved to use Binder
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wconversion"
-#pragma clang diagnostic ignored "-Wdouble-promotion"
-#pragma clang diagnostic ignored "-Wgnu-case-range"
-#pragma clang diagnostic ignored "-Wgnu-zero-variadic-macro-arguments"
-#pragma clang diagnostic ignored "-Winconsistent-missing-destructor-override"
-#pragma clang diagnostic ignored "-Wnested-anon-types"
-#pragma clang diagnostic ignored "-Wpacked"
-#pragma clang diagnostic ignored "-Wshadow"
-#pragma clang diagnostic ignored "-Wsign-conversion"
-#pragma clang diagnostic ignored "-Wswitch-enum"
-#pragma clang diagnostic ignored "-Wundefined-func-template"
-#pragma clang diagnostic ignored "-Wunused-template"
-#pragma clang diagnostic ignored "-Wweak-vtables"
-#include <private/dvr/buffer_hub_defs.h>
-#pragma clang diagnostic pop
-
 #include <android-base/unique_fd.h>
+#include <ui/BufferHubDefs.h>
 
 namespace android {
 
@@ -84,23 +66,21 @@ public:
     bool IsValid() const { return mAshmemFd.get() != -1 && mMetadataHeader != nullptr; }
 
     size_t user_metadata_size() const { return mUserMetadataSize; }
-    size_t metadata_size() const {
-        return mUserMetadataSize + dvr::BufferHubDefs::kMetadataHeaderSize;
-    }
+    size_t metadata_size() const { return mUserMetadataSize + BufferHubDefs::kMetadataHeaderSize; }
 
     const unique_fd& ashmem_fd() const { return mAshmemFd; }
-    dvr::BufferHubDefs::MetadataHeader* metadata_header() { return mMetadataHeader; }
+    BufferHubDefs::MetadataHeader* metadata_header() { return mMetadataHeader; }
 
 private:
     BufferHubMetadata(size_t userMetadataSize, unique_fd ashmemFd,
-                      dvr::BufferHubDefs::MetadataHeader* metadataHeader);
+                      BufferHubDefs::MetadataHeader* metadataHeader);
 
     BufferHubMetadata(const BufferHubMetadata&) = delete;
     void operator=(const BufferHubMetadata&) = delete;
 
     size_t mUserMetadataSize = 0;
     unique_fd mAshmemFd;
-    dvr::BufferHubDefs::MetadataHeader* mMetadataHeader = nullptr;
+    BufferHubDefs::MetadataHeader* mMetadataHeader = nullptr;
 };
 
 } // namespace android

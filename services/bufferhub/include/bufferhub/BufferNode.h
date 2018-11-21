@@ -3,6 +3,7 @@
 
 #include <android/hardware_buffer.h>
 #include <bufferhub/BufferHubIdGenerator.h>
+#include <cutils/native_handle.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {

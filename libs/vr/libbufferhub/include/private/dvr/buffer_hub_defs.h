@@ -8,8 +8,7 @@
 #include <pdx/rpc/remote_method.h>
 #include <pdx/rpc/serializable.h>
 #include <private/dvr/native_handle_wrapper.h>
-
-#include <atomic>
+#include <ui/BufferHubDefs.h>
 
 namespace android {
 namespace dvr {
@@ -120,36 +119,9 @@ static inline uint64_t FindNextAvailableClientStateMask(uint64_t union_bits) {
   return new_low_bit + (new_low_bit << kMaxNumberOfClients);
 }
 
-struct __attribute__((packed, aligned(8))) MetadataHeader {
-  // Internal data format, which can be updated as long as the size, padding and
-  // field alignment of the struct is consistent within the same ABI. As this
-  // part is subject for future updates, it's not stable cross Android version,
-  // so don't have it visible from outside of the Android platform (include Apps
-  // and vendor HAL).
-
-  // Every client takes up one bit from the higher 32 bits and one bit from the
-  // lower 32 bits in buffer_state.
-  std::atomic<uint64_t> buffer_state;
-
-  // Every client takes up one bit in fence_state. Only the lower 32 bits are
-  // valid. The upper 32 bits are there for easier manipulation, but the value
-  // should be ignored.
-  std::atomic<uint64_t> fence_state;
-
-  // Every client takes up one bit from the higher 32 bits and one bit from the
-  // lower 32 bits in active_clients_bit_mask.
-  std::atomic<uint64_t> active_clients_bit_mask;
-
-  // The index of the buffer queue where the buffer belongs to.
-  uint64_t queue_index;
-
-  // Public data format, which should be updated with caution. See more details
-  // in dvr_api.h
-  DvrNativeBufferMetadata metadata;
-};
-
-static_assert(sizeof(MetadataHeader) == 136, "Unexpected MetadataHeader size");
-static constexpr size_t kMetadataHeaderSize = sizeof(MetadataHeader);
+using MetadataHeader = android::BufferHubDefs::MetadataHeader;
+static constexpr size_t kMetadataHeaderSize =
+    android::BufferHubDefs::kMetadataHeaderSize;
 
 }  // namespace BufferHubDefs
 
