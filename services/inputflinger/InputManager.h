@@ -22,7 +22,7 @@
  */
 
 #include "EventHub.h"
-#include "InputReader.h"
+#include "InputReaderBase.h"
 #include "InputDispatcher.h"
 
 #include <input/Input.h>
@@ -80,14 +80,8 @@ protected:
 
 public:
     InputManager(
-            const sp<EventHubInterface>& eventHub,
             const sp<InputReaderPolicyInterface>& readerPolicy,
             const sp<InputDispatcherPolicyInterface>& dispatcherPolicy);
-
-    // (used for testing purposes)
-    InputManager(
-            const sp<InputReaderInterface>& reader,
-            const sp<InputDispatcherInterface>& dispatcher);
 
     virtual status_t start();
     virtual status_t stop();
