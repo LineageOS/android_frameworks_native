@@ -254,7 +254,6 @@ static void synthesizeButtonKeys(InputReaderContext* context, int32_t action,
 }
 
 
-
 // --- InputReader ---
 
 InputReader::InputReader(const sp<EventHubInterface>& eventHub,
@@ -3446,7 +3445,17 @@ std::optional<DisplayViewport> TouchInputMapper::findViewport() {
         } else {
             viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
         }
-        return mConfig.getDisplayViewportByType(viewportTypeToUse);
+
+        std::optional<DisplayViewport> viewport =
+                mConfig.getDisplayViewportByType(viewportTypeToUse);
+        if (!viewport && viewportTypeToUse == ViewportType::VIEWPORT_EXTERNAL) {
+            ALOGW("Input device %s should be associated with external display, "
+                    "fallback to internal one for the external viewport is not found.",
+                        getDeviceName().c_str());
+            viewport = mConfig.getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
+        }
+
+        return viewport;
     }
 
     DisplayViewport newViewport;
