@@ -471,7 +471,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     if (SyncFeatures::getInstance().useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {
         // TODO(alecmouri): Fail somewhere upstream if the fence is invalid.
         if (!releaseFence->isValid()) {
-            mFlinger->mTimeStats->clearLayerRecord(layerID);
+            mFlinger->mTimeStats->onDestroy(layerID);
             return UNKNOWN_ERROR;
         }
 
@@ -481,7 +481,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         auto currentStatus = s.acquireFence->getStatus();
         if (currentStatus == Fence::Status::Invalid) {
             ALOGE("Existing fence has invalid state");
-            mFlinger->mTimeStats->clearLayerRecord(layerID);
+            mFlinger->mTimeStats->onDestroy(layerID);
             return BAD_VALUE;
         }
 
@@ -489,7 +489,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         if (incomingStatus == Fence::Status::Invalid) {
             ALOGE("New fence has invalid state");
             mDrawingState.acquireFence = releaseFence;
-            mFlinger->mTimeStats->clearLayerRecord(layerID);
+            mFlinger->mTimeStats->onDestroy(layerID);
             return BAD_VALUE;
         }
 
@@ -505,7 +505,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
                 // synchronization is broken, the best we can do is hope fences
                 // signal in order so the new fence will act like a union
                 mDrawingState.acquireFence = releaseFence;
-                mFlinger->mTimeStats->clearLayerRecord(layerID);
+                mFlinger->mTimeStats->onDestroy(layerID);
                 return BAD_VALUE;
             }
             mDrawingState.acquireFence = mergedFence;
@@ -528,7 +528,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         // a GL-composited layer) not at all.
         status_t err = bindTextureImage();
         if (err != NO_ERROR) {
-            mFlinger->mTimeStats->clearLayerRecord(layerID);
+            mFlinger->mTimeStats->onDestroy(layerID);
             return BAD_VALUE;
         }
     }

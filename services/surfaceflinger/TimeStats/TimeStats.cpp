@@ -263,11 +263,9 @@ void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, const std::st
     if (!mTimeStatsTracker.count(layerID)) return;
     LayerRecord& layerRecord = mTimeStatsTracker[layerID];
     if (layerRecord.timeRecords.size() == MAX_NUM_TIME_RECORDS) {
-        ALOGE("[%d]-[%s]-timeRecords is already at its maximum size[%zu]. Please file a bug.",
+        ALOGE("[%d]-[%s]-timeRecords is at its maximum size[%zu]. Ignore this when unittesting.",
               layerID, layerRecord.layerName.c_str(), MAX_NUM_TIME_RECORDS);
-        layerRecord.timeRecords.clear();
-        layerRecord.prevTimeRecord.ready = false;
-        layerRecord.waitData = -1;
+        mTimeStatsTracker.erase(layerID);
         return;
     }
     // For most media content, the acquireFence is invalid because the buffer is
@@ -278,7 +276,9 @@ void TimeStats::setPostTime(int32_t layerID, uint64_t frameNumber, const std::st
                     {
                             .frameNumber = frameNumber,
                             .postTime = postTime,
+                            .latchTime = postTime,
                             .acquireTime = postTime,
+                            .desiredTime = postTime,
                     },
     };
     layerRecord.timeRecords.push_back(timeRecord);
@@ -389,18 +389,6 @@ void TimeStats::setPresentFence(int32_t layerID, uint64_t frameNumber,
     flushAvailableRecordsToStatsLocked(layerID);
 }
 
-void TimeStats::onDisconnect(int32_t layerID) {
-    if (!mEnabled.load()) return;
-
-    ATRACE_CALL();
-    ALOGV("[%d]-onDisconnect", layerID);
-
-    std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerID)) return;
-    flushAvailableRecordsToStatsLocked(layerID);
-    mTimeStatsTracker.erase(layerID);
-}
-
 void TimeStats::onDestroy(int32_t layerID) {
     if (!mEnabled.load()) return;
 
@@ -409,23 +397,7 @@ void TimeStats::onDestroy(int32_t layerID) {
 
     std::lock_guard<std::mutex> lock(mMutex);
     if (!mTimeStatsTracker.count(layerID)) return;
-    flushAvailableRecordsToStatsLocked(layerID);
     mTimeStatsTracker.erase(layerID);
-}
-
-void TimeStats::clearLayerRecord(int32_t layerID) {
-    if (!mEnabled.load()) return;
-
-    ATRACE_CALL();
-    ALOGV("[%d]-clearLayerRecord", layerID);
-
-    std::lock_guard<std::mutex> lock(mMutex);
-    if (!mTimeStatsTracker.count(layerID)) return;
-    LayerRecord& layerRecord = mTimeStatsTracker[layerID];
-    layerRecord.timeRecords.clear();
-    layerRecord.prevTimeRecord.ready = false;
-    layerRecord.waitData = -1;
-    layerRecord.droppedFrames = 0;
 }
 
 void TimeStats::removeTimeRecord(int32_t layerID, uint64_t frameNumber) {

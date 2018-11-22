@@ -262,7 +262,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             Mutex::Autolock lock(mQueueItemLock);
             mQueueItems.clear();
             mQueuedFrames = 0;
-            mFlinger->mTimeStats->clearLayerRecord(layerID);
+            mFlinger->mTimeStats->onDestroy(layerID);
         }
 
         // Once we have hit this state, the shadow queue may no longer

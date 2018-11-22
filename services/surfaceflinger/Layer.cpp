@@ -1523,7 +1523,7 @@ void Layer::dumpFrameEvents(String8& result) {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
-    mFlinger->mTimeStats->onDisconnect(getSequence());
+    mFlinger->mTimeStats->onDestroy(getSequence());
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
