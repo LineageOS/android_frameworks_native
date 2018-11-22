@@ -139,6 +139,7 @@ filegroup {
         "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventControlThread.cpp",
         "Scheduler/EventThread.cpp",
+        "Scheduler/LayerHistory.cpp",
         "Scheduler/MessageQueue.cpp",
         "Scheduler/Scheduler.cpp",
         "StartPropertySetThread.cpp",
