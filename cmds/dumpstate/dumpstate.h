@@ -261,7 +261,7 @@ class Dumpstate {
                                         std::chrono::milliseconds timeout);
 
     /*
-     * Adds a text entry entry to the existing zip file.
+     * Adds a text entry to the existing zip file.
      */
     bool AddTextZipEntry(const std::string& entry_name, const std::string& content);
 

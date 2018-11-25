@@ -1100,7 +1100,7 @@ static void RunDumpsysProto(const std::string& title, int priority,
     }
 }
 
-// Runs dumpsys on services that must dump first and and will take less than 100ms to dump.
+// Runs dumpsys on services that must dump first and will take less than 100ms to dump.
 static void RunDumpsysCritical() {
     RunDumpsysText("DUMPSYS CRITICAL", IServiceManager::DUMP_FLAG_PRIORITY_CRITICAL,
                    /* timeout= */ 5s, /* service_timeout= */ 500ms);
@@ -1864,17 +1864,6 @@ static void FinalizeFile() {
             do_text_file = true;
         } else {
             do_text_file = false;
-            // Since zip file is already created, it needs to be renamed.
-            std::string new_path = ds.GetPath(".zip");
-            if (ds.path_ != new_path) {
-                MYLOGD("Renaming zip file from %s to %s\n", ds.path_.c_str(), new_path.c_str());
-                if (rename(ds.path_.c_str(), new_path.c_str())) {
-                    MYLOGE("rename(%s, %s): %s\n", ds.path_.c_str(), new_path.c_str(),
-                           strerror(errno));
-                } else {
-                    ds.path_ = new_path;
-                }
-            }
         }
     }
     if (do_text_file) {
