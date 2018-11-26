@@ -44,8 +44,8 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
 
     sp<BufferClient> client = BufferClient::create(this, node);
     // Add it to list for bookkeeping and dumpsys.
-    std::lock_guard<std::mutex> lock(mClientListMutex);
-    mClientList.push_back(client);
+    std::lock_guard<std::mutex> lock(mClientSetMutex);
+    mClientSet.emplace(client);
 
     _hidl_cb(/*bufferClient=*/client, /*status=*/BufferHubStatus::NO_ERROR);
     return Void();
@@ -86,8 +86,8 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
 
     sp<BufferClient> client = new BufferClient(*originClient);
 
-    std::lock_guard<std::mutex> lock(mClientListMutex);
-    mClientList.push_back(client);
+    std::lock_guard<std::mutex> lock(mClientSetMutex);
+    mClientSet.emplace(client);
     _hidl_cb(/*bufferClient=*/client, /*status=*/BufferHubStatus::NO_ERROR);
     return Void();
 }
@@ -114,10 +114,10 @@ hidl_handle BufferHubService::registerToken(const wp<BufferClient>& client) {
 void BufferHubService::onClientClosed(const BufferClient* client) {
     removeTokenByClient(client);
 
-    std::lock_guard<std::mutex> lock(mClientListMutex);
-    auto iter = std::find(mClientList.begin(), mClientList.end(), client);
-    if (iter != mClientList.end()) {
-        mClientList.erase(iter);
+    std::lock_guard<std::mutex> lock(mClientSetMutex);
+    auto iter = std::find(mClientSet.begin(), mClientSet.end(), client);
+    if (iter != mClientSet.end()) {
+        mClientSet.erase(iter);
     }
 }
 

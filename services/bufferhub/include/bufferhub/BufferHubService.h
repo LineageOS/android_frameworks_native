@@ -55,8 +55,8 @@ private:
     void removeTokenByClient(const BufferClient* client);
 
     // List of active BufferClient for bookkeeping.
-    std::mutex mClientListMutex;
-    std::vector<wp<BufferClient>> mClientList GUARDED_BY(mClientListMutex);
+    std::mutex mClientSetMutex;
+    std::set<wp<BufferClient>> mClientSet GUARDED_BY(mClientSetMutex);
 
     // TODO(b/118180214): use a more secure implementation
     std::mt19937 mTokenEngine;
