@@ -388,7 +388,7 @@ public:
         mInfo.frameTop = 0;
         mInfo.frameRight = WIDTH;
         mInfo.frameBottom = HEIGHT;
-        mInfo.scaleFactor = 1.0;
+        mInfo.globalScaleFactor = 1.0;
         mInfo.addTouchableRegion(Rect(0, 0, WIDTH, HEIGHT));
         mInfo.visible = true;
         mInfo.canReceiveKeys = true;

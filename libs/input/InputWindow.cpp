@@ -82,7 +82,9 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(frameRight);
     output.writeInt32(frameBottom);
     output.writeInt32(surfaceInset);
-    output.writeFloat(scaleFactor);
+    output.writeFloat(globalScaleFactor);
+    output.writeFloat(windowXScale);
+    output.writeFloat(windowYScale);
     output.writeBool(visible);
     output.writeBool(canReceiveKeys);
     output.writeBool(hasFocus);
@@ -121,7 +123,9 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.frameRight = from.readInt32();
     ret.frameBottom = from.readInt32();
     ret.surfaceInset = from.readInt32();
-    ret.scaleFactor = from.readFloat();
+    ret.globalScaleFactor = from.readFloat();
+    ret.windowXScale = from.readFloat();
+    ret.windowYScale = from.readFloat();
     ret.visible = from.readBool();
     ret.canReceiveKeys = from.readBool();
     ret.hasFocus = from.readBool();

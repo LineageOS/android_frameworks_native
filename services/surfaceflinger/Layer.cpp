@@ -2074,6 +2074,12 @@ InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
     info.frameRight = screenBounds.right - info.surfaceInset;
     info.frameBottom = screenBounds.bottom - info.surfaceInset;
 
+    ui::Transform t = getTransform();
+    info.windowXScale *= 1.0f / t.sx();
+    info.windowYScale *= 1.0f / t.sy();
+
+    info.touchableRegion.scaleSelf(t.sx(), t.sy());
+
     info.touchableRegion = info.touchableRegion.translate(
             screenBounds.left,
             screenBounds.top);

@@ -140,7 +140,7 @@ private:
         mInputInfo.layoutParamsFlags = InputWindowInfo::FLAG_NOT_TOUCH_MODAL;
         mInputInfo.layoutParamsType = InputWindowInfo::TYPE_BASE_APPLICATION;
         mInputInfo.dispatchingTimeout = 100000;
-        mInputInfo.scaleFactor = 1.0;
+        mInputInfo.globalScaleFactor = 1.0;
         mInputInfo.canReceiveKeys = true;
         mInputInfo.hasFocus = true;
         mInputInfo.hasWallpaper = false;

@@ -1671,7 +1671,9 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
     target.flags = targetFlags;
     target.xOffset = - windowInfo->frameLeft;
     target.yOffset = - windowInfo->frameTop;
-    target.scaleFactor = windowInfo->scaleFactor;
+    target.globalScaleFactor = windowInfo->globalScaleFactor;
+    target.windowXScale = windowInfo->windowXScale;
+    target.windowYScale = windowInfo->windowYScale;
     target.pointerIds = pointerIds;
 }
 
@@ -1692,7 +1694,7 @@ void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTarge
             target.xOffset = 0;
             target.yOffset = 0;
             target.pointerIds.clear();
-            target.scaleFactor = 1.0f;
+            target.globalScaleFactor = 1.0f;
         }
     } else {
         // If there is no monitor channel registered or all monitor channel unregistered,
@@ -1912,11 +1914,13 @@ void InputDispatcher::prepareDispatchCycleLocked(nsecs_t currentTime,
         const sp<Connection>& connection, EventEntry* eventEntry, const InputTarget* inputTarget) {
 #if DEBUG_DISPATCH_CYCLE
     ALOGD("channel '%s' ~ prepareDispatchCycle - flags=0x%08x, "
-            "xOffset=%f, yOffset=%f, scaleFactor=%f, "
-            "pointerIds=0x%x",
+            "xOffset=%f, yOffset=%f, globalScaleFactor=%f, "
+            "windowScaleFactor=(%f, %f), pointerIds=0x%x",
             connection->getInputChannelName().c_str(), inputTarget->flags,
             inputTarget->xOffset, inputTarget->yOffset,
-            inputTarget->scaleFactor, inputTarget->pointerIds.value);
+            inputTarget->globalScaleFactor,
+            inputTarget->windowXScale, inputTarget->windowYScale,
+            inputTarget->pointerIds.value);
 #endif
 
     // Skip this event if the connection status is not normal.
@@ -1993,7 +1997,8 @@ void InputDispatcher::enqueueDispatchEntryLocked(
     // Enqueue a new dispatch entry onto the outbound queue for this connection.
     DispatchEntry* dispatchEntry = new DispatchEntry(eventEntry, // increments ref
             inputTargetFlags, inputTarget->xOffset, inputTarget->yOffset,
-            inputTarget->scaleFactor);
+            inputTarget->globalScaleFactor, inputTarget->windowXScale,
+            inputTarget->windowYScale);
 
     // Apply target flags and update the connection's input state.
     switch (eventEntry->type) {
@@ -2109,13 +2114,15 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
             float xOffset, yOffset;
             if ((motionEntry->source & AINPUT_SOURCE_CLASS_POINTER)
                     && !(dispatchEntry->targetFlags & InputTarget::FLAG_ZERO_COORDS)) {
-                float scaleFactor = dispatchEntry->scaleFactor;
-                xOffset = dispatchEntry->xOffset * scaleFactor;
-                yOffset = dispatchEntry->yOffset * scaleFactor;
-                if (scaleFactor != 1.0f) {
+                float globalScaleFactor = dispatchEntry->globalScaleFactor;
+                float wxs = dispatchEntry->windowXScale;
+                float wys = dispatchEntry->windowYScale;
+                xOffset = dispatchEntry->xOffset * wxs;
+                yOffset = dispatchEntry->yOffset * wys;
+                if (wxs != 1.0f || wys != 1.0f || globalScaleFactor != 1.0f) {
                     for (uint32_t i = 0; i < motionEntry->pointerCount; i++) {
                         scaledCoords[i] = motionEntry->pointerCoords[i];
-                        scaledCoords[i].scale(scaleFactor);
+                        scaledCoords[i].scale(globalScaleFactor, wxs, wys);
                     }
                     usingCoords = scaledCoords;
                 }
@@ -2373,11 +2380,13 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
                 const InputWindowInfo* windowInfo = windowHandle->getInfo();
                 target.xOffset = -windowInfo->frameLeft;
                 target.yOffset = -windowInfo->frameTop;
-                target.scaleFactor = windowInfo->scaleFactor;
+                target.globalScaleFactor = windowInfo->globalScaleFactor;
+                target.windowXScale = windowInfo->windowXScale;
+                target.windowYScale = windowInfo->windowYScale;
             } else {
                 target.xOffset = 0;
                 target.yOffset = 0;
-                target.scaleFactor = 1.0f;
+                target.globalScaleFactor = 1.0f;
             }
             target.inputChannel = connection->inputChannel;
             target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
@@ -3509,7 +3518,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
                             "paused=%s, hasFocus=%s, hasWallpaper=%s, "
                             "visible=%s, canReceiveKeys=%s, flags=0x%08x, type=0x%08x, layer=%d, "
-                            "frame=[%d,%d][%d,%d], scale=%f, "
+                            "frame=[%d,%d][%d,%d], globalScale=%f, windowScale=%f,%f"
                             "touchableRegion=",
                             i, windowInfo->name.c_str(), windowInfo->displayId,
                             toString(windowInfo->paused),
@@ -3521,7 +3530,8 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                             windowInfo->layer,
                             windowInfo->frameLeft, windowInfo->frameTop,
                             windowInfo->frameRight, windowInfo->frameBottom,
-                            windowInfo->scaleFactor);
+                            windowInfo->globalScaleFactor,
+                            windowInfo->windowXScale, windowInfo->windowYScale);
                     dumpRegion(dump, windowInfo->touchableRegion);
                     dump += StringPrintf(", inputFeatures=0x%08x", windowInfo->inputFeatures);
                     dump += StringPrintf(", ownerPid=%d, ownerUid=%d, dispatchingTimeout=%0.3fms\n",
@@ -4383,10 +4393,12 @@ void InputDispatcher::MotionEntry::appendDescription(std::string& msg) const {
 volatile int32_t InputDispatcher::DispatchEntry::sNextSeqAtomic;
 
 InputDispatcher::DispatchEntry::DispatchEntry(EventEntry* eventEntry,
-        int32_t targetFlags, float xOffset, float yOffset, float scaleFactor) :
+        int32_t targetFlags, float xOffset, float yOffset, float globalScaleFactor,
+        float windowXScale, float windowYScale) :
         seq(nextSeq()),
         eventEntry(eventEntry), targetFlags(targetFlags),
-        xOffset(xOffset), yOffset(yOffset), scaleFactor(scaleFactor),
+        xOffset(xOffset), yOffset(yOffset), globalScaleFactor(globalScaleFactor),
+        windowXScale(windowXScale), windowYScale(windowYScale),
         deliveryTime(0), resolvedAction(0), resolvedFlags(0) {
     eventEntry->refCount += 1;
 }

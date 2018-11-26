@@ -48,7 +48,9 @@ TEST(InputWindowInfo, Parcelling) {
     i.frameRight = 16;
     i.frameBottom = 19;
     i.surfaceInset = 17;
-    i.scaleFactor = 0.3;
+    i.globalScaleFactor = 0.3;
+    i.windowXScale = 0.4;
+    i.windowYScale = 0.5;
     i.visible = false;
     i.canReceiveKeys = false;
     i.hasFocus = false;
@@ -75,7 +77,9 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.frameRight, i2.frameRight);
     ASSERT_EQ(i.frameBottom, i2.frameBottom);
     ASSERT_EQ(i.surfaceInset, i2.surfaceInset);
-    ASSERT_EQ(i.scaleFactor, i2.scaleFactor);
+    ASSERT_EQ(i.globalScaleFactor, i2.globalScaleFactor);
+    ASSERT_EQ(i.windowXScale, i2.windowXScale);
+    ASSERT_EQ(i.windowYScale, i2.windowYScale);
     ASSERT_EQ(i.visible, i2.visible);
     ASSERT_EQ(i.canReceiveKeys, i2.canReceiveKeys);
     ASSERT_EQ(i.hasFocus, i2.hasFocus);

@@ -160,7 +160,9 @@ struct InputTarget {
 
     // Scaling factor to apply to MotionEvent as it is delivered.
     // (ignored for KeyEvents)
-    float scaleFactor;
+    float globalScaleFactor;
+    float windowXScale = 1.0f;
+    float windowYScale = 1.0f;
 
     // The subset of pointer ids to include in motion events dispatched to this input target
     // if FLAG_SPLIT is set.
@@ -563,7 +565,9 @@ private:
         int32_t targetFlags;
         float xOffset;
         float yOffset;
-        float scaleFactor;
+        float globalScaleFactor;
+        float windowXScale = 1.0f;
+        float windowYScale = 1.0f;
         nsecs_t deliveryTime; // time when the event was actually delivered
 
         // Set to the resolved action and flags when the event is enqueued.
@@ -571,7 +575,8 @@ private:
         int32_t resolvedFlags;
 
         DispatchEntry(EventEntry* eventEntry,
-                int32_t targetFlags, float xOffset, float yOffset, float scaleFactor);
+                int32_t targetFlags, float xOffset, float yOffset,
+                float globalScaleFactor, float windowXScale, float windowYScale);
         ~DispatchEntry();
 
         inline bool hasForegroundTarget() const {

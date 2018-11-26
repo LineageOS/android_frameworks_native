@@ -140,7 +140,13 @@ struct InputWindowInfo {
      */
     int32_t surfaceInset = 0;
 
-    float scaleFactor;
+    // A global scaling factor for all windows. Unlike windowScaleX/Y this results
+    // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
+    float globalScaleFactor;
+
+    // Scaling factors applied to individual windows.
+    float windowXScale = 1.0f;
+    float windowYScale = 1.0f;
 
     /*
      * This is filled in by the WM relative to the frame and then translated
