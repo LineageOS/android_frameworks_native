@@ -26,9 +26,6 @@ namespace mock {
 RenderEngine::RenderEngine() = default;
 RenderEngine::~RenderEngine() = default;
 
-Surface::Surface() = default;
-Surface::~Surface() = default;
-
 Image::Image() = default;
 Image::~Image() = default;
 

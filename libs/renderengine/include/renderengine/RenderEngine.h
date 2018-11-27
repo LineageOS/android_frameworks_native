@@ -48,7 +48,6 @@ namespace renderengine {
 class BindNativeBufferAsFramebuffer;
 class Image;
 class Mesh;
-class Surface;
 class Texture;
 
 namespace impl {
@@ -72,7 +71,6 @@ public:
     // used to support legacy behavior.
 
     virtual std::unique_ptr<Framebuffer> createFramebuffer() = 0;
-    virtual std::unique_ptr<Surface> createSurface() = 0;
     virtual std::unique_ptr<Image> createImage() = 0;
 
     virtual void primeCache() const = 0;
@@ -84,8 +82,6 @@ public:
     virtual bool useWaitSync() const = 0;
 
     virtual bool isCurrent() const = 0;
-    virtual bool setCurrentSurface(const Surface& surface) = 0;
-    virtual void resetCurrentSurface() = 0;
 
     // helpers
     // flush submits RenderEngine command stream for execution and returns a

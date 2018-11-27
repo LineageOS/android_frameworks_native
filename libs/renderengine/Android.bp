@@ -50,7 +50,6 @@ filegroup {
         "gl/GLExtensions.cpp",
         "gl/GLFramebuffer.cpp",
         "gl/GLImage.cpp",
-        "gl/GLSurface.cpp",
         "gl/Program.cpp",
         "gl/ProgramCache.cpp",
     ],
