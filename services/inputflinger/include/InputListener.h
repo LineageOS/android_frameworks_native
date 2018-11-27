@@ -28,6 +28,12 @@ class InputListenerInterface;
 
 /* Superclass of all input event argument objects */
 struct NotifyArgs {
+    uint32_t sequenceNum;
+
+    inline NotifyArgs() : sequenceNum(0) { }
+
+    inline explicit NotifyArgs(uint32_t sequenceNum) : sequenceNum(sequenceNum) { }
+
     virtual ~NotifyArgs() { }
 
     virtual void notify(const sp<InputListenerInterface>& listener) const = 0;
@@ -40,7 +46,7 @@ struct NotifyConfigurationChangedArgs : public NotifyArgs {
 
     inline NotifyConfigurationChangedArgs() { }
 
-    explicit NotifyConfigurationChangedArgs(nsecs_t eventTime);
+    NotifyConfigurationChangedArgs(uint32_t sequenceNum, nsecs_t eventTime);
 
     NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other);
 
@@ -66,9 +72,9 @@ struct NotifyKeyArgs : public NotifyArgs {
 
     inline NotifyKeyArgs() { }
 
-    NotifyKeyArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
-            uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
-            int32_t metaState, nsecs_t downTime);
+    NotifyKeyArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+            int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode,
+            int32_t scanCode, int32_t metaState, nsecs_t downTime);
 
     NotifyKeyArgs(const NotifyKeyArgs& other);
 
@@ -107,8 +113,8 @@ struct NotifyMotionArgs : public NotifyArgs {
 
     inline NotifyMotionArgs() { }
 
-    NotifyMotionArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source, int32_t displayId,
-            uint32_t policyFlags,
+    NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
+            int32_t displayId, uint32_t policyFlags,
             int32_t action, int32_t actionButton, int32_t flags,
             int32_t metaState, int32_t buttonState,
             int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
@@ -132,7 +138,7 @@ struct NotifySwitchArgs : public NotifyArgs {
 
     inline NotifySwitchArgs() { }
 
-    NotifySwitchArgs(nsecs_t eventTime, uint32_t policyFlags,
+    NotifySwitchArgs(uint32_t sequenceNum, nsecs_t eventTime, uint32_t policyFlags,
             uint32_t switchValues, uint32_t switchMask);
 
     NotifySwitchArgs(const NotifySwitchArgs& other);
@@ -151,7 +157,7 @@ struct NotifyDeviceResetArgs : public NotifyArgs {
 
     inline NotifyDeviceResetArgs() { }
 
-    NotifyDeviceResetArgs(nsecs_t eventTime, int32_t deviceId);
+    NotifyDeviceResetArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId);
 
     NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other);
 

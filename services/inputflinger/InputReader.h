@@ -96,6 +96,8 @@ public:
     virtual InputReaderPolicyInterface* getPolicy() = 0;
     virtual InputListenerInterface* getListener() = 0;
     virtual EventHubInterface* getEventHub() = 0;
+
+    virtual uint32_t getNextSequenceNum() = 0;
 };
 
 
@@ -168,6 +170,7 @@ protected:
         virtual InputReaderPolicyInterface* getPolicy();
         virtual InputListenerInterface* getListener();
         virtual EventHubInterface* getEventHub();
+        virtual uint32_t getNextSequenceNum();
     } mContext;
 
     friend class ContextImpl;
@@ -182,6 +185,9 @@ private:
     sp<QueuedInputListener> mQueuedListener;
 
     InputReaderConfiguration mConfig;
+
+    // used by InputReaderContext::getNextSequenceNum() as a counter for event sequence numbers
+    uint32_t mNextSequenceNum;
 
     // The event queue.
     static const int EVENT_BUFFER_SIZE = 256;
