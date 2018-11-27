@@ -366,9 +366,16 @@ TEST_F(SurfaceTest, SetHdrMetadata) {
         78.0,
         62.0,
     };
+
+    std::vector<uint8_t> hdr10plus;
+    hdr10plus.push_back(0xff);
+
     int error = native_window_set_buffers_smpte2086_metadata(window.get(), &smpte2086);
     ASSERT_EQ(error, NO_ERROR);
     error = native_window_set_buffers_cta861_3_metadata(window.get(), &cta861_3);
+    ASSERT_EQ(error, NO_ERROR);
+    error = native_window_set_buffers_hdr10_plus_metadata(window.get(), hdr10plus.size(),
+                                                          hdr10plus.data());
     ASSERT_EQ(error, NO_ERROR);
 }
 
