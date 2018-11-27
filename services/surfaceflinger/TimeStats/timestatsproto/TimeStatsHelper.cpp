@@ -13,8 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "timestatsproto/TimeStatsHelper.h"
+
 #include <android-base/stringprintf.h>
-#include <timestatsproto/TimeStatsHelper.h>
+#include <inttypes.h>
 
 #include <array>
 
@@ -44,6 +46,14 @@ void TimeStatsHelper::Histogram::insert(int32_t delta) {
     }
     auto iter = std::lower_bound(histogramConfig.begin(), histogramConfig.end(), delta);
     hist[*iter]++;
+}
+
+int64_t TimeStatsHelper::Histogram::totalTime() const {
+    int64_t ret = 0;
+    for (const auto& ele : hist) {
+        ret += ele.first * ele.second;
+    }
+    return ret;
 }
 
 float TimeStatsHelper::Histogram::averageTime() const {
@@ -87,12 +97,13 @@ std::string TimeStatsHelper::TimeStatsLayer::toString() const {
 
 std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> maxLayers) const {
     std::string result = "SurfaceFlinger TimeStats:\n";
-    StringAppendF(&result, "statsStart = %lld\n", static_cast<long long int>(statsStart));
-    StringAppendF(&result, "statsEnd = %lld\n", static_cast<long long int>(statsEnd));
+    StringAppendF(&result, "statsStart = %" PRId64 "\n", statsStart);
+    StringAppendF(&result, "statsEnd = %" PRId64 "\n", statsEnd);
     StringAppendF(&result, "totalFrames = %d\n", totalFrames);
     StringAppendF(&result, "missedFrames = %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
-    StringAppendF(&result, "displayOnTime = %lld ms\n", static_cast<long long int>(displayOnTime));
+    StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
+    StringAppendF(&result, "totalP2PTime = %" PRId64 " ms\n", presentToPresent.totalTime());
     StringAppendF(&result, "presentToPresent histogram is as below:\n");
     result.append(presentToPresent.toString());
     const auto dumpStats = generateDumpStats(maxLayers);
