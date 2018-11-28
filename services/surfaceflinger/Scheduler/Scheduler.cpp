@@ -18,6 +18,7 @@
 
 #include "Scheduler.h"
 
+#include <algorithm>
 #include <cinttypes>
 #include <cstdint>
 #include <memory>
@@ -38,6 +39,7 @@
 #include "EventControlThread.h"
 #include "EventThread.h"
 #include "InjectVSyncSource.h"
+#include "SchedulerUtils.h"
 
 namespace android {
 
@@ -222,11 +224,6 @@ void Scheduler::incrementFrameCounter() {
     mLayerHistory.incrementCounter();
 }
 
-nsecs_t Scheduler::calculateAverage() const {
-    nsecs_t sum = std::accumulate(mTimeDifferences.begin(), mTimeDifferences.end(), 0);
-    return (sum / ARRAY_SIZE);
-}
-
 void Scheduler::updateFrameSkipping(const int64_t skipCount) {
     ATRACE_INT("FrameSkipCount", skipCount);
     if (mSkipCount != skipCount) {
@@ -243,6 +240,7 @@ void Scheduler::determineLayerTimestampStats(const std::string layerName,
 
     // Traverse through the layer history, and determine the differences in present times.
     nsecs_t newestPresentTime = framePresentTime;
+    std::string differencesText = "";
     for (int i = 1; i < mLayerHistory.getSize(); i++) {
         std::unordered_map<std::string, nsecs_t> layers = mLayerHistory.get(i);
         for (auto layer : layers) {
@@ -250,39 +248,31 @@ void Scheduler::determineLayerTimestampStats(const std::string layerName,
                 continue;
             }
             int64_t differenceMs = (newestPresentTime - layer.second) / 1000000;
-            ALOGD("%d Layer %s: %" PRId64, i, layerName.c_str(), differenceMs);
             // Dismiss noise.
             if (differenceMs > 10 && differenceMs < 60) {
                 differencesMs.push_back(differenceMs);
             }
+            IF_ALOGV() { differencesText += (std::to_string(differenceMs) + " "); }
             newestPresentTime = layer.second;
         }
     }
-    // Average is a good indicator for when 24fps videos are playing, because the frames come in
-    // 33, and 49 ms intervals with occasional 41ms.
-    int64_t average =
-            std::accumulate(differencesMs.begin(), differencesMs.end(), 0) / differencesMs.size();
-    const auto tag = "TimestampAvg_" + layerName;
-    ATRACE_INT(tag.c_str(), average);
+    ALOGV("Layer %s timestamp intervals: %s", layerName.c_str(), differencesText.c_str());
 
-    // Mode and median are good indicators for 30 and 60 fps videos, because the majority of frames
-    // come in 16, or 33 ms intervals.
-    // TODO(b/113612090): Calculate mode. Median is good for now, since we want a given interval to
-    // repeat at least ARRAY_SIZE/2 + 1 times.
-    if (differencesMs.size() > 0) {
+    if (!differencesMs.empty()) {
+        // Mean/Average is a good indicator for when 24fps videos are playing, because the frames
+        // come in 33, and 49 ms intervals with occasional 41ms.
+        const int64_t meanMs = scheduler::calculate_mean(differencesMs);
+        const auto tagMean = "TimestampMean_" + layerName;
+        ATRACE_INT(tagMean.c_str(), meanMs);
+
+        // Mode and median are good indicators for 30 and 60 fps videos, because the majority of
+        // frames come in 16, or 33 ms intervals.
         const auto tagMedian = "TimestampMedian_" + layerName;
-        ATRACE_INT(tagMedian.c_str(), calculateMedian(&differencesMs));
-    }
-}
+        ATRACE_INT(tagMedian.c_str(), scheduler::calculate_median(&differencesMs));
 
-int64_t Scheduler::calculateMedian(std::vector<int64_t>* v) {
-    if (!v || v->size() == 0) {
-        return 0;
+        const auto tagMode = "TimestampMode_" + layerName;
+        ATRACE_INT(tagMode.c_str(), scheduler::calculate_mode(differencesMs));
     }
-
-    size_t n = v->size() / 2;
-    nth_element(v->begin(), v->begin() + n, v->end());
-    return v->at(n);
 }
 
 void Scheduler::determineTimestampAverage(bool isAutoTimestamp, const nsecs_t framePresentTime) {
@@ -302,23 +292,21 @@ void Scheduler::determineTimestampAverage(bool isAutoTimestamp, const nsecs_t fr
     }
     ATRACE_INT("TimestampDiff", differenceMs);
 
-    mTimeDifferences[mCounter % ARRAY_SIZE] = differenceMs;
+    mTimeDifferences[mCounter % scheduler::ARRAY_SIZE] = differenceMs;
     mCounter++;
-    nsecs_t average = calculateAverage();
-    ATRACE_INT("TimestampAverage", average);
+    int64_t mean = scheduler::calculate_mean(mTimeDifferences);
+    ATRACE_INT("AutoTimestampMean", mean);
 
     // TODO(b/113612090): This are current numbers from trial and error while running videos
     // from YouTube at 24, 30, and 60 fps.
-    if (average > 14 && average < 18) {
+    if (mean > 14 && mean < 18) {
         ATRACE_INT("FPS", 60);
-    } else if (average > 31 && average < 34) {
+    } else if (mean > 31 && mean < 34) {
         ATRACE_INT("FPS", 30);
-        updateFrameSkipping(1);
         return;
-    } else if (average > 39 && average < 42) {
+    } else if (mean > 39 && mean < 42) {
         ATRACE_INT("FPS", 24);
     }
-    updateFrameSkipping(0);
 }
 
 } // namespace android
