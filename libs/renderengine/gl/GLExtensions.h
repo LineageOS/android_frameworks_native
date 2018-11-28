@@ -32,29 +32,6 @@ namespace renderengine {
 namespace gl {
 
 class GLExtensions : public Singleton<GLExtensions> {
-    friend class Singleton<GLExtensions>;
-
-    bool mHasNoConfigContext = false;
-    bool mHasNativeFenceSync = false;
-    bool mHasFenceSync = false;
-    bool mHasWaitSync = false;
-    bool mHasProtectedContent = false;
-    bool mHasContextPriority = false;
-
-    String8 mVendor;
-    String8 mRenderer;
-    String8 mVersion;
-    String8 mExtensions;
-
-    String8 mEGLVersion;
-    String8 mEGLExtensions;
-
-    GLExtensions(const GLExtensions&);
-    GLExtensions& operator=(const GLExtensions&);
-
-protected:
-    GLExtensions() = default;
-
 public:
     bool hasNoConfigContext() const { return mHasNoConfigContext; }
     bool hasNativeFenceSync() const { return mHasNativeFenceSync; }
@@ -62,6 +39,7 @@ public:
     bool hasWaitSync() const { return mHasWaitSync; }
     bool hasProtectedContent() const { return mHasProtectedContent; }
     bool hasContextPriority() const { return mHasContextPriority; }
+    bool hasSurfacelessContext() const { return mHasSurfacelessContext; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);
@@ -73,6 +51,31 @@ public:
     void initWithEGLStrings(char const* eglVersion, char const* eglExtensions);
     char const* getEGLVersion() const;
     char const* getEGLExtensions() const;
+
+protected:
+    GLExtensions() = default;
+
+private:
+    friend class Singleton<GLExtensions>;
+
+    bool mHasNoConfigContext = false;
+    bool mHasNativeFenceSync = false;
+    bool mHasFenceSync = false;
+    bool mHasWaitSync = false;
+    bool mHasProtectedContent = false;
+    bool mHasContextPriority = false;
+    bool mHasSurfacelessContext = false;
+
+    String8 mVendor;
+    String8 mRenderer;
+    String8 mVersion;
+    String8 mExtensions;
+
+    String8 mEGLVersion;
+    String8 mEGLExtensions;
+
+    GLExtensions(const GLExtensions&);
+    GLExtensions& operator=(const GLExtensions&);
 };
 
 } // namespace gl
