@@ -95,6 +95,14 @@ float Transform::ty() const {
     return mMatrix[2][1];
 }
 
+float Transform::sx() const {
+    return mMatrix[0][0];
+}
+
+float Transform::sy() const {
+    return mMatrix[1][1];
+}
+
 void Transform::reset() {
     mType = IDENTITY;
     for(size_t i = 0; i < 3; i++) {

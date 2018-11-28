@@ -65,12 +65,12 @@ bool InputWindowInfo::overlaps(const InputWindowInfo* other) const {
 }
 
 status_t InputWindowInfo::write(Parcel& output) const {
-    if (inputChannel == nullptr) {
+    if (token == nullptr) {
         output.writeInt32(0);
         return OK;
     }
     output.writeInt32(1);
-    status_t s = inputChannel->write(output);
+    status_t s = output.writeStrongBinder(token);
     if (s != OK) return s;
 
     output.writeString8(String8(name.c_str()));
@@ -81,7 +81,10 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(frameTop);
     output.writeInt32(frameRight);
     output.writeInt32(frameBottom);
-    output.writeFloat(scaleFactor);
+    output.writeInt32(surfaceInset);
+    output.writeFloat(globalScaleFactor);
+    output.writeFloat(windowXScale);
+    output.writeFloat(windowYScale);
     output.writeBool(visible);
     output.writeBool(canReceiveKeys);
     output.writeBool(hasFocus);
@@ -92,6 +95,7 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(ownerUid);
     output.writeInt32(inputFeatures);
     output.writeInt32(displayId);
+    applicationInfo.write(output);
     output.write(touchableRegion);
 
     return OK;
@@ -102,15 +106,14 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
 
     if (from.readInt32() == 0) {
         return ret;
-
     }
-    sp<InputChannel> inputChannel = new InputChannel();
-    status_t s = inputChannel->read(from);
-    if (s != OK) {
+
+    sp<IBinder> token = from.readStrongBinder();
+    if (token == nullptr) {
         return ret;
     }
 
-    ret.inputChannel = inputChannel;
+    ret.token = token;
     ret.name = from.readString8().c_str();
     ret.layoutParamsFlags = from.readInt32();
     ret.layoutParamsType = from.readInt32();
@@ -119,7 +122,10 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.frameTop = from.readInt32();
     ret.frameRight = from.readInt32();
     ret.frameBottom = from.readInt32();
-    ret.scaleFactor = from.readFloat();
+    ret.surfaceInset = from.readInt32();
+    ret.globalScaleFactor = from.readFloat();
+    ret.windowXScale = from.readFloat();
+    ret.windowYScale = from.readFloat();
     ret.visible = from.readBool();
     ret.canReceiveKeys = from.readBool();
     ret.hasFocus = from.readBool();
@@ -130,6 +136,7 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.ownerUid = from.readInt32();
     ret.inputFeatures = from.readInt32();
     ret.displayId = from.readInt32();
+    ret.applicationInfo = InputApplicationInfo::read(from);
     from.read(ret.touchableRegion);
 
     return ret;
@@ -141,19 +148,18 @@ InputWindowInfo::InputWindowInfo(const Parcel& from) {
 
 // --- InputWindowHandle ---
 
-InputWindowHandle::InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle) :
-    inputApplicationHandle(inputApplicationHandle) {
+InputWindowHandle::InputWindowHandle() {
 }
 
 InputWindowHandle::~InputWindowHandle() {
 }
 
 void InputWindowHandle::releaseChannel() {
-    mInfo.inputChannel.clear();
+    mInfo.token.clear();
 }
 
-sp<InputChannel> InputWindowHandle::getInputChannel() const {
-    return mInfo.inputChannel;
+sp<IBinder> InputWindowHandle::getToken() const {
+    return mInfo.token;
 }
 
 } // namespace android

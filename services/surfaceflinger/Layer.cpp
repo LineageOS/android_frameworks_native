@@ -1057,6 +1057,11 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         clearSyncPoints();
     }
 
+    if (mCurrentState.inputInfoChanged) {
+        flags |= eInputInfoChanged;
+        mCurrentState.inputInfoChanged = false;
+    }
+
     // Commit the transaction
     commitTransaction(c);
     mCurrentState.callbackHandles = {};
@@ -1928,6 +1933,13 @@ void Layer::commitChildList() {
     mDrawingParent = mCurrentParent;
 }
 
+void Layer::setInputInfo(const InputWindowInfo& info) {
+    mCurrentState.inputInfo = info;
+    mCurrentState.modified = true;
+    mCurrentState.inputInfoChanged = true;
+    setTransactionFlags(eTransactionNeeded);
+}
+
 void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) {
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
     const LayerVector& children = useDrawing ? mDrawingChildren : mCurrentChildren;
@@ -2053,6 +2065,30 @@ void Layer::writeToProto(LayerProto* layerInfo, DisplayId displayId) {
 
 bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
+}
+
+InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
+    InputWindowInfo info = mDrawingState.inputInfo;
+    info.frameLeft = screenBounds.left + info.surfaceInset;
+    info.frameTop = screenBounds.top + info.surfaceInset;
+    info.frameRight = screenBounds.right - info.surfaceInset;
+    info.frameBottom = screenBounds.bottom - info.surfaceInset;
+
+    ui::Transform t = getTransform();
+    info.windowXScale *= 1.0f / t.sx();
+    info.windowYScale *= 1.0f / t.sy();
+
+    info.touchableRegion.scaleSelf(t.sx(), t.sy());
+
+    info.touchableRegion = info.touchableRegion.translate(
+            screenBounds.left,
+            screenBounds.top);
+    info.visible = isVisible();
+    return info;
+}
+
+bool Layer::hasInput() const {
+    return mDrawingState.inputInfo.token != nullptr;
 }
 
 // ---------------------------------------------------------------------------

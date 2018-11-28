@@ -325,6 +325,20 @@ Region& Region::translateSelf(int x, int y) {
     return *this;
 }
 
+Region& Region::scaleSelf(int sx, int sy) {
+    size_t count = mStorage.size();
+    Rect* rects = mStorage.editArray();
+    while (count) {
+        rects->left *= sx;
+        rects->right *= sx;
+        rects->top *= sy;
+        rects->bottom *= sy;
+        rects++;
+        count--;
+    }
+    return *this;
+}
+
 // ----------------------------------------------------------------------------
 
 const Region Region::merge(const Rect& rhs) const {

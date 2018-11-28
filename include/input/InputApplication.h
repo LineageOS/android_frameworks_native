@@ -19,6 +19,9 @@
 
 #include <string>
 
+#include <binder/IBinder.h>
+#include <binder/Parcel.h>
+
 #include <input/Input.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
@@ -29,8 +32,12 @@ namespace android {
  * Describes the properties of an application that can receive input.
  */
 struct InputApplicationInfo {
+    sp<IBinder> token;
     std::string name;
     nsecs_t dispatchingTimeout;
+
+    status_t write(Parcel& output) const;
+    static InputApplicationInfo read(const Parcel& from);
 };
 
 
@@ -52,6 +59,10 @@ public:
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
         return mInfo ? mInfo->dispatchingTimeout : defaultValue;
+    }
+
+    inline sp<IBinder> getApplicationToken() const {
+        return mInfo ? mInfo->token : nullptr;
     }
 
     /**

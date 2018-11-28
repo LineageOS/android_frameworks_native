@@ -35,6 +35,7 @@
 #include <utils/RefBase.h>
 
 namespace android {
+class InputChannel;
 
 /*
  * The input manager is the core of the system event processing.
@@ -90,6 +91,9 @@ public:
     virtual sp<InputDispatcherInterface> getDispatcher();
 
     virtual void setInputWindows(const Vector<InputWindowInfo>& handles);
+
+    virtual void registerInputChannel(const sp<InputChannel>& channel);
+    virtual void unregisterInputChannel(const sp<InputChannel>& channel);
 
 private:
     sp<InputReaderInterface> mReader;

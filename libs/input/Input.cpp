@@ -131,15 +131,24 @@ static inline void scaleAxisValue(PointerCoords& c, int axis, float scaleFactor)
     }
 }
 
-void PointerCoords::scale(float scaleFactor) {
+void PointerCoords::scale(float globalScaleFactor, float windowXScale, float windowYScale) {
     // No need to scale pressure or size since they are normalized.
     // No need to scale orientation since it is meaningless to do so.
-    scaleAxisValue(*this, AMOTION_EVENT_AXIS_X, scaleFactor);
-    scaleAxisValue(*this, AMOTION_EVENT_AXIS_Y, scaleFactor);
-    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOUCH_MAJOR, scaleFactor);
-    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOUCH_MINOR, scaleFactor);
-    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MAJOR, scaleFactor);
-    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MINOR, scaleFactor);
+
+    // If there is a global scale factor, it is included in the windowX/YScale
+    // so we don't need to apply it twice to the X/Y axes.
+    // However we don't want to apply any windowXYScale not included in the global scale
+    // to the TOUCH_MAJOR/MINOR coordinates.
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_X, windowXScale);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_Y, windowYScale);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOUCH_MAJOR, globalScaleFactor);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOUCH_MINOR, globalScaleFactor);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MAJOR, globalScaleFactor);
+    scaleAxisValue(*this, AMOTION_EVENT_AXIS_TOOL_MINOR, globalScaleFactor);
+}
+
+void PointerCoords::scale(float globalScaleFactor) {
+    scale(globalScaleFactor, globalScaleFactor, globalScaleFactor);
 }
 
 void PointerCoords::applyOffset(float xOffset, float yOffset) {
@@ -345,15 +354,15 @@ void MotionEvent::offsetLocation(float xOffset, float yOffset) {
     mYOffset += yOffset;
 }
 
-void MotionEvent::scale(float scaleFactor) {
-    mXOffset *= scaleFactor;
-    mYOffset *= scaleFactor;
-    mXPrecision *= scaleFactor;
-    mYPrecision *= scaleFactor;
+void MotionEvent::scale(float globalScaleFactor) {
+    mXOffset *= globalScaleFactor;
+    mYOffset *= globalScaleFactor;
+    mXPrecision *= globalScaleFactor;
+    mYPrecision *= globalScaleFactor;
 
     size_t numSamples = mSamplePointerCoords.size();
     for (size_t i = 0; i < numSamples; i++) {
-        mSamplePointerCoords.editItemAt(i).scale(scaleFactor);
+        mSamplePointerCoords.editItemAt(i).scale(globalScaleFactor);
     }
 }
 
