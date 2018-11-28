@@ -30,6 +30,8 @@
 namespace android {
 
 TransactionCompletedThread::~TransactionCompletedThread() {
+    std::lock_guard lockThread(mThreadMutex);
+
     {
         std::lock_guard lock(mMutex);
         mKeepRunning = false;
@@ -50,11 +52,13 @@ TransactionCompletedThread::~TransactionCompletedThread() {
 
 void TransactionCompletedThread::run() {
     std::lock_guard lock(mMutex);
-    if (mRunning) {
+    if (mRunning || !mKeepRunning) {
         return;
     }
     mDeathRecipient = new ThreadDeathRecipient();
     mRunning = true;
+
+    std::lock_guard lockThread(mThreadMutex);
     mThread = std::thread(&TransactionCompletedThread::threadMain, this);
 }
 

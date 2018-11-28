@@ -90,7 +90,10 @@ private:
         }
     };
 
-    std::thread mThread;
+    // Protects the creation and destruction of mThread
+    std::mutex mThreadMutex;
+
+    std::thread mThread GUARDED_BY(mThreadMutex);
 
     std::mutex mMutex;
     std::condition_variable_any mConditionVariable;
