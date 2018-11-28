@@ -42,14 +42,17 @@ public:
     ~LayerHistory();
 
     // Method for inserting layers and their requested present time into the ring buffer.
-    // The elements are going to be inserted into an unordered_map at the position of
-    // mCounter.
+    // The elements are going to be inserted into an unordered_map at the position 'now'.
     void insert(const std::string layerName, nsecs_t presentTime);
     // Method for incrementing the current slot in the ring buffer. It also clears the
     // unordered_map, if it was created previously.
     void incrementCounter();
-    // Returns unordered_map at the given at index.
+    // Returns unordered_map at the given at index. The index is decremented from 'now'. For
+    // example, 0 is now, 1 is previous frame.
     const std::unordered_map<std::string, nsecs_t>& get(size_t index) const;
+    // Returns the total size of the ring buffer. The value is always the same regardless
+    // of how many slots we filled in.
+    static constexpr size_t getSize() { return ARRAY_SIZE; }
 
 private:
     size_t mCounter = 0;
