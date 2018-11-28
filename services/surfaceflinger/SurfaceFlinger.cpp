@@ -1679,8 +1679,6 @@ void SurfaceFlinger::calculateWorkingSet() {
     mDrawingState.colorMatrixChanged = false;
 
     for (const auto& [token, display] : mDisplays) {
-        getBE().mCompositionInfo[token].clear();
-
         for (auto& layer : display->getVisibleLayersSortedByZ()) {
             const auto displayId = display->getId();
             layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
@@ -1963,6 +1961,17 @@ void SurfaceFlinger::postComposition()
 void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
     ALOGV("rebuildLayerStacks");
+
+    // We need to clear these out now as these may be holding on to a
+    // HWC2::Layer reference at the same time as the LayerBE::HWCInfo structure
+    // also holds a reference. When the set of visible layers is recomputed,
+    // some layers may be destroyed if the only thing keeping them alive was
+    // that list of visible layers associated with each display. The layer
+    // destruction code asserts that the HWC2::Layer is properly destroyed, but
+    // that doesn't happen if SurfaceFlingerBE::mCompositionInfo keeps it alive.
+    for (const auto& [token, display] : mDisplays) {
+        getBE().mCompositionInfo[token].clear();
+    }
 
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
@@ -2336,14 +2345,6 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     auto nativeWindowSurface = getFactory().createNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
     creationArgs.nativeWindow = nativeWindow;
-
-    /*
-     * Create our display's surface
-     */
-    std::unique_ptr<renderengine::Surface> renderSurface = getRenderEngine().createSurface();
-    renderSurface->setCritical(isInternalDisplay);
-    renderSurface->setAsync(state.isVirtual());
-    creationArgs.renderSurface = std::move(renderSurface);
 
     // Make sure that composition can never be stalled by a virtual display
     // consumer that isn't processing buffers fast enough. We have to do this
@@ -3198,6 +3199,10 @@ status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
 }
 
 status_t SurfaceFlinger::removeLayerLocked(const Mutex& lock, const sp<Layer>& layer) {
+    if (layer->isLayerDetached()) {
+        return NO_ERROR;
+    }
+
     const auto& p = layer->getParent();
     ssize_t index;
     if (p != nullptr) {

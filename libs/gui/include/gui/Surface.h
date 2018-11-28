@@ -218,6 +218,7 @@ private:
     int dispatchSetBuffersDataSpace(va_list args);
     int dispatchSetBuffersSmpte2086Metadata(va_list args);
     int dispatchSetBuffersCta8613Metadata(va_list args);
+    int dispatchSetBuffersHdr10PlusMetadata(va_list args);
     int dispatchSetSurfaceDamage(va_list args);
     int dispatchSetSharedBufferMode(va_list args);
     int dispatchSetAutoRefresh(va_list args);
@@ -249,6 +250,7 @@ protected:
     virtual int setBuffersDataSpace(ui::Dataspace dataSpace);
     virtual int setBuffersSmpte2086Metadata(const android_smpte2086_metadata* metadata);
     virtual int setBuffersCta8613Metadata(const android_cta861_3_metadata* metadata);
+    virtual int setBuffersHdr10PlusMetadata(const size_t size, const uint8_t* metadata);
     virtual int setCrop(Rect const* rect);
     virtual int setUsage(uint64_t reqUsage);
     virtual void setSurfaceDamage(android_native_rect_t* rects, size_t numRects);

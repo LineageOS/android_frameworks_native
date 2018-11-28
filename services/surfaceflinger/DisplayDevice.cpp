@@ -225,7 +225,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mNativeWindow(args.nativeWindow),
         mGraphicBuffer(nullptr),
         mDisplaySurface(args.displaySurface),
-        mSurface{std::move(args.renderSurface)},
         mDisplayInstallOrientation(args.displayInstallOrientation),
         mPageFlipCount(0),
         mIsVirtual(args.isVirtual),
@@ -247,7 +246,6 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
 
     ALOGE_IF(!mNativeWindow, "No native window was set for display");
     ALOGE_IF(!mDisplaySurface, "No display surface was set for display");
-    ALOGE_IF(!mSurface, "No render surface was set for display");
 
     std::vector<Hdr> types = args.hdrCapabilities.getSupportedHdrTypes();
     for (Hdr hdrType : types) {
@@ -443,12 +441,6 @@ void DisplayDevice::onPresentDisplayCompleted() {
     mDisplaySurface->onFrameCommitted();
 }
 
-bool DisplayDevice::makeCurrent() const {
-    bool success = mFlinger->getRenderEngine().setCurrentSurface(*mSurface);
-    setViewportAndProjection();
-    return success;
-}
-
 void DisplayDevice::setViewportAndProjection() const {
     size_t w = mDisplayWidth;
     size_t h = mDisplayHeight;
@@ -611,12 +603,8 @@ status_t DisplayDevice::orientationToTransfrom(
 void DisplayDevice::setDisplaySize(const int newWidth, const int newHeight) {
     dirtyRegion.set(getBounds());
 
-    mSurface->setNativeWindow(nullptr);
-
     mDisplaySurface->resizeBuffers(newWidth, newHeight);
 
-    ANativeWindow* const window = mNativeWindow.get();
-    mSurface->setNativeWindow(window);
     mDisplayWidth = newWidth;
     mDisplayHeight = newHeight;
 }
@@ -732,12 +720,11 @@ void DisplayDevice::dump(String8& result) const {
     ANativeWindow* const window = mNativeWindow.get();
     result.appendFormat("+ %s\n", getDebugName().c_str());
     result.appendFormat("  layerStack=%u, (%4dx%4d), ANativeWindow=%p "
-                        "(%d:%d:%d:%d), orient=%2d (type=%08x), "
-                        "flips=%u, isSecure=%d, powerMode=%d, activeConfig=%d, numLayers=%zu\n",
+                        "format=%d, orient=%2d (type=%08x), flips=%u, isSecure=%d, "
+                        "powerMode=%d, activeConfig=%d, numLayers=%zu\n",
                         mLayerStack, mDisplayWidth, mDisplayHeight, window,
-                        mSurface->queryRedSize(), mSurface->queryGreenSize(),
-                        mSurface->queryBlueSize(), mSurface->queryAlphaSize(), mOrientation,
-                        tr.getType(), getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
+                        ANativeWindow_getFormat(window), mOrientation, tr.getType(),
+                        getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
                         mVisibleLayersSortedByZ.size());
     result.appendFormat("   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
                         "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
@@ -748,9 +735,9 @@ void DisplayDevice::dump(String8& result) const {
     auto const surface = static_cast<Surface*>(window);
     ui::Dataspace dataspace = surface->getBuffersDataSpace();
     result.appendFormat("   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
-                        mHasWideColorGamut, mHasHdr10,
-                        decodeColorMode(mActiveColorMode).c_str(),
-                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
+                        mHasWideColorGamut, mHasHdr10, decodeColorMode(mActiveColorMode).c_str(),
+                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(),
+                        dataspace);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);

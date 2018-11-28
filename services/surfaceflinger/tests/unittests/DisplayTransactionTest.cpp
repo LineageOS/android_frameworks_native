@@ -135,7 +135,6 @@ public:
     sp<mock::GraphicBufferConsumer> mConsumer;
     sp<mock::GraphicBufferProducer> mProducer;
     surfaceflinger::mock::NativeWindowSurface* mNativeWindowSurface = nullptr;
-    renderengine::mock::Surface* mRenderSurface = nullptr;
 };
 
 DisplayTransactionTest::DisplayTransactionTest() {
@@ -342,22 +341,10 @@ struct DisplayVariant {
         EXPECT_CALL(*test->mNativeWindowSurface, getNativeWindow())
                 .WillOnce(Return(test->mNativeWindow));
 
-        // For simplicity, we only expect to create a single render surface for
-        // each test.
-        ASSERT_TRUE(test->mRenderSurface == nullptr);
-        test->mRenderSurface = new renderengine::mock::Surface();
-        EXPECT_CALL(*test->mRenderEngine, createSurface())
-                .WillOnce(Return(ByMove(
-                        std::unique_ptr<renderengine::Surface>(test->mRenderSurface))));
         EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_WIDTH, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(WIDTH), Return(0)));
         EXPECT_CALL(*test->mNativeWindow, query(NATIVE_WINDOW_HEIGHT, _))
                 .WillRepeatedly(DoAll(SetArgPointee<1>(HEIGHT), Return(0)));
-
-        // Creating a DisplayDevice requires getting default dimensions from the
-        // native window.
-        EXPECT_CALL(*test->mRenderSurface, setAsync(static_cast<bool>(ASYNC))).Times(1);
-        EXPECT_CALL(*test->mRenderSurface, setCritical(static_cast<bool>(CRITICAL))).Times(1);
     }
 
     static void setupFramebufferConsumerBufferQueueCallExpectations(DisplayTransactionTest* test) {
@@ -1285,7 +1272,7 @@ TEST_F(SetupNewDisplayDeviceInternalTest, createHwcVirtualDisplay) {
     // Insert display data so that the HWC thinks it created the virtual display.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(displayId);
-    mFlinger.mutableHwcDisplayData()[*displayId] = {};
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
 
     setupNewDisplayDeviceInternalTest<Case>();
 }
@@ -1798,7 +1785,7 @@ TEST_F(HandleTransactionLockedTest, processesVirtualDisplayRemoval) {
     // A virtual display is set up but is removed from the current state.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(displayId);
-    mFlinger.mutableHwcDisplayData()[*displayId] = {};
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
     Case::Display::injectHwcDisplay(this);
     auto existing = Case::Display::makeFakeExistingDisplayInjector(this);
     existing.inject();
@@ -1946,12 +1933,10 @@ TEST_F(HandleTransactionLockedTest, processesDisplayWidthChanges) {
     // A display is set up
     auto nativeWindow = new mock::NativeWindow();
     auto displaySurface = new mock::DisplaySurface();
-    auto renderSurface = new renderengine::mock::Surface();
     sp<GraphicBuffer> buf = new GraphicBuffer();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
-    display.setRenderSurface(std::unique_ptr<renderengine::Surface>(renderSurface));
     // Setup injection expections
     EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_WIDTH, _))
             .WillOnce(DoAll(SetArgPointee<1>(oldWidth), Return(0)));
@@ -1992,12 +1977,10 @@ TEST_F(HandleTransactionLockedTest, processesDisplayHeightChanges) {
     // A display is set up
     auto nativeWindow = new mock::NativeWindow();
     auto displaySurface = new mock::DisplaySurface();
-    auto renderSurface = new renderengine::mock::Surface();
     sp<GraphicBuffer> buf = new GraphicBuffer();
     auto display = Case::Display::makeFakeExistingDisplayInjector(this);
     display.setNativeWindow(nativeWindow);
     display.setDisplaySurface(displaySurface);
-    display.setRenderSurface(std::unique_ptr<renderengine::Surface>(renderSurface));
     // Setup injection expections
     EXPECT_CALL(*nativeWindow, query(NATIVE_WINDOW_WIDTH, _))
             .WillOnce(DoAll(SetArgPointee<1>(oldWidth), Return(0)));
@@ -2931,7 +2914,7 @@ TEST_F(SetPowerModeInternalTest, setPowerModeInternalDoesNothingIfVirtualDisplay
     // Insert display data so that the HWC thinks it created the virtual display.
     const auto displayId = Case::Display::DISPLAY_ID::get();
     ASSERT_TRUE(displayId);
-    mFlinger.mutableHwcDisplayData()[*displayId] = {};
+    mFlinger.mutableHwcDisplayData().try_emplace(*displayId);
 
     // A virtual display device is set up
     Case::Display::injectHwcDisplay(this);
