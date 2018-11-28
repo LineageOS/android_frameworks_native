@@ -112,6 +112,10 @@ private:
     };
 
     static GlesVersion parseGlesVersion(const char* str);
+    static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
+                                       EGLContext shareContext, bool useContextPriority);
+    static EGLSurface createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
+                                                   int hwcFormat);
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.

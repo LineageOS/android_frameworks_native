@@ -112,6 +112,9 @@ void GLExtensions::initWithEGLStrings(char const* eglVersion, char const* eglExt
     if (extensionSet.hasExtension("EGL_IMG_context_priority")) {
         mHasContextPriority = true;
     }
+    if (extensionSet.hasExtension("EGL_KHR_surfaceless_context")) {
+        mHasSurfacelessContext = true;
+    }
 }
 
 char const* GLExtensions::getEGLVersion() const {
