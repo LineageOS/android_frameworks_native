@@ -24,7 +24,7 @@
  * The ASystemFontIterator_open method will give you an iterator which can iterate all system
  * installed font files as shown in the following example.
  *
- * <code>
+ * \code{.cpp}
  *   ASystemFontIterator* iterator = ASystemFontIterator_open();
  *   ASystemFont* font = NULL;
  *
@@ -50,7 +50,7 @@
  *
  *   // Use this font for your text rendering engine.
  *
- * </code>
+ * \endcode
  *
  * Available since API level 29.
  */
@@ -142,7 +142,7 @@ ASystemFontIterator* _Nullable ASystemFontIterator_open() __INTRODUCED_IN(29);
 /**
  * Close an opened system font iterator, freeing any related resources.
  *
- * \param a pointer of an iterator for the system fonts. Do nothing if NULL is passed.
+ * \param iterator a pointer of an iterator for the system fonts. Do nothing if NULL is passed.
  */
 void ASystemFontIterator_close(ASystemFontIterator* _Nullable iterator) __INTRODUCED_IN(29);
 
@@ -174,7 +174,7 @@ void ASystemFont_close(ASystemFont* _Nullable font) __INTRODUCED_IN(29);
  * drawing Tofu character.
  *
  * Examples:
- * <code>
+ * \code{.cpp}
  *  // Simple font query for the ASCII character.
  *  std::vector<uint16_t> text = { 'A' };
  *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
@@ -202,15 +202,15 @@ void ASystemFont_close(ASystemFont* _Nullable font) __INTRODUCED_IN(29);
  *  ASystemFont font = ASystemFont_matchFamilyStyleCharacter(
  *      "sans", 400, false, "en-US", text.data(), text.length(), &runLength);
  *  // runLength will be 1 and the font will points a Hebrew font.
- * </code>
+ * \endcode
  *
  * \param familyName a null character terminated font family name
  * \param weight a font weight value. Only from 0 to 1000 value is valid
  * \param italic true if italic, otherwise false.
  * \param languageTags a null character terminated comma separated IETF BCP47 compliant language
  *                     tags.
- * \param text a UTF-16 encoded text buffer to be rendered.
- * \param textLength a length of the given text buffer.
+ * \param text a UTF-16 encoded text buffer to be rendered. Do not pass empty string.
+ * \param textLength a length of the given text buffer. This must not be zero.
  * \param runLengthOut if not null, the font run length will be filled.
  * \return a font to be used for given text and params. You need to release the returned font by
  *         ASystemFont_close when it is no longer needed.
@@ -239,7 +239,7 @@ ASystemFont* _Nonnull ASystemFont_matchFamilyStyleCharacter(
  * The font file returned is guaranteed to be opend with O_RDONLY.
  * Note that the returned pointer is valid until ASystemFont_close() is called for the given font.
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
+ * \param font a font object. Passing NULL is not allowed.
  * \return a string of the font file path.
  */
 const char* _Nonnull ASystemFont_getFontFilePath(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
@@ -251,14 +251,11 @@ const char* _Nonnull ASystemFont_getFontFilePath(const ASystemFont* _Nonnull fon
  * Here are pairs of the common names and their values.
  * <p>
  *  <table>
- *  <thead>
  *  <tr>
  *  <th align="center">Value</th>
  *  <th align="center">Name</th>
  *  <th align="center">NDK Definition</th>
  *  </tr>
- *  </thead>
- *  <tbody>
  *  <tr>
  *  <td align="center">100</td>
  *  <td align="center">Thin</td>
@@ -304,13 +301,13 @@ const char* _Nonnull ASystemFont_getFontFilePath(const ASystemFont* _Nonnull fon
  *  <td align="center">Black (Heavy)</td>
  *  <td align="center">{@link ASYSTEM_FONT_WEIGHT_BLACK}</td>
  *  </tr>
- *  </tbody>
+ *  </table>
  * </p>
  * Note that the weight value may fall in between above values, e.g. 250 weight.
  *
  * For more information about font weight, read [OpenType usWeightClass](https://docs.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass)
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
+ * \param font a font object. Passing NULL is not allowed.
  * \return a positive integer less than or equal to {@link ASYSTEM_FONT_MAX_WEIGHT} is returned.
  */
 uint16_t ASystemFont_getWeight(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
@@ -318,7 +315,7 @@ uint16_t ASystemFont_getWeight(const ASystemFont* _Nonnull font) __INTRODUCED_IN
 /**
  * Return true if the current font is italic, otherwise returns false.
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
+ * \param font a font object. Passing NULL is not allowed.
  * \return true if italic, otherwise false.
  */
 bool ASystemFont_isItalic(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
@@ -330,7 +327,7 @@ bool ASystemFont_isItalic(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
  *
  * Note that the returned pointer is valid until ASystemFont_close() is called.
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
+ * \param font a font object. Passing NULL is not allowed.
  * \return a IETF BCP47 compliant langauge tag or nullptr if not available.
  */
 const char* _Nullable ASystemFont_getLocale(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
@@ -342,7 +339,7 @@ const char* _Nullable ASystemFont_getLocale(const ASystemFont* _Nonnull font) __
  * returns a non-negative value as an font offset in the collection. This
  * always returns 0 if the target font file is a regular font.
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
+ * \param font a font object. Passing NULL is not allowed.
  * \return a font collection index.
  */
 size_t ASystemFont_getCollectionIndex(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
@@ -356,7 +353,7 @@ size_t ASystemFont_getCollectionIndex(const ASystemFont* _Nonnull font) __INTROD
  *     'wght' 700, 'slnt' -12
  * In this case, ASystemFont_getAxisCount returns 2 and ASystemFont_getAxisTag
  * and ASystemFont_getAxisValue will return following values.
- * <code>
+ * \code{.cpp}
  *     ASystemFont* font = ASystemFontIterator_next(ite);
  *
  *     // Returns the number of axes
@@ -369,11 +366,11 @@ size_t ASystemFont_getCollectionIndex(const ASystemFont* _Nonnull font) __INTROD
  *     // Returns the tag-value pair for the second axis.
  *     ASystemFont_getAxisTag(font, 1);  // Returns 'slnt'(0x736c6e74)
  *     ASystemFont_getAxisValue(font, 1);  // Returns -12.0
- * </code>
+ * \endcode
  *
  * For more information about font variation settings, read [Font Variations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar)
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
+ * \param font a font object. Passing NULL is not allowed.
  * \return a number of font variation settings.
  */
 size_t ASystemFont_getAxisCount(const ASystemFont* _Nonnull font) __INTRODUCED_IN(29);
@@ -384,8 +381,8 @@ size_t ASystemFont_getAxisCount(const ASystemFont* _Nonnull font) __INTRODUCED_I
  *
  * See ASystemFont_getAxisCount for more details.
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
- * \param an index to the font variation settings. Passing value larger than or
+ * \param font a font object. Passing NULL is not allowed.
+ * \param axisIndex an index to the font variation settings. Passing value larger than or
  *        equal to {@link ASystemFont_getAxisCount} is not allowed.
  * \return an OpenType axis tag value for the given font variation setting.
  */
@@ -397,8 +394,8 @@ uint32_t ASystemFont_getAxisTag(const ASystemFont* _Nonnull font, uint32_t axisI
  *
  * See ASystemFont_getAxisCount for more details.
  *
- * \param iterator an iterator for the system fonts. Passing NULL is not allowed.
- * \param an index to the font variation settings. Passing value larger than or
+ * \param font a font object. Passing NULL is not allowed.
+ * \param axisIndex an index to the font variation settings. Passing value larger than or
  *         equal to {@link ASYstemFont_getAxisCount} is not allwed.
  * \return a float value for the given font variation setting.
  */
