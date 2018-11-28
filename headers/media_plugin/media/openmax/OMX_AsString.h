@@ -188,6 +188,7 @@ inline static const char *asString(OMX_AUDIO_AMRDTXMODETYPE i, const char *def =
 inline static const char *asString(OMX_AUDIO_CODINGEXTTYPE i, const char *def = "??") {
     switch (i) {
         case OMX_AUDIO_CodingAndroidAC3:  return "AndroidAC3";
+        case OMX_AUDIO_CodingAndroidEAC3: return "AndroidEAC3";
         case OMX_AUDIO_CodingAndroidOPUS: return "AndroidOPUS";
         default:                          return asString((OMX_AUDIO_CODINGTYPE)i, def);
     }
