@@ -102,8 +102,10 @@ enum AHardwareBuffer_Format {
     AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM        = 0x2b,
 
     /**
-     * An opaque binary blob format that must have height 1, with width equal to
-     * the buffer size in bytes.
+     * Opaque binary blob format.
+     * Must have height 1 and one layer, with width equal to the buffer
+     * size in bytes. Corresponds to Vulkan buffers and OpenGL buffer
+     * objects. Can be bound to the latter using GL_EXT_external_buffer.
      */
     AHARDWAREBUFFER_FORMAT_BLOB                     = 0x21,
 
@@ -195,20 +197,25 @@ enum AHardwareBuffer_UsageFlags {
     /// The buffer will be written to by the GPU as a framebuffer attachment.
     AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER        = 1UL << 9,
     /**
-     * The buffer will be written to by the GPU as a framebuffer attachment.
-     * Note that the name of this flag is somewhat misleading: it does not imply
-     * that the buffer contains a color format. A buffer with depth or stencil
-     * format that will be used as a framebuffer attachment should also have
-     * this flag.
+     * The buffer will be written to by the GPU as a framebuffer
+     * attachment.
+     *
+     * Note that the name of this flag is somewhat misleading: it does
+     * not imply that the buffer contains a color format. A buffer with
+     * depth or stencil format that will be used as a framebuffer
+     * attachment should also have this flag. Use the equivalent flag
+     * AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER to avoid this confusion.
      */
     AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT       = AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER,
     /**
-     * The buffer is protected from direct CPU access or being read by non-secure
-     * hardware, such as video encoders. This flag is incompatible with CPU
-     * read and write flags. It is mainly used when handling DRM video.
-     * Refer to the EGL extension EGL_EXT_protected_content and GL extension
-     * EXT_protected_textures for more information on how these buffers are expected
-     * to behave.
+     * The buffer is protected from direct CPU access or being read by
+     * non-secure hardware, such as video encoders.
+     *
+     * This flag is incompatible with CPU read and write flags. It is
+     * mainly used when handling DRM video. Refer to the EGL extension
+     * EGL_EXT_protected_content and GL extension
+     * GL_EXT_protected_textures for more information on how these
+     * buffers are expected to behave.
      */
     AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT      = 1UL << 14,
     /// The buffer will be read by a hardware video encoder.
@@ -225,11 +232,17 @@ enum AHardwareBuffer_UsageFlags {
     AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER        = 1UL << 24,
     /**
      * The buffer will be used as a cube map texture.
-     * When this flag is present, the buffer must have a layer count that is
-     * a multiple of 6.
+     * When this flag is present, the buffer must have a layer count
+     * that is a multiple of 6. Note that buffers with this flag must be
+     * bound to OpenGL textures using the extension
+     * GL_EXT_EGL_image_storage instead of GL_KHR_EGL_image.
      */
     AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP               = 1UL << 25,
-    /// The buffer contains a complete mipmap hierarchy.
+    /**
+     * The buffer contains a complete mipmap hierarchy.
+     * Note that buffers with this flag must be bound to OpenGL textures using
+     * the extension GL_EXT_EGL_image_storage instead of GL_KHR_EGL_image.
+     */
     AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE        = 1UL << 26,
 
     AHARDWAREBUFFER_USAGE_VENDOR_0  = 1ULL << 28,
@@ -255,13 +268,21 @@ enum AHardwareBuffer_UsageFlags {
 };
 
 /**
- * Buffer description. Used for allocating new buffers and querying parameters
- * of existing ones.
+ * Buffer description. Used for allocating new buffers and querying
+ * parameters of existing ones.
  */
 typedef struct AHardwareBuffer_Desc {
     uint32_t    width;      ///< Width in pixels.
     uint32_t    height;     ///< Height in pixels.
-    uint32_t    layers;     ///< Number of images in an image array.
+    /**
+     * Number of images in an image array. AHardwareBuffers with one
+     * layer correspond to regular 2D textures. AHardwareBuffers with
+     * more than layer correspond to texture arrays. If the layer count
+     * is a multiple of 6 and the usage flag
+     * AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP is present, the buffer is
+     * a cube map or a cube map array.
+     */
+    uint32_t    layers;
     uint32_t    format;     ///< One of AHardwareBuffer_Format.
     uint64_t    usage;      ///< Combination of AHardwareBuffer_UsageFlags.
     uint32_t    stride;     ///< Row stride in pixels, ignored for AHardwareBuffer_allocate()
@@ -290,8 +311,10 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* desc,
         AHardwareBuffer** outBuffer) __INTRODUCED_IN(26);
 /**
- * Acquire a reference on the given AHardwareBuffer object.  This prevents the
- * object from being deleted until the last reference is removed.
+ * Acquire a reference on the given AHardwareBuffer object.
+ * 
+ * This prevents the object from being deleted until the last reference
+ * is removed.
  */
 void AHardwareBuffer_acquire(AHardwareBuffer* buffer) __INTRODUCED_IN(26);
 
@@ -309,50 +332,73 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
         AHardwareBuffer_Desc* outDesc) __INTRODUCED_IN(26);
 
 /**
- * Lock the AHardwareBuffer for reading or writing, depending on the usage flags
- * passed.  This call may block if the hardware needs to finish rendering or if
- * CPU caches need to be synchronized, or possibly for other implementation-
- * specific reasons.  If fence is not negative, then it specifies a fence file
- * descriptor that will be signaled when the buffer is locked, otherwise the
- * caller will block until the buffer is available.
+ * Lock the AHardwareBuffer for direct CPU access.
  *
- * If \a rect is not NULL, the caller promises to modify only data in the area
- * specified by rect. If rect is NULL, the caller may modify the contents of the
- * entire buffer.
+ * This function can lock the buffer for either reading or writing.
+ * It may block if the hardware needs to finish rendering, if CPU caches
+ * need to be synchronized, or possibly for other implementation-
+ * specific reasons.
  *
- * The content of the buffer outside of the specified rect is NOT modified
- * by this call.
+ * The passed AHardwareBuffer must have one layer, otherwise the call
+ * will fail.
  *
- * The \a usage parameter may only specify AHARDWAREBUFFER_USAGE_CPU_*. If set,
- * then outVirtualAddress is filled with the address of the buffer in virtual
+ * If \a fence is not negative, it specifies a fence file descriptor on
+ * which to wait before locking the buffer. If it's negative, the caller
+ * is responsible for ensuring that writes to the buffer have completed
+ * before calling this function.  Using this parameter is more efficient
+ * than waiting on the fence and then calling this function.
+ *
+ * The \a usage parameter may only specify AHARDWAREBUFFER_USAGE_CPU_*.
+ * If set, then outVirtualAddress is filled with the address of the
+ * buffer in virtual memory. The flags must also be compatible with
+ * usage flags specified at buffer creation: if a read flag is passed,
+ * the buffer must have been created with
+ * AHARDWAREBUFFER_USAGE_CPU_READ_RARELY or
+ * AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN. If a write flag is passed, it
+ * must have been created with AHARDWAREBUFFER_USAGE_CPU_WRITE_RARELY or
+ * AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN.
+ *
+ * If \a rect is not NULL, the caller promises to modify only data in
+ * the area specified by rect. If rect is NULL, the caller may modify
+ * the contents of the entire buffer. The content of the buffer outside
+ * of the specified rect is NOT modified by this call.
+ *
+ * It is legal for several different threads to lock a buffer for read
+ * access; none of the threads are blocked.
+ *
+ * Locking a buffer simultaneously for write or read/write is undefined,
+ * but will neither terminate the process nor block the caller.
+ * AHardwareBuffer_lock may return an error or leave the buffer's
+ * content in an indeterminate state.
+ *
+ * If the buffer has AHARDWAREBUFFER_FORMAT_BLOB, it is legal lock it
+ * for reading and writing in multiple threads and/or processes
+ * simultaneously, and the contents of the buffer behave like shared
  * memory.
  *
- * THREADING CONSIDERATIONS:
- *
- * It is legal for several different threads to lock a buffer for read access;
- * none of the threads are blocked.
- *
- * Locking a buffer simultaneously for write or read/write is undefined, but
- * will neither terminate the process nor block the caller; AHardwareBuffer_lock
- * may return an error or leave the buffer's content into an indeterminate
- * state.
- *
- * \return 0 on success, -EINVAL if \a buffer is NULL or if the usage
- * flags are not a combination of AHARDWAREBUFFER_USAGE_CPU_*, or an error
- * number of the lock fails for any reason.
+ * \return 0 on success. -EINVAL if \a buffer is NULL, the usage flags
+ * are not a combination of AHARDWAREBUFFER_USAGE_CPU_*, or the buffer
+ * has more than one layer. Error number if the lock fails for any other
+ * reason.
  */
 int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
         int32_t fence, const ARect* rect, void** outVirtualAddress) __INTRODUCED_IN(26);
 
 /**
- * Unlock the AHardwareBuffer; must be called after all changes to the buffer
- * are completed by the caller. If fence is not NULL then it will be set to a
- * file descriptor that is signaled when all pending work on the buffer is
- * completed. The caller is responsible for closing the fence when it is no
- * longer needed.
+ * Unlock the AHardwareBuffer from direct CPU access.
  *
- * \return 0 on success, -EINVAL if \a buffer is NULL, or an error
- * number if the unlock fails for any reason.
+ * Must be called after all changes to the buffer are completed by the
+ * caller.  If \a fence is NULL, the function will block until all work
+ * is completed.  Otherwise, \a fence will be set either to a valid file
+ * descriptor or to -1.  The file descriptor will become signaled once
+ * the unlocking is complete and buffer contents are updated.
+ * The caller is responsible for closing the file descriptor once it's
+ * no longer needed.  The value -1 indicates that unlocking has already
+ * completed before the function returned and no further operations are
+ * necessary.
+ *
+ * \return 0 on success. -EINVAL if \a buffer is NULL. Error number if
+ * the unlock fails for any reason.
  */
 int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) __INTRODUCED_IN(26);
 
@@ -365,7 +411,7 @@ int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) __INTRODUCED
 int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int socketFd) __INTRODUCED_IN(26);
 
 /**
- * Receive the AHardwareBuffer from an AF_UNIX socket.
+ * Receive an AHardwareBuffer from an AF_UNIX socket.
  *
  * \return 0 on success, -EINVAL if \a outBuffer is NULL, or an error
  * number if the operation fails for any reason.
@@ -373,6 +419,29 @@ int AHardwareBuffer_sendHandleToUnixSocket(const AHardwareBuffer* buffer, int so
 int AHardwareBuffer_recvHandleFromUnixSocket(int socketFd, AHardwareBuffer** outBuffer) __INTRODUCED_IN(26);
 
 #endif // __ANDROID_API__ >= 26
+
+#if __ANDROID_API__ >= 29
+
+/**
+ * Test whether the given format and usage flag combination is
+ * allocatable.
+ *
+ * If this function returns true, it means that a buffer with the given
+ * description can be allocated on this implementation, unless resource
+ * exhaustion occurs. If this function returns false, it means that the
+ * allocation of the given description will never succeed.
+ *
+ * The return value of this function may depend on all fields in the
+ * description, except stride, which is always ignored. For example,
+ * some implementations have implementation-defined limits on texture
+ * size and layer count.
+ *
+ * \return 1 if the format and usage flag combination is allocatable,
+ *     0 otherwise.
+ */
+int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) __INTRODUCED_IN(29);
+
+#endif // __ANDROID_API__ >= 29
 
 __END_DECLS
 
