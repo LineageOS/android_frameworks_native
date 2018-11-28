@@ -22,8 +22,9 @@ cc_library_shared {
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
-        "liblog",
+        "libbase",
         "libcutils",
+        "liblog",
     ],
 
     export_include_dirs: ["include"],
