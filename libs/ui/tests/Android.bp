@@ -51,15 +51,22 @@ cc_test {
         "libdvr_headers",
         "libnativewindow_headers",
     ],
+    static_libs: [
+        "libgmock",
+    ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
         "libhidlbase",
         "libhwbinder",
+        "liblog",
         "libpdx_default_transport",
         "libui",
         "libutils"
     ],
-    srcs: ["BufferHubBuffer_test.cpp"],
+    srcs: [
+        "BufferHubBuffer_test.cpp",
+        "BufferHubEventFd_test.cpp",
+    ],
     cflags: ["-Wall", "-Werror"],
 }
 
