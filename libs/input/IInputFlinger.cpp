@@ -38,7 +38,8 @@ public:
         for (const auto& info : inputInfo) {
             info.write(data);
         }
-        remote()->transact(BnInputFlinger::SET_INPUT_WINDOWS_TRANSACTION, data, &reply);
+        remote()->transact(BnInputFlinger::SET_INPUT_WINDOWS_TRANSACTION, data, &reply,
+                IBinder::FLAG_ONEWAY);
     }
 
     virtual void registerInputChannel(const sp<InputChannel>& channel) {
