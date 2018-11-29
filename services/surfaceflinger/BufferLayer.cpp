@@ -501,7 +501,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     // FIXME: postedRegion should be dirty & bounds
     // transform the dirty region to window-manager space
-    return getTransform().transform(Region(Rect(getActiveWidth(s), getActiveHeight(s))));
+    return getTransform().transform(Region(getBufferSize(s)));
 }
 
 // transaction
@@ -624,11 +624,13 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 
     ui::Transform t = getTransform();
     Rect win = bounds;
+    const int bufferWidth = getBufferSize(s).getWidth();
+    const int bufferHeight = getBufferSize(s).getHeight();
 
-    float left = float(win.left) / float(getActiveWidth(s));
-    float top = float(win.top) / float(getActiveHeight(s));
-    float right = float(win.right) / float(getActiveWidth(s));
-    float bottom = float(win.bottom) / float(getActiveHeight(s));
+    const float left = float(win.left) / float(bufferWidth);
+    const float top = float(win.top) / float(bufferHeight);
+    const float right = float(win.right) / float(bufferWidth);
+    const float bottom = float(win.bottom) / float(bufferHeight);
 
     // TODO: we probably want to generate the texture coords with the mesh
     // here we assume that we only have 4 vertices

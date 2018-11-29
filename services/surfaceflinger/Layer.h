@@ -596,6 +596,12 @@ public:
     int32_t getZ() const;
     virtual void pushPendingState();
 
+    /**
+     * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
+     * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
+     */
+    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
+
 protected:
     // constant
     sp<SurfaceFlinger> mFlinger;
@@ -819,12 +825,6 @@ private:
      * bounds are constrained by its parent bounds.
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
-
-    /**
-     * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
-     * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
-     */
-    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
 };
 
 } // namespace android

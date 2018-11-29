@@ -334,16 +334,10 @@ protected:
     virtual sp<SurfaceControl> createLayer(const sp<SurfaceComposerClient>& client,
                                            const char* name, uint32_t width, uint32_t height,
                                            uint32_t flags = 0) {
-        auto layer =
-                client->createSurface(String8(name), width, height, PIXEL_FORMAT_RGBA_8888, flags);
-        EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
+        auto layer = createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags);
 
         Transaction t;
         t.setLayerStack(layer, mDisplayLayerStack).setLayer(layer, mLayerZBase);
-        // If we are creating a color layer, set its crop since its size will be ignored.
-        if (flags == ISurfaceComposerClient::eFXSurfaceColor) {
-            t.setCrop_legacy(layer, Rect(0, 0, width, height));
-        }
 
         status_t error = t.apply();
         if (error != NO_ERROR) {
@@ -351,6 +345,15 @@ protected:
             layer.clear();
         }
 
+        return layer;
+    }
+
+    virtual sp<SurfaceControl> createSurface(const sp<SurfaceComposerClient>& client,
+                                             const char* name, uint32_t width, uint32_t height,
+                                             PixelFormat format, uint32_t flags,
+                                             SurfaceControl* parent = nullptr) {
+        auto layer = client->createSurface(String8(name), width, height, format, flags, parent);
+        EXPECT_NE(nullptr, layer.get()) << "failed to create SurfaceControl";
         return layer;
     }
 
@@ -509,9 +512,9 @@ private:
 
         mDisplayLayerStack = 0;
 
-        mBlackBgSurface = mClient->createSurface(String8("BaseSurface"), mDisplayWidth,
-                                                 mDisplayHeight, PIXEL_FORMAT_RGBA_8888,
-                                                 ISurfaceComposerClient::eFXSurfaceColor);
+        mBlackBgSurface =
+                createSurface(mClient, "BaseSurface", 0 /* buffer width */, 0 /* buffer height */,
+                              PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor);
 
         // set layer stack (b/68888219)
         Transaction t;
@@ -834,8 +837,9 @@ TEST_P(LayerTypeTransactionTest, SetZBasic) {
 
 TEST_P(LayerTypeTransactionTest, SetZNegative) {
     sp<SurfaceControl> parent =
-            LayerTransactionTest::createLayer("Parent", mDisplayWidth, mDisplayHeight,
+            LayerTransactionTest::createLayer("Parent", 0 /* buffer width */, 0 /* buffer height */,
                                               ISurfaceComposerClient::eFXSurfaceContainer);
+    Transaction().setCrop_legacy(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight)).apply();
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     ASSERT_NO_FATAL_FAILURE(layerR = createLayer("test R", 32, 32));
@@ -892,8 +896,9 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZBasic) {
 
 TEST_P(LayerTypeTransactionTest, SetRelativeZNegative) {
     sp<SurfaceControl> parent =
-            LayerTransactionTest::createLayer("Parent", mDisplayWidth, mDisplayHeight,
+            LayerTransactionTest::createLayer("Parent", 0 /* buffer width */, 0 /* buffer height */,
                                               ISurfaceComposerClient::eFXSurfaceContainer);
+    Transaction().setCrop_legacy(parent, Rect(0, 0, mDisplayWidth, mDisplayHeight)).apply();
     sp<SurfaceControl> layerR;
     sp<SurfaceControl> layerG;
     sp<SurfaceControl> layerB;
@@ -1225,10 +1230,15 @@ TEST_F(LayerTransactionTest, SetColorBasic) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
-    ASSERT_NO_FATAL_FAILURE(
-            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+    ASSERT_NO_FATAL_FAILURE(colorLayer =
+                                    createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                                ISurfaceComposerClient::eFXSurfaceColor));
 
-    Transaction().setLayer(colorLayer, mLayerZBase + 1).apply();
+    Transaction()
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setLayer(colorLayer, mLayerZBase + 1)
+            .apply();
+
     {
         SCOPED_TRACE("default color");
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
@@ -1248,10 +1258,14 @@ TEST_F(LayerTransactionTest, SetColorBasic) {
 
 TEST_F(LayerTransactionTest, SetColorClamped) {
     sp<SurfaceControl> colorLayer;
-    ASSERT_NO_FATAL_FAILURE(
-            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+    ASSERT_NO_FATAL_FAILURE(colorLayer =
+                                    createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                                ISurfaceComposerClient::eFXSurfaceColor));
+    Transaction()
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setColor(colorLayer, half3(2.0f, -1.0f, 0.0f))
+            .apply();
 
-    Transaction().setColor(colorLayer, half3(2.0f, -1.0f, 0.0f)).apply();
     screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
@@ -1260,8 +1274,10 @@ TEST_F(LayerTransactionTest, SetColorWithAlpha) {
     sp<SurfaceControl> colorLayer;
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
-    ASSERT_NO_FATAL_FAILURE(
-            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
+    ASSERT_NO_FATAL_FAILURE(colorLayer =
+                                    createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                                ISurfaceComposerClient::eFXSurfaceColor));
+    Transaction().setCrop_legacy(colorLayer, Rect(0, 0, 32, 32)).apply();
 
     const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
     const float alpha = 0.25f;
@@ -1285,9 +1301,10 @@ TEST_F(LayerTransactionTest, SetColorWithParentAlpha_Bug74220420) {
     ASSERT_NO_FATAL_FAILURE(bufferLayer = createLayer("test bg", 32, 32));
     ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parentWithAlpha", 32, 32));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::RED, 32, 32));
-    ASSERT_NO_FATAL_FAILURE(colorLayer = createLayer(
-            "childWithColor", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
-
+    ASSERT_NO_FATAL_FAILURE(colorLayer = createLayer("childWithColor", 0 /* buffer width */,
+                                                     0 /* buffer height */,
+                                                     ISurfaceComposerClient::eFXSurfaceColor));
+    Transaction().setCrop_legacy(colorLayer, Rect(0, 0, 32, 32)).apply();
     const half3 color(15.0f / 255.0f, 51.0f / 255.0f, 85.0f / 255.0f);
     const float alpha = 0.25f;
     const ubyte3 expected((vec3(color) * alpha + vec3(1.0f, 0.0f, 0.0f) * (1.0f - alpha)) * 255.0f);
@@ -2129,10 +2146,13 @@ public:
 
 TEST_F(LayerTransactionTest, SetColorTransformBasic) {
     sp<SurfaceControl> colorLayer;
-    ASSERT_NO_FATAL_FAILURE(
-            colorLayer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceColor));
-
-    Transaction().setLayer(colorLayer, mLayerZBase + 1).apply();
+    ASSERT_NO_FATAL_FAILURE(colorLayer =
+                                    createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                                ISurfaceComposerClient::eFXSurfaceColor));
+    Transaction()
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setLayer(colorLayer, mLayerZBase + 1)
+            .apply();
     {
         SCOPED_TRACE("default color");
         screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
@@ -3024,11 +3044,10 @@ TEST_F(LayerUpdateTest, LayerWithNoBuffersResizesImmediately) {
     std::unique_ptr<ScreenCapture> sc;
 
     sp<SurfaceControl> childNoBuffer =
-            mClient->createSurface(String8("Bufferless child"), 10, 10,
-                                           PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
-    sp<SurfaceControl> childBuffer =
-            mClient->createSurface(String8("Buffered child"), 20, 20,
-                                           PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
+            createSurface(mClient, "Bufferless child", 0 /* buffer width */, 0 /* buffer height */,
+                          PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    sp<SurfaceControl> childBuffer = createSurface(mClient, "Buffered child", 20, 20,
+                                                   PIXEL_FORMAT_RGBA_8888, 0, childNoBuffer.get());
     fillSurfaceRGBA8(childBuffer, 200, 200, 200);
     SurfaceComposerClient::Transaction{}
             .setCrop_legacy(childNoBuffer, Rect(0, 0, 10, 10))
@@ -3078,8 +3097,8 @@ class ChildLayerTest : public LayerUpdateTest {
 protected:
     void SetUp() override {
         LayerUpdateTest::SetUp();
-        mChild = mClient->createSurface(String8("Child surface"), 10, 10,
-                                                PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+        mChild = createSurface(mClient, "Child surface", 10, 10, PIXEL_FORMAT_RGBA_8888, 0,
+                               mFGSurfaceControl.get());
         fillSurfaceRGBA8(mChild, 200, 200, 200);
 
         {
@@ -3254,8 +3273,7 @@ TEST_F(ChildLayerTest, ReparentChildren) {
 
 TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
     sp<SurfaceControl> mGrandChild =
-        mClient->createSurface(String8("Grand Child"), 10, 10,
-                PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
+            createSurface(mClient, "Grand Child", 10, 10, PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
     fillSurfaceRGBA8(mGrandChild, 111, 111, 111);
 
     {
@@ -3318,10 +3336,9 @@ TEST_F(ChildLayerTest, DetachChildrenSameClient) {
 TEST_F(ChildLayerTest, DetachChildrenDifferentClient) {
     sp<SurfaceComposerClient> mNewComposerClient = new SurfaceComposerClient;
     sp<SurfaceControl> mChildNewClient =
-            mNewComposerClient->createSurface(String8("New Child Test Surface"), 10, 10,
-                                              PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+            createSurface(mNewComposerClient, "New Child Test Surface", 10, 10,
+                          PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
 
-    ASSERT_TRUE(mChildNewClient != nullptr);
     ASSERT_TRUE(mChildNewClient->isValid());
 
     fillSurfaceRGBA8(mChildNewClient, 200, 200, 200);
@@ -3482,9 +3499,8 @@ TEST_F(ChildLayerTest, Bug36858924) {
     mChild.clear();
 
     // Now recreate it as hidden
-    mChild = mClient->createSurface(String8("Child surface"), 10, 10,
-                                            PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eHidden,
-                                            mFGSurfaceControl.get());
+    mChild = createSurface(mClient, "Child surface", 10, 10, PIXEL_FORMAT_RGBA_8888,
+                           ISurfaceComposerClient::eHidden, mFGSurfaceControl.get());
 
     // Show the child layer in a deferred transaction
     asTransaction([&](Transaction& t) {
@@ -3600,9 +3616,8 @@ TEST_F(ChildLayerTest, ReparentFromNoParent) {
 }
 
 TEST_F(ChildLayerTest, NestedChildren) {
-    sp<SurfaceControl> grandchild =
-            mClient->createSurface(String8("Grandchild surface"), 10, 10,
-                                           PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
+    sp<SurfaceControl> grandchild = createSurface(mClient, "Grandchild surface", 10, 10,
+                                                  PIXEL_FORMAT_RGBA_8888, 0, mChild.get());
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     {
@@ -3640,9 +3655,8 @@ protected:
 // Verify setting a size on a buffer layer has no effect.
 TEST_F(BoundlessLayerTest, BufferLayerIgnoresSize) {
     sp<SurfaceControl> bufferLayer =
-            mClient->createSurface(String8("BufferLayer"), 45, 45, PIXEL_FORMAT_RGBA_8888, 0,
-                                   mFGSurfaceControl.get());
-    ASSERT_TRUE(bufferLayer != nullptr);
+            createSurface(mClient, "BufferLayer", 45, 45, PIXEL_FORMAT_RGBA_8888, 0,
+                          mFGSurfaceControl.get());
     ASSERT_TRUE(bufferLayer->isValid());
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferLayer, Color::BLACK, 30, 30));
     asTransaction([&](Transaction& t) { t.show(bufferLayer); });
@@ -3661,10 +3675,8 @@ TEST_F(BoundlessLayerTest, BufferLayerIgnoresSize) {
 // which will crop the color layer.
 TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentBufferBounds) {
     sp<SurfaceControl> colorLayer =
-            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceColor,
-                                   mFGSurfaceControl.get());
-    ASSERT_TRUE(colorLayer != nullptr);
+            createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          ISurfaceComposerClient::eFXSurfaceColor, mFGSurfaceControl.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setColor(colorLayer, half3{0, 0, 0});
@@ -3684,15 +3696,12 @@ TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentBufferBounds) {
 // Verify a boundless color layer will fill its parent bounds. The parent has no buffer but has
 // a crop which will be used to crop the color layer.
 TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentCropBounds) {
-    sp<SurfaceControl> cropLayer =
-            mClient->createSurface(String8("CropLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   0 /* flags */, mFGSurfaceControl.get());
-    ASSERT_TRUE(cropLayer != nullptr);
+    sp<SurfaceControl> cropLayer = createSurface(mClient, "CropLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                                 0 /* flags */, mFGSurfaceControl.get());
     ASSERT_TRUE(cropLayer->isValid());
     sp<SurfaceControl> colorLayer =
-            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceColor, cropLayer.get());
-    ASSERT_TRUE(colorLayer != nullptr);
+            createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          ISurfaceComposerClient::eFXSurfaceColor, cropLayer.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setCrop_legacy(cropLayer, Rect(5, 5, 10, 10));
@@ -3716,10 +3725,8 @@ TEST_F(BoundlessLayerTest, BoundlessColorLayerFillsParentCropBounds) {
 // Verify for boundless layer with no children, their transforms have no effect.
 TEST_F(BoundlessLayerTest, BoundlessColorLayerTransformHasNoEffect) {
     sp<SurfaceControl> colorLayer =
-            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceColor,
-                                   mFGSurfaceControl.get());
-    ASSERT_TRUE(colorLayer != nullptr);
+            createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          ISurfaceComposerClient::eFXSurfaceColor, mFGSurfaceControl.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setPosition(colorLayer, 320, 320);
@@ -3741,20 +3748,16 @@ TEST_F(BoundlessLayerTest, BoundlessColorLayerTransformHasNoEffect) {
 // Verify for boundless layer with children, their transforms have an effect.
 TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerCanSetTransform) {
     sp<SurfaceControl> boundlessLayerRightShift =
-            mClient->createSurface(String8("BoundlessLayerRightShift"), 0, 0,
-                                   PIXEL_FORMAT_RGBA_8888, 0 /* flags */, mFGSurfaceControl.get());
-    ASSERT_TRUE(boundlessLayerRightShift != nullptr);
+            createSurface(mClient, "BoundlessLayerRightShift", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          0 /* flags */, mFGSurfaceControl.get());
     ASSERT_TRUE(boundlessLayerRightShift->isValid());
     sp<SurfaceControl> boundlessLayerDownShift =
-            mClient->createSurface(String8("BoundlessLayerLeftShift"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   0 /* flags */, boundlessLayerRightShift.get());
-    ASSERT_TRUE(boundlessLayerDownShift != nullptr);
+            createSurface(mClient, "BoundlessLayerLeftShift", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          0 /* flags */, boundlessLayerRightShift.get());
     ASSERT_TRUE(boundlessLayerDownShift->isValid());
     sp<SurfaceControl> colorLayer =
-            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceColor,
-                                   boundlessLayerDownShift.get());
-    ASSERT_TRUE(colorLayer != nullptr);
+            createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          ISurfaceComposerClient::eFXSurfaceColor, boundlessLayerDownShift.get());
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setPosition(boundlessLayerRightShift, 32, 0);
@@ -3815,16 +3818,13 @@ TEST_F(BoundlessLayerTest, IntermediateBoundlessLayerDoNotCrop) {
 
 // Verify for boundless root layers with children, their transforms have an effect.
 TEST_F(BoundlessLayerTest, RootBoundlessLayerCanSetTransform) {
-    sp<SurfaceControl> rootBoundlessLayer =
-            mClient->createSurface(String8("RootBoundlessLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   0 /* flags */);
-    ASSERT_TRUE(rootBoundlessLayer != nullptr);
+    sp<SurfaceControl> rootBoundlessLayer = createSurface(mClient, "RootBoundlessLayer", 0, 0,
+                                                          PIXEL_FORMAT_RGBA_8888, 0 /* flags */);
     ASSERT_TRUE(rootBoundlessLayer->isValid());
     sp<SurfaceControl> colorLayer =
-            mClient->createSurface(String8("ColorLayer"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                   ISurfaceComposerClient::eFXSurfaceColor,
-                                   rootBoundlessLayer.get());
-    ASSERT_TRUE(colorLayer != nullptr);
+            createSurface(mClient, "ColorLayer", 0, 0, PIXEL_FORMAT_RGBA_8888,
+                          ISurfaceComposerClient::eFXSurfaceColor, rootBoundlessLayer.get());
+
     ASSERT_TRUE(colorLayer->isValid());
     asTransaction([&](Transaction& t) {
         t.setLayer(rootBoundlessLayer, INT32_MAX - 1);
@@ -3864,9 +3864,8 @@ TEST_F(ScreenCaptureTest, CaptureSingleLayer) {
 TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
     SurfaceComposerClient::Transaction().show(child).apply(true);
@@ -3880,9 +3879,8 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithChild) {
 TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
     SurfaceComposerClient::Transaction().show(child).apply(true);
@@ -3894,9 +3892,8 @@ TEST_F(ScreenCaptureTest, CaptureLayerChildOnly) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureTransparent) {
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
 
     fillSurfaceRGBA8(child, 200, 200, 200);
 
@@ -3914,9 +3911,9 @@ TEST_F(ScreenCaptureTest, CaptureTransparent) {
 TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    ASSERT_NE(nullptr, child.get()) << "failed to create surface";
     sp<SurfaceControl> relative = createLayer(String8("Relative surface"), 10, 10, 0);
     fillSurfaceRGBA8(child, 200, 200, 200);
     fillSurfaceRGBA8(relative, 100, 100, 100);
@@ -3937,12 +3934,10 @@ TEST_F(ScreenCaptureTest, DontCaptureRelativeOutsideTree) {
 TEST_F(ScreenCaptureTest, CaptureRelativeInTree) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
-    sp<SurfaceControl> relative =
-            mClient->createSurface(String8("Relative surface"), 10, 10,
-                                           PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
+    sp<SurfaceControl> relative = createSurface(mClient, "Relative surface", 10, 10,
+                                                PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     fillSurfaceRGBA8(relative, 100, 100, 100);
 
@@ -3971,9 +3966,8 @@ public:
     void SetUp() override {
         LayerUpdateTest::SetUp();
 
-        mChild =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                    0, mFGSurfaceControl.get());
+        mChild = createSurface(mClient, "Child surface", 10, 10, PIXEL_FORMAT_RGBA_8888, 0,
+                               mFGSurfaceControl.get());
         fillSurfaceRGBA8(mChild, 200, 200, 200);
 
         SurfaceComposerClient::Transaction().show(mChild).apply(true);
@@ -4029,14 +4023,12 @@ TEST_F(ScreenCaptureChildOnlyTest, RegressionTest76099859) {
 TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
     auto fgHandle = mFGSurfaceControl->getHandle();
 
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
 
-    sp<SurfaceControl> grandchild =
-            mClient->createSurface(String8("Grandchild surface"), 5, 5,
-                                           PIXEL_FORMAT_RGBA_8888, 0, child.get());
+    sp<SurfaceControl> grandchild = createSurface(mClient, "Grandchild surface", 5, 5,
+                                                  PIXEL_FORMAT_RGBA_8888, 0, child.get());
 
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
     SurfaceComposerClient::Transaction()
@@ -4053,9 +4045,8 @@ TEST_F(ScreenCaptureTest, CaptureLayerWithGrandchild) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureChildOnly) {
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
@@ -4068,15 +4059,13 @@ TEST_F(ScreenCaptureTest, CaptureChildOnly) {
 }
 
 TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
-    sp<SurfaceControl> child =
-            mClient->createSurface(String8("Child surface"), 10, 10, PIXEL_FORMAT_RGBA_8888,
-                                           0, mFGSurfaceControl.get());
+    sp<SurfaceControl> child = createSurface(mClient, "Child surface", 10, 10,
+                                             PIXEL_FORMAT_RGBA_8888, 0, mFGSurfaceControl.get());
     fillSurfaceRGBA8(child, 200, 200, 200);
     auto childHandle = child->getHandle();
 
-    sp<SurfaceControl> grandchild =
-            mClient->createSurface(String8("Grandchild surface"), 5, 5,
-                                           PIXEL_FORMAT_RGBA_8888, 0, child.get());
+    sp<SurfaceControl> grandchild = createSurface(mClient, "Grandchild surface", 5, 5,
+                                                  PIXEL_FORMAT_RGBA_8888, 0, child.get());
     fillSurfaceRGBA8(grandchild, 50, 50, 50);
 
     SurfaceComposerClient::Transaction()
@@ -4095,9 +4084,8 @@ TEST_F(ScreenCaptureTest, CaptureGrandchildOnly) {
 
 TEST_F(ScreenCaptureTest, CaptureCrop) {
     sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
-    sp<SurfaceControl> blueLayer =
-            mClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
-                                           0, redLayer.get());
+    sp<SurfaceControl> blueLayer = createSurface(mClient, "Blue surface", 30, 30,
+                                                 PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
 
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(blueLayer, Color::BLUE, 30, 30));
@@ -4128,9 +4116,8 @@ TEST_F(ScreenCaptureTest, CaptureCrop) {
 
 TEST_F(ScreenCaptureTest, CaptureSize) {
     sp<SurfaceControl> redLayer = createLayer(String8("Red surface"), 60, 60, 0);
-    sp<SurfaceControl> blueLayer =
-            mClient->createSurface(String8("Blue surface"), 30, 30, PIXEL_FORMAT_RGBA_8888,
-                                           0, redLayer.get());
+    sp<SurfaceControl> blueLayer = createSurface(mClient, "Blue surface", 30, 30,
+                                                 PIXEL_FORMAT_RGBA_8888, 0, redLayer.get());
 
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(blueLayer, Color::BLUE, 30, 30));
