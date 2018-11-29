@@ -59,9 +59,8 @@ static const int LAYER_BASE = INT32_MAX - 10;
 class InputSurface {
 public:
     InputSurface(const sp<SurfaceComposerClient>& scc, int width, int height) {
-        mSurfaceControl = scc->createSurface(String8("Test Surface"),
-                width, height, PIXEL_FORMAT_RGBA_8888,
-                ISurfaceComposerClient::eFXSurfaceColor);
+        mSurfaceControl = scc->createSurface(String8("Test Surface"), 0, 0, PIXEL_FORMAT_RGBA_8888,
+                                             ISurfaceComposerClient::eFXSurfaceColor);
 
         InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
         mServerChannel->setToken(new BBinder());

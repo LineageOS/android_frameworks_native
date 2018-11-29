@@ -3707,11 +3707,24 @@ status_t SurfaceFlinger::createLayer(
             result = createBufferStateLayer(client, uniqueName, w, h, flags, handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
+            // check if buffer size is set for color layer.
+            if (w > 0 || h > 0) {
+                ALOGE("createLayer() failed, w or h cannot be set for color layer (w=%d, h=%d)",
+                      int(w), int(h));
+                return BAD_VALUE;
+            }
+
             result = createColorLayer(client,
                     uniqueName, w, h, flags,
                     handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
+            // check if buffer size is set for container layer.
+            if (w > 0 || h > 0) {
+                ALOGE("createLayer() failed, w or h cannot be set for container layer (w=%d, h=%d)",
+                      int(w), int(h));
+                return BAD_VALUE;
+            }
             result = createContainerLayer(client,
                     uniqueName, w, h, flags,
                     handle, &layer);
@@ -5161,12 +5174,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         const ui::Transform& getTransform() const override { return mTransform; }
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
-            return Rect(mLayer->getActiveWidth(layerState), mLayer->getActiveHeight(layerState));
+            return mLayer->getBufferSize(layerState);
         }
         int getHeight() const override {
-            return mLayer->getActiveHeight(mLayer->getDrawingState());
+            return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
         }
-        int getWidth() const override { return mLayer->getActiveWidth(mLayer->getDrawingState()); }
+        int getWidth() const override {
+            return mLayer->getBufferSize(mLayer->getDrawingState()).getWidth();
+        }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return mNeedsFiltering; }
         Rect getSourceCrop() const override {
@@ -5240,12 +5255,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     Rect crop(sourceCrop);
     if (sourceCrop.width() <= 0) {
         crop.left = 0;
-        crop.right = parent->getActiveWidth(parent->getCurrentState());
+        crop.right = parent->getBufferSize(parent->getCurrentState()).getWidth();
     }
 
     if (sourceCrop.height() <= 0) {
         crop.top = 0;
-        crop.bottom = parent->getActiveHeight(parent->getCurrentState());
+        crop.bottom = parent->getBufferSize(parent->getCurrentState()).getHeight();
     }
 
     int32_t reqWidth = crop.width() * frameScale;
