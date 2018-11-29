@@ -1077,6 +1077,15 @@ status_t SurfaceComposerClient::getHdrCapabilities(const sp<IBinder>& display,
             outCapabilities);
 }
 
+status_t SurfaceComposerClient::getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+                                                                      ui::PixelFormat* outFormat,
+                                                                      ui::Dataspace* outDataspace,
+                                                                      uint8_t* outComponentMask) {
+    return ComposerService::getComposerService()
+            ->getDisplayedContentSamplingAttributes(display, outFormat, outDataspace,
+                                                    outComponentMask);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,

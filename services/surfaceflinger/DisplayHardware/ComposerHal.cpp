@@ -1023,6 +1023,33 @@ Error Composer::setLayerColorTransform(Display display, Layer layer, const float
     return Error::NONE;
 }
 
+Error Composer::getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                      Dataspace* outDataspace,
+                                                      uint8_t* outComponentMask) {
+    if (!outFormat || !outDataspace || !outComponentMask) {
+        return Error::BAD_PARAMETER;
+    }
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayedContentSamplingAttributes(display,
+                                                       [&](const auto tmpError,
+                                                           const auto& tmpFormat,
+                                                           const auto& tmpDataspace,
+                                                           const auto& tmpComponentMask) {
+                                                           error = tmpError;
+                                                           if (error == Error::NONE) {
+                                                               *outFormat = tmpFormat;
+                                                               *outDataspace = tmpDataspace;
+                                                               *outComponentMask =
+                                                                       static_cast<uint8_t>(
+                                                                               tmpComponentMask);
+                                                           }
+                                                       });
+    return error;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();

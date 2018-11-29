@@ -480,6 +480,9 @@ private:
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
                                       ui::PixelFormat* outWideColorGamutPixelFormat) const override;
+    virtual status_t getDisplayedContentSamplingAttributes(
+            const sp<IBinder>& display, ui::PixelFormat* outFormat, ui::Dataspace* outDataspace,
+            uint8_t* outComponentMask) const override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface

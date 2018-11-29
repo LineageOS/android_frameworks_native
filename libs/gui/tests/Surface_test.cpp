@@ -641,6 +641,12 @@ public:
             ui::PixelFormat* /*outWideColorGamutPixelFormat*/) const override {
         return NO_ERROR;
     }
+    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& /*display*/,
+                                                   ui::PixelFormat* /*outFormat*/,
+                                                   ui::Dataspace* /*outDataspace*/,
+                                                   uint8_t* /*outComponentMask*/) const override {
+        return NO_ERROR;
+    }
 
     virtual status_t getColorManagement(bool* /*outGetColorManagement*/) const { return NO_ERROR; }
 
