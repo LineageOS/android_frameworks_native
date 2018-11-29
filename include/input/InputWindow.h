@@ -116,17 +116,42 @@ struct InputWindowInfo {
         INPUT_FEATURE_NO_INPUT_CHANNEL = 0x00000002,
         INPUT_FEATURE_DISABLE_USER_ACTIVITY = 0x00000004,
     };
-
-    sp<InputChannel> inputChannel;
+    
+    /* These values are filled in by the WM and passed through SurfaceFlinger
+     * unless specified otherwise.
+     */
+    sp<IBinder> token;
     std::string name;
     int32_t layoutParamsFlags;
     int32_t layoutParamsType;
     nsecs_t dispatchingTimeout;
+
+    /* These values are filled in by SurfaceFlinger. */
     int32_t frameLeft;
     int32_t frameTop;
     int32_t frameRight;
     int32_t frameBottom;
-    float scaleFactor;
+
+    /*
+     * SurfaceFlinger consumes this value to shrink the computed frame. This is
+     * different from shrinking the touchable region in that it DOES shift the coordinate
+     * space where-as the touchable region does not and is more like "cropping". This
+     * is used for window shadows.
+     */
+    int32_t surfaceInset = 0;
+
+    // A global scaling factor for all windows. Unlike windowScaleX/Y this results
+    // in scaling of the TOUCH_MAJOR/TOUCH_MINOR axis.
+    float globalScaleFactor;
+
+    // Scaling factors applied to individual windows.
+    float windowXScale = 1.0f;
+    float windowYScale = 1.0f;
+
+    /*
+     * This is filled in by the WM relative to the frame and then translated
+     * to absolute coordinates by SurfaceFlinger once the frame is computed.
+     */
     Region touchableRegion;
     bool visible;
     bool canReceiveKeys;
@@ -138,6 +163,7 @@ struct InputWindowInfo {
     int32_t ownerUid;
     int32_t inputFeatures;
     int32_t displayId;
+    InputApplicationInfo applicationInfo;
 
     void addTouchableRegion(const Rect& region);
 
@@ -168,20 +194,23 @@ struct InputWindowInfo {
  */
 class InputWindowHandle : public RefBase {
 public:
-    const sp<InputApplicationHandle> inputApplicationHandle;
 
     inline const InputWindowInfo* getInfo() const {
         return &mInfo;
     }
 
-    sp<InputChannel> getInputChannel() const;
+    sp<IBinder> getToken() const;
+
+    sp<IBinder> getApplicationToken() {
+        return mInfo.applicationInfo.token;
+    }
 
     inline std::string getName() const {
-        return mInfo.inputChannel ? mInfo.name : "<invalid>";
+        return mInfo.token ? mInfo.name : "<invalid>";
     }
 
     inline nsecs_t getDispatchingTimeout(nsecs_t defaultValue) const {
-        return mInfo.inputChannel? mInfo.dispatchingTimeout : defaultValue;
+        return mInfo.token ? mInfo.dispatchingTimeout : defaultValue;
     }
 
     /**
@@ -202,7 +231,7 @@ public:
     void releaseChannel();
 
 protected:
-    explicit InputWindowHandle(const sp<InputApplicationHandle>& inputApplicationHandle);
+    explicit InputWindowHandle();
     virtual ~InputWindowHandle();
 
     InputWindowInfo mInfo;

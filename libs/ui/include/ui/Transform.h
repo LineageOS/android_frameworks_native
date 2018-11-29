@@ -65,6 +65,8 @@ public:
     const vec3& operator [] (size_t i) const;  // returns column i
     float   tx() const;
     float   ty() const;
+    float   sx() const;
+    float   sy() const;
 
     // modify the transform
     void        reset();

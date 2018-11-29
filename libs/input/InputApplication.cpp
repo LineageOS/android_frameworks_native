@@ -39,4 +39,21 @@ void InputApplicationHandle::releaseInfo() {
     }
 }
 
+InputApplicationInfo InputApplicationInfo::read(const Parcel& from) {
+    InputApplicationInfo ret;
+    ret.token = from.readStrongBinder();
+    ret.name = from.readString8().c_str();
+    ret.dispatchingTimeout = from.readInt64();
+
+    return ret;
+}
+
+status_t InputApplicationInfo::write(Parcel& output) const {
+    output.writeStrongBinder(token);
+    output.writeString8(String8(name.c_str()));
+    output.writeInt64(dispatchingTimeout);
+    
+    return OK;
+}
+
 } // namespace android

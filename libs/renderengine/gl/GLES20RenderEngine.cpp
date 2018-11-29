@@ -240,60 +240,29 @@ std::unique_ptr<GLES20RenderEngine> GLES20RenderEngine::create(int hwcFormat,
         config = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
 
-    EGLint renderableType = 0;
-    if (config == EGL_NO_CONFIG) {
-        renderableType = EGL_OPENGL_ES2_BIT;
-    } else if (!eglGetConfigAttrib(display, config, EGL_RENDERABLE_TYPE, &renderableType)) {
-        LOG_ALWAYS_FATAL("can't query EGLConfig RENDERABLE_TYPE");
-    }
-    EGLint contextClientVersion = 0;
-    if (renderableType & EGL_OPENGL_ES2_BIT) {
-        contextClientVersion = 2;
-    } else if (renderableType & EGL_OPENGL_ES_BIT) {
-        contextClientVersion = 1;
-    } else {
-        LOG_ALWAYS_FATAL("no supported EGL_RENDERABLE_TYPEs");
-    }
-
-    std::vector<EGLint> contextAttributes;
-    contextAttributes.reserve(6);
-    contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
-    contextAttributes.push_back(contextClientVersion);
     bool useContextPriority = extensions.hasContextPriority() &&
             (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
-    if (useContextPriority) {
-        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
-        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
-    }
-    contextAttributes.push_back(EGL_NONE);
-
-    EGLContext ctxt = eglCreateContext(display, config, nullptr, contextAttributes.data());
+    EGLContext ctxt = createEglContext(display, config, EGL_NO_CONTEXT, useContextPriority);
 
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
 
-    // now figure out what version of GL did we actually get
-    // NOTE: a dummy surface is not needed if KHR_create_context is supported
-    // TODO(alecmouri): don't create this surface if EGL_KHR_surfaceless_context
-    // is supported.
-
-    EGLConfig dummyConfig = config;
-    if (dummyConfig == EGL_NO_CONFIG) {
-        dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
+    EGLSurface dummy = EGL_NO_SURFACE;
+    if (!extensions.hasSurfacelessContext()) {
+        dummy = createDummyEglPbufferSurface(display, config, hwcFormat);
+        LOG_ALWAYS_FATAL_IF(dummy == EGL_NO_SURFACE, "can't create dummy pbuffer");
     }
-    EGLint attribs[] = {EGL_WIDTH, 1, EGL_HEIGHT, 1, EGL_NONE, EGL_NONE};
-    EGLSurface dummy = eglCreatePbufferSurface(display, dummyConfig, attribs);
-    LOG_ALWAYS_FATAL_IF(dummy == EGL_NO_SURFACE, "can't create dummy pbuffer");
+
     EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
     LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
 
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
 
+    // now figure out what version of GL did we actually get
     GlesVersion version = parseGlesVersion(extensions.getVersion());
 
     // initialize the renderer while GL is current
-
     std::unique_ptr<GLES20RenderEngine> engine;
     switch (version) {
         case GLES_VERSION_1_0:
@@ -906,6 +875,53 @@ GLES20RenderEngine::GlesVersion GLES20RenderEngine::parseGlesVersion(const char*
 
     ALOGW("Unrecognized OpenGL ES version: %d.%d", major, minor);
     return GLES_VERSION_1_0;
+}
+
+EGLContext GLES20RenderEngine::createEglContext(EGLDisplay display, EGLConfig config,
+                                                EGLContext shareContext, bool useContextPriority) {
+    EGLint renderableType = 0;
+    if (config == EGL_NO_CONFIG) {
+        renderableType = EGL_OPENGL_ES2_BIT;
+    } else if (!eglGetConfigAttrib(display, config, EGL_RENDERABLE_TYPE, &renderableType)) {
+        LOG_ALWAYS_FATAL("can't query EGLConfig RENDERABLE_TYPE");
+    }
+    EGLint contextClientVersion = 0;
+    if (renderableType & EGL_OPENGL_ES2_BIT) {
+        contextClientVersion = 2;
+    } else if (renderableType & EGL_OPENGL_ES_BIT) {
+        contextClientVersion = 1;
+    } else {
+        LOG_ALWAYS_FATAL("no supported EGL_RENDERABLE_TYPEs");
+    }
+
+    std::vector<EGLint> contextAttributes;
+    contextAttributes.reserve(5);
+    contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
+    contextAttributes.push_back(contextClientVersion);
+    if (useContextPriority) {
+        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
+        contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+    }
+    contextAttributes.push_back(EGL_NONE);
+
+    return eglCreateContext(display, config, shareContext, contextAttributes.data());
+}
+
+EGLSurface GLES20RenderEngine::createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
+                                                            int hwcFormat) {
+    EGLConfig dummyConfig = config;
+    if (dummyConfig == EGL_NO_CONFIG) {
+        dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
+    }
+    std::vector<EGLint> attributes;
+    attributes.reserve(5);
+    attributes.push_back(EGL_WIDTH);
+    attributes.push_back(1);
+    attributes.push_back(EGL_HEIGHT);
+    attributes.push_back(1);
+    attributes.push_back(EGL_NONE);
+
+    return eglCreatePbufferSurface(display, dummyConfig, attributes.data());
 }
 
 bool GLES20RenderEngine::isHdrDataSpace(const Dataspace dataSpace) const {

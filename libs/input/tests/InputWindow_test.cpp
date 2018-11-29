@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 
+#include <binder/Binder.h>
 #include <binder/Parcel.h>
 
 #include <input/InputWindow.h>
@@ -24,24 +25,20 @@
 namespace android {
 namespace test {
 
-TEST(InputWindowInfo, ParcellingWithoutChannel) {
+TEST(InputWindowInfo, ParcellingWithoutToken) {
     InputWindowInfo i;
-    i.inputChannel = nullptr;
+    i.token = nullptr;
 
     Parcel p;
     ASSERT_EQ(OK, i.write(p));
     p.setDataPosition(0);
     InputWindowInfo i2 = InputWindowInfo::read(p);
-    ASSERT_TRUE(i2.inputChannel == nullptr);
+    ASSERT_TRUE(i2.token == nullptr);
 }
 
 TEST(InputWindowInfo, Parcelling) {
-    sp<InputChannel> channel, junkChannel;
-    status_t result = InputChannel::openInputChannelPair("name", channel, junkChannel);
-    ASSERT_EQ(OK, result) << "openInputChannelPair should have returned valid channels";
-
     InputWindowInfo i;
-    i.inputChannel = channel;
+    i.token = new BBinder();
     i.name = "Foobar";
     i.layoutParamsFlags = 7;
     i.layoutParamsType = 39;
@@ -50,7 +47,10 @@ TEST(InputWindowInfo, Parcelling) {
     i.frameTop = 34;
     i.frameRight = 16;
     i.frameBottom = 19;
-    i.scaleFactor = 0.3;
+    i.surfaceInset = 17;
+    i.globalScaleFactor = 0.3;
+    i.windowXScale = 0.4;
+    i.windowYScale = 0.5;
     i.visible = false;
     i.canReceiveKeys = false;
     i.hasFocus = false;
@@ -67,7 +67,7 @@ TEST(InputWindowInfo, Parcelling) {
 
     p.setDataPosition(0);
     InputWindowInfo i2 = InputWindowInfo::read(p);
-    ASSERT_EQ(i.inputChannel->getName(), i2.inputChannel->getName());
+    ASSERT_EQ(i.token, i2.token);
     ASSERT_EQ(i.name, i2.name);
     ASSERT_EQ(i.layoutParamsFlags, i2.layoutParamsFlags);
     ASSERT_EQ(i.layoutParamsType, i2.layoutParamsType);
@@ -76,7 +76,10 @@ TEST(InputWindowInfo, Parcelling) {
     ASSERT_EQ(i.frameTop, i2.frameTop);
     ASSERT_EQ(i.frameRight, i2.frameRight);
     ASSERT_EQ(i.frameBottom, i2.frameBottom);
-    ASSERT_EQ(i.scaleFactor, i2.scaleFactor);
+    ASSERT_EQ(i.surfaceInset, i2.surfaceInset);
+    ASSERT_EQ(i.globalScaleFactor, i2.globalScaleFactor);
+    ASSERT_EQ(i.windowXScale, i2.windowXScale);
+    ASSERT_EQ(i.windowYScale, i2.windowYScale);
     ASSERT_EQ(i.visible, i2.visible);
     ASSERT_EQ(i.canReceiveKeys, i2.canReceiveKeys);
     ASSERT_EQ(i.hasFocus, i2.hasFocus);

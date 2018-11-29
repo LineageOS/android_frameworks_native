@@ -36,6 +36,9 @@ public:
     DECLARE_META_INTERFACE(InputFlinger)
 
     virtual void setInputWindows(const Vector<InputWindowInfo>& inputHandles) = 0;
+
+    virtual void registerInputChannel(const sp<InputChannel>& channel) = 0;
+    virtual void unregisterInputChannel(const sp<InputChannel>& channel) = 0;
 };
 
 
@@ -46,6 +49,8 @@ class BnInputFlinger : public BnInterface<IInputFlinger> {
 public:
     enum {
         SET_INPUT_WINDOWS_TRANSACTION = IBinder::FIRST_CALL_TRANSACTION,
+        REGISTER_INPUT_CHANNEL_TRANSACTION,
+        UNREGISTER_INPUT_CHANNEL_TRANSACTION
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

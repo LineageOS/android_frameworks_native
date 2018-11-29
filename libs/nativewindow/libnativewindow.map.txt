@@ -5,6 +5,7 @@ LIBNATIVEWINDOW {
     AHardwareBuffer_createFromHandle; # vndk
     AHardwareBuffer_describe;
     AHardwareBuffer_getNativeHandle; # vndk
+    AHardwareBuffer_isSupported; # introduced=29
     AHardwareBuffer_lock;
     AHardwareBuffer_recvHandleFromUnixSocket;
     AHardwareBuffer_release;

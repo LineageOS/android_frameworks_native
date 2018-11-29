@@ -37,6 +37,8 @@
 
 #include <dvr/vr_flinger.h>
 
+#include <input/IInputFlinger.h>
+
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/DisplayInfo.h>
@@ -553,6 +555,13 @@ void SurfaceFlinger::bootFinished()
     sp<IBinder> window(defaultServiceManager()->getService(name));
     if (window != 0) {
         window->linkToDeath(static_cast<IBinder::DeathRecipient*>(this));
+    }
+    sp<IBinder> input(defaultServiceManager()->getService(
+            String16("inputflinger")));
+    if (input == nullptr) {
+        ALOGE("Failed to link to input service");
+    } else {
+        mInputFlinger = interface_cast<IInputFlinger>(input);
     }
 
     if (mVrFlinger) {
@@ -1489,6 +1498,10 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            if (mUseScheduler) {
+                // This call is made each time SF wakes up and creates a new frame.
+                mScheduler->incrementFrameCounter();
+            }
             bool frameMissed = !mHadClientComposition &&
                     mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getSignalTime() ==
@@ -2569,6 +2582,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      * (perform the transaction for each of them if needed)
      */
 
+    bool inputChanged = false;
     if (transactionFlags & eTraversalNeeded) {
         mCurrentState.traverseInZOrder([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
@@ -2577,6 +2591,10 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
             const uint32_t flags = layer->doTransaction(0);
             if (flags & Layer::eVisibleRegion)
                 mVisibleRegionsDirty = true;
+
+            if (flags & Layer::eInputInfoChanged) {
+                inputChanged = true;
+            }
         });
     }
 
@@ -2686,7 +2704,24 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 
     commitTransaction();
 
+    if ((inputChanged || mVisibleRegionsDirty) && mInputFlinger) {
+        updateInputWindows();
+    }
+
     updateCursorAsync();
+}
+
+void SurfaceFlinger::updateInputWindows() {
+    ATRACE_CALL();
+
+    Vector<InputWindowInfo> inputHandles;
+
+    mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
+        if (layer->hasInput()) {
+            inputHandles.add(layer->fillInputInfo(layer->computeScreenBounds()));
+        }
+    });
+    mInputFlinger->setInputWindows(inputHandles);
 }
 
 void SurfaceFlinger::updateCursorAsync()
@@ -2796,6 +2831,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         if (CC_LIKELY(layer->isVisible())) {
             const bool translucent = !layer->isOpaque(s);
             Rect bounds(layer->computeScreenBounds());
+
             visibleRegion.set(bounds);
             ui::Transform tr = layer->getTransform();
             if (!visibleRegion.isEmpty()) {
@@ -3611,7 +3647,10 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     if (what & layer_state_t::eSidebandStreamChanged) {
         if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
     }
-
+    if (what & layer_state_t::eInputInfoChanged) {
+        layer->setInputInfo(s.inputInfo);
+        flags |= eTraversalNeeded;
+    }
     std::vector<sp<CallbackHandle>> callbackHandles;
     if ((what & layer_state_t::eListenerCallbacksChanged) && (!s.listenerCallbacks.empty())) {
         mTransactionCompletedThread.run();

@@ -54,6 +54,7 @@ cc_defaults {
         "libsync",
         "libtimestats_proto",
         "libui",
+        "libinput",
         "libutils",
     ],
     static_libs: [
@@ -183,6 +184,7 @@ cc_defaults {
         "libdisplayservicehidl",
         "libhidlbase",
         "libhidltransport",
+        "libinput",
         "liblayers_proto",
         "liblog",
         "libsync",

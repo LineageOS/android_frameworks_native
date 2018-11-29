@@ -22,6 +22,7 @@
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
+#include <input/InputWindow.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/vec4.h>
 #include <renderengine/Mesh.h>
@@ -109,6 +110,7 @@ public:
     enum { // flags for doTransaction()
         eDontUpdateGeometryState = 0x00000001,
         eVisibleRegion = 0x00000002,
+        eInputInfoChanged = 0x00000004
     };
 
     struct Geometry {
@@ -165,6 +167,9 @@ public:
         SortedVector<wp<Layer>> zOrderRelatives;
 
         half4 color;
+
+        bool inputInfoChanged;
+        InputWindowInfo inputInfo;
 
         // The fields below this point are only used by BufferStateLayer
         Geometry active;
@@ -708,6 +713,10 @@ public:
     bool getPremultipledAlpha() const;
 
     bool mPendingHWCDestroy{false};
+    void setInputInfo(const InputWindowInfo& info);
+
+    InputWindowInfo fillInputInfo(const Rect& screenBounds);
+    bool hasInput() const;
 
 protected:
     // -----------------------------------------------------------------------

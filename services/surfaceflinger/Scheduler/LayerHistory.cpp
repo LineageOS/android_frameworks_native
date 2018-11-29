@@ -39,11 +39,15 @@ void LayerHistory::insert(const std::string layerName, nsecs_t presentTime) {
 void LayerHistory::incrementCounter() {
     mCounter++;
     mCounter = mCounter % ARRAY_SIZE;
+    // Clear all the previous data from the history. This is a ring buffer, so we are
+    // reusing memory.
     mElements[mCounter].clear();
 }
 
 const std::unordered_map<std::string, nsecs_t>& LayerHistory::get(size_t index) const {
-    return mElements.at(index);
+    // For the purposes of the layer history, the index = 0 always needs to start at the
+    // current counter, and then decrement to access the layers in correct historical order.
+    return mElements.at((ARRAY_SIZE + (mCounter - (index % ARRAY_SIZE))) % ARRAY_SIZE);
 }
 
 } // namespace android
