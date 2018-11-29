@@ -36,7 +36,6 @@
     <feature name="android.hardware.type.automotive" />
 
     <!-- basic system services -->
-    <feature name="android.software.app_widgets" />
     <feature name="android.software.connectionservice" />
     <feature name="android.software.voice_recognizers" notLowRam="true" />
     <feature name="android.software.backup" />
