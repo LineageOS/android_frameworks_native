@@ -12,6 +12,7 @@ cc_test {
     shared_libs: [
         "android.hardware.graphics.composer@2.1",
         "android.hardware.graphics.mapper@2.0",
+        "android.hardware.power@1.3",
         "libbase",
         "libbinder",
         "libcutils",

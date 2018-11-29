@@ -81,7 +81,6 @@ protected:
     virtual void setupLayerBlackedOut();
     virtual void setupFillWithColor(float r, float g, float b, float a);
     virtual void setupColorTransform(const mat4& colorTransform);
-    virtual void setSaturationMatrix(const mat4& saturationMatrix);
     virtual void disableTexturing();
     virtual void disableBlending();
 
