@@ -15,7 +15,13 @@
  */
 
 /**
- * @addtogroup NativeActivity Native Activity
+ * @defgroup ANativeWindow Native Window
+ *
+ * ANativeWindow represents the producer end of an image queue.
+ * It is the C counterpart of the android.view.Surface object in Java,
+ * and can be converted both ways. Depending on the consumer, images
+ * submitted to ANativeWindow can be shown on the display or sent to
+ * other consumers, such as video encoders.
  * @{
  */
 
@@ -41,7 +47,7 @@ extern "C" {
  * Legacy window pixel format names, kept for backwards compatibility.
  * New code and APIs should use AHARDWAREBUFFER_FORMAT_*.
  */
-enum {
+enum ANativeWindow_LegacyFormat {
     // NOTE: these values must match the values from graphics/common/x.x/types.hal
 
     /** Red: 8 bits, Green: 8 bits, Blue: 8 bits, Alpha: 8 bits. **/
@@ -95,7 +101,7 @@ typedef struct ANativeWindow_Buffer {
     /// memory. This may be >= width.
     int32_t stride;
 
-    /// The format of the buffer. One of AHARDWAREBUFFER_FORMAT_*
+    /// The format of the buffer. One of AHardwareBuffer_Format.
     int32_t format;
 
     /// The actual bits.
@@ -151,7 +157,7 @@ int32_t ANativeWindow_getFormat(ANativeWindow* window);
  *
  * \param width width of the buffers in pixels.
  * \param height height of the buffers in pixels.
- * \param format one of AHARDWAREBUFFER_FORMAT_* constants.
+ * \param format one of the AHardwareBuffer_Format constants.
  * \return 0 for success, or a negative value on error.
  */
 int32_t ANativeWindow_setBuffersGeometry(ANativeWindow* window,
