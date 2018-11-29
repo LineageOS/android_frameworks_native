@@ -2754,6 +2754,17 @@ void SurfaceFlinger::updateCursorAsync()
     }
 }
 
+void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
+    if (layer->hasReadyFrame()) {
+        const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+        if (layer->shouldPresentNow(expectedPresentTime)) {
+            bool ignored = false;
+            layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
+        }
+    }
+    layer->releasePendingBuffer(systemTime());
+}
+
 void SurfaceFlinger::commitTransaction()
 {
     if (!mLayersPendingRemoval.isEmpty()) {
@@ -2767,11 +2778,9 @@ void SurfaceFlinger::commitTransaction()
             // showing at its last configured state until we eventually
             // abandon the buffer queue.
             if (l->isRemovedFromCurrentState()) {
-                l->destroyAllHwcLayers();
-                // destroyAllHwcLayers traverses to children, but releasePendingBuffer
-                // doesn't in other scenarios. So we have to traverse explicitly here.
                 l->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* child) {
-                    child->releasePendingBuffer(systemTime());
+                    child->destroyHwcLayersForAllDisplays();
+                    latchAndReleaseBuffer(child);
                 });
             }
         }
@@ -3224,7 +3233,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         } else {
             if (parent->isRemovedFromCurrentState()) {
                 ALOGE("addClientLayer called with a removed parent");
-                return NAME_NOT_FOUND;
+                lbc->onRemovedFromCurrentState();
             }
             parent->addChild(lbc);
         }
