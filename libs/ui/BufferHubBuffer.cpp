@@ -36,10 +36,12 @@
 #include <private/dvr/bufferhub_rpc.h>
 #pragma clang diagnostic pop
 
-#include <ui/BufferHubBuffer.h>
-
 #include <poll.h>
 
+#include <android-base/unique_fd.h>
+#include <ui/BufferHubBuffer.h>
+
+using android::base::unique_fd;
 using android::dvr::BufferTraits;
 using android::dvr::DetachedBufferRPC;
 using android::dvr::NativeHandleWrapper;
@@ -132,7 +134,9 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     const int bufferId = bufferTraits.id();
 
     // Import the metadata.
-    mMetadata = BufferHubMetadata::Import(bufferTraits.take_metadata_handle());
+    LocalHandle metadataHandle = bufferTraits.take_metadata_handle();
+    unique_fd metadataFd(metadataHandle.Release());
+    mMetadata = BufferHubMetadata::Import(std::move(metadataFd));
 
     if (!mMetadata.IsValid()) {
         ALOGE("BufferHubBuffer::ImportGraphicBuffer: invalid metadata.");
