@@ -1685,12 +1685,20 @@ bool Layer::setColorTransform(const mat4& matrix) {
     return true;
 }
 
-const mat4& Layer::getColorTransform() const {
-    return getDrawingState().colorTransform;
+mat4 Layer::getColorTransform() const {
+    mat4 colorTransform = mat4(getDrawingState().colorTransform);
+    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
+        colorTransform = parent->getColorTransform() * colorTransform;
+    }
+    return colorTransform;
 }
 
 bool Layer::hasColorTransform() const {
-    return getDrawingState().hasColorTransform;
+    bool hasColorTransform = getDrawingState().hasColorTransform;
+    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
+        hasColorTransform = hasColorTransform || parent->hasColorTransform();
+    }
+    return hasColorTransform;
 }
 
 bool Layer::isLegacyDataSpace() const {
