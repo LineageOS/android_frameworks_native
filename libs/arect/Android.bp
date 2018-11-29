@@ -25,4 +25,9 @@ cc_library_static {
     host_supported: true,
     vendor_available: true,
     export_include_dirs: ["include"],
+    target: {
+        windows: {
+            enabled: true,
+        },
+    },
 }
