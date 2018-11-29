@@ -156,20 +156,25 @@ TEST_F(BufferHubBufferTest, DuplicateBuffer) {
     memcpy(&desc, &aDesc, sizeof(HardwareBufferDescription));
 
     sp<IBufferClient> client;
+    BufferHubStatus ret;
     IBufferHub::allocateBuffer_cb alloc_cb = [&](const auto& outClient, const auto& status) {
-        ASSERT_EQ(status, BufferHubStatus::NO_ERROR);
-        ASSERT_NE(nullptr, outClient.get());
         client = outClient;
+        ret = status;
     };
     ASSERT_TRUE(bufferhub->allocateBuffer(desc, kUserMetadataSize, alloc_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
+    ASSERT_NE(nullptr, client.get());
 
-    IBufferClient::duplicate_cb dup_cb = [](const auto& token, const auto& status) {
-        ASSERT_EQ(status, BufferHubStatus::NO_ERROR);
-        ASSERT_NE(token.getNativeHandle(), nullptr);
-        EXPECT_EQ(token->numInts, 1);
-        EXPECT_EQ(token->numFds, 0);
+    hidl_handle token;
+    IBufferClient::duplicate_cb dup_cb = [&](const auto& outToken, const auto& status) {
+        token = outToken;
+        ret = status;
     };
     EXPECT_TRUE(client->duplicate(dup_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
+    ASSERT_NE(token.getNativeHandle(), nullptr);
+    EXPECT_EQ(token->numInts, 1);
+    EXPECT_EQ(token->numFds, 0);
 }
 
 } // namespace
