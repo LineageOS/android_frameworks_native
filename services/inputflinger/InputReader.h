@@ -146,6 +146,7 @@ public:
             ssize_t repeat, int32_t token);
     virtual void cancelVibrate(int32_t deviceId, int32_t token);
 
+    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId);
 protected:
     // These members are protected so they can be instrumented by test cases.
     virtual InputDevice* createDeviceLocked(int32_t deviceId, int32_t controllerNumber,
@@ -320,6 +321,7 @@ public:
         return value;
     }
 
+    std::optional<int32_t> getAssociatedDisplay();
 private:
     InputReaderContext* mContext;
     int32_t mId;
@@ -778,7 +780,9 @@ public:
     virtual void updateExternalStylusState(const StylusState& state);
 
     virtual void fadePointer();
-
+    virtual std::optional<int32_t> getAssociatedDisplay() {
+        return std::nullopt;
+    }
 protected:
     InputDevice* mDevice;
     InputReaderContext* mContext;
@@ -932,6 +936,7 @@ public:
 
     virtual void fadePointer();
 
+    virtual std::optional<int32_t> getAssociatedDisplay();
 private:
     // Amount that trackball needs to move in order to generate a key event.
     static const int32_t TRACKBALL_MOVEMENT_THRESHOLD = 6;
@@ -1025,7 +1030,7 @@ public:
     virtual void cancelTouch(nsecs_t when);
     virtual void timeoutExpired(nsecs_t when);
     virtual void updateExternalStylusState(const StylusState& state);
-
+    virtual std::optional<int32_t> getAssociatedDisplay();
 protected:
     CursorButtonAccumulator mCursorButtonAccumulator;
     CursorScrollAccumulator mCursorScrollAccumulator;

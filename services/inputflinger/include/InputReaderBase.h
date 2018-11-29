@@ -100,6 +100,9 @@ public:
     virtual void vibrate(int32_t deviceId, const nsecs_t* pattern, size_t patternSize,
             ssize_t repeat, int32_t token) = 0;
     virtual void cancelVibrate(int32_t deviceId, int32_t token) = 0;
+
+    /* Return true if the device can send input events to the specified display. */
+    virtual bool canDispatchToDisplay(int32_t deviceId, int32_t displayId) = 0;
 };
 
 /* Reads raw events from the event hub and processes them, endlessly. */

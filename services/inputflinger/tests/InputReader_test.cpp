@@ -841,6 +841,7 @@ class FakeInputMapper : public InputMapper {
     bool mResetWasCalled;
     bool mProcessWasCalled;
 
+    std::optional<DisplayViewport> mViewport;
 public:
     FakeInputMapper(InputDevice* device, uint32_t sources) :
             InputMapper(device),
@@ -909,8 +910,14 @@ private:
         }
     }
 
-    virtual void configure(nsecs_t, const InputReaderConfiguration*, uint32_t) {
+    virtual void configure(nsecs_t, const InputReaderConfiguration* config, uint32_t changes) {
         mConfigureWasCalled = true;
+
+        // Find the associated viewport if exist.
+        const std::optional<uint8_t> displayPort = mDevice->getAssociatedDisplayPort();
+        if (displayPort && (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+            mViewport = config->getDisplayViewportByPort(*displayPort);
+        }
     }
 
     virtual void reset(nsecs_t) {
@@ -957,6 +964,13 @@ private:
 
     virtual void fadePointer() {
     }
+
+    virtual std::optional<int32_t> getAssociatedDisplay() {
+        if (mViewport) {
+            return std::make_optional(mViewport->displayId);
+        }
+        return std::nullopt;
+    }
 };
 
 
@@ -984,9 +998,10 @@ public:
     }
 
     InputDevice* newDevice(int32_t deviceId, int32_t controllerNumber, const std::string& name,
-            uint32_t classes) {
+            uint32_t classes, const std::string& location = "") {
         InputDeviceIdentifier identifier;
         identifier.name = name;
+        identifier.location = location;
         int32_t generation = deviceId + 1;
         return new InputDevice(&mContext, deviceId, generation, controllerNumber, identifier,
                 classes);
@@ -1286,7 +1301,7 @@ TEST_F(InputReaderTest, GetInputDevices) {
 TEST_F(InputReaderTest, WhenEnabledChanges_SendsDeviceResetNotification) {
     constexpr int32_t deviceId = 1;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
-    InputDevice* device = mReader->newDevice(deviceId, 0, "fake", deviceClass);
+    InputDevice* device = mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass);
     // Must add at least one mapper or the device will be ignored!
     FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
     device->addMapper(mapper);
@@ -1470,7 +1485,7 @@ TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
 TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
     constexpr int32_t deviceId = 1;
     constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
-    InputDevice* device = mReader->newDevice(deviceId, 0, "fake", deviceClass);
+    InputDevice* device = mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass);
     // Must add at least one mapper or the device will be ignored!
     FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
     device->addMapper(mapper);
@@ -1498,6 +1513,36 @@ TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
     mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
     ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
     prevSequenceNum = resetArgs.sequenceNum;
+}
+
+TEST_F(InputReaderTest, Device_CanDispatchToDisplay) {
+    constexpr int32_t deviceId = 1;
+    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    const char* DEVICE_LOCATION = "USB1";
+    InputDevice* device = mReader->newDevice(deviceId, 0 /*controllerNumber*/, "fake", deviceClass,
+            DEVICE_LOCATION);
+    FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_TOUCHSCREEN);
+    device->addMapper(mapper);
+    mReader->setNextDevice(device);
+    addDevice(deviceId, "fake", deviceClass, nullptr);
+
+    const uint8_t hdmi1 = 1;
+
+    // Associated touch screen with second display.
+    mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi1);
+
+    // Add default and second display.
+    mFakePolicy->addDisplayViewport(DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, "local:0", NO_PORT, ViewportType::VIEWPORT_INTERNAL);
+    mFakePolicy->addDisplayViewport(SECONDARY_DISPLAY_ID, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+            DISPLAY_ORIENTATION_0, "local:1", hdmi1, ViewportType::VIEWPORT_EXTERNAL);
+    mReader->requestRefreshConfiguration(InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+    mReader->loopOnce();
+
+    // Check device.
+    ASSERT_EQ(deviceId, device->getId());
+    ASSERT_FALSE(mReader->canDispatchToDisplay(deviceId, DISPLAY_ID));
+    ASSERT_TRUE(mReader->canDispatchToDisplay(deviceId, SECONDARY_DISPLAY_ID));
 }
 
 
