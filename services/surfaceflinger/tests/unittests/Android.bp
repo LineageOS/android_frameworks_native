@@ -30,6 +30,7 @@ cc_test {
         "DisplayTransactionTest.cpp",
         "EventControlThreadTest.cpp",
         "EventThreadTest.cpp",
+        "IdleTimerTest.cpp",
         "LayerHistoryTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
