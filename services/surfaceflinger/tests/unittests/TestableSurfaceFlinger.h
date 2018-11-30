@@ -149,12 +149,18 @@ public:
      * Wrapper classes for Read-write access to private data to set up
      * preconditions and assert post-conditions.
      */
+    class FakePowerAdvisor : public Hwc2::PowerAdvisor {
+    public:
+        FakePowerAdvisor() = default;
+        ~FakePowerAdvisor() override = default;
+        void setExpensiveRenderingExpected(hwc2_display_t, bool) override { }
+    };
 
     struct HWC2Display : public HWC2::Display {
-        HWC2Display(Hwc2::Composer& composer,
+        HWC2Display(Hwc2::Composer& composer, Hwc2::PowerAdvisor& advisor,
                     const std::unordered_set<HWC2::Capability>& capabilities, hwc2_display_t id,
                     HWC2::DisplayType type)
-              : HWC2::Display(composer, capabilities, id, type) {}
+              : HWC2::Display(composer, advisor, capabilities, id, type) {}
         ~HWC2Display() {
             // Prevents a call to disable vsyncs.
             mType = HWC2::DisplayType::Invalid;
@@ -217,8 +223,8 @@ public:
         }
 
         void inject(TestableSurfaceFlinger* flinger, Hwc2::Composer* composer) {
-            auto display = std::make_unique<HWC2Display>(*composer, mCapabilities, mHwcDisplayId,
-                                                         mHwcDisplayType);
+            auto display = std::make_unique<HWC2Display>(*composer, mPowerAdvisor, mCapabilities,
+                                                         mHwcDisplayId, mHwcDisplayType);
 
             auto config = HWC2::Display::Config::Builder(*display, mActiveConfig);
             config.setWidth(mWidth);
@@ -248,6 +254,7 @@ public:
         int32_t mDpiY = DEFAULT_DPI;
         int32_t mActiveConfig = DEFAULT_ACTIVE_CONFIG;
         std::unordered_set<HWC2::Capability> mCapabilities;
+        FakePowerAdvisor mPowerAdvisor;
     };
 
     class FakeDisplayDeviceInjector {

@@ -200,7 +200,7 @@ static const TracingCategory k_categories[] = {
         { REQ,      "events/vmscan/mm_vmscan_direct_reclaim_end/enable" },
         { REQ,      "events/vmscan/mm_vmscan_kswapd_wake/enable" },
         { REQ,      "events/vmscan/mm_vmscan_kswapd_sleep/enable" },
-        { REQ,      "events/lowmemorykiller/enable" },
+        { OPT,      "events/lowmemorykiller/enable" },
     } },
     { "regulators",  "Voltage and Current Regulators", 0, {
         { REQ,      "events/regulator/enable" },

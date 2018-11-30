@@ -222,7 +222,13 @@ public:
                 // Pretend that the last time this event was handled at the same frame but with the
                 // new offset to allow for a seamless offset change without double-firing or
                 // skipping.
-                listener.mLastEventTime -= (oldPhase - phase);
+                nsecs_t diff = oldPhase - phase;
+                if (diff > mPeriod / 2) {
+                    diff -= mPeriod;
+                } else if (diff < -mPeriod / 2) {
+                    diff += mPeriod;
+                }
+                listener.mLastEventTime -= diff;
                 mCond.signal();
                 return NO_ERROR;
             }
