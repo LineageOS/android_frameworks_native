@@ -1214,7 +1214,7 @@ class ChildColorLayerTest : public ChildLayerTest {
 protected:
     void SetUp() override {
         TransactionTest::SetUp();
-        mChild = mComposerClient->createSurface(String8("Child surface"), 10, 10,
+        mChild = mComposerClient->createSurface(String8("Child surface"), 0, 0,
                                                 PIXEL_FORMAT_RGBA_8888,
                                                 ISurfaceComposerClient::eFXSurfaceColor,
                                                 mFGSurfaceControl.get());
@@ -1222,6 +1222,7 @@ protected:
             TransactionScope ts(*sFakeComposer);
             ts.setColor(mChild,
                         {LIGHT_GRAY.r / 255.0f, LIGHT_GRAY.g / 255.0f, LIGHT_GRAY.b / 255.0f});
+            ts.setCrop_legacy(mChild, Rect(0, 0, 10, 10));
         }
 
         sFakeComposer->runVSyncAndWait();
