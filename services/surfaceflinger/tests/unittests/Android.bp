@@ -24,6 +24,7 @@ cc_test {
         "EventThreadTest.cpp",
         "mock/DisplayHardware/MockComposer.cpp",
         "mock/DisplayHardware/MockDisplaySurface.cpp",
+        "mock/DisplayHardware/MockPowerAdvisor.cpp",
         "mock/gui/MockGraphicBufferConsumer.cpp",
         "mock/gui/MockGraphicBufferProducer.cpp",
         "mock/MockEventControlThread.cpp",

@@ -267,10 +267,6 @@ void GLES20RenderEngine::setupColorTransform(const mat4& colorTransform) {
     mState.setColorMatrix(colorTransform);
 }
 
-void GLES20RenderEngine::setSaturationMatrix(const mat4& saturationMatrix) {
-    mState.setSaturationMatrix(saturationMatrix);
-}
-
 void GLES20RenderEngine::disableTexturing() {
     mState.disableTexture();
 }
@@ -383,11 +379,10 @@ void GLES20RenderEngine::drawMesh(const Mesh& mesh) {
 
         // we need to convert the RGB value to linear space and convert it back when:
         // - there is a color matrix that is not an identity matrix, or
-        // - there is a saturation matrix that is not an identity matrix, or
         // - there is an output transform matrix that is not an identity matrix, or
         // - the input transfer function doesn't match the output transfer function.
-        if (wideColorState.hasColorMatrix() || wideColorState.hasSaturationMatrix() ||
-            wideColorState.hasOutputTransformMatrix() || inputTransfer != outputTransfer) {
+        if (wideColorState.hasColorMatrix() || wideColorState.hasOutputTransformMatrix() ||
+            inputTransfer != outputTransfer) {
             switch (inputTransfer) {
                 case Dataspace::TRANSFER_ST2084:
                     wideColorState.setInputTransferFunction(Description::TransferFunction::ST2084);
