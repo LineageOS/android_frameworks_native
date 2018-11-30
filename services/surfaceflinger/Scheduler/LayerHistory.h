@@ -25,6 +25,8 @@
 
 #include <utils/Timers.h>
 
+#include "SchedulerUtils.h"
+
 namespace android {
 
 /*
@@ -52,12 +54,11 @@ public:
     const std::unordered_map<std::string, nsecs_t>& get(size_t index) const;
     // Returns the total size of the ring buffer. The value is always the same regardless
     // of how many slots we filled in.
-    static constexpr size_t getSize() { return ARRAY_SIZE; }
+    static constexpr size_t getSize() { return scheduler::ARRAY_SIZE; }
 
 private:
     size_t mCounter = 0;
-    static constexpr size_t ARRAY_SIZE = 30;
-    std::array<std::unordered_map<std::string, nsecs_t>, ARRAY_SIZE> mElements;
+    std::array<std::unordered_map<std::string, nsecs_t>, scheduler::ARRAY_SIZE> mElements;
 };
 
 } // namespace android
