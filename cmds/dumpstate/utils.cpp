@@ -229,7 +229,11 @@ bool Dumpstate::IsZipping() const {
 }
 
 std::string Dumpstate::GetPath(const std::string& suffix) const {
-    return android::base::StringPrintf("%s/%s-%s%s", bugreport_dir_.c_str(), base_name_.c_str(),
+    return GetPath(bugreport_internal_dir_, suffix);
+}
+
+std::string Dumpstate::GetPath(const std::string& directory, const std::string& suffix) const {
+    return android::base::StringPrintf("%s/%s-%s%s", directory.c_str(), base_name_.c_str(),
                                        name_.c_str(), suffix.c_str());
 }
 

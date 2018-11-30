@@ -82,6 +82,7 @@ using android::String8;
 using android::TIMED_OUT;
 using android::UNKNOWN_ERROR;
 using android::Vector;
+using android::base::StringPrintf;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
 using android::os::dumpstate::DumpstateSectionReporter;
@@ -121,6 +122,69 @@ static const std::string ANR_FILE_PREFIX = "anr_";
 
 // TODO: temporary variables and functions used during C++ refactoring
 static Dumpstate& ds = Dumpstate::GetInstance();
+
+namespace android {
+namespace os {
+namespace {
+
+static int Open(std::string path, int flags, mode_t mode = 0) {
+    int fd = TEMP_FAILURE_RETRY(open(path.c_str(), flags, mode));
+    if (fd == -1) {
+        MYLOGE("open(%s, %s)\n", path.c_str(), strerror(errno));
+    }
+    return fd;
+}
+
+static int OpenForWrite(std::string path) {
+    return Open(path, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW,
+                S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+}
+
+static int OpenForRead(std::string path) {
+    return Open(path, O_RDONLY | O_CLOEXEC | O_NOFOLLOW);
+}
+
+bool CopyFile(int in_fd, int out_fd) {
+    char buf[4096];
+    ssize_t byte_count;
+    while ((byte_count = TEMP_FAILURE_RETRY(read(in_fd, buf, sizeof(buf)))) > 0) {
+        if (!android::base::WriteFully(out_fd, buf, byte_count)) {
+            return false;
+        }
+    }
+    return (byte_count != -1);
+}
+
+static bool CopyFileToFd(const std::string& input_file, int out_fd) {
+    MYLOGD("Going to copy bugreport file (%s) to %d\n", ds.path_.c_str(), out_fd);
+
+    // Obtain a handle to the source file.
+    android::base::unique_fd in_fd(OpenForRead(input_file));
+    if (out_fd != -1 && in_fd.get() != -1) {
+        if (CopyFile(in_fd.get(), out_fd)) {
+            return true;
+        }
+        MYLOGE("Failed to copy zip file: %s\n", strerror(errno));
+    }
+    return false;
+}
+
+static bool CopyFileToFile(const std::string& input_file, const std::string& output_file) {
+    if (input_file == output_file) {
+        MYLOGD("Skipping copying bugreport file since the destination is the same (%s)\n",
+               output_file.c_str());
+        return false;
+    }
+
+    MYLOGD("Going to copy bugreport file (%s) to %s\n", input_file.c_str(), output_file.c_str());
+    android::base::unique_fd out_fd(OpenForWrite(output_file));
+    return CopyFileToFd(input_file, out_fd.get());
+}
+
+}  // namespace
+}  // namespace os
+}  // namespace android
+
 static int RunCommand(const std::string& title, const std::vector<std::string>& fullCommand,
                       const CommandOptions& options = CommandOptions::DEFAULT) {
     return ds.RunCommand(title, fullCommand, options);
@@ -137,8 +201,6 @@ static int DumpFile(const std::string& title, const std::string& path) {
 // Relative directory (inside the zip) for all files copied as-is into the bugreport.
 static const std::string ZIP_ROOT_DIR = "FS";
 
-// Must be hardcoded because dumpstate HAL implementation need SELinux access to it
-static const std::string kDumpstateBoardPath = "/bugreports/";
 static const std::string kProtoPath = "proto/";
 static const std::string kProtoExt = ".proto";
 static const std::string kDumpstateBoardFiles[] = {
@@ -1145,7 +1207,7 @@ static void DumpHals() {
                                 return !isalnum(c) &&
                                     std::string("@-_:.").find(c) == std::string::npos;
                             }, '_');
-            const std::string path = kDumpstateBoardPath + "lshal_debug_" + cleanName;
+            const std::string path = ds.bugreport_internal_dir_ + "/lshal_debug_" + cleanName;
 
             {
                 auto fd = android::base::unique_fd(
@@ -1523,7 +1585,8 @@ void Dumpstate::DumpstateBoard() {
     std::vector<std::string> paths;
     std::vector<android::base::ScopeGuard<std::function<void()>>> remover;
     for (int i = 0; i < NUM_OF_DUMPS; i++) {
-        paths.emplace_back(kDumpstateBoardPath + kDumpstateBoardFiles[i]);
+        paths.emplace_back(StringPrintf("%s/%s", ds.bugreport_internal_dir_.c_str(),
+                                        kDumpstateBoardFiles[i].c_str()));
         remover.emplace_back(android::base::make_scope_guard(std::bind(
             [](std::string path) {
                 if (remove(path.c_str()) != 0 && errno != ENOENT) {
@@ -1681,7 +1744,8 @@ bool Dumpstate::FinishZipFile() {
         MYLOGE("Failed to add dumpstate log to .zip file\n");
         return false;
     }
-    // ... and re-opens it for further logging.
+    // TODO: Should truncate the existing file.
+    // ... and re-open it for further logging.
     redirect_to_existing_file(stderr, const_cast<char*>(ds.log_path_.c_str()));
     fprintf(stderr, "\n");
 
@@ -1764,17 +1828,30 @@ static void Vibrate(int duration_ms) {
     // clang-format on
 }
 
+static void MaybeResolveSymlink(std::string* path) {
+    std::string resolved_path;
+    if (android::base::Readlink(*path, &resolved_path)) {
+        *path = resolved_path;
+    }
+}
+
 /*
  * Prepares state like filename, screenshot path, etc in Dumpstate. Also initializes ZipWriter
  * if we are writing zip files and adds the version file.
  */
 static void PrepareToWriteToFile() {
-    ds.bugreport_dir_ = dirname(ds.options_->use_outfile.c_str());
+    MaybeResolveSymlink(&ds.bugreport_internal_dir_);
+
+    std::string base_name_part1 = "bugreport";
+    if (!ds.options_->use_outfile.empty()) {
+        ds.bugreport_dir_ = dirname(ds.options_->use_outfile.c_str());
+        base_name_part1 = basename(ds.options_->use_outfile.c_str());
+    }
+
     std::string build_id = android::base::GetProperty("ro.build.id", "UNKNOWN_BUILD");
     std::string device_name = android::base::GetProperty("ro.product.name", "UNKNOWN_DEVICE");
     ds.base_name_ =
-        android::base::StringPrintf("%s-%s-%s", basename(ds.options_->use_outfile.c_str()),
-                                    device_name.c_str(), build_id.c_str());
+        StringPrintf("%s-%s-%s", base_name_part1.c_str(), device_name.c_str(), build_id.c_str());
     if (ds.options_->do_add_date) {
         char date[80];
         strftime(date, sizeof(date), "%Y-%m-%d-%H-%M-%S", localtime(&ds.now_));
@@ -1795,15 +1872,18 @@ static void PrepareToWriteToFile() {
     ds.tmp_path_ = ds.GetPath(".tmp");
     ds.log_path_ = ds.GetPath("-dumpstate_log-" + std::to_string(ds.pid_) + ".txt");
 
+    std::string destination = ds.options_->fd != -1 ? StringPrintf("[fd:%d]", ds.options_->fd)
+                                                    : ds.bugreport_dir_.c_str();
     MYLOGD(
         "Bugreport dir: %s\n"
+        "Internal Bugreport dir: %s\n"
         "Base name: %s\n"
         "Suffix: %s\n"
         "Log path: %s\n"
         "Temporary path: %s\n"
         "Screenshot path: %s\n",
-        ds.bugreport_dir_.c_str(), ds.base_name_.c_str(), ds.name_.c_str(), ds.log_path_.c_str(),
-        ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
+        destination.c_str(), ds.bugreport_internal_dir_.c_str(), ds.base_name_.c_str(),
+        ds.name_.c_str(), ds.log_path_.c_str(), ds.tmp_path_.c_str(), ds.screenshot_path_.c_str());
 
     if (ds.options_->do_zip_file) {
         ds.path_ = ds.GetPath(".zip");
@@ -1869,6 +1949,19 @@ static void FinalizeFile() {
                     ds.path_ = new_path;
                 }
             }
+            // The zip file lives in an internal directory. Copy it over to output.
+            bool copy_succeeded = false;
+            if (ds.options_->fd != -1) {
+                copy_succeeded = android::os::CopyFileToFd(ds.path_, ds.options_->fd);
+            } else {
+                ds.final_path_ = ds.GetPath(ds.bugreport_dir_, ".zip");
+                copy_succeeded = android::os::CopyFileToFile(ds.path_, ds.final_path_);
+            }
+            if (copy_succeeded) {
+                if (remove(ds.path_.c_str())) {
+                    MYLOGE("remove(%s): %s", ds.path_.c_str(), strerror(errno));
+                }
+            }
         }
     }
     if (do_text_file) {
@@ -1893,8 +1986,9 @@ static void FinalizeFile() {
 
 /* Broadcasts that we are done with the bugreport */
 static void SendBugreportFinishedBroadcast() {
-    if (!ds.path_.empty()) {
-        MYLOGI("Final bugreport path: %s\n", ds.path_.c_str());
+    // TODO(b/111441001): use callback instead of broadcast.
+    if (!ds.final_path_.empty()) {
+        MYLOGI("Final bugreport path: %s\n", ds.final_path_.c_str());
         // clang-format off
 
         std::vector<std::string> am_args = {
@@ -1902,7 +1996,7 @@ static void SendBugreportFinishedBroadcast() {
              "--ei", "android.intent.extra.ID", std::to_string(ds.id_),
              "--ei", "android.intent.extra.PID", std::to_string(ds.pid_),
              "--ei", "android.intent.extra.MAX", std::to_string(ds.progress_->GetMax()),
-             "--es", "android.intent.extra.BUGREPORT", ds.path_,
+             "--es", "android.intent.extra.BUGREPORT", ds.final_path_,
              "--es", "android.intent.extra.DUMPSTATE_LOG", ds.log_path_
         };
         // clang-format on
@@ -1924,7 +2018,7 @@ static void SendBugreportFinishedBroadcast() {
         if (ds.options_->is_remote_mode) {
             am_args.push_back("--es");
             am_args.push_back("android.intent.extra.REMOTE_BUGREPORT_HASH");
-            am_args.push_back(SHA256_file_hash(ds.path_));
+            am_args.push_back(SHA256_file_hash(ds.final_path_));
             SendBroadcast("com.android.internal.intent.action.REMOTE_BUGREPORT_FINISHED", am_args);
         } else {
             SendBroadcast("com.android.internal.intent.action.BUGREPORT_FINISHED", am_args);
@@ -2054,6 +2148,7 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI("telephony_only: %d\n", options.telephony_only);
     MYLOGI("wifi_only: %d\n", options.wifi_only);
     MYLOGI("do_progress_updates: %d\n", options.do_progress_updates);
+    MYLOGI("fd: %d\n", options.fd);
     MYLOGI("use_outfile: %s\n", options.use_outfile.c_str());
     MYLOGI("extra_options: %s\n", options.extra_options.c_str());
     MYLOGI("args: %s\n", options.args.c_str());
@@ -2119,8 +2214,13 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
 }
 
 bool Dumpstate::DumpOptions::ValidateOptions() const {
-    if ((do_zip_file || do_add_date || do_progress_updates || do_broadcast)
-            && use_outfile.empty()) {
+    if (fd != -1 && !do_zip_file) {
+        return false;
+    }
+
+    bool has_out_file_options = !use_outfile.empty() || fd != -1;
+    if ((do_zip_file || do_add_date || do_progress_updates || do_broadcast) &&
+        !has_out_file_options) {
         return false;
     }
 
@@ -2142,10 +2242,31 @@ void Dumpstate::SetOptions(std::unique_ptr<DumpOptions> options) {
     options_ = std::move(options);
 }
 
+/*
+ * Dumps relevant information to a bugreport based on the given options.
+ *
+ * The bugreport can be dumped to a file or streamed to a socket.
+ *
+ * How dumping to file works:
+ * stdout is redirected to a temporary file. This will later become the main bugreport entry.
+ * stderr is redirected a log file.
+ *
+ * The temporary bugreport is then populated via printfs, dumping contents of files and
+ * output of commands to stdout.
+ *
+ * If zipping, the temporary bugreport file is added to the zip archive. Else it's renamed to final
+ * text file.
+ *
+ * If zipping, a bunch of other files and dumps also get added to the zip archive. The log file also
+ * gets added to the archive.
+ *
+ * Bugreports are first generated in a local directory and later copied to the caller's fd or
+ * directory.
+ */
 Dumpstate::RunStatus Dumpstate::Run() {
+    LogDumpOptions(*options_);
     if (!options_->ValidateOptions()) {
         MYLOGE("Invalid options specified\n");
-        LogDumpOptions(*options_);
         return RunStatus::INVALID_INPUT;
     }
     /* set as high priority, and protect from OOM killer */
@@ -2185,9 +2306,9 @@ Dumpstate::RunStatus Dumpstate::Run() {
 
     // TODO: temporarily set progress until it's part of the Dumpstate constructor
     std::string stats_path =
-        is_redirecting ? android::base::StringPrintf("%s/dumpstate-stats.txt",
-                                                     dirname(options_->use_outfile.c_str()))
-                       : "";
+        is_redirecting
+            ? android::base::StringPrintf("%s/dumpstate-stats.txt", bugreport_internal_dir_.c_str())
+            : "";
     progress_.reset(new Progress(stats_path));
 
     /* gets the sequential id */
@@ -2283,13 +2404,18 @@ Dumpstate::RunStatus Dumpstate::Run() {
     int dup_stdout_fd;
     int dup_stderr_fd;
     if (is_redirecting) {
+        // Redirect stderr to log_path_ for debugging.
         TEMP_FAILURE_RETRY(dup_stderr_fd = dup(fileno(stderr)));
         redirect_to_file(stderr, const_cast<char*>(log_path_.c_str()));
         if (chown(log_path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of dumpstate log file %s: %s\n", log_path_.c_str(),
                    strerror(errno));
         }
+
+        // Redirect stdout to tmp_path_. This is the main bugreport entry and will be
+        // moved into zip file later, if zipping.
         TEMP_FAILURE_RETRY(dup_stdout_fd = dup(fileno(stdout)));
+        // TODO: why not write to a file instead of stdout to overcome this problem?
         /* TODO: rather than generating a text file now and zipping it later,
            it would be more efficient to redirect stdout to the zip entry
            directly, but the libziparchive doesn't support that option yet. */
@@ -2364,7 +2490,7 @@ Dumpstate::RunStatus Dumpstate::Run() {
     return RunStatus::OK;
 }
 
-/* Main entry point for dumpstate. */
+/* Main entry point for dumpstate binary. */
 int run_main(int argc, char* argv[]) {
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     Dumpstate::RunStatus status = options->Initialize(argc, argv);
@@ -2376,7 +2502,7 @@ int run_main(int argc, char* argv[]) {
     switch (status) {
         case Dumpstate::RunStatus::OK:
             return 0;
-            break;
+            // TODO(b/111441001): Exit directly in the following cases.
         case Dumpstate::RunStatus::HELP:
             ShowUsageAndExit(0 /* exit code */);
             break;

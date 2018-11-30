@@ -137,6 +137,7 @@ status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "extra_options: %s\n", ds_.options_->extra_options.c_str());
     dprintf(fd, "version: %s\n", ds_.version_.c_str());
     dprintf(fd, "bugreport_dir: %s\n", ds_.bugreport_dir_.c_str());
+    dprintf(fd, "bugreport_internal_dir_: %s\n", ds_.bugreport_internal_dir_.c_str());
     dprintf(fd, "screenshot_path: %s\n", ds_.screenshot_path_.c_str());
     dprintf(fd, "log_path: %s\n", ds_.log_path_.c_str());
     dprintf(fd, "tmp_path: %s\n", ds_.tmp_path_.c_str());
