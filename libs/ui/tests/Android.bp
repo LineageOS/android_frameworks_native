@@ -29,6 +29,22 @@ cc_test {
 }
 
 cc_test {
+    name: "GraphicBuffer_test",
+    header_libs: [
+        "libbufferhub_headers",
+        "libdvr_headers",
+        "libnativewindow_headers",
+    ],
+    shared_libs: [
+        "libpdx_default_transport",
+        "libui",
+        "libutils",
+    ],
+    srcs: ["GraphicBuffer_test.cpp"],
+    cflags: ["-Wall", "-Werror"],
+}
+
+cc_test {
     name: "BufferHubBuffer_test",
     header_libs: [
         "libbufferhub_headers",

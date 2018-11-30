@@ -22,6 +22,10 @@
 
 #include <grallocusage/GrallocUsageConversion.h>
 
+#ifndef LIBUI_IN_VNDK
+#include <ui/BufferHubBuffer.h>
+#endif // LIBUI_IN_VNDK
+
 #include <ui/Gralloc2.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
@@ -88,6 +92,21 @@ GraphicBuffer::GraphicBuffer(const native_handle_t* inHandle, HandleWrapMethod m
     mInitCheck = initWithHandle(inHandle, method, inWidth, inHeight, inFormat, inLayerCount,
                                 inUsage, inStride);
 }
+
+#ifndef LIBUI_IN_VNDK
+GraphicBuffer::GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer) : GraphicBuffer() {
+    if (buffer == nullptr) {
+        mInitCheck = BAD_VALUE;
+        return;
+    }
+
+    mInitCheck = initWithHandle(buffer->DuplicateHandle(), /*method=*/TAKE_UNREGISTERED_HANDLE,
+                                buffer->desc().width, buffer->desc().height,
+                                static_cast<PixelFormat>(buffer->desc().format),
+                                buffer->desc().layers, buffer->desc().usage, buffer->desc().stride);
+    mBufferHubBuffer = std::move(buffer);
+}
+#endif // LIBUI_IN_VNDK
 
 GraphicBuffer::~GraphicBuffer()
 {
@@ -482,6 +501,12 @@ status_t GraphicBuffer::unflatten(
 
     return NO_ERROR;
 }
+
+#ifndef LIBUI_IN_VNDK
+bool GraphicBuffer::isBufferHubBuffer() const {
+    return mBufferHubBuffer != nullptr;
+}
+#endif // LIBUI_IN_VNDK
 
 // ---------------------------------------------------------------------------
 
