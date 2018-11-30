@@ -3077,22 +3077,44 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             // Remove all handles on a display if there are no windows left.
             mWindowHandlesByDisplay.erase(displayId);
         } else {
-            size_t numWindows = inputWindowHandles.size();
+            // Since we compare the pointer of input window handles across window updates, we need
+            // to make sure the handle object for the same window stays unchanged across updates.
+            const Vector<sp<InputWindowHandle>>& oldHandles = mWindowHandlesByDisplay[displayId];
+            std::unordered_map<sp<IBinder>, sp<InputWindowHandle>, IBinderHash> oldHandlesByTokens;
+            for (size_t i = 0; i < oldHandles.size(); i++) {
+                const sp<InputWindowHandle>& handle = oldHandles.itemAt(i);
+                oldHandlesByTokens[handle->getToken()] = handle;
+            }
+
+            const size_t numWindows = inputWindowHandles.size();
+            Vector<sp<InputWindowHandle>> newHandles;
             for (size_t i = 0; i < numWindows; i++) {
-                const sp<InputWindowHandle>& windowHandle = inputWindowHandles.itemAt(i);
-                if (!windowHandle->updateInfo() || getInputChannelLocked(windowHandle->getToken()) == nullptr) {
+                const sp<InputWindowHandle>& handle = inputWindowHandles.itemAt(i);
+                if (!handle->updateInfo() || getInputChannelLocked(handle->getToken()) == nullptr) {
                     ALOGE("Window handle %s has no registered input channel",
-                            windowHandle->getName().c_str());
+                            handle->getName().c_str());
                     continue;
                 }
 
-                if (windowHandle->getInfo()->displayId != displayId) {
+                if (handle->getInfo()->displayId != displayId) {
                     ALOGE("Window %s updated by wrong display %d, should belong to display %d",
-                        windowHandle->getName().c_str(), displayId,
-                        windowHandle->getInfo()->displayId);
+                        handle->getName().c_str(), displayId,
+                        handle->getInfo()->displayId);
                     continue;
                 }
 
+                if (oldHandlesByTokens.find(handle->getToken()) != oldHandlesByTokens.end()) {
+                    const sp<InputWindowHandle> oldHandle =
+                            oldHandlesByTokens.at(handle->getToken());
+                    oldHandle->updateFrom(handle);
+                    newHandles.push_back(oldHandle);
+                } else {
+                    newHandles.push_back(handle);
+                }
+            }
+
+            for (size_t i = 0; i < newHandles.size(); i++) {
+                const sp<InputWindowHandle>& windowHandle = newHandles.itemAt(i);
                 if (windowHandle->getInfo()->hasFocus && windowHandle->getInfo()->visible) {
                     newFocusedWindowHandle = windowHandle;
                 }
@@ -3102,7 +3124,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             }
 
             // Insert or replace
-            mWindowHandlesByDisplay[displayId] = inputWindowHandles;
+            mWindowHandlesByDisplay[displayId] = newHandles;
         }
 
         if (!foundHoveredWindow) {
