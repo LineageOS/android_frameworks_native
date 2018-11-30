@@ -49,14 +49,51 @@ bool InputReaderThread::threadLoop() {
 
 // --- InputReaderConfiguration ---
 
-std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewport(
-        ViewportType viewportType, const std::string& uniqueDisplayId) const {
+std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByUniqueId(
+        const std::string& uniqueDisplayId) const {
+    if (uniqueDisplayId.empty()) {
+        ALOGE("Empty string provided to %s", __func__);
+        return std::nullopt;
+    }
+    size_t count = 0;
+    std::optional<DisplayViewport> result = std::nullopt;
     for (const DisplayViewport& currentViewport : mDisplays) {
-        if (currentViewport.type == viewportType) {
-            if (uniqueDisplayId.empty() ||
-                    (!uniqueDisplayId.empty() && uniqueDisplayId == currentViewport.uniqueId)) {
-                return std::make_optional(currentViewport);
-            }
+        if (uniqueDisplayId == currentViewport.uniqueId) {
+            result = std::make_optional(currentViewport);
+            count++;
+        }
+    }
+    if (count > 1) {
+        ALOGE("Found %zu viewports with uniqueId %s, but expected 1 at most",
+            count, uniqueDisplayId.c_str());
+    }
+    return result;
+}
+
+std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByType(ViewportType type)
+        const {
+    size_t count = 0;
+    std::optional<DisplayViewport> result = std::nullopt;
+    for (const DisplayViewport& currentViewport : mDisplays) {
+        // Return the first match
+        if (currentViewport.type == type && !result) {
+            result = std::make_optional(currentViewport);
+            count++;
+        }
+    }
+    if (count > 1) {
+        ALOGE("Found %zu viewports with type %s, but expected 1 at most",
+                count, viewportTypeToString(type));
+    }
+    return result;
+}
+
+std::optional<DisplayViewport> InputReaderConfiguration::getDisplayViewportByPort(
+        uint8_t displayPort) const {
+    for (const DisplayViewport& currentViewport : mDisplays) {
+        const std::optional<uint8_t>& physicalPort = currentViewport.physicalPort;
+        if (physicalPort && (*physicalPort == displayPort)) {
+            return std::make_optional(currentViewport);
         }
     }
     return std::nullopt;

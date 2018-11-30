@@ -991,6 +991,12 @@ void InputDevice::dump(std::string& dump) {
             deviceInfo.getDisplayName().c_str());
     dump += StringPrintf(INDENT2 "Generation: %d\n", mGeneration);
     dump += StringPrintf(INDENT2 "IsExternal: %s\n", toString(mIsExternal));
+    dump += StringPrintf(INDENT2 "AssociatedDisplayPort: ");
+    if (mAssociatedDisplayPort) {
+        dump += StringPrintf("%" PRIu8 "\n", *mAssociatedDisplayPort);
+    } else {
+        dump += "<none>\n";
+    }
     dump += StringPrintf(INDENT2 "HasMic:     %s\n", toString(mHasMic));
     dump += StringPrintf(INDENT2 "Sources: 0x%08x\n", deviceInfo.getSources());
     dump += StringPrintf(INDENT2 "KeyboardType: %d\n", deviceInfo.getKeyboardType());
@@ -1058,6 +1064,20 @@ void InputDevice::configure(nsecs_t when, const InputReaderConfiguration* config
             ssize_t index = config->disabledDevices.indexOf(mId);
             bool enabled = index < 0;
             setEnabled(enabled, when);
+        }
+
+        if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
+             // In most situations, no port will be specified.
+            mAssociatedDisplayPort = std::nullopt;
+            // Find the display port that corresponds to the current input port.
+            const std::string& inputPort = mIdentifier.location;
+            if (!inputPort.empty()) {
+                const std::unordered_map<std::string, uint8_t>& ports = config->portAssociations;
+                const auto& displayPort = ports.find(inputPort);
+                if (displayPort != ports.end()) {
+                    mAssociatedDisplayPort = std::make_optional(displayPort->second);
+                }
+            }
         }
 
         size_t numMappers = mMappers.size();
@@ -2203,7 +2223,7 @@ void KeyboardInputMapper::configure(nsecs_t when,
 
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         if (mParameters.orientationAware) {
-            mViewport = config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+            mViewport = config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
         }
     }
 }
@@ -2613,7 +2633,7 @@ void CursorInputMapper::configure(nsecs_t when,
         mOrientation = DISPLAY_ORIENTATION_0;
         if (mParameters.orientationAware && mParameters.hasAssociatedDisplay) {
             std::optional<DisplayViewport> internalViewport =
-                    config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+                    config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
             if (internalViewport) {
                 mOrientation = internalViewport->orientation;
             }
@@ -2929,7 +2949,7 @@ void RotaryEncoderInputMapper::configure(nsecs_t when,
     }
     if (!changes || (changes & InputReaderConfiguration::CHANGE_DISPLAY_INFO)) {
         std::optional<DisplayViewport> internalViewport =
-                config->getDisplayViewport(ViewportType::VIEWPORT_INTERNAL, "");
+                config->getDisplayViewportByType(ViewportType::VIEWPORT_INTERNAL);
         if (internalViewport) {
             mOrientation = internalViewport->orientation;
         } else {
@@ -3310,6 +3330,9 @@ void TouchInputMapper::configureParameters() {
             mParameters.uniqueDisplayId = uniqueDisplayId.c_str();
         }
     }
+    if (getDevice()->getAssociatedDisplayPort()) {
+        mParameters.hasAssociatedDisplay = true;
+    }
 
     // Initial downs on external touch devices should wake the device.
     // Normally we don't do this for internal touch screens to prevent them from waking
@@ -3384,6 +3407,49 @@ bool TouchInputMapper::hasExternalStylus() const {
     return mExternalStylusConnected;
 }
 
+/**
+ * Determine which DisplayViewport to use.
+ * 1. If display port is specified, return the matching viewport. If matching viewport not
+ * found, then return.
+ * 2. If a device has associated display, get the matching viewport by either unique id or by
+ * the display type (internal or external).
+ * 3. Otherwise, use a non-display viewport.
+ */
+std::optional<DisplayViewport> TouchInputMapper::findViewport() {
+    if (mParameters.hasAssociatedDisplay) {
+        const std::optional<uint8_t> displayPort = mDevice->getAssociatedDisplayPort();
+        if (displayPort) {
+            // Find the viewport that contains the same port
+            std::optional<DisplayViewport> v = mConfig.getDisplayViewportByPort(*displayPort);
+            if (!v) {
+                ALOGW("Input device %s should be associated with display on port %" PRIu8 ", "
+                        "but the corresponding viewport is not found.",
+                        getDeviceName().c_str(), *displayPort);
+            }
+            return v;
+        }
+
+        if (!mParameters.uniqueDisplayId.empty()) {
+            return mConfig.getDisplayViewportByUniqueId(mParameters.uniqueDisplayId);
+        }
+
+        ViewportType viewportTypeToUse;
+        if (mParameters.associatedDisplayIsExternal) {
+            viewportTypeToUse = ViewportType::VIEWPORT_EXTERNAL;
+        } else {
+            viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
+        }
+        return mConfig.getDisplayViewportByType(viewportTypeToUse);
+    }
+
+    DisplayViewport newViewport;
+    // Raw width and height in the natural orientation.
+    int32_t rawWidth = mRawPointerAxes.getRawWidth();
+    int32_t rawHeight = mRawPointerAxes.getRawHeight();
+    newViewport.setNonDisplayViewport(rawWidth, rawHeight);
+    return std::make_optional(newViewport);
+}
+
 void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     int32_t oldDeviceMode = mDeviceMode;
 
@@ -3417,8 +3483,19 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
 
     // Ensure we have valid X and Y axes.
     if (!mRawPointerAxes.x.valid || !mRawPointerAxes.y.valid) {
-        ALOGW(INDENT "Touch device '%s' did not report support for X or Y axis!  "
+        ALOGW("Touch device '%s' did not report support for X or Y axis!  "
                 "The device will be inoperable.", getDeviceName().c_str());
+        mDeviceMode = DEVICE_MODE_DISABLED;
+        return;
+    }
+
+    // Get associated display dimensions.
+    std::optional<DisplayViewport> newViewport = findViewport();
+    if (!newViewport) {
+        ALOGI("Touch device '%s' could not query the properties of its associated "
+                "display.  The device will be inoperable until the display size "
+                "becomes available.",
+                getDeviceName().c_str());
         mDeviceMode = DEVICE_MODE_DISABLED;
         return;
     }
@@ -3427,40 +3504,9 @@ void TouchInputMapper::configureSurface(nsecs_t when, bool* outResetNeeded) {
     int32_t rawWidth = mRawPointerAxes.getRawWidth();
     int32_t rawHeight = mRawPointerAxes.getRawHeight();
 
-    // Get associated display dimensions.
-    DisplayViewport newViewport;
-    if (mParameters.hasAssociatedDisplay) {
-        std::string uniqueDisplayId;
-        ViewportType viewportTypeToUse;
-
-        if (mParameters.associatedDisplayIsExternal) {
-            viewportTypeToUse = ViewportType::VIEWPORT_EXTERNAL;
-        } else if (!mParameters.uniqueDisplayId.empty()) {
-            // If the IDC file specified a unique display Id, then it expects to be linked to a
-            // virtual display with the same unique ID.
-            uniqueDisplayId = mParameters.uniqueDisplayId;
-            viewportTypeToUse = ViewportType::VIEWPORT_VIRTUAL;
-        } else {
-            viewportTypeToUse = ViewportType::VIEWPORT_INTERNAL;
-        }
-
-        std::optional<DisplayViewport> viewportToUse =
-                mConfig.getDisplayViewport(viewportTypeToUse, uniqueDisplayId);
-        if (!viewportToUse) {
-            ALOGI(INDENT "Touch device '%s' could not query the properties of its associated "
-                    "display.  The device will be inoperable until the display size "
-                    "becomes available.",
-                    getDeviceName().c_str());
-            mDeviceMode = DEVICE_MODE_DISABLED;
-            return;
-        }
-        newViewport = *viewportToUse;
-    } else {
-        newViewport.setNonDisplayViewport(rawWidth, rawHeight);
-    }
-    bool viewportChanged = mViewport != newViewport;
+    bool viewportChanged = mViewport != *newViewport;
     if (viewportChanged) {
-        mViewport = newViewport;
+        mViewport = *newViewport;
 
         if (mDeviceMode == DEVICE_MODE_DIRECT || mDeviceMode == DEVICE_MODE_POINTER) {
             // Convert rotated viewport to natural surface coordinates.
