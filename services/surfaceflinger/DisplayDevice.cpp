@@ -365,6 +365,15 @@ status_t DisplayDevice::prepareFrame(HWComposer& hwc,
     return mDisplaySurface->prepareFrame(compositionType);
 }
 
+void DisplayDevice::setProtected(bool useProtected) {
+    uint64_t usageFlags = GRALLOC_USAGE_HW_RENDER;
+    if (useProtected) {
+        usageFlags |= GRALLOC_USAGE_PROTECTED;
+    }
+    const int status = native_window_set_usage(mNativeWindow.get(), usageFlags);
+    ALOGE_IF(status != NO_ERROR, "Unable to set BQ usage bits for protected content: %d", status);
+}
+
 sp<GraphicBuffer> DisplayDevice::dequeueBuffer() {
     int fd;
     ANativeWindowBuffer* buffer;

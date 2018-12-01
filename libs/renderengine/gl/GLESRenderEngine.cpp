@@ -242,19 +242,33 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
 
     bool useContextPriority = extensions.hasContextPriority() &&
             (featureFlags & RenderEngine::USE_HIGH_PRIORITY_CONTEXT);
-    EGLContext ctxt = createEglContext(display, config, EGL_NO_CONTEXT, useContextPriority);
+    EGLContext protectedContext = EGL_NO_CONTEXT;
+    if (extensions.hasProtectedContent()) {
+        protectedContext = createEglContext(display, config, nullptr, useContextPriority,
+                                            Protection::PROTECTED);
+        ALOGE_IF(protectedContext == EGL_NO_CONTEXT, "Can't create protected context");
+    }
+
+    EGLContext ctxt = createEglContext(display, config, protectedContext, useContextPriority,
+                                       Protection::UNPROTECTED);
 
     // if can't create a GL context, we can only abort.
     LOG_ALWAYS_FATAL_IF(ctxt == EGL_NO_CONTEXT, "EGLContext creation failed");
 
     EGLSurface dummy = EGL_NO_SURFACE;
     if (!extensions.hasSurfacelessContext()) {
-        dummy = createDummyEglPbufferSurface(display, config, hwcFormat);
+        dummy = createDummyEglPbufferSurface(display, config, hwcFormat, Protection::UNPROTECTED);
         LOG_ALWAYS_FATAL_IF(dummy == EGL_NO_SURFACE, "can't create dummy pbuffer");
     }
-
     EGLBoolean success = eglMakeCurrent(display, dummy, dummy, ctxt);
     LOG_ALWAYS_FATAL_IF(!success, "can't make dummy pbuffer current");
+
+    EGLSurface protectedDummy = EGL_NO_SURFACE;
+    if (protectedContext != EGL_NO_CONTEXT && !extensions.hasSurfacelessContext()) {
+        protectedDummy =
+                createDummyEglPbufferSurface(display, config, hwcFormat, Protection::PROTECTED);
+        ALOGE_IF(protectedDummy == EGL_NO_SURFACE, "can't create protected dummy pbuffer");
+    }
 
     extensions.initWithGLStrings(glGetString(GL_VENDOR), glGetString(GL_RENDERER),
                                  glGetString(GL_VERSION), glGetString(GL_EXTENSIONS));
@@ -271,7 +285,8 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
             break;
         case GLES_VERSION_2_0:
         case GLES_VERSION_3_0:
-            engine = std::make_unique<GLESRenderEngine>(featureFlags, display, config, ctxt, dummy);
+            engine = std::make_unique<GLESRenderEngine>(featureFlags, display, config, ctxt, dummy,
+                                                        protectedContext, protectedDummy);
             break;
     }
 
@@ -326,12 +341,15 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
 }
 
 GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EGLConfig config,
-                                   EGLContext ctxt, EGLSurface dummy)
+                                   EGLContext ctxt, EGLSurface dummy, EGLContext protectedContext,
+                                   EGLSurface protectedDummy)
       : renderengine::impl::RenderEngine(featureFlags),
         mEGLDisplay(display),
         mEGLConfig(config),
         mEGLContext(ctxt),
         mDummySurface(dummy),
+        mProtectedEGLContext(protectedContext),
+        mProtectedDummySurface(protectedDummy),
         mVpWidth(0),
         mVpHeight(0),
         mUseColorManagement(featureFlags & USE_COLOR_MANAGEMENT) {
@@ -340,6 +358,17 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
 
     glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
+
+    // Initialize protected EGL Context.
+    if (mProtectedEGLContext != EGL_NO_CONTEXT) {
+        EGLBoolean success = eglMakeCurrent(display, mProtectedDummySurface, mProtectedDummySurface,
+                                            mProtectedEGLContext);
+        ALOGE_IF(!success, "can't make protected context current");
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+        glPixelStorei(GL_PACK_ALIGNMENT, 4);
+        success = eglMakeCurrent(display, mDummySurface, mDummySurface, mEGLContext);
+        LOG_ALWAYS_FATAL_IF(!success, "can't make default context current");
+    }
 
     const uint16_t protTexData[] = {0};
     glGenTextures(1, &mProtectedTexName);
@@ -395,7 +424,8 @@ std::unique_ptr<Image> GLESRenderEngine::createImage() {
 }
 
 void GLESRenderEngine::primeCache() const {
-    ProgramCache::getInstance().primeCache(mFeatureFlags & USE_COLOR_MANAGEMENT);
+    ProgramCache::getInstance().primeCache(mInProtectedContext ? mProtectedEGLContext : mEGLContext,
+                                           mFeatureFlags & USE_COLOR_MANAGEMENT);
 }
 
 bool GLESRenderEngine::isCurrent() const {
@@ -539,6 +569,7 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
     const GLenum target = GL_TEXTURE_EXTERNAL_OES;
 
     glBindTexture(target, texName);
+    glTexParameteri(target, GL_TEXTURE_PROTECTED_EXT, glImage.isProtected() ? GL_TRUE : GL_FALSE);
     if (glImage.getEGLImage() != EGL_NO_IMAGE_KHR) {
         glEGLImageTargetTexture2DOES(target, static_cast<GLeglImageOES>(glImage.getEGLImage()));
     }
@@ -552,6 +583,8 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
 
     // Bind the texture and turn our EGLImage into a texture
     glBindTexture(GL_TEXTURE_2D, textureName);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_PROTECTED_EXT,
+                    mInProtectedContext ? GL_TRUE : GL_FALSE);
     glEGLImageTargetTexture2DOES(GL_TEXTURE_2D, (GLeglImageOES)eglImage);
 
     // Bind the Framebuffer to render into
@@ -582,6 +615,27 @@ void GLESRenderEngine::checkErrors() const {
         if (error == GL_NO_ERROR) break;
         ALOGE("GL error 0x%04x", int(error));
     } while (true);
+}
+
+bool GLESRenderEngine::supportsProtectedContent() const {
+    return GLExtensions::getInstance().hasProtectedContent() &&
+            mProtectedEGLContext != EGL_NO_CONTEXT;
+}
+
+bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
+    if (useProtectedContext == mInProtectedContext) {
+        return true;
+    }
+    if (useProtectedContext && mProtectedEGLContext == EGL_NO_CONTEXT) {
+        return false;
+    }
+    const EGLSurface surface = useProtectedContext ? mProtectedDummySurface : mDummySurface;
+    const EGLContext context = useProtectedContext ? mProtectedEGLContext : mEGLContext;
+    const bool success = eglMakeCurrent(mEGLDisplay, surface, surface, context) == EGL_TRUE;
+    if (success) {
+        mInProtectedContext = useProtectedContext;
+    }
+    return success;
 }
 
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& /*settings*/,
@@ -822,7 +876,9 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
                     Description::dataSpaceToTransferFunction(outputTransfer);
         }
 
-        ProgramCache::getInstance().useProgram(managedState);
+        ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext
+                                                                   : mEGLContext,
+                                               managedState);
 
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
 
@@ -833,7 +889,9 @@ void GLESRenderEngine::drawMesh(const Mesh& mesh) {
             writePPM(out.str().c_str(), mVpWidth, mVpHeight);
         }
     } else {
-        ProgramCache::getInstance().useProgram(mState);
+        ProgramCache::getInstance().useProgram(mInProtectedContext ? mProtectedEGLContext
+                                                                   : mEGLContext,
+                                               mState);
 
         glDrawArrays(mesh.getPrimitive(), 0, mesh.getVertexCount());
     }
@@ -857,17 +915,18 @@ size_t GLESRenderEngine::getMaxViewportDims() const {
 
 void GLESRenderEngine::dump(std::string& result) {
     const GLExtensions& extensions = GLExtensions::getInstance();
+    ProgramCache& cache = ProgramCache::getInstance();
 
     StringAppendF(&result, "EGL implementation : %s\n", extensions.getEGLVersion());
     StringAppendF(&result, "%s\n", extensions.getEGLExtensions());
-
     StringAppendF(&result, "GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
                   extensions.getVersion());
     StringAppendF(&result, "%s\n", extensions.getExtensions());
-
-    StringAppendF(&result, "RenderEngine program cache size: %zu\n",
-                  ProgramCache::getInstance().getSize());
-
+    StringAppendF(&result, "RenderEngine is in protected context : %d\n", mInProtectedContext);
+    StringAppendF(&result, "RenderEngine program cache size for unprotected context: %zu\n",
+                  cache.getSize(mEGLContext));
+    StringAppendF(&result, "RenderEngine program cache size for protected context: %zu\n",
+                  cache.getSize(mProtectedEGLContext));
     StringAppendF(&result, "RenderEngine last dataspace conversion: (%s) to (%s)\n",
                   dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
                   dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
@@ -892,7 +951,8 @@ GLESRenderEngine::GlesVersion GLESRenderEngine::parseGlesVersion(const char* str
 }
 
 EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig config,
-                                              EGLContext shareContext, bool useContextPriority) {
+                                              EGLContext shareContext, bool useContextPriority,
+                                              Protection protection) {
     EGLint renderableType = 0;
     if (config == EGL_NO_CONFIG) {
         renderableType = EGL_OPENGL_ES3_BIT;
@@ -911,12 +971,16 @@ EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig conf
     }
 
     std::vector<EGLint> contextAttributes;
-    contextAttributes.reserve(5);
+    contextAttributes.reserve(7);
     contextAttributes.push_back(EGL_CONTEXT_CLIENT_VERSION);
     contextAttributes.push_back(contextClientVersion);
     if (useContextPriority) {
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_LEVEL_IMG);
         contextAttributes.push_back(EGL_CONTEXT_PRIORITY_HIGH_IMG);
+    }
+    if (protection == Protection::PROTECTED) {
+        contextAttributes.push_back(EGL_PROTECTED_CONTENT_EXT);
+        contextAttributes.push_back(EGL_TRUE);
     }
     contextAttributes.push_back(EGL_NONE);
 
@@ -938,17 +1002,21 @@ EGLContext GLESRenderEngine::createEglContext(EGLDisplay display, EGLConfig conf
 }
 
 EGLSurface GLESRenderEngine::createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
-                                                          int hwcFormat) {
+                                                          int hwcFormat, Protection protection) {
     EGLConfig dummyConfig = config;
     if (dummyConfig == EGL_NO_CONFIG) {
         dummyConfig = chooseEglConfig(display, hwcFormat, /*logConfig*/ true);
     }
     std::vector<EGLint> attributes;
-    attributes.reserve(5);
+    attributes.reserve(7);
     attributes.push_back(EGL_WIDTH);
     attributes.push_back(1);
     attributes.push_back(EGL_HEIGHT);
     attributes.push_back(1);
+    if (protection == Protection::PROTECTED) {
+        attributes.push_back(EGL_PROTECTED_CONTENT_EXT);
+        attributes.push_back(EGL_TRUE);
+    }
     attributes.push_back(EGL_NONE);
 
     return eglCreatePbufferSurface(display, dummyConfig, attributes.data());

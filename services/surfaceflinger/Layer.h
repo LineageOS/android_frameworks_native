@@ -372,6 +372,12 @@ public:
     bool isHiddenByPolicy() const;
 
     /*
+     * isProtected - true if the layer may contain protected content in the
+     * GRALLOC_USAGE_PROTECTED sense.
+     */
+    virtual bool isProtected() const { return false; }
+
+    /*
      * isFixedSize - true if content has a fixed size
      */
     virtual bool isFixedSize() const { return true; }
