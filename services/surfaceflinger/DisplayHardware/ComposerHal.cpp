@@ -1050,6 +1050,23 @@ Error Composer::getDisplayedContentSamplingAttributes(Display display, PixelForm
     return error;
 }
 
+Error Composer::getDisplayCapabilities(Display display,
+                                       std::vector<DisplayCapability>* outCapabilities) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayCapabilities(display,
+                                        [&](const auto& tmpError, const auto& tmpCapabilities) {
+                                            error = tmpError;
+                                            if (error != Error::NONE) {
+                                                return;
+                                            }
+                                            *outCapabilities = tmpCapabilities;
+                                        });
+    return error;
+}
+
 CommandReader::~CommandReader()
 {
     resetData();

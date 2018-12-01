@@ -2553,14 +2553,23 @@ TEST_F(DisplayTransactionTest, onInitializeDisplaysSetsUpPrimaryDisplay) {
  */
 
 // Used when we simulate a display that supports doze.
+template <typename Display>
 struct DozeIsSupportedVariant {
     static constexpr bool DOZE_SUPPORTED = true;
     static constexpr IComposerClient::PowerMode ACTUAL_POWER_MODE_FOR_DOZE =
             IComposerClient::PowerMode::DOZE;
     static constexpr IComposerClient::PowerMode ACTUAL_POWER_MODE_FOR_DOZE_SUSPEND =
             IComposerClient::PowerMode::DOZE_SUSPEND;
+
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getDisplayCapabilities(Display::HWC_DISPLAY_ID, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>(
+                                        {Hwc2::DisplayCapability::DOZE})),
+                                Return(Error::NONE)));
+    }
 };
 
+template <typename Display>
 // Used when we simulate a display that does not support doze.
 struct DozeNotSupportedVariant {
     static constexpr bool DOZE_SUPPORTED = false;
@@ -2568,6 +2577,12 @@ struct DozeNotSupportedVariant {
             IComposerClient::PowerMode::ON;
     static constexpr IComposerClient::PowerMode ACTUAL_POWER_MODE_FOR_DOZE_SUSPEND =
             IComposerClient::PowerMode::ON;
+
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getDisplayCapabilities(Display::HWC_DISPLAY_ID, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hwc2::DisplayCapability>({})),
+                                Return(Error::NONE)));
+    }
 };
 
 struct EventThreadBaseSupportedVariant {
@@ -2824,17 +2839,19 @@ struct DisplayPowerCase {
 // A sample configuration for the primary display.
 // In addition to having event thread support, we emulate doze support.
 template <typename TransitionVariant>
-using PrimaryDisplayPowerCase = DisplayPowerCase<PrimaryDisplayVariant, DozeIsSupportedVariant,
-                                                 EventThreadIsSupportedVariant,
-                                                 DispSyncIsSupportedVariant, TransitionVariant>;
+using PrimaryDisplayPowerCase =
+        DisplayPowerCase<PrimaryDisplayVariant, DozeIsSupportedVariant<PrimaryDisplayVariant>,
+                         EventThreadIsSupportedVariant, DispSyncIsSupportedVariant,
+                         TransitionVariant>;
 
 // A sample configuration for the external display.
 // In addition to not having event thread support, we emulate not having doze
 // support.
 template <typename TransitionVariant>
-using ExternalDisplayPowerCase = DisplayPowerCase<ExternalDisplayVariant, DozeNotSupportedVariant,
-                                                  EventThreadNotSupportedVariant,
-                                                  DispSyncNotSupportedVariant, TransitionVariant>;
+using ExternalDisplayPowerCase =
+        DisplayPowerCase<ExternalDisplayVariant, DozeNotSupportedVariant<ExternalDisplayVariant>,
+                         EventThreadNotSupportedVariant, DispSyncNotSupportedVariant,
+                         TransitionVariant>;
 
 class SetPowerModeInternalTest : public DisplayTransactionTest {
 public:
@@ -2856,6 +2873,7 @@ void SetPowerModeInternalTest::transitionDisplayCommon() {
     // --------------------------------------------------------------------
     // Preconditions
 
+    Case::Doze::setupComposerCallExpectations(this);
     auto display =
             Case::injectDisplayWithInitialPowerMode(this, Case::Transition::INITIAL_POWER_MODE);
     Case::setInitialPrimaryHWVsyncEnabled(this,

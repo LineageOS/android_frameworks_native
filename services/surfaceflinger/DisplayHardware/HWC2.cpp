@@ -234,6 +234,22 @@ Display::Display(android::Hwc2::Composer& composer, android::Hwc2::PowerAdvisor&
         mId(id),
         mIsConnected(false),
         mType(type) {
+    std::vector<Hwc2::DisplayCapability> tmpCapabilities;
+    auto error = static_cast<Error>(mComposer.getDisplayCapabilities(mId, &tmpCapabilities));
+    if (error == Error::None) {
+        for (auto capability : tmpCapabilities) {
+            mDisplayCapabilities.emplace(static_cast<DisplayCapability>(capability));
+        }
+    } else if (error == Error::Unsupported) {
+        if (capabilities.count(Capability::SkipClientColorTransform)) {
+            mDisplayCapabilities.emplace(DisplayCapability::SkipClientColorTransform);
+        }
+        bool dozeSupport = false;
+        error = static_cast<Error>(mComposer.getDozeSupport(mId, &dozeSupport));
+        if (error == Error::None && dozeSupport) {
+            mDisplayCapabilities.emplace(DisplayCapability::Doze);
+        }
+    }
     ALOGV("Created display %" PRIu64, id);
 }
 
@@ -507,15 +523,8 @@ Error Display::getType(DisplayType* outType) const
     return Error::None;
 }
 
-Error Display::supportsDoze(bool* outSupport) const
-{
-    bool intSupport = false;
-    auto intError = mComposer.getDozeSupport(mId, &intSupport);
-    auto error = static_cast<Error>(intError);
-    if (error != Error::None) {
-        return error;
-    }
-    *outSupport = static_cast<bool>(intSupport);
+Error Display::supportsDoze(bool* outSupport) const {
+    *outSupport = mDisplayCapabilities.count(DisplayCapability::Doze) > 0;
     return Error::None;
 }
 
