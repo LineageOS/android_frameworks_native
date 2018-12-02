@@ -25,7 +25,7 @@ status_t BufferHubBinderService::start(
       String16(getServiceName()), service,
       /*allowIsolated =*/false,
       /*dump flags =*/IServiceManager::DUMP_FLAG_PRIORITY_DEFAULT);
-  if (result != NO_ERROR) {
+  if (result != OK) {
     ALOGE("Publishing bufferhubd failed with error %d", result);
     return result;
   }
@@ -62,7 +62,7 @@ status_t BufferHubBinderService::dump(int fd, const Vector<String16>& args) {
   }
 
   fclose(out);
-  return NO_ERROR;
+  return OK;
 }
 
 status_t BufferHubBinderService::registerToken(
@@ -72,7 +72,7 @@ status_t BufferHubBinderService::registerToken(
   } while (token_map_.find(*outToken) != token_map_.end());
 
   token_map_.emplace(*outToken, node);
-  return NO_ERROR;
+  return OK;
 }
 
 sp<IBufferClient> BufferHubBinderService::createBuffer(
@@ -122,7 +122,7 @@ status_t BufferHubBinderService::importBuffer(uint64_t token,
   token_map_.erase(iter);
   client_list_.push_back(client);
 
-  return NO_ERROR;
+  return OK;
 }
 
 }  // namespace dvr

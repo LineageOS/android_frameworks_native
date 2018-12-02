@@ -30,7 +30,7 @@ sp<IBufferClient> BpBufferHub::createBuffer(uint32_t width, uint32_t height,
                                             uint32_t format, uint64_t usage,
                                             uint64_t user_metadata_size) {
   Parcel data, reply;
-  status_t ret = NO_ERROR;
+  status_t ret = OK;
   ret |= data.writeInterfaceToken(IBufferHub::getInterfaceDescriptor());
   ret |= data.writeUint32(width);
   ret |= data.writeUint32(height);
@@ -39,13 +39,13 @@ sp<IBufferClient> BpBufferHub::createBuffer(uint32_t width, uint32_t height,
   ret |= data.writeUint64(usage);
   ret |= data.writeUint64(user_metadata_size);
 
-  if (ret != NO_ERROR) {
+  if (ret != OK) {
     ALOGE("BpBufferHub::createBuffer: failed to write into parcel");
     return nullptr;
   }
 
   ret = remote()->transact(CREATE_BUFFER, data, &reply);
-  if (ret == NO_ERROR) {
+  if (ret == OK) {
     return interface_cast<IBufferClient>(reply.readStrongBinder());
   } else {
     ALOGE("BpBufferHub::createBuffer: failed to transact; errno=%d", ret);
@@ -56,18 +56,18 @@ sp<IBufferClient> BpBufferHub::createBuffer(uint32_t width, uint32_t height,
 status_t BpBufferHub::importBuffer(uint64_t token,
                                    sp<IBufferClient>* outClient) {
   Parcel data, reply;
-  status_t ret = NO_ERROR;
+  status_t ret = OK;
   ret |= data.writeInterfaceToken(IBufferHub::getInterfaceDescriptor());
   ret |= data.writeUint64(token);
-  if (ret != NO_ERROR) {
+  if (ret != OK) {
     ALOGE("BpBufferHub::importBuffer: failed to write into parcel");
     return ret;
   }
 
   ret = remote()->transact(IMPORT_BUFFER, data, &reply);
-  if (ret == NO_ERROR) {
+  if (ret == OK) {
     *outClient = interface_cast<IBufferClient>(reply.readStrongBinder());
-    return NO_ERROR;
+    return OK;
   } else {
     ALOGE("BpBufferHub::importBuffer: failed to transact; errno=%d", ret);
     return ret;
@@ -94,7 +94,7 @@ status_t BnBufferHub::onTransact(uint32_t code, const Parcel& data,
       uint64_t token = data.readUint64();
       sp<IBufferClient> client;
       status_t ret = importBuffer(token, &client);
-      if (ret == NO_ERROR) {
+      if (ret == OK) {
         return reply->writeStrongBinder(IInterface::asBinder(client));
       } else {
         return ret;

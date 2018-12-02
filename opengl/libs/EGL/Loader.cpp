@@ -41,13 +41,27 @@
 extern "C" {
   android_namespace_t* android_get_exported_namespace(const char*);
 
-  // TODO(ianelliott@): Get this from an ANGLE header:
+  // TODO(ianelliott@): Get the following from an ANGLE header:
+  // Version-1 API:
   typedef bool (*fpANGLEGetUtilityAPI)(unsigned int* versionToUse);
-
-  // TODO(ianelliott@): Get this from an ANGLE header:
   typedef bool (*fpAndroidUseANGLEForApplication)(int fd, long offset, long length,
                                                   const char* appName, const char* deviceMfr,
                                                   const char* deviceModel);
+  // Version-2 API:
+  typedef bool (*fpANGLEGetFeatureSupportUtilAPIVersion)(unsigned int* versionToUse);
+  typedef bool (*fpANGLEAndroidParseRulesString)(const char *rulesString,
+                                                 void** rulesHandle, int* rulesVersion);
+  typedef bool (*fpANGLEGetSystemInfo)(void** handle);
+  typedef bool (*fpANGLEAddDeviceInfoToSystemInfo)(const char* deviceMfr,
+                                                   const char* deviceModel,
+                                                   void* handle);
+  typedef bool (*fpANGLEShouldBeUsedForApplication)(void* rules_handle,
+                                                    int rules_version,
+                                                    void* system_info_handle,
+                                                    const char *appName);
+  typedef bool (*fpANGLEFreeRulesHandle)(void* handle);
+  typedef bool (*fpANGLEFreeSystemInfoHandle)(void* handle);
+
 }
 
 // ----------------------------------------------------------------------------
@@ -523,19 +537,21 @@ static bool check_angle_rules(void* so, const char* app_name) {
     property_get("ro.product.manufacturer", manufacturer, "UNSET");
     property_get("ro.product.model", model, "UNSET");
 
+    // TODO: Replace this with the new function name once the version-1 API is removed:
     fpANGLEGetUtilityAPI ANGLEGetUtilityAPI =
             (fpANGLEGetUtilityAPI)dlsym(so, "ANGLEGetUtilityAPI");
 
     if (ANGLEGetUtilityAPI) {
 
         // Negotiate the interface version by requesting most recent known to the platform
-        unsigned int versionToUse = 1;
+        unsigned int versionToUse = 2;
+        // TODO: Replace this with the new function name once the version-1 API is removed:
         if ((ANGLEGetUtilityAPI)(&versionToUse)) {
 
             // Add and remove versions below as needed
             switch(versionToUse) {
             case 1: {
-                ALOGV("Using version 1 of ANGLE opt-in/out logic interface");
+                ALOGV("Using version 1 of ANGLE feature-support library");
                 fpAndroidUseANGLEForApplication AndroidUseANGLEForApplication =
                         (fpAndroidUseANGLEForApplication)dlsym(so, "AndroidUseANGLEForApplication");
 
@@ -546,6 +562,65 @@ static bool check_angle_rules(void* so, const char* app_name) {
                 } else {
                     ALOGW("Cannot find AndroidUseANGLEForApplication in ANGLE feature-support library");
                 }
+            }
+            break;
+            case 2: {
+                ALOGV("Using version 2 of ANGLE feature-support library");
+                void* rules_handle = nullptr;
+                int rules_version = 0;
+                void* system_info_handle = nullptr;
+
+                // Get the symbols for the feature-support-utility library:
+#define GET_SYMBOL(symbol)                                               \
+    fp##symbol symbol = (fp##symbol)dlsym(so, #symbol);                  \
+    if (!symbol) {                                                       \
+        ALOGW("Cannot find "#symbol" in ANGLE feature-support library"); \
+        break;                                                           \
+    }
+                GET_SYMBOL(ANGLEAndroidParseRulesString);
+                GET_SYMBOL(ANGLEGetSystemInfo);
+                GET_SYMBOL(ANGLEAddDeviceInfoToSystemInfo);
+                GET_SYMBOL(ANGLEShouldBeUsedForApplication);
+                GET_SYMBOL(ANGLEFreeRulesHandle);
+                GET_SYMBOL(ANGLEFreeSystemInfoHandle);
+
+                // Read the contents of the file into a string:
+                off_t fileSize       = rules_length;
+                off_t startOfContent = rules_offset;
+                lseek(rules_fd, startOfContent, SEEK_SET);
+                char *buffer                   = new char[fileSize + 1];
+                ssize_t numBytesRead           = read(rules_fd, buffer, fileSize);
+                if (numBytesRead < 0) {
+                    ALOGW("Cannot read rules file");
+                    break;
+                }
+                if (numBytesRead == 0) {
+                    ALOGW("Empty rules file");
+                    break;
+                }
+                buffer[numBytesRead]           = '\0';
+                std::string rule_file_contents = std::string(buffer);
+                delete[] buffer;
+
+                // Parse the rules, obtain the SystemInfo, and evaluate the
+                // application against the rules:
+                if (!(ANGLEAndroidParseRulesString)(rule_file_contents.c_str(),
+                                                    &rules_handle, &rules_version)) {
+                    ALOGW("ANGLE feature-support library cannot parse rules file");
+                    break;
+                }
+                if (!(ANGLEGetSystemInfo)(&system_info_handle)) {
+                    ALOGW("ANGLE feature-support library cannot obtain SystemInfo");
+                    break;
+                }
+                if (!(ANGLEAddDeviceInfoToSystemInfo)(manufacturer, model, system_info_handle)) {
+                    ALOGW("ANGLE feature-support library cannot add device info to SystemInfo");
+                    break;
+                }
+                use_angle = (ANGLEShouldBeUsedForApplication)(rules_handle, rules_version,
+                                                              system_info_handle, app_name_str.c_str());
+                (ANGLEFreeRulesHandle)(rules_handle);
+                (ANGLEFreeSystemInfoHandle)(system_info_handle);
             }
             break;
             default:

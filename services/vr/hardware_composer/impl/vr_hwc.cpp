@@ -1016,7 +1016,7 @@ status_t VrHwc::VsyncCallback::onVsync(int64_t vsync_timestamp) {
   std::lock_guard<std::mutex> guard(mutex_);
   if (callback_ != nullptr)
     callback_->onVsync(kDefaultDisplayId, vsync_timestamp);
-  return NO_ERROR;
+  return OK;
 }
 
 void VrHwc::VsyncCallback::SetEventCallback(EventCallback* callback) {

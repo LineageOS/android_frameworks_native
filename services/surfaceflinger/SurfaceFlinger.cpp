@@ -1114,6 +1114,23 @@ status_t SurfaceFlinger::getHdrCapabilities(const sp<IBinder>& displayToken,
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayedContentSamplingAttributes(const sp<IBinder>& displayToken,
+                                                               ui::PixelFormat* outFormat,
+                                                               ui::Dataspace* outDataspace,
+                                                               uint8_t* outComponentMask) const {
+    if (!outFormat || !outDataspace || !outComponentMask) {
+        return BAD_VALUE;
+    }
+    Mutex::Autolock _l(mStateLock);
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display || !display->getId()) {
+        ALOGE("getDisplayedContentSamplingAttributes: Bad display token: %p", display.get());
+        return BAD_VALUE;
+    }
+    return getHwComposer().getDisplayedContentSamplingAttributes(*display->getId(), outFormat,
+                                                                 outDataspace, outComponentMask);
+}
+
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
@@ -2737,6 +2754,17 @@ void SurfaceFlinger::updateCursorAsync()
     }
 }
 
+void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
+    if (layer->hasReadyFrame()) {
+        const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+        if (layer->shouldPresentNow(expectedPresentTime)) {
+            bool ignored = false;
+            layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
+        }
+    }
+    layer->releasePendingBuffer(systemTime());
+}
+
 void SurfaceFlinger::commitTransaction()
 {
     if (!mLayersPendingRemoval.isEmpty()) {
@@ -2750,11 +2778,9 @@ void SurfaceFlinger::commitTransaction()
             // showing at its last configured state until we eventually
             // abandon the buffer queue.
             if (l->isRemovedFromCurrentState()) {
-                l->destroyAllHwcLayers();
-                // destroyAllHwcLayers traverses to children, but releasePendingBuffer
-                // doesn't in other scenarios. So we have to traverse explicitly here.
                 l->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* child) {
-                    child->releasePendingBuffer(systemTime());
+                    child->destroyHwcLayersForAllDisplays();
+                    latchAndReleaseBuffer(child);
                 });
             }
         }
@@ -3059,8 +3085,10 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
                 display->getHdrCapabilities().getDesiredMaxLuminance());
 
         const bool hasDeviceComposition = getBE().mHwc->hasDeviceComposition(displayId);
-        const bool skipClientColorTransform = getBE().mHwc->hasCapability(
-            HWC2::Capability::SkipClientColorTransform);
+        const bool skipClientColorTransform =
+                getBE().mHwc
+                        ->hasDisplayCapability(displayId,
+                                               HWC2::DisplayCapability::SkipClientColorTransform);
 
         // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
@@ -3207,7 +3235,7 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         } else {
             if (parent->isRemovedFromCurrentState()) {
                 ALOGE("addClientLayer called with a removed parent");
-                return NAME_NOT_FOUND;
+                lbc->onRemovedFromCurrentState();
             }
             parent->addChild(lbc);
         }
@@ -3707,11 +3735,24 @@ status_t SurfaceFlinger::createLayer(
             result = createBufferStateLayer(client, uniqueName, w, h, flags, handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
+            // check if buffer size is set for color layer.
+            if (w > 0 || h > 0) {
+                ALOGE("createLayer() failed, w or h cannot be set for color layer (w=%d, h=%d)",
+                      int(w), int(h));
+                return BAD_VALUE;
+            }
+
             result = createColorLayer(client,
                     uniqueName, w, h, flags,
                     handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
+            // check if buffer size is set for container layer.
+            if (w > 0 || h > 0) {
+                ALOGE("createLayer() failed, w or h cannot be set for container layer (w=%d, h=%d)",
+                      int(w), int(h));
+                return BAD_VALUE;
+            }
             result = createContainerLayer(client,
                     uniqueName, w, h, flags,
                     handle, &layer);
@@ -4725,7 +4766,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_ACTIVE_CONFIG:
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
-        case SET_POWER_MODE: {
+        case SET_POWER_MODE:
+        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",
@@ -5161,12 +5203,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         const ui::Transform& getTransform() const override { return mTransform; }
         Rect getBounds() const override {
             const Layer::State& layerState(mLayer->getDrawingState());
-            return Rect(mLayer->getActiveWidth(layerState), mLayer->getActiveHeight(layerState));
+            return mLayer->getBufferSize(layerState);
         }
         int getHeight() const override {
-            return mLayer->getActiveHeight(mLayer->getDrawingState());
+            return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
         }
-        int getWidth() const override { return mLayer->getActiveWidth(mLayer->getDrawingState()); }
+        int getWidth() const override {
+            return mLayer->getBufferSize(mLayer->getDrawingState()).getWidth();
+        }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return mNeedsFiltering; }
         Rect getSourceCrop() const override {
@@ -5240,12 +5284,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     Rect crop(sourceCrop);
     if (sourceCrop.width() <= 0) {
         crop.left = 0;
-        crop.right = parent->getActiveWidth(parent->getCurrentState());
+        crop.right = parent->getBufferSize(parent->getCurrentState()).getWidth();
     }
 
     if (sourceCrop.height() <= 0) {
         crop.top = 0;
-        crop.bottom = parent->getActiveHeight(parent->getCurrentState());
+        crop.bottom = parent->getBufferSize(parent->getCurrentState()).getHeight();
     }
 
     int32_t reqWidth = crop.width() * frameScale;

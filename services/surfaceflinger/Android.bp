@@ -143,6 +143,7 @@ filegroup {
         "Scheduler/LayerHistory.cpp",
         "Scheduler/MessageQueue.cpp",
         "Scheduler/Scheduler.cpp",
+        "Scheduler/SchedulerUtils.cpp",
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
         "SurfaceInterceptor.cpp",

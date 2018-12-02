@@ -123,7 +123,7 @@ Layer::~Layer() {
 
     mFrameTracker.logAndResetStats(mName);
 
-    destroyAllHwcLayers();
+    destroyAllHwcLayersPlusChildren();
 
     mFlinger->onLayerDestroyed();
 }
@@ -172,6 +172,14 @@ void Layer::onRemovedFromCurrentState() {
 
     for (const auto& child : mCurrentChildren) {
         child->onRemovedFromCurrentState();
+    }
+}
+
+void Layer::addToCurrentState() {
+    mRemovedFromCurrentState = false;
+
+    for (const auto& child : mCurrentChildren) {
+        child->addToCurrentState();
     }
 }
 
@@ -226,17 +234,21 @@ bool Layer::destroyHwcLayer(DisplayId displayId) {
     return true;
 }
 
-void Layer::destroyAllHwcLayers() {
+void Layer::destroyHwcLayersForAllDisplays() {
     size_t numLayers = getBE().mHwcLayers.size();
     for (size_t i = 0; i < numLayers; ++i) {
         LOG_ALWAYS_FATAL_IF(getBE().mHwcLayers.empty(), "destroyAllHwcLayers failed");
         destroyHwcLayer(getBE().mHwcLayers.begin()->first);
     }
+}
+
+void Layer::destroyAllHwcLayersPlusChildren() {
+    destroyHwcLayersForAllDisplays();
     LOG_ALWAYS_FATAL_IF(!getBE().mHwcLayers.empty(),
                         "All hardware composer layers should have been destroyed");
 
     for (const sp<Layer>& child : mDrawingChildren) {
-        child->destroyAllHwcLayers();
+        child->destroyAllHwcLayersPlusChildren();
     }
 }
 
@@ -367,27 +379,24 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     // layerstack space, and convert-back to layer space.
     // if there are no window scaling involved, this operation will map to full
     // pixels in the buffer.
-    // FIXME: the 3 lines below can produce slightly incorrect clipping when we have
-    // a viewport clipping and a window transform. we should use floating point to fix this.
 
-    Rect activeCrop(getActiveWidth(s), getActiveHeight(s));
-    Rect crop = getCrop(s);
-    if (!crop.isEmpty()) {
-        activeCrop.intersect(crop, &activeCrop);
-    }
-
+    FloatRect activeCropFloat = computeBounds();
     ui::Transform t = getTransform();
-    activeCrop = t.transform(activeCrop);
-    if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
+    // Transform to screen space.
+    activeCropFloat = t.transform(activeCropFloat);
+    activeCropFloat = activeCropFloat.intersect(display->getViewport().toFloatRect());
+    // Back to layer space to work with the content crop.
+    activeCropFloat = t.inverse().transform(activeCropFloat);
+    // This needs to be here as transform.transform(Rect) computes the
+    // transformed rect and then takes the bounding box of the result before
+    // returning. This means
+    // transform.inverse().transform(transform.transform(Rect)) != Rect
+    // in which case we need to make sure the final rect is clipped to the
+    // display bounds.
+    Rect activeCrop{activeCropFloat};
+    if (!activeCrop.intersect(getBufferSize(s), &activeCrop)) {
         activeCrop.clear();
     }
-
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        auto parentCrop = p->computeInitialCrop(display);
-        activeCrop.intersect(parentCrop, &activeCrop);
-    }
-
     return activeCrop;
 }
 
@@ -399,24 +408,8 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
     // In addition there is a WM-specified crop we pull from our drawing state.
     const State& s(getDrawingState());
 
-    // Screen space to make reduction to parent crop clearer.
     Rect activeCrop = computeInitialCrop(display);
-    ui::Transform t = getTransform();
-    // Back to layer space to work with the content crop.
-    activeCrop = t.inverse().transform(activeCrop);
-
-    // This needs to be here as transform.transform(Rect) computes the
-    // transformed rect and then takes the bounding box of the result before
-    // returning. This means
-    // transform.inverse().transform(transform.transform(Rect)) != Rect
-    // in which case we need to make sure the final rect is clipped to the
-    // display bounds.
-    if (!activeCrop.intersect(Rect(getActiveWidth(s), getActiveHeight(s)), &activeCrop)) {
-        activeCrop.clear();
-    }
-
-    // subtract the transparent region and snap to the bounds
-    activeCrop = reduce(activeCrop, getActiveTransparentRegion(s));
+    Rect bufferSize = getBufferSize(s);
 
     // Transform the window crop to match the buffer coordinate system,
     // which means using the inverse of the current transform set on the
@@ -437,8 +430,8 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
                         ui::Transform(invTransform)).getOrientation();
     }
 
-    int winWidth = getActiveWidth(s);
-    int winHeight = getActiveHeight(s);
+    int winWidth = bufferSize.getWidth();
+    int winHeight = bufferSize.getHeight();
     if (invTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) {
         // If the activeCrop has been rotate the ends are rotated but not
         // the space itself so when transforming ends back we can't rely on
@@ -450,10 +443,10 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
         if (is_h_flipped == is_v_flipped) {
             invTransform ^= NATIVE_WINDOW_TRANSFORM_FLIP_V | NATIVE_WINDOW_TRANSFORM_FLIP_H;
         }
-        winWidth = getActiveHeight(s);
-        winHeight = getActiveWidth(s);
+        std::swap(winWidth, winHeight);
     }
-    const Rect winCrop = activeCrop.transform(invTransform, getActiveWidth(s), getActiveHeight(s));
+    const Rect winCrop =
+            activeCrop.transform(invTransform, bufferSize.getWidth(), bufferSize.getHeight());
 
     // below, crop is intersected with winCrop expressed in crop's coordinate space
     float xScale = crop.getWidth() / float(winWidth);
@@ -489,6 +482,8 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
 
     // this gives us only the "orientation" component of the transform
     const State& s(getDrawingState());
+    const int bufferWidth = getBufferSize(s).getWidth();
+    const int bufferHeight = getBufferSize(s).getHeight();
     auto blendMode = HWC2::BlendMode::None;
     if (!isOpaque(s) || getAlpha() != 1.0f) {
         blendMode =
@@ -519,16 +514,15 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
         // transform.inverse().transform(transform.transform(Rect)) != Rect
         // in which case we need to make sure the final rect is clipped to the
         // display bounds.
-        if (!activeCrop.intersect(Rect(getActiveWidth(s), getActiveHeight(s)), &activeCrop)) {
+        if (!activeCrop.intersect(Rect(bufferWidth, bufferHeight), &activeCrop)) {
             activeCrop.clear();
         }
         // mark regions outside the crop as transparent
-        activeTransparentRegion.orSelf(Rect(0, 0, getActiveWidth(s), activeCrop.top));
-        activeTransparentRegion.orSelf(
-                Rect(0, activeCrop.bottom, getActiveWidth(s), getActiveHeight(s)));
+        activeTransparentRegion.orSelf(Rect(0, 0, bufferWidth, activeCrop.top));
+        activeTransparentRegion.orSelf(Rect(0, activeCrop.bottom, bufferWidth, bufferHeight));
         activeTransparentRegion.orSelf(Rect(0, activeCrop.top, activeCrop.left, activeCrop.bottom));
         activeTransparentRegion.orSelf(
-                Rect(activeCrop.right, activeCrop.top, getActiveWidth(s), activeCrop.bottom));
+                Rect(activeCrop.right, activeCrop.top, bufferWidth, activeCrop.bottom));
     }
 
     // computeBounds returns a FloatRect to provide more accuracy during the
@@ -664,11 +658,7 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 
     // Apply the layer's transform, followed by the display's global transform
     // Here we're guaranteed that the layer's transform preserves rects
-    Rect win(getActiveWidth(s), getActiveHeight(s));
-    Rect crop = getCrop(s);
-    if (!crop.isEmpty()) {
-        win.intersect(crop, &win);
-    }
+    Rect win = getCroppedBufferSize(s);
     // Subtract the transparent region and snap to the bounds
     Rect bounds = reduce(win, getActiveTransparentRegion(s));
     Rect frame(getTransform().transform(bounds));
@@ -1601,6 +1591,10 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         parent->removeChild(this);
     }
     newParent->addChild(this);
+
+    if (!newParent->isRemovedFromCurrentState()) {
+        addToCurrentState();
+    }
 
     sp<Client> client(mClientRef.promote());
     sp<Client> newParentClient(newParent->mClientRef.promote());

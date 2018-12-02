@@ -72,17 +72,17 @@ class SurfaceFlingerConnection {
     Parcel data, reply;
     status_t result =
         data.writeInterfaceToken(surface_flinger_->getInterfaceDescriptor());
-    if (result != NO_ERROR) {
+    if (result != OK) {
       return std::nullopt;
     }
     result = IInterface::asBinder(surface_flinger_)
                  ->transact(kIsVrFlingerActiveTransactionCode, data, &reply);
-    if (result != NO_ERROR) {
+    if (result != OK) {
       return std::nullopt;
     }
     bool vr_flinger_active;
     result = reply.readBool(&vr_flinger_active);
-    if (result != NO_ERROR) {
+    if (result != OK) {
       return std::nullopt;
     }
     return vr_flinger_active;

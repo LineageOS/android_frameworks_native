@@ -59,6 +59,8 @@ public:
                                       DisplayIdentificationData* outData) const;
 
     bool hasCapability(HWC2::Capability capability) const;
+    bool hasDisplayCapability(const std::optional<DisplayId>& displayId,
+                              HWC2::DisplayCapability capability) const;
 
     // Attempts to allocate a virtual display and returns its ID if created on the HWC device.
     std::optional<DisplayId> allocateVirtualDisplay(uint32_t width, uint32_t height,
@@ -124,6 +126,11 @@ public:
                                                    ui::ColorMode colorMode) const;
 
     mat4 getDataspaceSaturationMatrix(DisplayId displayId, ui::Dataspace dataspace);
+
+    // Returns the attributes of the color sampling engine.
+    status_t getDisplayedContentSamplingAttributes(DisplayId displayId, ui::PixelFormat* outFormat,
+                                                   ui::Dataspace* outDataspace,
+                                                   uint8_t* outComponentMask);
 
     // Events handling ---------------------------------------------------------
 

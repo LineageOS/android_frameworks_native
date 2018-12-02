@@ -41,7 +41,7 @@ int main(int, char**) {
   dispatcher->AddService(pdx_service);
 
   ret = android::dvr::BufferHubBinderService::start(pdx_service);
-  CHECK_ERROR(ret != android::NO_ERROR, error,
+  CHECK_ERROR(ret != android::OK, error,
               "Failed to create bufferhub binder service\n");
 
   ret = dvrSetSchedulerClass(0, "graphics");

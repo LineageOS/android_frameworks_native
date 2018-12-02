@@ -1098,7 +1098,7 @@ status_t HardwareComposer::VsyncService::registerCallback(
   if (FindCallback(callback) == callbacks_.cend()) {
     callbacks_.push_back(callback);
   }
-  return NO_ERROR;
+  return OK;
 }
 
 status_t HardwareComposer::VsyncService::unregisterCallback(
@@ -1108,7 +1108,7 @@ status_t HardwareComposer::VsyncService::unregisterCallback(
   if (iter != callbacks_.cend()) {
     callbacks_.erase(iter);
   }
-  return NO_ERROR;
+  return OK;
 }
 
 void HardwareComposer::VsyncService::OnVsync(int64_t vsync_timestamp) {

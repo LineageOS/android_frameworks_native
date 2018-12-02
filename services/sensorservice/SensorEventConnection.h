@@ -108,6 +108,10 @@ private:
     // size, reallocate memory and copy over events from the older cache.
     void reAllocateCacheLocked(sensors_event_t const* scratch, int count);
 
+    // Add the events to the cache. If the cache would be exceeded, drop events at the beginning of
+    // the cache.
+    void appendEventsToCacheLocked(sensors_event_t const* events, int count);
+
     // LooperCallback method. If there is data to read on this fd, it is an ack from the app that it
     // has read events from a wake up sensor, decrement mWakeLockRefCount.  If this fd is available
     // for writing send the data from the cache.

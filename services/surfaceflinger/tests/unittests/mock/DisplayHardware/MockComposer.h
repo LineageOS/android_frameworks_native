@@ -113,6 +113,9 @@ public:
     MOCK_METHOD4(setLayerInfo, Error(Display, Layer, uint32_t, uint32_t));
     MOCK_METHOD3(getRenderIntents, Error(Display, ColorMode, std::vector<RenderIntent>*));
     MOCK_METHOD3(setLayerColorTransform, Error(Display, Layer, const float*));
+    MOCK_METHOD4(getDisplayedContentSamplingAttributes,
+                 Error(Display, PixelFormat*, Dataspace*, uint8_t*));
+    MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
 };
 
 } // namespace mock

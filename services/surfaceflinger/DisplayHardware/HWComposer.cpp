@@ -95,6 +95,15 @@ bool HWComposer::hasCapability(HWC2::Capability capability) const
     return mHwcDevice->getCapabilities().count(capability) > 0;
 }
 
+bool HWComposer::hasDisplayCapability(const std::optional<DisplayId>& displayId,
+                                      HWC2::DisplayCapability capability) const {
+    if (!displayId) {
+        return false;
+    }
+    RETURN_IF_INVALID_DISPLAY(*displayId, false);
+    return mDisplayData.at(*displayId).hwcDisplay->getCapabilities().count(capability) > 0;
+}
+
 void HWComposer::validateChange(HWC2::Composition from, HWC2::Composition to) {
     bool valid = true;
     switch (from) {
@@ -731,6 +740,20 @@ mat4 HWComposer::getDataspaceSaturationMatrix(DisplayId displayId, ui::Dataspace
             &matrix);
     RETURN_IF_HWC_ERROR(error, displayId, {});
     return matrix;
+}
+
+status_t HWComposer::getDisplayedContentSamplingAttributes(DisplayId displayId,
+                                                           ui::PixelFormat* outFormat,
+                                                           ui::Dataspace* outDataspace,
+                                                           uint8_t* outComponentMask) {
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto error =
+            mDisplayData[displayId]
+                    .hwcDisplay->getDisplayedContentSamplingAttributes(outFormat, outDataspace,
+                                                                       outComponentMask);
+    if (error == HWC2::Error::Unsupported) RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
+    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
+    return NO_ERROR;
 }
 
 bool HWComposer::isUsingVrComposer() const {

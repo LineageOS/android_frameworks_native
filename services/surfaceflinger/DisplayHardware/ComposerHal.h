@@ -48,24 +48,20 @@ namespace V2_3 = hardware::graphics::composer::V2_3;
 using types::V1_0::ColorTransform;
 using types::V1_0::Hdr;
 using types::V1_0::Transform;
-
 using types::V1_1::PixelFormat;
 using types::V1_1::RenderIntent;
 using types::V1_2::ColorMode;
 using types::V1_2::Dataspace;
-
 using V2_1::Config;
 using V2_1::Display;
 using V2_1::Error;
 using V2_1::IComposerCallback;
 using V2_1::Layer;
-
 using V2_3::CommandReaderBase;
 using V2_3::CommandWriterBase;
-
 using V2_3::IComposer;
 using V2_3::IComposerClient;
-
+using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
 
@@ -193,6 +189,11 @@ public:
                                                std::vector<uint8_t>* outData) = 0;
     virtual Error setLayerColorTransform(Display display, Layer layer,
                                          const float* matrix) = 0;
+    virtual Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                        Dataspace* outDataspace,
+                                                        uint8_t* outComponentMask) = 0;
+    virtual Error getDisplayCapabilities(Display display,
+                                         std::vector<DisplayCapability>* outCapabilities) = 0;
 };
 
 namespace impl {
@@ -392,6 +393,11 @@ public:
     Error getDisplayIdentificationData(Display display, uint8_t* outPort,
                                        std::vector<uint8_t>* outData) override;
     Error setLayerColorTransform(Display display, Layer layer, const float* matrix) override;
+    Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
+                                                Dataspace* outDataspace,
+                                                uint8_t* outComponentMask) override;
+    Error getDisplayCapabilities(Display display,
+                                 std::vector<DisplayCapability>* outCapabilities) override;
 
 private:
     class CommandWriter : public CommandWriterBase {

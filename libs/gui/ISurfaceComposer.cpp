@@ -599,6 +599,43 @@ public:
         }
         return err;
     }
+
+    virtual status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+                                                           ui::PixelFormat* outFormat,
+                                                           ui::Dataspace* outDataspace,
+                                                           uint8_t* outComponentMask) const {
+        if (!outFormat || !outDataspace || !outComponentMask) return BAD_VALUE;
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(display);
+
+        status_t error =
+                remote()->transact(BnSurfaceComposer::GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
+                                   data, &reply);
+        if (error != NO_ERROR) {
+            return error;
+        }
+
+        uint32_t value = 0;
+        error = reply.readUint32(&value);
+        if (error != NO_ERROR) {
+            return error;
+        }
+        *outFormat = static_cast<ui::PixelFormat>(value);
+
+        error = reply.readUint32(&value);
+        if (error != NO_ERROR) {
+            return error;
+        }
+        *outDataspace = static_cast<ui::Dataspace>(value);
+
+        error = reply.readUint32(&value);
+        if (error != NO_ERROR) {
+            return error;
+        }
+        *outComponentMask = static_cast<uint8_t>(value);
+        return error;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -948,6 +985,22 @@ status_t BnSurfaceComposer::onTransact(
             status_t error = getColorManagement(&result);
             if (error == NO_ERROR) {
                 reply->writeBool(result);
+            }
+            return result;
+        }
+        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+
+            sp<IBinder> display = data.readStrongBinder();
+            ui::PixelFormat format;
+            ui::Dataspace dataspace;
+            uint8_t component = 0;
+            auto result =
+                    getDisplayedContentSamplingAttributes(display, &format, &dataspace, &component);
+            if (result == NO_ERROR) {
+                reply->writeUint32(static_cast<uint32_t>(format));
+                reply->writeUint32(static_cast<uint32_t>(dataspace));
+                reply->writeUint32(static_cast<uint32_t>(component));
             }
             return result;
         }

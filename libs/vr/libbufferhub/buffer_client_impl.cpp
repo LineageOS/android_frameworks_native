@@ -26,14 +26,14 @@ bool BpBufferClient::isValid() {
   Parcel data, reply;
   status_t ret =
       data.writeInterfaceToken(IBufferClient::getInterfaceDescriptor());
-  if (ret != NO_ERROR) {
+  if (ret != OK) {
     ALOGE("BpBufferClient::isValid: failed to write into parcel; errno=%d",
           ret);
     return false;
   }
 
   ret = remote()->transact(IS_VALID, data, &reply);
-  if (ret == NO_ERROR) {
+  if (ret == OK) {
     return reply.readBool();
   } else {
     ALOGE("BpBufferClient::isValid: failed to transact; errno=%d", ret);
@@ -45,16 +45,16 @@ status_t BpBufferClient::duplicate(uint64_t* outToken) {
   Parcel data, reply;
   status_t ret =
       data.writeInterfaceToken(IBufferClient::getInterfaceDescriptor());
-  if (ret != NO_ERROR) {
+  if (ret != OK) {
     ALOGE("BpBufferClient::duplicate: failed to write into parcel; errno=%d",
           ret);
     return ret;
   }
 
   ret = remote()->transact(DUPLICATE, data, &reply);
-  if (ret == NO_ERROR) {
+  if (ret == OK) {
     *outToken = reply.readUint64();
-    return NO_ERROR;
+    return OK;
   } else {
     ALOGE("BpBufferClient::duplicate: failed to transact; errno=%d", ret);
     return ret;
@@ -72,7 +72,7 @@ status_t BnBufferClient::onTransact(uint32_t code, const Parcel& data,
       CHECK_INTERFACE(IBufferClient, data, reply);
       uint64_t token = 0;
       status_t ret = duplicate(&token);
-      if (ret != NO_ERROR) {
+      if (ret != OK) {
         return ret;
       }
       return reply->writeUint64(token);

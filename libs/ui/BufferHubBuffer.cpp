@@ -36,10 +36,12 @@
 #include <private/dvr/bufferhub_rpc.h>
 #pragma clang diagnostic pop
 
-#include <ui/BufferHubBuffer.h>
-
 #include <poll.h>
 
+#include <android-base/unique_fd.h>
+#include <ui/BufferHubBuffer.h>
+
+using android::base::unique_fd;
 using android::dvr::BufferTraits;
 using android::dvr::DetachedBufferRPC;
 using android::dvr::NativeHandleWrapper;
@@ -132,7 +134,9 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     const int bufferId = bufferTraits.id();
 
     // Import the metadata.
-    mMetadata = BufferHubMetadata::Import(bufferTraits.take_metadata_handle());
+    LocalHandle metadataHandle = bufferTraits.take_metadata_handle();
+    unique_fd metadataFd(metadataHandle.Release());
+    mMetadata = BufferHubMetadata::Import(std::move(metadataFd));
 
     if (!mMetadata.IsValid()) {
         ALOGE("BufferHubBuffer::ImportGraphicBuffer: invalid metadata.");
@@ -155,6 +159,16 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     // Import the buffer: We only need to hold on the native_handle_t here so that
     // GraphicBuffer instance can be created in future.
     mBufferHandle = bufferTraits.take_buffer_handle();
+
+    // Populate buffer desc based on buffer traits.
+    mBufferDesc.width = bufferTraits.width();
+    mBufferDesc.height = bufferTraits.height();
+    mBufferDesc.layers = bufferTraits.layer_count();
+    mBufferDesc.format = bufferTraits.format();
+    mBufferDesc.usage = bufferTraits.usage();
+    mBufferDesc.stride = bufferTraits.stride();
+    mBufferDesc.rfu0 = 0U;
+    mBufferDesc.rfu1 = 0U;
 
     // If all imports succeed, replace the previous buffer and id.
     mId = bufferId;

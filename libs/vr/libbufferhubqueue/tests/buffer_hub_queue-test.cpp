@@ -948,7 +948,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
   Parcel parcel;
   status_t res;
   res = output_parcelable.writeToParcel(&parcel);
-  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_EQ(res, OK);
 
   // After written into parcelable, the output_parcelable is still valid has
   // keeps the producer channel alive.
@@ -970,7 +970,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
   EXPECT_FALSE(input_parcelable.IsValid());
 
   res = input_parcelable.readFromParcel(&parcel);
-  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_EQ(res, OK);
   EXPECT_TRUE(input_parcelable.IsValid());
 
   EXPECT_EQ(producer_queue_, nullptr);
@@ -1040,7 +1040,7 @@ TEST_F(BufferHubQueueTest, TestCreateConsumerParcelable) {
   EXPECT_FALSE(input_parcelable.IsValid());
 
   res = input_parcelable.readFromParcel(&parcel);
-  EXPECT_EQ(res, NO_ERROR);
+  EXPECT_EQ(res, OK);
   EXPECT_TRUE(input_parcelable.IsValid());
 
   consumer_queue_ = ConsumerQueue::Import(input_parcelable.TakeChannelHandle());
