@@ -3093,7 +3093,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
                     continue;
                 }
 
-                if (windowHandle->getInfo()->hasFocus) {
+                if (windowHandle->getInfo()->hasFocus && windowHandle->getInfo()->visible) {
                     newFocusedWindowHandle = windowHandle;
                 }
                 if (windowHandle == mLastHoverWindowHandle) {
