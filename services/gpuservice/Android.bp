@@ -21,7 +21,6 @@ cc_defaults {
         "-Wunused",
         "-Wunreachable-code",
     ],
-    cppflags: ["-std=c++1z"],
     srcs: [
         ":gpuservice_sources",
     ],

@@ -16,7 +16,6 @@
 
 cc_library {
     name: "libinput",
-    cpp_std: "c++17",
     host_supported: true,
     cflags: [
         "-Wall",
