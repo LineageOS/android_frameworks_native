@@ -16,6 +16,8 @@
 
 #define LOG_TAG "LayerState"
 
+#include <inttypes.h>
+
 #include <utils/Errors.h>
 #include <binder/Parcel.h>
 #include <gui/ISurfaceComposerClient.h>
@@ -27,7 +29,7 @@ namespace android {
 status_t layer_state_t::write(Parcel& output) const
 {
     output.writeStrongBinder(surface);
-    output.writeUint32(what);
+    output.writeUint64(what);
     output.writeFloat(x);
     output.writeFloat(y);
     output.writeInt32(z);
@@ -97,7 +99,7 @@ status_t layer_state_t::write(Parcel& output) const
 status_t layer_state_t::read(const Parcel& input)
 {
     surface = input.readStrongBinder();
-    what = input.readUint32();
+    what = input.readUint64();
     x = input.readFloat();
     y = input.readFloat();
     z = input.readInt32();
@@ -366,7 +368,7 @@ void layer_state_t::merge(const layer_state_t& other) {
 
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "
-              "other.what=0x%X what=0x%X",
+              "other.what=0x%" PRIu64 " what=0x%" PRIu64,
               other.what, what);
     }
 }

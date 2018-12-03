@@ -3491,7 +3491,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
 
     uint32_t flags = 0;
 
-    const uint32_t what = s.what;
+    const uint64_t what = s.what;
     bool geometryAppliesWithResize =
             what & layer_state_t::eGeometryAppliesWithResize;
 

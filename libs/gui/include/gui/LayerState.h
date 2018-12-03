@@ -124,7 +124,7 @@ struct layer_state_t {
         float dsdy{0};
     };
     sp<IBinder> surface;
-    uint32_t what;
+    uint64_t what;
     float x;
     float y;
     int32_t z;
