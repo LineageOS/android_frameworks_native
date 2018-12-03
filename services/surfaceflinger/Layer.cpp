@@ -415,7 +415,6 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     cropCoords[1] = vec2(win.left, win.top + win.getHeight());
     cropCoords[2] = vec2(win.right, win.top + win.getHeight());
     cropCoords[3] = vec2(win.right, win.top);
-    cropCoords[3] = vec2(win.right, win.top);
 }
 
 FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
