@@ -43,10 +43,6 @@ cc_library {
         "-Wno-unused-function",
     ],
 
-    cppflags: [
-        "-std=c++1z"
-    ],
-
     version_script: "libnativewindow.map.txt",
 
     srcs: [
