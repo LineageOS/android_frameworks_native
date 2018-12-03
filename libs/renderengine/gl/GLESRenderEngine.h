@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SF_GLES20RENDERENGINE_H_
-#define SF_GLES20RENDERENGINE_H_
+#ifndef SF_GLESRENDERENGINE_H_
+#define SF_GLESRENDERENGINE_H_
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -41,14 +41,14 @@ namespace gl {
 
 class GLImage;
 
-class GLES20RenderEngine : public impl::RenderEngine {
+class GLESRenderEngine : public impl::RenderEngine {
 public:
-    static std::unique_ptr<GLES20RenderEngine> create(int hwcFormat, uint32_t featureFlags);
+    static std::unique_ptr<GLESRenderEngine> create(int hwcFormat, uint32_t featureFlags);
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
-    GLES20RenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
-                       EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
-    ~GLES20RenderEngine() override;
+    GLESRenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
+                     EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
+    ~GLESRenderEngine() override;
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
     std::unique_ptr<Image> createImage() override;
@@ -165,4 +165,4 @@ private:
 } // namespace renderengine
 } // namespace android
 
-#endif /* SF_GLES20RENDERENGINE_H_ */
+#endif /* SF_GLESRENDERENGINE_H_ */

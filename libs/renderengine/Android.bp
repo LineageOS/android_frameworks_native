@@ -46,7 +46,7 @@ filegroup {
 filegroup {
     name: "librenderengine_gl_sources",
     srcs: [
-        "gl/GLES20RenderEngine.cpp",
+        "gl/GLESRenderEngine.cpp",
         "gl/GLExtensions.cpp",
         "gl/GLFramebuffer.cpp",
         "gl/GLImage.cpp",

@@ -28,11 +28,11 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
-class GLES20RenderEngine;
+class GLESRenderEngine;
 
 class GLFramebuffer : public renderengine::Framebuffer {
 public:
-    explicit GLFramebuffer(const GLES20RenderEngine& engine);
+    explicit GLFramebuffer(const GLESRenderEngine& engine);
     ~GLFramebuffer() override;
 
     bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) override;
