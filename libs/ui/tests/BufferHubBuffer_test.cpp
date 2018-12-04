@@ -19,6 +19,7 @@
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
+#include <cutils/native_handle.h>
 #include <gtest/gtest.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
@@ -144,7 +145,7 @@ TEST_F(BufferHubBufferTest, AllocateBuffer) {
     EXPECT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
 }
 
-TEST_F(BufferHubBufferTest, DuplicateBuffer) {
+TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
     // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
     sp<IBufferHub> bufferhub = IBufferHub::getService();
     ASSERT_NE(nullptr, bufferhub.get());
@@ -170,11 +171,63 @@ TEST_F(BufferHubBufferTest, DuplicateBuffer) {
         token = outToken;
         ret = status;
     };
-    EXPECT_TRUE(client->duplicate(dup_cb).isOk());
+    ASSERT_TRUE(client->duplicate(dup_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
     EXPECT_EQ(token->numInts, 1);
     EXPECT_EQ(token->numFds, 0);
+
+    sp<IBufferClient> client2;
+    IBufferHub::importBuffer_cb import_cb = [&](const auto& outClient, const auto& status) {
+        ret = status;
+        client2 = outClient;
+    };
+    ASSERT_TRUE(bufferhub->importBuffer(token, import_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
+    EXPECT_NE(nullptr, client2.get());
+    // TODO(b/116681016): once BufferNode.id() is exposed via BufferHubBuffer, check origin.id =
+    // improted.id here.
+}
+
+// nullptr must not crash the service
+TEST_F(BufferHubBufferTest, ImportNullToken) {
+    // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
+    sp<IBufferHub> bufferhub = IBufferHub::getService();
+    ASSERT_NE(nullptr, bufferhub.get());
+
+    hidl_handle nullToken;
+    sp<IBufferClient> client;
+    BufferHubStatus ret;
+    IBufferHub::importBuffer_cb import_cb = [&](const auto& outClient, const auto& status) {
+        client = outClient;
+        ret = status;
+    };
+    ASSERT_TRUE(bufferhub->importBuffer(nullToken, import_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
+    EXPECT_EQ(nullptr, client.get());
+}
+
+// This test has a very little chance to fail (number of existing tokens / 2 ^ 32)
+TEST_F(BufferHubBufferTest, ImportInvalidToken) {
+    // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
+    sp<IBufferHub> bufferhub = IBufferHub::getService();
+    ASSERT_NE(nullptr, bufferhub.get());
+
+    native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/1);
+    tokenHandle->data[0] = 0;
+
+    hidl_handle invalidToken(tokenHandle);
+    sp<IBufferClient> client;
+    BufferHubStatus ret;
+    IBufferHub::importBuffer_cb import_cb = [&](const auto& outClient, const auto& status) {
+        client = outClient;
+        ret = status;
+    };
+    ASSERT_TRUE(bufferhub->importBuffer(invalidToken, import_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
+    EXPECT_EQ(nullptr, client.get());
+
+    native_handle_delete(tokenHandle);
 }
 
 } // namespace
