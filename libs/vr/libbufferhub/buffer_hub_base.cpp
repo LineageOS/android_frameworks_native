@@ -26,6 +26,8 @@ BufferHubBase::BufferHubBase(const std::string& endpoint_path)
       cid_(-1) {}
 
 BufferHubBase::~BufferHubBase() {
+  // buffer_state and fence_state are not reset here. They will be used to
+  // clean up epoll fd if necessary in ProducerChannel::RemoveConsumer method.
   if (metadata_header_ != nullptr) {
     metadata_buffer_.Unlock();
   }

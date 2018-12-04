@@ -63,7 +63,7 @@ class ProducerChannel : public BufferHubChannel {
                                       LocalFence release_fence);
 
   void DecrementPendingConsumers();
-  void OnConsumerOrphaned(ConsumerChannel* channel);
+  void OnConsumerOrphaned(const uint64_t& consumer_state_mask);
 
   void AddConsumer(ConsumerChannel* channel);
   void RemoveConsumer(ConsumerChannel* channel);
