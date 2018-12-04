@@ -22,14 +22,12 @@ sourceFiles = [
     "buffer_hub_base.cpp",
     "buffer_hub_rpc.cpp",
     "consumer_buffer.cpp",
-    "buffer_client_impl.cpp",
     "ion_buffer.cpp",
     "producer_buffer.cpp",
 ]
 
 sharedLibraries = [
     "libbase",
-    "libbinder",
     "libcutils",
     "libhardware",
     "liblog",
