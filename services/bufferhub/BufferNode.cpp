@@ -2,7 +2,6 @@
 
 #include <bufferhub/BufferHubService.h>
 #include <bufferhub/BufferNode.h>
-#include <private/dvr/buffer_hub_defs.h>
 #include <ui/GraphicBufferAllocator.h>
 
 namespace android {
@@ -14,7 +13,7 @@ namespace implementation {
 void BufferNode::InitializeMetadata() {
     // Using placement new here to reuse shared memory instead of new allocation
     // Initialize the atomic variables to zero.
-    dvr::BufferHubDefs::MetadataHeader* metadata_header = metadata_.metadata_header();
+    BufferHubDefs::MetadataHeader* metadata_header = metadata_.metadata_header();
     buffer_state_ = new (&metadata_header->buffer_state) std::atomic<uint64_t>(0);
     fence_state_ = new (&metadata_header->fence_state) std::atomic<uint64_t>(0);
     active_clients_bit_mask_ =
@@ -84,10 +83,11 @@ uint64_t BufferNode::AddNewActiveClientsBitToMask() {
     uint64_t client_state_mask = 0ULL;
     uint64_t updated_active_clients_bit_mask = 0ULL;
     do {
-        client_state_mask = dvr::BufferHubDefs::FindNextAvailableClientStateMask(
-                current_active_clients_bit_mask);
+        client_state_mask =
+                BufferHubDefs::FindNextAvailableClientStateMask(current_active_clients_bit_mask);
         if (client_state_mask == 0ULL) {
-            ALOGE("%s: reached the maximum number of channels per buffer node: 32.", __FUNCTION__);
+            ALOGE("%s: reached the maximum number of channels per buffer node: %d.", __FUNCTION__,
+                  BufferHubDefs::kMaxNumberOfClients);
             errno = E2BIG;
             return 0ULL;
         }

@@ -7,10 +7,8 @@ cc_test {
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     header_libs: [
-        "libbufferhub_headers",
         "libdvr_headers",
         "libnativewindow_headers",
-        "libpdx_headers",
     ],
     shared_libs: [
         "libbufferhubservice",
@@ -19,8 +17,6 @@ cc_test {
     static_libs: [
         "libgmock",
     ],
-    // TODO(b/117568153): Temporarily opt out using libcrt.
-    no_libcrt: true,
 }
 
 cc_test {

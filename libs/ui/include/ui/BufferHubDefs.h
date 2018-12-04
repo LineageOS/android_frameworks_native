@@ -29,6 +29,104 @@ namespace android {
 
 namespace BufferHubDefs {
 
+// Single buffer clients (up to 32) ownership signal.
+// 64-bit atomic unsigned int.
+// Each client takes 2 bits. The first bit locates in the first 32 bits of
+// buffer_state; the second bit locates in the last 32 bits of buffer_state.
+// Client states:
+// Gained state 11. Exclusive write state.
+// Posted state 10.
+// Acquired state 01. Shared read state.
+// Released state 00.
+//
+//  MSB                        LSB
+//   |                          |
+//   v                          v
+// [C31|...|C1|C0|C31| ... |C1|C0]
+
+// Maximum number of clients a buffer can have.
+static constexpr int kMaxNumberOfClients = 32;
+
+// Definition of bit masks.
+//  MSB                            LSB
+//   | kHighBitsMask | kLowbitsMask |
+//   v               v              v
+// [b63|   ...   |b32|b31|   ...  |b0]
+
+// The location of lower 32 bits in the 64-bit buffer state.
+static constexpr uint64_t kLowbitsMask = (1ULL << kMaxNumberOfClients) - 1ULL;
+
+// The location of higher 32 bits in the 64-bit buffer state.
+static constexpr uint64_t kHighBitsMask = ~kLowbitsMask;
+
+// The client bit mask of the first client.
+static constexpr uint64_t kFirstClientBitMask = (1ULL << kMaxNumberOfClients) + 1ULL;
+
+// Returns true if any of the client is in gained state.
+static inline bool AnyClientGained(uint64_t state) {
+    uint64_t high_bits = state >> kMaxNumberOfClients;
+    uint64_t low_bits = state & kLowbitsMask;
+    return high_bits == low_bits && low_bits != 0ULL;
+}
+
+// Returns true if the input client is in gained state.
+static inline bool IsClientGained(uint64_t state, uint64_t client_bit_mask) {
+    return state == client_bit_mask;
+}
+
+// Returns true if any of the client is in posted state.
+static inline bool AnyClientPosted(uint64_t state) {
+    uint64_t high_bits = state >> kMaxNumberOfClients;
+    uint64_t low_bits = state & kLowbitsMask;
+    uint64_t posted_or_acquired = high_bits ^ low_bits;
+    return posted_or_acquired & high_bits;
+}
+
+// Returns true if the input client is in posted state.
+static inline bool IsClientPosted(uint64_t state, uint64_t client_bit_mask) {
+    uint64_t client_bits = state & client_bit_mask;
+    if (client_bits == 0ULL) return false;
+    uint64_t low_bits = client_bits & kLowbitsMask;
+    return low_bits == 0ULL;
+}
+
+// Return true if any of the client is in acquired state.
+static inline bool AnyClientAcquired(uint64_t state) {
+    uint64_t high_bits = state >> kMaxNumberOfClients;
+    uint64_t low_bits = state & kLowbitsMask;
+    uint64_t posted_or_acquired = high_bits ^ low_bits;
+    return posted_or_acquired & low_bits;
+}
+
+// Return true if the input client is in acquired state.
+static inline bool IsClientAcquired(uint64_t state, uint64_t client_bit_mask) {
+    uint64_t client_bits = state & client_bit_mask;
+    if (client_bits == 0ULL) return false;
+    uint64_t high_bits = client_bits & kHighBitsMask;
+    return high_bits == 0ULL;
+}
+
+// Returns true if all clients are in released state.
+static inline bool IsBufferReleased(uint64_t state) {
+    return state == 0ULL;
+}
+
+// Returns true if the input client is in released state.
+static inline bool IsClientReleased(uint64_t state, uint64_t client_bit_mask) {
+    return (state & client_bit_mask) == 0ULL;
+}
+
+// Returns the next available buffer client's client_state_masks.
+// @params union_bits. Union of all existing clients' client_state_masks.
+static inline uint64_t FindNextAvailableClientStateMask(uint64_t union_bits) {
+    uint64_t low_union = union_bits & kLowbitsMask;
+    if (low_union == kLowbitsMask) return 0ULL;
+    uint64_t incremented = low_union + 1ULL;
+    uint64_t difference = incremented ^ low_union;
+    uint64_t new_low_bit = (difference + 1ULL) >> 1;
+    return new_low_bit + (new_low_bit << kMaxNumberOfClients);
+}
+
 struct __attribute__((aligned(8))) MetadataHeader {
     // Internal data format, which can be updated as long as the size, padding and field alignment
     // of the struct is consistent within the same ABI. As this part is subject for future updates,
