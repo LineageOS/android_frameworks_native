@@ -62,7 +62,6 @@ class ProducerChannel : public BufferHubChannel {
   pdx::Status<void> OnConsumerRelease(Message& message,
                                       LocalFence release_fence);
 
-  void DecrementPendingConsumers();
   void OnConsumerOrphaned(const uint64_t& consumer_state_mask);
 
   void AddConsumer(ConsumerChannel* channel);
@@ -74,9 +73,6 @@ class ProducerChannel : public BufferHubChannel {
 
  private:
   std::vector<ConsumerChannel*> consumer_channels_;
-  // This counts the number of consumers left to process this buffer. If this is
-  // zero then the producer can re-acquire ownership.
-  int pending_consumers_;
 
   IonBuffer buffer_;
 

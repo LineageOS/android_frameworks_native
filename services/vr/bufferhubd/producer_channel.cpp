@@ -56,7 +56,6 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
                                  uint64_t usage, size_t user_metadata_size,
                                  int* error)
     : BufferHubChannel(service, channel_id, channel_id, kProducerType),
-      pending_consumers_(0),
       user_metadata_size_(user_metadata_size),
       metadata_buf_size_(BufferHubDefs::kMetadataHeaderSize +
                          user_metadata_size) {
@@ -183,7 +182,7 @@ BufferHubChannel::BufferInfo ProducerChannel::GetBufferInfo() const {
 
   return BufferInfo(buffer_id(), consumer_channels_.size(), buffer_.width(),
                     buffer_.height(), buffer_.layer_count(), buffer_.format(),
-                    buffer_.usage(), pending_consumers_,
+                    buffer_.usage(),
                     buffer_state_->load(std::memory_order_acquire),
                     signaled_mask, metadata_header_->queue_index);
 }
@@ -370,8 +369,9 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
           (consumer_state_mask & BufferHubDefs::kHighBitsMask);
     }
   }
-  if (update_buffer_state && consumer->OnProducerPosted())
-    pending_consumers_++;
+  if (update_buffer_state) {
+    consumer->OnProducerPosted();
+  }
 
   return {status.take()};
 }
@@ -424,13 +424,9 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
   // Signal any interested consumers. If there are none, the buffer will stay
   // in posted state until a consumer comes online. This behavior guarantees
   // that no frame is silently dropped.
-  pending_consumers_ = 0;
   for (auto consumer : consumer_channels_) {
-    if (consumer->OnProducerPosted())
-      pending_consumers_++;
+    consumer->OnProducerPosted();
   }
-  ALOGD_IF(TRACE, "ProducerChannel::OnProducerPost: %d pending consumers",
-           pending_consumers_);
 
   return {};
 }
@@ -438,18 +434,6 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
 Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGain");
   ALOGD_IF(TRACE, "ProducerChannel::OnGain: buffer_id=%d", buffer_id());
-
-  // There are still pending consumers, return busy.
-  if (pending_consumers_ > 0) {
-    ALOGE(
-        "ProducerChannel::OnGain: Producer (id=%d) is gaining a buffer that "
-        "still has %d pending consumer(s).",
-        buffer_id(), pending_consumers_);
-    // TODO(b/77153033): add gain_posted_buffer to the impulse args, and
-    // return busy if the function does not allow gaining posted buffer.
-    // TODO(b/119331650): remove this if check if pending_consumers_ is removed.
-    // return ErrorStatus(EBUSY);
-  }
 
   ClearAvailable();
   post_fence_.close();
@@ -547,48 +531,25 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
     }
   }
 
-  DecrementPendingConsumers();
-  if (pending_consumers_ == 0 && orphaned_consumer_bit_mask_) {
-    ALOGW(
-        "%s: orphaned buffer detected during the this acquire/release cycle: "
-        "id=%d orphaned=0x%" PRIx64 " queue_index=%" PRIx64 ".",
-        __FUNCTION__, buffer_id(), orphaned_consumer_bit_mask_,
-        metadata_header_->queue_index);
-    orphaned_consumer_bit_mask_ = 0;
+  uint64_t current_buffer_state =
+      buffer_state_->load(std::memory_order_acquire);
+  if (BufferHubDefs::IsClientReleased(current_buffer_state,
+                                      ~orphaned_consumer_bit_mask_)) {
+    SignalAvailable();
+    if (orphaned_consumer_bit_mask_) {
+      ALOGW(
+          "%s: orphaned buffer detected during the this acquire/release cycle: "
+          "id=%d orphaned=0x%" PRIx64 " queue_index=%" PRIx64 ".",
+          __FUNCTION__, buffer_id(), orphaned_consumer_bit_mask_,
+          metadata_header_->queue_index);
+      orphaned_consumer_bit_mask_ = 0;
+    }
   }
 
-  ALOGE_IF(
-      pending_consumers_ && BufferHubDefs::IsBufferReleased(
-                                buffer_state_->load(std::memory_order_acquire)),
-      "ProducerChannel::OnConsumerRelease: buffer state inconsistent: "
-      "pending_consumers=%d, buffer buffer is in releaed state.",
-      pending_consumers_);
   return {};
 }
 
-void ProducerChannel::DecrementPendingConsumers() {
-  if (pending_consumers_ == 0) {
-    ALOGE("ProducerChannel::DecrementPendingConsumers: no pending consumer.");
-    return;
-  }
-
-  --pending_consumers_;
-  ALOGD_IF(TRACE, "%s: buffer_id=%d %d consumers left", __FUNCTION__,
-           buffer_id(), pending_consumers_);
-
-  if (pending_consumers_ == 0) {
-    ALOGD_IF(TRACE,
-             "%s: releasing last consumer: buffer_id=%d state=%" PRIx64 ".",
-             __FUNCTION__, buffer_id(),
-             buffer_state_->load(std::memory_order_acquire));
-    SignalAvailable();
-  }
-}
-
 void ProducerChannel::OnConsumerOrphaned(const uint64_t& consumer_state_mask) {
-  // Ignore the orphaned consumer.
-  DecrementPendingConsumers();
-
   // Remember the ignored consumer so that newly added consumer won't be
   // taking the same state mask as this orphaned consumer.
   ALOGE_IF(orphaned_consumer_bit_mask_ & consumer_state_mask,
@@ -596,6 +557,13 @@ void ProducerChannel::OnConsumerOrphaned(const uint64_t& consumer_state_mask) {
            ") is already orphaned.",
            __FUNCTION__, consumer_state_mask);
   orphaned_consumer_bit_mask_ |= consumer_state_mask;
+
+  uint64_t current_buffer_state =
+      buffer_state_->load(std::memory_order_acquire);
+  if (BufferHubDefs::IsClientReleased(current_buffer_state,
+                                      ~orphaned_consumer_bit_mask_)) {
+    SignalAvailable();
+  }
 
   // Atomically clear the fence state bit as an orphaned consumer will never
   // signal a release fence.

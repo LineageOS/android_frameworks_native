@@ -56,8 +56,6 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
   stream << " ";
   stream << std::setw(10) << "Usage";
   stream << " ";
-  stream << std::setw(9) << "Pending";
-  stream << " ";
   stream << std::setw(18) << "State";
   stream << " ";
   stream << std::setw(18) << "Signaled";
@@ -89,8 +87,6 @@ std::string BufferHubService::DumpState(size_t /*max_length*/) {
       stream << "0x" << std::hex << std::setfill('0');
       stream << std::setw(8) << info.usage;
       stream << std::dec << std::setfill(' ');
-      stream << " ";
-      stream << std::setw(9) << info.pending_count;
       stream << " ";
       stream << "0x" << std::hex << std::setfill('0');
       stream << std::setw(16) << info.state;
