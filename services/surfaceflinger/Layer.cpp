@@ -2118,10 +2118,13 @@ InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
     info.frameBottom = screenBounds.bottom - info.surfaceInset;
 
     ui::Transform t = getTransform();
-    info.windowXScale *= 1.0f / t.sx();
-    info.windowYScale *= 1.0f / t.sy();
-
-    info.touchableRegion.scaleSelf(t.sx(), t.sy());
+    const float xScale = t.sx();
+    const float yScale = t.sy();
+    if (xScale != 1.0f || yScale != 1.0f) {
+        info.windowXScale *= 1.0f / xScale;
+        info.windowYScale *= 1.0f / yScale;
+        info.touchableRegion.scaleSelf(xScale, yScale);
+    }
 
     info.touchableRegion = info.touchableRegion.translate(
             screenBounds.left,

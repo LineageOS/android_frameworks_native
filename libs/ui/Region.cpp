@@ -325,14 +325,14 @@ Region& Region::translateSelf(int x, int y) {
     return *this;
 }
 
-Region& Region::scaleSelf(int sx, int sy) {
+Region& Region::scaleSelf(float sx, float sy) {
     size_t count = mStorage.size();
     Rect* rects = mStorage.editArray();
     while (count) {
-        rects->left *= sx;
-        rects->right *= sx;
-        rects->top *= sy;
-        rects->bottom *= sy;
+        rects->left = static_cast<int32_t>(rects->left * sx + 0.5f);
+        rects->right = static_cast<int32_t>(rects->right * sx + 0.5f);
+        rects->top = static_cast<int32_t>(rects->top * sy + 0.5f);
+        rects->bottom = static_cast<int32_t>(rects->bottom * sy + 0.5f);
         rects++;
         count--;
     }

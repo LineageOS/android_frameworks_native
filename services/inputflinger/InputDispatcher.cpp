@@ -3518,7 +3518,7 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
                             "paused=%s, hasFocus=%s, hasWallpaper=%s, "
                             "visible=%s, canReceiveKeys=%s, flags=0x%08x, type=0x%08x, layer=%d, "
-                            "frame=[%d,%d][%d,%d], globalScale=%f, windowScale=%f,%f"
+                            "frame=[%d,%d][%d,%d], globalScale=%f, windowScale=(%f,%f), "
                             "touchableRegion=",
                             i, windowInfo->name.c_str(), windowInfo->displayId,
                             toString(windowInfo->paused),
