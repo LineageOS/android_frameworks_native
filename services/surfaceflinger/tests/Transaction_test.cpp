@@ -333,8 +333,9 @@ protected:
 
     virtual sp<SurfaceControl> createLayer(const sp<SurfaceComposerClient>& client,
                                            const char* name, uint32_t width, uint32_t height,
-                                           uint32_t flags = 0) {
-        auto layer = createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags);
+                                           uint32_t flags = 0, SurfaceControl* parent = nullptr) {
+        auto layer =
+                createSurface(client, name, width, height, PIXEL_FORMAT_RGBA_8888, flags, parent);
 
         Transaction t;
         t.setLayerStack(layer, mDisplayLayerStack).setLayer(layer, mLayerZBase);
@@ -358,8 +359,8 @@ protected:
     }
 
     virtual sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
-                                           uint32_t flags = 0) {
-        return createLayer(mClient, name, width, height, flags);
+                                           uint32_t flags = 0, SurfaceControl* parent = nullptr) {
+        return createLayer(mClient, name, width, height, flags, parent);
     }
 
     ANativeWindow_Buffer getBufferQueueLayerBuffer(const sp<SurfaceControl>& layer) {
@@ -542,12 +543,12 @@ public:
     LayerTypeTransactionTest() { mLayerType = GetParam(); }
 
     sp<SurfaceControl> createLayer(const char* name, uint32_t width, uint32_t height,
-                                   uint32_t flags = 0) override {
+                                   uint32_t flags = 0, SurfaceControl* parent = nullptr) override {
         // if the flags already have a layer type specified, return an error
         if (flags & ISurfaceComposerClient::eFXSurfaceMask) {
             return nullptr;
         }
-        return LayerTransactionTest::createLayer(name, width, height, flags | mLayerType);
+        return LayerTransactionTest::createLayer(name, width, height, flags | mLayerType, parent);
     }
 
     void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color, int32_t bufferWidth,
@@ -2207,6 +2208,122 @@ TEST_F(LayerTransactionTest, SetColorTransformBasic) {
 
     Transaction().setColor(colorLayer, color)
         .setColorTransform(colorLayer, matrix, vec3()).apply();
+    {
+        SCOPED_TRACE("new color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), expectedColor, tolerance);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetColorTransformOnParent) {
+    sp<SurfaceControl> parentLayer;
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parent", 0 /* buffer width */,
+                                                      0 /* buffer height */,
+                                                      ISurfaceComposerClient::eFXSurfaceContainer));
+    ASSERT_NO_FATAL_FAILURE(
+            colorLayer = createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                     ISurfaceComposerClient::eFXSurfaceColor, parentLayer.get()));
+
+    Transaction()
+            .setCrop_legacy(parentLayer, Rect(0, 0, 100, 100))
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setLayer(parentLayer, mLayerZBase + 1)
+            .apply();
+    {
+        SCOPED_TRACE("default color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    const half3 color(50.0f / 255.0f, 100.0f / 255.0f, 150.0f / 255.0f);
+    half3 expected = color;
+    mat3 matrix;
+    matrix[0][0] = 0.3; matrix[1][0] = 0.59; matrix[2][0] = 0.11;
+    matrix[0][1] = 0.3; matrix[1][1] = 0.59; matrix[2][1] = 0.11;
+    matrix[0][2] = 0.3; matrix[1][2] = 0.59; matrix[2][2] = 0.11;
+
+    // degamma before applying the matrix
+    if (mColorManagementUsed) {
+        ColorTransformHelper::DegammaColor(expected);
+    }
+
+    ColorTransformHelper::applyMatrix(expected, matrix);
+
+    if (mColorManagementUsed) {
+        ColorTransformHelper::GammaColor(expected);
+    }
+
+    const Color expectedColor = {uint8_t(expected.r * 255), uint8_t(expected.g * 255),
+                                 uint8_t(expected.b * 255), 255};
+
+    // this is handwavy, but the precison loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+
+    Transaction()
+            .setColor(colorLayer, color)
+            .setColorTransform(parentLayer, matrix, vec3())
+            .apply();
+    {
+        SCOPED_TRACE("new color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), expectedColor, tolerance);
+    }
+}
+
+TEST_F(LayerTransactionTest, SetColorTransformOnChildAndParent) {
+    sp<SurfaceControl> parentLayer;
+    sp<SurfaceControl> colorLayer;
+    ASSERT_NO_FATAL_FAILURE(parentLayer = createLayer("parent", 0 /* buffer width */,
+                                                      0 /* buffer height */,
+                                                      ISurfaceComposerClient::eFXSurfaceContainer));
+    ASSERT_NO_FATAL_FAILURE(
+            colorLayer = createLayer("test", 0 /* buffer width */, 0 /* buffer height */,
+                                     ISurfaceComposerClient::eFXSurfaceColor, parentLayer.get()));
+
+    Transaction()
+            .setCrop_legacy(parentLayer, Rect(0, 0, 100, 100))
+            .setCrop_legacy(colorLayer, Rect(0, 0, 32, 32))
+            .setLayer(parentLayer, mLayerZBase + 1)
+            .apply();
+    {
+        SCOPED_TRACE("default color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    const half3 color(50.0f / 255.0f, 100.0f / 255.0f, 150.0f / 255.0f);
+    half3 expected = color;
+    mat3 matrixChild;
+    matrixChild[0][0] = 0.3; matrixChild[1][0] = 0.59; matrixChild[2][0] = 0.11;
+    matrixChild[0][1] = 0.3; matrixChild[1][1] = 0.59; matrixChild[2][1] = 0.11;
+    matrixChild[0][2] = 0.3; matrixChild[1][2] = 0.59; matrixChild[2][2] = 0.11;
+    mat3 matrixParent;
+    matrixParent[0][0] = 0.2; matrixParent[1][0] = 0.4; matrixParent[2][0] = 0.10;
+    matrixParent[0][1] = 0.2; matrixParent[1][1] = 0.4; matrixParent[2][1] = 0.10;
+    matrixParent[0][2] = 0.2; matrixParent[1][2] = 0.4; matrixParent[2][2] = 0.10;
+
+    // degamma before applying the matrix
+    if (mColorManagementUsed) {
+        ColorTransformHelper::DegammaColor(expected);
+    }
+
+    ColorTransformHelper::applyMatrix(expected, matrixChild);
+    ColorTransformHelper::applyMatrix(expected, matrixParent);
+
+    if (mColorManagementUsed) {
+        ColorTransformHelper::GammaColor(expected);
+    }
+
+    const Color expectedColor = {uint8_t(expected.r * 255), uint8_t(expected.g * 255),
+                                 uint8_t(expected.b * 255), 255};
+
+    // this is handwavy, but the precison loss scaled by 255 (8-bit per
+    // channel) should be less than one
+    const uint8_t tolerance = 1;
+
+    Transaction()
+            .setColor(colorLayer, color)
+            .setColorTransform(parentLayer, matrixParent, vec3())
+            .setColorTransform(colorLayer, matrixChild, vec3())
+            .apply();
     {
         SCOPED_TRACE("new color");
         screenshot()->expectColor(Rect(0, 0, 32, 32), expectedColor, tolerance);
