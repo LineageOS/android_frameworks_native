@@ -33,6 +33,7 @@
 #include "Scheduler/EventControlThread.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
+#include "TimeStats/TimeStats.h"
 
 namespace android::surfaceflinger {
 
@@ -115,6 +116,10 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
 
         sp<ColorLayer> createColorLayer(const LayerCreationArgs& args) override {
             return new ColorLayer(args);
+        }
+
+        std::unique_ptr<TimeStats> createTimeStats() override {
+            return std::make_unique<TimeStats>();
         }
     };
     static Factory factory;

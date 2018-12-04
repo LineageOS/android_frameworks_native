@@ -52,6 +52,7 @@
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/HWComposer.h"
+#include "TimeStats/TimeStats.h"
 
 #include <renderengine/RenderEngine.h>
 
@@ -1522,14 +1523,14 @@ void Layer::dumpFrameEvents(String8& result) {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
-    mTimeStats.onDisconnect(getSequence());
+    mFlinger->mTimeStats->onDestroy(getSequence());
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                      FrameEventHistoryDelta* outDelta) {
     if (newTimestamps) {
-        mTimeStats.setPostTime(getSequence(), newTimestamps->frameNumber, getName().c_str(),
-                               newTimestamps->postedTime);
+        mFlinger->mTimeStats->setPostTime(getSequence(), newTimestamps->frameNumber,
+                                          getName().c_str(), newTimestamps->postedTime);
     }
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);

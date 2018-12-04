@@ -24,6 +24,8 @@
 #include "DisplayDevice.h"
 #include "LayerRejecter.h"
 
+#include "TimeStats/TimeStats.h"
+
 #include <renderengine/RenderEngine.h>
 
 #include <gui/BufferItem.h>
@@ -71,7 +73,7 @@ BufferLayer::~BufferLayer() {
         destroyAllHwcLayersPlusChildren();
     }
 
-    mTimeStats.onDestroy(getSequence());
+    mFlinger->mTimeStats->onDestroy(getSequence());
 }
 
 void BufferLayer::useSurfaceDamage() {
@@ -334,7 +336,7 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     mFrameTracker.setDesiredPresentTime(desiredPresentTime);
 
     const int32_t layerID = getSequence();
-    mTimeStats.setDesiredTime(layerID, mCurrentFrameNumber, desiredPresentTime);
+    mFlinger->mTimeStats->setDesiredTime(layerID, mCurrentFrameNumber, desiredPresentTime);
 
     std::shared_ptr<FenceTime> frameReadyFence = getCurrentFenceTime();
     if (frameReadyFence->isValid()) {
@@ -346,13 +348,13 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     }
 
     if (presentFence->isValid()) {
-        mTimeStats.setPresentFence(layerID, mCurrentFrameNumber, presentFence);
+        mFlinger->mTimeStats->setPresentFence(layerID, mCurrentFrameNumber, presentFence);
         mFrameTracker.setActualPresentFence(std::shared_ptr<FenceTime>(presentFence));
     } else if (displayId && mFlinger->getHwComposer().isConnected(*displayId)) {
         // The HWC doesn't support present fences, so use the refresh
         // timestamp instead.
         const nsecs_t actualPresentTime = mFlinger->getHwComposer().getRefreshTimestamp(*displayId);
-        mTimeStats.setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
+        mFlinger->mTimeStats->setPresentTime(layerID, mCurrentFrameNumber, actualPresentTime);
         mFrameTracker.setActualPresentTime(actualPresentTime);
     }
 
