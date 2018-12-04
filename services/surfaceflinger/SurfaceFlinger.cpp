@@ -1565,7 +1565,15 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            // Per SurfaceFlinger_hwc1.cpp from 8.1, devices using version 1
+            // of HWC may not use present/retire fences as reliable check for
+            // missed frames. If this capability is set (which is done in
+            // libhwc2on1adapter by default), skip frame checks + force-commit
+            // pendings transactions in case they are still pending
+            bool presentFenceIsNotReliable = getHwComposer().hasCapability(
+                    HWC2::Capability::PresentFenceIsNotReliable);
             bool frameMissed = !mHadClientComposition &&
+                    !presentFenceIsNotReliable &&
                     mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getSignalTime() ==
                             Fence::SIGNAL_TIME_PENDING);
@@ -1592,6 +1600,14 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 // repaint
                 signalRefresh();
             }
+
+            // force-commit transactions if devices have unreliable present/retire
+            // fences and transaction is still marked as pending
+            // (in case of e.g. asynchronous transactions)
+            if (presentFenceIsNotReliable && mTransactionPending) {
+                commitTransaction();
+            }
+
             break;
         }
         case MessageQueue::REFRESH: {
