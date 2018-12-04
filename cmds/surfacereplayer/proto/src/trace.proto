@@ -45,6 +45,7 @@ message SurfaceChange {
         OpaqueFlagChange            opaque_flag             = 13;
         SecureFlagChange            secure_flag             = 14;
         DeferredTransactionChange   deferred_transaction    = 15;
+        CornerRadiusChange          corner_radius           = 16;
     }
 }
 
@@ -60,6 +61,10 @@ message SizeChange {
 
 message AlphaChange {
     required float alpha = 1;
+}
+
+message CornerRadiusChange {
+    required float corner_radius = 1;
 }
 
 message LayerChange {

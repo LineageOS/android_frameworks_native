@@ -62,13 +62,21 @@ public:
         return VertexArray<TYPE>(getTexCoords(), mStride);
     }
 
+    template <typename TYPE>
+    VertexArray<TYPE> getCropCoordArray() {
+        return VertexArray<TYPE>(getCropCoords(), mStride);
+    }
+
     Primitive getPrimitive() const;
 
     // returns a pointer to the vertices positions
     float const* getPositions() const;
 
-    // returns a pointer to the vertices  texture coordinates
+    // returns a pointer to the vertices texture coordinates
     float const* getTexCoords() const;
+
+    // returns a pointer to the vertices crop coordinates
+    float const* getCropCoords() const;
 
     // number of vertices in this mesh
     size_t getVertexCount() const;
@@ -92,6 +100,7 @@ private:
 
     float* getPositions();
     float* getTexCoords();
+    float* getCropCoords();
 
     std::vector<float> mVertices;
     size_t mVertexCount;

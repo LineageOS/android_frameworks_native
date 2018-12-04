@@ -121,6 +121,7 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
     layer.appId = layerProto.app_id();
     layer.hwcCompositionType = layerProto.hwc_composition_type();
     layer.isProtected = layerProto.is_protected();
+    layer.cornerRadius = layerProto.corner_radius();
 
     return layer;
 }
@@ -294,6 +295,7 @@ std::string LayerProtoParser::Layer::to_string() const {
                   size.y);
 
     StringAppendF(&result, "crop=%s, ", crop.to_string().c_str());
+    StringAppendF(&result, "cornerRadius=%f, ", cornerRadius);
     StringAppendF(&result, "isOpaque=%1d, invalidate=%1d, ", isOpaque, invalidate);
     StringAppendF(&result, "dataspace=%s, ", dataspace.c_str());
     StringAppendF(&result, "defaultPixelFormat=%s, ", pixelFormat.c_str());

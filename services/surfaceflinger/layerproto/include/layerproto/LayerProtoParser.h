@@ -114,6 +114,7 @@ public:
         int32_t appId;
         int32_t hwcCompositionType;
         bool isProtected;
+        float cornerRadius;
 
         std::string to_string() const;
     };

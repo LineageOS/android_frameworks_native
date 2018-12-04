@@ -125,6 +125,17 @@ public:
         inline bool operator!=(const Geometry& rhs) const { return !operator==(rhs); }
     };
 
+    struct RoundedCornerState {
+        RoundedCornerState() = default;
+        RoundedCornerState(FloatRect cropRect, float radius)
+              : cropRect(cropRect), radius(radius) {}
+
+        // Rounded rectangle in local layer coordinate space.
+        FloatRect cropRect = FloatRect();
+        // Radius of the rounded rectangle.
+        float radius = 0.0f;
+    };
+
     struct State {
         Geometry active_legacy;
         Geometry requested_legacy;
@@ -167,6 +178,7 @@ public:
         SortedVector<wp<Layer>> zOrderRelatives;
 
         half4 color;
+        float cornerRadius;
 
         bool inputInfoChanged;
         InputWindowInfo inputInfo;
@@ -255,6 +267,13 @@ public:
 
     virtual bool setAlpha(float alpha);
     virtual bool setColor(const half3& color);
+
+    // Set rounded corner radius for this layer and its children.
+    //
+    // We only support 1 radius per layer in the hierarchy, where parent layers have precedence.
+    // The shape of the rounded corner rectangle is specified by the crop rectangle of the layer
+    // from which we inferred the rounded corner radius.
+    virtual bool setCornerRadius(float cornerRadius);
     virtual bool setTransparentRegionHint(const Region& transparent);
     virtual bool setFlags(uint8_t flags, uint8_t mask);
     virtual bool setLayerStack(uint32_t layerStack);
@@ -573,6 +592,13 @@ public:
     half getAlpha() const;
     half4 getColor() const;
 
+    // Returns how rounded corners should be drawn for this layer.
+    // This will traverse the hierarchy until it reaches its root, finding topmost rounded
+    // corner definition and converting it into current layer's coordinates.
+    // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
+    // ignored.
+    RoundedCornerState getRoundedCornerState() const;
+
     void traverseInReverseZOrder(LayerVector::StateSet stateSet,
                                  const LayerVector::Visitor& visitor);
     void traverseInZOrder(LayerVector::StateSet stateSet, const LayerVector::Visitor& visitor);
@@ -645,11 +671,15 @@ protected:
     // IGraphicBufferProducer client, as that should not affect child clipping.
     // Returns in screen space.
     Rect computeInitialCrop(const sp<const DisplayDevice>& display) const;
+    /**
+     * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
+     * crop coordinates, transforming them into layer space.
+     */
+    void setupRoundedCornersCropCoordinates(Rect win, const FloatRect& roundedCornersCrop) const;
 
     // drawing
     void clearWithOpenGL(const RenderArea& renderArea, float r, float g, float b,
                          float alpha) const;
-
     void setParent(const sp<Layer>& layer);
 
     LayerVector makeTraversalList(LayerVector::StateSet stateSet, bool* outSkipRelativeZUsers);

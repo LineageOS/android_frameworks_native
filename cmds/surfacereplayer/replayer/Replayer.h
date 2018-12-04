@@ -92,6 +92,8 @@ class Replayer {
             layer_id id, const LayerChange& lc);
     void setCrop(SurfaceComposerClient::Transaction& t,
             layer_id id, const CropChange& cc);
+    void setCornerRadius(SurfaceComposerClient::Transaction& t,
+            layer_id id, const CornerRadiusChange& cc);
     void setMatrix(SurfaceComposerClient::Transaction& t,
             layer_id id, const MatrixChange& mc);
     void setOverrideScalingMode(SurfaceComposerClient::Transaction& t,

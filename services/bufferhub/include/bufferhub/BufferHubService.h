@@ -42,7 +42,7 @@ public:
     Return<void> allocateBuffer(const HardwareBufferDescription& description,
                                 const uint32_t userMetadataSize,
                                 allocateBuffer_cb _hidl_cb) override;
-    Return<void> importBuffer(const hidl_handle& nativeHandle, importBuffer_cb _hidl_cb) override;
+    Return<void> importBuffer(const hidl_handle& tokenHandle, importBuffer_cb _hidl_cb) override;
 
     // Non-binder functions
     // Internal help function for IBufferClient::duplicate.

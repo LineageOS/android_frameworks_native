@@ -114,10 +114,20 @@ public:
     virtual void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                           ui::Transform::orientation_flags rotation) = 0;
     virtual void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
-                                    const half4& color) = 0;
+                                    const half4& color, float cornerRadius) = 0;
     virtual void setupLayerTexturing(const Texture& texture) = 0;
     virtual void setupLayerBlackedOut() = 0;
     virtual void setupFillWithColor(float r, float g, float b, float a) = 0;
+    // Sets up the crop size for corner radius clipping.
+    //
+    // Having corner radius will force GPU composition on the layer and its children, drawing it
+    // with a special shader. The shader will receive the radius and the crop rectangle as input,
+    // modifying the opacity of the destination texture, multiplying it by a number between 0 and 1.
+    // We query Layer#getRoundedCornerState() to retrieve the radius as well as the rounded crop
+    // rectangle to figure out how to apply the radius for this layer. The crop rectangle will be
+    // in local layer coordinate space, so we have to take the layer transform into account when
+    // walking up the tree.
+    virtual void setupCornerRadiusCropSize(float width, float height) = 0;
 
     // Set a color transform matrix that is applied in linear space right before OETF.
     virtual void setColorTransform(const mat4& /* colorTransform */) = 0;

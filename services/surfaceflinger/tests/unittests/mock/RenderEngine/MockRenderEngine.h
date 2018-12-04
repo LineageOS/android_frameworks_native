@@ -56,10 +56,11 @@ public:
     MOCK_CONST_METHOD0(checkErrors, void());
     MOCK_METHOD4(setViewportAndProjection,
                  void(size_t, size_t, Rect, ui::Transform::orientation_flags));
-    MOCK_METHOD4(setupLayerBlending, void(bool, bool, bool, const half4&));
+    MOCK_METHOD5(setupLayerBlending, void(bool, bool, bool, const half4&, float));
     MOCK_METHOD1(setupLayerTexturing, void(const Texture&));
     MOCK_METHOD0(setupLayerBlackedOut, void());
     MOCK_METHOD4(setupFillWithColor, void(float, float, float, float));
+    MOCK_METHOD2(setupCornerRadiusCropSize, void(float, float));
     MOCK_METHOD1(setColorTransform, void(const mat4&));
     MOCK_METHOD1(setSaturationMatrix, void(const mat4&));
     MOCK_METHOD0(disableTexturing, void());

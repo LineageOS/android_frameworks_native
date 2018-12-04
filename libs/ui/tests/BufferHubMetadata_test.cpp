@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <ui/BufferHubMetadata.h>
 
-using android::dvr::BufferHubDefs::IsBufferGained;
+using android::dvr::BufferHubDefs::IsBufferReleased;
 
 namespace android {
 namespace dvr {
@@ -52,19 +52,13 @@ TEST_F(BufferHubMetadataTest, Import_Success) {
   BufferHubDefs::MetadataHeader* mh1 = m1.metadata_header();
   EXPECT_NE(mh1, nullptr);
 
-  // TODO(b/111976433): Update this test once BufferHub state machine gets
-  // updated. In the old model, buffer starts in the gained state (i.e.
-  // valued 0). In the new model, buffer states in the released state.
-  EXPECT_TRUE(IsBufferGained(mh1->fence_state.load()));
+  EXPECT_TRUE(IsBufferReleased(mh1->buffer_state.load()));
 
   EXPECT_TRUE(m2.IsValid());
   BufferHubDefs::MetadataHeader* mh2 = m2.metadata_header();
   EXPECT_NE(mh2, nullptr);
 
-  // TODO(b/111976433): Update this test once BufferHub state machine gets
-  // updated. In the old model, buffer starts in the gained state (i.e.
-  // valued 0). In the new model, buffer states in the released state.
-  EXPECT_TRUE(IsBufferGained(mh2->fence_state.load()));
+  EXPECT_TRUE(IsBufferReleased(mh2->buffer_state.load()));
 }
 
 TEST_F(BufferHubMetadataTest, MoveMetadataInvalidatesOldOne) {

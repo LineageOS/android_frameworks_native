@@ -36,6 +36,7 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
     glAttachShader(programId, fragmentId);
     glBindAttribLocation(programId, position, "position");
     glBindAttribLocation(programId, texCoords, "texCoords");
+    glBindAttribLocation(programId, cropCoords, "cropCoords");
     glLinkProgram(programId);
 
     GLint status;
@@ -66,6 +67,8 @@ Program::Program(const ProgramCache::Key& /*needs*/, const char* vertex, const c
         mDisplayMaxLuminanceLoc = glGetUniformLocation(programId, "displayMaxLuminance");
         mInputTransformMatrixLoc = glGetUniformLocation(programId, "inputTransformMatrix");
         mOutputTransformMatrixLoc = glGetUniformLocation(programId, "outputTransformMatrix");
+        mCornerRadiusLoc = glGetUniformLocation(programId, "cornerRadius");
+        mCropCenterLoc = glGetUniformLocation(programId, "cropCenter");
 
         // set-up the default values for our uniforms
         glUseProgram(programId);
@@ -134,6 +137,12 @@ void Program::setUniforms(const Description& desc) {
     }
     if (mDisplayMaxLuminanceLoc >= 0) {
         glUniform1f(mDisplayMaxLuminanceLoc, desc.displayMaxLuminance);
+    }
+    if (mCornerRadiusLoc >= 0) {
+        glUniform1f(mCornerRadiusLoc, desc.cornerRadius);
+    }
+    if (mCropCenterLoc >= 0) {
+        glUniform2f(mCropCenterLoc, desc.cropSize.x / 2.0f, desc.cropSize.y / 2.0f);
     }
     // these uniforms are always present
     glUniformMatrix4fv(mProjectionMatrixLoc, 1, GL_FALSE, desc.projectionMatrix.asArray());

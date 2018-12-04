@@ -79,7 +79,8 @@ Formatter& dedent(Formatter& f) {
 
 void ProgramCache::primeCache(bool useColorManagement) {
     uint32_t shaderCount = 0;
-    uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK;
+    uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK
+        | Key::ROUNDED_CORNERS_MASK;
     // Prime the cache for all combinations of the above masks,
     // leaving off the experimental color matrix mask options.
 
@@ -136,12 +137,15 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
             .set(Key::OPACITY_MASK,
                  description.isOpaque ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT)
             .set(Key::Key::INPUT_TRANSFORM_MATRIX_MASK,
-                 description.hasInputTransformMatrix() ? Key::INPUT_TRANSFORM_MATRIX_ON
-                                                       : Key::INPUT_TRANSFORM_MATRIX_OFF)
+                 description.hasInputTransformMatrix()
+                         ? Key::INPUT_TRANSFORM_MATRIX_ON : Key::INPUT_TRANSFORM_MATRIX_OFF)
             .set(Key::Key::OUTPUT_TRANSFORM_MATRIX_MASK,
                  description.hasOutputTransformMatrix() || description.hasColorMatrix()
                          ? Key::OUTPUT_TRANSFORM_MATRIX_ON
-                         : Key::OUTPUT_TRANSFORM_MATRIX_OFF);
+                         : Key::OUTPUT_TRANSFORM_MATRIX_OFF)
+            .set(Key::ROUNDED_CORNERS_MASK,
+                 description.cornerRadius > 0
+                         ? Key::ROUNDED_CORNERS_ON : Key::ROUNDED_CORNERS_OFF);
 
     needs.set(Key::Y410_BT2020_MASK,
               description.isY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
@@ -513,12 +517,19 @@ String8 ProgramCache::generateVertexShader(const Key& needs) {
         vs << "attribute vec4 texCoords;"
            << "varying vec2 outTexCoords;";
     }
+    if (needs.hasRoundedCorners()) {
+        vs << "attribute lowp vec4 cropCoords;";
+        vs << "varying lowp vec2 outCropCoords;";
+    }
     vs << "attribute vec4 position;"
        << "uniform mat4 projection;"
        << "uniform mat4 texture;"
        << "void main(void) {" << indent << "gl_Position = projection * position;";
     if (needs.isTexturing()) {
         vs << "outTexCoords = (texture * texCoords).st;";
+    }
+    if (needs.hasRoundedCorners()) {
+        vs << "outCropCoords = cropCoords.st;";
     }
     vs << dedent << "}";
     return vs.getString();
@@ -539,6 +550,27 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
     } else if (needs.getTextureTarget() == Key::TEXTURE_2D) {
         fs << "uniform sampler2D sampler;"
            << "varying vec2 outTexCoords;";
+    }
+
+    if (needs.hasRoundedCorners()) {
+        // Rounded corners implementation using a signed distance function.
+        fs << R"__SHADER__(
+            uniform float cornerRadius;
+            uniform vec2 cropCenter;
+            varying vec2 outCropCoords;
+
+            /**
+             * This function takes the current crop coordinates and calculates an alpha value based
+             * on the corner radius and distance from the crop center.
+             */
+            float applyCornerRadius(vec2 cropCoords)
+            {
+                vec2 position = cropCoords - cropCenter;
+                vec2 dist = abs(position) + vec2(cornerRadius) - cropCenter;
+                float plane = length(max(dist, vec2(0.0)));
+                return 1.0 - clamp(plane - cornerRadius, 0.0, 1.0);
+            }
+            )__SHADER__";
     }
 
     if (needs.getTextureTarget() == Key::TEXTURE_OFF || needs.hasAlpha()) {
@@ -636,6 +668,14 @@ String8 ProgramCache::generateFragmentShader(const Key& needs) {
         if (!needs.isOpaque() && needs.isPremultiplied()) {
             // and re-premultiply if needed after gamma correction
             fs << "gl_FragColor.rgb = gl_FragColor.rgb * (gl_FragColor.a + 0.0019);";
+        }
+    }
+
+    if (needs.hasRoundedCorners()) {
+        if (needs.isPremultiplied()) {
+            fs << "gl_FragColor *= vec4(applyCornerRadius(outCropCoords));";
+        } else {
+            fs << "gl_FragColor.a *= applyCornerRadius(outCropCoords);";
         }
     }
 

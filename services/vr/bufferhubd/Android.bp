@@ -75,5 +75,3 @@ cc_binary {
     name: "bufferhubd",
     init_rc: ["bufferhubd.rc"],
 }
-
-subdirs = ["tests"]

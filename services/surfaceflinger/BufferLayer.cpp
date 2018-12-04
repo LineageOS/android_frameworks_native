@@ -641,14 +641,20 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     texCoords[2] = vec2(right, 1.0f - bottom);
     texCoords[3] = vec2(right, 1.0f - top);
 
+    const auto roundedCornerState = getRoundedCornerState();
+    const auto cropRect = roundedCornerState.cropRect;
+    setupRoundedCornersCropCoordinates(win, cropRect);
+
     auto& engine(mFlinger->getRenderEngine());
     engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
-                              getColor());
+                              getColor(), roundedCornerState.radius);
     engine.setSourceDataSpace(mCurrentDataSpace);
 
     if (isHdrY410()) {
         engine.setSourceY410BT2020(true);
     }
+
+    engine.setupCornerRadiusCropSize(cropRect.getWidth(), cropRect.getHeight());
 
     engine.drawMesh(getBE().mMesh);
     engine.disableBlending();

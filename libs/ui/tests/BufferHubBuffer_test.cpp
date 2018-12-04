@@ -19,6 +19,7 @@
 #include <android/frameworks/bufferhub/1.0/IBufferClient.h>
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
+#include <cutils/native_handle.h>
 #include <gtest/gtest.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
@@ -35,7 +36,7 @@ const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
 const size_t kUserMetadataSize = 0;
 
-using dvr::BufferHubDefs::IsBufferGained;
+using dvr::BufferHubDefs::IsBufferReleased;
 using dvr::BufferHubDefs::kFirstClientBitMask;
 using dvr::BufferHubDefs::kMetadataHeaderSize;
 using frameworks::bufferhub::V1_0::BufferHubStatus;
@@ -118,9 +119,9 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     // We use client_state_mask() to tell those two instances apart.
     EXPECT_NE(bufferStateMask1, bufferStateMask2);
 
-    // Both buffer instances should be in gained state.
-    EXPECT_TRUE(IsBufferGained(b1->buffer_state()));
-    EXPECT_TRUE(IsBufferGained(b2->buffer_state()));
+    // Both buffer instances should be in released state currently.
+    EXPECT_TRUE(IsBufferReleased(b1->buffer_state()));
+    EXPECT_TRUE(IsBufferReleased(b2->buffer_state()));
 
     // TODO(b/112338294): rewrite test after migration
     return;
@@ -144,7 +145,7 @@ TEST_F(BufferHubBufferTest, AllocateBuffer) {
     EXPECT_TRUE(bufferHub->allocateBuffer(desc, kUserMetadataSize, callback).isOk());
 }
 
-TEST_F(BufferHubBufferTest, DuplicateBuffer) {
+TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
     // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
     sp<IBufferHub> bufferhub = IBufferHub::getService();
     ASSERT_NE(nullptr, bufferhub.get());
@@ -170,11 +171,63 @@ TEST_F(BufferHubBufferTest, DuplicateBuffer) {
         token = outToken;
         ret = status;
     };
-    EXPECT_TRUE(client->duplicate(dup_cb).isOk());
+    ASSERT_TRUE(client->duplicate(dup_cb).isOk());
     EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
     ASSERT_NE(token.getNativeHandle(), nullptr);
     EXPECT_EQ(token->numInts, 1);
     EXPECT_EQ(token->numFds, 0);
+
+    sp<IBufferClient> client2;
+    IBufferHub::importBuffer_cb import_cb = [&](const auto& outClient, const auto& status) {
+        ret = status;
+        client2 = outClient;
+    };
+    ASSERT_TRUE(bufferhub->importBuffer(token, import_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::NO_ERROR);
+    EXPECT_NE(nullptr, client2.get());
+    // TODO(b/116681016): once BufferNode.id() is exposed via BufferHubBuffer, check origin.id =
+    // improted.id here.
+}
+
+// nullptr must not crash the service
+TEST_F(BufferHubBufferTest, ImportNullToken) {
+    // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
+    sp<IBufferHub> bufferhub = IBufferHub::getService();
+    ASSERT_NE(nullptr, bufferhub.get());
+
+    hidl_handle nullToken;
+    sp<IBufferClient> client;
+    BufferHubStatus ret;
+    IBufferHub::importBuffer_cb import_cb = [&](const auto& outClient, const auto& status) {
+        client = outClient;
+        ret = status;
+    };
+    ASSERT_TRUE(bufferhub->importBuffer(nullToken, import_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
+    EXPECT_EQ(nullptr, client.get());
+}
+
+// This test has a very little chance to fail (number of existing tokens / 2 ^ 32)
+TEST_F(BufferHubBufferTest, ImportInvalidToken) {
+    // TODO(b/116681016): directly test on BufferHubBuffer instead of the service.
+    sp<IBufferHub> bufferhub = IBufferHub::getService();
+    ASSERT_NE(nullptr, bufferhub.get());
+
+    native_handle_t* tokenHandle = native_handle_create(/*numFds=*/0, /*numInts=*/1);
+    tokenHandle->data[0] = 0;
+
+    hidl_handle invalidToken(tokenHandle);
+    sp<IBufferClient> client;
+    BufferHubStatus ret;
+    IBufferHub::importBuffer_cb import_cb = [&](const auto& outClient, const auto& status) {
+        client = outClient;
+        ret = status;
+    };
+    ASSERT_TRUE(bufferhub->importBuffer(invalidToken, import_cb).isOk());
+    EXPECT_EQ(ret, BufferHubStatus::INVALID_TOKEN);
+    EXPECT_EQ(nullptr, client.get());
+
+    native_handle_delete(tokenHandle);
 }
 
 } // namespace

@@ -82,6 +82,7 @@ status_t layer_state_t::write(Parcel& output) const
 
     memcpy(output.writeInplace(16 * sizeof(float)),
            colorTransform.asArray(), 16 * sizeof(float));
+    output.writeFloat(cornerRadius);
 
     if (output.writeVectorSize(listenerCallbacks) == NO_ERROR) {
         for (const auto& [listener, callbackIds] : listenerCallbacks) {
@@ -149,6 +150,7 @@ status_t layer_state_t::read(const Parcel& input)
     }
 
     colorTransform = mat4(static_cast<const float*>(input.readInplace(16 * sizeof(float))));
+    cornerRadius = input.readFloat();
 
     int32_t listenersSize = input.readInt32();
     for (int32_t i = 0; i < listenersSize; i++) {
@@ -269,6 +271,10 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eCropChanged_legacy) {
         what |= eCropChanged_legacy;
         crop_legacy = other.crop_legacy;
+    }
+    if (other.what & eCornerRadiusChanged) {
+        what |= eCornerRadiusChanged;
+        cornerRadius = other.cornerRadius;
     }
     if (other.what & eDeferTransaction_legacy) {
         what |= eDeferTransaction_legacy;

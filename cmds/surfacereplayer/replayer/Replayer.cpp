@@ -385,6 +385,9 @@ status_t Replayer::doSurfaceTransaction(
             case SurfaceChange::SurfaceChangeCase::kCrop:
                 setCrop(transaction, change.id(), change.crop());
                 break;
+            case SurfaceChange::SurfaceChangeCase::kCornerRadius:
+                setCornerRadius(transaction, change.id(), change.corner_radius());
+                break;
             case SurfaceChange::SurfaceChangeCase::kMatrix:
                 setMatrix(transaction, change.id(), change.matrix());
                 break;
@@ -487,6 +490,13 @@ void Replayer::setCrop(SurfaceComposerClient::Transaction& t,
     Rect r = Rect(cc.rectangle().left(), cc.rectangle().top(), cc.rectangle().right(),
             cc.rectangle().bottom());
     t.setCrop_legacy(mLayers[id], r);
+}
+
+void Replayer::setCornerRadius(SurfaceComposerClient::Transaction& t,
+        layer_id id, const CornerRadiusChange& cc) {
+    ALOGV("Layer %d: Setting Corner Radius -- cornerRadius=%d", id, cc.corner_radius());
+
+    t.setCornerRadius(mLayers[id], cc.corner_radius());
 }
 
 void Replayer::setMatrix(SurfaceComposerClient::Transaction& t,

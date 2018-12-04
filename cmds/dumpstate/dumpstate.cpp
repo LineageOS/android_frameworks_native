@@ -1864,6 +1864,17 @@ static void FinalizeFile() {
             do_text_file = true;
         } else {
             do_text_file = false;
+            // If the user has changed the suffix, we need to change the zip file name.
+            std::string new_path = ds.GetPath(".zip");
+            if (ds.path_ != new_path) {
+                MYLOGD("Renaming zip file from %s to %s\n", ds.path_.c_str(), new_path.c_str());
+                if (rename(ds.path_.c_str(), new_path.c_str())) {
+                    MYLOGE("rename(%s, %s): %s\n", ds.path_.c_str(), new_path.c_str(),
+                           strerror(errno));
+                } else {
+                    ds.path_ = new_path;
+                }
+            }
         }
     }
     if (do_text_file) {

@@ -319,7 +319,12 @@ Status<size_t> ProducerQueueChannel::OnProducerQueueInsertBuffer(
     return ErrorStatus(EINVAL);
   }
   uint64_t buffer_state = producer_channel->buffer_state();
-  if (!BufferHubDefs::IsBufferGained(buffer_state)) {
+  // TODO(b/112007999) add an atomic variable in metadata header in shared
+  // memory to indicate which client is the last producer of the buffer.
+  // Currently, the first client is the only producer to the buffer.
+  // Thus, it checks whether the first client gains the buffer below.
+  if (!BufferHubDefs::IsClientGained(buffer_state,
+                                     BufferHubDefs::kFirstClientBitMask)) {
     // Rejects the request if the requested buffer is not in Gained state.
     ALOGE(
         "ProducerQueueChannel::InsertBuffer: The buffer (cid=%d, "
