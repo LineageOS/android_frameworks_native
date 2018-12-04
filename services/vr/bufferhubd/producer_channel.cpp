@@ -57,7 +57,6 @@ ProducerChannel::ProducerChannel(BufferHubService* service, int channel_id,
                                  int* error)
     : BufferHubChannel(service, channel_id, channel_id, kProducerType),
       pending_consumers_(0),
-      producer_owns_(true),
       user_metadata_size_(user_metadata_size),
       metadata_buf_size_(BufferHubDefs::kMetadataHeaderSize +
                          user_metadata_size) {
@@ -312,8 +311,7 @@ void ProducerChannel::RemoveConsumerClientMask(uint64_t consumer_state_mask) {
 Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
     Message& message, uint64_t consumer_state_mask) {
   ATRACE_NAME(__FUNCTION__);
-  ALOGD_IF(TRACE, "%s: buffer_id=%d, producer_owns=%d", __FUNCTION__,
-           buffer_id(), producer_owns_);
+  ALOGD_IF(TRACE, "%s: buffer_id=%d", __FUNCTION__, buffer_id());
 
   int channel_id;
   auto status = message.PushChannel(0, nullptr, &channel_id);
@@ -392,10 +390,6 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
                                              LocalFence acquire_fence) {
   ATRACE_NAME("ProducerChannel::OnProducerPost");
   ALOGD_IF(TRACE, "ProducerChannel::OnProducerPost: buffer_id=%d", buffer_id());
-  if (!producer_owns_) {
-    ALOGE("ProducerChannel::OnProducerPost: Not in gained state!");
-    return ErrorStatus(EBUSY);
-  }
 
   epoll_event event;
   event.events = 0;
@@ -426,7 +420,6 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
            dummy_fence_count, buffer_id());
 
   post_fence_ = std::move(acquire_fence);
-  producer_owns_ = false;
 
   // Signal any interested consumers. If there are none, the buffer will stay
   // in posted state until a consumer comes online. This behavior guarantees
@@ -445,12 +438,6 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
 Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGain");
   ALOGD_IF(TRACE, "ProducerChannel::OnGain: buffer_id=%d", buffer_id());
-  if (producer_owns_) {
-    ALOGE("ProducerChanneL::OnGain: Already in gained state: channel=%d",
-          channel_id());
-    // TODO(b/119331650): remove this if check if producer_owns_ is removed.
-    // return ErrorStatus(EALREADY);
-  }
 
   // There are still pending consumers, return busy.
   if (pending_consumers_ > 0) {
@@ -465,7 +452,6 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   }
 
   ClearAvailable();
-  producer_owns_ = true;
   post_fence_.close();
   return {std::move(returned_fence_)};
 }
@@ -531,10 +517,6 @@ Status<LocalFence> ProducerChannel::OnConsumerAcquire(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnConsumerAcquire");
   ALOGD_IF(TRACE, "ProducerChannel::OnConsumerAcquire: buffer_id=%d",
            buffer_id());
-  if (producer_owns_) {
-    ALOGE("ProducerChannel::OnConsumerAcquire: Not in posted state!");
-    return ErrorStatus(EBUSY);
-  }
 
   // Return a borrowed fd to avoid unnecessary duplication of the underlying
   // fd. Serialization just needs to read the handle.
@@ -546,10 +528,6 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
   ATRACE_NAME("ProducerChannel::OnConsumerRelease");
   ALOGD_IF(TRACE, "ProducerChannel::OnConsumerRelease: buffer_id=%d",
            buffer_id());
-  if (producer_owns_) {
-    ALOGE("ProducerChannel::OnConsumerRelease: Not in acquired state!");
-    return ErrorStatus(EBUSY);
-  }
 
   // Attempt to merge the fences if necessary.
   if (release_fence) {
