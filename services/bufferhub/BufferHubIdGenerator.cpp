@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <bufferhub/UniqueIdGenerator.h>
+#include <bufferhub/BufferHubIdGenerator.h>
 
 namespace android {
 namespace frameworks {
@@ -22,9 +22,15 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
-constexpr uint32_t UniqueIdGenerator::kInvalidId;
+constexpr uint32_t BufferHubIdGenerator::kInvalidId;
 
-uint32_t UniqueIdGenerator::getId() {
+BufferHubIdGenerator& BufferHubIdGenerator::getInstance() {
+    static BufferHubIdGenerator generator;
+
+    return generator;
+}
+
+uint32_t BufferHubIdGenerator::getId() {
     std::lock_guard<std::mutex> lock(mIdsInUseMutex);
 
     do {
@@ -37,7 +43,7 @@ uint32_t UniqueIdGenerator::getId() {
     return mLastId;
 }
 
-bool UniqueIdGenerator::freeId(uint32_t id) {
+bool BufferHubIdGenerator::freeId(uint32_t id) {
     std::lock_guard<std::mutex> lock(mIdsInUseMutex);
     auto iter = mIdsInUse.find(id);
     if (iter != mIdsInUse.end()) {
