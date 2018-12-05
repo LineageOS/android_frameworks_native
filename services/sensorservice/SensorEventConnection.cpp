@@ -279,7 +279,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
                     }
                 } else {
                     // Regular sensor event, just copy it to the scratch buffer.
-                    if (mHasSensorAccess) {
+                    if (hasSensorAccess()) {
                         scratch[count++] = buffer[i];
                     }
                 }
@@ -290,7 +290,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
                                         buffer[i].meta_data.sensor == sensor_handle)));
         }
     } else {
-        if (mHasSensorAccess) {
+        if (hasSensorAccess()) {
             scratch = const_cast<sensors_event_t *>(buffer);
             count = numEvents;
         } else {
@@ -321,7 +321,7 @@ status_t SensorService::SensorEventConnection::sendEvents(
     }
 
     int index_wake_up_event = -1;
-    if (mHasSensorAccess) {
+    if (hasSensorAccess()) {
         index_wake_up_event = findWakeUpSensorEventLocked(scratch, count);
         if (index_wake_up_event >= 0) {
             scratch[index_wake_up_event].flags |= WAKE_UP_SENSOR_EVENT_NEEDS_ACK;
@@ -373,6 +373,10 @@ status_t SensorService::SensorEventConnection::sendEvents(
 void SensorService::SensorEventConnection::setSensorAccess(const bool hasAccess) {
     Mutex::Autolock _l(mConnectionLock);
     mHasSensorAccess = hasAccess;
+}
+
+bool SensorService::SensorEventConnection::hasSensorAccess() {
+    return mHasSensorAccess && !mService->mSensorPrivacyPolicy->isSensorPrivacyEnabled();
 }
 
 void SensorService::SensorEventConnection::reAllocateCacheLocked(sensors_event_t const* scratch,
@@ -491,7 +495,7 @@ void SensorService::SensorEventConnection::writeToSocketFromCache() {
     for (int numEventsSent = 0; numEventsSent < mCacheSize;) {
         const int numEventsToWrite = helpers::min(mCacheSize - numEventsSent, maxWriteSize);
         int index_wake_up_event = -1;
-        if (mHasSensorAccess) {
+        if (hasSensorAccess()) {
             index_wake_up_event =
                       findWakeUpSensorEventLocked(mEventCache + numEventsSent, numEventsToWrite);
             if (index_wake_up_event >= 0) {
