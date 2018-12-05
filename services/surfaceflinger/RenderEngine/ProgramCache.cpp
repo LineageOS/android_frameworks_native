@@ -220,7 +220,7 @@ void ProgramCache::generateEOTF(Formatter& fs, const Key& needs) {
                     const highp float c2 = (2413.0 / 4096.0) * 32.0;
                     const highp float c3 = (2392.0 / 4096.0) * 32.0;
 
-                    highp vec3 tmp = pow(color, 1.0 / vec3(m2));
+                    highp vec3 tmp = pow(clamp(color, 0.0, 1.0), 1.0 / vec3(m2));
                     tmp = max(tmp - c1, 0.0) / (c2 - c3 * tmp);
                     return pow(tmp, 1.0 / vec3(m1));
                 }
