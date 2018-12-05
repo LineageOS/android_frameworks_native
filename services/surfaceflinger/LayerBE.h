@@ -17,16 +17,12 @@
 #pragma once
 
 #include <stdint.h>
-#include <sys/types.h>
+#include <string.h>
 
-#include <renderengine/Mesh.h>
-#include <renderengine/RenderEngine.h>
-#include <renderengine/Texture.h>
-#include <ui/Region.h>
+#include <ui/Fence.h>
+#include <utils/StrongPointer.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
-#include "DisplayHardware/HWComposer.h"
-#include "SurfaceFlinger.h"
 
 namespace android {
 
@@ -34,42 +30,10 @@ class LayerBE;
 
 struct CompositionInfo {
     std::string layerName;
-    HWC2::Composition compositionType;
-    bool firstClear = false;
-    sp<GraphicBuffer> mBuffer = nullptr;
-    int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     std::shared_ptr<LayerBE> layer;
     struct {
         DisplayId displayId;
-        sp<Fence> fence;
-        HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
-        float alpha;
-        HWC2::Transform transform = HWC2::Transform::None;
-        int type;
-        int appId;
-        Region surfaceDamage;
-        sp<NativeHandle> sidebandStream;
-        ui::Dataspace dataspace;
-        hwc_color_t color;
-        bool supportedPerFrameMetadata = false;
-        HdrMetadata hdrMetadata;
-        mat4 colorTransform;
     } hwc;
-    struct {
-        bool blackoutLayer = false;
-        bool clearArea = false;
-        bool preMultipliedAlpha = false;
-        bool opaque = false;
-        bool disableTexture = false;
-        half4 color;
-        bool useIdentityTransform = false;
-        bool Y410BT2020 = false;
-    } re;
-
-    void dump(const char* tag) const;
-    void dump(std::string& result, const char* tag = nullptr) const;
-    void dumpHwc(std::string& result, const char* tag = nullptr) const;
-    void dumpRe(std::string& result, const char* tag = nullptr) const;
 };
 
 class LayerBE {
@@ -88,14 +52,10 @@ public:
     explicit LayerBE(const LayerBE& layer);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
-    void clear(renderengine::RenderEngine& renderEngine);
-    renderengine::Mesh& getMesh() { return mMesh; }
 
     Layer*const mLayer;
-private:
-    // The mesh used to draw the layer in GLES composition mode
-    renderengine::Mesh mMesh;
 
+private:
     CompositionInfo compositionInfo;
 };
 

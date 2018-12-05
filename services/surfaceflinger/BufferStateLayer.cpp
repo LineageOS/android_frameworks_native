@@ -22,7 +22,9 @@
 #include <limits>
 
 #include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
@@ -440,9 +442,10 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
-        // replicated in LayerBE until FE/BE is ready to be synchronized
-        getBE().compositionInfo.hwc.sidebandStream = s.sidebandStream;
-        if (getBE().compositionInfo.hwc.sidebandStream != nullptr) {
+        LOG_ALWAYS_FATAL_IF(!getCompositionLayer());
+        mSidebandStream = s.sidebandStream;
+        getCompositionLayer()->editState().frontEnd.sidebandStream = mSidebandStream;
+        if (mSidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -596,8 +599,9 @@ status_t BufferStateLayer::updateActiveBuffer() {
 
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
-    getBE().compositionInfo.mBuffer = mActiveBuffer;
-    getBE().compositionInfo.mBufferSlot = 0;
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.bufferSlot = 0;
 
     return NO_ERROR;
 }

@@ -28,6 +28,7 @@
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerCreationArgs.h>
 #include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>
@@ -93,7 +94,7 @@ void BufferLayer::useEmptyDamage() {
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((getBE().compositionInfo.hwc.sidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
         return false;
     }
 
@@ -104,7 +105,7 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != nullptr || getBE().compositionInfo.hwc.sidebandStream != nullptr);
+            (mActiveBuffer != nullptr || mSidebandStream != nullptr);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -240,7 +241,7 @@ bool BufferLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
     return (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
             getDrawingApi() == NATIVE_WINDOW_API_MEDIA &&
-            getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+            mActiveBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
 void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
@@ -264,25 +265,27 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
     }
     outputLayer->editState().visibleRegion = visible;
 
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+
     error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         surfaceDamageRegion.dump(LOG_TAG);
     }
-    getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
+    layerCompositionState.surfaceDamage = surfaceDamageRegion;
 
     // Sideband layers
-    if (getBE().compositionInfo.hwc.sidebandStream.get()) {
+    if (layerCompositionState.sidebandStream.get()) {
         setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::SIDEBAND);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
+        error = hwcLayer->setSidebandStream(layerCompositionState.sidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
+                  layerCompositionState.sidebandStream->handle(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
-        getBE().compositionInfo.compositionType = HWC2::Composition::Sideband;
+        layerCompositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
         return;
     }
 
@@ -314,10 +317,9 @@ void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
         ALOGE("[%s] Failed to setColorTransform: %s (%d)", mName.string(),
                 to_string(error).c_str(), static_cast<int32_t>(error));
     }
-    getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
-    getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
-    getBE().compositionInfo.hwc.supportedPerFrameMetadata = supportedPerFrameMetadata;
-    getBE().compositionInfo.hwc.colorTransform = getColorTransform();
+    layerCompositionState.dataspace = mCurrentDataSpace;
+    layerCompositionState.colorTransform = getColorTransform();
+    layerCompositionState.hdrMetadata = metadata;
 
     setHwcLayerBuffer(displayDevice);
 }

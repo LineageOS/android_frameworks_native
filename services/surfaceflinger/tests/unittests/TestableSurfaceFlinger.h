@@ -17,8 +17,10 @@
 #pragma once
 
 #include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 
 #include "BufferQueueLayer.h"
@@ -206,7 +208,8 @@ public:
 
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
-        layer->getBE().compositionInfo.hwc.sidebandStream = sidebandStream;
+        layer->mSidebandStream = sidebandStream;
+        layer->getCompositionLayer()->editState().frontEnd.sidebandStream = sidebandStream;
     }
 
     void setLayerCompositionType(sp<Layer> layer, HWC2::Composition type) {

@@ -893,7 +893,6 @@ private:
     void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
-    void dumpFrameCompositionInfo(std::string& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
     LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 

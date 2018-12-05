@@ -825,6 +825,7 @@ protected:
     FenceTimeline mReleaseTimeline;
 
     // main thread
+    sp<NativeHandle> mSidebandStream;
     // Active buffer fields
     sp<GraphicBuffer> mActiveBuffer;
     sp<Fence> mActiveBufferFence;

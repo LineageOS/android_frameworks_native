@@ -15,7 +15,9 @@
  */
 
 #include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <system/window.h>
 
@@ -198,8 +200,9 @@ bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
         // replicated in LayerBE until FE/BE is ready to be synchronized
-        getBE().compositionInfo.hwc.sidebandStream = mConsumer->getSidebandStream();
-        if (getBE().compositionInfo.hwc.sidebandStream != nullptr) {
+        auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+        layerCompositionState.sidebandStream = mConsumer->getSidebandStream();
+        if (layerCompositionState.sidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -328,8 +331,9 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 status_t BufferQueueLayer::updateActiveBuffer() {
     // update the active buffer
     mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
-    getBE().compositionInfo.mBuffer = mActiveBuffer;
-    getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.bufferSlot = mActiveBufferSlot;
 
     if (mActiveBuffer == nullptr) {
         // this can only happen if the very first buffer was rejected.
@@ -367,13 +371,14 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
     auto acquireFence = mConsumer->getCurrentFence();
     auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);
     if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
-              getBE().compositionInfo.mBuffer->handle, to_string(error).c_str(),
-              static_cast<int32_t>(error));
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(), mActiveBuffer->handle,
+              to_string(error).c_str(), static_cast<int32_t>(error));
     }
-    getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
-    getBE().compositionInfo.mBuffer = mActiveBuffer;
-    getBE().compositionInfo.hwc.fence = acquireFence;
+
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    layerCompositionState.bufferSlot = mActiveBufferSlot;
+    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.acquireFence = acquireFence;
 }
 
 // -----------------------------------------------------------------------

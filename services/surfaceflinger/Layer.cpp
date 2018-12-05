@@ -28,7 +28,9 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>
@@ -283,9 +285,9 @@ Rect Layer::getContentCrop() const {
     if (!mCurrentCrop.isEmpty()) {
         // if the buffer crop is defined, we use that
         crop = mCurrentCrop;
-    } else if (getBE().compositionInfo.mBuffer != nullptr) {
+    } else if (mActiveBuffer != nullptr) {
         // otherwise we use the whole buffer
-        crop = getBE().compositionInfo.mBuffer->getBounds();
+        crop = mActiveBuffer->getBounds();
     } else {
         // if we don't have a buffer yet, we use an empty/invalid crop
         crop.makeInvalid();
@@ -339,18 +341,18 @@ ui::Transform Layer::getTransformWithScale() const {
     // for in the transform. We need to mirror this scaling to child surfaces
     // or we will break the contract where WM can treat child surfaces as
     // pixels in the parent surface.
-    if (!isFixedSize() || !getBE().compositionInfo.mBuffer) {
+    if (!isFixedSize() || !mActiveBuffer) {
         return mEffectiveTransform;
     }
 
     int bufferWidth;
     int bufferHeight;
     if ((mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
-        bufferWidth = getBE().compositionInfo.mBuffer->getWidth();
-        bufferHeight = getBE().compositionInfo.mBuffer->getHeight();
+        bufferWidth = mActiveBuffer->getWidth();
+        bufferHeight = mActiveBuffer->getHeight();
     } else {
-        bufferHeight = getBE().compositionInfo.mBuffer->getWidth();
-        bufferWidth = getBE().compositionInfo.mBuffer->getHeight();
+        bufferHeight = mActiveBuffer->getWidth();
+        bufferWidth = mActiveBuffer->getHeight();
     }
     float sx = getActiveWidth(getDrawingState()) / static_cast<float>(bufferWidth);
     float sy = getActiveHeight(getDrawingState()) / static_cast<float>(bufferHeight);
@@ -438,7 +440,8 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     win.top -= roundedCornersCrop.top;
     win.bottom -= roundedCornersCrop.top;
 
-    renderengine::Mesh::VertexArray<vec2> cropCoords(getBE().mMesh.getCropCoordArray<vec2>());
+    renderengine::Mesh::VertexArray<vec2> cropCoords(
+            getCompositionLayer()->editState().reMesh.getCropCoordArray<vec2>());
     cropCoords[0] = vec2(win.left, win.top);
     cropCoords[1] = vec2(win.left, win.top + win.getHeight());
     cropCoords[2] = vec2(win.right, win.top + win.getHeight());
@@ -522,6 +525,8 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
         return;
     }
 
+    LOG_FATAL_IF(!getCompositionLayer());
+    auto& commonCompositionState = getCompositionLayer()->editState().frontEnd;
     auto& compositionState = outputLayer->editState();
 
     // enable this layer
@@ -545,7 +550,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
              " %s (%d)",
              mName.string(), to_string(blendMode).c_str(), to_string(error).c_str(),
              static_cast<int32_t>(error));
-    getBE().compositionInfo.hwc.blendMode = blendMode;
+    commonCompositionState.blendMode = static_cast<Hwc2::IComposerClient::BlendMode>(blendMode);
 
     // apply the layer's transform, followed by the display's global transform
     // here we're guaranteed that the layer's transform preserves rects
@@ -610,7 +615,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
              "[%s] Failed to set plane alpha %.3f: "
              "%s (%d)",
              mName.string(), alpha, to_string(error).c_str(), static_cast<int32_t>(error));
-    getBE().compositionInfo.hwc.alpha = alpha;
+    commonCompositionState.alpha = alpha;
 
     error = hwcLayer->setZOrder(z);
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set Z %u: %s (%d)", mName.string(), z,
@@ -634,8 +639,8 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     ALOGE_IF(error != HWC2::Error::None, "[%s] Failed to set info (%d)", mName.string(),
              static_cast<int32_t>(error));
 
-    getBE().compositionInfo.hwc.type = type;
-    getBE().compositionInfo.hwc.appId = appId;
+    commonCompositionState.type = type;
+    commonCompositionState.appId = appId;
 
     /*
      * Transformations are applied in this order:
@@ -784,9 +789,9 @@ bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,
                             float alpha) const {
     auto& engine(mFlinger->getRenderEngine());
-    computeGeometry(renderArea, getBE().mMesh, false);
+    computeGeometry(renderArea, getCompositionLayer()->editState().reMesh, false);
     engine.setupFillWithColor(red, green, blue, alpha);
-    engine.drawMesh(getBE().mMesh);
+    engine.drawMesh(getCompositionLayer()->getState().reMesh);
 }
 
 void Layer::clearWithOpenGL(const RenderArea& renderArea) const {
@@ -1046,9 +1051,9 @@ uint32_t Layer::doTransactionResize(uint32_t flags, State* stateToCommit) {
     const bool resizePending =
             ((stateToCommit->requested_legacy.w != stateToCommit->active_legacy.w) ||
              (stateToCommit->requested_legacy.h != stateToCommit->active_legacy.h)) &&
-            (getBE().compositionInfo.mBuffer != nullptr);
+            (mActiveBuffer != nullptr);
     if (!isFixedSize()) {
-        if (resizePending && getBE().compositionInfo.hwc.sidebandStream == nullptr) {
+        if (resizePending && mSidebandStream == nullptr) {
             flags |= eDontUpdateGeometryState;
         }
     }
@@ -1581,12 +1586,6 @@ void Layer::miniDump(std::string& result, const sp<DisplayDevice>& displayDevice
     const FloatRect& crop = compositionState.sourceCrop;
     StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right,
                   crop.bottom);
-
-    result.append("- - - - - - - - - - - - - - - -\n");
-
-    std::string compositionInfoStr;
-    getBE().compositionInfo.dump(compositionInfoStr, "compositionInfo");
-    result.append(compositionInfoStr);
 
     result.append("- - - - - - - - - - - - - - - -");
     result.append("- - - - - - - - - - - - - - - -");
@@ -2146,8 +2145,7 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
         layerInfo->set_z_order_relative_of(zOrderRelativeOf->sequence);
     }
 
-    // XXX getBE().compositionInfo.mBuffer is not protected
-    auto buffer = getBE().compositionInfo.mBuffer;
+    auto buffer = mActiveBuffer;
     if (buffer != nullptr) {
         LayerProtoHelper::writeToProto(buffer, layerInfo->mutable_active_buffer());
         LayerProtoHelper::writeToProto(ui::Transform(mCurrentTransform),

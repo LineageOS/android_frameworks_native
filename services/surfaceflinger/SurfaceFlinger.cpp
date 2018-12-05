@@ -43,6 +43,7 @@
 #include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <dvr/vr_flinger.h>
@@ -1940,8 +1941,9 @@ void SurfaceFlinger::calculateWorkingSet() {
         auto display = displayDevice->getCompositionDisplay();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             const auto displayId = display->getId();
-            layer->getBE().compositionInfo.compositionType =
-                    static_cast<HWC2::Composition>(layer->getCompositionType(displayDevice));
+            auto& layerState = layer->getCompositionLayer()->editState().frontEnd;
+            layerState.compositionType = static_cast<Hwc2::IComposerClient::Composition>(
+                    layer->getCompositionType(displayDevice));
             layer->getBE().compositionInfo.hwc.displayId = *displayId;
             getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
         }
@@ -4552,7 +4554,6 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                  })},
                 {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
                 {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
-                {"--frame-composition"s, dumper(&SurfaceFlinger::dumpFrameCompositionInfo)},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4806,23 +4807,6 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-void SurfaceFlinger::dumpFrameCompositionInfo(std::string& result) const {
-    for (const auto& [token, display] : mDisplays) {
-        const auto it = getBE().mEndOfFrameCompositionInfo.find(token);
-        if (it == getBE().mEndOfFrameCompositionInfo.end()) {
-            continue;
-        }
-
-        const auto& compositionInfoList = it->second;
-        StringAppendF(&result, "%s\n", display->getDebugName().c_str());
-        StringAppendF(&result, "numComponents: %zu\n", compositionInfoList.size());
-        for (const auto& compositionInfo : compositionInfoList) {
-            compositionInfo.dump(result, nullptr);
-            result.append("\n");
-        }
-    }
-}
-
 LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
     LayersProto layersProto;
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
@@ -4923,10 +4907,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         result.append(LayerProtoParser::layerTreeToString(layerTree));
         result.append("\n");
     }
-
-    result.append("\nFrame-Composition information:\n");
-    dumpFrameCompositionInfo(result);
-    result.append("\n");
 
     /*
      * Dump Display state
