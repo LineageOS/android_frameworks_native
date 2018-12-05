@@ -146,6 +146,14 @@ void Output::dumpBase(std::string& out) const {
     } else {
         out.append("    No render surface!\n");
     }
+
+    out.append("\n   %d Layers", mOutputLayersOrderedByZ.size());
+    for (const auto& outputLayer : mOutputLayersOrderedByZ) {
+        if (!outputLayer) {
+            continue;
+        }
+        outputLayer->dump(out);
+    }
 }
 
 compositionengine::DisplayColorProfile* Output::getDisplayColorProfile() const {

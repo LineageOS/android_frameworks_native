@@ -45,6 +45,10 @@ namespace Hwc2 {
 class Composer;
 } // namespace Hwc2
 
+namespace compositionengine {
+class Output;
+} // namespace compositionengine
+
 class HWComposer {
 public:
     virtual ~HWComposer();
@@ -68,8 +72,7 @@ public:
     virtual void destroyLayer(DisplayId displayId, HWC2::Layer* layer) = 0;
 
     // Asks the HAL what it can do
-    virtual status_t prepare(DisplayId displayId,
-                             std::vector<CompositionInfo>& compositionData) = 0;
+    virtual status_t prepare(DisplayId displayId, const compositionengine::Output&) = 0;
 
     virtual status_t setClientTarget(DisplayId displayId, uint32_t slot,
                                      const sp<Fence>& acquireFence, const sp<GraphicBuffer>& target,
@@ -205,7 +208,7 @@ public:
     void destroyLayer(DisplayId displayId, HWC2::Layer* layer) override;
 
     // Asks the HAL what it can do
-    status_t prepare(DisplayId displayId, std::vector<CompositionInfo>& compositionData) override;
+    status_t prepare(DisplayId displayId, const compositionengine::Output&) override;
 
     status_t setClientTarget(DisplayId displayId, uint32_t slot, const sp<Fence>& acquireFence,
                              const sp<GraphicBuffer>& target, ui::Dataspace dataspace) override;

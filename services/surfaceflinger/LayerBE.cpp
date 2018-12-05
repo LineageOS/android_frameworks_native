@@ -87,21 +87,12 @@ void CompositionInfo::dumpHwc(std::string& result, const char* tag) const {
         result += base::StringPrintf("[%s]HWC parameters\n", tag);
     }
 
-    result += base::StringPrintf("\thwcLayer=%p\n", static_cast<HWC2::Layer*>(&*hwc.hwcLayer));
     result += base::StringPrintf("\tfence=%p\n", hwc.fence.get());
     result += base::StringPrintf("\tblendMode=%d\n", hwc.blendMode);
-    result += base::StringPrintf("\ttransform=%d\n", hwc.transform);
-    result += base::StringPrintf("\tz=%d\n", hwc.z);
     result += base::StringPrintf("\ttype=%d\n", hwc.type);
     result += base::StringPrintf("\tappId=%d\n", hwc.appId);
-    result += base::StringPrintf("\tdisplayFrame=%4d %4d %4d %4d\n", hwc.displayFrame.left,
-                                 hwc.displayFrame.top, hwc.displayFrame.right,
-                                 hwc.displayFrame.bottom);
     result += base::StringPrintf("\talpha=%.3f", hwc.alpha);
-    result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left,
-                                 hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
 
-    hwc.visibleRegion.dump(result, "visibleRegion");
     hwc.surfaceDamage.dump(result, "surfaceDamage");
 
     result += base::StringPrintf("\tcolor transform matrix:\n"
@@ -146,12 +137,7 @@ void CompositionInfo::dump(std::string& result, const char* tag) const
                                  getCompositionName(compositionType));
     result += base::StringPrintf("\tmBuffer = %p\n", mBuffer.get());
     result += base::StringPrintf("\tmBufferSlot=%d\n", mBufferSlot);
-    result += base::StringPrintf("\tdisplayFrame=%4d %4d %4d %4d\n", hwc.displayFrame.left,
-                                 hwc.displayFrame.top, hwc.displayFrame.right,
-                                 hwc.displayFrame.bottom);
     result += base::StringPrintf("\talpha=%f\n", hwc.alpha);
-    result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left,
-                                 hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
 
     switch (compositionType) {
         case HWC2::Composition::Device:

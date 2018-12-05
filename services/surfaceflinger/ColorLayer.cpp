@@ -23,8 +23,11 @@
 #include <sys/types.h>
 
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerCreationArgs.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Errors.h>
@@ -73,23 +76,27 @@ bool ColorLayer::setColor(const half3& color) {
     return true;
 }
 
-void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
-                                 const Rect& viewport, int32_t /* supportedPerFrameMetadata */) {
-    RETURN_IF_NO_HWC_LAYER(displayId);
+void ColorLayer::setPerFrameData(const sp<const DisplayDevice>& display,
+                                 const ui::Transform& transform, const Rect& viewport,
+                                 int32_t /* supportedPerFrameMetadata */) {
+    RETURN_IF_NO_HWC_LAYER(display);
 
     Region visible = transform.transform(visibleRegion.intersect(viewport));
 
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
+
+    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
+
     auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
-    getBE().compositionInfo.hwc.visibleRegion = visible;
+    outputLayer->editState().visibleRegion = visible;
 
-    setCompositionType(displayId, HWC2::Composition::SolidColor);
+    setCompositionType(display, Hwc2::IComposerClient::Composition::SOLID_COLOR);
 
     error = hwcLayer->setDataspace(mCurrentDataSpace);
     if (error != HWC2::Error::None) {
@@ -116,7 +123,7 @@ void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& trans
         ALOGE("[%s] Failed to clear transform: %s (%d)", mName.string(), to_string(error).c_str(),
               static_cast<int32_t>(error));
     }
-    getBE().compositionInfo.hwc.transform = HWC2::Transform::None;
+    outputLayer->editState().bufferTransform = static_cast<Hwc2::Transform>(0);
 
     error = hwcLayer->setColorTransform(getColorTransform());
     if (error != HWC2::Error::None) {

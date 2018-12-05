@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+#include <compositionengine/Display.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <system/window.h>
+
 #include "BufferQueueLayer.h"
 #include "LayerRejecter.h"
 
 #include "TimeStats/TimeStats.h"
-
-#include <system/window.h>
 
 namespace android {
 
@@ -350,13 +353,16 @@ status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {
     return NO_ERROR;
 }
 
-void BufferQueueLayer::setHwcLayerBuffer(DisplayId displayId) {
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
+void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer);
+    LOG_FATAL_IF(!outputLayer->getState.hwc);
+    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
 
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
-    hwcInfo.bufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
+    (*outputLayer->editState().hwc)
+            .hwcBufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);

@@ -99,11 +99,11 @@ status_t RenderSurface::beginFrame(bool mustRecompose) {
     return mDisplaySurface->beginFrame(mustRecompose);
 }
 
-status_t RenderSurface::prepareFrame(std::vector<CompositionInfo>& compositionData) {
+status_t RenderSurface::prepareFrame() {
     auto& hwc = mCompositionEngine.getHwComposer();
     const auto id = mDisplay.getId();
     if (id) {
-        status_t error = hwc.prepare(*id, compositionData);
+        status_t error = hwc.prepare(*id, mDisplay);
         if (error != NO_ERROR) {
             return error;
         }

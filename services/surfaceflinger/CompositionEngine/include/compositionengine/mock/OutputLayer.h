@@ -20,6 +20,7 @@
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <gmock/gmock.h>
 
 namespace android::compositionengine::mock {
@@ -32,6 +33,11 @@ public:
     MOCK_CONST_METHOD0(getOutput, const compositionengine::Output&());
     MOCK_CONST_METHOD0(getLayer, compositionengine::Layer&());
     MOCK_CONST_METHOD0(getLayerFE, compositionengine::LayerFE&());
+
+    MOCK_CONST_METHOD0(getState, const impl::OutputLayerCompositionState&());
+    MOCK_METHOD0(editState, impl::OutputLayerCompositionState&());
+
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
 } // namespace android::compositionengine::mock

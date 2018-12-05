@@ -19,15 +19,17 @@
 #define LOG_TAG "BufferStateLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "BufferStateLayer.h"
-#include "ColorLayer.h"
+#include <limits>
 
-#include "TimeStats/TimeStats.h"
-
+#include <compositionengine/Display.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
-#include <limits>
+#include "BufferStateLayer.h"
+#include "ColorLayer.h"
+#include "TimeStats/TimeStats.h"
 
 namespace android {
 
@@ -611,9 +613,10 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::setHwcLayerBuffer(DisplayId displayId) {
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
+void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
+    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
 
     const State& s(getDrawingState());
 

@@ -80,8 +80,8 @@ public:
 
     bool isHdrY410() const override;
 
-    void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
-                         int32_t supportedPerFrameMetadata) override;
+    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
+                         const Rect& viewport, int32_t supportedPerFrameMetadata) override;
 
     bool onPreComposition(nsecs_t refreshStartTime) override;
     bool onPostComposition(const std::optional<DisplayId>& displayId,
@@ -148,7 +148,7 @@ private:
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(DisplayId displayId) = 0;
+    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& displayDevice) = 0;
 
 protected:
     // Loads the corresponding system property once per process
@@ -177,7 +177,7 @@ protected:
 
 private:
     // Returns true if this layer requires filtering
-    bool needsFiltering() const;
+    bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const;
 
     uint64_t getHeadFrameNumber() const;
 

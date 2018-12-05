@@ -51,7 +51,7 @@ public:
     void setDisplaySize(const ui::Size&) override;
     void setProtected(bool useProtected) override;
     status_t beginFrame(bool mustRecompose) override;
-    status_t prepareFrame(std::vector<CompositionInfo>& compositionData) override;
+    status_t prepareFrame() override;
     sp<GraphicBuffer> dequeueBuffer() override;
     void queueBuffer(base::unique_fd&& readyFence) override;
     void onPresentDisplayCompleted() override;

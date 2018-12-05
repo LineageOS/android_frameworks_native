@@ -895,7 +895,7 @@ private:
     void dumpWideColorInfo(std::string& result) const;
     void dumpFrameCompositionInfo(std::string& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
-    LayersProto dumpVisibleLayersProtoInfo(const DisplayDevice& display) const;
+    LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
