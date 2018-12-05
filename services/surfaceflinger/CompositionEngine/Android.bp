@@ -44,6 +44,7 @@ cc_library {
         "src/Layer.cpp",
         "src/Output.cpp",
         "src/OutputCompositionState.cpp",
+        "src/OutputLayer.cpp",
         "src/RenderSurface.cpp",
     ],
     local_include_dirs: ["include"],
@@ -61,6 +62,7 @@ cc_library {
         "mock/Layer.cpp",
         "mock/LayerFE.cpp",
         "mock/Output.cpp",
+        "mock/OutputLayer.cpp",
         "mock/RenderSurface.cpp",
     ],
     static_libs: [
@@ -83,6 +85,7 @@ cc_test {
         "tests/LayerTest.cpp",
         "tests/MockHWComposer.cpp",
         "tests/OutputTest.cpp",
+        "tests/OutputLayerTest.cpp",
         "tests/RenderSurfaceTest.cpp",
     ],
     static_libs: [

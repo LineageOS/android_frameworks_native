@@ -40,6 +40,8 @@
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Display.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/OutputCompositionState.h>
 #include <dvr/vr_flinger.h>
@@ -2250,7 +2252,8 @@ void SurfaceFlinger::rebuildLayerStacks() {
             const auto& displayState = display->getState();
             Region opaqueRegion;
             Region dirtyRegion;
-            Vector<sp<Layer>> layersSortedByZ;
+            compositionengine::Output::OutputLayers layersSortedByZ;
+            Vector<sp<Layer>> deprecated_layersSortedByZ;
             Vector<sp<Layer>> layersNeedingFences;
             const ui::Transform& tr = displayState.transform;
             const Rect bounds = displayState.bounds;
@@ -2258,15 +2261,27 @@ void SurfaceFlinger::rebuildLayerStacks() {
                 computeVisibleRegions(displayDevice, dirtyRegion, opaqueRegion);
 
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
+                    auto compositionLayer = layer->getCompositionLayer();
+                    if (compositionLayer == nullptr) {
+                        return;
+                    }
+
                     bool hwcLayerDestroyed = false;
                     const auto displayId = displayDevice->getId();
+                    sp<compositionengine::LayerFE> layerFE = compositionLayer->getLayerFE();
+                    LOG_ALWAYS_FATAL_IF(layerFE.get() == nullptr);
+
                     if (display->belongsInOutput(layer->getLayerStack(),
                                                  layer->getPrimaryDisplayOnly())) {
                         Region drawRegion(tr.transform(
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
                         if (!drawRegion.isEmpty()) {
-                            layersSortedByZ.add(layer);
+                            layersSortedByZ.emplace_back(
+                                    display->getOrCreateOutputLayer(layer->getCompositionLayer(),
+                                                                    layerFE));
+
+                            deprecated_layersSortedByZ.add(layer);
                         } else {
                             // Clear out the HWC layer if this layer was
                             // previously visible, but no longer is
@@ -2292,7 +2307,10 @@ void SurfaceFlinger::rebuildLayerStacks() {
                     }
                 });
             }
-            displayDevice->setVisibleLayersSortedByZ(layersSortedByZ);
+
+            display->setOutputLayersOrderedByZ(std::move(layersSortedByZ));
+
+            displayDevice->setVisibleLayersSortedByZ(deprecated_layersSortedByZ);
             displayDevice->setLayersNeedingFences(layersNeedingFences);
 
             Region undefinedRegion{bounds};
