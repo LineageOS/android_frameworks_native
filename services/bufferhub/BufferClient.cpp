@@ -39,7 +39,29 @@ BufferClient* BufferClient::create(BufferHubService* service,
     return new BufferClient(service, node);
 }
 
+BufferClient::~BufferClient() {
+    close();
+}
+
+Return<BufferHubStatus> BufferClient::close() {
+    std::lock_guard<std::mutex> lock(mClosedMutex);
+    if (mClosed) {
+        return BufferHubStatus::CLIENT_CLOSED;
+    }
+
+    getService()->onClientClosed(this);
+    mBufferNode.reset();
+    mClosed = true;
+    return BufferHubStatus::NO_ERROR;
+}
+
 Return<void> BufferClient::duplicate(duplicate_cb _hidl_cb) {
+    std::lock_guard<std::mutex> lock(mClosedMutex);
+    if (mClosed) {
+        _hidl_cb(/*token=*/hidl_handle(), /*status=*/BufferHubStatus::CLIENT_CLOSED);
+        return Void();
+    }
+
     if (!mBufferNode) {
         // Should never happen
         ALOGE("%s: node is missing.", __FUNCTION__);
@@ -47,15 +69,19 @@ Return<void> BufferClient::duplicate(duplicate_cb _hidl_cb) {
         return Void();
     }
 
+    const hidl_handle token = getService()->registerToken(this);
+    _hidl_cb(/*token=*/token, /*status=*/BufferHubStatus::NO_ERROR);
+    return Void();
+}
+
+sp<BufferHubService> BufferClient::getService() {
     sp<BufferHubService> service = mService.promote();
     if (service == nullptr) {
         // Should never happen. Kill the process.
         LOG_FATAL("%s: service died.", __FUNCTION__);
     }
 
-    const hidl_handle token = service->registerToken(this);
-    _hidl_cb(/*token=*/token, /*status=*/BufferHubStatus::NO_ERROR);
-    return Void();
+    return service;
 }
 
 } // namespace implementation
