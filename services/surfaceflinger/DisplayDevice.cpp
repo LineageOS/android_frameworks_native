@@ -98,7 +98,7 @@ const std::array<RenderIntent, 2> sHdrRenderIntents = {
 Dataspace colorModeToDataspace(ColorMode mode) {
     switch (mode) {
         case ColorMode::SRGB:
-            return Dataspace::SRGB;
+            return Dataspace::V0_SRGB;
         case ColorMode::DISPLAY_P3:
             return Dataspace::DISPLAY_P3;
         case ColorMode::DISPLAY_BT2020:
@@ -817,7 +817,7 @@ void DisplayDevice::populateColorModes(
 bool DisplayDevice::hasRenderIntent(RenderIntent intent) const {
     // assume a render intent is supported when SRGB supports it; we should
     // get rid of that assumption.
-    auto iter = mColorModes.find(getColorModeKey(Dataspace::SRGB, intent));
+    auto iter = mColorModes.find(getColorModeKey(Dataspace::V0_SRGB, intent));
     return iter != mColorModes.end() && iter->second.renderIntent == intent;
 }
 

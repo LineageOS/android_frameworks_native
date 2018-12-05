@@ -2106,7 +2106,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 //  - Dataspace::BT2020_PQ
 Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& display,
                                            Dataspace* outHdrDataSpace) const {
-    Dataspace bestDataSpace = Dataspace::SRGB;
+    Dataspace bestDataSpace = Dataspace::V0_SRGB;
     *outHdrDataSpace = Dataspace::UNKNOWN;
 
     for (const auto& layer : display->getVisibleLayersSortedByZ()) {
@@ -2431,7 +2431,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
     if (display->hasWideColorGamut()) {
         defaultColorMode = ColorMode::SRGB;
-        defaultDataSpace = Dataspace::SRGB;
+        defaultDataSpace = Dataspace::V0_SRGB;
     }
     setActiveColorModeInternal(display, defaultColorMode, defaultDataSpace,
                                RenderIntent::COLORIMETRIC);

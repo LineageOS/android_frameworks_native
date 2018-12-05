@@ -461,7 +461,7 @@ static android_dataspace dataSpaceFromEGLColorSpace(EGLint colorspace) {
     if (colorspace == EGL_GL_COLORSPACE_LINEAR_KHR) {
         return HAL_DATASPACE_UNKNOWN;
     } else if (colorspace == EGL_GL_COLORSPACE_SRGB_KHR) {
-        return HAL_DATASPACE_SRGB;
+        return HAL_DATASPACE_V0_SRGB;
     } else if (colorspace == EGL_GL_COLORSPACE_DISPLAY_P3_EXT) {
         return HAL_DATASPACE_DISPLAY_P3;
     } else if (colorspace == EGL_GL_COLORSPACE_DISPLAY_P3_LINEAR_EXT) {

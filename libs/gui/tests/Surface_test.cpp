@@ -207,7 +207,7 @@ TEST_F(SurfaceTest, QueryConsumerUsage) {
 }
 
 TEST_F(SurfaceTest, QueryDefaultBuffersDataSpace) {
-    const android_dataspace TEST_DATASPACE = HAL_DATASPACE_SRGB;
+    const android_dataspace TEST_DATASPACE = HAL_DATASPACE_V0_SRGB;
     sp<IGraphicBufferProducer> producer;
     sp<IGraphicBufferConsumer> consumer;
     BufferQueue::createBufferQueue(&producer, &consumer);
