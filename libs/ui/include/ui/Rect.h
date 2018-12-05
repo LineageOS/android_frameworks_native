@@ -120,7 +120,7 @@ public:
         right = rb.x;
         bottom = rb.y;
     }
-    
+
     // the following 4 functions return the 4 corners of the rect as Point
     Point leftTop() const {
         return Point(left, top);
@@ -174,6 +174,11 @@ public:
 
     Rect& offsetTo(int32_t x, int32_t y);
     Rect& offsetBy(int32_t x, int32_t y);
+
+    /**
+     * Insets the rectangle on all sides specified by the insets.
+     */
+    Rect& inset(int32_t left, int32_t top, int32_t right, int32_t bottom);
 
     bool intersect(const Rect& with, Rect* result) const;
 
