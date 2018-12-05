@@ -128,7 +128,6 @@ filegroup {
         "DisplayHardware/FramebufferSurface.cpp",
         "DisplayHardware/HWC2.cpp",
         "DisplayHardware/HWComposer.cpp",
-        "DisplayHardware/HWComposerBufferCache.cpp",
         "DisplayHardware/PowerAdvisor.cpp",
         "DisplayHardware/VirtualDisplaySurface.cpp",
         "Effects/Daltonizer.cpp",

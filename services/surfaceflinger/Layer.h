@@ -52,7 +52,6 @@
 #include "TransactionCompletedThread.h"
 
 #include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/HWComposerBufferCache.h"
 #include "RenderArea.h"
 
 using namespace android::surfaceflinger;
