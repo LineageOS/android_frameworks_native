@@ -636,6 +636,21 @@ public:
         *outComponentMask = static_cast<uint8_t>(value);
         return error;
     }
+
+    virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
+                                                      uint8_t componentMask,
+                                                      uint64_t maxFrames) const {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeStrongBinder(display);
+        data.writeBool(enable);
+        data.writeByte(static_cast<int8_t>(componentMask));
+        data.writeUint64(maxFrames);
+        status_t result =
+                remote()->transact(BnSurfaceComposer::SET_DISPLAY_CONTENT_SAMPLING_ENABLED, data,
+                                   &reply);
+        return result;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1003,6 +1018,42 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeUint32(static_cast<uint32_t>(component));
             }
             return result;
+        }
+        case SET_DISPLAY_CONTENT_SAMPLING_ENABLED: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+
+            sp<IBinder> display = nullptr;
+            bool enable = false;
+            int8_t componentMask = 0;
+            uint64_t maxFrames = 0;
+            status_t result = data.readStrongBinder(&display);
+            if (result != NO_ERROR) {
+                ALOGE("setDisplayContentSamplingEnabled failure in reading Display token: %d",
+                      result);
+                return result;
+            }
+
+            result = data.readBool(&enable);
+            if (result != NO_ERROR) {
+                ALOGE("setDisplayContentSamplingEnabled failure in reading enable: %d", result);
+                return result;
+            }
+
+            result = data.readByte(static_cast<int8_t*>(&componentMask));
+            if (result != NO_ERROR) {
+                ALOGE("setDisplayContentSamplingEnabled failure in reading component mask: %d",
+                      result);
+                return result;
+            }
+
+            result = data.readUint64(&maxFrames);
+            if (result != NO_ERROR) {
+                ALOGE("setDisplayContentSamplingEnabled failure in reading max frames: %d", result);
+                return result;
+            }
+
+            return setDisplayContentSamplingEnabled(display, enable,
+                                                    static_cast<uint8_t>(componentMask), maxFrames);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

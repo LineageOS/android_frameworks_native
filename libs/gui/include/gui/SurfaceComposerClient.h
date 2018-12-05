@@ -386,6 +386,8 @@ public:
                                                           ui::PixelFormat* outFormat,
                                                           ui::Dataspace* outDataspace,
                                                           uint8_t* outComponentMask);
+    static status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
+                                                     uint8_t componentMask, uint64_t maxFrames);
 
 private:
     virtual void onFirstRef();

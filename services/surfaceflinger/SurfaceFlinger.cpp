@@ -1123,14 +1123,26 @@ status_t SurfaceFlinger::getDisplayedContentSamplingAttributes(const sp<IBinder>
     if (!outFormat || !outDataspace || !outComponentMask) {
         return BAD_VALUE;
     }
-    Mutex::Autolock _l(mStateLock);
-    const auto display = getDisplayDeviceLocked(displayToken);
+    const auto display = getDisplayDevice(displayToken);
     if (!display || !display->getId()) {
         ALOGE("getDisplayedContentSamplingAttributes: Bad display token: %p", display.get());
         return BAD_VALUE;
     }
     return getHwComposer().getDisplayedContentSamplingAttributes(*display->getId(), outFormat,
                                                                  outDataspace, outComponentMask);
+}
+
+status_t SurfaceFlinger::setDisplayContentSamplingEnabled(const sp<IBinder>& displayToken,
+                                                          bool enable, uint8_t componentMask,
+                                                          uint64_t maxFrames) const {
+    const auto display = getDisplayDevice(displayToken);
+    if (!display || !display->getId()) {
+        ALOGE("setDisplayContentSamplingEnabled: Bad display token: %p", display.get());
+        return BAD_VALUE;
+    }
+
+    return getHwComposer().setDisplayContentSamplingEnabled(*display->getId(), enable,
+                                                            componentMask, maxFrames);
 }
 
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
@@ -4778,7 +4790,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
-        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES: {
+        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
+        case SET_DISPLAY_CONTENT_SAMPLING_ENABLED: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",

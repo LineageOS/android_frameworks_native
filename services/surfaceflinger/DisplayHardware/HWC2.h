@@ -240,6 +240,9 @@ public:
     [[clang::warn_unused_result]] Error getDisplayedContentSamplingAttributes(
             android::ui::PixelFormat* outFormat, android::ui::Dataspace* outDataspace,
             uint8_t* outComponentMask) const;
+    [[clang::warn_unused_result]] Error setDisplayContentSamplingEnabled(bool enabled,
+                                                                         uint8_t componentMask,
+                                                                         uint64_t maxFrames) const;
     [[clang::warn_unused_result]] Error getReleaseFences(
             std::unordered_map<Layer*,
                     android::sp<android::Fence>>* outFences) const;
