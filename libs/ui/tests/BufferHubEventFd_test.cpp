@@ -19,14 +19,14 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 
-#include <hidl/ServiceManagement.h>
-#include <hwbinder/IPCThreadState.h>
+#include <array>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <log/log.h>
 #include <ui/BufferHubEventFd.h>
 
 namespace android {
