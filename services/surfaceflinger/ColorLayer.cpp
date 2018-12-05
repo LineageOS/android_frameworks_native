@@ -22,6 +22,9 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/LayerCreationArgs.h>
 #include <renderengine/RenderEngine.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/Errors.h>
@@ -34,7 +37,10 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
-ColorLayer::ColorLayer(const LayerCreationArgs& args) : Layer(args) {}
+ColorLayer::ColorLayer(const LayerCreationArgs& args)
+      : Layer(args),
+        mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
+                compositionengine::LayerCreationArgs{this})} {}
 
 ColorLayer::~ColorLayer() = default;
 
@@ -111,6 +117,10 @@ void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& trans
         surfaceDamageRegion.dump(LOG_TAG);
     }
     getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
+}
+
+std::shared_ptr<compositionengine::Layer> ColorLayer::getCompositionLayer() const {
+    return mCompositionLayer;
 }
 
 // ---------------------------------------------------------------------------

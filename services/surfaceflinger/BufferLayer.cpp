@@ -19,6 +19,28 @@
 #define LOG_TAG "BufferLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <cmath>
+#include <cstdlib>
+#include <mutex>
+
+#include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/LayerCreationArgs.h>
+#include <cutils/compiler.h>
+#include <cutils/native_handle.h>
+#include <cutils/properties.h>
+#include <gui/BufferItem.h>
+#include <gui/BufferQueue.h>
+#include <gui/LayerDebugInfo.h>
+#include <gui/Surface.h>
+#include <renderengine/RenderEngine.h>
+#include <ui/DebugUtils.h>
+#include <utils/Errors.h>
+#include <utils/Log.h>
+#include <utils/NativeHandle.h>
+#include <utils/StopWatch.h>
+#include <utils/Trace.h>
+
 #include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
@@ -26,33 +48,13 @@
 
 #include "TimeStats/TimeStats.h"
 
-#include <renderengine/RenderEngine.h>
-
-#include <gui/BufferItem.h>
-#include <gui/BufferQueue.h>
-#include <gui/LayerDebugInfo.h>
-#include <gui/Surface.h>
-
-#include <ui/DebugUtils.h>
-
-#include <utils/Errors.h>
-#include <utils/Log.h>
-#include <utils/NativeHandle.h>
-#include <utils/StopWatch.h>
-#include <utils/Trace.h>
-
-#include <cutils/compiler.h>
-#include <cutils/native_handle.h>
-#include <cutils/properties.h>
-
-#include <math.h>
-#include <stdlib.h>
-#include <mutex>
-
 namespace android {
 
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
-      : Layer(args), mTextureName(args.flinger->getNewTexture()) {
+      : Layer(args),
+        mTextureName(args.flinger->getNewTexture()),
+        mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
+                compositionengine::LayerCreationArgs{this})} {
     ALOGV("Creating Layer %s", args.name.string());
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
@@ -647,6 +649,10 @@ Rect BufferLayer::getBufferSize(const State& s) const {
     }
 
     return Rect(bufWidth, bufHeight);
+}
+
+std::shared_ptr<compositionengine::Layer> BufferLayer::getCompositionLayer() const {
+    return mCompositionLayer;
 }
 
 } // namespace android

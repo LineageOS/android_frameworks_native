@@ -2227,6 +2227,10 @@ bool Layer::hasInput() const {
     return mDrawingState.inputInfo.token != nullptr;
 }
 
+std::shared_ptr<compositionengine::Layer> Layer::getCompositionLayer() const {
+    return nullptr;
+}
+
 // ---------------------------------------------------------------------------
 
 }; // namespace android

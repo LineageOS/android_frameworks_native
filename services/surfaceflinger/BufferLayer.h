@@ -16,35 +16,33 @@
 
 #pragma once
 
-#include "BufferLayerConsumer.h"
-#include "Client.h"
-#include "Layer.h"
-#include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/HWComposerBufferCache.h"
-#include "FrameTracker.h"
-#include "LayerVector.h"
-#include "MonitoredProducer.h"
-#include "SurfaceFlinger.h"
+#include <sys/types.h>
+#include <cstdint>
+#include <list>
 
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
 #include <renderengine/Image.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
+#include <system/window.h> // For NATIVE_WINDOW_SCALING_MODE_FREEZE
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
-
 #include <utils/RefBase.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include <system/window.h> // For NATIVE_WINDOW_SCALING_MODE_FREEZE
-
-#include <stdint.h>
-#include <sys/types.h>
-#include <list>
+#include "BufferLayerConsumer.h"
+#include "Client.h"
+#include "DisplayHardware/HWComposer.h"
+#include "DisplayHardware/HWComposerBufferCache.h"
+#include "FrameTracker.h"
+#include "Layer.h"
+#include "LayerVector.h"
+#include "MonitoredProducer.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 
@@ -57,6 +55,8 @@ public:
     // Overriden from Layer
     // -----------------------------------------------------------------------
 public:
+    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
+
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
     // one empty rect.
@@ -187,6 +187,8 @@ private:
     bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
     Rect getBufferSize(const State& s) const override;
+
+    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
 };
 
 } // namespace android

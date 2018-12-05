@@ -21,7 +21,11 @@
 #include <compositionengine/impl/Output.h>
 #include <ui/DebugUtils.h>
 
-namespace android::compositionengine::impl {
+namespace android::compositionengine {
+
+Output::~Output() = default;
+
+namespace impl {
 
 Output::Output(const CompositionEngine& compositionEngine)
       : mCompositionEngine(compositionEngine) {}
@@ -182,4 +186,5 @@ void Output::dirtyEntireOutput() {
     mState.dirtyRegion.set(mState.bounds);
 }
 
-} // namespace android::compositionengine::impl
+} // namespace impl
+} // namespace android::compositionengine

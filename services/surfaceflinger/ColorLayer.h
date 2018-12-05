@@ -28,6 +28,8 @@ public:
     explicit ColorLayer(const LayerCreationArgs&);
     ~ColorLayer() override;
 
+    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
+
     virtual const char* getTypeId() const { return "ColorLayer"; }
     bool isVisible() const override;
 
@@ -41,6 +43,9 @@ protected:
     virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                     bool useIdentityTransform, Region& clearRegion,
                                     renderengine::LayerSettings& layer);
+
+private:
+    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
 };
 
 } // namespace android

@@ -38,6 +38,8 @@ struct OutputCompositionState;
  */
 class Output {
 public:
+    virtual ~Output();
+
     // Returns true if the output is valid. This is meant to be checked post-
     // construction and prior to use, as not everything is set up by the
     // constructor.
@@ -103,8 +105,6 @@ public:
     virtual bool belongsInOutput(uint32_t layerStackId, bool internalOnly) const = 0;
 
 protected:
-    ~Output() = default;
-
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 };

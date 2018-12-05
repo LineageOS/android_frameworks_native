@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
@@ -68,6 +69,10 @@ class SurfaceFlinger;
 class LayerDebugInfo;
 class LayerBE;
 
+namespace compositionengine {
+class Layer;
+}
+
 namespace impl {
 class SurfaceInterceptor;
 }
@@ -87,7 +92,7 @@ struct LayerCreationArgs {
     uint32_t flags;
 };
 
-class Layer : public virtual RefBase {
+class Layer : public virtual compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
 
 public:
@@ -325,6 +330,8 @@ public:
     // needed to be saturated so that they match what they are designed for
     // visually.
     bool isLegacyDataSpace() const;
+
+    virtual std::shared_ptr<compositionengine::Layer> getCompositionLayer() const;
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with

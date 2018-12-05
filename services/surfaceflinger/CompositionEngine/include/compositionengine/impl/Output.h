@@ -30,7 +30,7 @@ namespace impl {
 class Output : public virtual compositionengine::Output {
 public:
     Output(const CompositionEngine&);
-    virtual ~Output();
+    ~Output() override;
 
     bool isValid() const override;
 
