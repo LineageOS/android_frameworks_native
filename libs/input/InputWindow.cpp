@@ -162,4 +162,8 @@ sp<IBinder> InputWindowHandle::getToken() const {
     return mInfo.token;
 }
 
+void InputWindowHandle::updateFrom(sp<InputWindowHandle> handle) {
+    mInfo = handle->mInfo;
+}
+
 } // namespace android

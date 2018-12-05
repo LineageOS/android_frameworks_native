@@ -225,6 +225,11 @@ public:
     virtual bool updateInfo() = 0;
 
     /**
+     * Updates from another input window handle.
+     */
+    void updateFrom(const sp<InputWindowHandle> handle);
+
+    /**
      * Releases the channel used by the associated information when it is
      * no longer needed.
      */
