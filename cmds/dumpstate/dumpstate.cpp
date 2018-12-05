@@ -1948,6 +1948,8 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
             return "BUGREPORT_TELEPHONY";
         case Dumpstate::BugreportMode::BUGREPORT_WIFI:
             return "BUGREPORT_WIFI";
+        case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
+            return "BUGREPORT_DEFAULT";
     }
 }
 
@@ -1988,12 +1990,14 @@ static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOpt
             options->do_fb = true;
             options->do_broadcast = true;
             break;
+        case Dumpstate::BugreportMode::BUGREPORT_DEFAULT:
+            break;
     }
 }
 
 static Dumpstate::BugreportMode getBugreportModeFromProperty() {
-    // If the system property is not set, it's assumed to be a full bugreport.
-    Dumpstate::BugreportMode mode = Dumpstate::BugreportMode::BUGREPORT_FULL;
+    // If the system property is not set, it's assumed to be a default bugreport.
+    Dumpstate::BugreportMode mode = Dumpstate::BugreportMode::BUGREPORT_DEFAULT;
 
     std::string extra_options = android::base::GetProperty(PROPERTY_EXTRA_OPTIONS, "");
     if (!extra_options.empty()) {
@@ -2001,6 +2005,8 @@ static Dumpstate::BugreportMode getBugreportModeFromProperty() {
         // Currently, it contains the type of the requested bugreport.
         if (extra_options == "bugreportplus") {
             mode = Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE;
+        } else if (extra_options == "bugreportfull") {
+            mode = Dumpstate::BugreportMode::BUGREPORT_FULL;
         } else if (extra_options == "bugreportremote") {
             mode = Dumpstate::BugreportMode::BUGREPORT_REMOTE;
         } else if (extra_options == "bugreportwear") {

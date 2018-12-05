@@ -196,7 +196,8 @@ class Dumpstate {
         BUGREPORT_REMOTE = android::os::IDumpstate::BUGREPORT_MODE_REMOTE,
         BUGREPORT_WEAR = android::os::IDumpstate::BUGREPORT_MODE_WEAR,
         BUGREPORT_TELEPHONY = android::os::IDumpstate::BUGREPORT_MODE_TELEPHONY,
-        BUGREPORT_WIFI = android::os::IDumpstate::BUGREPORT_MODE_WIFI
+        BUGREPORT_WIFI = android::os::IDumpstate::BUGREPORT_MODE_WIFI,
+        BUGREPORT_DEFAULT = android::os::IDumpstate::BUGREPORT_MODE_DEFAULT
     };
 
     static android::os::dumpstate::CommandOptions DEFAULT_DUMPSYS;
