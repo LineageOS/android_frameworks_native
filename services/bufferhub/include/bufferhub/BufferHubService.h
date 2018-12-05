@@ -22,7 +22,7 @@
 
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <bufferhub/BufferClient.h>
-#include <bufferhub/UniqueIdGenerator.h>
+#include <bufferhub/BufferHubIdGenerator.h>
 #include <utils/Mutex.h>
 
 namespace android {
@@ -35,8 +35,6 @@ using hardware::hidl_handle;
 using hardware::Return;
 using hardware::graphics::common::V1_2::HardwareBufferDescription;
 
-static UniqueIdGenerator nodeIdGenerator;
-
 class BufferHubService : public IBufferHub {
 public:
     Return<void> allocateBuffer(const HardwareBufferDescription& description,
@@ -48,10 +46,15 @@ public:
     // Internal help function for IBufferClient::duplicate.
     hidl_handle registerToken(const wp<BufferClient>& client);
 
+    void onClientClosed(const BufferClient* client);
+
 private:
+    // Helper function to remove all the token belongs to a specific client.
+    void removeTokenByClient(const BufferClient* client);
+
     // List of active BufferClient for bookkeeping.
-    std::mutex mClientListMutex;
-    std::vector<wp<BufferClient>> mClientList GUARDED_BY(mClientListMutex);
+    std::mutex mClientSetMutex;
+    std::set<wp<BufferClient>> mClientSet GUARDED_BY(mClientSetMutex);
 
     // TODO(b/118180214): use a more secure implementation
     std::mt19937 mTokenEngine;

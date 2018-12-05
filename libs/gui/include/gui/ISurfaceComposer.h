@@ -300,6 +300,14 @@ public:
                                                            ui::PixelFormat* outFormat,
                                                            ui::Dataspace* outDataspace,
                                                            uint8_t* outComponentMask) const = 0;
+
+    /* Turns on the color sampling engine on the display.
+     *
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
+                                                      uint8_t componentMask,
+                                                      uint64_t maxFrames) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -340,6 +348,7 @@ public:
         GET_COMPOSITION_PREFERENCE,
         GET_COLOR_MANAGEMENT,
         GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
+        SET_DISPLAY_CONTENT_SAMPLING_ENABLED,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

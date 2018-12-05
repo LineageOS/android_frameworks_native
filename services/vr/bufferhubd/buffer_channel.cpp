@@ -52,8 +52,7 @@ BufferHubChannel::BufferInfo BufferChannel::GetBufferInfo() const {
       buffer_id(), /*consumer_count=*/0, buffer_node_->buffer_desc().width,
       buffer_node_->buffer_desc().height, buffer_node_->buffer_desc().layers,
       buffer_node_->buffer_desc().format, buffer_node_->buffer_desc().usage,
-      /*pending_count=*/0, /*state=*/0, /*signaled_mask=*/0,
-      /*index=*/0);
+      /*state=*/0, /*signaled_mask=*/0, /*index=*/0);
 }
 
 void BufferChannel::HandleImpulse(Message& /*message*/) {

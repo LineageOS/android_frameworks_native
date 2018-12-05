@@ -1098,6 +1098,14 @@ status_t SurfaceComposerClient::getDisplayedContentSamplingAttributes(const sp<I
                                                     outComponentMask);
 }
 
+status_t SurfaceComposerClient::setDisplayContentSamplingEnabled(const sp<IBinder>& display,
+                                                                 bool enable, uint8_t componentMask,
+                                                                 uint64_t maxFrames) {
+    return ComposerService::getComposerService()->setDisplayContentSamplingEnabled(display, enable,
+                                                                                   componentMask,
+                                                                                   maxFrames);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,

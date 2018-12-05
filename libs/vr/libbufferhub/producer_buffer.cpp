@@ -171,10 +171,11 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
 
   if (BufferHubDefs::IsClientGained(current_buffer_state,
                                     client_state_mask())) {
-    ALOGI("%s: already gained id=%d.", __FUNCTION__, id());
-    return -EALREADY;
+    ALOGV("%s: already gained id=%d.", __FUNCTION__, id());
+    return 0;
   }
   if (BufferHubDefs::AnyClientAcquired(current_buffer_state) ||
+      BufferHubDefs::AnyClientGained(current_buffer_state) ||
       (BufferHubDefs::AnyClientPosted(current_buffer_state) &&
        !gain_posted_buffer)) {
     ALOGE("%s: not released id=%d state=%" PRIx64 ".", __FUNCTION__, id(),
@@ -196,6 +197,7 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
         __FUNCTION__, current_buffer_state, updated_buffer_state);
 
     if (BufferHubDefs::AnyClientAcquired(current_buffer_state) ||
+        BufferHubDefs::AnyClientGained(current_buffer_state) ||
         (BufferHubDefs::AnyClientPosted(current_buffer_state) &&
          !gain_posted_buffer)) {
       ALOGE(

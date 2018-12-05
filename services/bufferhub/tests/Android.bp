@@ -24,10 +24,10 @@ cc_test {
 }
 
 cc_test {
-    name: "UniqueIdGenerator_test",
-    srcs: ["UniqueIdGenerator_test.cpp"],
+    name: "BufferHubIdGenerator_test",
+    srcs: ["BufferHubIdGenerator_test.cpp"],
     cflags: [
-        "-DLOG_TAG=\"UniqueIdGenerator_test\"",
+        "-DLOG_TAG=\"BufferHubIdGenerator_test\"",
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],

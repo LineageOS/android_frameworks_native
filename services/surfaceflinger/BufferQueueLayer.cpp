@@ -17,6 +17,8 @@
 #include "BufferQueueLayer.h"
 #include "LayerRejecter.h"
 
+#include "TimeStats/TimeStats.h"
+
 #include <system/window.h>
 
 namespace android {
@@ -246,7 +248,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // and return early
         if (queuedBuffer) {
             Mutex::Autolock lock(mQueueItemLock);
-            mTimeStats.removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
+            mFlinger->mTimeStats->removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
         }
@@ -260,7 +262,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
             Mutex::Autolock lock(mQueueItemLock);
             mQueueItems.clear();
             mQueuedFrames = 0;
-            mTimeStats.clearLayerRecord(layerID);
+            mFlinger->mTimeStats->onDestroy(layerID);
         }
 
         // Once we have hit this state, the shadow queue may no longer
@@ -281,13 +283,14 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
         // Remove any stale buffers that have been dropped during
         // updateTexImage
         while (mQueueItems[0].mFrameNumber != currentFrameNumber) {
-            mTimeStats.removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
+            mFlinger->mTimeStats->removeTimeRecord(layerID, mQueueItems[0].mFrameNumber);
             mQueueItems.removeAt(0);
             mQueuedFrames--;
         }
 
-        mTimeStats.setAcquireFence(layerID, currentFrameNumber, mQueueItems[0].mFenceTime);
-        mTimeStats.setLatchTime(layerID, currentFrameNumber, latchTime);
+        mFlinger->mTimeStats->setAcquireFence(layerID, currentFrameNumber,
+                                              mQueueItems[0].mFenceTime);
+        mFlinger->mTimeStats->setLatchTime(layerID, currentFrameNumber, latchTime);
 
         mQueueItems.removeAt(0);
     }

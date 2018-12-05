@@ -153,11 +153,10 @@ Status<void> ConsumerChannel::OnConsumerRelease(Message& message,
   }
 }
 
-bool ConsumerChannel::OnProducerPosted() {
+void ConsumerChannel::OnProducerPosted() {
   acquired_ = false;
   released_ = false;
   SignalAvailable();
-  return true;
 }
 
 void ConsumerChannel::OnProducerClosed() {

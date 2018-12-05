@@ -38,10 +38,6 @@ namespace android {
 class String8;
 
 class TimeStats {
-    // TODO(zzyiwei): Bound the timeStatsTracker with weighted LRU
-    // static const size_t MAX_NUM_LAYER_RECORDS = 200;
-    static const size_t MAX_NUM_TIME_RECORDS = 64;
-
     struct FrameTime {
         uint64_t frameNumber = 0;
         nsecs_t postTime = 0;
@@ -80,8 +76,12 @@ class TimeStats {
     };
 
 public:
-    static TimeStats& getInstance();
+    TimeStats() = default;
+    ~TimeStats() = default;
+
     void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, String8& result);
+    bool isEnabled();
+
     void incrementTotalFrames();
     void incrementMissedFrames();
     void incrementClientCompositionFrames();
@@ -96,21 +96,19 @@ public:
     void setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t presentTime);
     void setPresentFence(int32_t layerID, uint64_t frameNumber,
                          const std::shared_ptr<FenceTime>& presentFence);
-    // On producer disconnect with BufferQueue.
-    void onDisconnect(int32_t layerID);
-    // On layer tear down.
+    // Clean up the layer record
     void onDestroy(int32_t layerID);
-    // When SF is cleaning up the queue, clear the LayerRecord as well.
-    void clearLayerRecord(int32_t layerID);
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
     void removeTimeRecord(int32_t layerID, uint64_t frameNumber);
 
     void setPowerMode(int32_t powerMode);
     void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence);
 
-private:
-    TimeStats() = default;
+    // TODO(zzyiwei): Bound the timeStatsTracker with weighted LRU
+    // static const size_t MAX_NUM_LAYER_RECORDS = 200;
+    static const size_t MAX_NUM_TIME_RECORDS = 64;
 
+private:
     bool recordReadyLocked(int32_t layerID, TimeRecord* timeRecord);
     void flushAvailableRecordsToStatsLocked(int32_t layerID);
     void flushPowerTimeLocked();
@@ -119,7 +117,6 @@ private:
     void enable();
     void disable();
     void clear();
-    bool isEnabled();
     void dump(bool asProto, std::optional<uint32_t> maxLayers, String8& result);
 
     std::atomic<bool> mEnabled = false;

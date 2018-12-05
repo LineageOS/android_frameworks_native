@@ -95,6 +95,7 @@
 #include "Scheduler/InjectVSyncSource.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
+#include "TimeStats/TimeStats.h"
 
 #include <cutils/compiler.h>
 
@@ -263,6 +264,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mDebugInTransaction(0),
         mLastTransactionTime(0),
         mForceFullDamage(false),
+        mTimeStats(factory.createTimeStats()),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false),
         mRefreshStartTime(0),
@@ -1121,14 +1123,26 @@ status_t SurfaceFlinger::getDisplayedContentSamplingAttributes(const sp<IBinder>
     if (!outFormat || !outDataspace || !outComponentMask) {
         return BAD_VALUE;
     }
-    Mutex::Autolock _l(mStateLock);
-    const auto display = getDisplayDeviceLocked(displayToken);
+    const auto display = getDisplayDevice(displayToken);
     if (!display || !display->getId()) {
         ALOGE("getDisplayedContentSamplingAttributes: Bad display token: %p", display.get());
         return BAD_VALUE;
     }
     return getHwComposer().getDisplayedContentSamplingAttributes(*display->getId(), outFormat,
                                                                  outDataspace, outComponentMask);
+}
+
+status_t SurfaceFlinger::setDisplayContentSamplingEnabled(const sp<IBinder>& displayToken,
+                                                          bool enable, uint8_t componentMask,
+                                                          uint64_t maxFrames) const {
+    const auto display = getDisplayDevice(displayToken);
+    if (!display || !display->getId()) {
+        ALOGE("setDisplayContentSamplingEnabled: Bad display token: %p", display.get());
+        return BAD_VALUE;
+    }
+
+    return getHwComposer().setDisplayContentSamplingEnabled(*display->getId(), enable,
+                                                            componentMask, maxFrames);
 }
 
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
@@ -1526,7 +1540,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
             mFrameMissedCount += frameMissed;
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (frameMissed) {
-                mTimeStats.incrementMissedFrames();
+                mTimeStats->incrementMissedFrames();
                 if (mPropagateBackpressure) {
                     signalLayerUpdate();
                     break;
@@ -1951,12 +1965,12 @@ void SurfaceFlinger::postComposition()
         mAnimFrameTracker.advanceFrame();
     }
 
-    mTimeStats.incrementTotalFrames();
+    mTimeStats->incrementTotalFrames();
     if (mHadClientComposition) {
-        mTimeStats.incrementClientCompositionFrames();
+        mTimeStats->incrementClientCompositionFrames();
     }
 
-    mTimeStats.setPresentFenceGlobal(presentFenceTime);
+    mTimeStats->setPresentFenceGlobal(presentFenceTime);
 
     if (display && getHwComposer().isConnected(*display->getId()) && !display->isPoweredOn()) {
         return;
@@ -4056,7 +4070,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     }
 
     if (display->isPrimary()) {
-        mTimeStats.setPowerMode(mode);
+        mTimeStats->setPowerMode(mode);
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
@@ -4199,7 +4213,7 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
 
             if ((index < numArgs) && (args[index] == String16("--timestats"))) {
                 index++;
-                mTimeStats.parseArgs(asProto, args, index, result);
+                mTimeStats->parseArgs(asProto, args, index, result);
                 dumpAll = false;
             }
         }
@@ -4776,7 +4790,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
-        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES: {
+        case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
+        case SET_DISPLAY_CONTENT_SAMPLING_ENABLED: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",

@@ -52,6 +52,7 @@
 #include "SurfaceFlinger.h"
 
 #include "DisplayHardware/HWComposer.h"
+#include "TimeStats/TimeStats.h"
 
 #include <renderengine/RenderEngine.h>
 
@@ -1522,14 +1523,14 @@ void Layer::dumpFrameEvents(String8& result) {
 void Layer::onDisconnect() {
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.onDisconnect();
-    mTimeStats.onDisconnect(getSequence());
+    mFlinger->mTimeStats->onDestroy(getSequence());
 }
 
 void Layer::addAndGetFrameTimestamps(const NewFrameEventsEntry* newTimestamps,
                                      FrameEventHistoryDelta* outDelta) {
     if (newTimestamps) {
-        mTimeStats.setPostTime(getSequence(), newTimestamps->frameNumber, getName().c_str(),
-                               newTimestamps->postedTime);
+        mFlinger->mTimeStats->setPostTime(getSequence(), newTimestamps->frameNumber,
+                                          getName().c_str(), newTimestamps->postedTime);
     }
 
     Mutex::Autolock lock(mFrameEventHistoryMutex);
@@ -1685,12 +1686,20 @@ bool Layer::setColorTransform(const mat4& matrix) {
     return true;
 }
 
-const mat4& Layer::getColorTransform() const {
-    return getDrawingState().colorTransform;
+mat4 Layer::getColorTransform() const {
+    mat4 colorTransform = mat4(getDrawingState().colorTransform);
+    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
+        colorTransform = parent->getColorTransform() * colorTransform;
+    }
+    return colorTransform;
 }
 
 bool Layer::hasColorTransform() const {
-    return getDrawingState().hasColorTransform;
+    bool hasColorTransform = getDrawingState().hasColorTransform;
+    if (sp<Layer> parent = mDrawingParent.promote(); parent != nullptr) {
+        hasColorTransform = hasColorTransform || parent->hasColorTransform();
+    }
+    return hasColorTransform;
 }
 
 bool Layer::isLegacyDataSpace() const {
@@ -2118,10 +2127,13 @@ InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
     info.frameBottom = screenBounds.bottom - info.surfaceInset;
 
     ui::Transform t = getTransform();
-    info.windowXScale *= 1.0f / t.sx();
-    info.windowYScale *= 1.0f / t.sy();
-
-    info.touchableRegion.scaleSelf(t.sx(), t.sy());
+    const float xScale = t.sx();
+    const float yScale = t.sy();
+    if (xScale != 1.0f || yScale != 1.0f) {
+        info.windowXScale *= 1.0f / xScale;
+        info.windowYScale *= 1.0f / yScale;
+        info.touchableRegion.scaleSelf(xScale, yScale);
+    }
 
     info.touchableRegion = info.touchableRegion.translate(
             screenBounds.left,

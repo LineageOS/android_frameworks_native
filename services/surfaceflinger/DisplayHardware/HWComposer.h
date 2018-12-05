@@ -131,6 +131,8 @@ public:
     status_t getDisplayedContentSamplingAttributes(DisplayId displayId, ui::PixelFormat* outFormat,
                                                    ui::Dataspace* outDataspace,
                                                    uint8_t* outComponentMask);
+    status_t setDisplayContentSamplingEnabled(DisplayId displayId, bool enabled,
+                                              uint8_t componentMask, uint64_t maxFrames);
 
     // Events handling ---------------------------------------------------------
 

@@ -192,6 +192,8 @@ public:
     virtual Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
                                                         Dataspace* outDataspace,
                                                         uint8_t* outComponentMask) = 0;
+    virtual Error setDisplayContentSamplingEnabled(Display display, bool enabled,
+                                                   uint8_t componentMask, uint64_t maxFrames) = 0;
     virtual Error getDisplayCapabilities(Display display,
                                          std::vector<DisplayCapability>* outCapabilities) = 0;
 };
@@ -396,6 +398,8 @@ public:
     Error getDisplayedContentSamplingAttributes(Display display, PixelFormat* outFormat,
                                                 Dataspace* outDataspace,
                                                 uint8_t* outComponentMask) override;
+    Error setDisplayContentSamplingEnabled(Display display, bool enabled, uint8_t componentMask,
+                                           uint64_t maxFrames) override;
     Error getDisplayCapabilities(Display display,
                                  std::vector<DisplayCapability>* outCapabilities) override;
 

@@ -89,7 +89,7 @@ public:
 
             // these translate rhs first
             Region&     translateSelf(int dx, int dy);
-            Region&     scaleSelf(int sx, int sy);
+            Region&     scaleSelf(float sx, float sy);
             Region&     orSelf(const Region& rhs, int dx, int dy);
             Region&     xorSelf(const Region& rhs, int dx, int dy);
             Region&     andSelf(const Region& rhs, int dx, int dy);

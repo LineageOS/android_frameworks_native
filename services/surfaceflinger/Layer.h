@@ -48,7 +48,6 @@
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
-#include "TimeStats/TimeStats.h"
 #include "TransactionCompletedThread.h"
 
 #include "DisplayHardware/HWComposer.h"
@@ -290,7 +289,7 @@ public:
     bool attachChildren();
     bool isLayerDetached() const { return mLayerDetached; }
     virtual bool setColorTransform(const mat4& matrix);
-    virtual const mat4& getColorTransform() const;
+    virtual mat4 getColorTransform() const;
     virtual bool hasColorTransform() const;
 
     // Used only to set BufferStateLayer state
@@ -788,8 +787,6 @@ protected:
     ConsumerFrameEventHistory mFrameEventHistory;
     FenceTimeline mAcquireTimeline;
     FenceTimeline mReleaseTimeline;
-
-    TimeStats& mTimeStats = TimeStats::getInstance();
 
     // main thread
     sp<GraphicBuffer> mActiveBuffer;
