@@ -29,32 +29,32 @@ namespace renderengine {
 struct DisplaySettings {
     // Rectangle describing the physical display. We will project from the
     // logical clip onto this rectangle.
-    Rect physicalDisplay;
+    Rect physicalDisplay = Rect::INVALID_RECT;
 
     // Rectangle bounded by the x,y- clipping planes in the logical display, so
     // that the orthographic projection matrix can be computed. When
     // constructing this matrix, z-coordinate bound are assumed to be at z=0 and
     // z=1.
-    Rect clip;
+    Rect clip = Rect::INVALID_RECT;
 
     // Global transform to apply to all layers.
-    mat4 globalTransform;
+    mat4 globalTransform = mat4();
 
     // Maximum luminance pulled from the display's HDR capabilities.
-    float maxLuminence;
+    float maxLuminence = 1.0f;
 
     // Output dataspace that will be populated if wide color gamut is used, or
     // DataSpace::UNKNOWN otherwise.
-    ui::Dataspace outputDataspace;
+    ui::Dataspace outputDataspace = ui::Dataspace::UNKNOWN;
 
     // Additional color transform to apply in linear space after transforming
     // to the output dataspace.
-    mat4 colorTransform;
+    mat4 colorTransform = mat4();
 
     // Region that will be cleared to (0, 0, 0, 0) prior to rendering.
     // clearRegion will first be transformed by globalTransform so that it will
     // be in the same coordinate space as the rendered layers.
-    Region clearRegion;
+    Region clearRegion = Region::INVALID_REGION;
 };
 
 } // namespace renderengine
