@@ -439,14 +439,10 @@ static bool isCategorySupported(const TracingCategory& category)
         const char* path = category.sysfiles[i].path;
         bool req = category.sysfiles[i].required == REQ;
         if (path != nullptr) {
-            if (req) {
-                if (!fileIsWritable(path)) {
-                    return false;
-                } else {
-                    ok = true;
-                }
-            } else {
+            if (fileIsWritable(path)) {
                 ok = true;
+            } else if (req) {
+                return false;
             }
         }
     }
