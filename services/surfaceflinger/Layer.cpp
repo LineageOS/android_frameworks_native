@@ -289,8 +289,10 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
 }
 
-Rect Layer::computeScreenBounds() const {
-    FloatRect bounds = computeBounds();
+Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
+    const State& s(getDrawingState());
+    Region transparentRegion = reduceTransparentRegion ? getActiveTransparentRegion(s) : Region();
+    FloatRect bounds = computeBounds(transparentRegion);
     ui::Transform t = getTransform();
     // Transform to screen space.
     bounds = t.transform(bounds);
@@ -2150,7 +2152,6 @@ InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
     info.touchableRegion = info.touchableRegion.translate(info.frameLeft, info.frameTop);
-    info.touchableRegion = info.touchableRegion.intersect(frame);
     info.visible = isVisible();
     return info;
 }
