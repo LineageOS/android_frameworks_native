@@ -413,10 +413,9 @@ void DisplayDevice::queueBuffer(HWComposer& hwc) {
         if (mGraphicBuffer == nullptr) {
             ALOGE("No buffer is ready for display [%s]", mDisplayName.c_str());
         } else {
-            int fd = mBufferReady.release();
-
             status_t res = mNativeWindow->queueBuffer(mNativeWindow.get(),
-                                                      mGraphicBuffer->getNativeBuffer(), fd);
+                                                      mGraphicBuffer->getNativeBuffer(),
+                                                      dup(mBufferReady));
             if (res != NO_ERROR) {
                 ALOGE("Error when queueing buffer for display [%s]: %d", mDisplayName.c_str(), res);
                 // We risk blocking on dequeueBuffer if the primary display failed
@@ -425,9 +424,12 @@ void DisplayDevice::queueBuffer(HWComposer& hwc) {
                     LOG_ALWAYS_FATAL("ANativeWindow::queueBuffer failed with error: %d", res);
                 } else {
                     mNativeWindow->cancelBuffer(mNativeWindow.get(),
-                                                mGraphicBuffer->getNativeBuffer(), fd);
+                                                mGraphicBuffer->getNativeBuffer(),
+                                                dup(mBufferReady));
                 }
             }
+
+            mBufferReady.reset();
             mGraphicBuffer = nullptr;
         }
     }
