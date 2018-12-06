@@ -14,7 +14,6 @@
 
 sharedLibraries = [
     "libbase",
-    "libbinder",
     "libbufferhubservice",
     "libcutils",
     "libgtest_prod",
@@ -30,12 +29,9 @@ cc_library_static {
     name: "libbufferhubd",
     srcs: [
         "buffer_channel.cpp",
-        "buffer_client.cpp",
         "buffer_hub.cpp",
-        "buffer_hub_binder.cpp",
         "consumer_channel.cpp",
         "consumer_queue_channel.cpp",
-        "IBufferHub.cpp",
         "producer_channel.cpp",
         "producer_queue_channel.cpp",
     ],
@@ -45,10 +41,7 @@ cc_library_static {
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     export_include_dirs: ["include"],
-    header_libs: [
-        "libdvr_headers",
-        "libnativewindow_headers",
-    ],
+    header_libs: ["libdvr_headers"],
     shared_libs: sharedLibraries,
     static_libs: [
         "libbufferhub",
