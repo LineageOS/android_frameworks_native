@@ -6,7 +6,6 @@
 #include <log/log.h>
 #include <pdx/service_dispatcher.h>
 #include <private/dvr/buffer_hub.h>
-#include <private/dvr/buffer_hub_binder.h>
 
 int main(int, char**) {
   int ret = -1;
@@ -39,10 +38,6 @@ int main(int, char**) {
   pdx_service = android::dvr::BufferHubService::Create();
   CHECK_ERROR(!pdx_service, error, "Failed to create bufferhub pdx service\n");
   dispatcher->AddService(pdx_service);
-
-  ret = android::dvr::BufferHubBinderService::start(pdx_service);
-  CHECK_ERROR(ret != android::OK, error,
-              "Failed to create bufferhub binder service\n");
 
   ret = dvrSetSchedulerClass(0, "graphics");
   CHECK_ERROR(ret < 0, error, "Failed to set thread priority");

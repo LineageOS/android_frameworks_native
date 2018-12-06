@@ -72,11 +72,11 @@ Rect& Rect::offsetBy(int32_t x, int32_t y) {
     return *this;
 }
 
-Rect& Rect::inset(int32_t left, int32_t top, int32_t right, int32_t bottom) {
-    this->left += left;
-    this->top += top;
-    this->right -= right;
-    this->bottom -= bottom;
+Rect& Rect::inset(int32_t _left, int32_t _top, int32_t _right, int32_t _bottom) {
+    this->left += _left;
+    this->top += _top;
+    this->right -= _right;
+    this->bottom -= _bottom;
     return *this;
 }
 

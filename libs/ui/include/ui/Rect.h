@@ -178,7 +178,7 @@ public:
     /**
      * Insets the rectangle on all sides specified by the insets.
      */
-    Rect& inset(int32_t left, int32_t top, int32_t right, int32_t bottom);
+    Rect& inset(int32_t _left, int32_t _top, int32_t _right, int32_t _bottom);
 
     bool intersect(const Rect& with, Rect* result) const;
 
