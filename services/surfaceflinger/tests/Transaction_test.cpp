@@ -1230,7 +1230,7 @@ TEST_P(LayerTypeTransactionTest, SetCornerRadius) {
     sp<SurfaceControl> layer;
     const uint8_t size = 64;
     const uint8_t testArea = 4;
-    const float cornerRadius = 16.0f;
+    const float cornerRadius = 20.0f;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", size, size));
     ASSERT_NO_FATAL_FAILURE(fillLayerColor(layer, Color::RED, size, size));
 
@@ -1238,13 +1238,43 @@ TEST_P(LayerTypeTransactionTest, SetCornerRadius) {
             .setCornerRadius(layer, cornerRadius)
             .apply();
     {
+        const uint8_t bottom = size - 1;
+        const uint8_t right = size - 1;
         auto shot = screenshot();
         // Transparent corners
         shot->expectColor(Rect(0, 0, testArea, testArea), Color::BLACK);
-        shot->expectColor(Rect(0, size - testArea, testArea, testArea), Color::BLACK);
-        shot->expectColor(Rect(size - testArea, 0, testArea, testArea), Color::BLACK);
-        shot->expectColor(Rect(size - testArea, size - testArea, testArea, testArea),
-            Color::BLACK);
+        shot->expectColor(Rect(size - testArea, 0, right, testArea), Color::BLACK);
+        shot->expectColor(Rect(0, bottom - testArea, testArea, bottom), Color::BLACK);
+        shot->expectColor(Rect(size - testArea, bottom - testArea, right, bottom), Color::BLACK);
+    }
+}
+
+TEST_P(LayerTypeTransactionTest, SetCornerRadiusChildCrop) {
+    sp<SurfaceControl> parent;
+    sp<SurfaceControl> child;
+    const uint8_t size = 64;
+    const uint8_t testArea = 4;
+    const float cornerRadius = 20.0f;
+    ASSERT_NO_FATAL_FAILURE(parent = createLayer("parent", size, size));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(parent, Color::RED, size, size));
+    ASSERT_NO_FATAL_FAILURE(child = createLayer("child", size, size / 2));
+    ASSERT_NO_FATAL_FAILURE(fillLayerColor(child, Color::GREEN, size, size / 2));
+
+    Transaction()
+            .setCornerRadius(parent, cornerRadius)
+            .reparent(child, parent->getHandle())
+            .setPosition(child, 0, size / 2)
+            .apply();
+    {
+        const uint8_t bottom = size - 1;
+        const uint8_t right = size - 1;
+        auto shot = screenshot();
+        // Top edge of child should not have rounded corners because it's translated in the parent
+        shot->expectColor(Rect(0, size / 2, right, static_cast<int>(bottom - cornerRadius)),
+            Color::GREEN);
+        // But bottom edges should have been clipped according to parent bounds
+        shot->expectColor(Rect(0, bottom - testArea, testArea, bottom), Color::BLACK);
+        shot->expectColor(Rect(right - testArea, bottom - testArea, right, bottom), Color::BLACK);
     }
 }
 
