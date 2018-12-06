@@ -1146,6 +1146,19 @@ status_t SurfaceFlinger::setDisplayContentSamplingEnabled(const sp<IBinder>& dis
                                                             componentMask, maxFrames);
 }
 
+status_t SurfaceFlinger::getDisplayedContentSample(const sp<IBinder>& displayToken,
+                                                   uint64_t maxFrames, uint64_t timestamp,
+                                                   DisplayedFrameStats* outStats) const {
+    const auto display = getDisplayDevice(displayToken);
+    if (!display || !display->getId()) {
+        ALOGE("getDisplayContentSample: Bad display token: %p", displayToken.get());
+        return BAD_VALUE;
+    }
+
+    return getHwComposer().getDisplayedContentSample(*display->getId(), maxFrames, timestamp,
+                                                     outStats);
+}
+
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
@@ -4784,7 +4797,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case INJECT_VSYNC:
         case SET_POWER_MODE:
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES:
-        case SET_DISPLAY_CONTENT_SAMPLING_ENABLED: {
+        case SET_DISPLAY_CONTENT_SAMPLING_ENABLED:
+        case GET_DISPLAYED_CONTENT_SAMPLE: {
             if (!callingThreadHasUnscopedSurfaceFlingerAccess()) {
                 IPCThreadState* ipc = IPCThreadState::self();
                 ALOGE("Permission Denial: can't access SurfaceFlinger pid=%d, uid=%d",

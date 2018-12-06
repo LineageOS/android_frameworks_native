@@ -1120,6 +1120,12 @@ status_t SurfaceComposerClient::setDisplayContentSamplingEnabled(const sp<IBinde
                                                                                    maxFrames);
 }
 
+status_t SurfaceComposerClient::getDisplayedContentSample(const sp<IBinder>& display,
+                                                          uint64_t maxFrames, uint64_t timestamp,
+                                                          DisplayedFrameStats* outStats) {
+    return ComposerService::getComposerService()->getDisplayedContentSample(display, maxFrames,
+                                                                            timestamp, outStats);
+}
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,

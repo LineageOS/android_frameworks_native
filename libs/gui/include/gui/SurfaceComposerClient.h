@@ -30,6 +30,7 @@
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
 
+#include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
@@ -389,6 +390,9 @@ public:
                                                           uint8_t* outComponentMask);
     static status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                      uint8_t componentMask, uint64_t maxFrames);
+
+    static status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                              uint64_t timestamp, DisplayedFrameStats* outStats);
 
 private:
     virtual void onFirstRef();

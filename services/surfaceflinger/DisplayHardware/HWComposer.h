@@ -36,6 +36,7 @@
 
 namespace android {
 
+struct DisplayedFrameStats;
 class GraphicBuffer;
 class TestableSurfaceFlinger;
 struct CompositionInfo;
@@ -132,6 +133,8 @@ public:
                                                    uint8_t* outComponentMask);
     status_t setDisplayContentSamplingEnabled(DisplayId displayId, bool enabled,
                                               uint8_t componentMask, uint64_t maxFrames);
+    status_t getDisplayedContentSample(DisplayId displayId, uint64_t maxFrames, uint64_t timestamp,
+                                       DisplayedFrameStats* outStats);
 
     // Events handling ---------------------------------------------------------
 
