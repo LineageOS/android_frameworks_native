@@ -328,8 +328,6 @@ struct PointerCoords {
     float getAxisValue(int32_t axis) const;
     status_t setAxisValue(int32_t axis, float value);
 
-    void scale(float globalScale);
-
     // Scale the pointer coordinates according to a global scale and a
     // window scale. The global scale will be applied to TOUCH/TOOL_MAJOR/MINOR
     // axes, however the window scaling will not.
