@@ -37,7 +37,6 @@
 namespace android {
 
 class GraphicBuffer;
-class String8;
 class TestableSurfaceFlinger;
 struct CompositionInfo;
 
@@ -161,7 +160,7 @@ public:
     bool isUsingVrComposer() const;
 
     // for debugging ----------------------------------------------------------
-    void dump(String8& out) const;
+    void dump(std::string& out) const;
 
     Hwc2::Composer* getComposer() const { return mHwcDevice->getComposer(); }
 

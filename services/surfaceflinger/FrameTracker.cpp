@@ -19,6 +19,7 @@
 
 #include <inttypes.h>
 
+#include <android-base/stringprintf.h>
 #include <android/log.h>
 #include <utils/String8.h>
 
@@ -230,17 +231,17 @@ bool FrameTracker::isFrameValidLocked(size_t idx) const {
             mFrameRecords[idx].actualPresentTime < INT64_MAX;
 }
 
-void FrameTracker::dumpStats(String8& result) const {
+void FrameTracker::dumpStats(std::string& result) const {
     Mutex::Autolock lock(mMutex);
     processFencesLocked();
 
     const size_t o = mOffset;
     for (size_t i = 1; i < NUM_FRAME_RECORDS; i++) {
         const size_t index = (o+i) % NUM_FRAME_RECORDS;
-        result.appendFormat("%" PRId64 "\t%" PRId64 "\t%" PRId64 "\n",
-            mFrameRecords[index].desiredPresentTime,
-            mFrameRecords[index].actualPresentTime,
-            mFrameRecords[index].frameReadyTime);
+        base::StringAppendF(&result, "%" PRId64 "\t%" PRId64 "\t%" PRId64 "\n",
+                            mFrameRecords[index].desiredPresentTime,
+                            mFrameRecords[index].actualPresentTime,
+                            mFrameRecords[index].frameReadyTime);
     }
     result.append("\n");
 }

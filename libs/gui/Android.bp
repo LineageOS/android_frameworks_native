@@ -122,6 +122,7 @@ cc_library_shared {
 
     shared_libs: [
         "android.hardware.graphics.common@1.1",
+        "libbase",
         "libsync",
         "libbinder",
         "libbufferhub",

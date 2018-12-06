@@ -19,8 +19,9 @@
 #include <inttypes.h>
 #include <limits.h>
 
+#include <android-base/stringprintf.h>
+
 #include <utils/Log.h>
-#include <utils/String8.h>
 #include <utils/CallStack.h>
 
 #include <ui/Rect.h>
@@ -40,6 +41,8 @@
 
 namespace android {
 // ----------------------------------------------------------------------------
+
+using base::StringAppendF;
 
 enum {
     op_nand = region_operator<Rect>::op_nand,
@@ -868,16 +871,14 @@ Rect const* Region::getArray(size_t* count) const {
 
 // ----------------------------------------------------------------------------
 
-void Region::dump(String8& out, const char* what, uint32_t /* flags */) const
-{
+void Region::dump(std::string& out, const char* what, uint32_t /* flags */) const {
     const_iterator head = begin();
     const_iterator const tail = end();
 
-    out.appendFormat("  Region %s (this=%p, count=%" PRIdPTR ")\n",
-            what, this, tail - head);
+    StringAppendF(&out, "  Region %s (this=%p, count=%" PRIdPTR ")\n", what, this, tail - head);
     while (head != tail) {
-        out.appendFormat("    [%3d, %3d, %3d, %3d]\n", head->left, head->top,
-                head->right, head->bottom);
+        StringAppendF(&out, "    [%3d, %3d, %3d, %3d]\n", head->left, head->top, head->right,
+                      head->bottom);
         ++head;
     }
 }

@@ -39,7 +39,6 @@ struct ANativeWindowBuffer;
 
 namespace android {
 
-class String8;
 class Rect;
 class Region;
 
@@ -76,7 +75,7 @@ public:
     virtual void primeCache() const = 0;
 
     // dump the extension strings. always call the base class.
-    virtual void dump(String8& result) = 0;
+    virtual void dump(std::string& result) = 0;
 
     virtual bool useNativeFenceSync() const = 0;
     virtual bool useWaitSync() const = 0;

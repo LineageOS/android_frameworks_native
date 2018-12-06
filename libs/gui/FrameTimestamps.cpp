@@ -18,10 +18,10 @@
 
 #define LOG_TAG "FrameEvents"
 
+#include <android-base/stringprintf.h>
 #include <cutils/compiler.h>  // For CC_[UN]LIKELY
 #include <inttypes.h>
 #include <utils/Log.h>
-#include <utils/String8.h>
 
 #include <algorithm>
 #include <limits>
@@ -29,6 +29,7 @@
 
 namespace android {
 
+using base::StringAppendF;
 
 // ============================================================================
 // FrameEvents
@@ -86,50 +87,49 @@ void FrameEvents::checkFencesForCompletion() {
     releaseFence->getSignalTime();
 }
 
-static void dumpFenceTime(String8& outString, const char* name,
-        bool pending, const FenceTime& fenceTime) {
-    outString.appendFormat("--- %s", name);
+static void dumpFenceTime(std::string& outString, const char* name, bool pending,
+                          const FenceTime& fenceTime) {
+    StringAppendF(&outString, "--- %s", name);
     nsecs_t signalTime = fenceTime.getCachedSignalTime();
     if (Fence::isValidTimestamp(signalTime)) {
-        outString.appendFormat("%" PRId64 "\n", signalTime);
+        StringAppendF(&outString, "%" PRId64 "\n", signalTime);
     } else if (pending || signalTime == Fence::SIGNAL_TIME_PENDING) {
-        outString.appendFormat("Pending\n");
+        outString.append("Pending\n");
     } else if (&fenceTime == FenceTime::NO_FENCE.get()){
-        outString.appendFormat("N/A\n");
+        outString.append("N/A\n");
     } else {
-        outString.appendFormat("Error\n");
+        outString.append("Error\n");
     }
 }
 
-void FrameEvents::dump(String8& outString) const
-{
+void FrameEvents::dump(std::string& outString) const {
     if (!valid) {
         return;
     }
 
-    outString.appendFormat("-- Frame %" PRIu64 "\n", frameNumber);
-    outString.appendFormat("--- Posted      \t%" PRId64 "\n", postedTime);
-    outString.appendFormat("--- Req. Present\t%" PRId64 "\n", requestedPresentTime);
+    StringAppendF(&outString, "-- Frame %" PRIu64 "\n", frameNumber);
+    StringAppendF(&outString, "--- Posted      \t%" PRId64 "\n", postedTime);
+    StringAppendF(&outString, "--- Req. Present\t%" PRId64 "\n", requestedPresentTime);
 
-    outString.appendFormat("--- Latched     \t");
+    outString.append("--- Latched     \t");
     if (FrameEvents::isValidTimestamp(latchTime)) {
-        outString.appendFormat("%" PRId64 "\n", latchTime);
+        StringAppendF(&outString, "%" PRId64 "\n", latchTime);
     } else {
-        outString.appendFormat("Pending\n");
+        outString.append("Pending\n");
     }
 
-    outString.appendFormat("--- Refresh (First)\t");
+    outString.append("--- Refresh (First)\t");
     if (FrameEvents::isValidTimestamp(firstRefreshStartTime)) {
-        outString.appendFormat("%" PRId64 "\n", firstRefreshStartTime);
+        StringAppendF(&outString, "%" PRId64 "\n", firstRefreshStartTime);
     } else {
-        outString.appendFormat("Pending\n");
+        outString.append("Pending\n");
     }
 
-    outString.appendFormat("--- Refresh (Last)\t");
+    outString.append("--- Refresh (Last)\t");
     if (FrameEvents::isValidTimestamp(lastRefreshStartTime)) {
-        outString.appendFormat("%" PRId64 "\n", lastRefreshStartTime);
+        StringAppendF(&outString, "%" PRId64 "\n", lastRefreshStartTime);
     } else {
-        outString.appendFormat("Pending\n");
+        outString.append("Pending\n");
     }
 
     dumpFenceTime(outString, "Acquire           \t",
@@ -139,11 +139,11 @@ void FrameEvents::dump(String8& outString) const
     dumpFenceTime(outString, "Display Present   \t",
             !addPostCompositeCalled, *displayPresentFence);
 
-    outString.appendFormat("--- DequeueReady  \t");
+    outString.append("--- DequeueReady  \t");
     if (FrameEvents::isValidTimestamp(dequeueReadyTime)) {
-        outString.appendFormat("%" PRId64 "\n", dequeueReadyTime);
+        StringAppendF(&outString, "%" PRId64 "\n", dequeueReadyTime);
     } else {
-        outString.appendFormat("Pending\n");
+        outString.append("Pending\n");
     }
 
     dumpFenceTime(outString, "Release           \t",
@@ -206,11 +206,11 @@ static bool FrameNumberLessThan(
     return lhs.valid;
 }
 
-void FrameEventHistory::dump(String8& outString) const {
+void FrameEventHistory::dump(std::string& outString) const {
     auto earliestFrame = std::min_element(
             mFrames.begin(), mFrames.end(), &FrameNumberLessThan);
     if (!earliestFrame->valid) {
-        outString.appendFormat("-- N/A\n");
+        outString.append("-- N/A\n");
         return;
     }
     for (auto frame = earliestFrame; frame != mFrames.end(); ++frame) {

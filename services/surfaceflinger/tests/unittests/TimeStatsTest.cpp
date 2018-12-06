@@ -21,7 +21,6 @@
 
 #include <log/log.h>
 #include <utils/String16.h>
-#include <utils/String8.h>
 #include <utils/Vector.h>
 
 #include <random>
@@ -131,7 +130,7 @@ public:
 
 std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
     size_t index = 0;
-    String8 result;
+    std::string result;
     Vector<String16> args;
 
     switch (cmd) {
@@ -162,7 +161,7 @@ std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
     }
 
     EXPECT_NO_FATAL_FAILURE(mTimeStats->parseArgs(useProto, args, index, result));
-    return std::string(result.string(), result.size());
+    return result;
 }
 
 static std::string genLayerName(int32_t layerID) {

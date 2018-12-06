@@ -30,7 +30,6 @@ namespace android {
 
 struct FrameEvents;
 class FrameEventHistoryDelta;
-class String8;
 
 
 // Identifiers for all the events that may be recorded or reported.
@@ -72,7 +71,7 @@ struct FrameEvents {
     bool hasDequeueReadyInfo() const;
 
     void checkFencesForCompletion();
-    void dump(String8& outString) const;
+    void dump(std::string& outString) const;
 
     bool valid{false};
     int connectId{0};
@@ -112,7 +111,7 @@ public:
     FrameEvents* getFrame(uint64_t frameNumber);
     FrameEvents* getFrame(uint64_t frameNumber, size_t* iHint);
     void checkFencesForCompletion();
-    void dump(String8& outString) const;
+    void dump(std::string& outString) const;
 
     static constexpr size_t MAX_FRAME_HISTORY = 8;
 

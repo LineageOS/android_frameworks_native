@@ -806,25 +806,25 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
-    void listLayersLocked(const Vector<String16>& args, size_t& index, String8& result) const;
-    void dumpStatsLocked(const Vector<String16>& args, size_t& index, String8& result) const;
-    void clearStatsLocked(const Vector<String16>& args, size_t& index, String8& result);
-    void dumpAllLocked(const Vector<String16>& args, size_t& index, String8& result) const;
+    void listLayersLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
+    void dumpStatsLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
+    void clearStatsLocked(const Vector<String16>& args, size_t& index, std::string& result);
+    void dumpAllLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
     bool startDdmConnection();
-    void appendSfConfigString(String8& result) const;
+    void appendSfConfigString(std::string& result) const;
 
     void logFrameStats();
 
-    void dumpStaticScreenStats(String8& result) const;
+    void dumpStaticScreenStats(std::string& result) const;
     // Not const because each Layer needs to query Fences and cache timestamps.
-    void dumpFrameEventsLocked(String8& result);
+    void dumpFrameEventsLocked(std::string& result);
 
     void recordBufferingStats(const char* layerName,
             std::vector<OccupancyTracker::Segment>&& history);
-    void dumpBufferingStats(String8& result) const;
-    void dumpDisplayIdentificationData(String8& result) const;
-    void dumpWideColorInfo(String8& result) const;
-    void dumpFrameCompositionInfo(String8& result) const;
+    void dumpBufferingStats(std::string& result) const;
+    void dumpDisplayIdentificationData(std::string& result) const;
+    void dumpWideColorInfo(std::string& result) const;
+    void dumpFrameCompositionInfo(std::string& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
     LayersProto dumpVisibleLayersProtoInfo(const DisplayDevice& display) const;
 

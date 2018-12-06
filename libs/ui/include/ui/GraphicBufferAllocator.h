@@ -39,7 +39,6 @@ class Allocator;
 }
 
 class GraphicBufferMapper;
-class String8;
 
 class GraphicBufferAllocator : public Singleton<GraphicBufferAllocator>
 {
@@ -53,7 +52,7 @@ public:
 
     status_t free(buffer_handle_t handle);
 
-    void dump(String8& res) const;
+    void dump(std::string& res) const;
     static void dumpToSystemLog();
 
 private:

@@ -27,12 +27,11 @@
 
 #include <android-base/macros.h>
 
+#include <string>
+
 namespace android {
 // ---------------------------------------------------------------------------
 
-class String8;
-
-// ---------------------------------------------------------------------------
 class Region : public LightFlattenable<Region>
 {
 public:
@@ -144,8 +143,8 @@ public:
             status_t    flatten(void* buffer, size_t size) const;
             status_t    unflatten(void const* buffer, size_t size);
 
-    void        dump(String8& out, const char* what, uint32_t flags=0) const;
-    void        dump(const char* what, uint32_t flags=0) const;
+            void        dump(std::string& out, const char* what, uint32_t flags=0) const;
+            void        dump(const char* what, uint32_t flags=0) const;
 
 private:
     class rasterizer;

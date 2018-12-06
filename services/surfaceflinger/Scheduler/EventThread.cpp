@@ -22,18 +22,20 @@
 #include <chrono>
 #include <cstdint>
 
+#include <android-base/stringprintf.h>
+
 #include <cutils/compiler.h>
 #include <cutils/sched_policy.h>
 
 #include <gui/DisplayEventReceiver.h>
 
 #include <utils/Errors.h>
-#include <utils/String8.h>
 #include <utils/Trace.h>
 
 #include "EventThread.h"
 
 using namespace std::chrono_literals;
+using android::base::StringAppendF;
 
 // ---------------------------------------------------------------------------
 
@@ -384,18 +386,18 @@ void EventThread::disableVSyncLocked() {
     }
 }
 
-void EventThread::dump(String8& result) const {
+void EventThread::dump(std::string& result) const {
     std::lock_guard<std::mutex> lock(mMutex);
-    result.appendFormat("VSYNC state: %s\n", mDebugVsyncEnabled ? "enabled" : "disabled");
-    result.appendFormat("  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
-    result.appendFormat("  numListeners=%zu,\n  events-delivered: %u\n",
-                        mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
+    StringAppendF(&result, "VSYNC state: %s\n", mDebugVsyncEnabled ? "enabled" : "disabled");
+    StringAppendF(&result, "  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
+    StringAppendF(&result, "  numListeners=%zu,\n  events-delivered: %u\n",
+                  mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
     for (const wp<Connection>& weak : mDisplayEventConnections) {
         sp<Connection> connection = weak.promote();
-        result.appendFormat("    %p: count=%d\n", connection.get(),
-                            connection != nullptr ? connection->count : 0);
+        StringAppendF(&result, "    %p: count=%d\n", connection.get(),
+                      connection != nullptr ? connection->count : 0);
     }
-    result.appendFormat("  other-events-pending: %zu\n", mPendingEvents.size());
+    StringAppendF(&result, "  other-events-pending: %zu\n", mPendingEvents.size());
 }
 
 // ---------------------------------------------------------------------------

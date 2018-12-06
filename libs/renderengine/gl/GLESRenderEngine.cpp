@@ -27,6 +27,7 @@
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
+#include <android-base/stringprintf.h>
 #include <cutils/compiler.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
@@ -36,7 +37,6 @@
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <utils/KeyedVector.h>
-#include <utils/String8.h>
 #include <utils/Trace.h>
 #include "GLExtensions.h"
 #include "GLFramebuffer.h"
@@ -109,6 +109,7 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
+using base::StringAppendF;
 using ui::Dataspace;
 
 static status_t selectConfigForAttribute(EGLDisplay dpy, EGLint const* attrs, EGLint attribute,
@@ -854,22 +855,22 @@ size_t GLESRenderEngine::getMaxViewportDims() const {
     return mMaxViewportDims[0] < mMaxViewportDims[1] ? mMaxViewportDims[0] : mMaxViewportDims[1];
 }
 
-void GLESRenderEngine::dump(String8& result) {
+void GLESRenderEngine::dump(std::string& result) {
     const GLExtensions& extensions = GLExtensions::getInstance();
 
-    result.appendFormat("EGL implementation : %s\n", extensions.getEGLVersion());
-    result.appendFormat("%s\n", extensions.getEGLExtensions());
+    StringAppendF(&result, "EGL implementation : %s\n", extensions.getEGLVersion());
+    StringAppendF(&result, "%s\n", extensions.getEGLExtensions());
 
-    result.appendFormat("GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
-                        extensions.getVersion());
-    result.appendFormat("%s\n", extensions.getExtensions());
+    StringAppendF(&result, "GLES: %s, %s, %s\n", extensions.getVendor(), extensions.getRenderer(),
+                  extensions.getVersion());
+    StringAppendF(&result, "%s\n", extensions.getExtensions());
 
-    result.appendFormat("RenderEngine program cache size: %zu\n",
-                        ProgramCache::getInstance().getSize());
+    StringAppendF(&result, "RenderEngine program cache size: %zu\n",
+                  ProgramCache::getInstance().getSize());
 
-    result.appendFormat("RenderEngine last dataspace conversion: (%s) to (%s)\n",
-                        dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
-                        dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
+    StringAppendF(&result, "RenderEngine last dataspace conversion: (%s) to (%s)\n",
+                  dataspaceDetails(static_cast<android_dataspace>(mDataSpace)).c_str(),
+                  dataspaceDetails(static_cast<android_dataspace>(mOutputDataSpace)).c_str());
 }
 
 GLESRenderEngine::GlesVersion GLESRenderEngine::parseGlesVersion(const char* str) {
