@@ -108,6 +108,7 @@ cc_library_shared {
         "ISurfaceComposerClient.cpp",
         "ITransactionCompletedListener.cpp",
         "LayerDebugInfo.cpp",
+        "LayerMetadata.cpp",
         "LayerState.cpp",
         "OccupancyTracker.cpp",
         "StreamSplitter.cpp",

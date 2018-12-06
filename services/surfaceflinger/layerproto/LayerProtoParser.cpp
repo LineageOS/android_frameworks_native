@@ -117,11 +117,15 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
     layer.hwcFrame = generateRect(layerProto.hwc_frame());
     layer.hwcCrop = generateFloatRect(layerProto.hwc_crop());
     layer.hwcTransform = layerProto.hwc_transform();
-    layer.windowType = layerProto.window_type();
-    layer.appId = layerProto.app_id();
     layer.hwcCompositionType = layerProto.hwc_composition_type();
     layer.isProtected = layerProto.is_protected();
     layer.cornerRadius = layerProto.corner_radius();
+    for (const auto& entry : layerProto.metadata()) {
+        const std::string& dataStr = entry.second;
+        std::vector<uint8_t>& outData = layer.metadata.mMap[entry.first];
+        outData.resize(dataStr.size());
+        memcpy(outData.data(), dataStr.data(), dataStr.size());
+    }
 
     return layer;
 }
@@ -310,7 +314,14 @@ std::string LayerProtoParser::Layer::to_string() const {
     StringAppendF(&result, "      activeBuffer=%s,", activeBuffer.to_string().c_str());
     StringAppendF(&result, " tr=%s", bufferTransform.to_string().c_str());
     StringAppendF(&result, " queued-frames=%d, mRefreshPending=%d,", queuedFrames, refreshPending);
-    StringAppendF(&result, " windowType=%d, appId=%d", windowType, appId);
+    StringAppendF(&result, " metadata={");
+    bool first = true;
+    for (const auto& entry : metadata.mMap) {
+        if (!first) result.append(", ");
+        first = false;
+        result.append(metadata.itemToString(entry.first, ":"));
+    }
+    result.append("}");
 
     return result;
 }

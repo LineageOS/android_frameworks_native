@@ -539,6 +539,20 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setLayer
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMetadata(
+        const sp<SurfaceControl>& sc, uint32_t key, std::vector<uint8_t> data) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eMetadataChanged;
+    s->metadata.mMap[key] = std::move(data);
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setMatrix(
         const sp<SurfaceControl>& sc, float dsdx, float dtdx,
         float dtdy, float dsdy) {
@@ -1141,26 +1155,19 @@ void SurfaceComposerClient::dispose() {
     mStatus = NO_INIT;
 }
 
-sp<SurfaceControl> SurfaceComposerClient::createSurface(
-        const String8& name,
-        uint32_t w,
-        uint32_t h,
-        PixelFormat format,
-        uint32_t flags,
-        SurfaceControl* parent,
-        int32_t windowType,
-        int32_t ownerUid)
-{
+sp<SurfaceControl> SurfaceComposerClient::createSurface(const String8& name, uint32_t w, uint32_t h,
+                                                        PixelFormat format, uint32_t flags,
+                                                        SurfaceControl* parent,
+                                                        LayerMetadata metadata) {
     sp<SurfaceControl> s;
-    createSurfaceChecked(name, w, h, format, &s, flags, parent, windowType, ownerUid);
+    createSurfaceChecked(name, w, h, format, &s, flags, parent, std::move(metadata));
     return s;
 }
 
 sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8& name, uint32_t w,
                                                                   uint32_t h, PixelFormat format,
                                                                   uint32_t flags, Surface* parent,
-                                                                  int32_t windowType,
-                                                                  int32_t ownerUid) {
+                                                                  LayerMetadata metadata) {
     sp<SurfaceControl> sur;
     status_t err = mStatus;
 
@@ -1169,8 +1176,8 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
         sp<IGraphicBufferProducer> parentGbp = parent->getIGraphicBufferProducer();
         sp<IGraphicBufferProducer> gbp;
 
-        err = mClient->createWithSurfaceParent(name, w, h, format, flags, parentGbp, windowType,
-                                               ownerUid, &handle, &gbp);
+        err = mClient->createWithSurfaceParent(name, w, h, format, flags, parentGbp,
+                                               std::move(metadata), &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createWithSurfaceParent error %s", strerror(-err));
         if (err == NO_ERROR) {
             return new SurfaceControl(this, handle, gbp, true /* owned */);
@@ -1179,17 +1186,11 @@ sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8&
     return nullptr;
 }
 
-status_t SurfaceComposerClient::createSurfaceChecked(
-        const String8& name,
-        uint32_t w,
-        uint32_t h,
-        PixelFormat format,
-        sp<SurfaceControl>* outSurface,
-        uint32_t flags,
-        SurfaceControl* parent,
-        int32_t windowType,
-        int32_t ownerUid)
-{
+status_t SurfaceComposerClient::createSurfaceChecked(const String8& name, uint32_t w, uint32_t h,
+                                                     PixelFormat format,
+                                                     sp<SurfaceControl>* outSurface, uint32_t flags,
+                                                     SurfaceControl* parent,
+                                                     LayerMetadata metadata) {
     sp<SurfaceControl> sur;
     status_t err = mStatus;
 
@@ -1201,8 +1202,9 @@ status_t SurfaceComposerClient::createSurfaceChecked(
         if (parent != nullptr) {
             parentHandle = parent->getHandle();
         }
-        err = mClient->createSurface(name, w, h, format, flags, parentHandle,
-                windowType, ownerUid, &handle, &gbp);
+
+        err = mClient->createSurface(name, w, h, format, flags, parentHandle, std::move(metadata),
+                                     &handle, &gbp);
         ALOGE_IF(err, "SurfaceComposerClient::createSurface error %s", strerror(-err));
         if (err == NO_ERROR) {
             *outSurface = new SurfaceControl(this, handle, gbp, true /* owned */);

@@ -47,26 +47,26 @@ public:
     ~BpSurfaceComposerClient() override;
 
     status_t createSurface(const String8& name, uint32_t width, uint32_t height, PixelFormat format,
-                           uint32_t flags, const sp<IBinder>& parent, int32_t windowType,
-                           int32_t ownerUid, sp<IBinder>* handle,
-                           sp<IGraphicBufferProducer>* gbp) override {
+                           uint32_t flags, const sp<IBinder>& parent, LayerMetadata metadata,
+                           sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp) override {
         return callRemote<decltype(&ISurfaceComposerClient::createSurface)>(Tag::CREATE_SURFACE,
                                                                             name, width, height,
                                                                             format, flags, parent,
-                                                                            windowType, ownerUid,
+                                                                            std::move(metadata),
                                                                             handle, gbp);
     }
 
     status_t createWithSurfaceParent(const String8& name, uint32_t width, uint32_t height,
                                      PixelFormat format, uint32_t flags,
-                                     const sp<IGraphicBufferProducer>& parent, int32_t windowType,
-                                     int32_t ownerUid, sp<IBinder>* handle,
+                                     const sp<IGraphicBufferProducer>& parent,
+                                     LayerMetadata metadata, sp<IBinder>* handle,
                                      sp<IGraphicBufferProducer>* gbp) override {
         return callRemote<decltype(
                 &ISurfaceComposerClient::createWithSurfaceParent)>(Tag::CREATE_WITH_SURFACE_PARENT,
                                                                    name, width, height, format,
-                                                                   flags, parent, windowType,
-                                                                   ownerUid, handle, gbp);
+                                                                   flags, parent,
+                                                                   std::move(metadata), handle,
+                                                                   gbp);
     }
 
     status_t clearLayerFrameStats(const sp<IBinder>& handle) const override {

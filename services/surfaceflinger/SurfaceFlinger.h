@@ -141,7 +141,6 @@ enum class DisplayColorSetting : int32_t {
     ENHANCED = 2,
 };
 
-
 class SurfaceFlingerBE
 {
 public:
@@ -556,10 +555,9 @@ private:
     /* ------------------------------------------------------------------------
      * Layer management
      */
-    status_t createLayer(const String8& name, const sp<Client>& client,
-            uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-            int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
-            sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
+    status_t createLayer(const String8& name, const sp<Client>& client, uint32_t w, uint32_t h,
+                         PixelFormat format, uint32_t flags, LayerMetadata metadata,
+                         sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent);
 
     status_t createBufferQueueLayer(const sp<Client>& client, const String8& name, uint32_t w,
                                     uint32_t h, uint32_t flags, PixelFormat& format,
