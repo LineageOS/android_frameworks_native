@@ -19,7 +19,7 @@
 #include <vector>
 
 #include <log/log.h>
-#include "GLES20RenderEngine.h"
+#include "GLESRenderEngine.h"
 #include "GLExtensions.h"
 
 namespace android {
@@ -43,7 +43,7 @@ static std::vector<EGLint> buildAttributeList(bool isProtected) {
     return attrs;
 }
 
-GLImage::GLImage(const GLES20RenderEngine& engine) : mEGLDisplay(engine.getEGLDisplay()) {}
+GLImage::GLImage(const GLESRenderEngine& engine) : mEGLDisplay(engine.getEGLDisplay()) {}
 
 GLImage::~GLImage() {
     setNativeWindowBuffer(nullptr, false);

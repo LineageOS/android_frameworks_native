@@ -19,7 +19,7 @@
 #include <cutils/properties.h>
 #include <log/log.h>
 #include <private/gui/SyncFeatures.h>
-#include "gl/GLES20RenderEngine.h"
+#include "gl/GLESRenderEngine.h"
 
 namespace android {
 namespace renderengine {
@@ -29,10 +29,10 @@ std::unique_ptr<impl::RenderEngine> RenderEngine::create(int hwcFormat, uint32_t
     property_get(PROPERTY_DEBUG_RENDERENGINE_BACKEND, prop, "gles");
     if (strcmp(prop, "gles") == 0) {
         ALOGD("RenderEngine GLES Backend");
-        return renderengine::gl::GLES20RenderEngine::create(hwcFormat, featureFlags);
+        return renderengine::gl::GLESRenderEngine::create(hwcFormat, featureFlags);
     }
     ALOGE("UNKNOWN BackendType: %s, create GLES RenderEngine.", prop);
-    return renderengine::gl::GLES20RenderEngine::create(hwcFormat, featureFlags);
+    return renderengine::gl::GLESRenderEngine::create(hwcFormat, featureFlags);
 }
 
 RenderEngine::~RenderEngine() = default;
