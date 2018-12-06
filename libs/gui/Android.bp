@@ -31,7 +31,6 @@ cc_library_shared {
         "-Werror",
     ],
     cppflags: [
-        "-std=c++1z",
         "-Weverything",
 
         // The static constructors and destructors in this library have not been noted to

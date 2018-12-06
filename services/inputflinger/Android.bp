@@ -15,8 +15,6 @@
 cc_library_shared {
     name: "libinputflinger",
 
-    cpp_std: "c++17",
-
     srcs: [
         "InputDispatcher.cpp",
         "InputManager.cpp",
@@ -60,8 +58,6 @@ cc_library_headers {
 cc_library_shared {
     name: "libinputreader",
 
-    cpp_std: "c++17",
-
     srcs: [
         "EventHub.cpp",
         "InputReader.cpp",
@@ -99,8 +95,6 @@ cc_library_shared {
 
 cc_library_shared {
     name: "libinputflinger_base",
-
-    cpp_std: "c++17",
 
     srcs: [
         "InputListener.cpp",
