@@ -29,7 +29,6 @@
 
 namespace android {
 
-class String8;
 class FenceTime;
 
 class DispSync {
@@ -57,7 +56,7 @@ public:
     virtual void setIgnorePresentFences(bool ignore) = 0;
     virtual nsecs_t expectedPresentTime() = 0;
 
-    virtual void dump(String8& result) const = 0;
+    virtual void dump(std::string& result) const = 0;
 };
 
 namespace impl {
@@ -161,7 +160,7 @@ public:
     nsecs_t expectedPresentTime();
 
     // dump appends human-readable debug info to the result string.
-    void dump(String8& result) const override;
+    void dump(std::string& result) const override;
 
 private:
     void updateModelLocked();

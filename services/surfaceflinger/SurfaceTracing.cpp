@@ -20,6 +20,7 @@
 #include "SurfaceTracing.h"
 
 #include <android-base/file.h>
+#include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <utils/SystemClock.h>
 #include <utils/Trace.h>
@@ -120,12 +121,13 @@ status_t SurfaceTracing::writeProtoFileLocked() {
     return NO_ERROR;
 }
 
-void SurfaceTracing::dump(String8& result) const {
+void SurfaceTracing::dump(std::string& result) const {
     std::lock_guard<std::mutex> protoGuard(mTraceMutex);
 
-    result.appendFormat("Tracing state: %s\n", mEnabled ? "enabled" : "disabled");
-    result.appendFormat("  number of entries: %zu (%.2fMB / %.2fMB)\n", mBuffer.frameCount(),
-                        float(mBuffer.used()) / float(1_MB), float(mBuffer.size()) / float(1_MB));
+    base::StringAppendF(&result, "Tracing state: %s\n", mEnabled ? "enabled" : "disabled");
+    base::StringAppendF(&result, "  number of entries: %zu (%.2fMB / %.2fMB)\n",
+                        mBuffer.frameCount(), float(mBuffer.used()) / float(1_MB),
+                        float(mBuffer.size()) / float(1_MB));
 }
 
 } // namespace android

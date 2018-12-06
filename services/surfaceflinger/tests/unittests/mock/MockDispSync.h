@@ -18,7 +18,6 @@
 
 #include <gmock/gmock.h>
 
-#include <utils/String8.h>
 #include "Scheduler/DispSync.h"
 
 namespace android {
@@ -44,7 +43,7 @@ public:
     MOCK_METHOD1(setIgnorePresentFences, void(bool));
     MOCK_METHOD0(expectedPresentTime, nsecs_t());
 
-    MOCK_CONST_METHOD1(dump, void(String8&));
+    MOCK_CONST_METHOD1(dump, void(std::string&));
 };
 
 } // namespace mock

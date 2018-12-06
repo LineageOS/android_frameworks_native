@@ -774,11 +774,11 @@ bool HWComposer::isUsingVrComposer() const {
     return getComposer()->isUsingVrComposer();
 }
 
-void HWComposer::dump(String8& result) const {
+void HWComposer::dump(std::string& result) const {
     // TODO: In order to provide a dump equivalent to HWC1, we need to shadow
     // all the state going into the layers. This is probably better done in
     // Layer itself, but it's going to take a bit of work to get there.
-    result.append(mHwcDevice->dump().c_str());
+    result.append(mHwcDevice->dump());
 }
 
 std::optional<DisplayId> HWComposer::toPhysicalDisplayId(hwc2_display_t hwcDisplayId) const {

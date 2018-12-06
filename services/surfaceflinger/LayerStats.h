@@ -24,7 +24,6 @@
 using namespace android::surfaceflinger;
 
 namespace android {
-class String8;
 
 class LayerStats {
 public:
@@ -33,7 +32,7 @@ public:
     void clear();
     bool isEnabled();
     void logLayerStats(const LayersProto& layersProto);
-    void dump(String8& result);
+    void dump(std::string& result);
 
 private:
     // Traverse layer tree to get all visible layers' stats

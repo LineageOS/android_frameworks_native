@@ -18,6 +18,7 @@ cc_defaults {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
+        "libbase",
         "libcutils",
         "libEGL",
         "libGLESv1_CM",

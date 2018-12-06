@@ -33,7 +33,7 @@
 namespace android {
 
 void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, size_t& index,
-                          String8& result) {
+                          std::string& result) {
     ATRACE_CALL();
 
     if (args.size() > index + 10) {
@@ -564,7 +564,7 @@ bool TimeStats::isEnabled() {
     return mEnabled.load();
 }
 
-void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, String8& result) {
+void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, std::string& result) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mMutex);
@@ -582,7 +582,7 @@ void TimeStats::dump(bool asProto, std::optional<uint32_t> maxLayers, String8& r
         result.append(timeStatsProto.SerializeAsString().c_str(), timeStatsProto.ByteSize());
     } else {
         ALOGD("Dumping TimeStats as text");
-        result.append(mTimeStats.toString(maxLayers).c_str());
+        result.append(mTimeStats.toString(maxLayers));
         result.append("\n");
     }
 }

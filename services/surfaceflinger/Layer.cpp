@@ -25,6 +25,8 @@
 #include <sys/types.h>
 #include <algorithm>
 
+#include <android-base/stringprintf.h>
+
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
@@ -62,6 +64,8 @@
 #define DEBUG_RESIZE 0
 
 namespace android {
+
+using base::StringAppendF;
 
 std::atomic<int32_t> Layer::sSequence{1};
 
@@ -1399,7 +1403,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     info.mName = getName();
     sp<Layer> parent = getParent();
     info.mParentName = (parent == nullptr ? std::string("none") : parent->getName().string());
-    info.mType = String8(getTypeId());
+    info.mType = std::string(getTypeId());
     info.mTransparentRegion = ds.activeTransparentRegion_legacy;
     info.mVisibleRegion = visibleRegion;
     info.mSurfaceDamageRegion = surfaceDamageRegion;
@@ -1439,7 +1443,7 @@ LayerDebugInfo Layer::getLayerDebugInfo() const {
     return info;
 }
 
-void Layer::miniDumpHeader(String8& result) {
+void Layer::miniDumpHeader(std::string& result) {
     result.append("-------------------------------");
     result.append("-------------------------------");
     result.append("-----------------------------\n");
@@ -1454,50 +1458,51 @@ void Layer::miniDumpHeader(String8& result) {
     result.append("-----------------------------\n");
 }
 
-void Layer::miniDump(String8& result, DisplayId displayId) const {
+void Layer::miniDump(std::string& result, DisplayId displayId) const {
     if (!hasHwcLayer(displayId)) {
         return;
     }
 
-    String8 name;
+    std::string name;
     if (mName.length() > 77) {
         std::string shortened;
         shortened.append(mName.string(), 36);
         shortened.append("[...]");
         shortened.append(mName.string() + (mName.length() - 36), 36);
-        name = shortened.c_str();
+        name = shortened;
     } else {
-        name = mName;
+        name = std::string(mName.string(), mName.size());
     }
 
-    result.appendFormat(" %s\n", name.string());
+    StringAppendF(&result, " %s\n", name.c_str());
 
     const State& layerState(getDrawingState());
     const LayerBE::HWCInfo& hwcInfo = getBE().mHwcLayers.at(displayId);
     if (layerState.zOrderRelativeOf != nullptr || mDrawingParent != nullptr) {
-        result.appendFormat("  rel %6d | ", layerState.z);
+        StringAppendF(&result, "  rel %6d | ", layerState.z);
     } else {
-        result.appendFormat("  %10d | ", layerState.z);
+        StringAppendF(&result, "  %10d | ", layerState.z);
     }
-    result.appendFormat("%10s | ", to_string(getCompositionType(displayId)).c_str());
-    result.appendFormat("%10s | ", to_string(hwcInfo.transform).c_str());
+    StringAppendF(&result, "%10s | ", to_string(getCompositionType(displayId)).c_str());
+    StringAppendF(&result, "%10s | ", to_string(hwcInfo.transform).c_str());
     const Rect& frame = hwcInfo.displayFrame;
-    result.appendFormat("%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
+    StringAppendF(&result, "%4d %4d %4d %4d | ", frame.left, frame.top, frame.right, frame.bottom);
     const FloatRect& crop = hwcInfo.sourceCrop;
-    result.appendFormat("%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right, crop.bottom);
+    StringAppendF(&result, "%6.1f %6.1f %6.1f %6.1f\n", crop.left, crop.top, crop.right,
+                  crop.bottom);
 
     result.append("- - - - - - - - - - - - - - - -\n");
 
     std::string compositionInfoStr;
     getBE().compositionInfo.dump(compositionInfoStr, "compositionInfo");
-    result.append(compositionInfoStr.c_str());
+    result.append(compositionInfoStr);
 
     result.append("- - - - - - - - - - - - - - - -");
     result.append("- - - - - - - - - - - - - - - -");
     result.append("- - - - - - - - - - - - - - -\n");
 }
 
-void Layer::dumpFrameStats(String8& result) const {
+void Layer::dumpFrameStats(std::string& result) const {
     mFrameTracker.dumpStats(result);
 }
 
@@ -1513,8 +1518,8 @@ void Layer::getFrameStats(FrameStats* outStats) const {
     mFrameTracker.getStats(outStats);
 }
 
-void Layer::dumpFrameEvents(String8& result) {
-    result.appendFormat("- Layer %s (%s, %p)\n", getName().string(), getTypeId(), this);
+void Layer::dumpFrameEvents(std::string& result) {
+    StringAppendF(&result, "- Layer %s (%s, %p)\n", getName().string(), getTypeId(), this);
     Mutex::Autolock lock(mFrameEventHistoryMutex);
     mFrameEventHistory.checkFencesForCompletion();
     mFrameEventHistory.dump(result);

@@ -24,7 +24,6 @@
 #include <ui/FenceTime.h>
 
 #include <utils/String16.h>
-#include <utils/String8.h>
 #include <utils/Vector.h>
 
 #include <deque>
@@ -35,7 +34,6 @@
 using namespace android::surfaceflinger;
 
 namespace android {
-class String8;
 
 class TimeStats {
     struct FrameTime {
@@ -79,7 +77,7 @@ public:
     TimeStats() = default;
     ~TimeStats() = default;
 
-    void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, String8& result);
+    void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, std::string& result);
     bool isEnabled();
 
     void incrementTotalFrames();
@@ -117,7 +115,7 @@ private:
     void enable();
     void disable();
     void clear();
-    void dump(bool asProto, std::optional<uint32_t> maxLayers, String8& result);
+    void dump(bool asProto, std::optional<uint32_t> maxLayers, std::string& result);
 
     std::atomic<bool> mEnabled = false;
     std::mutex mMutex;

@@ -30,8 +30,6 @@
 
 namespace android {
 
-class String8;
-
 namespace renderengine {
 
 class Mesh;
@@ -79,7 +77,7 @@ public:
     EGLConfig getEGLConfig() const { return mEGLConfig; }
 
 protected:
-    void dump(String8& result) override;
+    void dump(std::string& result) override;
     void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                   ui::Transform::orientation_flags rotation) override;
     void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,

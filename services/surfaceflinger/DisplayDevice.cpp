@@ -54,6 +54,7 @@ namespace android {
 // retrieve triple buffer setting from configstore
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using android::base::StringAppendF;
 using android::ui::ColorMode;
 using android::ui::Dataspace;
 using android::ui::Hdr;
@@ -715,33 +716,33 @@ std::string DisplayDevice::getDebugName() const {
                               mDisplayName.c_str());
 }
 
-void DisplayDevice::dump(String8& result) const {
+void DisplayDevice::dump(std::string& result) const {
     const ui::Transform& tr(mGlobalTransform);
     ANativeWindow* const window = mNativeWindow.get();
-    result.appendFormat("+ %s\n", getDebugName().c_str());
-    result.appendFormat("  layerStack=%u, (%4dx%4d), ANativeWindow=%p "
-                        "format=%d, orient=%2d (type=%08x), flips=%u, isSecure=%d, "
-                        "powerMode=%d, activeConfig=%d, numLayers=%zu\n",
-                        mLayerStack, mDisplayWidth, mDisplayHeight, window,
-                        ANativeWindow_getFormat(window), mOrientation, tr.getType(),
-                        getPageFlipCount(), mIsSecure, mPowerMode, mActiveConfig,
-                        mVisibleLayersSortedByZ.size());
-    result.appendFormat("   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
-                        "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
-                        mViewport.left, mViewport.top, mViewport.right, mViewport.bottom,
-                        mFrame.left, mFrame.top, mFrame.right, mFrame.bottom, mScissor.left,
-                        mScissor.top, mScissor.right, mScissor.bottom, tr[0][0], tr[1][0], tr[2][0],
-                        tr[0][1], tr[1][1], tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
+    StringAppendF(&result, "+ %s\n", getDebugName().c_str());
+    StringAppendF(&result,
+                  "  layerStack=%u, (%4dx%4d), ANativeWindow=%p "
+                  "format=%d, orient=%2d (type=%08x), flips=%u, isSecure=%d, "
+                  "powerMode=%d, activeConfig=%d, numLayers=%zu\n",
+                  mLayerStack, mDisplayWidth, mDisplayHeight, window,
+                  ANativeWindow_getFormat(window), mOrientation, tr.getType(), getPageFlipCount(),
+                  mIsSecure, mPowerMode, mActiveConfig, mVisibleLayersSortedByZ.size());
+    StringAppendF(&result,
+                  "   v:[%d,%d,%d,%d], f:[%d,%d,%d,%d], s:[%d,%d,%d,%d],"
+                  "transform:[[%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f][%0.3f,%0.3f,%0.3f]]\n",
+                  mViewport.left, mViewport.top, mViewport.right, mViewport.bottom, mFrame.left,
+                  mFrame.top, mFrame.right, mFrame.bottom, mScissor.left, mScissor.top,
+                  mScissor.right, mScissor.bottom, tr[0][0], tr[1][0], tr[2][0], tr[0][1], tr[1][1],
+                  tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
     auto const surface = static_cast<Surface*>(window);
     ui::Dataspace dataspace = surface->getBuffersDataSpace();
-    result.appendFormat("   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
-                        mHasWideColorGamut, mHasHdr10, decodeColorMode(mActiveColorMode).c_str(),
-                        dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(),
-                        dataspace);
+    StringAppendF(&result, "   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
+                  mHasWideColorGamut, mHasHdr10, decodeColorMode(mActiveColorMode).c_str(),
+                  dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
 
     String8 surfaceDump;
     mDisplaySurface->dumpAsString(surfaceDump);
-    result.append(surfaceDump);
+    result.append(surfaceDump.string(), surfaceDump.size());
 }
 
 // Map dataspace/intent to the best matched dataspace/colorMode/renderIntent

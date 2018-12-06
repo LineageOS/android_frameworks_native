@@ -117,7 +117,7 @@ TEST_F(SchedulerTest, testNullPtr) {
             mScheduler->hotplugReceived(nullptr, EventThread::DisplayType::Primary, false));
     ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenAcquired(nullptr));
     ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(nullptr));
-    String8 testString;
+    std::string testString;
     ASSERT_NO_FATAL_FAILURE(mScheduler->dump(nullptr, testString));
     EXPECT_TRUE(testString == "");
     ASSERT_NO_FATAL_FAILURE(mScheduler->setPhaseOffset(nullptr, 10));
@@ -146,7 +146,7 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(0);
     ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(connectionHandle));
 
-    String8 testString;
+    std::string testString;
     EXPECT_CALL(*mEventThread, dump(_)).Times(0);
     ASSERT_NO_FATAL_FAILURE(mScheduler->dump(connectionHandle, testString));
     EXPECT_TRUE(testString == "");
@@ -176,7 +176,7 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     EXPECT_CALL(*mEventThread, onScreenReleased()).Times(1);
     ASSERT_NO_FATAL_FAILURE(mScheduler->onScreenReleased(mConnectionHandle));
 
-    String8 testString("dump");
+    std::string testString("dump");
     EXPECT_CALL(*mEventThread, dump(testString)).Times(1);
     ASSERT_NO_FATAL_FAILURE(mScheduler->dump(mConnectionHandle, testString));
     EXPECT_TRUE(testString != "");

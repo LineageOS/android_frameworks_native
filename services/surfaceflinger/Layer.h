@@ -566,10 +566,10 @@ public:
     LayerDebugInfo getLayerDebugInfo() const;
 
     /* always call base class first */
-    static void miniDumpHeader(String8& result);
-    void miniDump(String8& result, DisplayId displayId) const;
-    void dumpFrameStats(String8& result) const;
-    void dumpFrameEvents(String8& result);
+    static void miniDumpHeader(std::string& result);
+    void miniDump(std::string& result, DisplayId displayId) const;
+    void dumpFrameStats(std::string& result) const;
+    void dumpFrameEvents(std::string& result);
     void clearFrameStats();
     void logFrameStats();
     void getFrameStats(FrameStats* outStats) const;

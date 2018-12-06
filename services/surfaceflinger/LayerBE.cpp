@@ -101,15 +101,8 @@ void CompositionInfo::dumpHwc(std::string& result, const char* tag) const {
     result += base::StringPrintf("\tsourceCrop=%6.1f %6.1f %6.1f %6.1f\n", hwc.sourceCrop.left,
                                  hwc.sourceCrop.top, hwc.sourceCrop.right, hwc.sourceCrop.bottom);
 
-    {
-        //
-        // Keep a conversion from std::string to String8 and back until Region can use std::string
-        //
-        String8 regionString;
-        hwc.visibleRegion.dump(regionString, "visibleRegion");
-        hwc.surfaceDamage.dump(regionString, "surfaceDamage");
-        result += regionString.string();
-    }
+    hwc.visibleRegion.dump(result, "visibleRegion");
+    hwc.surfaceDamage.dump(result, "surfaceDamage");
 
     result += base::StringPrintf("\tcolor transform matrix:\n"
                                  "\t\t[%f, %f, %f, %f,\n"

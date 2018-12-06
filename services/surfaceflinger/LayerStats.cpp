@@ -23,10 +23,12 @@
 
 #include <android-base/stringprintf.h>
 #include <log/log.h>
-#include <utils/String8.h>
 #include <utils/Trace.h>
 
 namespace android {
+
+using base::StringAppendF;
+using base::StringPrintf;
 
 void LayerStats::enable() {
     ATRACE_CALL();
@@ -64,26 +66,24 @@ void LayerStats::traverseLayerTreeStatsLocked(
         if (!layer) continue;
         traverseLayerTreeStatsLocked(layer->children, layerGlobal, outLayerShapeVec);
         std::string key = "";
-        base::StringAppendF(&key, ",%s", layer->type.c_str());
-        base::StringAppendF(&key, ",%s", layerCompositionType(layer->hwcCompositionType));
-        base::StringAppendF(&key, ",%d", layer->isProtected);
-        base::StringAppendF(&key, ",%s", layerTransform(layer->hwcTransform));
-        base::StringAppendF(&key, ",%s", layerPixelFormat(layer->activeBuffer.format).c_str());
-        base::StringAppendF(&key, ",%s", layer->dataspace.c_str());
-        base::StringAppendF(&key, ",%s",
-                            destinationLocation(layer->hwcFrame.left, layerGlobal.resolution[0],
-                                                true));
-        base::StringAppendF(&key, ",%s",
-                            destinationLocation(layer->hwcFrame.top, layerGlobal.resolution[1],
-                                                false));
-        base::StringAppendF(&key, ",%s",
-                            destinationSize(layer->hwcFrame.right - layer->hwcFrame.left,
-                                            layerGlobal.resolution[0], true));
-        base::StringAppendF(&key, ",%s",
-                            destinationSize(layer->hwcFrame.bottom - layer->hwcFrame.top,
-                                            layerGlobal.resolution[1], false));
-        base::StringAppendF(&key, ",%s", scaleRatioWH(layer).c_str());
-        base::StringAppendF(&key, ",%s", alpha(static_cast<float>(layer->color.a)));
+        StringAppendF(&key, ",%s", layer->type.c_str());
+        StringAppendF(&key, ",%s", layerCompositionType(layer->hwcCompositionType));
+        StringAppendF(&key, ",%d", layer->isProtected);
+        StringAppendF(&key, ",%s", layerTransform(layer->hwcTransform));
+        StringAppendF(&key, ",%s", layerPixelFormat(layer->activeBuffer.format).c_str());
+        StringAppendF(&key, ",%s", layer->dataspace.c_str());
+        StringAppendF(&key, ",%s",
+                      destinationLocation(layer->hwcFrame.left, layerGlobal.resolution[0], true));
+        StringAppendF(&key, ",%s",
+                      destinationLocation(layer->hwcFrame.top, layerGlobal.resolution[1], false));
+        StringAppendF(&key, ",%s",
+                      destinationSize(layer->hwcFrame.right - layer->hwcFrame.left,
+                                      layerGlobal.resolution[0], true));
+        StringAppendF(&key, ",%s",
+                      destinationSize(layer->hwcFrame.bottom - layer->hwcFrame.top,
+                                      layerGlobal.resolution[1], false));
+        StringAppendF(&key, ",%s", scaleRatioWH(layer).c_str());
+        StringAppendF(&key, ",%s", alpha(static_cast<float>(layer->color.a)));
 
         outLayerShapeVec->push_back(key);
         ALOGV("%s", key.c_str());
@@ -101,9 +101,9 @@ void LayerStats::logLayerStats(const LayersProto& layersProto) {
     traverseLayerTreeStatsLocked(layerTree.topLevelLayers, layerGlobal, &layerShapeVec);
 
     std::string layerShapeKey =
-            base::StringPrintf("%d,%s,%s,%s", static_cast<int32_t>(layerShapeVec.size()),
-                               layerGlobal.colorMode.c_str(), layerGlobal.colorTransform.c_str(),
-                               layerTransform(layerGlobal.globalTransform));
+            StringPrintf("%d,%s,%s,%s", static_cast<int32_t>(layerShapeVec.size()),
+                         layerGlobal.colorMode.c_str(), layerGlobal.colorTransform.c_str(),
+                         layerTransform(layerGlobal.globalTransform));
     ALOGV("%s", layerShapeKey.c_str());
 
     std::sort(layerShapeVec.begin(), layerShapeVec.end(), std::greater<std::string>());
@@ -114,7 +114,7 @@ void LayerStats::logLayerStats(const LayersProto& layersProto) {
     mLayerShapeStatsMap[layerShapeKey]++;
 }
 
-void LayerStats::dump(String8& result) {
+void LayerStats::dump(std::string& result) {
     ATRACE_CALL();
     ALOGD("Dumping");
     std::lock_guard<std::mutex> lock(mMutex);
@@ -122,7 +122,7 @@ void LayerStats::dump(String8& result) {
     result.append("LayerType,CompositionType,IsProtected,Transform,PixelFormat,Dataspace,");
     result.append("DstX,DstY,DstWidth,DstHeight,WScale,HScale,Alpha\n");
     for (auto& u : mLayerShapeStatsMap) {
-        result.appendFormat("%u,%s\n", u.second, u.first.c_str());
+        StringAppendF(&result, "%u,%s\n", u.second, u.first.c_str());
     }
 }
 

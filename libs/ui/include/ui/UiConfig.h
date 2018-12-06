@@ -17,12 +17,12 @@
 #ifndef ANDROID_UI_CONFIG_H
 #define ANDROID_UI_CONFIG_H
 
-#include <utils/String8.h>
+#include <string>
 
 namespace android {
 
 // Append the libui configuration details to configStr.
-void appendUiConfigString(String8& configStr);
+void appendUiConfigString(std::string& configStr);
 
 }; // namespace android
 

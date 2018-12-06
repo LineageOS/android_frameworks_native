@@ -113,6 +113,7 @@ namespace android {
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
 using ui::Hdr;
@@ -4097,7 +4098,7 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
 
 status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asProto)
         NO_THREAD_SAFETY_ANALYSIS {
-    String8 result;
+    std::string result;
 
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
@@ -4105,8 +4106,8 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
 
     if ((uid != AID_SHELL) &&
             !PermissionCache::checkPermission(sDump, pid, uid)) {
-        result.appendFormat("Permission Denial: "
-                "can't dump SurfaceFlinger from pid=%d, uid=%d\n", pid, uid);
+        StringAppendF(&result, "Permission Denial: can't dump SurfaceFlinger from pid=%d, uid=%d\n",
+                      pid, uid);
     } else {
         // Try to get the main lock, but give up after one second
         // (this would indicate SF is stuck, but we want to be able to
@@ -4114,9 +4115,10 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
         status_t err = mStateLock.timedLock(s2ns(1));
         bool locked = (err == NO_ERROR);
         if (!locked) {
-            result.appendFormat(
-                    "SurfaceFlinger appears to be unresponsive (%s [%d]), "
-                    "dumping anyways (no locks held)\n", strerror(-err), err);
+            StringAppendF(&result,
+                          "SurfaceFlinger appears to be unresponsive (%s [%d]), dumping anyways "
+                          "(no locks held)\n",
+                          strerror(-err), err);
         }
 
         bool dumpAll = true;
@@ -4234,21 +4236,18 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
             mStateLock.unlock();
         }
     }
-    write(fd, result.string(), result.size());
+    write(fd, result.c_str(), result.size());
     return NO_ERROR;
 }
 
-void SurfaceFlinger::listLayersLocked(const Vector<String16>& /* args */,
-        size_t& /* index */, String8& result) const
-{
-    mCurrentState.traverseInZOrder([&](Layer* layer) {
-        result.appendFormat("%s\n", layer->getName().string());
-    });
+void SurfaceFlinger::listLayersLocked(const Vector<String16>& /* args */, size_t& /* index */,
+                                      std::string& result) const {
+    mCurrentState.traverseInZOrder(
+            [&](Layer* layer) { StringAppendF(&result, "%s\n", layer->getName().string()); });
 }
 
 void SurfaceFlinger::dumpStatsLocked(const Vector<String16>& args, size_t& index,
-        String8& result) const
-{
+                                     std::string& result) const {
     String8 name;
     if (index < args.size()) {
         name = String8(args[index]);
@@ -4259,7 +4258,7 @@ void SurfaceFlinger::dumpStatsLocked(const Vector<String16>& args, size_t& index
         displayId && getHwComposer().isConnected(*displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
         const nsecs_t period = activeConfig->getVsyncPeriod();
-        result.appendFormat("%" PRId64 "\n", period);
+        StringAppendF(&result, "%" PRId64 "\n", period);
     }
 
     if (name.isEmpty()) {
@@ -4274,8 +4273,7 @@ void SurfaceFlinger::dumpStatsLocked(const Vector<String16>& args, size_t& index
 }
 
 void SurfaceFlinger::clearStatsLocked(const Vector<String16>& args, size_t& index,
-        String8& /* result */)
-{
+                                      std::string& /* result */) {
     String8 name;
     if (index < args.size()) {
         name = String8(args[index]);
@@ -4301,37 +4299,34 @@ void SurfaceFlinger::logFrameStats() {
     mAnimFrameTracker.logAndResetStats(String8("<win-anim>"));
 }
 
-void SurfaceFlinger::appendSfConfigString(String8& result) const
-{
+void SurfaceFlinger::appendSfConfigString(std::string& result) const {
     result.append(" [sf");
 
     if (isLayerTripleBufferingDisabled())
         result.append(" DISABLE_TRIPLE_BUFFERING");
 
-    result.appendFormat(" PRESENT_TIME_OFFSET=%" PRId64 , dispSyncPresentTimeOffset);
-    result.appendFormat(" FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
-    result.appendFormat(" MAX_VIRT_DISPLAY_DIM=%" PRIu64, maxVirtualDisplaySize);
-    result.appendFormat(" RUNNING_WITHOUT_SYNC_FRAMEWORK=%d", !hasSyncFramework);
-    result.appendFormat(" NUM_FRAMEBUFFER_SURFACE_BUFFERS=%" PRId64,
-                        maxFrameBufferAcquiredBuffers);
+    StringAppendF(&result, " PRESENT_TIME_OFFSET=%" PRId64, dispSyncPresentTimeOffset);
+    StringAppendF(&result, " FORCE_HWC_FOR_RBG_TO_YUV=%d", useHwcForRgbToYuv);
+    StringAppendF(&result, " MAX_VIRT_DISPLAY_DIM=%" PRIu64, maxVirtualDisplaySize);
+    StringAppendF(&result, " RUNNING_WITHOUT_SYNC_FRAMEWORK=%d", !hasSyncFramework);
+    StringAppendF(&result, " NUM_FRAMEBUFFER_SURFACE_BUFFERS=%" PRId64,
+                  maxFrameBufferAcquiredBuffers);
     result.append("]");
 }
 
-void SurfaceFlinger::dumpStaticScreenStats(String8& result) const
-{
-    result.appendFormat("Static screen stats:\n");
+void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
+    result.append("Static screen stats:\n");
     for (size_t b = 0; b < SurfaceFlingerBE::NUM_BUCKETS - 1; ++b) {
         float bucketTimeSec = getBE().mFrameBuckets[b] / 1e9;
         float percent = 100.0f *
                 static_cast<float>(getBE().mFrameBuckets[b]) / getBE().mTotalTime;
-        result.appendFormat("  < %zd frames: %.3f s (%.1f%%)\n",
-                b + 1, bucketTimeSec, percent);
+        StringAppendF(&result, "  < %zd frames: %.3f s (%.1f%%)\n", b + 1, bucketTimeSec, percent);
     }
     float bucketTimeSec = getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1] / 1e9;
     float percent = 100.0f *
             static_cast<float>(getBE().mFrameBuckets[SurfaceFlingerBE::NUM_BUCKETS - 1]) / getBE().mTotalTime;
-    result.appendFormat("  %zd+ frames: %.3f s (%.1f%%)\n",
-            SurfaceFlingerBE::NUM_BUCKETS - 1, bucketTimeSec, percent);
+    StringAppendF(&result, "  %zd+ frames: %.3f s (%.1f%%)\n", SurfaceFlingerBE::NUM_BUCKETS - 1,
+                  bucketTimeSec, percent);
 }
 
 void SurfaceFlinger::recordBufferingStats(const char* layerName,
@@ -4352,8 +4347,8 @@ void SurfaceFlinger::recordBufferingStats(const char* layerName,
     }
 }
 
-void SurfaceFlinger::dumpFrameEventsLocked(String8& result) {
-    result.appendFormat("Layer frame timestamps:\n");
+void SurfaceFlinger::dumpFrameEventsLocked(std::string& result) {
+    result.append("Layer frame timestamps:\n");
 
     const LayerVector& currentLayers = mCurrentState.layersSortedByZ;
     const size_t count = currentLayers.size();
@@ -4362,7 +4357,7 @@ void SurfaceFlinger::dumpFrameEventsLocked(String8& result) {
     }
 }
 
-void SurfaceFlinger::dumpBufferingStats(String8& result) const {
+void SurfaceFlinger::dumpBufferingStats(std::string& result) const {
     result.append("Buffering stats:\n");
     result.append("  [Layer name] <Active time> <Two buffer> "
             "<Double buffered> <Triple buffered>\n");
@@ -4388,15 +4383,13 @@ void SurfaceFlinger::dumpBufferingStats(String8& result) const {
     for (const auto& sortedPair : sorted) {
         float activeTime = sortedPair.first;
         const BufferTuple& values = sortedPair.second;
-        result.appendFormat("  [%s] %.2f %.3f %.3f %.3f\n",
-                std::get<0>(values).c_str(), activeTime,
-                std::get<1>(values), std::get<2>(values),
-                std::get<3>(values));
+        StringAppendF(&result, "  [%s] %.2f %.3f %.3f %.3f\n", std::get<0>(values).c_str(),
+                      activeTime, std::get<1>(values), std::get<2>(values), std::get<3>(values));
     }
     result.append("\n");
 }
 
-void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
+void SurfaceFlinger::dumpDisplayIdentificationData(std::string& result) const {
     for (const auto& [token, display] : mDisplays) {
         const auto displayId = display->getId();
         if (!displayId) {
@@ -4407,8 +4400,9 @@ void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
             continue;
         }
 
-        result.appendFormat("Display %s (HWC display %" PRIu64 "): ", to_string(*displayId).c_str(),
-                            *hwcDisplayId);
+        StringAppendF(&result,
+                      "Display %s (HWC display %" PRIu64 "): ", to_string(*displayId).c_str(),
+                      *hwcDisplayId);
         uint8_t port;
         DisplayIdentificationData data;
         if (!getHwComposer().getDisplayIdentificationData(*hwcDisplayId, &port, &data)) {
@@ -4419,7 +4413,7 @@ void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
         if (!isEdid(data)) {
             result.append("unknown identification data: ");
             for (uint8_t byte : data) {
-                result.appendFormat("%x ", byte);
+                StringAppendF(&result, "%x ", byte);
             }
             result.append("\n");
             continue;
@@ -4429,23 +4423,23 @@ void SurfaceFlinger::dumpDisplayIdentificationData(String8& result) const {
         if (!edid) {
             result.append("invalid EDID: ");
             for (uint8_t byte : data) {
-                result.appendFormat("%x ", byte);
+                StringAppendF(&result, "%x ", byte);
             }
             result.append("\n");
             continue;
         }
 
-        result.appendFormat("port=%u pnpId=%s displayName=\"", port, edid->pnpId.data());
+        StringAppendF(&result, "port=%u pnpId=%s displayName=\"", port, edid->pnpId.data());
         result.append(edid->displayName.data(), edid->displayName.length());
         result.append("\"\n");
     }
 }
 
-void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
-    result.appendFormat("Device has wide color display: %d\n", hasWideColorDisplay);
-    result.appendFormat("Device uses color management: %d\n", useColorManagement);
-    result.appendFormat("DisplayColorSetting: %s\n",
-            decodeDisplayColorSetting(mDisplayColorSetting).c_str());
+void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
+    StringAppendF(&result, "Device has wide color display: %d\n", hasWideColorDisplay);
+    StringAppendF(&result, "Device uses color management: %d\n", useColorManagement);
+    StringAppendF(&result, "DisplayColorSetting: %s\n",
+                  decodeDisplayColorSetting(mDisplayColorSetting).c_str());
 
     // TODO: print out if wide-color mode is active or not
 
@@ -4455,22 +4449,20 @@ void SurfaceFlinger::dumpWideColorInfo(String8& result) const {
             continue;
         }
 
-        result.appendFormat("Display %s color modes:\n", to_string(*displayId).c_str());
+        StringAppendF(&result, "Display %s color modes:\n", to_string(*displayId).c_str());
         std::vector<ColorMode> modes = getHwComposer().getColorModes(*displayId);
         for (auto&& mode : modes) {
-            result.appendFormat("    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
+            StringAppendF(&result, "    %s (%d)\n", decodeColorMode(mode).c_str(), mode);
         }
 
         ColorMode currentMode = display->getActiveColorMode();
-        result.appendFormat("    Current color mode: %s (%d)\n",
-                            decodeColorMode(currentMode).c_str(), currentMode);
+        StringAppendF(&result, "    Current color mode: %s (%d)\n",
+                      decodeColorMode(currentMode).c_str(), currentMode);
     }
     result.append("\n");
 }
 
-void SurfaceFlinger::dumpFrameCompositionInfo(String8& result) const {
-    std::string stringResult;
-
+void SurfaceFlinger::dumpFrameCompositionInfo(std::string& result) const {
     for (const auto& [token, display] : mDisplays) {
         const auto it = getBE().mEndOfFrameCompositionInfo.find(token);
         if (it == getBE().mEndOfFrameCompositionInfo.end()) {
@@ -4478,15 +4470,13 @@ void SurfaceFlinger::dumpFrameCompositionInfo(String8& result) const {
         }
 
         const auto& compositionInfoList = it->second;
-        stringResult += base::StringPrintf("%s\n", display->getDebugName().c_str());
-        stringResult += base::StringPrintf("numComponents: %zu\n", compositionInfoList.size());
+        StringAppendF(&result, "%s\n", display->getDebugName().c_str());
+        StringAppendF(&result, "numComponents: %zu\n", compositionInfoList.size());
         for (const auto& compositionInfo : compositionInfoList) {
-            compositionInfo.dump(stringResult, nullptr);
-            stringResult += base::StringPrintf("\n");
+            compositionInfo.dump(result, nullptr);
+            result.append("\n");
         }
     }
-
-    result.append(stringResult.c_str());
 }
 
 LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
@@ -4525,8 +4515,7 @@ LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& disp
 }
 
 void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
-        String8& result) const
-{
+                                   std::string& result) const {
     bool colorize = false;
     if (index < args.size()
             && (args[index] == String16("--color"))) {
@@ -4574,16 +4563,17 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     if (const auto displayId = getInternalDisplayId();
         displayId && getHwComposer().isConnected(*displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
-        result.appendFormat("Display %s: app phase %" PRId64 " ns, "
-                            "sf phase %" PRId64 " ns, "
-                            "early app phase %" PRId64 " ns, "
-                            "early sf phase %" PRId64 " ns, "
-                            "early app gl phase %" PRId64 " ns, "
-                            "early sf gl phase %" PRId64 " ns, "
-                            "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
-                            to_string(*displayId).c_str(), vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
-                            appEarlyOffset, sfEarlyOffset, appEarlyGlOffset, sfEarlyGlOffset,
-                            dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
+        StringAppendF(&result,
+                      "Display %s: app phase %" PRId64 " ns, "
+                      "sf phase %" PRId64 " ns, "
+                      "early app phase %" PRId64 " ns, "
+                      "early sf phase %" PRId64 " ns, "
+                      "early app gl phase %" PRId64 " ns, "
+                      "early sf gl phase %" PRId64 " ns, "
+                      "present offset %" PRId64 " ns (refresh %" PRId64 " ns)",
+                      to_string(*displayId).c_str(), vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs,
+                      appEarlyOffset, sfEarlyOffset, appEarlyGlOffset, sfEarlyGlOffset,
+                      dispSyncPresentTimeOffset, activeConfig->getVsyncPeriod());
     }
     result.append("\n");
 
@@ -4592,7 +4582,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     dumpStaticScreenStats(result);
     result.append("\n");
 
-    result.appendFormat("Missed frame count: %u\n\n", mFrameMissedCount.load());
+    StringAppendF(&result, "Missed frame count: %u\n\n", mFrameMissedCount.load());
 
     dumpBufferingStats(result);
 
@@ -4600,15 +4590,15 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
      * Dump the visible layer list
      */
     colorizer.bold(result);
-    result.appendFormat("Visible layers (count = %zu)\n", mNumLayers);
-    result.appendFormat("GraphicBufferProducers: %zu, max %zu\n",
-                        mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
+    StringAppendF(&result, "Visible layers (count = %zu)\n", mNumLayers);
+    StringAppendF(&result, "GraphicBufferProducers: %zu, max %zu\n",
+                  mGraphicBufferProducerList.size(), mMaxGraphicBufferProducerListSize);
     colorizer.reset(result);
 
     {
         LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
         auto layerTree = LayerProtoParser::generateLayerTree(layersProto);
-        result.append(LayerProtoParser::layerTreeToString(layerTree).c_str());
+        result.append(LayerProtoParser::layerTreeToString(layerTree));
         result.append("\n");
     }
 
@@ -4621,7 +4611,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
      */
 
     colorizer.bold(result);
-    result.appendFormat("Displays (%zu entries)\n", mDisplays.size());
+    StringAppendF(&result, "Displays (%zu entries)\n", mDisplays.size());
     colorizer.reset(result);
     for (const auto& [token, display] : mDisplays) {
         display->dump(result);
@@ -4640,27 +4630,28 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
 
     if (const auto display = getDefaultDisplayDeviceLocked()) {
         display->undefinedRegion.dump(result, "undefinedRegion");
-        result.appendFormat("  orientation=%d, isPoweredOn=%d\n", display->getOrientation(),
-                            display->isPoweredOn());
+        StringAppendF(&result, "  orientation=%d, isPoweredOn=%d\n", display->getOrientation(),
+                      display->isPoweredOn());
     }
-    result.appendFormat("  transaction-flags         : %08x\n"
-                        "  gpu_to_cpu_unsupported    : %d\n",
-                        mTransactionFlags.load(), !mGpuToCpuSupported);
+    StringAppendF(&result,
+                  "  transaction-flags         : %08x\n"
+                  "  gpu_to_cpu_unsupported    : %d\n",
+                  mTransactionFlags.load(), !mGpuToCpuSupported);
 
     if (const auto displayId = getInternalDisplayId();
         displayId && getHwComposer().isConnected(*displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
-        result.appendFormat("  refresh-rate              : %f fps\n"
-                            "  x-dpi                     : %f\n"
-                            "  y-dpi                     : %f\n",
-                            1e9 / activeConfig->getVsyncPeriod(), activeConfig->getDpiX(),
-                            activeConfig->getDpiY());
+        StringAppendF(&result,
+                      "  refresh-rate              : %f fps\n"
+                      "  x-dpi                     : %f\n"
+                      "  y-dpi                     : %f\n",
+                      1e9 / activeConfig->getVsyncPeriod(), activeConfig->getDpiX(),
+                      activeConfig->getDpiY());
     }
 
-    result.appendFormat("  transaction time: %f us\n",
-            inTransactionDuration/1000.0);
+    StringAppendF(&result, "  transaction time: %f us\n", inTransactionDuration / 1000.0);
 
-    result.appendFormat("  use Scheduler: %s\n", mUseScheduler ? "true" : "false");
+    StringAppendF(&result, "  use Scheduler: %s\n", mUseScheduler ? "true" : "false");
     /*
      * VSYNC state
      */
@@ -4686,7 +4677,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
             continue;
         }
 
-        result.appendFormat("Display %s HWC layers:\n", to_string(*displayId).c_str());
+        StringAppendF(&result, "Display %s HWC layers:\n", to_string(*displayId).c_str());
         Layer::miniDumpHeader(result);
         mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, *displayId); });
         result.append("\n");
@@ -4699,8 +4690,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("h/w composer state:\n");
     colorizer.reset(result);
     bool hwcDisabled = mDebugDisableHWC || mDebugRegion;
-    result.appendFormat("  h/w composer %s\n",
-            hwcDisabled ? "disabled" : "enabled");
+    StringAppendF(&result, "  h/w composer %s\n", hwcDisabled ? "disabled" : "enabled");
     getHwComposer().dump(result);
 
     /*
@@ -4714,7 +4704,7 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
      */
     if (mVrFlingerRequestsDisplay && mVrFlinger) {
         result.append("VrFlinger state:\n");
-        result.append(mVrFlinger->Dump().c_str());
+        result.append(mVrFlinger->Dump());
         result.append("\n");
     }
 }
