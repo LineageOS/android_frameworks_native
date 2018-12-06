@@ -295,6 +295,7 @@ public:
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
         Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);

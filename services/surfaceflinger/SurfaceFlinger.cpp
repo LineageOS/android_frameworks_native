@@ -3505,7 +3505,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
 
     uint32_t flags = 0;
 
-    const uint32_t what = s.what;
+    const uint64_t what = s.what;
     bool geometryAppliesWithResize =
             what & layer_state_t::eGeometryAppliesWithResize;
 
@@ -3676,6 +3676,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     }
     if (what & layer_state_t::eCropChanged) {
         if (layer->setCrop(s.crop)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eFrameChanged) {
+        if (layer->setFrame(s.frame)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eBufferChanged) {
         if (layer->setBuffer(s.buffer)) flags |= eTraversalNeeded;
