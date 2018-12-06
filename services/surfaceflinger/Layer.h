@@ -617,7 +617,7 @@ public:
     ssize_t removeChild(const sp<Layer>& layer);
     sp<Layer> getParent() const { return mCurrentParent.promote(); }
     bool hasParent() const { return getParent() != nullptr; }
-    Rect computeScreenBounds() const;
+    Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
     bool setChildRelativeLayer(const sp<Layer>& childLayer,
             const sp<IBinder>& relativeToHandle, int32_t relativeZ);

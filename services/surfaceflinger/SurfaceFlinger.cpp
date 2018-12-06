@@ -2754,7 +2754,10 @@ void SurfaceFlinger::updateInputWindows() {
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
         if (layer->hasInput()) {
-            inputHandles.add(layer->fillInputInfo(layer->computeScreenBounds()));
+            // When calculating the screen bounds we ignore the transparent region since it may
+            // result in an unwanted offset.
+            inputHandles.add(layer->fillInputInfo(
+                    layer->computeScreenBounds(false /* reduceTransparentRegion */)));
         }
     });
     mInputFlinger->setInputWindows(inputHandles);
