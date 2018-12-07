@@ -396,6 +396,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     }
 
     // Capture the old state of the layer for comparisons later
+    Mutex::Autolock lock(mStateMutex);
     const State& s(getDrawingState());
     const bool oldOpacity = isOpaque(s);
     sp<GraphicBuffer> oldBuffer = mActiveBuffer;
@@ -503,7 +504,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     // FIXME: postedRegion should be dirty & bounds
     // transform the dirty region to window-manager space
-    return getTransform().transform(Region(getBufferSize(s)));
+    return getTransformLocked().transform(Region(getBufferSize(s)));
 }
 
 // transaction
@@ -551,7 +552,7 @@ bool BufferLayer::latchUnsignaledBuffers() {
 
 // h/w composer set-up
 bool BufferLayer::allTransactionsSignaled() {
-    auto headFrameNumber = getHeadFrameNumber();
+    auto headFrameNumber = getHeadFrameNumberLocked();
     bool matchingFramesFound = false;
     bool allTransactionsApplied = true;
     Mutex::Autolock lock(mLocalSyncPointMutex);
@@ -604,6 +605,7 @@ bool BufferLayer::needsFiltering(const RenderArea& renderArea) const {
 
 void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
     ATRACE_CALL();
+    Mutex::Autolock lock(mStateMutex);
     const State& s(getDrawingState());
 
     computeGeometry(renderArea, getBE().mMesh, useIdentityTransform);
@@ -622,9 +624,9 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
      * minimal value)? Or, we could make GL behave like HWC -- but this feel
      * like more of a hack.
      */
-    const Rect bounds{computeBounds()}; // Rounds from FloatRect
+    const Rect bounds{computeBoundsLocked()}; // Rounds from FloatRect
 
-    ui::Transform t = getTransform();
+    ui::Transform t = getTransformLocked();
     Rect win = bounds;
     const int bufferWidth = getBufferSize(s).getWidth();
     const int bufferHeight = getBufferSize(s).getHeight();
@@ -643,7 +645,7 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
     texCoords[2] = vec2(right, 1.0f - bottom);
     texCoords[3] = vec2(right, 1.0f - top);
 
-    const auto roundedCornerState = getRoundedCornerState();
+    const auto roundedCornerState = getRoundedCornerStateLocked();
     const auto cropRect = roundedCornerState.cropRect;
     setupRoundedCornersCropCoordinates(win, cropRect);
 
@@ -665,7 +667,12 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
 }
 
 uint64_t BufferLayer::getHeadFrameNumber() const {
-    if (hasFrameUpdate()) {
+    Mutex::Autolock lock(mStateMutex);
+    return getHeadFrameNumberLocked();
+}
+
+uint64_t BufferLayer::getHeadFrameNumberLocked() const {
+    if (hasFrameUpdateLocked()) {
         return getFrameNumber();
     } else {
         return mCurrentFrameNumber;
@@ -692,7 +699,7 @@ Rect BufferLayer::getBufferSize(const State& s) const {
         std::swap(bufWidth, bufHeight);
     }
 
-    if (getTransformToDisplayInverse()) {
+    if (getTransformToDisplayInverseLocked()) {
         uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
         if (invTransform & ui::Transform::ROT_90) {
             std::swap(bufWidth, bufHeight);

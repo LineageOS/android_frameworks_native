@@ -55,6 +55,7 @@
 #include "RenderArea.h"
 
 using namespace android::surfaceflinger;
+using StateSet = android::LayerVector::StateSet;
 
 namespace android {
 
@@ -239,7 +240,7 @@ public:
     // also the rendered size of the layer prior to any transformations. Parent
     // or local matrix transformations will not affect the size of the buffer,
     // but may affect it's on-screen size or clipping.
-    virtual bool setSize(uint32_t w, uint32_t h);
+    virtual bool setSize(uint32_t w, uint32_t h) EXCLUDES(mStateMutex);
     // Set a 2x2 transformation matrix on the layer. This transform
     // will be applied after parent transforms, but before any final
     // producer specified transform.
@@ -254,58 +255,76 @@ public:
 
     // setPosition operates in parent buffer space (pre parent-transform) or display
     // space for top-level layers.
-    virtual bool setPosition(float x, float y, bool immediate);
+    virtual bool setPosition(float x, float y, bool immediate) EXCLUDES(mStateMutex);
     // Buffer space
-    virtual bool setCrop_legacy(const Rect& crop, bool immediate);
+    virtual bool setCrop_legacy(const Rect& crop, bool immediate) EXCLUDES(mStateMutex);
 
     // TODO(b/38182121): Could we eliminate the various latching modes by
     // using the layer hierarchy?
     // -----------------------------------------------------------------------
-    virtual bool setLayer(int32_t z);
-    virtual bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
+    virtual bool setLayer(int32_t z) EXCLUDES(mStateMutex);
+    virtual bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ)
+            EXCLUDES(mStateMutex);
 
-    virtual bool setAlpha(float alpha);
-    virtual bool setColor(const half3& color);
+    virtual bool setAlpha(float alpha) EXCLUDES(mStateMutex);
+    virtual bool setColor(const half3& color) EXCLUDES(mStateMutex);
 
     // Set rounded corner radius for this layer and its children.
     //
     // We only support 1 radius per layer in the hierarchy, where parent layers have precedence.
     // The shape of the rounded corner rectangle is specified by the crop rectangle of the layer
     // from which we inferred the rounded corner radius.
-    virtual bool setCornerRadius(float cornerRadius);
-    virtual bool setTransparentRegionHint(const Region& transparent);
-    virtual bool setFlags(uint8_t flags, uint8_t mask);
-    virtual bool setLayerStack(uint32_t layerStack);
-    virtual uint32_t getLayerStack() const;
+    virtual bool setCornerRadius(float cornerRadius) EXCLUDES(mStateMutex);
+    virtual bool setTransparentRegionHint(const Region& transparent) EXCLUDES(mStateMutex);
+    virtual bool setFlags(uint8_t flags, uint8_t mask) EXCLUDES(mStateMutex);
+    virtual bool setLayerStack(uint32_t layerStack) EXCLUDES(mStateMutex);
+    virtual uint32_t getLayerStack() const EXCLUDES(mStateMutex);
     virtual void deferTransactionUntil_legacy(const sp<IBinder>& barrierHandle,
                                               uint64_t frameNumber);
-    virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
-    virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
-    virtual void setInfo(int32_t type, int32_t appId);
-    virtual bool reparentChildren(const sp<IBinder>& layer);
+    virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber)
+            EXCLUDES(mStateMutex);
+    virtual bool setOverrideScalingMode(int32_t overrideScalingMode) EXCLUDES(mStateMutex);
+    virtual void setInfo(int32_t type, int32_t appId) EXCLUDES(mStateMutex);
+    virtual bool reparentChildren(const sp<IBinder>& layer) EXCLUDES(mStateMutex);
     virtual void setChildrenDrawingParent(const sp<Layer>& layer);
-    virtual bool reparent(const sp<IBinder>& newParentHandle);
+    virtual bool reparent(const sp<IBinder>& newParentHandle) EXCLUDES(mStateMutex);
     virtual bool detachChildren();
     bool attachChildren();
     bool isLayerDetached() const { return mLayerDetached; }
-    virtual bool setColorTransform(const mat4& matrix);
-    virtual mat4 getColorTransform() const;
-    virtual bool hasColorTransform() const;
+    virtual bool setColorTransform(const mat4& matrix) EXCLUDES(mStateMutex);
+    mat4 getColorTransform() const EXCLUDES(mStateMutex);
+    virtual mat4 getColorTransformLocked() const REQUIRES(mStateMutex);
+    virtual bool hasColorTransform() const EXCLUDES(mStateMutex);
+    ;
 
     // Used only to set BufferStateLayer state
-    virtual bool setTransform(uint32_t /*transform*/) { return false; };
-    virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/) { return false; };
-    virtual bool setCrop(const Rect& /*crop*/) { return false; };
-    virtual bool setFrame(const Rect& /*frame*/) { return false; };
-    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/) { return false; };
-    virtual bool setAcquireFence(const sp<Fence>& /*fence*/) { return false; };
-    virtual bool setDataspace(ui::Dataspace /*dataspace*/) { return false; };
-    virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) { return false; };
-    virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) { return false; };
-    virtual bool setApi(int32_t /*api*/) { return false; };
-    virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/) { return false; };
+    virtual bool setTransform(uint32_t /*transform*/) EXCLUDES(mStateMutex) { return false; };
+    virtual bool setTransformToDisplayInverse(bool /*transformToDisplayInverse*/)
+            EXCLUDES(mStateMutex) {
+        return false;
+    };
+    virtual bool setCrop(const Rect& /*crop*/) EXCLUDES(mStateMutex) { return false; };
+    virtual bool setFrame(const Rect& /*frame*/) EXCLUDES(mStateMutex) { return false; };
+    virtual bool setBuffer(const sp<GraphicBuffer>& /*buffer*/) EXCLUDES(mStateMutex) {
+        return false;
+    };
+    virtual bool setAcquireFence(const sp<Fence>& /*fence*/) EXCLUDES(mStateMutex) {
+        return false;
+    };
+    virtual bool setDataspace(ui::Dataspace /*dataspace*/) EXCLUDES(mStateMutex) { return false; };
+    virtual bool setHdrMetadata(const HdrMetadata& /*hdrMetadata*/) EXCLUDES(mStateMutex) {
+        return false;
+    };
+    virtual bool setSurfaceDamageRegion(const Region& /*surfaceDamage*/) EXCLUDES(mStateMutex) {
+        return false;
+    };
+    virtual bool setApi(int32_t /*api*/) EXCLUDES(mStateMutex) { return false; };
+    virtual bool setSidebandStream(const sp<NativeHandle>& /*sidebandStream*/)
+            EXCLUDES(mStateMutex) {
+        return false;
+    };
     virtual bool setTransactionCompletedListeners(
-            const std::vector<sp<CallbackHandle>>& /*handles*/) {
+            const std::vector<sp<CallbackHandle>>& /*handles*/) EXCLUDES(mStateMutex) {
         return false;
     };
 
@@ -324,18 +343,21 @@ public:
     virtual void useSurfaceDamage() {}
     virtual void useEmptyDamage() {}
 
-    uint32_t getTransactionFlags() const { return mTransactionFlags; }
-    uint32_t getTransactionFlags(uint32_t flags);
-    uint32_t setTransactionFlags(uint32_t flags);
+    uint32_t getTransactionFlags() const EXCLUDES(mStateMutex);
+    uint32_t getTransactionFlags(uint32_t flags) EXCLUDES(mStateMutex);
+    uint32_t setTransactionFlags(uint32_t flags) REQUIRES(mStateMutex);
 
-    bool belongsToDisplay(uint32_t layerStack, bool isPrimaryDisplay) const {
+    bool belongsToDisplay(uint32_t layerStack, bool isPrimaryDisplay) const EXCLUDES(mStateMutex) {
         return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
     }
 
     void computeGeometry(const RenderArea& renderArea, renderengine::Mesh& mesh,
-                         bool useIdentityTransform) const;
-    FloatRect computeBounds(const Region& activeTransparentRegion) const;
-    FloatRect computeBounds() const;
+                         bool useIdentityTransform) const REQUIRES(mStateMutex);
+    FloatRect computeBounds(const Region& activeTransparentRegion) const EXCLUDES(mStateMutex);
+    FloatRect computeBoundsLocked(const Region& activeTransparentRegion) const
+            REQUIRES(mStateMutex);
+    FloatRect computeBounds() const EXCLUDES(mStateMutex);
+    FloatRect computeBoundsLocked() const REQUIRES(mStateMutex);
 
     int32_t getSequence() const { return sequence; }
 
@@ -352,16 +374,21 @@ public:
      */
     virtual bool isOpaque(const Layer::State&) const { return false; }
 
+    virtual bool isDrawingOpaque() const EXCLUDES(mStateMutex) {
+        Mutex::Autolock lock(mStateMutex);
+        return isOpaque(mState.drawing);
+    }
+
     /*
      * isSecure - true if this surface is secure, that is if it prevents
      * screenshots or VNC servers.
      */
-    bool isSecure() const;
+    bool isSecure() const EXCLUDES(mStateMutex);
 
     /*
      * isVisible - true if this layer is visible, false otherwise
      */
-    virtual bool isVisible() const = 0;
+    virtual bool isVisible() const EXCLUDES(mStateMutex) = 0;
 
     /*
      * isHiddenByPolicy - true if this layer has been forced invisible.
@@ -369,7 +396,7 @@ public:
      * For example if this layer has no active buffer, it may not be hidden by
      * policy, but it still can not be visible.
      */
-    bool isHiddenByPolicy() const;
+    bool isHiddenByPolicy() const EXCLUDES(mStateMutex);
 
     /*
      * isFixedSize - true if content has a fixed size
@@ -384,7 +411,8 @@ public:
     bool isRemovedFromCurrentState() const;
 
     void writeToProto(LayerProto* layerInfo,
-                      LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
+                      LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing)
+            EXCLUDES(mStateMutex);
 
     void writeToProto(LayerProto* layerInfo, DisplayId displayId);
 
@@ -397,25 +425,32 @@ public:
     virtual Region getActiveTransparentRegion(const Layer::State& s) const {
         return s.activeTransparentRegion_legacy;
     }
+
+    virtual Region getDrawingActiveTransparentRegion() const EXCLUDES(mStateMutex) {
+        Mutex::Autolock lock(mStateMutex);
+        return getActiveTransparentRegion(mState.drawing);
+    }
+
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
 
 protected:
     /*
      * onDraw - draws the surface.
      */
-    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform) = 0;
+    virtual void onDraw(const RenderArea& renderArea, const Region& clip, bool useIdentityTransform)
+            EXCLUDES(mStateMutex) = 0;
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     virtual bool isHdrY410() const { return false; }
 
-    void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
+    void setGeometry(const sp<const DisplayDevice>& display, uint32_t z) EXCLUDES(mStateMutex);
     void forceClientComposition(DisplayId displayId);
     bool getForceClientComposition(DisplayId displayId);
     virtual void setPerFrameData(DisplayId displayId, const ui::Transform& transform,
-                                 const Rect& viewport, int32_t supportedPerFrameMetadata) = 0;
+                                 const Rect& viewport, int32_t supportedPerFrameMetadata)
+            EXCLUDES(mStateMutex) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
@@ -423,7 +458,7 @@ public:
     HWC2::Composition getCompositionType(const std::optional<DisplayId>& displayId) const;
     void setClearClientTarget(DisplayId displayId, bool clear);
     bool getClearClientTarget(DisplayId displayId) const;
-    void updateCursorPosition(const sp<const DisplayDevice>& display);
+    void updateCursorPosition(const sp<const DisplayDevice>& display) EXCLUDES(mStateMutex);
 
     /*
      * called after page-flip
@@ -446,7 +481,8 @@ public:
     virtual bool onPostComposition(const std::optional<DisplayId>& /*displayId*/,
                                    const std::shared_ptr<FenceTime>& /*glDoneFence*/,
                                    const std::shared_ptr<FenceTime>& /*presentFence*/,
-                                   const CompositorTiming& /*compositorTiming*/) {
+                                   const CompositorTiming& /*compositorTiming*/)
+            EXCLUDES(mStateMutex) {
         return false;
     }
 
@@ -458,14 +494,14 @@ public:
      * draw - performs some global clipping optimizations
      * and calls onDraw().
      */
-    void draw(const RenderArea& renderArea, const Region& clip);
-    void draw(const RenderArea& renderArea, bool useIdentityTransform);
+    void draw(const RenderArea& renderArea, const Region& clip) EXCLUDES(mStateMutex);
+    void draw(const RenderArea& renderArea, bool useIdentityTransform) EXCLUDES(mStateMutex);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
      * out which attributes of the surface have changed.
      */
-    uint32_t doTransaction(uint32_t transactionFlags);
+    uint32_t doTransaction(uint32_t transactionFlags) EXCLUDES(mStateMutex);
 
     /*
      * setVisibleRegion - called to set the new visible region. This gives
@@ -498,17 +534,17 @@ public:
      * to figure out if the content or size of a surface has changed.
      */
     virtual Region latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
-                               const sp<Fence>& /*releaseFence*/) {
+                               const sp<Fence>& /*releaseFence*/) EXCLUDES(mStateMutex) {
         return {};
     }
 
     virtual bool isBufferLatched() const { return false; }
 
     /*
-     * called with the state lock from a binder thread when the layer is
+     * called with SurfaceFlinger mStateLock a binder thread when the layer is
      * removed from the current list to the pending removal list
      */
-    void onRemovedFromCurrentState();
+    void onRemovedFromCurrentState() EXCLUDES(mStateMutex);
 
     /*
      * Called when the layer is added back to the current state list.
@@ -528,7 +564,7 @@ public:
     /*
      * Returns if a frame is ready
      */
-    virtual bool hasReadyFrame() const { return false; }
+    virtual bool hasReadyFrame() const EXCLUDES(mStateMutex) { return false; }
 
     virtual int32_t getQueuedFrameCount() const { return 0; }
 
@@ -557,17 +593,32 @@ public:
     }
 
     // -----------------------------------------------------------------------
-    void clearWithOpenGL(const RenderArea& renderArea) const;
+    void clearWithOpenGL(const RenderArea& renderArea) const EXCLUDES(mStateMutex);
 
-    inline const State& getDrawingState() const { return mDrawingState; }
-    inline const State& getCurrentState() const { return mCurrentState; }
-    inline State& getCurrentState() { return mCurrentState; }
+    inline const State& getDrawingState() const REQUIRES(mStateMutex) { return mState.drawing; }
 
-    LayerDebugInfo getLayerDebugInfo() const;
+    inline const State& getCurrentState() const REQUIRES(mStateMutex) { return mState.current; }
+
+    inline State& getCurrentState() REQUIRES(mStateMutex) { return mState.current; }
+
+    std::tuple<uint32_t, int32_t> getLayerStackAndZ(StateSet stateSet) EXCLUDES(mStateMutex);
+    wp<Layer> getZOrderRelativeOf(StateSet stateSet) EXCLUDES(mStateMutex) {
+        Mutex::Autolock lock(mStateMutex);
+        const State& state = (stateSet == StateSet::Current) ? mState.current : mState.drawing;
+
+        return state.zOrderRelativeOf;
+    }
+
+    uint8_t getCurrentFlags() EXCLUDES(mStateMutex) {
+        Mutex::Autolock lock(mStateMutex);
+        return mState.current.flags;
+    }
+
+    LayerDebugInfo getLayerDebugInfo() const EXCLUDES(mStateMutex);
 
     /* always call base class first */
     static void miniDumpHeader(std::string& result);
-    void miniDump(std::string& result, DisplayId displayId) const;
+    void miniDump(std::string& result, DisplayId displayId) const EXCLUDES(mStateMutex);
     void dumpFrameStats(std::string& result) const;
     void dumpFrameEvents(std::string& result);
     void clearFrameStats();
@@ -582,22 +633,29 @@ public:
     void addAndGetFrameTimestamps(const NewFrameEventsEntry* newEntry,
                                   FrameEventHistoryDelta* outDelta);
 
-    virtual bool getTransformToDisplayInverse() const { return false; }
+    bool getTransformToDisplayInverse() const EXCLUDES(mStateMutex) {
+        Mutex::Autolock lock(mStateMutex);
+        return getTransformToDisplayInverseLocked();
+    }
 
-    ui::Transform getTransform() const;
+    virtual bool getTransformToDisplayInverseLocked() const REQUIRES(mStateMutex) { return false; }
+
+    ui::Transform getTransform() const EXCLUDES(mStateMutex);
+    ui::Transform getTransformLocked() const REQUIRES(mStateMutex);
 
     // Returns the Alpha of the Surface, accounting for the Alpha
     // of parent Surfaces in the hierarchy (alpha's will be multiplied
     // down the hierarchy).
-    half getAlpha() const;
-    half4 getColor() const;
+    half getAlpha() const EXCLUDES(mStateMutex);
+    half4 getColor() const REQUIRES(mStateMutex);
 
     // Returns how rounded corners should be drawn for this layer.
     // This will traverse the hierarchy until it reaches its root, finding topmost rounded
     // corner definition and converting it into current layer's coordinates.
     // As of now, only 1 corner radius per display list is supported. Subsequent ones will be
     // ignored.
-    RoundedCornerState getRoundedCornerState() const;
+    RoundedCornerState getRoundedCornerState() const EXCLUDES(mStateMutex);
+    RoundedCornerState getRoundedCornerStateLocked() const REQUIRES(mStateMutex);
 
     void traverseInReverseZOrder(LayerVector::StateSet stateSet,
                                  const LayerVector::Visitor& visitor);
@@ -617,7 +675,7 @@ public:
     ssize_t removeChild(const sp<Layer>& layer);
     sp<Layer> getParent() const { return mCurrentParent.promote(); }
     bool hasParent() const { return getParent() != nullptr; }
-    Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
+    Rect computeScreenBounds(bool reduceTransparentRegion = true) const EXCLUDES(mStateMutex);
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
     bool setChildRelativeLayer(const sp<Layer>& childLayer,
             const sp<IBinder>& relativeToHandle, int32_t relativeZ);
@@ -625,14 +683,23 @@ public:
     // Copy the current list of children to the drawing state. Called by
     // SurfaceFlinger to complete a transaction.
     void commitChildList();
-    int32_t getZ() const;
-    virtual void pushPendingState();
+    int32_t getZ() const EXCLUDES(mStateMutex);
+    void pushPendingState() EXCLUDES(mStateMutex);
+    virtual void pushPendingStateLocked() REQUIRES(mStateMutex);
 
     /**
      * Returns active buffer size in the correct orientation. Buffer size is determined by undoing
      * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
      */
-    virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
+    virtual Rect getBufferSize(const Layer::State&) const REQUIRES(mStateMutex) {
+        return Rect::INVALID_RECT;
+    }
+
+    virtual Rect getBufferSize(StateSet stateSet) const EXCLUDES(mStateMutex) {
+        Mutex::Autolock lock(mStateMutex);
+        const State& state = (stateSet == StateSet::Current) ? mState.current : mState.drawing;
+        return getBufferSize(state);
+    }
 
 protected:
     // constant
@@ -661,16 +728,17 @@ protected:
     // For unit tests
     friend class TestableSurfaceFlinger;
 
-    void commitTransaction(const State& stateToCommit);
+    void commitTransaction(const State& stateToCommit) REQUIRES(mStateMutex);
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
+    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const
+            REQUIRES(mStateMutex);
     // Compute the initial crop as specified by parent layers and the
     // SurfaceControl for this layer. Does not include buffer crop from the
     // IGraphicBufferProducer client, as that should not affect child clipping.
     // Returns in screen space.
-    Rect computeInitialCrop(const sp<const DisplayDevice>& display) const;
+    Rect computeInitialCrop(const sp<const DisplayDevice>& display) const REQUIRES(mStateMutex);
     /**
      * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
      * crop coordinates, transforming them into layer space.
@@ -678,13 +746,13 @@ protected:
     void setupRoundedCornersCropCoordinates(Rect win, const FloatRect& roundedCornersCrop) const;
 
     // drawing
-    void clearWithOpenGL(const RenderArea& renderArea, float r, float g, float b,
-                         float alpha) const;
+    void clearWithOpenGL(const RenderArea& renderArea, float r, float g, float b, float alpha) const
+            EXCLUDES(mStateMutex);
     void setParent(const sp<Layer>& layer);
 
     LayerVector makeTraversalList(LayerVector::StateSet stateSet, bool* outSkipRelativeZUsers);
-    void addZOrderRelative(const wp<Layer>& relative);
-    void removeZOrderRelative(const wp<Layer>& relative);
+    void addZOrderRelative(const wp<Layer>& relative) EXCLUDES(mStateMutex);
+    void removeZOrderRelative(const wp<Layer>& relative) EXCLUDES(mStateMutex);
 
     class SyncPoint {
     public:
@@ -720,9 +788,10 @@ protected:
     // Returns false if the relevant frame has already been latched
     bool addSyncPoint(const std::shared_ptr<SyncPoint>& point);
 
-    void popPendingState(State* stateToCommit);
-    virtual bool applyPendingStates(State* stateToCommit);
-    virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit);
+    void popPendingState(State* stateToCommit) REQUIRES(mStateMutex);
+    virtual bool applyPendingStates(State* stateToCommit) REQUIRES(mStateMutex);
+    virtual uint32_t doTransactionResize(uint32_t flags, Layer::State* stateToCommit)
+            REQUIRES(mStateMutex);
 
     void clearSyncPoints();
 
@@ -755,14 +824,15 @@ public:
     bool getPremultipledAlpha() const;
 
     bool mPendingHWCDestroy{false};
-    void setInputInfo(const InputWindowInfo& info);
+    void setInputInfo(const InputWindowInfo& info) EXCLUDES(mStateMutex);
 
-    InputWindowInfo fillInputInfo(const Rect& screenBounds);
-    bool hasInput() const;
+    InputWindowInfo fillInputInfo(const Rect& screenBounds) EXCLUDES(mStateMutex);
+    bool hasInput() const EXCLUDES(mStateMutex);
 
 protected:
     // -----------------------------------------------------------------------
-    bool usingRelativeZ(LayerVector::StateSet stateSet);
+    bool usingRelativeZ(LayerVector::StateSet stateSet) EXCLUDES(mStateMutex);
+    bool usingRelativeZLocked(LayerVector::StateSet stateSet) REQUIRES(mStateMutex);
 
     bool mPremultipliedAlpha{true};
     String8 mName;
@@ -770,14 +840,14 @@ protected:
 
     bool mPrimaryDisplayOnly = false;
 
-    // these are protected by an external lock
-    State mCurrentState;
-    State mDrawingState;
-    std::atomic<uint32_t> mTransactionFlags{0};
-
     // Accessed from main thread and binder threads
-    Mutex mPendingStateMutex;
-    Vector<State> mPendingStates;
+    mutable Mutex mStateMutex;
+    struct {
+        State current;
+        State drawing;
+        uint32_t transactionFlags{0};
+        Vector<State> pending;
+    } mState GUARDED_BY(mStateMutex);
 
     // Timestamp history for UIAutomation. Thread safe.
     FrameTracker mFrameTracker;
@@ -850,7 +920,7 @@ private:
      * The cropped bounds must be transformed back from parent layer space to child layer space by
      * applying the inverse of the child's transformation.
      */
-    FloatRect cropChildBounds(const FloatRect& childBounds) const;
+    FloatRect cropChildBounds(const FloatRect& childBounds) const REQUIRES(mStateMutex);
 
     /**
      * Returns the cropped buffer size or the layer crop if the layer has no buffer. Return
@@ -858,7 +928,12 @@ private:
      * A layer with an invalid buffer size and no crop is considered to be boundless. The layer
      * bounds are constrained by its parent bounds.
      */
-    Rect getCroppedBufferSize(const Layer::State& s) const;
+    Rect getCroppedBufferSize(const Layer::State& s) const REQUIRES(mStateMutex);
+
+    // locked version of public methods
+    bool isSecureLocked() const REQUIRES(mStateMutex);
+    virtual uint32_t getLayerStackLocked() const REQUIRES(mStateMutex);
+    half getAlphaLocked() const REQUIRES(mStateMutex);
 };
 
 } // namespace android
