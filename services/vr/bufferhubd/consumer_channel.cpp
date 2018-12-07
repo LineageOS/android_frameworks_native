@@ -153,6 +153,17 @@ Status<void> ConsumerChannel::OnConsumerRelease(Message& message,
   }
 }
 
+void ConsumerChannel::OnProducerGained() {
+  // Clear the signal if exist. There is a possiblity that the signal still
+  // exist in consumer client when producer gains the buffer, e.g. newly added
+  // consumer fail to acquire the previous posted buffer in time. Then, when
+  // producer gains back the buffer, posts the buffer again and signal the
+  // consumer later, there won't be an signal change in eventfd, and thus,
+  // consumer will miss the posted buffer later. Thus, we need to clear the
+  // signal in consumer clients if the signal exist.
+  ClearAvailable();
+}
+
 void ConsumerChannel::OnProducerPosted() {
   acquired_ = false;
   released_ = false;
