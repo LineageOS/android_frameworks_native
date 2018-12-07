@@ -32,6 +32,8 @@ namespace V1_0 {
 namespace implementation {
 
 using hardware::hidl_handle;
+using hardware::hidl_string;
+using hardware::hidl_vec;
 using hardware::Return;
 using hardware::graphics::common::V1_2::HardwareBufferDescription;
 
@@ -41,6 +43,8 @@ public:
                                 const uint32_t userMetadataSize,
                                 allocateBuffer_cb _hidl_cb) override;
     Return<void> importBuffer(const hidl_handle& tokenHandle, importBuffer_cb _hidl_cb) override;
+
+    Return<void> debug(const hidl_handle& fd, const hidl_vec<hidl_string>& args) override;
 
     // Non-binder functions
     // Internal help function for IBufferClient::duplicate.
