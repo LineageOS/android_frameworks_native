@@ -506,8 +506,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
 
     // this gives us only the "orientation" component of the transform
     const State& s(getDrawingState());
-    const int bufferWidth = getBufferSize(s).getWidth();
-    const int bufferHeight = getBufferSize(s).getHeight();
+    const Rect bufferSize = getBufferSize(s);
     auto blendMode = HWC2::BlendMode::None;
     if (!isOpaque(s) || getAlpha() != 1.0f) {
         blendMode =
@@ -526,7 +525,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
     Region activeTransparentRegion(getActiveTransparentRegion(s));
     ui::Transform t = getTransform();
     Rect activeCrop = getCrop(s);
-    if (!activeCrop.isEmpty()) {
+    if (!activeCrop.isEmpty() && bufferSize.isValid()) {
         activeCrop = t.transform(activeCrop);
         if (!activeCrop.intersect(display->getViewport(), &activeCrop)) {
             activeCrop.clear();
@@ -538,15 +537,16 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
         // transform.inverse().transform(transform.transform(Rect)) != Rect
         // in which case we need to make sure the final rect is clipped to the
         // display bounds.
-        if (!activeCrop.intersect(Rect(bufferWidth, bufferHeight), &activeCrop)) {
+        if (!activeCrop.intersect(bufferSize, &activeCrop)) {
             activeCrop.clear();
         }
         // mark regions outside the crop as transparent
-        activeTransparentRegion.orSelf(Rect(0, 0, bufferWidth, activeCrop.top));
-        activeTransparentRegion.orSelf(Rect(0, activeCrop.bottom, bufferWidth, bufferHeight));
+        activeTransparentRegion.orSelf(Rect(0, 0, bufferSize.getWidth(), activeCrop.top));
+        activeTransparentRegion.orSelf(
+                Rect(0, activeCrop.bottom, bufferSize.getWidth(), bufferSize.getHeight()));
         activeTransparentRegion.orSelf(Rect(0, activeCrop.top, activeCrop.left, activeCrop.bottom));
         activeTransparentRegion.orSelf(
-                Rect(activeCrop.right, activeCrop.top, bufferWidth, activeCrop.bottom));
+                Rect(activeCrop.right, activeCrop.top, bufferSize.getWidth(), activeCrop.bottom));
     }
 
     // computeBounds returns a FloatRect to provide more accuracy during the
