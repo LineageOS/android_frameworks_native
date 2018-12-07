@@ -467,6 +467,10 @@ ssize_t SensorDevice::pollFmq(sensors_event_t* buffer, size_t maxNumEventsToRead
     size_t eventsToRead = std::min({availableEvents, maxNumEventsToRead, mEventBuffer.size()});
     if (eventsToRead > 0) {
         if (mEventQueue->read(mEventBuffer.data(), eventsToRead)) {
+            // Notify the Sensors HAL that sensor events have been read. This is required to support
+            // the use of writeBlocking by the Sensors HAL.
+            mEventQueueFlag->wake(asBaseType(EventQueueFlagBits::EVENTS_READ));
+
             for (size_t i = 0; i < eventsToRead; i++) {
                 convertToSensorEvent(mEventBuffer[i], &buffer[i]);
             }
