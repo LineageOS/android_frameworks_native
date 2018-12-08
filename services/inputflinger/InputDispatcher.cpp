@@ -1663,11 +1663,17 @@ Unresponsive:
 
 void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
         int32_t targetFlags, BitSet32 pointerIds, Vector<InputTarget>& inputTargets) {
+    sp<InputChannel> inputChannel = getInputChannelLocked(windowHandle->getToken());
+    if (inputChannel == nullptr) {
+        ALOGW("Window %s already unregistered input channel", windowHandle->getName().c_str());
+        return;
+    }
+
     inputTargets.push();
 
     const InputWindowInfo* windowInfo = windowHandle->getInfo();
     InputTarget& target = inputTargets.editTop();
-    target.inputChannel = getInputChannelLocked(windowHandle->getToken());
+    target.inputChannel = inputChannel;
     target.flags = targetFlags;
     target.xOffset = - windowInfo->frameLeft;
     target.yOffset = - windowInfo->frameTop;
