@@ -280,6 +280,8 @@ String8 EGLUtils::decodeColorSpace(EGLint colorSpace) {
             return String8("EGL_GL_COLORSPACE_SRGB_KHR");
         case EGL_GL_COLORSPACE_DISPLAY_P3_EXT:
             return String8("EGL_GL_COLORSPACE_DISPLAY_P3_EXT");
+        case EGL_GL_COLORSPACE_DISPLAY_P3_PASSTHROUGH_EXT:
+            return String8("EGL_GL_COLORSPACE_DISPLAY_P3_PASSTHROUGH_EXT");
         case  EGL_GL_COLORSPACE_LINEAR_KHR:
             return String8("EGL_GL_COLORSPACE_LINEAR_KHR");
         default:
