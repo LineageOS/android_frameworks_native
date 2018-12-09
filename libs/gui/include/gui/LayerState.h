@@ -83,6 +83,7 @@ struct layer_state_t {
         eListenerCallbacksChanged = 0x20000000,
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
+        eFrameChanged = 0x1'00000000,
     };
 
     layer_state_t()
@@ -104,6 +105,7 @@ struct layer_state_t {
             transform(0),
             transformToDisplayInverse(false),
             crop(Rect::INVALID_RECT),
+            frame(Rect::INVALID_RECT),
             dataspace(ui::Dataspace::UNKNOWN),
             surfaceDamageRegion(),
             api(-1),
@@ -124,7 +126,7 @@ struct layer_state_t {
         float dsdy{0};
     };
     sp<IBinder> surface;
-    uint32_t what;
+    uint64_t what;
     float x;
     float y;
     int32_t z;
@@ -157,6 +159,7 @@ struct layer_state_t {
     uint32_t transform;
     bool transformToDisplayInverse;
     Rect crop;
+    Rect frame;
     sp<GraphicBuffer> buffer;
     sp<Fence> acquireFence;
     ui::Dataspace dataspace;

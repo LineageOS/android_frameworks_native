@@ -91,7 +91,7 @@ public:
     void onScreenReleased(const sp<ConnectionHandle>& handle);
 
     // Should be called when dumpsys command is received.
-    void dump(const sp<ConnectionHandle>& handle, String8& result) const;
+    void dump(const sp<ConnectionHandle>& handle, std::string& result) const;
 
     // Offers ability to modify phase offset in the event thread.
     void setPhaseOffset(const sp<ConnectionHandle>& handle, nsecs_t phaseOffset);

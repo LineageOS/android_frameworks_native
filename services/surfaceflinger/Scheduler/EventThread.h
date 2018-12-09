@@ -40,7 +40,6 @@ namespace android {
 
 class EventThreadTest;
 class SurfaceFlinger;
-class String8;
 
 // ---------------------------------------------------------------------------
 
@@ -76,7 +75,7 @@ public:
     // called when receiving a hotplug event
     virtual void onHotplugReceived(DisplayType displayType, bool connected) = 0;
 
-    virtual void dump(String8& result) const = 0;
+    virtual void dump(std::string& result) const = 0;
 
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
 };
@@ -131,7 +130,7 @@ public:
     // called when receiving a hotplug event
     void onHotplugReceived(DisplayType displayType, bool connected) override;
 
-    void dump(String8& result) const override;
+    void dump(std::string& result) const override;
 
     void setPhaseOffset(nsecs_t phaseOffset) override;
 

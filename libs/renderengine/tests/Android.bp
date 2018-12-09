@@ -24,6 +24,7 @@ cc_test {
         "librenderengine",
     ],
     shared_libs: [
+        "libbase",
         "libcutils",
         "libEGL",
         "libGLESv2",

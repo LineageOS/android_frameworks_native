@@ -37,7 +37,6 @@
 #include <ui/Transform.h>
 #include <utils/Mutex.h>
 #include <utils/RefBase.h>
-#include <utils/String8.h>
 #include <utils/Timers.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
@@ -201,7 +200,7 @@ public:
      */
     uint32_t getPageFlipCount() const;
     std::string getDebugName() const;
-    void dump(String8& result) const;
+    void dump(std::string& result) const;
 
 private:
     const sp<SurfaceFlinger> mFlinger;

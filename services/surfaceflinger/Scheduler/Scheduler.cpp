@@ -133,7 +133,7 @@ void Scheduler::onScreenReleased(const sp<Scheduler::ConnectionHandle>& handle) 
     mConnections[handle->id]->thread->onScreenReleased();
 }
 
-void Scheduler::dump(const sp<Scheduler::ConnectionHandle>& handle, String8& result) const {
+void Scheduler::dump(const sp<Scheduler::ConnectionHandle>& handle, std::string& result) const {
     RETURN_IF_INVALID();
     mConnections.at(handle->id)->thread->dump(result);
 }

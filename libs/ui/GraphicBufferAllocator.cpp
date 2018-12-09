@@ -24,9 +24,9 @@
 
 #include <grallocusage/GrallocUsageConversion.h>
 
+#include <android-base/stringprintf.h>
 #include <log/log.h>
 #include <utils/Singleton.h>
-#include <utils/String8.h>
 #include <utils/Trace.h>
 
 #include <ui/Gralloc2.h>
@@ -34,6 +34,8 @@
 
 namespace android {
 // ---------------------------------------------------------------------------
+
+using base::StringAppendF;
 
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferAllocator )
 
@@ -50,46 +52,37 @@ GraphicBufferAllocator::GraphicBufferAllocator()
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}
 
-void GraphicBufferAllocator::dump(String8& result) const
-{
+void GraphicBufferAllocator::dump(std::string& result) const {
     Mutex::Autolock _l(sLock);
     KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
     size_t total = 0;
-    const size_t SIZE = 4096;
-    char buffer[SIZE];
-    snprintf(buffer, SIZE, "Allocated buffers:\n");
-    result.append(buffer);
+    result.append("Allocated buffers:\n");
     const size_t c = list.size();
     for (size_t i=0 ; i<c ; i++) {
         const alloc_rec_t& rec(list.valueAt(i));
         if (rec.size) {
-            snprintf(buffer, SIZE, "%10p: %7.2f KiB | %4u (%4u) x %4u | %4u | %8X | 0x%" PRIx64
-                    " | %s\n",
-                    list.keyAt(i), rec.size/1024.0,
-                    rec.width, rec.stride, rec.height, rec.layerCount, rec.format,
-                    rec.usage, rec.requestorName.c_str());
+            StringAppendF(&result,
+                          "%10p: %7.2f KiB | %4u (%4u) x %4u | %4u | %8X | 0x%" PRIx64 " | %s\n",
+                          list.keyAt(i), rec.size / 1024.0, rec.width, rec.stride, rec.height,
+                          rec.layerCount, rec.format, rec.usage, rec.requestorName.c_str());
         } else {
-            snprintf(buffer, SIZE, "%10p: unknown     | %4u (%4u) x %4u | %4u | %8X | 0x%" PRIx64
-                    " | %s\n",
-                    list.keyAt(i),
-                    rec.width, rec.stride, rec.height, rec.layerCount, rec.format,
-                    rec.usage, rec.requestorName.c_str());
+            StringAppendF(&result,
+                          "%10p: unknown     | %4u (%4u) x %4u | %4u | %8X | 0x%" PRIx64 " | %s\n",
+                          list.keyAt(i), rec.width, rec.stride, rec.height, rec.layerCount,
+                          rec.format, rec.usage, rec.requestorName.c_str());
         }
-        result.append(buffer);
         total += rec.size;
     }
-    snprintf(buffer, SIZE, "Total allocated (estimate): %.2f KB\n", total/1024.0);
-    result.append(buffer);
+    StringAppendF(&result, "Total allocated (estimate): %.2f KB\n", total / 1024.0);
 
-    std::string deviceDump = mAllocator->dumpDebugInfo();
-    result.append(deviceDump.c_str(), deviceDump.size());
+    result.append(mAllocator->dumpDebugInfo());
 }
 
 void GraphicBufferAllocator::dumpToSystemLog()
 {
-    String8 s;
+    std::string s;
     GraphicBufferAllocator::getInstance().dump(s);
-    ALOGD("%s", s.string());
+    ALOGD("%s", s.c_str());
 }
 
 status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,

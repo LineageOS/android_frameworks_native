@@ -29,11 +29,11 @@ namespace android {
 namespace renderengine {
 namespace gl {
 
-class GLES20RenderEngine;
+class GLESRenderEngine;
 
 class GLImage : public renderengine::Image {
 public:
-    explicit GLImage(const GLES20RenderEngine& engine);
+    explicit GLImage(const GLESRenderEngine& engine);
     ~GLImage() override;
 
     bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) override;

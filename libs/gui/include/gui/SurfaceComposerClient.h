@@ -30,6 +30,7 @@
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
 
+#include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
@@ -295,6 +296,7 @@ public:
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);
         Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
+        Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
@@ -388,6 +390,9 @@ public:
                                                           uint8_t* outComponentMask);
     static status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
                                                      uint8_t componentMask, uint64_t maxFrames);
+
+    static status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                              uint64_t timestamp, DisplayedFrameStats* outStats);
 
 private:
     virtual void onFirstRef();

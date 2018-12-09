@@ -562,6 +562,12 @@ Error Display::setDisplayContentSamplingEnabled(bool enabled, uint8_t componentM
     return static_cast<Error>(intError);
 }
 
+Error Display::getDisplayedContentSample(uint64_t maxFrames, uint64_t timestamp,
+                                         android::DisplayedFrameStats* outStats) const {
+    auto intError = mComposer.getDisplayedContentSample(mId, maxFrames, timestamp, outStats);
+    return static_cast<Error>(intError);
+}
+
 Error Display::getReleaseFences(
         std::unordered_map<Layer*, sp<Fence>>* outFences) const
 {

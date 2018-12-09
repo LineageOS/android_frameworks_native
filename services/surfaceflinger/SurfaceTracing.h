@@ -18,7 +18,6 @@
 
 #include <layerproto/LayerProtoHeader.h>
 #include <utils/Errors.h>
-#include <utils/String8.h>
 
 #include <memory>
 #include <mutex>
@@ -43,7 +42,7 @@ public:
     void traceLayers(const char* where, LayersProto);
 
     bool isEnabled() const;
-    void dump(String8& result) const;
+    void dump(std::string& result) const;
 
 private:
     static constexpr auto kDefaultBufferCapInByte = 100_MB;

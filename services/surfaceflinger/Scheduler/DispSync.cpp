@@ -24,9 +24,9 @@
 
 #include <algorithm>
 
-#include <log/log.h>
+#include <android-base/stringprintf.h>
 #include <cutils/properties.h>
-#include <utils/String8.h>
+#include <log/log.h>
 #include <utils/Thread.h>
 #include <utils/Trace.h>
 
@@ -36,6 +36,7 @@
 #include "EventLog/EventLog.h"
 #include "SurfaceFlinger.h"
 
+using android::base::StringAppendF;
 using std::max;
 using std::min;
 
@@ -667,54 +668,56 @@ void DispSync::setIgnorePresentFences(bool ignore) {
     }
 }
 
-void DispSync::dump(String8& result) const {
+void DispSync::dump(std::string& result) const {
     Mutex::Autolock lock(mMutex);
-    result.appendFormat("present fences are %s\n", mIgnorePresentFences ? "ignored" : "used");
-    result.appendFormat("mPeriod: %" PRId64 " ns (%.3f fps; skipCount=%d)\n", mPeriod,
-                        1000000000.0 / mPeriod, mRefreshSkipCount);
-    result.appendFormat("mPhase: %" PRId64 " ns\n", mPhase);
-    result.appendFormat("mError: %" PRId64 " ns (sqrt=%.1f)\n", mError, sqrt(mError));
-    result.appendFormat("mNumResyncSamplesSincePresent: %d (limit %d)\n",
-                        mNumResyncSamplesSincePresent, MAX_RESYNC_SAMPLES_WITHOUT_PRESENT);
-    result.appendFormat("mNumResyncSamples: %zd (max %d)\n", mNumResyncSamples, MAX_RESYNC_SAMPLES);
+    StringAppendF(&result, "present fences are %s\n", mIgnorePresentFences ? "ignored" : "used");
+    StringAppendF(&result, "mPeriod: %" PRId64 " ns (%.3f fps; skipCount=%d)\n", mPeriod,
+                  1000000000.0 / mPeriod, mRefreshSkipCount);
+    StringAppendF(&result, "mPhase: %" PRId64 " ns\n", mPhase);
+    StringAppendF(&result, "mError: %" PRId64 " ns (sqrt=%.1f)\n", mError, sqrt(mError));
+    StringAppendF(&result, "mNumResyncSamplesSincePresent: %d (limit %d)\n",
+                  mNumResyncSamplesSincePresent, MAX_RESYNC_SAMPLES_WITHOUT_PRESENT);
+    StringAppendF(&result, "mNumResyncSamples: %zd (max %d)\n", mNumResyncSamples,
+                  MAX_RESYNC_SAMPLES);
 
-    result.appendFormat("mResyncSamples:\n");
+    result.append("mResyncSamples:\n");
     nsecs_t previous = -1;
     for (size_t i = 0; i < mNumResyncSamples; i++) {
         size_t idx = (mFirstResyncSample + i) % MAX_RESYNC_SAMPLES;
         nsecs_t sampleTime = mResyncSamples[idx];
         if (i == 0) {
-            result.appendFormat("  %" PRId64 "\n", sampleTime);
+            StringAppendF(&result, "  %" PRId64 "\n", sampleTime);
         } else {
-            result.appendFormat("  %" PRId64 " (+%" PRId64 ")\n", sampleTime,
-                                sampleTime - previous);
+            StringAppendF(&result, "  %" PRId64 " (+%" PRId64 ")\n", sampleTime,
+                          sampleTime - previous);
         }
         previous = sampleTime;
     }
 
-    result.appendFormat("mPresentFences [%d]:\n", NUM_PRESENT_SAMPLES);
+    StringAppendF(&result, "mPresentFences [%d]:\n", NUM_PRESENT_SAMPLES);
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     previous = Fence::SIGNAL_TIME_INVALID;
     for (size_t i = 0; i < NUM_PRESENT_SAMPLES; i++) {
         size_t idx = (i + mPresentSampleOffset) % NUM_PRESENT_SAMPLES;
         nsecs_t presentTime = mPresentFences[idx]->getSignalTime();
         if (presentTime == Fence::SIGNAL_TIME_PENDING) {
-            result.appendFormat("  [unsignaled fence]\n");
+            StringAppendF(&result, "  [unsignaled fence]\n");
         } else if (presentTime == Fence::SIGNAL_TIME_INVALID) {
-            result.appendFormat("  [invalid fence]\n");
+            StringAppendF(&result, "  [invalid fence]\n");
         } else if (previous == Fence::SIGNAL_TIME_PENDING ||
                    previous == Fence::SIGNAL_TIME_INVALID) {
-            result.appendFormat("  %" PRId64 "  (%.3f ms ago)\n", presentTime,
-                                (now - presentTime) / 1000000.0);
+            StringAppendF(&result, "  %" PRId64 "  (%.3f ms ago)\n", presentTime,
+                          (now - presentTime) / 1000000.0);
         } else {
-            result.appendFormat("  %" PRId64 " (+%" PRId64 " / %.3f)  (%.3f ms ago)\n", presentTime,
-                                presentTime - previous, (presentTime - previous) / (double)mPeriod,
-                                (now - presentTime) / 1000000.0);
+            StringAppendF(&result, "  %" PRId64 " (+%" PRId64 " / %.3f)  (%.3f ms ago)\n",
+                          presentTime, presentTime - previous,
+                          (presentTime - previous) / (double)mPeriod,
+                          (now - presentTime) / 1000000.0);
         }
         previous = presentTime;
     }
 
-    result.appendFormat("current monotonic time: %" PRId64 "\n", now);
+    StringAppendF(&result, "current monotonic time: %" PRId64 "\n", now);
 }
 
 // TODO(b/113612090): Figure out how much of this is still relevant.

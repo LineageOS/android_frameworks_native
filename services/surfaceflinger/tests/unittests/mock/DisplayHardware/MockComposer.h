@@ -116,6 +116,8 @@ public:
     MOCK_METHOD4(getDisplayedContentSamplingAttributes,
                  Error(Display, PixelFormat*, Dataspace*, uint8_t*));
     MOCK_METHOD4(setDisplayContentSamplingEnabled, Error(Display, bool, uint8_t, uint64_t));
+    MOCK_METHOD4(getDisplayedContentSample,
+                 Error(Display, uint64_t, uint64_t, DisplayedFrameStats*));
     MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
 };
 

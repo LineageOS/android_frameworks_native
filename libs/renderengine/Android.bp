@@ -8,7 +8,6 @@ cc_defaults {
         "-Wunused",
         "-Wunreachable-code",
     ],
-    cppflags: ["-std=c++1z"],
 }
 
 cc_defaults {
@@ -19,6 +18,7 @@ cc_defaults {
         "-DEGL_EGLEXT_PROTOTYPES",
     ],
     shared_libs: [
+        "libbase",
         "libcutils",
         "libEGL",
         "libGLESv1_CM",
@@ -46,7 +46,7 @@ filegroup {
 filegroup {
     name: "librenderengine_gl_sources",
     srcs: [
-        "gl/GLES20RenderEngine.cpp",
+        "gl/GLESRenderEngine.cpp",
         "gl/GLExtensions.cpp",
         "gl/GLFramebuffer.cpp",
         "gl/GLImage.cpp",

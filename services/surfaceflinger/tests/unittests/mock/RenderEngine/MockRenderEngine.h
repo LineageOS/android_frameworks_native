@@ -38,7 +38,7 @@ public:
     MOCK_METHOD0(createFramebuffer, std::unique_ptr<Framebuffer>());
     MOCK_METHOD0(createImage, std::unique_ptr<renderengine::Image>());
     MOCK_CONST_METHOD0(primeCache, void());
-    MOCK_METHOD1(dump, void(String8&));
+    MOCK_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(useNativeFenceSync, bool());
     MOCK_CONST_METHOD0(useWaitSync, bool());
     MOCK_CONST_METHOD0(isCurrent, bool());

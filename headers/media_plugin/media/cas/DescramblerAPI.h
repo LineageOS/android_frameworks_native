@@ -72,12 +72,12 @@ struct DescramblerPlugin {
     // associated MediaCas session is used to load decryption keys
     // into the crypto/cas plugin.  The keys are then referenced by key-id
     // in the 'key' parameter to the decrypt() method.
-    // Should return NO_ERROR on success, ERROR_DRM_SESSION_NOT_OPENED if
+    // Should return NO_ERROR on success, ERROR_CAS_SESSION_NOT_OPENED if
     // the session is not opened and a code from MediaErrors.h otherwise.
     virtual status_t setMediaCasSession(const CasSessionId& sessionId) = 0;
 
     // If the error returned falls into the range
-    // ERROR_DRM_VENDOR_MIN..ERROR_DRM_VENDOR_MAX, errorDetailMsg should be
+    // ERROR_CAS_VENDOR_MIN..ERROR_CAS_VENDOR_MAX, errorDetailMsg should be
     // filled in with an appropriate string.
     // At the java level these special errors will then trigger a
     // MediaCodec.CryptoException that gives clients access to both

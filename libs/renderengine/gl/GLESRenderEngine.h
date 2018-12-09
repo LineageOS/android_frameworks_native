@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SF_GLES20RENDERENGINE_H_
-#define SF_GLES20RENDERENGINE_H_
+#ifndef SF_GLESRENDERENGINE_H_
+#define SF_GLESRENDERENGINE_H_
 
 #include <stdint.h>
 #include <sys/types.h>
@@ -30,8 +30,6 @@
 
 namespace android {
 
-class String8;
-
 namespace renderengine {
 
 class Mesh;
@@ -41,14 +39,14 @@ namespace gl {
 
 class GLImage;
 
-class GLES20RenderEngine : public impl::RenderEngine {
+class GLESRenderEngine : public impl::RenderEngine {
 public:
-    static std::unique_ptr<GLES20RenderEngine> create(int hwcFormat, uint32_t featureFlags);
+    static std::unique_ptr<GLESRenderEngine> create(int hwcFormat, uint32_t featureFlags);
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
-    GLES20RenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
-                       EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
-    ~GLES20RenderEngine() override;
+    GLESRenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
+                     EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
+    ~GLESRenderEngine() override;
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
     std::unique_ptr<Image> createImage() override;
@@ -79,7 +77,7 @@ public:
     EGLConfig getEGLConfig() const { return mEGLConfig; }
 
 protected:
-    void dump(String8& result) override;
+    void dump(std::string& result) override;
     void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                   ui::Transform::orientation_flags rotation) override;
     void setupLayerBlending(bool premultipliedAlpha, bool opaque, bool disableTexture,
@@ -165,4 +163,4 @@ private:
 } // namespace renderengine
 } // namespace android
 
-#endif /* SF_GLES20RENDERENGINE_H_ */
+#endif /* SF_GLESRENDERENGINE_H_ */
