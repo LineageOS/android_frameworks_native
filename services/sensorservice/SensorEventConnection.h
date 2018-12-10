@@ -165,6 +165,8 @@ private:
 
     sensors_event_t *mEventCache;
     int mCacheSize, mMaxCacheSize;
+    int64_t mTimeOfLastEventDrop;
+    int mEventsDropped;
     String8 mPackageName;
     const String16 mOpPackageName;
 #if DEBUG_CONNECTIONS
