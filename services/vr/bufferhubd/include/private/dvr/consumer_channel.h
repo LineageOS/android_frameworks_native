@@ -26,6 +26,7 @@ class ConsumerChannel : public BufferHubChannel {
   uint64_t client_state_mask() const { return client_state_mask_; }
   BufferInfo GetBufferInfo() const override;
 
+  void OnProducerGained();
   void OnProducerPosted();
   void OnProducerClosed();
 
