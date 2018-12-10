@@ -1666,11 +1666,6 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
     }
     for (const sp<Layer>& child : mCurrentChildren) {
         newParent->addChild(child);
-
-        sp<Client> client(child->mClientRef.promote());
-        if (client != nullptr) {
-            client->updateParent(newParent);
-        }
     }
     mCurrentChildren.clear();
 
@@ -1703,13 +1698,6 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
 
     if (!newParent->isRemovedFromCurrentState()) {
         addToCurrentState();
-    }
-
-    sp<Client> client(mClientRef.promote());
-    sp<Client> newParentClient(newParent->mClientRef.promote());
-
-    if (client != newParentClient) {
-        client->updateParent(newParent);
     }
 
     Mutex::Autolock lock(mStateMutex);

@@ -437,7 +437,6 @@ private:
      * ISurfaceComposer interface
      */
     virtual sp<ISurfaceComposerClient> createConnection();
-    virtual sp<ISurfaceComposerClient> createScopedConnection(const sp<IGraphicBufferProducer>& gbp);
     virtual sp<IBinder> createDisplay(const String8& displayName, bool secure);
     virtual void destroyDisplay(const sp<IBinder>& displayToken);
     virtual sp<IBinder> getBuiltInDisplay(int32_t id);
@@ -620,7 +619,8 @@ private:
             const sp<IBinder>& handle,
             const sp<IGraphicBufferProducer>& gbc,
             const sp<Layer>& lbc,
-            const sp<Layer>& parent);
+            const sp<Layer>& parent,
+            bool addToCurrentState);
 
     /* ------------------------------------------------------------------------
      * Boot animation, on/off animations and screen capture

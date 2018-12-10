@@ -458,19 +458,6 @@ sp<ISurfaceComposerClient> SurfaceFlinger::createConnection() {
     return initClient(new Client(this));
 }
 
-sp<ISurfaceComposerClient> SurfaceFlinger::createScopedConnection(
-        const sp<IGraphicBufferProducer>& gbp) {
-    if (authenticateSurfaceTexture(gbp) == false) {
-        return nullptr;
-    }
-    const auto& layer = (static_cast<MonitoredProducer*>(gbp.get()))->getLayer();
-    if (layer == nullptr) {
-        return nullptr;
-    }
-
-   return initClient(new Client(this, layer));
-}
-
 sp<IBinder> SurfaceFlinger::createDisplay(const String8& displayName,
         bool secure)
 {
@@ -3243,7 +3230,8 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         const sp<IBinder>& handle,
         const sp<IGraphicBufferProducer>& gbc,
         const sp<Layer>& lbc,
-        const sp<Layer>& parent)
+        const sp<Layer>& parent,
+        bool addToCurrentState)
 {
     // add this layer to the current state list
     {
@@ -3253,13 +3241,12 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
                   MAX_LAYERS);
             return NO_MEMORY;
         }
-        if (parent == nullptr) {
+        if (parent == nullptr && addToCurrentState) {
             mCurrentState.layersSortedByZ.add(lbc);
-        } else {
-            if (parent->isRemovedFromCurrentState()) {
+        } else if (parent == nullptr || parent->isRemovedFromCurrentState()) {
                 ALOGE("addClientLayer called with a removed parent");
                 lbc->onRemovedFromCurrentState();
-            }
+        } else {
             parent->addChild(lbc);
         }
 
@@ -3864,7 +3851,9 @@ status_t SurfaceFlinger::createLayer(
 
     layer->setInfo(windowType, ownerUid);
 
-    result = addClientLayer(client, *handle, *gbp, layer, *parent);
+    bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
+    result = addClientLayer(client, *handle, *gbp, layer, *parent,
+            addToCurrentState);
     if (result != NO_ERROR) {
         return result;
     }
@@ -4828,7 +4817,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // access to SF.
         case BOOT_FINISHED:
         case CLEAR_ANIMATION_FRAME_STATS:
-        case CREATE_CONNECTION:
         case CREATE_DISPLAY:
         case DESTROY_DISPLAY:
         case ENABLE_VSYNC_INJECTIONS:
@@ -4875,8 +4863,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // Calling setTransactionState is safe, because you need to have been
         // granted a reference to Client* and Handle* to do anything with it.
         case SET_TRANSACTION_STATE:
-        // Creating a scoped connection is safe, as per discussion in ISurfaceComposer.h
-        case CREATE_SCOPED_CONNECTION:
+        case CREATE_CONNECTION:
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE: {
             return OK;

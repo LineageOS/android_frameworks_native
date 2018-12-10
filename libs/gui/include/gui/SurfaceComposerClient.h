@@ -90,7 +90,6 @@ class SurfaceComposerClient : public RefBase
 public:
                 SurfaceComposerClient();
                 SurfaceComposerClient(const sp<ISurfaceComposerClient>& client);
-                SurfaceComposerClient(const sp<IGraphicBufferProducer>& parent);
     virtual     ~SurfaceComposerClient();
 
     // Always make sure we could initialize
@@ -402,7 +401,6 @@ private:
     mutable     Mutex                       mLock;
                 status_t                    mStatus;
                 sp<ISurfaceComposerClient>  mClient;
-                wp<IGraphicBufferProducer>  mParent;
 };
 
 // ---------------------------------------------------------------------------

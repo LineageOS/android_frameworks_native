@@ -545,10 +545,6 @@ public:
     }
 
     sp<ISurfaceComposerClient> createConnection() override { return nullptr; }
-    sp<ISurfaceComposerClient> createScopedConnection(
-            const sp<IGraphicBufferProducer>& /* parent */) override {
-        return nullptr;
-    }
     sp<IDisplayEventConnection> createDisplayEventConnection(ISurfaceComposer::VsyncSource)
             override {
         return nullptr;

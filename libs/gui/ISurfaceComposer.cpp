@@ -63,16 +63,6 @@ public:
         return interface_cast<ISurfaceComposerClient>(reply.readStrongBinder());
     }
 
-    virtual sp<ISurfaceComposerClient> createScopedConnection(
-            const sp<IGraphicBufferProducer>& parent)
-    {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeStrongBinder(IInterface::asBinder(parent));
-        remote()->transact(BnSurfaceComposer::CREATE_SCOPED_CONNECTION, data, &reply);
-        return interface_cast<ISurfaceComposerClient>(reply.readStrongBinder());
-    }
-
     virtual void setTransactionState(const Vector<ComposerState>& state,
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
@@ -708,14 +698,6 @@ status_t BnSurfaceComposer::onTransact(
         case CREATE_CONNECTION: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             sp<IBinder> b = IInterface::asBinder(createConnection());
-            reply->writeStrongBinder(b);
-            return NO_ERROR;
-        }
-        case CREATE_SCOPED_CONNECTION: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            sp<IGraphicBufferProducer> bufferProducer =
-                interface_cast<IGraphicBufferProducer>(data.readStrongBinder());
-            sp<IBinder> b = IInterface::asBinder(createScopedConnection(bufferProducer));
             reply->writeStrongBinder(b);
             return NO_ERROR;
         }
