@@ -39,6 +39,9 @@ cc_library_shared {
         "-Wno-switch-enum",
         "-Wno-undef",
 
+        // Have clang emit complete debug_info.
+        "-fstandalone-debug",
+
         //"-DLOG_NDEBUG=0",
     ],
 
