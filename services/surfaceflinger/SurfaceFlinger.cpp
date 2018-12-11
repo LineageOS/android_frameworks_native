@@ -981,6 +981,21 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>& /* display */,
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::getDisplayViewport(const sp<IBinder>& display, Rect* outViewport) {
+    if (outViewport == nullptr || display.get() == nullptr) {
+        return BAD_VALUE;
+    }
+
+    sp<const DisplayDevice> device(getDisplayDevice(display));
+    if (device == nullptr) {
+        return BAD_VALUE;
+    }
+
+    *outViewport = device->getViewport();
+
+    return NO_ERROR;
+}
+
 int SurfaceFlinger::getActiveConfig(const sp<IBinder>& display) {
     if (display == nullptr) {
         ALOGE("%s : display is nullptr", __func__);
@@ -2180,11 +2195,15 @@ void SurfaceFlinger::postFramebuffer()
         displayDevice->onSwapBuffersCompleted();
         displayDevice->makeCurrent();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+            sp<Fence> releaseFence = Fence::NO_FENCE;
+
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
             auto hwcLayer = layer->getHwcLayer(hwcId);
-            sp<Fence> releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            if (hwcId >= 0) {
+                releaseFence = getBE().mHwc->getLayerReleaseFence(hwcId, hwcLayer);
+            }
 
             // If the layer was client composited in the previous frame, we
             // need to merge with the previous client target acquire fence.
@@ -2331,8 +2350,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const sp<DisplaySurface>& dispSurface, const sp<IGraphicBufferProducer>& producer) {
     bool hasWideColorGamut = false;
     std::unordered_map<ColorMode, std::vector<RenderIntent>> hwcColorModes;
+    HdrCapabilities hdrCapabilities;
+    int32_t supportedPerFrameMetadata = 0;
 
-    if (hasWideColorDisplay) {
+    if (hasWideColorDisplay && hwcId >= 0) {
         std::vector<ColorMode> modes = getHwComposer().getColorModes(hwcId);
         for (ColorMode colorMode : modes) {
             switch (colorMode) {
@@ -2351,8 +2372,10 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         }
     }
 
-    HdrCapabilities hdrCapabilities;
-    getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+    if (hwcId >= 0) {
+        getHwComposer().getHdrCapabilities(hwcId, &hdrCapabilities);
+        supportedPerFrameMetadata = getHwComposer().getSupportedPerFrameMetadata(hwcId);
+    }
 
     auto nativeWindowSurface = mCreateNativeWindowSurface(producer);
     auto nativeWindow = nativeWindowSurface->getNativeWindow();
@@ -2386,8 +2409,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
             new DisplayDevice(this, state.type, hwcId, state.isSecure, display, nativeWindow,
                               dispSurface, std::move(renderSurface), displayWidth, displayHeight,
                               hasWideColorGamut, hdrCapabilities,
-                              getHwComposer().getSupportedPerFrameMetadata(hwcId),
-                              hwcColorModes, initialPowerMode);
+                              supportedPerFrameMetadata, hwcColorModes, initialPowerMode);
 
     if (maxFrameBufferAcquiredBuffers >= 3) {
         nativeWindowSurface->preallocateBuffers();
@@ -3038,22 +3060,17 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<const DisplayDevice>& displayDev
             }
         }
 
-        if (displayDevice->getDisplayType() != DisplayDevice::DISPLAY_PRIMARY) {
-            // just to be on the safe side, we don't set the
-            // scissor on the main display. It should never be needed
-            // anyways (though in theory it could since the API allows it).
-            const Rect& bounds(displayDevice->getBounds());
-            const Rect& scissor(displayDevice->getScissor());
-            if (scissor != bounds) {
-                // scissor doesn't match the screen's dimensions, so we
-                // need to clear everything outside of it and enable
-                // the GL scissor so we don't draw anything where we shouldn't
+        const Rect& bounds(displayDevice->getBounds());
+        const Rect& scissor(displayDevice->getScissor());
+        if (scissor != bounds) {
+            // scissor doesn't match the screen's dimensions, so we
+            // need to clear everything outside of it and enable
+            // the GL scissor so we don't draw anything where we shouldn't
 
-                // enable scissor for this frame
-                const uint32_t height = displayDevice->getHeight();
-                getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
-                        scissor.getWidth(), scissor.getHeight());
-            }
+            // enable scissor for this frame
+            const uint32_t height = displayDevice->getHeight();
+            getBE().mRenderEngine->setScissor(scissor.left, height - scissor.bottom,
+                                              scissor.getWidth(), scissor.getHeight());
         }
     }
 
@@ -4820,6 +4837,16 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& display, sp<GraphicBuf
 
     const sp<const DisplayDevice> device(getDisplayDeviceLocked(display));
     if (CC_UNLIKELY(device == 0)) return BAD_VALUE;
+
+    const Rect& dispScissor = device->getScissor();
+    if (!dispScissor.isEmpty()) {
+        sourceCrop.set(dispScissor);
+        // adb shell screencap will default reqWidth and reqHeight to zeros.
+        if (reqWidth == 0 || reqHeight == 0) {
+            reqWidth = uint32_t(device->getViewport().width());
+            reqHeight = uint32_t(device->getViewport().height());
+        }
+    }
 
     DisplayRenderArea renderArea(device, sourceCrop, reqHeight, reqWidth, rotation);
 
