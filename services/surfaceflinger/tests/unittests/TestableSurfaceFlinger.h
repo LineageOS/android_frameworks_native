@@ -227,9 +227,8 @@ public:
 
     auto onInitializeDisplays() { return mFlinger->onInitializeDisplays(); }
 
-    auto setPowerModeInternal(const sp<DisplayDevice>& display, int mode,
-                              bool stateLockHeld = false) {
-        return mFlinger->setPowerModeInternal(display, mode, stateLockHeld);
+    auto setPowerModeInternal(const sp<DisplayDevice>& display, int mode) {
+        return mFlinger->setPowerModeInternal(display, mode);
     }
 
     auto onMessageReceived(int32_t what) { return mFlinger->onMessageReceived(what); }

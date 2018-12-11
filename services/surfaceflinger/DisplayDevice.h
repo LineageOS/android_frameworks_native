@@ -112,6 +112,7 @@ public:
 
     const std::optional<DisplayId>& getId() const { return mId; }
     const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
+    int32_t getSequenceId() const { return mSequenceId; }
 
     int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
 
@@ -205,6 +206,7 @@ public:
 private:
     const sp<SurfaceFlinger> mFlinger;
     const wp<IBinder> mDisplayToken;
+    const int32_t mSequenceId;
 
     std::optional<DisplayId> mId;
 
@@ -332,6 +334,7 @@ struct DisplayDeviceCreationArgs {
     const wp<IBinder> displayToken;
     const std::optional<DisplayId> displayId;
 
+    int32_t sequenceId{0};
     bool isVirtual{false};
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;

@@ -222,6 +222,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
       : lastCompositionHadVisibleLayers(false),
         mFlinger(args.flinger),
         mDisplayToken(args.displayToken),
+        mSequenceId(args.sequenceId),
         mId(args.displayId),
         mNativeWindow(args.nativeWindow),
         mGraphicBuffer(nullptr),
