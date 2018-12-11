@@ -224,15 +224,17 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   uint64_t current_fence_state = fence_state_->load(std::memory_order_acquire);
   uint64_t current_active_clients_bit_mask =
       active_clients_bit_mask_->load(std::memory_order_acquire);
-  // If there is an release fence from consumer, we need to return it.
+  // If there are release fence(s) from consumer(s), we need to return it to the
+  // consumer(s).
   // TODO(b/112007999) add an atomic variable in metadata header in shared
   // memory to indicate which client is the last producer of the buffer.
   // Currently, assume the first client is the only producer to the buffer.
   if (current_fence_state & current_active_clients_bit_mask &
       (~BufferHubDefs::kFirstClientBitMask)) {
     *out_fence = shared_release_fence_.Duplicate();
-    out_meta->release_fence_mask =
-        current_fence_state & current_active_clients_bit_mask;
+    out_meta->release_fence_mask = current_fence_state &
+                                   current_active_clients_bit_mask &
+                                   (~BufferHubDefs::kFirstClientBitMask);
   }
 
   return 0;

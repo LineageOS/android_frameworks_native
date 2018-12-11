@@ -424,7 +424,7 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
   // Signal any interested consumers. If there are none, the buffer will stay
   // in posted state until a consumer comes online. This behavior guarantees
   // that no frame is silently dropped.
-  for (auto consumer : consumer_channels_) {
+  for (auto& consumer : consumer_channels_) {
     consumer->OnProducerPosted();
   }
 
@@ -437,6 +437,9 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
 
   ClearAvailable();
   post_fence_.close();
+  for (auto& consumer : consumer_channels_) {
+    consumer->OnProducerGained();
+  }
   return {std::move(returned_fence_)};
 }
 
@@ -533,7 +536,7 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
 
   uint64_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  if (BufferHubDefs::IsClientReleased(current_buffer_state,
+  if (BufferHubDefs::IsBufferReleased(current_buffer_state &
                                       ~orphaned_consumer_bit_mask_)) {
     SignalAvailable();
     if (orphaned_consumer_bit_mask_) {
@@ -560,7 +563,7 @@ void ProducerChannel::OnConsumerOrphaned(const uint64_t& consumer_state_mask) {
 
   uint64_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  if (BufferHubDefs::IsClientReleased(current_buffer_state,
+  if (BufferHubDefs::IsBufferReleased(current_buffer_state &
                                       ~orphaned_consumer_bit_mask_)) {
     SignalAvailable();
   }
