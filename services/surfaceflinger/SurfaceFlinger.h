@@ -17,14 +17,13 @@
 #ifndef ANDROID_SURFACE_FLINGER_H
 #define ANDROID_SURFACE_FLINGER_H
 
-#include <memory>
-#include <stdint.h>
 #include <sys/types.h>
 
 /*
  * NOTE: Make sure this file doesn't include  anything from <gl/ > or <gl2/ >
  */
 
+#include <android-base/thread_annotations.h>
 #include <cutils/atomic.h>
 #include <cutils/compiler.h>
 #include <gui/BufferQueue.h>
@@ -66,7 +65,10 @@
 #include "SurfaceTracing.h"
 #include "TransactionCompletedThread.h"
 
+#include <atomic>
+#include <cstdint>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <queue>
 #include <set>
@@ -489,13 +491,13 @@ private:
     void signalRefresh();
 
     // called on the main thread in response to initializeDisplays()
-    void onInitializeDisplays();
+    void onInitializeDisplays() REQUIRES(mStateLock);
     // setActiveConfigInternal() posted on a main thread for async execution
     status_t setActiveConfigAsync(const sp<IBinder>& displayToken, int mode);
     // called on the main thread in response to setActiveConfig()
-    void setActiveConfigInternal(const sp<IBinder>& displayToken, int mode);
+    void setActiveConfigInternal(const sp<IBinder>& displayToken, int mode) REQUIRES(mStateLock);
     // called on the main thread in response to setPowerMode()
-    void setPowerModeInternal(const sp<DisplayDevice>& display, int mode);
+    void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
     // Called on the main thread in response to setActiveColorMode()
     void setActiveColorModeInternal(const sp<DisplayDevice>& display, ui::ColorMode colorMode,
@@ -746,31 +748,34 @@ private:
     /* ------------------------------------------------------------------------
      * VSync
      */
+    nsecs_t getVsyncPeriod() const REQUIRES(mStateLock);
     void enableHardwareVsync();
-    void resyncToHardwareVsync(bool makeAvailable);
+    void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
     void disableHardwareVsync(bool makeUnavailable);
 
     // Sets the refresh rate to newFps by switching active configs, if they are available for
     // the desired refresh rate.
     void setRefreshRateTo(float newFps);
 
+    using GetVsyncPeriod = std::function<nsecs_t()>;
+
     // Stores per-display state about VSYNC.
     struct VsyncState {
         explicit VsyncState(SurfaceFlinger& flinger) : flinger(flinger) {}
 
-        void resync();
+        void resync(const GetVsyncPeriod&);
 
         SurfaceFlinger& flinger;
-        nsecs_t lastResyncTime = 0;
+        std::atomic<nsecs_t> lastResyncTime = 0;
     };
 
     const std::shared_ptr<VsyncState> mPrimaryVsyncState{std::make_shared<VsyncState>(*this)};
 
-    auto makeResyncCallback() {
+    auto makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod) {
         std::weak_ptr<VsyncState> ptr = mPrimaryVsyncState;
-        return [ptr]() {
+        return [ptr, getVsyncPeriod = std::move(getVsyncPeriod)]() {
             if (const auto vsync = ptr.lock()) {
-                vsync->resync();
+                vsync->resync(getVsyncPeriod);
             }
         };
     }
@@ -820,9 +825,11 @@ private:
     }
 
     void listLayersLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
-    void dumpStatsLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
+    void dumpStatsLocked(const Vector<String16>& args, size_t& index, std::string& result) const
+            REQUIRES(mStateLock);
     void clearStatsLocked(const Vector<String16>& args, size_t& index, std::string& result);
-    void dumpAllLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
+    void dumpAllLocked(const Vector<String16>& args, size_t& index, std::string& result) const
+            REQUIRES(mStateLock);
     bool startDdmConnection();
     void appendSfConfigString(std::string& result) const;
 
