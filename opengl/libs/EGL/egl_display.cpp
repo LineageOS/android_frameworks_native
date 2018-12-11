@@ -378,7 +378,8 @@ EGLBoolean egl_display_t::initialize(EGLint *major, EGLint *minor) {
         if (wideColorBoardConfig && hasColorSpaceSupport) {
             mExtensionString.append(
                     "EGL_EXT_gl_colorspace_scrgb EGL_EXT_gl_colorspace_scrgb_linear "
-                    "EGL_EXT_gl_colorspace_display_p3_linear EGL_EXT_gl_colorspace_display_p3 ");
+                    "EGL_EXT_gl_colorspace_display_p3_linear EGL_EXT_gl_colorspace_display_p3 "
+                    "EGL_EXT_gl_colorspace_display_p3_passthrough ");
         }
 
         bool hasHdrBoardConfig =
