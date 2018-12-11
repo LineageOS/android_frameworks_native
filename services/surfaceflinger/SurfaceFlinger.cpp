@@ -734,24 +734,6 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    // This is a hack. Per definition of getDataspaceSaturationMatrix, the returned matrix
-    // is used to saturate legacy sRGB content. However, to make sure the same color under
-    // Display P3 will be saturated to the same color, we intentionally break the API spec
-    // and apply this saturation matrix on Display P3 content. Unless the risk of applying
-    // such saturation matrix on Display P3 is understood fully, the API should always return
-    // identify matrix.
-    mEnhancedSaturationMatrix =
-            getHwComposer().getDataspaceSaturationMatrix(*display->getId(), Dataspace::SRGB_LINEAR);
-
-    // we will apply this on Display P3.
-    if (mEnhancedSaturationMatrix != mat4()) {
-        ColorSpace srgb(ColorSpace::sRGB());
-        ColorSpace displayP3(ColorSpace::DisplayP3());
-        mat4 srgbToP3 = mat4(ColorSpaceConnector(srgb, displayP3).getTransform());
-        mat4 p3ToSrgb = mat4(ColorSpaceConnector(displayP3, srgb).getTransform());
-        mEnhancedSaturationMatrix = srgbToP3 * mEnhancedSaturationMatrix * p3ToSrgb;
-    }
-
     ALOGV("Done initializing");
 }
 
@@ -2106,7 +2088,7 @@ void SurfaceFlinger::rebuildLayerStacks() {
 //  - Dataspace::BT2020_PQ
 Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& display,
                                            Dataspace* outHdrDataSpace) const {
-    Dataspace bestDataSpace = Dataspace::SRGB;
+    Dataspace bestDataSpace = Dataspace::V0_SRGB;
     *outHdrDataSpace = Dataspace::UNKNOWN;
 
     for (const auto& layer : display->getVisibleLayersSortedByZ()) {
@@ -2431,7 +2413,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     Dataspace defaultDataSpace = Dataspace::UNKNOWN;
     if (display->hasWideColorGamut()) {
         defaultColorMode = ColorMode::SRGB;
-        defaultDataSpace = Dataspace::SRGB;
+        defaultDataSpace = Dataspace::V0_SRGB;
     }
     setActiveColorModeInternal(display, defaultColorMode, defaultDataSpace,
                                RenderIntent::COLORIMETRIC);
@@ -3085,7 +3067,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
 
     mat4 colorMatrix;
     bool applyColorMatrix = false;
-    bool needsEnhancedColorMatrix = false;
 
     // Framebuffer will live in this scope for GPU composition.
     std::unique_ptr<renderengine::BindNativeBufferAsFramebuffer> fbo;
@@ -3130,16 +3111,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
             colorMatrix = mDrawingState.colorMatrix;
-        }
-
-        // The current enhanced saturation matrix is designed to enhance Display P3,
-        // thus we only apply this matrix when the render intent is not colorimetric
-        // and the output color space is Display P3.
-        needsEnhancedColorMatrix =
-            (display->getActiveRenderIntent() >= RenderIntent::ENHANCE &&
-             outputDataspace == Dataspace::DISPLAY_P3);
-        if (needsEnhancedColorMatrix) {
-            colorMatrix *= mEnhancedSaturationMatrix;
         }
 
         display->setViewportAndProjection();
@@ -3216,9 +3187,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
                             tmpMatrix = mDrawingState.colorMatrix;
                         }
                         tmpMatrix *= layer->getColorTransform();
-                        if (needsEnhancedColorMatrix) {
-                            tmpMatrix *= mEnhancedSaturationMatrix;
-                        }
                         getRenderEngine().setColorTransform(tmpMatrix);
                     } else {
                         getRenderEngine().setColorTransform(colorMatrix);

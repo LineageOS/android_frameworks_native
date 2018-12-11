@@ -1144,7 +1144,7 @@ TEST_F(GetBestColorModeTest, DataspaceDisplayP3_ColorModeSRGB) {
 
     getBestColorMode();
 
-    ASSERT_EQ(ui::Dataspace::SRGB, mOutDataspace);
+    ASSERT_EQ(ui::Dataspace::V0_SRGB, mOutDataspace);
     ASSERT_EQ(ui::ColorMode::SRGB, mOutColorMode);
     ASSERT_EQ(ui::RenderIntent::COLORIMETRIC, mOutRenderIntent);
 }
