@@ -34,7 +34,7 @@ TEST(SurfaceFlingerStress, create_and_destroy) {
             auto surf = client->createSurface(String8("t"), 100, 100,
                     PIXEL_FORMAT_RGBA_8888, 0);
             ASSERT_TRUE(surf != nullptr);
-            client->destroySurface(surf->getHandle());
+            surf->clear();
         }
     };
 

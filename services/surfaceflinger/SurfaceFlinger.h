@@ -569,7 +569,6 @@ private:
     bool composerStateContainsUnsignaledFences(const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
-    void setDestroyStateLocked(const ComposerState& composerState);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands);
 
     /* ------------------------------------------------------------------------
@@ -599,20 +598,11 @@ private:
 
     String8 getUniqueLayerName(const String8& name);
 
-    // called in response to the window-manager calling
-    // ISurfaceComposerClient::destroySurface()
-    status_t onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle);
-
-    void markLayerPendingRemovalLocked(const Mutex& /* mStateLock */, const sp<Layer>& layer);
-
     // called when all clients have released all their references to
     // this layer meaning it is entirely safe to destroy all
     // resources associated to this layer.
     void onHandleDestroyed(sp<Layer>& layer);
-
-    // remove a layer from SurfaceFlinger immediately
-    status_t removeLayer(const sp<Layer>& layer);
-    status_t removeLayerLocked(const Mutex&, const sp<Layer>& layer);
+    void markLayerPendingRemovalLocked(const sp<Layer>& layer);
 
     // add a layer to SurfaceFlinger
     status_t addClientLayer(const sp<Client>& client,

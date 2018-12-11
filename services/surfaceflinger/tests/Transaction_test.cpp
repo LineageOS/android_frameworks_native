@@ -1023,7 +1023,7 @@ TEST_P(LayerTypeTransactionTest, SetRelativeZBug64572777) {
             .setRelativeLayer(layerG, layerR->getHandle(), 1)
             .apply();
 
-    mClient->destroySurface(layerG->getHandle());
+    layerG->clear();
     // layerG should have been removed
     screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
@@ -4030,9 +4030,9 @@ TEST_F(ChildLayerTest, ReparentToNoParent) {
     asTransaction([&](Transaction& t) { t.reparent(mChild, nullptr); });
     {
         mCapture = screenshot();
-        // Nothing should have changed.
+        // The surface should now be offscreen.
         mCapture->expectFGColor(64, 64);
-        mCapture->expectChildColor(74, 74);
+        mCapture->expectFGColor(74, 74);
         mCapture->expectFGColor(84, 84);
     }
 }
@@ -4610,7 +4610,7 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
 
     auto redLayerHandle = redLayer->getHandle();
-    mClient->destroySurface(redLayerHandle);
+    redLayer->clear();
     SurfaceComposerClient::Transaction().apply(true);
 
     sp<GraphicBuffer> outBuffer;

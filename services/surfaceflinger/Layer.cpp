@@ -179,6 +179,8 @@ void Layer::onRemovedFromCurrentState() {
     for (const auto& child : mCurrentChildren) {
         child->onRemovedFromCurrentState();
     }
+
+    mFlinger->markLayerPendingRemovalLocked(this);
 }
 
 void Layer::addToCurrentState() {
@@ -1571,6 +1573,7 @@ void Layer::addChild(const sp<Layer>& layer) {
 
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
     layer->setParent(nullptr);
+
     return mCurrentChildren.remove(layer);
 }
 
@@ -1605,14 +1608,14 @@ void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
 }
 
 bool Layer::reparent(const sp<IBinder>& newParentHandle) {
-    if (newParentHandle == nullptr) {
-        return false;
-    }
+    bool callSetTransactionFlags = false;
 
-    auto handle = static_cast<Handle*>(newParentHandle.get());
-    sp<Layer> newParent = handle->owner.promote();
-    if (newParent == nullptr) {
-        ALOGE("Unable to promote Layer handle");
+    // While layers are detached, we allow most operations
+    // and simply halt performing the actual transaction. However
+    // for reparent != null we would enter the mRemovedFromCurrentState
+    // state, regardless of whether doTransaction was called, and
+    // so we need to prevent the update here.
+    if (mLayerDetached && newParentHandle == nullptr) {
         return false;
     }
 
@@ -1620,17 +1623,31 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
     if (parent != nullptr) {
         parent->removeChild(this);
     }
-    newParent->addChild(this);
 
-    if (!newParent->isRemovedFromCurrentState()) {
-        addToCurrentState();
+    if (newParentHandle != nullptr) {
+        auto handle = static_cast<Handle*>(newParentHandle.get());
+        sp<Layer> newParent = handle->owner.promote();
+        if (newParent == nullptr) {
+            ALOGE("Unable to promote Layer handle");
+            return false;
+        }
+
+        newParent->addChild(this);
+        if (!newParent->isRemovedFromCurrentState()) {
+            addToCurrentState();
+        } else {
+            onRemovedFromCurrentState();
+        }
+
+        if (mLayerDetached) {
+            mLayerDetached = false;
+            callSetTransactionFlags = true;
+        }
+    } else {
+        onRemovedFromCurrentState();
     }
 
-    if (mLayerDetached) {
-        mLayerDetached = false;
-        setTransactionFlags(eTransactionNeeded);
-    }
-    if (attachChildren()) {
+    if (callSetTransactionFlags || attachChildren()) {
         setTransactionFlags(eTransactionNeeded);
     }
     return true;

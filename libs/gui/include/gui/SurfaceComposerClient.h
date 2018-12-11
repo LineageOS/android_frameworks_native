@@ -145,6 +145,13 @@ public:
                                              ui::Dataspace* wideColorGamutDataspace,
                                              ui::PixelFormat* wideColorGamutPixelFormat);
 
+    /**
+     * Called from SurfaceControl d'tor to 'destroy' the surface (or rather, reparent it
+     * to null), but without needing an sp<SurfaceControl> to avoid infinite ressurection.
+     */
+    static void doDropReferenceTransaction(const sp<IBinder>& handle,
+            const sp<ISurfaceComposerClient>& client);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
@@ -338,8 +345,6 @@ public:
         Transaction& transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
 #endif
 
-        Transaction& destroySurface(const sp<SurfaceControl>& sc);
-
         // Set a color transform matrix on the given layer on the built-in display.
         Transaction& setColorTransform(const sp<SurfaceControl>& sc, const mat3& matrix,
                                        const vec3& translation);
@@ -367,8 +372,6 @@ public:
         void setAnimationTransaction();
         void setEarlyWakeup();
     };
-
-    status_t    destroySurface(const sp<IBinder>& id);
 
     status_t clearLayerFrameStats(const sp<IBinder>& token) const;
     status_t getLayerFrameStats(const sp<IBinder>& token, FrameStats* outStats) const;
