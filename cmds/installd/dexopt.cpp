@@ -332,8 +332,8 @@ class RunDex2Oat : public ExecVHelper {
             MapPropertyToArg("dalvik.vm.dex2oat-very-large", "--very-large-app-threshold=%s");
 
         // If the runtime was requested to use libartd.so, we'll run dex2oatd, otherwise dex2oat.
-        const char* dex2oat_bin = "/system/bin/dex2oat";
-        constexpr const char* kDex2oatDebugPath = "/system/bin/dex2oatd";
+        const char* dex2oat_bin = "/apex/com.android.runtime/bin/dex2oat";
+        constexpr const char* kDex2oatDebugPath = "/apex/com.android.runtime/bin/dex2oatd";
         // Do not use dex2oatd for release candidates (give dex2oat more soak time).
         bool is_release = android::base::GetProperty("ro.build.version.codename", "") == "REL";
         if (is_debug_runtime() ||
@@ -663,7 +663,9 @@ class RunProfman : public ExecVHelper {
                   bool copy_and_update,
                   bool store_aggregation_counters) {
         const char* profman_bin =
-                is_debug_runtime() ? "/system/bin/profmand" : "/system/bin/profman";
+            is_debug_runtime()
+                ? "/apex/com.android.runtime/bin/profmand"
+                : "/apex/com.android.runtime/bin/profman";
 
         if (copy_and_update) {
             CHECK_EQ(1u, profile_fds.size());
@@ -1479,9 +1481,9 @@ class RunDexoptAnalyzer : public ExecVHelper {
                     const char* class_loader_context) {
         CHECK_GE(zip_fd, 0);
         const char* dexoptanalyzer_bin =
-                is_debug_runtime()
-                        ? "/system/bin/dexoptanalyzerd"
-                        : "/system/bin/dexoptanalyzer";
+            is_debug_runtime()
+                ? "/apex/com.android.runtime/bin/dexoptanalyzerd"
+                : "/apex/com.android.runtime/bin/dexoptanalyzer";
 
         std::string dex_file_arg = "--dex-file=" + dex_file;
         std::string oat_fd_arg = "--oat-fd=" + std::to_string(oat_fd);
