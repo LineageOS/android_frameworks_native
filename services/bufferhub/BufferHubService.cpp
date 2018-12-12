@@ -25,6 +25,7 @@
 #include <log/log.h>
 #include <openssl/hmac.h>
 #include <system/graphics-base.h>
+#include <ui/BufferHubDefs.h>
 
 using ::android::BufferHubDefs::MetadataHeader;
 using ::android::hardware::Void;
@@ -64,10 +65,12 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
     std::lock_guard<std::mutex> lock(mClientSetMutex);
     mClientSet.emplace(client);
 
+    hidl_handle bufferInfo =
+            buildBufferInfo(node->id(), node->AddNewActiveClientsBitToMask(),
+                            node->user_metadata_size(), node->metadata().ashmem_fd());
     BufferTraits bufferTraits = {/*bufferDesc=*/description,
                                  /*bufferHandle=*/hidl_handle(node->buffer_handle()),
-                                 // TODO(b/116681016): return real data to client
-                                 /*bufferInfo=*/hidl_handle()};
+                                 /*bufferInfo=*/bufferInfo};
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
              /*bufferTraits=*/bufferTraits);
@@ -151,10 +154,12 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
     HardwareBufferDescription bufferDesc;
     memcpy(&bufferDesc, &node->buffer_desc(), sizeof(HardwareBufferDescription));
 
+    hidl_handle bufferInfo =
+            buildBufferInfo(node->id(), clientStateMask, node->user_metadata_size(),
+                            node->metadata().ashmem_fd());
     BufferTraits bufferTraits = {/*bufferDesc=*/bufferDesc,
                                  /*bufferHandle=*/hidl_handle(node->buffer_handle()),
-                                 // TODO(b/116681016): return real data to client
-                                 /*bufferInfo=*/hidl_handle()};
+                                 /*bufferInfo=*/bufferInfo};
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
              /*bufferTraits=*/bufferTraits);
@@ -334,6 +339,26 @@ void BufferHubService::onClientClosed(const BufferClient* client) {
     if (iter != mClientSet.end()) {
         mClientSet.erase(iter);
     }
+}
+
+// Implementation of this function should be consistent with the definition of bufferInfo handle in
+// ui/BufferHubDefs.h.
+hidl_handle BufferHubService::buildBufferInfo(uint32_t bufferId, uint32_t clientBitMask,
+                                              uint32_t userMetadataSize, const int metadataFd) {
+    native_handle_t* infoHandle = native_handle_create(BufferHubDefs::kBufferInfoNumFds,
+                                                       BufferHubDefs::kBufferInfoNumInts);
+
+    infoHandle->data[0] = dup(metadataFd);
+    // Use memcpy to convert to int without missing digit.
+    // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
+    memcpy(&infoHandle->data[1], &bufferId, sizeof(bufferId));
+    memcpy(&infoHandle->data[2], &clientBitMask, sizeof(clientBitMask));
+    memcpy(&infoHandle->data[3], &userMetadataSize, sizeof(userMetadataSize));
+
+    hidl_handle bufferInfo;
+    bufferInfo.setTo(infoHandle, /*shouldOwn=*/true);
+
+    return bufferInfo;
 }
 
 void BufferHubService::removeTokenByClient(const BufferClient* client) {
