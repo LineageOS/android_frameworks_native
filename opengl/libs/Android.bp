@@ -208,6 +208,7 @@ cc_library_shared {
     defaults: ["gles_libs_defaults"],
     srcs: ["GLES2/gl2.cpp"],
     cflags: ["-DLOG_TAG=\"libGLESv2\""],
+    version_script: "libGLESv2.map.txt",
 }
 
 //##############################################################################
