@@ -853,13 +853,14 @@ class FakeInputReaderContext : public InputReaderContext {
     int32_t mGlobalMetaState;
     bool mUpdateGlobalMetaStateWasCalled;
     int32_t mGeneration;
+    uint32_t mNextSequenceNum;
 
 public:
     FakeInputReaderContext(const sp<EventHubInterface>& eventHub,
             const sp<InputReaderPolicyInterface>& policy,
             const sp<InputListenerInterface>& listener) :
             mEventHub(eventHub), mPolicy(policy), mListener(listener),
-            mGlobalMetaState(0) {
+            mGlobalMetaState(0), mNextSequenceNum(1) {
     }
 
     virtual ~FakeInputReaderContext() { }
@@ -922,6 +923,10 @@ private:
 
     virtual void dispatchExternalStylusState(const StylusState&) {
 
+    }
+
+    virtual uint32_t getNextSequenceNum() {
+        return mNextSequenceNum++;
     }
 };
 
@@ -1566,6 +1571,39 @@ TEST_F(InputReaderTest, LoopOnce_ForwardsRawEventsToMappers) {
     ASSERT_EQ(EV_KEY, event.type);
     ASSERT_EQ(KEY_A, event.code);
     ASSERT_EQ(1, event.value);
+}
+
+TEST_F(InputReaderTest, DeviceReset_IncrementsSequenceNumber) {
+    constexpr int32_t deviceId = 1;
+    constexpr uint32_t deviceClass = INPUT_DEVICE_CLASS_KEYBOARD;
+    InputDevice* device = mReader->newDevice(deviceId, 0, "fake", deviceClass);
+    // Must add at least one mapper or the device will be ignored!
+    FakeInputMapper* mapper = new FakeInputMapper(device, AINPUT_SOURCE_KEYBOARD);
+    device->addMapper(mapper);
+    mReader->setNextDevice(device);
+    addDevice(deviceId, "fake", deviceClass, nullptr);
+
+    NotifyDeviceResetArgs resetArgs;
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs));
+    uint32_t prevSequenceNum = resetArgs.sequenceNum;
+
+    disableDevice(deviceId, device);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
+    prevSequenceNum = resetArgs.sequenceNum;
+
+    enableDevice(deviceId, device);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
+    prevSequenceNum = resetArgs.sequenceNum;
+
+    disableDevice(deviceId, device);
+    mReader->loopOnce();
+    mFakeListener->assertNotifyDeviceResetWasCalled(&resetArgs);
+    ASSERT_TRUE(prevSequenceNum < resetArgs.sequenceNum);
+    prevSequenceNum = resetArgs.sequenceNum;
 }
 
 

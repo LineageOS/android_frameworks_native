@@ -236,8 +236,8 @@ static void synthesizeButtonKey(InputReaderContext* context, int32_t action,
             || (action == AKEY_EVENT_ACTION_UP
                     && (lastButtonState & buttonState)
                     && !(currentButtonState & buttonState))) {
-        NotifyKeyArgs args(when, deviceId, source, displayId, policyFlags,
-                action, 0, keyCode, 0, context->getGlobalMetaState(), when);
+        NotifyKeyArgs args(context->getNextSequenceNum(), when, deviceId, source, displayId,
+                policyFlags, action, 0, keyCode, 0, context->getGlobalMetaState(), when);
         context->getListener()->notifyKey(&args);
     }
 }
@@ -261,7 +261,7 @@ InputReader::InputReader(const sp<EventHubInterface>& eventHub,
         const sp<InputReaderPolicyInterface>& policy,
         const sp<InputListenerInterface>& listener) :
         mContext(this), mEventHub(eventHub), mPolicy(policy),
-        mGlobalMetaState(0), mGeneration(1),
+        mNextSequenceNum(1), mGlobalMetaState(0), mGeneration(1),
         mDisableVirtualKeysTimeout(LLONG_MIN), mNextTimeout(LLONG_MAX),
         mConfigurationChangesToRefresh(0) {
     mQueuedListener = new QueuedInputListener(listener);
@@ -547,7 +547,7 @@ void InputReader::handleConfigurationChangedLocked(nsecs_t when) {
     updateGlobalMetaStateLocked();
 
     // Enqueue configuration changed.
-    NotifyConfigurationChangedArgs args(when);
+    NotifyConfigurationChangedArgs args(mContext.getNextSequenceNum(), when);
     mQueuedListener->notifyConfigurationChanged(&args);
 }
 
@@ -945,6 +945,9 @@ EventHubInterface* InputReader::ContextImpl::getEventHub() {
     return mReader->mEventHub.get();
 }
 
+uint32_t InputReader::ContextImpl::getNextSequenceNum() {
+    return (mReader->mNextSequenceNum)++;
+}
 
 // --- InputDevice ---
 
@@ -1265,7 +1268,7 @@ void InputDevice::bumpGeneration() {
 }
 
 void InputDevice::notifyReset(nsecs_t when) {
-    NotifyDeviceResetArgs args(when, mId);
+    NotifyDeviceResetArgs args(mContext->getNextSequenceNum(), when, mId);
     mContext->getListener()->notifyDeviceReset(&args);
 }
 
@@ -2038,7 +2041,8 @@ void SwitchInputMapper::processSwitch(int32_t switchCode, int32_t switchValue) {
 void SwitchInputMapper::sync(nsecs_t when) {
     if (mUpdatedSwitchMask) {
         uint32_t updatedSwitchValues = mSwitchValues & mUpdatedSwitchMask;
-        NotifySwitchArgs args(when, 0, updatedSwitchValues, mUpdatedSwitchMask);
+        NotifySwitchArgs args(mContext->getNextSequenceNum(), when, 0, updatedSwitchValues,
+                mUpdatedSwitchMask);
         getListener()->notifySwitch(&args);
 
         mUpdatedSwitchMask = 0;
@@ -2420,8 +2424,8 @@ void KeyboardInputMapper::processKey(nsecs_t when, bool down, int32_t scanCode,
         policyFlags |= POLICY_FLAG_DISABLE_KEY_REPEAT;
     }
 
-    NotifyKeyArgs args(when, getDeviceId(), mSource, getDisplayId(), policyFlags,
-            down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
+    NotifyKeyArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
+            getDisplayId(), policyFlags, down ? AKEY_EVENT_ACTION_DOWN : AKEY_EVENT_ACTION_UP,
             AKEY_EVENT_FLAG_FROM_SYSTEM, keyCode, scanCode, keyMetaState, downTime);
     getListener()->notifyKey(&args);
 }
@@ -2824,7 +2828,8 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!released.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(released.clearFirstMarkedBit());
                 buttonState &= ~actionButton;
-                NotifyMotionArgs releaseArgs(when, getDeviceId(), mSource, displayId, policyFlags,
+                NotifyMotionArgs releaseArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                        mSource, displayId, policyFlags,
                         AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
                         metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                         /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
@@ -2833,8 +2838,8 @@ void CursorInputMapper::sync(nsecs_t when) {
             }
         }
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
-                motionEventAction, 0, 0, metaState, currentButtonState,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
+                displayId, policyFlags, motionEventAction, 0, 0, metaState, currentButtonState,
                 AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                 mXPrecision, mYPrecision, downTime);
@@ -2845,9 +2850,9 @@ void CursorInputMapper::sync(nsecs_t when) {
             while (!pressed.isEmpty()) {
                 int32_t actionButton = BitSet32::valueForBit(pressed.clearFirstMarkedBit());
                 buttonState |= actionButton;
-                NotifyMotionArgs pressArgs(when, getDeviceId(), mSource, displayId, policyFlags,
-                        AMOTION_EVENT_ACTION_BUTTON_PRESS, actionButton, 0,
-                        metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+                NotifyMotionArgs pressArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                        mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_BUTTON_PRESS,
+                        actionButton, 0, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                         /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                         mXPrecision, mYPrecision, downTime);
                 getListener()->notifyMotion(&pressArgs);
@@ -2859,8 +2864,8 @@ void CursorInputMapper::sync(nsecs_t when) {
         // Send hover move after UP to tell the application that the mouse is hovering now.
         if (motionEventAction == AMOTION_EVENT_ACTION_UP
                 && (mSource == AINPUT_SOURCE_MOUSE)) {
-            NotifyMotionArgs hoverArgs(when, getDeviceId(), mSource, displayId, policyFlags,
-                    AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
+            NotifyMotionArgs hoverArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
                     metaState, currentButtonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                     /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                     mXPrecision, mYPrecision, downTime);
@@ -2872,7 +2877,8 @@ void CursorInputMapper::sync(nsecs_t when) {
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
             pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-            NotifyMotionArgs scrollArgs(when, getDeviceId(), mSource, displayId, policyFlags,
+            NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, currentButtonState,
                     AMOTION_EVENT_EDGE_FLAG_NONE,
                     /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
@@ -3003,7 +3009,8 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
         int32_t metaState = mContext->getGlobalMetaState();
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_SCROLL, scroll * mScalingFactor);
 
-        NotifyMotionArgs scrollArgs(when, getDeviceId(), mSource, displayId, policyFlags,
+        NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, 0,
                 AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
@@ -4698,7 +4705,8 @@ void TouchInputMapper::dispatchVirtualKey(nsecs_t when, uint32_t policyFlags,
     int32_t metaState = mContext->getGlobalMetaState();
     policyFlags |= POLICY_FLAG_VIRTUAL;
 
-    NotifyKeyArgs args(when, getDeviceId(), AINPUT_SOURCE_KEYBOARD, mViewport.displayId,
+    NotifyKeyArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), AINPUT_SOURCE_KEYBOARD,
+            mViewport.displayId,
             policyFlags, keyEventAction, keyEventFlags, keyCode, scanCode, metaState, downTime);
     getListener()->notifyKey(&args);
 }
@@ -5392,8 +5400,8 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_Y, y);
 
         int32_t displayId = mPointerController->getDisplayId();
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
-                AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, displayId, mSource,
+                mViewport.displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
                 metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                 0, 0, mPointerGesture.downTime);
@@ -6317,7 +6325,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         mPointerSimple.down = false;
 
         // Send up.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                  AMOTION_EVENT_ACTION_UP, 0, 0, metaState, mLastRawState.buttonState, 0,
                  /* deviceTimestamp */ 0,
                  1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
@@ -6330,7 +6339,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         mPointerSimple.hovering = false;
 
         // Send hover exit.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState, mLastRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
                 1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
@@ -6345,7 +6355,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.downTime = when;
 
             // Send down.
-            NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+            NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState, mCurrentRawState.buttonState, 0,
                     /* deviceTimestamp */ 0,
                     1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
@@ -6355,7 +6366,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         }
 
         // Send move.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, mCurrentRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
@@ -6369,7 +6381,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             mPointerSimple.hovering = true;
 
             // Send hover enter.
-            NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+            NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                    mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_HOVER_ENTER, 0, 0, metaState,
                     mCurrentRawState.buttonState, 0,
                     /* deviceTimestamp */ 0,
@@ -6380,7 +6393,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         }
 
         // Send hover move.
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
                 mCurrentRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
@@ -6402,7 +6416,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_VSCROLL, vscroll);
         pointerCoords.setAxisValue(AMOTION_EVENT_AXIS_HSCROLL, hscroll);
 
-        NotifyMotionArgs args(when, getDeviceId(), mSource, displayId, policyFlags,
+        NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+                mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, mCurrentRawState.buttonState, 0,
                 /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &pointerCoords,
@@ -6466,7 +6481,8 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
     }
     int32_t displayId = mPointerController != nullptr ?
             mPointerController->getDisplayId() : mViewport.displayId;
-    NotifyMotionArgs args(when, getDeviceId(), source, displayId, policyFlags,
+    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+            source, displayId, policyFlags,
             action, actionButton, flags, metaState, buttonState, edgeFlags,
             deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
             xPrecision, yPrecision, downTime);
@@ -7390,8 +7406,8 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
     // TODO: Use the input device configuration to control this behavior more finely.
     uint32_t policyFlags = 0;
 
-    NotifyMotionArgs args(when, getDeviceId(), AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE,
-            policyFlags,
+    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
+            AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
             AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
             /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
             0, 0, 0);
