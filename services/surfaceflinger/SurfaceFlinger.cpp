@@ -2832,9 +2832,6 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
     outDirtyRegion.clear();
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
-        // start with the whole surface at its current location
-        const Layer::State& s(layer->getDrawingState());
-
         // only consider the layers on the given layer stack
         if (!layer->belongsToDisplay(display->getLayerStack(), display->isPrimary())) {
             return;
@@ -2872,7 +2869,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 
         // handle hidden surfaces by setting the visible region to empty
         if (CC_LIKELY(layer->isVisible())) {
-            const bool translucent = !layer->isOpaque(s);
+            const bool translucent = !layer->isDrawingOpaque();
             Rect bounds(layer->computeScreenBounds());
 
             visibleRegion.set(bounds);
@@ -2882,7 +2879,8 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
                 if (translucent) {
                     if (tr.preserveRects()) {
                         // transform the transparent region
-                        transparentRegion = tr.transform(layer->getActiveTransparentRegion(s));
+                        transparentRegion =
+                                tr.transform(layer->getDrawingActiveTransparentRegion());
                     } else {
                         // transformation too complex, can't do the
                         // transparent region optimization.
@@ -3170,9 +3168,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& display) {
                 case HWC2::Composition::Sideband:
                 case HWC2::Composition::SolidColor: {
                     LOG_ALWAYS_FATAL_IF(!displayId);
-                    const Layer::State& state(layer->getDrawingState());
                     if (layer->getClearClientTarget(*displayId) && !firstLayer &&
-                        layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
+                        layer->isDrawingOpaque() && (layer->getAlpha() == 1.0f) &&
                         layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
@@ -5203,15 +5200,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 mFlinger(flinger),
                 mChildrenOnly(childrenOnly) {}
         const ui::Transform& getTransform() const override { return mTransform; }
-        Rect getBounds() const override {
-            const Layer::State& layerState(mLayer->getDrawingState());
-            return mLayer->getBufferSize(layerState);
-        }
+        Rect getBounds() const override { return mLayer->getBufferSize(StateSet::Drawing); }
         int getHeight() const override {
-            return mLayer->getBufferSize(mLayer->getDrawingState()).getHeight();
+            return mLayer->getBufferSize(StateSet::Drawing).getHeight();
         }
         int getWidth() const override {
-            return mLayer->getBufferSize(mLayer->getDrawingState()).getWidth();
+            return mLayer->getBufferSize(StateSet::Drawing).getWidth();
         }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return mNeedsFiltering; }
@@ -5278,7 +5272,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
 
     const int uid = IPCThreadState::self()->getCallingUid();
     const bool forSystem = uid == AID_GRAPHICS || uid == AID_SYSTEM;
-    if (!forSystem && parent->getCurrentState().flags & layer_state_t::eLayerSecure) {
+    if (!forSystem && parent->getCurrentFlags() & layer_state_t::eLayerSecure) {
         ALOGW("Attempting to capture secure layer: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }
@@ -5286,12 +5280,12 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
     Rect crop(sourceCrop);
     if (sourceCrop.width() <= 0) {
         crop.left = 0;
-        crop.right = parent->getBufferSize(parent->getCurrentState()).getWidth();
+        crop.right = parent->getBufferSize(StateSet::Current).getWidth();
     }
 
     if (sourceCrop.height() <= 0) {
         crop.top = 0;
-        crop.bottom = parent->getBufferSize(parent->getCurrentState()).getHeight();
+        crop.bottom = parent->getBufferSize(StateSet::Current).getHeight();
     }
 
     int32_t reqWidth = crop.width() * frameScale;
