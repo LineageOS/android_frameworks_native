@@ -32,8 +32,9 @@ SensorService::SensorEventConnection::SensorEventConnection(
         const String16& opPackageName, bool hasSensorAccess)
     : mService(service), mUid(uid), mWakeLockRefCount(0), mHasLooperCallbacks(false),
       mDead(false), mDataInjectionMode(isDataInjectionMode), mEventCache(nullptr),
-      mCacheSize(0), mMaxCacheSize(0), mPackageName(packageName), mOpPackageName(opPackageName),
-      mDestroyed(false), mHasSensorAccess(hasSensorAccess) {
+      mCacheSize(0), mMaxCacheSize(0), mTimeOfLastEventDrop(0), mEventsDropped(0),
+      mPackageName(packageName), mOpPackageName(opPackageName), mDestroyed(false),
+      mHasSensorAccess(hasSensorAccess) {
     mChannel = new BitTube(mService->mSocketBufferSize);
 #if DEBUG_CONNECTIONS
     mEventsReceived = mEventsSentFromCache = mEventsSent = 0;
@@ -405,9 +406,6 @@ void SensorService::SensorEventConnection::appendEventsToCacheLocked(sensors_eve
         reAllocateCacheLocked(events, count);
     } else {
         // The events do not fit within the cache: drop the oldest events.
-        ALOGW("Dropping events from cache (%d / %d) to save %d newer events", mCacheSize,
-                mMaxCacheSize, count);
-
         int freeSpace = mMaxCacheSize - mCacheSize;
 
         // Drop up to the currently cached number of events to make room for new events
@@ -418,6 +416,18 @@ void SensorService::SensorEventConnection::appendEventsToCacheLocked(sensors_eve
 
         // Determine the number of new events to copy into the cache
         int eventsToCopy = std::min(mMaxCacheSize, count);
+
+        constexpr nsecs_t kMinimumTimeBetweenDropLogNs = 2 * 1000 * 1000 * 1000; // 2 sec
+        if (events[0].timestamp - mTimeOfLastEventDrop > kMinimumTimeBetweenDropLogNs) {
+            ALOGW("Dropping %d cached events (%d/%d) to save %d/%d new events. %d events previously"
+                    " dropped", cachedEventsToDrop, mCacheSize, mMaxCacheSize, eventsToCopy,
+                    count, mEventsDropped);
+            mEventsDropped = 0;
+            mTimeOfLastEventDrop = events[0].timestamp;
+        } else {
+            // Record the number dropped
+            mEventsDropped += cachedEventsToDrop + newEventsToDrop;
+        }
 
         // Check for any flush complete events in the events that will be dropped
         countFlushCompleteEventsLocked(mEventCache, cachedEventsToDrop);

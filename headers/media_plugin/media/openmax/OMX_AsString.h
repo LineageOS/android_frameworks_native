@@ -189,6 +189,7 @@ inline static const char *asString(OMX_AUDIO_CODINGEXTTYPE i, const char *def = 
     switch (i) {
         case OMX_AUDIO_CodingAndroidAC3:  return "AndroidAC3";
         case OMX_AUDIO_CodingAndroidOPUS: return "AndroidOPUS";
+        case OMX_AUDIO_CodingAndroidAC4:  return "AndroidAC4";
         default:                          return asString((OMX_AUDIO_CODINGTYPE)i, def);
     }
 }
@@ -536,6 +537,7 @@ inline static const char *asString(OMX_INDEXEXTTYPE i, const char *def = "??") {
         case OMX_IndexParamAudioAndroidOpus:            return "ParamAudioAndroidOpus";
         case OMX_IndexParamAudioAndroidAacPresentation: return "ParamAudioAndroidAacPresentation";
         case OMX_IndexParamAudioAndroidEac3:            return "ParamAudioAndroidEac3";
+        case OMX_IndexParamAudioAndroidAc4:             return "ParamAudioAndroidAc4";
         case OMX_IndexParamAudioProfileQuerySupported:  return "ParamAudioProfileQuerySupported";
 //      case OMX_IndexParamNalStreamFormatSupported:    return "ParamNalStreamFormatSupported";
 //      case OMX_IndexParamNalStreamFormat:             return "ParamNalStreamFormat";

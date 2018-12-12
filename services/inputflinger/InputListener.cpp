@@ -26,13 +26,14 @@ namespace android {
 
 // --- NotifyConfigurationChangedArgs ---
 
-NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(nsecs_t eventTime) :
-        eventTime(eventTime) {
+NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(
+        uint32_t sequenceNum, nsecs_t eventTime) :
+        NotifyArgs(sequenceNum), eventTime(eventTime) {
 }
 
 NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(
         const NotifyConfigurationChangedArgs& other) :
-        eventTime(other.eventTime) {
+        NotifyArgs(other.sequenceNum), eventTime(other.eventTime) {
 }
 
 void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& listener) const {
@@ -42,19 +43,19 @@ void NotifyConfigurationChangedArgs::notify(const sp<InputListenerInterface>& li
 
 // --- NotifyKeyArgs ---
 
-NotifyKeyArgs::NotifyKeyArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source,
-        int32_t displayId, uint32_t policyFlags,
+NotifyKeyArgs::NotifyKeyArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId,
+        uint32_t source, int32_t displayId, uint32_t policyFlags,
         int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
         int32_t metaState, nsecs_t downTime) :
-        eventTime(eventTime), deviceId(deviceId), source(source), displayId(displayId),
-        policyFlags(policyFlags),
+        NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId), source(source),
+        displayId(displayId), policyFlags(policyFlags),
         action(action), flags(flags), keyCode(keyCode), scanCode(scanCode),
         metaState(metaState), downTime(downTime) {
 }
 
 NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other) :
-        eventTime(other.eventTime), deviceId(other.deviceId), source(other.source),
-        displayId(other.displayId), policyFlags(other.policyFlags),
+        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId),
+        source(other.source), displayId(other.displayId), policyFlags(other.policyFlags),
         action(other.action), flags(other.flags),
         keyCode(other.keyCode), scanCode(other.scanCode),
         metaState(other.metaState), downTime(other.downTime) {
@@ -67,15 +68,15 @@ void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
 
 // --- NotifyMotionArgs ---
 
-NotifyMotionArgs::NotifyMotionArgs(nsecs_t eventTime, int32_t deviceId, uint32_t source,
-        int32_t displayId, uint32_t policyFlags,
+NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId,
+        uint32_t source, int32_t displayId, uint32_t policyFlags,
         int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
         int32_t buttonState, int32_t edgeFlags, uint32_t deviceTimestamp,
         uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
         float xPrecision, float yPrecision, nsecs_t downTime) :
-        eventTime(eventTime), deviceId(deviceId), source(source), displayId(displayId),
-        policyFlags(policyFlags),
+        NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId), source(source),
+        displayId(displayId), policyFlags(policyFlags),
         action(action), actionButton(actionButton),
         flags(flags), metaState(metaState), buttonState(buttonState),
         edgeFlags(edgeFlags), deviceTimestamp(deviceTimestamp),
@@ -88,8 +89,8 @@ NotifyMotionArgs::NotifyMotionArgs(nsecs_t eventTime, int32_t deviceId, uint32_t
 }
 
 NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
-        eventTime(other.eventTime), deviceId(other.deviceId), source(other.source),
-        displayId(other.displayId), policyFlags(other.policyFlags),
+        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId),
+        source(other.source), displayId(other.displayId), policyFlags(other.policyFlags),
         action(other.action), actionButton(other.actionButton), flags(other.flags),
         metaState(other.metaState), buttonState(other.buttonState),
         edgeFlags(other.edgeFlags),
@@ -108,14 +109,14 @@ void NotifyMotionArgs::notify(const sp<InputListenerInterface>& listener) const 
 
 // --- NotifySwitchArgs ---
 
-NotifySwitchArgs::NotifySwitchArgs(nsecs_t eventTime, uint32_t policyFlags,
+NotifySwitchArgs::NotifySwitchArgs(uint32_t sequenceNum, nsecs_t eventTime, uint32_t policyFlags,
         uint32_t switchValues, uint32_t switchMask) :
-        eventTime(eventTime), policyFlags(policyFlags),
+        NotifyArgs(sequenceNum), eventTime(eventTime), policyFlags(policyFlags),
         switchValues(switchValues), switchMask(switchMask) {
 }
 
 NotifySwitchArgs::NotifySwitchArgs(const NotifySwitchArgs& other) :
-        eventTime(other.eventTime), policyFlags(other.policyFlags),
+        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), policyFlags(other.policyFlags),
         switchValues(other.switchValues), switchMask(other.switchMask) {
 }
 
@@ -126,12 +127,13 @@ void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const 
 
 // --- NotifyDeviceResetArgs ---
 
-NotifyDeviceResetArgs::NotifyDeviceResetArgs(nsecs_t eventTime, int32_t deviceId) :
-        eventTime(eventTime), deviceId(deviceId) {
+NotifyDeviceResetArgs::NotifyDeviceResetArgs(
+        uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId) :
+        NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId) {
 }
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other) :
-        eventTime(other.eventTime), deviceId(other.deviceId) {
+        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId) {
 }
 
 void NotifyDeviceResetArgs::notify(const sp<InputListenerInterface>& listener) const {

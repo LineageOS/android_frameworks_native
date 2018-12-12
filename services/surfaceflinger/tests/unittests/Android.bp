@@ -24,6 +24,7 @@ cc_test {
     },
     srcs: [
         ":libsurfaceflinger_sources",
+        "libsurfaceflinger_unittest_main.cpp",
         "CompositionTest.cpp",
         "DisplayIdentificationTest.cpp",
         "DisplayTransactionTest.cpp",

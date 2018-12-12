@@ -97,6 +97,9 @@ constexpr std::chrono::milliseconds SLOW_INTERCEPTION_THRESHOLD = 50ms;
 // Number of recent events to keep for debugging purposes.
 constexpr size_t RECENT_QUEUE_MAX_SIZE = 10;
 
+// Sequence number for synthesized or injected events.
+constexpr uint32_t SYNTHESIZED_EVENT_SEQUENCE_NUM = 0;
+
 
 static inline nsecs_t now() {
     return systemTime(SYSTEM_TIME_MONOTONIC);
@@ -710,7 +713,7 @@ InputDispatcher::KeyEntry* InputDispatcher::synthesizeKeyRepeatLocked(nsecs_t cu
         entry->policyFlags = policyFlags;
         entry->repeatCount += 1;
     } else {
-        KeyEntry* newEntry = new KeyEntry(currentTime,
+        KeyEntry* newEntry = new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
                 entry->deviceId, entry->source, entry->displayId, policyFlags,
                 entry->action, entry->flags, entry->keyCode, entry->scanCode,
                 entry->metaState, entry->repeatCount + 1, entry->downTime);
@@ -2474,6 +2477,7 @@ InputDispatcher::splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet
     }
 
     MotionEntry* splitMotionEntry = new MotionEntry(
+            originalMotionEntry->sequenceNum,
             originalMotionEntry->eventTime,
             originalMotionEntry->deviceId,
             originalMotionEntry->source,
@@ -2507,7 +2511,8 @@ void InputDispatcher::notifyConfigurationChanged(const NotifyConfigurationChange
     { // acquire lock
         AutoMutex _l(mLock);
 
-        ConfigurationChangedEntry* newEntry = new ConfigurationChangedEntry(args->eventTime);
+        ConfigurationChangedEntry* newEntry =
+                new ConfigurationChangedEntry(args->sequenceNum, args->eventTime);
         needWake = enqueueInboundEventLocked(newEntry);
     } // release lock
 
@@ -2612,7 +2617,7 @@ void InputDispatcher::notifyKey(const NotifyKeyArgs* args) {
             mLock.lock();
         }
 
-        KeyEntry* newEntry = new KeyEntry(args->eventTime,
+        KeyEntry* newEntry = new KeyEntry(args->sequenceNum, args->eventTime,
                 args->deviceId, args->source, args->displayId, policyFlags,
                 args->action, flags, keyCode, args->scanCode,
                 metaState, repeatCount, args->downTime);
@@ -2696,7 +2701,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
         }
 
         // Just enqueue a new motion event.
-        MotionEntry* newEntry = new MotionEntry(args->eventTime,
+        MotionEntry* newEntry = new MotionEntry(args->sequenceNum, args->eventTime,
                 args->deviceId, args->source, args->displayId, policyFlags,
                 args->action, args->actionButton, args->flags,
                 args->metaState, args->buttonState,
@@ -2740,7 +2745,8 @@ void InputDispatcher::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     { // acquire lock
         AutoMutex _l(mLock);
 
-        DeviceResetEntry* newEntry = new DeviceResetEntry(args->eventTime, args->deviceId);
+        DeviceResetEntry* newEntry =
+                new DeviceResetEntry(args->sequenceNum, args->eventTime, args->deviceId);
         needWake = enqueueInboundEventLocked(newEntry);
     } // release lock
 
@@ -2799,7 +2805,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         }
 
         mLock.lock();
-        firstInjectedEntry = new KeyEntry(keyEvent.getEventTime(),
+        firstInjectedEntry = new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, keyEvent.getEventTime(),
                 keyEvent.getDeviceId(), keyEvent.getSource(), keyEvent.getDisplayId(),
                 policyFlags, action, flags,
                 keyEvent.getKeyCode(), keyEvent.getScanCode(), keyEvent.getMetaState(),
@@ -2831,7 +2837,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         mLock.lock();
         const nsecs_t* sampleEventTimes = motionEvent->getSampleEventTimes();
         const PointerCoords* samplePointerCoords = motionEvent->getSamplePointerCoords();
-        firstInjectedEntry = new MotionEntry(*sampleEventTimes,
+        firstInjectedEntry = new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, *sampleEventTimes,
                 motionEvent->getDeviceId(), motionEvent->getSource(), motionEvent->getDisplayId(),
                 policyFlags,
                 action, actionButton, motionEvent->getFlags(),
@@ -2845,7 +2851,8 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         for (size_t i = motionEvent->getHistorySize(); i > 0; i--) {
             sampleEventTimes += 1;
             samplePointerCoords += pointerCount;
-            MotionEntry* nextInjectedEntry = new MotionEntry(*sampleEventTimes,
+            MotionEntry* nextInjectedEntry = new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM,
+                    *sampleEventTimes,
                     motionEvent->getDeviceId(), motionEvent->getSource(),
                     motionEvent->getDisplayId(), policyFlags,
                     action, actionButton, motionEvent->getFlags(),
@@ -4279,9 +4286,10 @@ void InputDispatcher::InjectionState::release() {
 
 // --- InputDispatcher::EventEntry ---
 
-InputDispatcher::EventEntry::EventEntry(int32_t type, nsecs_t eventTime, uint32_t policyFlags) :
-        refCount(1), type(type), eventTime(eventTime), policyFlags(policyFlags),
-        injectionState(nullptr), dispatchInProgress(false) {
+InputDispatcher::EventEntry::EventEntry(uint32_t sequenceNum, int32_t type,
+        nsecs_t eventTime, uint32_t policyFlags) :
+        sequenceNum(sequenceNum), refCount(1), type(type), eventTime(eventTime),
+        policyFlags(policyFlags), injectionState(nullptr), dispatchInProgress(false) {
 }
 
 InputDispatcher::EventEntry::~EventEntry() {
@@ -4307,8 +4315,9 @@ void InputDispatcher::EventEntry::releaseInjectionState() {
 
 // --- InputDispatcher::ConfigurationChangedEntry ---
 
-InputDispatcher::ConfigurationChangedEntry::ConfigurationChangedEntry(nsecs_t eventTime) :
-        EventEntry(TYPE_CONFIGURATION_CHANGED, eventTime, 0) {
+InputDispatcher::ConfigurationChangedEntry::ConfigurationChangedEntry(
+        uint32_t sequenceNum, nsecs_t eventTime) :
+        EventEntry(sequenceNum, TYPE_CONFIGURATION_CHANGED, eventTime, 0) {
 }
 
 InputDispatcher::ConfigurationChangedEntry::~ConfigurationChangedEntry() {
@@ -4321,8 +4330,9 @@ void InputDispatcher::ConfigurationChangedEntry::appendDescription(std::string& 
 
 // --- InputDispatcher::DeviceResetEntry ---
 
-InputDispatcher::DeviceResetEntry::DeviceResetEntry(nsecs_t eventTime, int32_t deviceId) :
-        EventEntry(TYPE_DEVICE_RESET, eventTime, 0),
+InputDispatcher::DeviceResetEntry::DeviceResetEntry(
+        uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId) :
+        EventEntry(sequenceNum, TYPE_DEVICE_RESET, eventTime, 0),
         deviceId(deviceId) {
 }
 
@@ -4337,11 +4347,11 @@ void InputDispatcher::DeviceResetEntry::appendDescription(std::string& msg) cons
 
 // --- InputDispatcher::KeyEntry ---
 
-InputDispatcher::KeyEntry::KeyEntry(nsecs_t eventTime,
+InputDispatcher::KeyEntry::KeyEntry(uint32_t sequenceNum, nsecs_t eventTime,
         int32_t deviceId, uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
         int32_t flags, int32_t keyCode, int32_t scanCode, int32_t metaState,
         int32_t repeatCount, nsecs_t downTime) :
-        EventEntry(TYPE_KEY, eventTime, policyFlags),
+        EventEntry(sequenceNum, TYPE_KEY, eventTime, policyFlags),
         deviceId(deviceId), source(source), displayId(displayId), action(action), flags(flags),
         keyCode(keyCode), scanCode(scanCode), metaState(metaState),
         repeatCount(repeatCount), downTime(downTime),
@@ -4372,7 +4382,7 @@ void InputDispatcher::KeyEntry::recycle() {
 
 // --- InputDispatcher::MotionEntry ---
 
-InputDispatcher::MotionEntry::MotionEntry(nsecs_t eventTime, int32_t deviceId,
+InputDispatcher::MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId,
         uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
         int32_t actionButton,
         int32_t flags, int32_t metaState, int32_t buttonState, int32_t edgeFlags,
@@ -4380,7 +4390,7 @@ InputDispatcher::MotionEntry::MotionEntry(nsecs_t eventTime, int32_t deviceId,
         uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
         float xOffset, float yOffset) :
-        EventEntry(TYPE_MOTION, eventTime, policyFlags),
+        EventEntry(sequenceNum, TYPE_MOTION, eventTime, policyFlags),
         eventTime(eventTime),
         deviceId(deviceId), source(source), displayId(displayId), action(action),
         actionButton(actionButton), flags(flags), metaState(metaState), buttonState(buttonState),
@@ -4694,7 +4704,7 @@ void InputDispatcher::InputState::synthesizeCancelationEvents(nsecs_t currentTim
     for (size_t i = 0; i < mKeyMementos.size(); i++) {
         const KeyMemento& memento = mKeyMementos.itemAt(i);
         if (shouldCancelKey(memento, options)) {
-            outEvents.push(new KeyEntry(currentTime,
+            outEvents.push(new KeyEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
                     memento.deviceId, memento.source, memento.displayId, memento.policyFlags,
                     AKEY_EVENT_ACTION_UP, memento.flags | AKEY_EVENT_FLAG_CANCELED,
                     memento.keyCode, memento.scanCode, memento.metaState, 0, memento.downTime));
@@ -4704,7 +4714,7 @@ void InputDispatcher::InputState::synthesizeCancelationEvents(nsecs_t currentTim
     for (size_t i = 0; i < mMotionMementos.size(); i++) {
         const MotionMemento& memento = mMotionMementos.itemAt(i);
         if (shouldCancelMotion(memento, options)) {
-            outEvents.push(new MotionEntry(currentTime,
+            outEvents.push(new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
                     memento.deviceId, memento.source, memento.displayId, memento.policyFlags,
                     memento.hovering
                             ? AMOTION_EVENT_ACTION_HOVER_EXIT

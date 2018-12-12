@@ -27,6 +27,8 @@
 
 #include "TimeStats/TimeStats.h"
 
+#include "libsurfaceflinger_unittest_main.h"
+
 using namespace android::surfaceflinger;
 using namespace google::protobuf;
 
@@ -486,6 +488,10 @@ TEST_F(TimeStatsTest, canDumpWithInvalidMaxLayers) {
 }
 
 TEST_F(TimeStatsTest, canSurviveMonkey) {
+    if (g_noSlowTests) {
+        GTEST_SKIP();
+    }
+
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
     for (size_t i = 0; i < 10000000; ++i) {

@@ -431,26 +431,25 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     }
 
     ui::Dataspace dataSpace = getDrawingDataSpace();
-    // treat modern dataspaces as legacy dataspaces whenever possible, until
-    // we can trust the buffer producers
+    // translate legacy dataspaces to modern dataspaces
     switch (dataSpace) {
-        case ui::Dataspace::V0_SRGB:
-            dataSpace = ui::Dataspace::SRGB;
+        case ui::Dataspace::SRGB:
+            dataSpace = ui::Dataspace::V0_SRGB;
             break;
-        case ui::Dataspace::V0_SRGB_LINEAR:
-            dataSpace = ui::Dataspace::SRGB_LINEAR;
+        case ui::Dataspace::SRGB_LINEAR:
+            dataSpace = ui::Dataspace::V0_SRGB_LINEAR;
             break;
-        case ui::Dataspace::V0_JFIF:
-            dataSpace = ui::Dataspace::JFIF;
+        case ui::Dataspace::JFIF:
+            dataSpace = ui::Dataspace::V0_JFIF;
             break;
-        case ui::Dataspace::V0_BT601_625:
-            dataSpace = ui::Dataspace::BT601_625;
+        case ui::Dataspace::BT601_625:
+            dataSpace = ui::Dataspace::V0_BT601_625;
             break;
-        case ui::Dataspace::V0_BT601_525:
-            dataSpace = ui::Dataspace::BT601_525;
+        case ui::Dataspace::BT601_525:
+            dataSpace = ui::Dataspace::V0_BT601_525;
             break;
-        case ui::Dataspace::V0_BT709:
-            dataSpace = ui::Dataspace::BT709;
+        case ui::Dataspace::BT709:
+            dataSpace = ui::Dataspace::V0_BT709;
             break;
         default:
             break;
