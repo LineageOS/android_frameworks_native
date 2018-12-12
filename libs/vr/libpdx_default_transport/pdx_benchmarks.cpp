@@ -66,7 +66,7 @@ void SetThreadName(const std::string& name) {
   prctl(PR_SET_NAME, reinterpret_cast<unsigned long>(name.c_str()), 0, 0, 0);
 }
 
-constexpr uint64_t kNanosPerSecond = 1000000000llu;
+constexpr uint64_t kNanosPerSecond = 1000000000LLU;
 
 uint64_t GetClockNs() {
   timespec t;
