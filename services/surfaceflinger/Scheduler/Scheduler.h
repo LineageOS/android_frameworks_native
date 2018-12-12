@@ -147,7 +147,7 @@ private:
 
     // The offset in nanoseconds to use, when DispSync timestamps present fence
     // signaling time.
-    const nsecs_t mDispSyncPresentTimeOffset;
+    nsecs_t mDispSyncPresentTimeOffset;
 
     // Each connection has it's own ID. This variable keeps track of the count.
     static std::atomic<int64_t> sNextId;

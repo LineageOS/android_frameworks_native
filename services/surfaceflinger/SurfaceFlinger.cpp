@@ -111,11 +111,13 @@
 #include <configstore/Utils.h>
 
 #include <layerproto/LayerProtoParser.h>
+#include "SurfaceFlingerProperties.h"
 
 namespace android {
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using namespace android::sysprop;
 using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
@@ -281,67 +283,50 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
       : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
 
-    vsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::vsyncEventPhaseOffsetNs>(1000000);
+    vsyncPhaseOffsetNs = vsync_event_phase_offset_ns(1000000);
 
-    sfVsyncPhaseOffsetNs = getInt64< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::vsyncSfEventPhaseOffsetNs>(1000000);
+    sfVsyncPhaseOffsetNs = vsync_sf_event_phase_offset_ns(1000000);
 
-    hasSyncFramework = getBool< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::hasSyncFramework>(true);
+    hasSyncFramework = running_without_sync_framework(true);
 
-    dispSyncPresentTimeOffset = getInt64< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs>(0);
+    dispSyncPresentTimeOffset = present_time_offset_from_vsync_ns(0);
 
-    useHwcForRgbToYuv = getBool< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::useHwcForRGBtoYUV>(false);
+    useHwcForRgbToYuv = force_hwc_copy_for_virtual_displays(false);
 
-    maxVirtualDisplaySize = getUInt64<ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::maxVirtualDisplaySize>(0);
+    maxVirtualDisplaySize = max_virtual_display_dimension(0);
 
     // Vr flinger is only enabled on Daydream ready devices.
-    useVrFlinger = getBool< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::useVrFlinger>(false);
+    useVrFlinger = use_vr_flinger(false);
 
-    maxFrameBufferAcquiredBuffers = getInt64< ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::maxFrameBufferAcquiredBuffers>(2);
+    maxFrameBufferAcquiredBuffers = max_frame_buffer_acquired_buffers(2);
 
-    hasWideColorDisplay =
-            getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
-    useColorManagement =
-            getBool<V1_2::ISurfaceFlingerConfigs,
-                    &V1_2::ISurfaceFlingerConfigs::useColorManagement>(false);
+    hasWideColorDisplay = has_wide_color_display(false);
 
-    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (surfaceFlingerConfigsServiceV1_2) {
-        surfaceFlingerConfigsServiceV1_2->getCompositionPreference(
-                [&](auto tmpDefaultDataspace, auto tmpDefaultPixelFormat,
-                    auto tmpWideColorGamutDataspace, auto tmpWideColorGamutPixelFormat) {
-                    defaultCompositionDataspace = tmpDefaultDataspace;
-                    defaultCompositionPixelFormat = tmpDefaultPixelFormat;
-                    wideColorGamutCompositionDataspace = tmpWideColorGamutDataspace;
-                    wideColorGamutCompositionPixelFormat = tmpWideColorGamutPixelFormat;
-                });
-    }
-    mDefaultCompositionDataspace = defaultCompositionDataspace;
-    mWideColorGamutCompositionDataspace = wideColorGamutCompositionDataspace;
+    useColorManagement = use_color_management(false);
 
-    useContextPriority = getBool<ISurfaceFlingerConfigs,
-                                 &ISurfaceFlingerConfigs::useContextPriority>(true);
+    mDefaultCompositionDataspace =
+            static_cast<ui::Dataspace>(default_composition_dataspace(Dataspace::V0_SRGB));
+    mWideColorGamutCompositionDataspace =
+            static_cast<ui::Dataspace>(wcg_composition_dataspace(Dataspace::V0_SRGB));
+    defaultCompositionDataspace = mDefaultCompositionDataspace;
+    wideColorGamutCompositionDataspace = mWideColorGamutCompositionDataspace;
+    defaultCompositionPixelFormat = static_cast<ui::PixelFormat>(
+            default_composition_pixel_format(ui::PixelFormat::RGBA_8888));
+    wideColorGamutCompositionPixelFormat =
+            static_cast<ui::PixelFormat>(wcg_composition_pixel_format(ui::PixelFormat::RGBA_8888));
 
-    V1_1::DisplayOrientation primaryDisplayOrientation =
-        getDisplayOrientation<V1_1::ISurfaceFlingerConfigs,
-                              &V1_1::ISurfaceFlingerConfigs::primaryDisplayOrientation>(
-            V1_1::DisplayOrientation::ORIENTATION_0);
+    useContextPriority = use_context_priority(true);
 
-    switch (primaryDisplayOrientation) {
-        case V1_1::DisplayOrientation::ORIENTATION_90:
+    auto tmpPrimaryDisplayOrientation = primary_display_orientation(
+            SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_0);
+    switch (tmpPrimaryDisplayOrientation) {
+        case SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_90:
             SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation90;
             break;
-        case V1_1::DisplayOrientation::ORIENTATION_180:
+        case SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_180:
             SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation180;
             break;
-        case V1_1::DisplayOrientation::ORIENTATION_270:
+        case SurfaceFlingerProperties::primary_display_orientation_values::ORIENTATION_270:
             SurfaceFlinger::primaryDisplayOrientation = DisplayState::eOrientation270;
             break;
         default:

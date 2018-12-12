@@ -31,14 +31,14 @@
 #include <processgroup/sched_policy.h>
 #include "SurfaceFlinger.h"
 #include "SurfaceFlingerFactory.h"
+#include "SurfaceFlingerProperties.h"
 
 using namespace android;
 
 static status_t startGraphicsAllocatorService() {
     using android::hardware::configstore::getBool;
     using android::hardware::configstore::V1_0::ISurfaceFlingerConfigs;
-    if (!getBool<ISurfaceFlingerConfigs,
-            &ISurfaceFlingerConfigs::startGraphicsAllocatorService>(false)) {
+    if (!android::sysprop::start_graphics_allocator_service(false)) {
         return OK;
     }
 
