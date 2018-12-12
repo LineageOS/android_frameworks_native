@@ -389,7 +389,7 @@ status_t Dumpsys::writeDump(int fd, const String16& serviceName, std::chrono::mi
         auto time_left_ms = [end]() {
             auto now = std::chrono::steady_clock::now();
             auto diff = std::chrono::duration_cast<std::chrono::milliseconds>(end - now);
-            return std::max(diff.count(), 0ll);
+            return std::max(diff.count(), 0LL);
         };
 
         int rc = TEMP_FAILURE_RETRY(poll(&pfd, 1, time_left_ms()));
