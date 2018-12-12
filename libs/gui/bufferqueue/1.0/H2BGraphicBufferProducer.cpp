@@ -896,7 +896,7 @@ inline bool convertTo(
     int const* constFds = static_cast<int const*>(baseFds.get());
     numFds = baseNumFds;
     if (l->unflatten(constBuffer, size, constFds, numFds) != NO_ERROR) {
-        for (auto nhA : nhAA) {
+        for (const auto& nhA : nhAA) {
             for (auto nh : nhA) {
                 if (nh != nullptr) {
                     native_handle_close(nh);
@@ -907,8 +907,8 @@ inline bool convertTo(
         return false;
     }
 
-    for (auto nhA : nhAA) {
-        for (auto nh : nhA) {
+    for (const auto& nhA : nhAA) {
+        for (const auto& nh : nhA) {
             if (nh != nullptr) {
                 native_handle_delete(nh);
             }

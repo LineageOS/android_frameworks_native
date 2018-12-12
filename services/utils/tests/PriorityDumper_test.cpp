@@ -54,7 +54,7 @@ public:
 };
 
 static void addAll(Vector<String16>& av, const std::vector<std::string>& v) {
-    for (auto element : v) {
+    for (const auto& element : v) {
         av.add(String16(element.c_str()));
     }
 }
