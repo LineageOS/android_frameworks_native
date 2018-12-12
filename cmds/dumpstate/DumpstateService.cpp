@@ -108,7 +108,8 @@ binder::Status DumpstateService::startBugreport(int, int bugreport_mode, int32_t
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_REMOTE &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WEAR &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_TELEPHONY &&
-        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WIFI) {
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WIFI &&
+        bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_DEFAULT) {
         return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
                          StringPrintf("Invalid bugreport mode: %d", bugreport_mode));
     }
