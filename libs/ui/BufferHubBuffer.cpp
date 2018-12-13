@@ -62,14 +62,14 @@ namespace {
 // to use Binder.
 static constexpr char kBufferHubClientPath[] = "system/buffer_hub/client";
 
-using dvr::BufferHubDefs::AnyClientAcquired;
-using dvr::BufferHubDefs::AnyClientGained;
-using dvr::BufferHubDefs::AnyClientPosted;
-using dvr::BufferHubDefs::IsClientAcquired;
-using dvr::BufferHubDefs::IsClientGained;
-using dvr::BufferHubDefs::IsClientPosted;
-using dvr::BufferHubDefs::IsClientReleased;
-using dvr::BufferHubDefs::kHighBitsMask;
+using BufferHubDefs::AnyClientAcquired;
+using BufferHubDefs::AnyClientGained;
+using BufferHubDefs::AnyClientPosted;
+using BufferHubDefs::IsClientAcquired;
+using BufferHubDefs::IsClientGained;
+using BufferHubDefs::IsClientPosted;
+using BufferHubDefs::IsClientReleased;
+using BufferHubDefs::kHighBitsMask;
 
 } // namespace
 
