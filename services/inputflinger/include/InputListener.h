@@ -17,7 +17,10 @@
 #ifndef _UI_INPUT_LISTENER_H
 #define _UI_INPUT_LISTENER_H
 
+#include <vector>
+
 #include <input/Input.h>
+#include <input/TouchVideoFrame.h>
 #include <utils/RefBase.h>
 #include <utils/Vector.h>
 
@@ -110,6 +113,7 @@ struct NotifyMotionArgs : public NotifyArgs {
     float xPrecision;
     float yPrecision;
     nsecs_t downTime;
+    std::vector<TouchVideoFrame> videoFrames;
 
     inline NotifyMotionArgs() { }
 
@@ -119,7 +123,8 @@ struct NotifyMotionArgs : public NotifyArgs {
             int32_t metaState, int32_t buttonState,
             int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
             const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-            float xPrecision, float yPrecision, nsecs_t downTime);
+            float xPrecision, float yPrecision, nsecs_t downTime,
+            const std::vector<TouchVideoFrame>& videoFrames);
 
     NotifyMotionArgs(const NotifyMotionArgs& other);
 
