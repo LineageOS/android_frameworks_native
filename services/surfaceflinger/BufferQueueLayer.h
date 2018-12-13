@@ -44,7 +44,7 @@ public:
 
     std::vector<OccupancyTracker::Segment> getOccupancyHistory(bool forceFlush) override;
 
-    bool getTransformToDisplayInverse() const override;
+    bool getTransformToDisplayInverseLocked() const override REQUIRES(mStateMutex);
 
     // If a buffer was replaced this frame, release the former buffer
     void releasePendingBuffer(nsecs_t dequeueReadyTime) override;
@@ -64,12 +64,12 @@ public:
 
 private:
     nsecs_t getDesiredPresentTime() override;
-    std::shared_ptr<FenceTime> getCurrentFenceTime() const override;
+    std::shared_ptr<FenceTime> getCurrentFenceTimeLocked() const override REQUIRES(mStateMutex);
 
     void getDrawingTransformMatrix(float *matrix) override;
-    uint32_t getDrawingTransform() const override;
-    ui::Dataspace getDrawingDataSpace() const override;
-    Rect getDrawingCrop() const override;
+    uint32_t getDrawingTransform() const override REQUIRES(mStateMutex);
+    ui::Dataspace getDrawingDataSpace() const override REQUIRES(mStateMutex);
+    Rect getDrawingCrop() const override REQUIRES(mStateMutex);
     uint32_t getDrawingScalingMode() const override;
     Region getDrawingSurfaceDamage() const override;
     const HdrMetadata& getDrawingHdrMetadata() const override;
@@ -81,17 +81,18 @@ private:
     bool getAutoRefresh() const override;
     bool getSidebandStreamChanged() const override;
 
-    std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override;
+    std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override
+            EXCLUDES(mStateMutex);
 
-    bool hasFrameUpdate() const override;
+    bool hasFrameUpdateLocked() const override REQUIRES(mStateMutex);
 
     void setFilteringEnabled(bool enabled) override;
 
     status_t bindTextureImage() override;
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                            const sp<Fence>& releaseFence) override;
+                            const sp<Fence>& releaseFence) override REQUIRES(mStateMutex);
 
-    status_t updateActiveBuffer() override;
+    status_t updateActiveBuffer() override REQUIRES(mStateMutex);
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
     void setHwcLayerBuffer(DisplayId displayId) override;

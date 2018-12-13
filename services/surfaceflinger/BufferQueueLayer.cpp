@@ -51,7 +51,7 @@ std::vector<OccupancyTracker::Segment> BufferQueueLayer::getOccupancyHistory(boo
     return history;
 }
 
-bool BufferQueueLayer::getTransformToDisplayInverse() const {
+bool BufferQueueLayer::getTransformToDisplayInverseLocked() const {
     return mConsumer->getTransformToDisplayInverse();
 }
 
@@ -131,7 +131,7 @@ nsecs_t BufferQueueLayer::getDesiredPresentTime() {
     return mConsumer->getTimestamp();
 }
 
-std::shared_ptr<FenceTime> BufferQueueLayer::getCurrentFenceTime() const {
+std::shared_ptr<FenceTime> BufferQueueLayer::getCurrentFenceTimeLocked() const {
     return mConsumer->getCurrentFenceTime();
 }
 
@@ -192,6 +192,7 @@ bool BufferQueueLayer::getSidebandStreamChanged() const {
 
 std::optional<Region> BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     bool sidebandStreamChanged = true;
+    Mutex::Autolock lock(mStateMutex);
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
         // replicated in LayerBE until FE/BE is ready to be synchronized
@@ -200,15 +201,15 @@ std::optional<Region> BufferQueueLayer::latchSidebandStream(bool& recomputeVisib
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
-        recomputeVisibleRegions = true;
 
+        recomputeVisibleRegions = true;
         const State& s(getDrawingState());
-        return getTransform().transform(Region(Rect(s.active_legacy.w, s.active_legacy.h)));
+        return getTransformLocked().transform(Region(Rect(s.active_legacy.w, s.active_legacy.h)));
     }
     return {};
 }
 
-bool BufferQueueLayer::hasFrameUpdate() const {
+bool BufferQueueLayer::hasFrameUpdateLocked() const {
     return mQueuedFrames > 0;
 }
 
@@ -228,16 +229,18 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     // buffer mode.
     bool queuedBuffer = false;
     const int32_t layerID = getSequence();
-    LayerRejecter r(mDrawingState, getCurrentState(), recomputeVisibleRegions,
+    status_t updateResult;
+    LayerRejecter r(mState.drawing, getCurrentState(), recomputeVisibleRegions,
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
-                    getTransformToDisplayInverse(), mFreezeGeometryUpdates);
+                    getTransformToDisplayInverseLocked(), mFreezeGeometryUpdates);
 
     const nsecs_t expectedPresentTime = mFlinger->mUseScheduler
             ? mFlinger->mScheduler->mPrimaryDispSync->expectedPresentTime()
             : mFlinger->mPrimaryDispSync->expectedPresentTime();
-    status_t updateResult =
-            mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh, &queuedBuffer,
-                                      mLastFrameNumberReceived, releaseFence);
+
+    updateResult = mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh, &queuedBuffer,
+                                             mLastFrameNumberReceived, releaseFence);
+
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.

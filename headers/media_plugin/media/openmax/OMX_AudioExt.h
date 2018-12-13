@@ -127,6 +127,13 @@ typedef struct OMX_AUDIO_PARAM_ANDROID_PROFILETYPE {
    OMX_U32 nProfileIndex; /**< Used to query for individual profile support information */
 } OMX_AUDIO_PARAM_ANDROID_PROFILETYPE;
 
+typedef struct OMX_AUDIO_CONFIG_ANDROID_AUDIOPRESENTATION {
+    OMX_U32 nSize;                 /**< size of the structure in bytes */
+    OMX_VERSIONTYPE nVersion;      /**< OMX specification version information */
+    OMX_S32 nPresentationId;       /**< presentation id */
+    OMX_S32 nProgramId;            /**< program id */
+} OMX_AUDIO_CONFIG_ANDROID_AUDIOPRESENTATION;
+
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */

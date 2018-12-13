@@ -41,13 +41,14 @@ public:
 
     bool shouldPresentNow(nsecs_t expectedPresentTime) const override;
 
-    bool getTransformToDisplayInverse() const override;
+    bool getTransformToDisplayInverseLocked() const override REQUIRES(mStateMutex);
 
     uint32_t doTransactionResize(uint32_t flags, Layer::State* /*stateToCommit*/) override {
         return flags;
     }
-    void pushPendingState() override;
-    bool applyPendingStates(Layer::State* stateToCommit) override;
+
+    void pushPendingStateLocked() override REQUIRES(mStateMutex);
+    bool applyPendingStates(Layer::State* stateToCommit) override REQUIRES(mStateMutex);
 
     uint32_t getActiveWidth(const Layer::State& s) const override { return s.active.w; }
     uint32_t getActiveHeight(const Layer::State& s) const override { return s.active.h; }
@@ -59,18 +60,20 @@ public:
     }
     Rect getCrop(const Layer::State& s) const;
 
-    bool setTransform(uint32_t transform) override;
-    bool setTransformToDisplayInverse(bool transformToDisplayInverse) override;
-    bool setCrop(const Rect& crop) override;
-    bool setFrame(const Rect& frame) override;
-    bool setBuffer(const sp<GraphicBuffer>& buffer) override;
-    bool setAcquireFence(const sp<Fence>& fence) override;
-    bool setDataspace(ui::Dataspace dataspace) override;
-    bool setHdrMetadata(const HdrMetadata& hdrMetadata) override;
-    bool setSurfaceDamageRegion(const Region& surfaceDamage) override;
-    bool setApi(int32_t api) override;
-    bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override;
-    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override;
+    bool setTransform(uint32_t transform) override EXCLUDES(mStateMutex);
+    bool setTransformToDisplayInverse(bool transformToDisplayInverse) override
+            EXCLUDES(mStateMutex);
+    bool setCrop(const Rect& crop) override EXCLUDES(mStateMutex);
+    bool setFrame(const Rect& frame) override EXCLUDES(mStateMutex);
+    bool setBuffer(const sp<GraphicBuffer>& buffer) override EXCLUDES(mStateMutex);
+    bool setAcquireFence(const sp<Fence>& fence) override EXCLUDES(mStateMutex);
+    bool setDataspace(ui::Dataspace dataspace) override EXCLUDES(mStateMutex);
+    bool setHdrMetadata(const HdrMetadata& hdrMetadata) override EXCLUDES(mStateMutex);
+    bool setSurfaceDamageRegion(const Region& surfaceDamage) override EXCLUDES(mStateMutex);
+    bool setApi(int32_t api) override EXCLUDES(mStateMutex);
+    bool setSidebandStream(const sp<NativeHandle>& sidebandStream) override EXCLUDES(mStateMutex);
+    bool setTransactionCompletedListeners(const std::vector<sp<CallbackHandle>>& handles) override
+            EXCLUDES(mStateMutex);
 
     // Override to ignore legacy layer state properties that are not used by BufferStateLayer
     bool setSize(uint32_t /*w*/, uint32_t /*h*/) override { return false; }
@@ -87,26 +90,26 @@ public:
     void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
                                       uint64_t /*frameNumber*/) override {}
 
-    Rect getBufferSize(const State& s) const override;
+    Rect getBufferSize(const State& s) const override REQUIRES(mStateMutex);
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------
     // Interface implementation for BufferLayer
     // -----------------------------------------------------------------------
-    bool fenceHasSignaled() const override;
+    bool fenceHasSignaled() const override EXCLUDES(mStateMutex);
 
 private:
     nsecs_t getDesiredPresentTime() override;
-    std::shared_ptr<FenceTime> getCurrentFenceTime() const override;
+    std::shared_ptr<FenceTime> getCurrentFenceTimeLocked() const override REQUIRES(mStateMutex);
 
     void getDrawingTransformMatrix(float *matrix) override;
-    uint32_t getDrawingTransform() const override;
-    ui::Dataspace getDrawingDataSpace() const override;
-    Rect getDrawingCrop() const override;
+    uint32_t getDrawingTransform() const override REQUIRES(mStateMutex);
+    ui::Dataspace getDrawingDataSpace() const override REQUIRES(mStateMutex);
+    Rect getDrawingCrop() const override REQUIRES(mStateMutex);
     uint32_t getDrawingScalingMode() const override;
-    Region getDrawingSurfaceDamage() const override;
-    const HdrMetadata& getDrawingHdrMetadata() const override;
-    int getDrawingApi() const override;
+    Region getDrawingSurfaceDamage() const override EXCLUDES(mStateMutex);
+    const HdrMetadata& getDrawingHdrMetadata() const override EXCLUDES(mStateMutex);
+    int getDrawingApi() const override EXCLUDES(mStateMutex);
     PixelFormat getPixelFormat() const override;
 
     uint64_t getFrameNumber() const override;
@@ -114,24 +117,26 @@ private:
     bool getAutoRefresh() const override;
     bool getSidebandStreamChanged() const override;
 
-    std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override;
+    std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override
+            EXCLUDES(mStateMutex);
 
-    bool hasFrameUpdate() const override;
+    bool hasFrameUpdateLocked() const override REQUIRES(mStateMutex);
 
     void setFilteringEnabled(bool enabled) override;
 
-    status_t bindTextureImage() override;
+    status_t bindTextureImage() override EXCLUDES(mStateMutex);
     status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                            const sp<Fence>& releaseFence) override;
+                            const sp<Fence>& releaseFence) override REQUIRES(mStateMutex);
 
-    status_t updateActiveBuffer() override;
+    status_t updateActiveBuffer() override REQUIRES(mStateMutex);
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void setHwcLayerBuffer(DisplayId displayId) override;
+    void setHwcLayerBuffer(DisplayId displayId) override EXCLUDES(mStateMutex);
 
 private:
     void onFirstRef() override;
     bool willPresentCurrentTransaction() const;
+    status_t bindTextureImageLocked() REQUIRES(mStateMutex);
 
     static const std::array<float, 16> IDENTITY_MATRIX;
 

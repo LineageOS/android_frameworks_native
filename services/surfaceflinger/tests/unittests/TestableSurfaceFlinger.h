@@ -178,11 +178,12 @@ public:
 
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
-    auto& mutableLayerCurrentState(sp<Layer> layer) { return layer->mCurrentState; }
-    auto& mutableLayerDrawingState(sp<Layer> layer) { return layer->mDrawingState; }
+    auto& mutableLayerCurrentState(sp<Layer> layer) { return layer->mState.current; }
+    auto& mutableLayerDrawingState(sp<Layer> layer) { return layer->mState.drawing; }
 
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
-        layer->mDrawingState.sidebandStream = sidebandStream;
+        Mutex::Autolock lock(layer->mStateMutex);
+        layer->mState.drawing.sidebandStream = sidebandStream;
         layer->getBE().compositionInfo.hwc.sidebandStream = sidebandStream;
     }
 
