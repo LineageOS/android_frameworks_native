@@ -1033,7 +1033,7 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeInt32(static_cast<int32_t>(defaultDataspace));
                 reply->writeInt32(static_cast<int32_t>(defaultPixelFormat));
                 reply->writeInt32(static_cast<int32_t>(wideColorGamutDataspace));
-                reply->writeInt32(static_cast<int32_t>(wideColorGamutDataspace));
+                reply->writeInt32(static_cast<int32_t>(wideColorGamutPixelFormat));
             }
             return NO_ERROR;
         }
