@@ -110,6 +110,47 @@ int android_getaddrinfofornetwork(net_handle_t network,
 
 #endif /* __ANDROID_API__ >= 23 */
 
+#if __ANDROID_API__ >= 29
+
+/**
+ * Look up the {|ns_class|, |ns_type|} Resource Record (RR) associated
+ * with Domain Name |dname| on the given |network|.
+ * The typical value for |ns_class| is ns_c_in, while |type| can be any
+ * record type (for instance, ns_t_aaaa or ns_t_txt).
+ *
+ * Returns a file descriptor to watch for read events, or a negative
+ * POSIX error code (see errno.h) if an immediate error occurs.
+ */
+int android_res_nquery(net_handle_t network,
+        const char *dname, int ns_class, int ns_type) __INTRODUCED_IN(29);
+
+/**
+ * Issue the query |msg| on the given |network|.
+ *
+ * Returns a file descriptor to watch for read events, or a negative
+ * POSIX error code (see errno.h) if an immediate error occurs.
+ */
+int android_res_nsend(net_handle_t network,
+        const unsigned char *msg, int msglen) __INTRODUCED_IN(29);
+
+/**
+ * Read a result for the query associated with the |fd| descriptor.
+ *
+ * Returns:
+ *     < 0: negative POSIX error code (see errno.h for possible values). |rcode| is not set.
+ *     >= 0: length of |answer|. |rcode| is the resolver return code (e.g., ns_r_nxdomain)
+ */
+int android_res_nresult(int fd,
+        int *rcode, unsigned char *answer, int anslen) __INTRODUCED_IN(29);
+
+/**
+ * Attempts to cancel the in-progress query associated with the |nsend_fd|
+ * descriptor.
+ */
+void android_res_cancel(int nsend_fd) __INTRODUCED_IN(29);
+
+#endif /* __ANDROID_API__ >= 29 */
+
 __END_DECLS
 
 #endif  // ANDROID_MULTINETWORK_H
