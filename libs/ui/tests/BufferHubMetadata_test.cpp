@@ -17,7 +17,7 @@
 #include <gtest/gtest.h>
 #include <ui/BufferHubMetadata.h>
 
-using android::dvr::BufferHubDefs::IsBufferReleased;
+using android::BufferHubDefs::IsBufferReleased;
 
 namespace android {
 namespace dvr {

@@ -412,6 +412,7 @@ typedef int (*DvrTrackingSensorsStopPtr)(DvrTrackingSensors* sensors);
 // existing data members. If new fields need to be added, please take extra care
 // to make sure that new data field is padded properly the size of the struct
 // stays same.
+// TODO(b/118893702): move the definition to libnativewindow or libui
 struct ALIGNED_DVR_STRUCT(8) DvrNativeBufferMetadata {
 #ifdef __cplusplus
   DvrNativeBufferMetadata()

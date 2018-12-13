@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <sys/mman.h>
+#include <limits>
 
 #include <cutils/ashmem.h>
 #include <log/log.h>
@@ -29,8 +30,8 @@ static const int kAshmemProt = PROT_READ | PROT_WRITE;
 
 } // namespace
 
-using dvr::BufferHubDefs::kMetadataHeaderSize;
-using dvr::BufferHubDefs::MetadataHeader;
+using BufferHubDefs::kMetadataHeaderSize;
+using BufferHubDefs::MetadataHeader;
 
 /* static */
 BufferHubMetadata BufferHubMetadata::Create(size_t userMetadataSize) {
