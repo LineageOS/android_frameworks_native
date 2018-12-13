@@ -452,6 +452,9 @@ private:
     int mWakeReadPipeFd;
     int mWakeWritePipeFd;
 
+    int mInputWd;
+    int mVideoWd;
+
     // Epoll FD list size hint.
     static const int EPOLL_SIZE_HINT = 8;
 
