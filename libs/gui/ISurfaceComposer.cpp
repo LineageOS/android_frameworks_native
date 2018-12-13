@@ -675,23 +675,19 @@ public:
             return result;
         }
 
-        result = reply.readInt64Vector(
-                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_0_sample));
+        result = reply.readUint64Vector(&outStats->component_0_sample);
         if (result != NO_ERROR) {
             return result;
         }
-        result = reply.readInt64Vector(
-                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_1_sample));
+        result = reply.readUint64Vector(&outStats->component_1_sample);
         if (result != NO_ERROR) {
             return result;
         }
-        result = reply.readInt64Vector(
-                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_2_sample));
+        result = reply.readUint64Vector(&outStats->component_2_sample);
         if (result != NO_ERROR) {
             return result;
         }
-        result = reply.readInt64Vector(
-                reinterpret_cast<std::vector<int64_t>*>(&outStats->component_3_sample));
+        result = reply.readUint64Vector(&outStats->component_3_sample);
         return result;
     }
 };
@@ -1121,14 +1117,10 @@ status_t BnSurfaceComposer::onTransact(
             result = getDisplayedContentSample(display, maxFrames, timestamp, &stats);
             if (result == NO_ERROR) {
                 reply->writeUint64(stats.numFrames);
-                reply->writeInt64Vector(
-                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_0_sample));
-                reply->writeInt64Vector(
-                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_1_sample));
-                reply->writeInt64Vector(
-                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_2_sample));
-                reply->writeInt64Vector(
-                        *reinterpret_cast<std::vector<int64_t>*>(&stats.component_3_sample));
+                reply->writeUint64Vector(stats.component_0_sample);
+                reply->writeUint64Vector(stats.component_1_sample);
+                reply->writeUint64Vector(stats.component_2_sample);
+                reply->writeUint64Vector(stats.component_3_sample);
             }
             return result;
         }
