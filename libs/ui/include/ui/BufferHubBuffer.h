@@ -34,11 +34,11 @@
 #pragma clang diagnostic ignored "-Wunused-template"
 #pragma clang diagnostic ignored "-Wweak-vtables"
 #include <pdx/client.h>
-#include <private/dvr/buffer_hub_defs.h>
 #include <private/dvr/native_handle_wrapper.h>
 #pragma clang diagnostic pop
 
 #include <android/hardware_buffer.h>
+#include <ui/BufferHubDefs.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {

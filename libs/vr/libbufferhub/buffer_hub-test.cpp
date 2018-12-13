@@ -5,6 +5,7 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <ui/BufferHubBuffer.h>
+#include <ui/BufferHubDefs.h>
 
 #include <mutex>
 #include <thread>
@@ -21,17 +22,17 @@
 using android::BufferHubBuffer;
 using android::GraphicBuffer;
 using android::sp;
+using android::BufferHubDefs::AnyClientAcquired;
+using android::BufferHubDefs::AnyClientGained;
+using android::BufferHubDefs::AnyClientPosted;
+using android::BufferHubDefs::IsBufferReleased;
+using android::BufferHubDefs::IsClientAcquired;
+using android::BufferHubDefs::IsClientPosted;
+using android::BufferHubDefs::IsClientReleased;
+using android::BufferHubDefs::kFirstClientBitMask;
+using android::BufferHubDefs::kMetadataHeaderSize;
 using android::dvr::ConsumerBuffer;
 using android::dvr::ProducerBuffer;
-using android::dvr::BufferHubDefs::AnyClientAcquired;
-using android::dvr::BufferHubDefs::AnyClientGained;
-using android::dvr::BufferHubDefs::AnyClientPosted;
-using android::dvr::BufferHubDefs::IsBufferReleased;
-using android::dvr::BufferHubDefs::IsClientAcquired;
-using android::dvr::BufferHubDefs::IsClientPosted;
-using android::dvr::BufferHubDefs::IsClientReleased;
-using android::dvr::BufferHubDefs::kFirstClientBitMask;
-using android::dvr::BufferHubDefs::kMetadataHeaderSize;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
@@ -45,7 +46,7 @@ const size_t kUserMetadataSize = 0;
 // Maximum number of consumers for the buffer that only has one producer in the
 // test.
 const size_t kMaxConsumerCount =
-    android::dvr::BufferHubDefs::kMaxNumberOfClients - 1;
+    android::BufferHubDefs::kMaxNumberOfClients - 1;
 const int kPollTimeoutMs = 100;
 
 using LibBufferHubTest = ::testing::Test;

@@ -2,6 +2,8 @@
 #define ANDROID_DVR_NATIVE_HANDLE_WRAPPER_H_
 
 #include <cutils/native_handle.h>
+#include <log/log.h>
+#include <pdx/rpc/serializable.h>
 
 #include <vector>
 
