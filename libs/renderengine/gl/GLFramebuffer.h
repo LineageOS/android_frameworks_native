@@ -35,7 +35,7 @@ public:
     explicit GLFramebuffer(const GLESRenderEngine& engine);
     ~GLFramebuffer() override;
 
-    bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected) override;
+    bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer) override;
     EGLImageKHR getEGLImage() const { return mEGLImage; }
     uint32_t getTextureName() const { return mTextureName; }
     uint32_t getFramebufferName() const { return mFramebufferName; }

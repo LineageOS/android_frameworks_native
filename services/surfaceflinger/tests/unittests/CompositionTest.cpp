@@ -286,10 +286,8 @@ struct BaseDisplayVariant {
     static void setupCommonScreensCaptureCallExpectations(CompositionTest* test) {
         // Called once with a non-null value to set a framebuffer, and then
         // again with nullptr to clear it.
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull(), false))
-                .WillOnce(Return(true));
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull(), false))
-                .WillOnce(Return(true));
+        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull())).WillOnce(Return(true));
+        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull())).WillOnce(Return(true));
 
         EXPECT_CALL(*test->mRenderEngine, checkErrors()).WillRepeatedly(Return());
         EXPECT_CALL(*test->mRenderEngine, createFramebuffer())
@@ -346,10 +344,8 @@ struct BaseDisplayVariant {
                                              Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                              ui::Transform::ROT_0))
                 .Times(1);
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull(), false))
-                .WillOnce(Return(true));
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull(), false))
-                .WillOnce(Return(true));
+        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull())).WillOnce(Return(true));
+        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull())).WillOnce(Return(true));
         EXPECT_CALL(*test->mRenderEngine, createFramebuffer())
                 .WillOnce(Return(
                         ByMove(std::unique_ptr<renderengine::Framebuffer>(test->mReFrameBuffer))));

@@ -146,7 +146,6 @@ public:
                           ui::Dataspace* outDataspace, ui::ColorMode* outMode,
                           ui::RenderIntent* outIntent) const;
 
-    void setProtected(bool useProtected);
     // Queues the drawn buffer for consumption by HWC.
     void queueBuffer(HWComposer& hwc);
     // Allocates a buffer as scratch space for GPU composition

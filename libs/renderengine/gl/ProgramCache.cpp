@@ -77,8 +77,7 @@ Formatter& dedent(Formatter& f) {
     return f;
 }
 
-void ProgramCache::primeCache(EGLContext context, bool useColorManagement) {
-    auto& cache = mCaches[context];
+void ProgramCache::primeCache(bool useColorManagement) {
     uint32_t shaderCount = 0;
     uint32_t keyMask = Key::BLEND_MASK | Key::OPACITY_MASK | Key::ALPHA_MASK | Key::TEXTURE_MASK
         | Key::ROUNDED_CORNERS_MASK;
@@ -93,8 +92,8 @@ void ProgramCache::primeCache(EGLContext context, bool useColorManagement) {
         if (tex != Key::TEXTURE_OFF && tex != Key::TEXTURE_EXT && tex != Key::TEXTURE_2D) {
             continue;
         }
-        if (cache.count(shaderKey) == 0) {
-            cache.emplace(shaderKey, generateProgram(shaderKey));
+        if (mCache.count(shaderKey) == 0) {
+            mCache.emplace(shaderKey, generateProgram(shaderKey));
             shaderCount++;
         }
     }
@@ -110,8 +109,8 @@ void ProgramCache::primeCache(EGLContext context, bool useColorManagement) {
             shaderKey.set(Key::OPACITY_MASK,
                           (i & 1) ? Key::OPACITY_OPAQUE : Key::OPACITY_TRANSLUCENT);
             shaderKey.set(Key::ALPHA_MASK, (i & 2) ? Key::ALPHA_LT_ONE : Key::ALPHA_EQ_ONE);
-            if (cache.count(shaderKey) == 0) {
-                cache.emplace(shaderKey, generateProgram(shaderKey));
+            if (mCache.count(shaderKey) == 0) {
+                mCache.emplace(shaderKey, generateProgram(shaderKey));
                 shaderCount++;
             }
         }
@@ -696,21 +695,20 @@ std::unique_ptr<Program> ProgramCache::generateProgram(const Key& needs) {
     return std::make_unique<Program>(needs, vs.string(), fs.string());
 }
 
-void ProgramCache::useProgram(EGLContext context, const Description& description) {
+void ProgramCache::useProgram(const Description& description) {
     // generate the key for the shader based on the description
     Key needs(computeKey(description));
 
     // look-up the program in the cache
-    auto& cache = mCaches[context];
-    auto it = cache.find(needs);
-    if (it == cache.end()) {
+    auto it = mCache.find(needs);
+    if (it == mCache.end()) {
         // we didn't find our program, so generate one...
         nsecs_t time = systemTime();
-        it = cache.emplace(needs, generateProgram(needs)).first;
+        it = mCache.emplace(needs, generateProgram(needs)).first;
         time = systemTime() - time;
 
-        ALOGV(">>> generated new program for context %p: needs=%08X, time=%u ms (%zu programs)",
-              context, needs.mKey, uint32_t(ns2ms(time)), cache.size());
+        ALOGV(">>> generated new program: needs=%08X, time=%u ms (%zu programs)", needs.mKey,
+              uint32_t(ns2ms(time)), mCache.size());
     }
 
     // here we have a suitable program for this description
