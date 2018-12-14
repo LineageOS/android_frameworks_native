@@ -39,6 +39,7 @@ TEST_F(GraphicBufferTest, CreateFromBufferHubBuffer) {
     std::unique_ptr<BufferHubBuffer> b1 =
             BufferHubBuffer::Create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
                                     kTestUsage, /*userMetadataSize=*/0);
+    EXPECT_NE(b1, nullptr);
     EXPECT_TRUE(b1->IsValid());
 
     sp<GraphicBuffer> gb(new GraphicBuffer(std::move(b1)));
@@ -49,6 +50,28 @@ TEST_F(GraphicBufferTest, CreateFromBufferHubBuffer) {
     EXPECT_EQ(static_cast<uint32_t>(gb->getPixelFormat()), kTestFormat);
     EXPECT_EQ(gb->getUsage(), kTestUsage);
     EXPECT_EQ(gb->getLayerCount(), kTestLayerCount);
+}
+
+TEST_F(GraphicBufferTest, InvalidBufferIdForNoneBufferHubBuffer) {
+    sp<GraphicBuffer> gb(
+            new GraphicBuffer(kTestWidth, kTestHeight, kTestFormat, kTestLayerCount, kTestUsage));
+    EXPECT_FALSE(gb->isBufferHubBuffer());
+    EXPECT_EQ(gb->getBufferId(), -1);
+}
+
+TEST_F(GraphicBufferTest, BufferIdMatchesBufferHubBufferId) {
+    std::unique_ptr<BufferHubBuffer> b1 =
+            BufferHubBuffer::Create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
+                                    kTestUsage, /*userMetadataSize=*/0);
+    EXPECT_NE(b1, nullptr);
+    EXPECT_TRUE(b1->IsValid());
+
+    int b1_id = b1->id();
+    EXPECT_GE(b1_id, 0);
+
+    sp<GraphicBuffer> gb(new GraphicBuffer(std::move(b1)));
+    EXPECT_TRUE(gb->isBufferHubBuffer());
+    EXPECT_EQ(gb->getBufferId(), b1_id);
 }
 
 } // namespace android
