@@ -5483,11 +5483,10 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }
-    auto& engine(getRenderEngine());
 
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    renderengine::BindNativeBufferAsFramebuffer bufferBond(engine, buffer);
+    renderengine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
     if (bufferBond.getStatus() != NO_ERROR) {
         ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;
@@ -5499,9 +5498,9 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     // dependent on the context's EGLConfig.
     renderScreenImplLocked(renderArea, traverseLayers, useIdentityTransform);
 
-    base::unique_fd syncFd = engine.flush();
+    base::unique_fd syncFd = getRenderEngine().flush();
     if (syncFd < 0) {
-        engine.finish();
+        getRenderEngine().finish();
     }
     *outSyncFd = syncFd.release();
 

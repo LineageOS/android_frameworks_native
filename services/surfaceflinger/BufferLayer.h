@@ -71,10 +71,6 @@ public:
     // isVisible - true if this layer is visible, false otherwise
     bool isVisible() const override;
 
-    // isProtected - true if the layer may contain protected content in the
-    // GRALLOC_USAGE_PROTECTED sense.
-    bool isProtected() const override;
-
     // isFixedSize - true if content has a fixed size
     bool isFixedSize() const override;
 
@@ -152,6 +148,13 @@ private:
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
     virtual void setHwcLayerBuffer(DisplayId displayId) = 0;
+
+    // -----------------------------------------------------------------------
+
+public:
+    // isProtected - true if the layer may contain protected content in the
+    // GRALLOC_USAGE_PROTECTED sense.
+    bool isProtected() const;
 
 protected:
     // Loads the corresponding system property once per process
