@@ -1028,6 +1028,16 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
     return event - buffer;
 }
 
+std::vector<TouchVideoFrame> EventHub::getVideoFrames(int32_t deviceId) {
+    AutoMutex _l(mLock);
+
+    Device* device = getDeviceLocked(deviceId);
+    if (!device || !device->videoDevice) {
+        return {};
+    }
+    return device->videoDevice->consumeFrames();
+}
+
 void EventHub::wake() {
     ALOGV("wake() called");
 

@@ -211,6 +211,7 @@ public:
      * Returns the number of events obtained, or 0 if the timeout expired.
      */
     virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) = 0;
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) = 0;
 
     /*
      * Query current input state.
@@ -303,6 +304,7 @@ public:
             const int32_t* keyCodes, uint8_t* outFlags) const;
 
     virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize);
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId);
 
     virtual bool hasScanCode(int32_t deviceId, int32_t scanCode) const;
     virtual bool hasLed(int32_t deviceId, int32_t led) const;
