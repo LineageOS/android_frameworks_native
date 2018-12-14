@@ -38,19 +38,19 @@ public:
     // Gets the current value of active_clients_bit_mask in metadata_ with
     // std::memory_order_acquire, so that all previous releases of
     // active_clients_bit_mask from all threads will be returned here.
-    uint64_t GetActiveClientsBitMask() const;
+    uint32_t GetActiveClientsBitMask() const;
 
     // Find and add a new client_state_mask to active_clients_bit_mask in
     // metadata_.
     // Return the new client_state_mask that is added to active_clients_bit_mask.
-    // Return 0ULL if there are already 32 bp clients of the buffer.
-    uint64_t AddNewActiveClientsBitToMask();
+    // Return 0U if there are already 16 clients of the buffer.
+    uint32_t AddNewActiveClientsBitToMask();
 
     // Removes the value from active_clients_bit_mask in metadata_ with
     // std::memory_order_release, so that the change will be visible to any
     // acquire of active_clients_bit_mask_ in any threads after the succeed of
     // this operation.
-    void RemoveClientsBitFromMask(const uint64_t& value);
+    void RemoveClientsBitFromMask(const uint32_t& value);
 
 private:
     // Helper method for constructors to initialize atomic metadata header
@@ -75,14 +75,14 @@ private:
 
     // buffer_state_ tracks the state of the buffer. Buffer can be in one of these
     // four states: gained, posted, acquired, released.
-    std::atomic<uint64_t>* buffer_state_ = nullptr;
+    std::atomic<uint32_t>* buffer_state_ = nullptr;
 
     // TODO(b/112012161): add comments to fence_state_.
-    std::atomic<uint64_t>* fence_state_ = nullptr;
+    std::atomic<uint32_t>* fence_state_ = nullptr;
 
     // active_clients_bit_mask_ tracks all the bp clients of the buffer. It is the
     // union of all client_state_mask of all bp clients.
-    std::atomic<uint64_t>* active_clients_bit_mask_ = nullptr;
+    std::atomic<uint32_t>* active_clients_bit_mask_ = nullptr;
 };
 
 } // namespace implementation

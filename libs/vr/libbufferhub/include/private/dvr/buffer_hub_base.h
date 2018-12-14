@@ -90,13 +90,13 @@ class BufferHubBase : public pdx::Client {
   int cid() const { return cid_; }
 
   // Returns the buffer buffer state.
-  uint64_t buffer_state() {
+  uint32_t buffer_state() {
     return buffer_state_->load(std::memory_order_acquire);
   };
 
   // A state mask which is unique to a buffer hub client among all its siblings
   // sharing the same concrete graphic buffer.
-  uint64_t client_state_mask() const { return client_state_mask_; }
+  uint32_t client_state_mask() const { return client_state_mask_; }
 
   // The following methods return settings of the first buffer. Currently,
   // it is only possible to create multi-buffer BufferHubBases with the same
@@ -132,11 +132,11 @@ class BufferHubBase : public pdx::Client {
   // IonBuffer that is shared between bufferhubd, producer, and consumers.
   size_t metadata_buf_size_{0};
   size_t user_metadata_size_{0};
-  BufferHubDefs::MetadataHeader* metadata_header_{nullptr};
-  void* user_metadata_ptr_{nullptr};
-  std::atomic<uint64_t>* buffer_state_{nullptr};
-  std::atomic<uint64_t>* fence_state_{nullptr};
-  std::atomic<uint64_t>* active_clients_bit_mask_{nullptr};
+  BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
+  void* user_metadata_ptr_ = nullptr;
+  std::atomic<uint32_t>* buffer_state_ = nullptr;
+  std::atomic<uint32_t>* fence_state_ = nullptr;
+  std::atomic<uint32_t>* active_clients_bit_mask_ = nullptr;
 
   LocalHandle shared_acquire_fence_;
   LocalHandle shared_release_fence_;
@@ -159,7 +159,7 @@ class BufferHubBase : public pdx::Client {
 
   // Client bit mask which indicates the locations of this client object in the
   // buffer_state_.
-  uint64_t client_state_mask_{0ULL};
+  uint32_t client_state_mask_{0U};
   IonBuffer buffer_;
   IonBuffer metadata_buffer_;
 };

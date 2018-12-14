@@ -17,7 +17,7 @@ namespace android {
 namespace dvr {
 
 ConsumerChannel::ConsumerChannel(BufferHubService* service, int buffer_id,
-                                 int channel_id, uint64_t client_state_mask,
+                                 int channel_id, uint32_t client_state_mask,
                                  const std::shared_ptr<Channel> producer)
     : BufferHubChannel(service, buffer_id, channel_id, kConsumerType),
       client_state_mask_(client_state_mask),

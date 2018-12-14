@@ -22,46 +22,46 @@ static constexpr uint32_t kMetadataUsage =
 // See more details in libs/ui/include/ui/BufferHubDefs.h
 static constexpr int kMaxNumberOfClients =
     android::BufferHubDefs::kMaxNumberOfClients;
-static constexpr uint64_t kLowbitsMask = android::BufferHubDefs::kLowbitsMask;
-static constexpr uint64_t kHighBitsMask = android::BufferHubDefs::kHighBitsMask;
-static constexpr uint64_t kFirstClientBitMask =
+static constexpr uint32_t kLowbitsMask = android::BufferHubDefs::kLowbitsMask;
+static constexpr uint32_t kHighBitsMask = android::BufferHubDefs::kHighBitsMask;
+static constexpr uint32_t kFirstClientBitMask =
     android::BufferHubDefs::kFirstClientBitMask;
 
-static inline bool AnyClientGained(uint64_t state) {
+static inline bool AnyClientGained(uint32_t state) {
   return android::BufferHubDefs::AnyClientGained(state);
 }
 
-static inline bool IsClientGained(uint64_t state, uint64_t client_bit_mask) {
+static inline bool IsClientGained(uint32_t state, uint32_t client_bit_mask) {
   return android::BufferHubDefs::IsClientGained(state, client_bit_mask);
 }
 
-static inline bool AnyClientPosted(uint64_t state) {
+static inline bool AnyClientPosted(uint32_t state) {
   return android::BufferHubDefs::AnyClientPosted(state);
 }
 
-static inline bool IsClientPosted(uint64_t state, uint64_t client_bit_mask) {
+static inline bool IsClientPosted(uint32_t state, uint32_t client_bit_mask) {
   return android::BufferHubDefs::IsClientPosted(state, client_bit_mask);
 }
 
-static inline bool AnyClientAcquired(uint64_t state) {
+static inline bool AnyClientAcquired(uint32_t state) {
   return android::BufferHubDefs::AnyClientAcquired(state);
 }
 
-static inline bool IsClientAcquired(uint64_t state, uint64_t client_bit_mask) {
+static inline bool IsClientAcquired(uint32_t state, uint32_t client_bit_mask) {
   return android::BufferHubDefs::IsClientAcquired(state, client_bit_mask);
 }
 
-static inline bool IsBufferReleased(uint64_t state) {
+static inline bool IsBufferReleased(uint32_t state) {
   return android::BufferHubDefs::IsBufferReleased(state);
 }
 
-static inline bool IsClientReleased(uint64_t state, uint64_t client_bit_mask) {
+static inline bool IsClientReleased(uint32_t state, uint32_t client_bit_mask) {
   return android::BufferHubDefs::IsClientReleased(state, client_bit_mask);
 }
 
 // Returns the next available buffer client's client_state_masks.
 // @params union_bits. Union of all existing clients' client_state_masks.
-static inline uint64_t FindNextAvailableClientStateMask(uint64_t union_bits) {
+static inline uint32_t FindNextAvailableClientStateMask(uint32_t union_bits) {
   return android::BufferHubDefs::FindNextAvailableClientStateMask(union_bits);
 }
 
@@ -77,7 +77,7 @@ class BufferTraits {
   BufferTraits() = default;
   BufferTraits(const native_handle_t* buffer_handle,
                const FileHandleType& metadata_handle, int id,
-               uint64_t client_state_mask, uint64_t metadata_size,
+               uint32_t client_state_mask, uint64_t metadata_size,
                uint32_t width, uint32_t height, uint32_t layer_count,
                uint32_t format, uint64_t usage, uint32_t stride,
                const FileHandleType& acquire_fence_fd,
@@ -107,7 +107,7 @@ class BufferTraits {
   // same buffer channel has uniqued state bit among its siblings. For a
   // producer buffer the bit must be kFirstClientBitMask; for a consumer the bit
   // must be one of the kConsumerStateMask.
-  uint64_t client_state_mask() const { return client_state_mask_; }
+  uint32_t client_state_mask() const { return client_state_mask_; }
   uint64_t metadata_size() const { return metadata_size_; }
 
   uint32_t width() { return width_; }
@@ -131,7 +131,7 @@ class BufferTraits {
  private:
   // BufferHub specific traits.
   int id_ = -1;
-  uint64_t client_state_mask_;
+  uint32_t client_state_mask_;
   uint64_t metadata_size_;
 
   // Traits for a GraphicBuffer.

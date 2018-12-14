@@ -99,7 +99,7 @@ class BufferDescription {
  public:
   BufferDescription() = default;
   BufferDescription(const IonBuffer& buffer, const IonBuffer& metadata, int id,
-                    int buffer_cid, uint64_t client_state_mask,
+                    int buffer_cid, uint32_t client_state_mask,
                     const FileHandleType& acquire_fence_fd,
                     const FileHandleType& release_fence_fd)
       : id_(id),
@@ -123,7 +123,7 @@ class BufferDescription {
 
   // State mask of the buffer client. Each BufferHub client backed by the
   // same buffer channel has uniqued state bit among its siblings.
-  uint64_t client_state_mask() const { return client_state_mask_; }
+  uint32_t client_state_mask() const { return client_state_mask_; }
   FileHandleType take_acquire_fence() { return std::move(acquire_fence_fd_); }
   FileHandleType take_release_fence() { return std::move(release_fence_fd_); }
 
@@ -133,7 +133,7 @@ class BufferDescription {
  private:
   int id_{-1};
   int buffer_cid_{-1};
-  uint64_t client_state_mask_{0};
+  uint32_t client_state_mask_{0U};
   // Two IonBuffers: one for the graphic buffer and one for metadata.
   NativeBufferHandle<FileHandleType> buffer_;
   NativeBufferHandle<FileHandleType> metadata_;
