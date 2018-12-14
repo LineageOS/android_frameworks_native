@@ -65,6 +65,7 @@ bool GLImage::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtecte
             ALOGE("failed to create EGLImage: %#x", eglGetError());
             return false;
         }
+        mProtected = isProtected;
     }
 
     return true;

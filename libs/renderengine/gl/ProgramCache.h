@@ -20,6 +20,7 @@
 #include <memory>
 #include <unordered_map>
 
+#include <EGL/egl.h>
 #include <GLES2/gl2.h>
 #include <renderengine/private/Description.h>
 #include <utils/Singleton.h>
@@ -178,13 +179,13 @@ public:
     ~ProgramCache() = default;
 
     // Generate shaders to populate the cache
-    void primeCache(bool useColorManagement);
+    void primeCache(const EGLContext context, bool useColorManagement);
 
-    size_t getSize() const { return mCache.size(); }
+    size_t getSize(const EGLContext context) { return mCaches[context].size(); }
 
     // useProgram lookup a suitable program in the cache or generates one
     // if none can be found.
-    void useProgram(const Description& description);
+    void useProgram(const EGLContext context, const Description& description);
 
 private:
     // compute a cache Key from a Description
@@ -206,7 +207,8 @@ private:
 
     // Key/Value map used for caching Programs. Currently the cache
     // is never shrunk (and the GL program objects are never deleted).
-    std::unordered_map<Key, std::unique_ptr<Program>, Key::Hash> mCache;
+    std::unordered_map<EGLContext, std::unordered_map<Key, std::unique_ptr<Program>, Key::Hash>>
+            mCaches;
 };
 
 } // namespace gl

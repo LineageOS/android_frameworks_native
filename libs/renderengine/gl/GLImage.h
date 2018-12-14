@@ -39,10 +39,12 @@ public:
     bool setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) override;
 
     EGLImageKHR getEGLImage() const { return mEGLImage; }
+    bool isProtected() const { return mProtected; }
 
 private:
     EGLDisplay mEGLDisplay;
     EGLImageKHR mEGLImage = EGL_NO_IMAGE_KHR;
+    bool mProtected = false;
 
     DISALLOW_COPY_AND_ASSIGN(GLImage);
 };

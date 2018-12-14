@@ -74,6 +74,9 @@ public:
     MOCK_METHOD1(drawMesh, void(const Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());
+    MOCK_CONST_METHOD0(isProtected, bool());
+    MOCK_CONST_METHOD0(supportsProtectedContent, bool());
+    MOCK_METHOD1(useProtectedContext, bool(bool));
     MOCK_CONST_METHOD4(drawLayers,
                        status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
                                 ANativeWindowBuffer* const, base::unique_fd*));
@@ -84,8 +87,7 @@ public:
     Image();
     ~Image() override;
 
-    MOCK_METHOD2(setNativeWindowBuffer,
-                 bool(ANativeWindowBuffer* buffer, bool isProtected));
+    MOCK_METHOD2(setNativeWindowBuffer, bool(ANativeWindowBuffer*, bool));
 };
 
 class Framebuffer : public renderengine::Framebuffer {
@@ -93,7 +95,7 @@ public:
     Framebuffer();
     ~Framebuffer() override;
 
-    MOCK_METHOD1(setNativeWindowBuffer, bool(ANativeWindowBuffer*));
+    MOCK_METHOD2(setNativeWindowBuffer, bool(ANativeWindowBuffer*, bool));
 };
 
 } // namespace mock
