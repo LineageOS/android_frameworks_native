@@ -26,6 +26,7 @@
 #include <sensor/ISensorServer.h>
 #include <sensor/ISensorEventConnection.h>
 #include <sensor/Sensor.h>
+#include "android/hardware/BnSensorPrivacyListener.h"
 
 #include <utils/AndroidThreads.h>
 #include <utils/KeyedVector.h>
@@ -130,6 +131,30 @@ private:
             wp<SensorService> mService;
             std::unordered_set<uid_t> mActiveUids;
             std::unordered_map<uid_t, bool> mOverrideUids;
+    };
+
+    // Sensor privacy allows a user to disable access to all sensors on the device. When
+    // enabled sensor privacy will prevent all apps, including active apps, from accessing
+    // sensors, they will not receive trigger nor on-change events, flush event behavior
+    // does not change, and recurring events are the same as the first one delivered when
+    // sensor privacy was enabled. All sensor direct connections will be stopped as well
+    // and new direct connections will not be allowed while sensor privacy is enabled.
+    // Once sensor privacy is disabled access to sensors will be restored for active
+    // apps, previously stopped direct connections will be restarted, and new direct
+    // connections will be allowed again.
+    class SensorPrivacyPolicy : public hardware::BnSensorPrivacyListener {
+        public:
+            explicit SensorPrivacyPolicy(wp<SensorService> service) : mService(service) {}
+            void registerSelf();
+            void unregisterSelf();
+
+            bool isSensorPrivacyEnabled();
+
+            binder::Status onSensorPrivacyChanged(bool enabled);
+
+        private:
+            wp<SensorService> mService;
+            std::atomic_bool mSensorPrivacyEnabled;
     };
 
     enum Mode {
@@ -275,6 +300,13 @@ private:
     // Prints the shell command help
     status_t printHelp(int out);
 
+    // temporarily stops all active direct connections and disables all sensors
+    void disableAllSensors();
+    void disableAllSensorsLocked();
+    // restarts the previously stopped direct connections and enables all sensors
+    void enableAllSensors();
+    void enableAllSensorsLocked();
+
     static uint8_t sHmacGlobalKey[128];
     static bool sHmacGlobalKeyIsValid;
 
@@ -309,6 +341,7 @@ private:
     Vector<SensorRegistrationInfo> mLastNSensorRegistrations;
 
     sp<UidPolicy> mUidPolicy;
+    sp<SensorPrivacyPolicy> mSensorPrivacyPolicy;
 };
 
 } // namespace android
