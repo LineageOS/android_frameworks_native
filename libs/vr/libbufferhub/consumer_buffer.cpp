@@ -36,33 +36,33 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
     return -EINVAL;
 
   // The buffer can be acquired iff the buffer state for this client is posted.
-  uint64_t current_buffer_state =
+  uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsClientPosted(current_buffer_state,
                                      client_state_mask())) {
     ALOGE(
         "%s: Failed to acquire the buffer. The buffer is not posted, id=%d "
-        "state=%" PRIx64 " client_state_mask=%" PRIx64 ".",
+        "state=%" PRIx32 " client_state_mask=%" PRIx32 ".",
         __FUNCTION__, id(), current_buffer_state, client_state_mask());
     return -EBUSY;
   }
 
   // Change the buffer state for this consumer from posted to acquired.
-  uint64_t updated_buffer_state = current_buffer_state ^ client_state_mask();
+  uint32_t updated_buffer_state = current_buffer_state ^ client_state_mask();
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
     ALOGD(
         "%s Failed to acquire the buffer. Current buffer state was changed to "
-        "%" PRIx64
+        "%" PRIx32
         " when trying to acquire the buffer and modify the buffer state to "
-        "%" PRIx64 ". About to try again if the buffer is still posted.",
+        "%" PRIx32 ". About to try again if the buffer is still posted.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
     if (!BufferHubDefs::IsClientPosted(current_buffer_state,
                                        client_state_mask())) {
       ALOGE(
           "%s: Failed to acquire the buffer. The buffer is no longer posted, "
-          "id=%d state=%" PRIx64 " client_state_mask=%" PRIx64 ".",
+          "id=%d state=%" PRIx32 " client_state_mask=%" PRIx32 ".",
           __FUNCTION__, id(), current_buffer_state, client_state_mask());
       return -EBUSY;
     }
@@ -81,7 +81,7 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
     out_meta->user_metadata_ptr = 0;
   }
 
-  uint64_t fence_state = fence_state_->load(std::memory_order_acquire);
+  uint32_t fence_state = fence_state_->load(std::memory_order_acquire);
   // If there is an acquire fence from producer, we need to return it.
   // The producer state bit mask is kFirstClientBitMask for now.
   if (fence_state & BufferHubDefs::kFirstClientBitMask) {
@@ -142,21 +142,21 @@ int ConsumerBuffer::LocalRelease(const DvrNativeBufferMetadata* meta,
 
   // Set the buffer state of this client to released if it is not already in
   // released state.
-  uint64_t current_buffer_state =
+  uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
   if (BufferHubDefs::IsClientReleased(current_buffer_state,
                                       client_state_mask())) {
     return 0;
   }
-  uint64_t updated_buffer_state = current_buffer_state & (~client_state_mask());
+  uint32_t updated_buffer_state = current_buffer_state & (~client_state_mask());
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
     ALOGD(
         "%s: Failed to release the buffer. Current buffer state was changed to "
-        "%" PRIx64
+        "%" PRIx32
         " when trying to release the buffer and modify the buffer state to "
-        "%" PRIx64 ". About to try again.",
+        "%" PRIx32 ". About to try again.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
     // The failure of compare_exchange_weak updates current_buffer_state.
     updated_buffer_state = current_buffer_state & (~client_state_mask());

@@ -67,9 +67,9 @@ protected:
     }
 
     std::unique_ptr<BufferHubBuffer> b1;
-    uint64_t b1ClientMask = 0ULL;
+    uint64_t b1ClientMask = 0U;
     std::unique_ptr<BufferHubBuffer> b2;
-    uint64_t b2ClientMask = 0ULL;
+    uint64_t b2ClientMask = 0U;
 
 private:
     // Creates b1 and b2 as the clients of the same buffer for testing.
@@ -79,13 +79,13 @@ private:
 void BufferHubBufferStateTransitionTest::CreateTwoClientsOfABuffer() {
     b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
     b1ClientMask = b1->client_state_mask();
-    ASSERT_NE(b1ClientMask, 0ULL);
+    ASSERT_NE(b1ClientMask, 0U);
     auto statusOrHandle = b1->Duplicate();
     ASSERT_TRUE(statusOrHandle);
     LocalChannelHandle h2 = statusOrHandle.take();
     b2 = BufferHubBuffer::Import(std::move(h2));
     b2ClientMask = b2->client_state_mask();
-    ASSERT_NE(b2ClientMask, 0ULL);
+    ASSERT_NE(b2ClientMask, 0U);
     ASSERT_NE(b2ClientMask, b1ClientMask);
 }
 
@@ -126,7 +126,7 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
                                       kUserMetadataSize);
     int id1 = b1->id();
     uint64_t bufferStateMask1 = b1->client_state_mask();
-    EXPECT_NE(bufferStateMask1, 0ULL);
+    EXPECT_NE(bufferStateMask1, 0U);
     EXPECT_TRUE(b1->IsValid());
     EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
 
@@ -149,7 +149,7 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
 
     int id2 = b2->id();
     uint64_t bufferStateMask2 = b2->client_state_mask();
-    EXPECT_NE(bufferStateMask2, 0ULL);
+    EXPECT_NE(bufferStateMask2, 0U);
 
     // These two buffer instances are based on the same physical buffer under the
     // hood, so they should share the same id.
