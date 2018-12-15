@@ -45,7 +45,8 @@ public:
     static EGLConfig chooseEglConfig(EGLDisplay display, int format, bool logConfig);
 
     GLESRenderEngine(uint32_t featureFlags, // See RenderEngine::FeatureFlag
-                     EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
+                     EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy,
+                     EGLContext protectedContext, EGLSurface protectedDummy);
     ~GLESRenderEngine() override;
 
     std::unique_ptr<Framebuffer> createFramebuffer() override;
@@ -68,6 +69,9 @@ public:
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
 
+    bool isProtected() const override { return mInProtectedContext; }
+    bool supportsProtectedContent() const override;
+    bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& settings, const std::vector<LayerSettings>& layers,
                         ANativeWindowBuffer* const buffer,
                         base::unique_fd* displayFence) const override;
@@ -112,20 +116,22 @@ private:
 
     static GlesVersion parseGlesVersion(const char* str);
     static EGLContext createEglContext(EGLDisplay display, EGLConfig config,
-                                       EGLContext shareContext, bool useContextPriority);
+                                       EGLContext shareContext, bool useContextPriority,
+                                       Protection protection);
     static EGLSurface createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
-                                                   int hwcFormat);
+                                                   int hwcFormat, Protection protection);
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.
     bool isHdrDataSpace(const ui::Dataspace dataSpace) const;
     bool needsXYZTransformMatrix() const;
-    void setEGLHandles(EGLDisplay display, EGLConfig config, EGLContext ctxt, EGLSurface dummy);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
     EGLContext mEGLContext;
     EGLSurface mDummySurface;
+    EGLContext mProtectedEGLContext;
+    EGLSurface mProtectedDummySurface;
     GLuint mProtectedTexName;
     GLint mMaxViewportDims[2];
     GLint mMaxTextureSize;
@@ -146,6 +152,7 @@ private:
     mat4 mBt2020ToSrgb;
     mat4 mBt2020ToDisplayP3;
 
+    bool mInProtectedContext = false;
     int32_t mFboHeight = 0;
 
     // Current dataspace of layer being rendered
