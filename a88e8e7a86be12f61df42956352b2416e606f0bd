@@ -22,6 +22,30 @@
       "revId": "a88e8e7a86be12f61df42956352b2416e606f0bd",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "67919a45_32bfef42",
+        "filename": "libs/ui/GraphicBuffer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 276,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2018-12-16T18:28:26Z",
+      "side": 1,
+      "message": "And 8 for KK. As you can see the proper boundary check immediately above this change, this is wholly unnecessary for 11.0.",
+      "parentUuid": "89302609_0689d70f",
+      "range": {
+        "startLine": 276,
+        "startChar": 15,
+        "endLine": 276,
+        "endChar": 17
+      },
+      "revId": "a88e8e7a86be12f61df42956352b2416e606f0bd",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
