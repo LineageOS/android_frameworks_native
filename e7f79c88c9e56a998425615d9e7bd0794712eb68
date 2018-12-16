@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "542aa1ee_7514c21c",
+        "filename": "libs/ui/GraphicBuffer.cpp",
+        "patchSetId": 1
+      },
+      "lineNbr": 336,
+      "author": {
+        "id": 15173
+      },
+      "writtenOn": "2018-12-16T15:28:30Z",
+      "side": 1,
+      "message": "This change makes the guard inconsistent with needs as identified in line 357. Compare logic in O.\n\nGoogle didn\u0027t list this as affecting \u003cO, and looking at the code I agree.",
+      "range": {
+        "startLine": 336,
+        "startChar": 8,
+        "endLine": 336,
+        "endChar": 17
+      },
+      "revId": "e7f79c88c9e56a998425615d9e7bd0794712eb68",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
