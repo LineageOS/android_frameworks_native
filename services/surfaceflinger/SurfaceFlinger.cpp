@@ -1494,7 +1494,7 @@ void SurfaceFlinger::updateVrFlinger() {
     // Re-enable default display.
     display = getDefaultDisplayDeviceLocked();
     LOG_ALWAYS_FATAL_IF(!display);
-    setPowerModeInternal(display, currentDisplayPowerMode, /*stateLockHeld*/ true);
+    setPowerModeInternal(display, currentDisplayPowerMode);
 
     // Reset the timing values to account for the period of the swapped in HWC
     const auto activeConfig = getHwComposer().getActiveConfig(*display->getId());
@@ -2358,6 +2358,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const DisplayDeviceState& state, const sp<DisplaySurface>& dispSurface,
         const sp<IGraphicBufferProducer>& producer) {
     DisplayDeviceCreationArgs creationArgs(this, displayToken, displayId);
+    creationArgs.sequenceId = state.sequenceId;
     creationArgs.isVirtual = state.isVirtual();
     creationArgs.isSecure = state.isSecure;
     creationArgs.displaySurface = dispSurface;
@@ -3932,7 +3933,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     const auto display = getDisplayDevice(displayToken);
     if (!display) return;
 
-    setPowerModeInternal(display, HWC_POWER_MODE_NORMAL, /*stateLockHeld*/ false);
+    setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
 
     const auto activeConfig = getHwComposer().getActiveConfig(*display->getId());
     const nsecs_t period = activeConfig->getVsyncPeriod();
@@ -3949,8 +3950,7 @@ void SurfaceFlinger::initializeDisplays() {
     postMessageAsync(new LambdaMessage([this] { onInitializeDisplays(); }));
 }
 
-void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int mode,
-                                          bool stateLockHeld) {
+void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int mode) {
     if (display->isVirtual()) {
         ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
         return;
@@ -3969,13 +3969,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
     display->setPowerMode(mode);
 
     if (mInterceptor->isEnabled()) {
-        ConditionalLock lock(mStateLock, !stateLockHeld);
-        ssize_t idx = mCurrentState.displays.indexOfKey(display->getDisplayToken());
-        if (idx < 0) {
-            ALOGW("Surface Interceptor SavePowerMode: invalid display token");
-            return;
-        }
-        mInterceptor->savePowerModeUpdate(mCurrentState.displays.valueAt(idx).sequenceId, mode);
+        mInterceptor->savePowerModeUpdate(display->getSequenceId(), mode);
     }
 
     if (currentMode == HWC_POWER_MODE_OFF) {
@@ -4070,7 +4064,7 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
         } else if (display->isVirtual()) {
             ALOGW("Attempt to set power mode %d for virtual display", mode);
         } else {
-            setPowerModeInternal(display, mode, /*stateLockHeld*/ false);
+            setPowerModeInternal(display, mode);
         }
     }));
 }

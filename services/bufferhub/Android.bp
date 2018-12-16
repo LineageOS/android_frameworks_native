@@ -29,10 +29,8 @@ cc_library_shared {
         "BufferNode.cpp",
     ],
     header_libs: [
-        "libbufferhub_headers",
         "libdvr_headers",
         "libnativewindow_headers",
-        "libpdx_headers",
     ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
@@ -56,10 +54,8 @@ cc_binary {
         "main_bufferhub.cpp"
     ],
     header_libs: [
-        "libbufferhub_headers",
         "libdvr_headers",
         "libnativewindow_headers",
-        "libpdx_headers",
     ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",

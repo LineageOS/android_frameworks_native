@@ -32,7 +32,7 @@ namespace implementation {
 class BufferHubIdGenerator {
 public:
     // 0 is considered invalid
-    static constexpr uint32_t kInvalidId = 0UL;
+    static constexpr uint32_t kInvalidId = 0U;
 
     // Get the singleton instance of this class
     static BufferHubIdGenerator& getInstance();

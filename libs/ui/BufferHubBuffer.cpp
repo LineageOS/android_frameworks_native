@@ -40,6 +40,7 @@
 
 #include <android-base/unique_fd.h>
 #include <ui/BufferHubBuffer.h>
+#include <ui/BufferHubDefs.h>
 
 using android::base::unique_fd;
 using android::dvr::BufferTraits;
@@ -61,15 +62,14 @@ namespace {
 // to use Binder.
 static constexpr char kBufferHubClientPath[] = "system/buffer_hub/client";
 
-using dvr::BufferHubDefs::AnyClientAcquired;
-using dvr::BufferHubDefs::AnyClientGained;
-using dvr::BufferHubDefs::AnyClientPosted;
-using dvr::BufferHubDefs::IsClientAcquired;
-using dvr::BufferHubDefs::IsClientGained;
-using dvr::BufferHubDefs::IsClientPosted;
-using dvr::BufferHubDefs::IsClientReleased;
-using dvr::BufferHubDefs::kHighBitsMask;
-using dvr::BufferHubDefs::kMetadataHeaderSize;
+using BufferHubDefs::AnyClientAcquired;
+using BufferHubDefs::AnyClientGained;
+using BufferHubDefs::AnyClientPosted;
+using BufferHubDefs::IsClientAcquired;
+using BufferHubDefs::IsClientGained;
+using BufferHubDefs::IsClientPosted;
+using BufferHubDefs::IsClientReleased;
+using BufferHubDefs::kHighBitsMask;
 
 } // namespace
 
@@ -161,7 +161,7 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     }
 
     size_t metadataSize = static_cast<size_t>(bufferTraits.metadata_size());
-    if (metadataSize < kMetadataHeaderSize) {
+    if (metadataSize < BufferHubDefs::kMetadataHeaderSize) {
         ALOGE("BufferHubBuffer::ImportGraphicBuffer: metadata too small: %zu", metadataSize);
         return -EINVAL;
     }
@@ -191,22 +191,22 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     mClientStateMask = bufferTraits.client_state_mask();
 
     // TODO(b/112012161) Set up shared fences.
-    ALOGD("BufferHubBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx64 ".", id(),
+    ALOGD("BufferHubBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx32 ".", id(),
           buffer_state_->load(std::memory_order_acquire));
     return 0;
 }
 
 int BufferHubBuffer::Gain() {
-    uint64_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
+    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
     if (IsClientGained(current_buffer_state, mClientStateMask)) {
-        ALOGV("%s: Buffer is already gained by this client %" PRIx64 ".", __FUNCTION__,
+        ALOGV("%s: Buffer is already gained by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
     do {
         if (AnyClientGained(current_buffer_state & (~mClientStateMask)) ||
             AnyClientAcquired(current_buffer_state)) {
-            ALOGE("%s: Buffer is in use, id=%d mClientStateMask=%" PRIx64 " state=%" PRIx64 ".",
+            ALOGE("%s: Buffer is in use, id=%d mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
                   __FUNCTION__, mId, mClientStateMask, current_buffer_state);
             return -EBUSY;
         }
@@ -220,13 +220,13 @@ int BufferHubBuffer::Gain() {
 }
 
 int BufferHubBuffer::Post() {
-    uint64_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
-    uint64_t current_active_clients_bit_mask = 0ULL;
-    uint64_t updated_buffer_state = 0ULL;
+    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
+    uint32_t current_active_clients_bit_mask = 0U;
+    uint32_t updated_buffer_state = 0U;
     do {
         if (!IsClientGained(current_buffer_state, mClientStateMask)) {
             ALOGE("%s: Cannot post a buffer that is not gained by this client. buffer_id=%d "
-                  "mClientStateMask=%" PRIx64 " state=%" PRIx64 ".",
+                  "mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
                   __FUNCTION__, mId, mClientStateMask, current_buffer_state);
             return -EBUSY;
         }
@@ -242,17 +242,17 @@ int BufferHubBuffer::Post() {
 }
 
 int BufferHubBuffer::Acquire() {
-    uint64_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
+    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
     if (IsClientAcquired(current_buffer_state, mClientStateMask)) {
-        ALOGV("%s: Buffer is already acquired by this client %" PRIx64 ".", __FUNCTION__,
+        ALOGV("%s: Buffer is already acquired by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
-    uint64_t updated_buffer_state = 0ULL;
+    uint32_t updated_buffer_state = 0U;
     do {
         if (!IsClientPosted(current_buffer_state, mClientStateMask)) {
             ALOGE("%s: Cannot acquire a buffer that is not in posted state. buffer_id=%d "
-                  "mClientStateMask=%" PRIx64 " state=%" PRIx64 ".",
+                  "mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
                   __FUNCTION__, mId, mClientStateMask, current_buffer_state);
             return -EBUSY;
         }
@@ -266,13 +266,13 @@ int BufferHubBuffer::Acquire() {
 }
 
 int BufferHubBuffer::Release() {
-    uint64_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
+    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
     if (IsClientReleased(current_buffer_state, mClientStateMask)) {
-        ALOGV("%s: Buffer is already released by this client %" PRIx64 ".", __FUNCTION__,
+        ALOGV("%s: Buffer is already released by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
-    uint64_t updated_buffer_state = 0ULL;
+    uint32_t updated_buffer_state = 0U;
     do {
         updated_buffer_state = current_buffer_state & (~mClientStateMask);
     } while (!buffer_state_->compare_exchange_weak(current_buffer_state, updated_buffer_state,

@@ -45,7 +45,7 @@ cc_test {
 }
 
 cc_test {
-    name: "BufferHubBuffer_test",
+    name: "BufferHub_test",
     header_libs: [
         "libbufferhub_headers",
         "libdvr_headers",
@@ -67,19 +67,7 @@ cc_test {
     srcs: [
         "BufferHubBuffer_test.cpp",
         "BufferHubEventFd_test.cpp",
+        "BufferHubMetadata_test.cpp",
     ],
-    cflags: ["-Wall", "-Werror"],
-}
-
-cc_test {
-    name: "BufferHubMetadata_test",
-    header_libs: ["libbufferhub_headers", "libdvr_headers"],
-    shared_libs: [
-        "libbase",
-        "libpdx_default_transport",
-        "libui",
-        "libutils",
-    ],
-    srcs: ["BufferHubMetadata_test.cpp"],
     cflags: ["-Wall", "-Werror"],
 }

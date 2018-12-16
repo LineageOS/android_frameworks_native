@@ -5,6 +5,7 @@
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <ui/BufferHubBuffer.h>
+#include <ui/BufferHubDefs.h>
 
 #include <mutex>
 #include <thread>
@@ -21,17 +22,17 @@
 using android::BufferHubBuffer;
 using android::GraphicBuffer;
 using android::sp;
+using android::BufferHubDefs::AnyClientAcquired;
+using android::BufferHubDefs::AnyClientGained;
+using android::BufferHubDefs::AnyClientPosted;
+using android::BufferHubDefs::IsBufferReleased;
+using android::BufferHubDefs::IsClientAcquired;
+using android::BufferHubDefs::IsClientPosted;
+using android::BufferHubDefs::IsClientReleased;
+using android::BufferHubDefs::kFirstClientBitMask;
+using android::BufferHubDefs::kMetadataHeaderSize;
 using android::dvr::ConsumerBuffer;
 using android::dvr::ProducerBuffer;
-using android::dvr::BufferHubDefs::AnyClientAcquired;
-using android::dvr::BufferHubDefs::AnyClientGained;
-using android::dvr::BufferHubDefs::AnyClientPosted;
-using android::dvr::BufferHubDefs::IsBufferReleased;
-using android::dvr::BufferHubDefs::IsClientAcquired;
-using android::dvr::BufferHubDefs::IsClientPosted;
-using android::dvr::BufferHubDefs::IsClientReleased;
-using android::dvr::BufferHubDefs::kFirstClientBitMask;
-using android::dvr::BufferHubDefs::kMetadataHeaderSize;
 using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
@@ -45,7 +46,7 @@ const size_t kUserMetadataSize = 0;
 // Maximum number of consumers for the buffer that only has one producer in the
 // test.
 const size_t kMaxConsumerCount =
-    android::dvr::BufferHubDefs::kMaxNumberOfClients - 1;
+    android::BufferHubDefs::kMaxNumberOfClients - 1;
 const int kPollTimeoutMs = 100;
 
 using LibBufferHubTest = ::testing::Test;
@@ -174,7 +175,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
   ASSERT_TRUE(p.get() != nullptr);
 
   // It's ok to create up to kMaxConsumerCount consumer buffers.
-  uint64_t client_state_masks = p->client_state_mask();
+  uint32_t client_state_masks = p->client_state_mask();
   std::array<std::unique_ptr<ConsumerBuffer>, kMaxConsumerCount> cs;
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
     cs[i] = ConsumerBuffer::Import(p->CreateConsumer());
@@ -183,7 +184,7 @@ TEST_F(LibBufferHubTest, TestStateMask) {
     EXPECT_EQ(client_state_masks & cs[i]->client_state_mask(), 0U);
     client_state_masks |= cs[i]->client_state_mask();
   }
-  EXPECT_EQ(client_state_masks, ~0ULL);
+  EXPECT_EQ(client_state_masks, ~0U);
 
   // The 64th creation will fail with out-of-memory error.
   auto state = p->CreateConsumer();
@@ -372,7 +373,7 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
   std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
   ASSERT_TRUE(p.get() != nullptr);
-  uint64_t producer_state_mask = p->client_state_mask();
+  uint32_t producer_state_mask = p->client_state_mask();
 
   std::array<std::unique_ptr<ConsumerBuffer>, kMaxConsumerCount> cs;
   for (size_t i = 0; i < kMaxConsumerCount; ++i) {
@@ -718,7 +719,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c1 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c1.get() != nullptr);
-  const uint64_t client_state_mask1 = c1->client_state_mask();
+  const uint32_t client_state_mask1 = c1->client_state_mask();
 
   EXPECT_EQ(0, p->GainAsync());
   DvrNativeBufferMetadata meta;
@@ -738,7 +739,7 @@ TEST_F(LibBufferHubTest, TestOrphanedAcquire) {
   std::unique_ptr<ConsumerBuffer> c2 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
-  const uint64_t client_state_mask2 = c2->client_state_mask();
+  const uint32_t client_state_mask2 = c2->client_state_mask();
   EXPECT_NE(client_state_mask1, client_state_mask2);
   EXPECT_EQ(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
   EXPECT_EQ(-EBUSY, c2->AcquireAsync(&meta, &fence));
@@ -754,7 +755,7 @@ TEST_F(LibBufferHubTest, TestAcquireLastPosted) {
   std::unique_ptr<ConsumerBuffer> c1 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c1.get() != nullptr);
-  const uint64_t client_state_mask1 = c1->client_state_mask();
+  const uint32_t client_state_mask1 = c1->client_state_mask();
 
   EXPECT_EQ(0, p->GainAsync());
   DvrNativeBufferMetadata meta;
@@ -766,7 +767,7 @@ TEST_F(LibBufferHubTest, TestAcquireLastPosted) {
   std::unique_ptr<ConsumerBuffer> c2 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
-  const uint64_t client_state_mask2 = c2->client_state_mask();
+  const uint32_t client_state_mask2 = c2->client_state_mask();
   EXPECT_NE(client_state_mask1, client_state_mask2);
   EXPECT_LT(0, RETRY_EINTR(c2->Poll(kPollTimeoutMs)));
   LocalHandle invalid_fence;
@@ -780,7 +781,7 @@ TEST_F(LibBufferHubTest, TestAcquireLastPosted) {
   std::unique_ptr<ConsumerBuffer> c3 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c3.get() != nullptr);
-  const uint64_t client_state_mask3 = c3->client_state_mask();
+  const uint32_t client_state_mask3 = c3->client_state_mask();
   EXPECT_NE(client_state_mask1, client_state_mask3);
   EXPECT_NE(client_state_mask2, client_state_mask3);
   EXPECT_LT(0, RETRY_EINTR(c3->Poll(kPollTimeoutMs)));
@@ -801,7 +802,7 @@ TEST_F(LibBufferHubTest, TestAcquireLastPosted) {
   std::unique_ptr<ConsumerBuffer> c4 =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c4.get() != nullptr);
-  const uint64_t client_state_mask4 = c4->client_state_mask();
+  const uint32_t client_state_mask4 = c4->client_state_mask();
   EXPECT_NE(client_state_mask3, client_state_mask4);
   EXPECT_GE(0, RETRY_EINTR(c3->Poll(kPollTimeoutMs)));
   EXPECT_EQ(-EBUSY, c3->AcquireAsync(&meta, &invalid_fence));
@@ -951,7 +952,7 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
   int b1_id = b1->id();
   EXPECT_TRUE(b1->IsValid());
   EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
-  EXPECT_NE(b1->client_state_mask(), 0ULL);
+  EXPECT_NE(b1->client_state_mask(), 0U);
 
   auto status_or_handle = b1->Duplicate();
   EXPECT_TRUE(status_or_handle);
@@ -969,7 +970,7 @@ TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
   ASSERT_TRUE(b2 != nullptr);
   EXPECT_TRUE(b2->IsValid());
   EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
-  EXPECT_NE(b2->client_state_mask(), 0ULL);
+  EXPECT_NE(b2->client_state_mask(), 0U);
 
   int b2_id = b2->id();
 

@@ -17,6 +17,7 @@
 #include <bufferhub/BufferClient.h>
 #include <bufferhub/BufferHubService.h>
 #include <hidl/HidlSupport.h>
+#include <log/log.h>
 
 namespace android {
 namespace frameworks {

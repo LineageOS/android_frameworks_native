@@ -41,6 +41,7 @@ cc_library_shared {
         "liblog",
         "libbinder",
         "libsensor",
+        "libsensorprivacy",
         "libcrypto",
         "libbase",
         "libhidlbase",
@@ -53,8 +54,8 @@ cc_library_shared {
 
     static_libs: ["android.hardware.sensors@1.0-convert"],
 
-    // our public headers depend on libsensor
-    export_shared_lib_headers: ["libsensor"],
+    // our public headers depend on libsensor and libsensorprivacy
+    export_shared_lib_headers: ["libsensor", "libsensorprivacy"],
 }
 
 cc_binary {
@@ -64,6 +65,7 @@ cc_binary {
 
     shared_libs: [
         "libsensorservice",
+        "libsensorprivacy",
         "libbinder",
         "libutils",
     ],

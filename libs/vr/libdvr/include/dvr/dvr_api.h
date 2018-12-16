@@ -412,6 +412,7 @@ typedef int (*DvrTrackingSensorsStopPtr)(DvrTrackingSensors* sensors);
 // existing data members. If new fields need to be added, please take extra care
 // to make sure that new data field is padded properly the size of the struct
 // stays same.
+// TODO(b/118893702): move the definition to libnativewindow or libui
 struct ALIGNED_DVR_STRUCT(8) DvrNativeBufferMetadata {
 #ifdef __cplusplus
   DvrNativeBufferMetadata()
@@ -465,11 +466,11 @@ struct ALIGNED_DVR_STRUCT(8) DvrNativeBufferMetadata {
 
   // Only applicable for metadata retrieved from GainAsync. This indicates which
   // consumer has pending fence that producer should epoll on.
-  uint64_t release_fence_mask;
+  uint32_t release_fence_mask;
 
   // Reserved bytes for so that the struct is forward compatible and padding to
   // 104 bytes so the size is a multiple of 8.
-  int32_t reserved[8];
+  int32_t reserved[9];
 };
 
 #ifdef __cplusplus

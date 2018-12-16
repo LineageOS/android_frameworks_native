@@ -524,7 +524,7 @@ private:
     // called on the main thread in response to setActiveConfig()
     void setActiveConfigInternal(const sp<DisplayDevice>& display, int mode);
     // called on the main thread in response to setPowerMode()
-    void setPowerModeInternal(const sp<DisplayDevice>& display, int mode, bool stateLockHeld);
+    void setPowerModeInternal(const sp<DisplayDevice>& display, int mode);
 
     // Called on the main thread in response to setActiveColorMode()
     void setActiveColorModeInternal(const sp<DisplayDevice>& display, ui::ColorMode colorMode,

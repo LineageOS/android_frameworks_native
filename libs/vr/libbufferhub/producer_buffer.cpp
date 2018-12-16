@@ -80,20 +80,20 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
     return error;
 
   // The buffer can be posted iff the buffer state for this client is gained.
-  uint64_t current_buffer_state =
+  uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsClientGained(current_buffer_state,
                                      client_state_mask())) {
-    ALOGE("%s: not gained, id=%d state=%" PRIx64 ".", __FUNCTION__, id(),
+    ALOGE("%s: not gained, id=%d state=%" PRIx32 ".", __FUNCTION__, id(),
           current_buffer_state);
     return -EBUSY;
   }
 
   // Set the producer client buffer state to released, other clients' buffer
   // state to posted.
-  uint64_t current_active_clients_bit_mask =
+  uint32_t current_active_clients_bit_mask =
       active_clients_bit_mask_->load(std::memory_order_acquire);
-  uint64_t updated_buffer_state = current_active_clients_bit_mask &
+  uint32_t updated_buffer_state = current_active_clients_bit_mask &
                                   (~client_state_mask()) &
                                   BufferHubDefs::kHighBitsMask;
   while (!buffer_state_->compare_exchange_weak(
@@ -101,16 +101,16 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
       std::memory_order_acquire)) {
     ALOGD(
         "%s: Failed to post the buffer. Current buffer state was changed to "
-        "%" PRIx64
+        "%" PRIx32
         " when trying to post the buffer and modify the buffer state to "
-        "%" PRIx64
+        "%" PRIx32
         ". About to try again if the buffer is still gained by this client.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
     if (!BufferHubDefs::IsClientGained(current_buffer_state,
                                        client_state_mask())) {
       ALOGE(
           "%s: Failed to post the buffer. The buffer is no longer gained, "
-          "id=%d state=%" PRIx64 ".",
+          "id=%d state=%" PRIx32 ".",
           __FUNCTION__, id(), current_buffer_state);
       return -EBUSY;
     }
@@ -164,9 +164,9 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   if (!out_meta)
     return -EINVAL;
 
-  uint64_t current_buffer_state =
+  uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  ALOGD_IF(TRACE, "%s: buffer=%d, state=%" PRIx64 ".", __FUNCTION__, id(),
+  ALOGD_IF(TRACE, "%s: buffer=%d, state=%" PRIx32 ".", __FUNCTION__, id(),
            current_buffer_state);
 
   if (BufferHubDefs::IsClientGained(current_buffer_state,
@@ -178,20 +178,20 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
       BufferHubDefs::AnyClientGained(current_buffer_state) ||
       (BufferHubDefs::AnyClientPosted(current_buffer_state) &&
        !gain_posted_buffer)) {
-    ALOGE("%s: not released id=%d state=%" PRIx64 ".", __FUNCTION__, id(),
+    ALOGE("%s: not released id=%d state=%" PRIx32 ".", __FUNCTION__, id(),
           current_buffer_state);
     return -EBUSY;
   }
   // Change the buffer state to gained state.
-  uint64_t updated_buffer_state = client_state_mask();
+  uint32_t updated_buffer_state = client_state_mask();
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
     ALOGD(
         "%s: Failed to gain the buffer. Current buffer state was changed to "
-        "%" PRIx64
+        "%" PRIx32
         " when trying to gain the buffer and modify the buffer state to "
-        "%" PRIx64
+        "%" PRIx32
         ". About to try again if the buffer is still not read by other "
         "clients.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
@@ -202,7 +202,7 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
          !gain_posted_buffer)) {
       ALOGE(
           "%s: Failed to gain the buffer. The buffer is no longer released. "
-          "id=%d state=%" PRIx64 ".",
+          "id=%d state=%" PRIx32 ".",
           __FUNCTION__, id(), current_buffer_state);
       return -EBUSY;
     }
@@ -221,8 +221,8 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
     out_meta->user_metadata_ptr = 0;
   }
 
-  uint64_t current_fence_state = fence_state_->load(std::memory_order_acquire);
-  uint64_t current_active_clients_bit_mask =
+  uint32_t current_fence_state = fence_state_->load(std::memory_order_acquire);
+  uint32_t current_active_clients_bit_mask =
       active_clients_bit_mask_->load(std::memory_order_acquire);
   // If there are release fence(s) from consumer(s), we need to return it to the
   // consumer(s).
@@ -289,11 +289,11 @@ Status<LocalChannelHandle> ProducerBuffer::Detach() {
 
   // TODO(b/112338294) Keep here for reference. Remove it after new logic is
   // written.
-  /* uint64_t buffer_state = buffer_state_->load(std::memory_order_acquire);
+  /* uint32_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsClientGained(
       buffer_state, BufferHubDefs::kFirstClientStateMask)) {
     // Can only detach a ProducerBuffer when it's in gained state.
-    ALOGW("ProducerBuffer::Detach: The buffer (id=%d, state=0x%" PRIx64
+    ALOGW("ProducerBuffer::Detach: The buffer (id=%d, state=0x%" PRIx32
           ") is not in gained state.",
           id(), buffer_state);
     return {};

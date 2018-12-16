@@ -1,7 +1,9 @@
-#include <bufferhub/BufferNode.h>
 #include <errno.h>
+
+#include <bufferhub/BufferNode.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <ui/BufferHubDefs.h>
 #include <ui/GraphicBufferMapper.h>
 
 namespace android {
@@ -20,7 +22,6 @@ const uint32_t kLayerCount = 1;
 const uint32_t kFormat = 1;
 const uint64_t kUsage = 0;
 const size_t kUserMetadataSize = 0;
-const size_t kMaxClientsCount = dvr::BufferHubDefs::kMaxNumberOfClients;
 
 class BufferNodeTest : public ::testing::Test {
 protected:
@@ -55,23 +56,23 @@ TEST_F(BufferNodeTest, TestCreateBufferNode) {
 }
 
 TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_twoNewClients) {
-    uint64_t new_client_state_mask_1 = buffer_node->AddNewActiveClientsBitToMask();
+    uint32_t new_client_state_mask_1 = buffer_node->AddNewActiveClientsBitToMask();
     EXPECT_EQ(buffer_node->GetActiveClientsBitMask(), new_client_state_mask_1);
 
     // Request and add a new client_state_mask again.
     // Active clients bit mask should be the union of the two new
     // client_state_masks.
-    uint64_t new_client_state_mask_2 = buffer_node->AddNewActiveClientsBitToMask();
+    uint32_t new_client_state_mask_2 = buffer_node->AddNewActiveClientsBitToMask();
     EXPECT_EQ(buffer_node->GetActiveClientsBitMask(),
               new_client_state_mask_1 | new_client_state_mask_2);
 }
 
 TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_32NewClients) {
-    uint64_t new_client_state_mask = 0ULL;
-    uint64_t current_mask = 0ULL;
-    uint64_t expected_mask = 0ULL;
+    uint32_t new_client_state_mask = 0U;
+    uint32_t current_mask = 0U;
+    uint32_t expected_mask = 0U;
 
-    for (int i = 0; i < kMaxClientsCount; ++i) {
+    for (int i = 0; i < BufferHubDefs::kMaxNumberOfClients; ++i) {
         new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
         EXPECT_NE(new_client_state_mask, 0);
         EXPECT_FALSE(new_client_state_mask & current_mask);
@@ -82,14 +83,14 @@ TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_32NewClients) {
 
     // Method should fail upon requesting for more than maximum allowable clients.
     new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
-    EXPECT_EQ(new_client_state_mask, 0ULL);
+    EXPECT_EQ(new_client_state_mask, 0U);
     EXPECT_EQ(errno, E2BIG);
 }
 
 TEST_F(BufferNodeTest, TestRemoveActiveClientsBitFromMask) {
     buffer_node->AddNewActiveClientsBitToMask();
-    uint64_t current_mask = buffer_node->GetActiveClientsBitMask();
-    uint64_t new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
+    uint32_t current_mask = buffer_node->GetActiveClientsBitMask();
+    uint32_t new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
     EXPECT_NE(buffer_node->GetActiveClientsBitMask(), current_mask);
 
     buffer_node->RemoveClientsBitFromMask(new_client_state_mask);

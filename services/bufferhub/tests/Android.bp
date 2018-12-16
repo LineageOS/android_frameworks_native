@@ -1,38 +1,21 @@
 cc_test {
-    name: "BufferNode_test",
-    srcs: ["BufferNode_test.cpp"],
+    name: "BufferHubServer_test",
+    srcs: [
+        "BufferNode_test.cpp",
+        "BufferHubIdGenerator_test.cpp",
+    ],
     cflags: [
-        "-DLOG_TAG=\"BufferNode_test\"",
+        "-DLOG_TAG=\"BufferHubServer_test\"",
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
     ],
     header_libs: [
-        "libbufferhub_headers",
         "libdvr_headers",
         "libnativewindow_headers",
-        "libpdx_headers",
     ],
     shared_libs: [
         "libbufferhubservice",
         "libui",
-    ],
-    static_libs: [
-        "libgmock",
-    ],
-    // TODO(b/117568153): Temporarily opt out using libcrt.
-    no_libcrt: true,
-}
-
-cc_test {
-    name: "BufferHubIdGenerator_test",
-    srcs: ["BufferHubIdGenerator_test.cpp"],
-    cflags: [
-        "-DLOG_TAG=\"BufferHubIdGenerator_test\"",
-        "-DTRACE=0",
-        "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
-    ],
-    shared_libs: [
-        "libbufferhubservice",
     ],
     static_libs: [
         "libgmock",

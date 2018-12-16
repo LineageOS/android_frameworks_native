@@ -42,7 +42,7 @@ class ProducerChannel : public BufferHubChannel {
 
   ~ProducerChannel() override;
 
-  uint64_t buffer_state() const {
+  uint32_t buffer_state() const {
     return buffer_state_->load(std::memory_order_acquire);
   }
 
@@ -51,18 +51,18 @@ class ProducerChannel : public BufferHubChannel {
 
   BufferInfo GetBufferInfo() const override;
 
-  BufferDescription<BorrowedHandle> GetBuffer(uint64_t client_state_mask);
+  BufferDescription<BorrowedHandle> GetBuffer(uint32_t client_state_mask);
 
   pdx::Status<RemoteChannelHandle> CreateConsumer(Message& message,
-                                                  uint64_t consumer_state_mask);
-  pdx::Status<uint64_t> CreateConsumerStateMask();
+                                                  uint32_t consumer_state_mask);
+  pdx::Status<uint32_t> CreateConsumerStateMask();
   pdx::Status<RemoteChannelHandle> OnNewConsumer(Message& message);
 
   pdx::Status<LocalFence> OnConsumerAcquire(Message& message);
   pdx::Status<void> OnConsumerRelease(Message& message,
                                       LocalFence release_fence);
 
-  void OnConsumerOrphaned(const uint64_t& consumer_state_mask);
+  void OnConsumerOrphaned(const uint32_t& consumer_state_mask);
 
   void AddConsumer(ConsumerChannel* channel);
   void RemoveConsumer(ConsumerChannel* channel);
@@ -79,13 +79,13 @@ class ProducerChannel : public BufferHubChannel {
   // IonBuffer that is shared between bufferhubd, producer, and consumers.
   IonBuffer metadata_buffer_;
   BufferHubDefs::MetadataHeader* metadata_header_ = nullptr;
-  std::atomic<uint64_t>* buffer_state_ = nullptr;
-  std::atomic<uint64_t>* fence_state_ = nullptr;
-  std::atomic<uint64_t>* active_clients_bit_mask_ = nullptr;
+  std::atomic<uint32_t>* buffer_state_ = nullptr;
+  std::atomic<uint32_t>* fence_state_ = nullptr;
+  std::atomic<uint32_t>* active_clients_bit_mask_ = nullptr;
 
   // All orphaned consumer bits. Valid bits are the lower 63 bits, while the
   // highest bit is reserved for the producer and should not be set.
-  uint64_t orphaned_consumer_bit_mask_{0ULL};
+  uint32_t orphaned_consumer_bit_mask_{0U};
 
   LocalFence post_fence_;
   LocalFence returned_fence_;
@@ -110,7 +110,7 @@ class ProducerChannel : public BufferHubChannel {
 
   // Remove consumer from atomics in shared memory based on consumer_state_mask.
   // This function is used for clean up for failures in CreateConsumer method.
-  void RemoveConsumerClientMask(uint64_t consumer_state_mask);
+  void RemoveConsumerClientMask(uint32_t consumer_state_mask);
 
   ProducerChannel(const ProducerChannel&) = delete;
   void operator=(const ProducerChannel&) = delete;

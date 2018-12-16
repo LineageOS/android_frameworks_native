@@ -520,7 +520,7 @@ status_t BufferHubProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
     }
 
     auto buffer_producer = buffers_[slot].mBufferProducer;
-    queue_->Enqueue(buffer_producer, size_t(slot), 0ULL);
+    queue_->Enqueue(buffer_producer, size_t(slot), 0U);
     buffers_[slot].mBufferState.cancel();
     buffers_[slot].mFence = fence;
     ALOGV("cancelBuffer: slot %d", slot);

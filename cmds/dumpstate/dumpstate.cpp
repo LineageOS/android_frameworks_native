@@ -2054,6 +2054,7 @@ static inline const char* ModeToString(Dumpstate::BugreportMode mode) {
 }
 
 static void SetOptionsFromMode(Dumpstate::BugreportMode mode, Dumpstate::DumpOptions* options) {
+    options->extra_options = ModeToString(mode);
     switch (mode) {
         case Dumpstate::BugreportMode::BUGREPORT_FULL:
             options->do_broadcast = true;

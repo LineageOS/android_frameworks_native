@@ -34,11 +34,11 @@
 #pragma clang diagnostic ignored "-Wunused-template"
 #pragma clang diagnostic ignored "-Wweak-vtables"
 #include <pdx/client.h>
-#include <private/dvr/buffer_hub_defs.h>
 #include <private/dvr/native_handle_wrapper.h>
 #pragma clang diagnostic pop
 
 #include <android/hardware_buffer.h>
+#include <ui/BufferHubDefs.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {
@@ -86,13 +86,13 @@ public:
     const native_handle_t* DuplicateHandle() { return mBufferHandle.DuplicateHandle(); }
 
     // Returns the current value of MetadataHeader::buffer_state.
-    uint64_t buffer_state() {
+    uint32_t buffer_state() {
         return mMetadata.metadata_header()->buffer_state.load(std::memory_order_acquire);
     }
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
-    uint64_t client_state_mask() const { return mClientStateMask; }
+    uint32_t client_state_mask() const { return mClientStateMask; }
 
     size_t user_metadata_size() const { return mMetadata.user_metadata_size(); }
 
@@ -154,7 +154,7 @@ private:
 
     // Client state mask of this BufferHubBuffer object. It is unique amoung all
     // clients/users of the buffer.
-    uint64_t mClientStateMask = 0;
+    uint32_t mClientStateMask = 0U;
 
     // Stores ground truth of the buffer.
     AHardwareBuffer_Desc mBufferDesc;
@@ -166,9 +166,9 @@ private:
     // bufferhubd daemon and all buffer clients.
     BufferHubMetadata mMetadata;
     // Shortcuts to the atomics inside the header of mMetadata.
-    std::atomic<uint64_t>* buffer_state_{nullptr};
-    std::atomic<uint64_t>* fence_state_{nullptr};
-    std::atomic<uint64_t>* active_clients_bit_mask_{nullptr};
+    std::atomic<uint32_t>* buffer_state_ = nullptr;
+    std::atomic<uint32_t>* fence_state_ = nullptr;
+    std::atomic<uint32_t>* active_clients_bit_mask_ = nullptr;
 
     // PDX backend.
     BufferHubClient mClient;

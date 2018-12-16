@@ -124,16 +124,16 @@ int BufferHubBase::ImportBuffer() {
   // memory region will be preserved.
   buffer_state_ = &metadata_header_->buffer_state;
   ALOGD_IF(TRACE,
-           "BufferHubBase::ImportBuffer: id=%d, buffer_state=%" PRIx64 ".",
+           "BufferHubBase::ImportBuffer: id=%d, buffer_state=%" PRIx32 ".",
            id(), buffer_state_->load(std::memory_order_acquire));
   fence_state_ = &metadata_header_->fence_state;
   ALOGD_IF(TRACE,
-           "BufferHubBase::ImportBuffer: id=%d, fence_state=%" PRIx64 ".", id(),
+           "BufferHubBase::ImportBuffer: id=%d, fence_state=%" PRIx32 ".", id(),
            fence_state_->load(std::memory_order_acquire));
   active_clients_bit_mask_ = &metadata_header_->active_clients_bit_mask;
   ALOGD_IF(
       TRACE,
-      "BufferHubBase::ImportBuffer: id=%d, active_clients_bit_mask=%" PRIx64
+      "BufferHubBase::ImportBuffer: id=%d, active_clients_bit_mask=%" PRIx32
       ".",
       id(), active_clients_bit_mask_->load(std::memory_order_acquire));
 
@@ -171,7 +171,7 @@ int BufferHubBase::UpdateSharedFence(const LocalHandle& new_fence,
       // If ready fence is valid, we put that into the epoll set.
       epoll_event event;
       event.events = EPOLLIN;
-      event.data.u64 = client_state_mask();
+      event.data.u32 = client_state_mask();
       pending_fence_fd_ = new_fence.Duplicate();
       if (epoll_ctl(shared_fence.Get(), EPOLL_CTL_ADD, pending_fence_fd_.Get(),
                     &event) < 0) {

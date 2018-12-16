@@ -32,7 +32,7 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
     : BufferHubChannel(service, buffer_id, channel_id, kDetachedBufferType),
       buffer_node_(buffer_node) {
   client_state_mask_ = buffer_node_->AddNewActiveClientsBitToMask();
-  if (client_state_mask_ == 0ULL) {
+  if (client_state_mask_ == 0U) {
     ALOGE("BufferChannel::BufferChannel: %s", strerror(errno));
     buffer_node_ = nullptr;
   }
@@ -41,7 +41,7 @@ BufferChannel::BufferChannel(BufferHubService* service, int buffer_id,
 BufferChannel::~BufferChannel() {
   ALOGD_IF(TRACE, "BufferChannel::~BufferChannel: channel_id=%d buffer_id=%d.",
            channel_id(), buffer_id());
-  if (client_state_mask_ != 0ULL) {
+  if (client_state_mask_ != 0U) {
     buffer_node_->RemoveClientsBitFromMask(client_state_mask_);
   }
   Hangup();

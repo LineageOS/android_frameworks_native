@@ -104,6 +104,7 @@ GraphicBuffer::GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer) : GraphicB
                                 buffer->desc().width, buffer->desc().height,
                                 static_cast<PixelFormat>(buffer->desc().format),
                                 buffer->desc().layers, buffer->desc().usage, buffer->desc().stride);
+    mBufferId = buffer->id();
     mBufferHubBuffer = std::move(buffer);
 }
 #endif // LIBUI_IN_VNDK
