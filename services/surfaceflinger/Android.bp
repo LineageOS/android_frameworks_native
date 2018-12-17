@@ -142,6 +142,7 @@ filegroup {
         "MonitoredProducer.cpp",
         "NativeWindowSurface.cpp",
         "RenderArea.cpp",
+        "RegionSamplingThread.cpp",
         "Scheduler/DispSync.cpp",
         "Scheduler/DispSyncSource.cpp",
         "Scheduler/EventControlThread.cpp",

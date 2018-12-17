@@ -57,6 +57,7 @@
 #include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
+#include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
@@ -368,6 +369,7 @@ private:
     friend class BufferQueueLayer;
     friend class BufferStateLayer;
     friend class MonitoredProducer;
+    friend class RegionSamplingThread;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -633,6 +635,8 @@ private:
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
                                  bool useIdentityTransform);
+    status_t captureScreenCore(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
+                               const sp<GraphicBuffer>& buffer, bool useIdentityTransform);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
@@ -997,6 +1001,9 @@ private:
     std::atomic<uint32_t> mFrameMissedCount{0};
 
     TransactionCompletedThread mTransactionCompletedThread;
+
+    bool mLumaSampling = true;
+    sp<RegionSamplingThread> mRegionSamplingThread = new RegionSamplingThread(*this);
 
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;

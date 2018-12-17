@@ -401,6 +401,9 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     property_get("debug.sf.use_smart_90_for_video", value, "0");
     mUseSmart90ForVideo = atoi(value);
 
+    property_get("debug.sf.luma_sampling", value, "1");
+    mLumaSampling = atoi(value);
+
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
 
@@ -1308,17 +1311,20 @@ status_t SurfaceFlinger::getCompositionPreference(
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::addRegionSamplingListener(
-        const Rect& /*samplingArea*/, const sp<IBinder>& /*stopLayerHandle*/,
-        const sp<IRegionSamplingListener>& /*listener*/) {
+status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
+                                                   const sp<IBinder>& stopLayerHandle,
+                                                   const sp<IRegionSamplingListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+    mRegionSamplingThread->addListener(samplingArea, stopLayerHandle, listener);
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeRegionSamplingListener(
-        const sp<IRegionSamplingListener>& /*listener*/) {
+status_t SurfaceFlinger::removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) {
+    mRegionSamplingThread->removeListener(listener);
     return NO_ERROR;
 }
-
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -2171,6 +2177,10 @@ void SurfaceFlinger::postComposition()
 
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
     mTransactionCompletedThread.sendCallbacks();
+
+    if (mLumaSampling) {
+        mRegionSamplingThread->sampleNow();
+    }
 
     ASSERT_ON_STACK_GUARD();
 }
@@ -5475,6 +5485,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              static_cast<android_pixel_format>(reqPixelFormat), 1,
                                              usage, "screenshot");
 
+    return captureScreenCore(renderArea, traverseLayers, *outBuffer, useIdentityTransform);
+}
+
+status_t SurfaceFlinger::captureScreenCore(RenderArea& renderArea,
+                                           TraverseLayersFunction traverseLayers,
+                                           const sp<GraphicBuffer>& buffer,
+                                           bool useIdentityTransform) {
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
     std::mutex captureMutex;
@@ -5502,7 +5519,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         {
             Mutex::Autolock _l(mStateLock);
             renderArea.render([&] {
-                result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
+                result = captureScreenImplLocked(renderArea, traverseLayers, buffer.get(),
                                                  useIdentityTransform, forSystem, &fd);
             });
         }
