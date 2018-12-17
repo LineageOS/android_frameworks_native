@@ -206,7 +206,7 @@ EventHub::EventHub(void) :
         mPendingEventCount(0), mPendingEventIndex(0), mPendingINotify(false) {
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
-    mEpollFd = epoll_create(EPOLL_SIZE_HINT);
+    mEpollFd = epoll_create1(EPOLL_CLOEXEC);
     LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance.  errno=%d", errno);
 
     mINotifyFd = inotify_init();

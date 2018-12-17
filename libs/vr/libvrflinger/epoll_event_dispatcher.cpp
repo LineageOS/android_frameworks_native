@@ -11,7 +11,7 @@ namespace android {
 namespace dvr {
 
 EpollEventDispatcher::EpollEventDispatcher() {
-  epoll_fd_.Reset(epoll_create(64));
+  epoll_fd_.Reset(epoll_create1(EPOLL_CLOEXEC));
   if (!epoll_fd_) {
     ALOGE("Failed to create epoll fd: %s", strerror(errno));
     return;
