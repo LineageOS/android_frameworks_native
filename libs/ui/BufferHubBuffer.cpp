@@ -95,22 +95,21 @@ LocalChannelHandle BufferHubClient::TakeChannelHandle() {
 BufferHubBuffer::BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layerCount,
                                  uint32_t format, uint64_t usage, size_t mUserMetadataSize) {
     ATRACE_CALL();
-    ALOGD("BufferHubBuffer::BufferHubBuffer: width=%u height=%u layerCount=%u, format=%u "
-          "usage=%" PRIx64 " mUserMetadataSize=%zu",
-          width, height, layerCount, format, usage, mUserMetadataSize);
+    ALOGD("%s: width=%u height=%u layerCount=%u, format=%u usage=%" PRIx64 " mUserMetadataSize=%zu",
+          __FUNCTION__, width, height, layerCount, format, usage, mUserMetadataSize);
 
     auto status =
             mClient.InvokeRemoteMethod<DetachedBufferRPC::Create>(width, height, layerCount, format,
                                                                   usage, mUserMetadataSize);
     if (!status) {
-        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to create detached buffer: %s",
+        ALOGE("%s: Failed to create detached buffer: %s", __FUNCTION__,
               status.GetErrorMessage().c_str());
         mClient.Close(-status.error());
     }
 
     const int ret = ImportGraphicBuffer();
     if (ret < 0) {
-        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to import buffer: %s", strerror(-ret));
+        ALOGE("%s: Failed to import buffer: %s", __FUNCTION__, strerror(-ret));
         mClient.Close(ret);
     }
 }
@@ -119,7 +118,7 @@ BufferHubBuffer::BufferHubBuffer(LocalChannelHandle mChannelHandle)
       : mClient(std::move(mChannelHandle)) {
     const int ret = ImportGraphicBuffer();
     if (ret < 0) {
-        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to import buffer: %s", strerror(-ret));
+        ALOGE("%s: Failed to import buffer: %s", __FUNCTION__, strerror(-ret));
         mClient.Close(ret);
     }
 }
@@ -129,14 +128,14 @@ int BufferHubBuffer::ImportGraphicBuffer() {
 
     auto status = mClient.InvokeRemoteMethod<DetachedBufferRPC::Import>();
     if (!status) {
-        ALOGE("BufferHubBuffer::BufferHubBuffer: Failed to import GraphicBuffer: %s",
+        ALOGE("%s: Failed to import GraphicBuffer: %s", __FUNCTION__,
               status.GetErrorMessage().c_str());
         return -status.error();
     }
 
     BufferTraits<LocalHandle> bufferTraits = status.take();
     if (bufferTraits.id() < 0) {
-        ALOGE("BufferHubBuffer::BufferHubBuffer: Received an invalid id!");
+        ALOGE("%s: Received an invalid id!", __FUNCTION__);
         return -EIO;
     }
 
@@ -149,20 +148,19 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     mMetadata = BufferHubMetadata::Import(std::move(metadataFd));
 
     if (!mMetadata.IsValid()) {
-        ALOGE("BufferHubBuffer::ImportGraphicBuffer: invalid metadata.");
+        ALOGE("%s: invalid metadata.", __FUNCTION__);
         return -ENOMEM;
     }
 
     if (mMetadata.metadata_size() != bufferTraits.metadata_size()) {
-        ALOGE("BufferHubBuffer::ImportGraphicBuffer: metadata buffer too small: "
-              "%zu, expected: %" PRIu64 ".",
+        ALOGE("%s: metadata buffer too small: %zu, expected: %" PRIu64 ".", __FUNCTION__,
               mMetadata.metadata_size(), bufferTraits.metadata_size());
         return -ENOMEM;
     }
 
     size_t metadataSize = static_cast<size_t>(bufferTraits.metadata_size());
     if (metadataSize < BufferHubDefs::kMetadataHeaderSize) {
-        ALOGE("BufferHubBuffer::ImportGraphicBuffer: metadata too small: %zu", metadataSize);
+        ALOGE("%s: metadata too small: %zu", __FUNCTION__, metadataSize);
         return -EINVAL;
     }
 
@@ -191,7 +189,7 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     mClientStateMask = bufferTraits.client_state_mask();
 
     // TODO(b/112012161) Set up shared fences.
-    ALOGD("BufferHubBuffer::ImportGraphicBuffer: id=%d, buffer_state=%" PRIx32 ".", id(),
+    ALOGD("%s: id=%d, buffer_state=%" PRIx32 ".", __FUNCTION__, id(),
           buffer_state_->load(std::memory_order_acquire));
     return 0;
 }
@@ -291,12 +289,12 @@ int BufferHubBuffer::Poll(int timeoutMs) {
 
 Status<LocalChannelHandle> BufferHubBuffer::Duplicate() {
     ATRACE_CALL();
-    ALOGD("BufferHubBuffer::Duplicate: id=%d.", mId);
+    ALOGD("%s: id=%d.", __FUNCTION__, mId);
 
     auto statusOrHandle = mClient.InvokeRemoteMethod<DetachedBufferRPC::Duplicate>();
 
     if (!statusOrHandle.ok()) {
-        ALOGE("BufferHubBuffer::Duplicate: Failed to duplicate buffer (id=%d): %s.", mId,
+        ALOGE("%s: Failed to duplicate buffer (id=%d): %s.", __FUNCTION__, mId,
               statusOrHandle.GetErrorMessage().c_str());
     }
     return statusOrHandle;
