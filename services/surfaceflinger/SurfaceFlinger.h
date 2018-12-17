@@ -471,7 +471,9 @@ private:
     status_t getProtectedContentSupport(bool* outSupported) const override;
     status_t isWideColorDisplay(const sp<IBinder>& displayToken,
                                 bool* outIsWideColorDisplay) const override;
-
+    status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+                                       const sp<IRegionSamplingListener>& listener) override;
+    status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */

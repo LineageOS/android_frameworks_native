@@ -50,6 +50,7 @@ class HdrCapabilities;
 class IDisplayEventConnection;
 class IGraphicBufferProducer;
 class ISurfaceComposerClient;
+class IRegionSamplingListener;
 class Rect;
 enum class FrameEvent;
 
@@ -338,6 +339,26 @@ public:
      */
     virtual status_t isWideColorDisplay(const sp<IBinder>& token,
                                         bool* outIsWideColorDisplay) const = 0;
+
+    /* Registers a listener to stream median luma updates from SurfaceFlinger.
+     *
+     * The sampling area is bounded by both samplingArea and the given stopLayerHandle
+     * (i.e., only layers behind the stop layer will be captured and sampled).
+     *
+     * Multiple listeners may be provided so long as they have independent listeners.
+     * If multiple listeners are provided, the effective sampling region for each listener will
+     * be bounded by whichever stop layer has a lower Z value.
+     *
+     * Requires the same permissions as captureLayers and captureScreen.
+     */
+    virtual status_t addRegionSamplingListener(const Rect& samplingArea,
+                                               const sp<IBinder>& stopLayerHandle,
+                                               const sp<IRegionSamplingListener>& listener) = 0;
+
+    /*
+     * Removes a listener that was streaming median luma updates from SurfaceFlinger.
+     */
+    virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -383,6 +404,8 @@ public:
         IS_WIDE_COLOR_DISPLAY,
         GET_DISPLAY_NATIVE_PRIMARIES,
         GET_PHYSICAL_DISPLAY_IDS,
+        ADD_REGION_SAMPLING_LISTENER,
+        REMOVE_REGION_SAMPLING_LISTENER,
         // Always append new enum to the end.
     };
 

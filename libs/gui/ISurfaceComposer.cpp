@@ -26,6 +26,7 @@
 
 #include <gui/IDisplayEventConnection.h>
 #include <gui/IGraphicBufferProducer.h>
+#include <gui/IRegionSamplingListener.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerDebugInfo.h>
@@ -754,6 +755,57 @@ public:
         error = reply.readBool(outIsWideColorDisplay);
         return error;
     }
+
+    virtual status_t addRegionSamplingListener(const Rect& samplingArea,
+                                               const sp<IBinder>& stopLayerHandle,
+                                               const sp<IRegionSamplingListener>& listener) {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to write interface token");
+            return error;
+        }
+        error = data.write(samplingArea);
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to write sampling area");
+            return error;
+        }
+        error = data.writeStrongBinder(stopLayerHandle);
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to write stop layer handle");
+            return error;
+        }
+        error = data.writeStrongBinder(IInterface::asBinder(listener));
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to write listener");
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::ADD_REGION_SAMPLING_LISTENER, data, &reply);
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to transact");
+        }
+        return error;
+    }
+
+    virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to write interface token");
+            return error;
+        }
+        error = data.writeStrongBinder(IInterface::asBinder(listener));
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to write listener");
+            return error;
+        }
+        error = remote()->transact(BnSurfaceComposer::REMOVE_REGION_SAMPLING_LISTENER, data,
+                                   &reply);
+        if (error != NO_ERROR) {
+            ALOGE("addRegionSamplingListener: Failed to transact");
+        }
+        return error;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1232,6 +1284,38 @@ status_t BnSurfaceComposer::onTransact(
         case GET_PHYSICAL_DISPLAY_IDS: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             return reply->writeUint64Vector(getPhysicalDisplayIds());
+        }
+        case ADD_REGION_SAMPLING_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            Rect samplingArea;
+            status_t result = data.read(samplingArea);
+            if (result != NO_ERROR) {
+                ALOGE("addRegionSamplingListener: Failed to read sampling area");
+                return result;
+            }
+            sp<IBinder> stopLayerHandle;
+            result = data.readNullableStrongBinder(&stopLayerHandle);
+            if (result != NO_ERROR) {
+                ALOGE("addRegionSamplingListener: Failed to read stop layer handle");
+                return result;
+            }
+            sp<IRegionSamplingListener> listener;
+            result = data.readNullableStrongBinder(&listener);
+            if (result != NO_ERROR) {
+                ALOGE("addRegionSamplingListener: Failed to read listener");
+                return result;
+            }
+            return addRegionSamplingListener(samplingArea, stopLayerHandle, listener);
+        }
+        case REMOVE_REGION_SAMPLING_LISTENER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IRegionSamplingListener> listener;
+            status_t result = data.readNullableStrongBinder(&listener);
+            if (result != NO_ERROR) {
+                ALOGE("removeRegionSamplingListener: Failed to read listener");
+                return result;
+            }
+            return removeRegionSamplingListener(listener);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

@@ -669,6 +669,16 @@ public:
 
     status_t isWideColorDisplay(const sp<IBinder>&, bool*) const override { return NO_ERROR; }
 
+    status_t addRegionSamplingListener(const Rect& /*samplingArea*/,
+                                       const sp<IBinder>& /*stopLayerHandle*/,
+                                       const sp<IRegionSamplingListener>& /*listener*/) override {
+        return NO_ERROR;
+    }
+    status_t removeRegionSamplingListener(
+            const sp<IRegionSamplingListener>& /*listener*/) override {
+        return NO_ERROR;
+    }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
