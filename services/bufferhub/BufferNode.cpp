@@ -2,6 +2,7 @@
 
 #include <bufferhub/BufferHubService.h>
 #include <bufferhub/BufferNode.h>
+#include <log/log.h>
 #include <ui/GraphicBufferAllocator.h>
 
 namespace android {
@@ -18,6 +19,13 @@ void BufferNode::InitializeMetadata() {
     fence_state_ = new (&metadata_header->fence_state) std::atomic<uint32_t>(0);
     active_clients_bit_mask_ =
             new (&metadata_header->active_clients_bit_mask) std::atomic<uint32_t>(0);
+    // The C++ standard recommends (but does not require) that lock-free atomic operations are
+    // also address-free, that is, suitable for communication between processes using shared
+    // memory.
+    LOG_ALWAYS_FATAL_IF(!std::atomic_is_lock_free(buffer_state_) ||
+                                !std::atomic_is_lock_free(fence_state_) ||
+                                !std::atomic_is_lock_free(active_clients_bit_mask_),
+                        "Atomic variables in ashmen are not lock free.");
 }
 
 // Allocates a new BufferNode.
