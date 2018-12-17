@@ -376,23 +376,23 @@ void ListCommand::postprocess() {
     }
 
     mServicesTable.setDescription(
-            "All binderized services (registered services through hwservicemanager)");
+            "| All binderized services (registered with hwservicemanager)");
     mPassthroughRefTable.setDescription(
-            "All interfaces that getService() has ever return as a passthrough interface;\n"
-            "PIDs / processes shown below might be inaccurate because the process\n"
-            "might have relinquished the interface or might have died.\n"
-            "The Server / Server CMD column can be ignored.\n"
-            "The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
-            "the library and successfully fetched the passthrough implementation.");
+            "| All interfaces that getService() has ever returned as a passthrough interface;\n"
+            "| PIDs / processes shown below might be inaccurate because the process\n"
+            "| might have relinquished the interface or might have died.\n"
+            "| The Server / Server CMD column can be ignored.\n"
+            "| The Clients / Clients CMD column shows all process that have ever dlopen'ed \n"
+            "| the library and successfully fetched the passthrough implementation.");
     mImplementationsTable.setDescription(
-            "All available passthrough implementations (all -impl.so files).\n"
-            "These may return subclasses through their respective HIDL_FETCH_I* functions.");
+            "| All available passthrough implementations (all -impl.so files).\n"
+            "| These may return subclasses through their respective HIDL_FETCH_I* functions.");
     mManifestHalsTable.setDescription(
-            "All HALs that are in VINTF manifest.");
+            "| All HALs that are in VINTF manifest.");
     mLazyHalsTable.setDescription(
-            "All HALs that are declared in VINTF manifest:\n"
-            "   - as hwbinder HALs but are not registered to hwservicemanager, and\n"
-            "   - as hwbinder/passthrough HALs with no implementation.");
+            "| All HALs that are declared in VINTF manifest:\n"
+            "|    - as hwbinder HALs but are not registered to hwservicemanager, and\n"
+            "|    - as hwbinder/passthrough HALs with no implementation.");
 }
 
 bool ListCommand::addEntryWithInstance(const TableEntry& entry,
@@ -972,10 +972,10 @@ void ListCommand::registerAllOptions() {
         thiz->mSelectedColumns.push_back(TableColumnType::VINTF);
         return OK;
     }, "print VINTF info. This column contains a comma-separated list of:\n"
-       "    - DM: device manifest\n"
-       "    - DC: device compatibility matrix\n"
-       "    - FM: framework manifest\n"
-       "    - FC: framework compatibility matrix"});
+       "    - DM: if the HAL is in the device manifest\n"
+       "    - DC: if the HAL is in the device compatibility matrix\n"
+       "    - FM: if the HAL is in the framework manifest\n"
+       "    - FC: if the HAL is in the framework compatibility matrix"});
     mOptions.push_back({'S', "service-status", no_argument, v++, [](ListCommand* thiz, const char*) {
         thiz->mSelectedColumns.push_back(TableColumnType::SERVICE_STATUS);
         return OK;
@@ -1054,7 +1054,7 @@ void ListCommand::registerAllOptions() {
         return OK;
     }, "comma-separated list of one or more sections.\nThe output is restricted to the selected "
        "section(s). Valid options\nare: (b|binderized), (c|passthrough_clients), (l|"
-       "passthrough_libs), and (v|vintf).\nDefault is `bcl`."});
+       "passthrough_libs), (v|vintf), and (z|lazy).\nDefault is `bcl`."});
 }
 
 // Create 'longopts' argument to getopt_long. Caller is responsible for maintaining
@@ -1150,7 +1150,7 @@ Status ListCommand::parseArgs(const Arg &arg) {
     }
 
     if (mSelectedColumns.empty()) {
-        mSelectedColumns = {TableColumnType::RELEASED,
+        mSelectedColumns = {TableColumnType::VINTF, TableColumnType::RELEASED,
                             TableColumnType::INTERFACE_NAME, TableColumnType::THREADS,
                             TableColumnType::SERVER_PID, TableColumnType::CLIENT_PIDS};
     }
@@ -1210,7 +1210,7 @@ void ListCommand::usage() const {
     err() << "list:" << std::endl
           << "    lshal" << std::endl
           << "    lshal list" << std::endl
-          << "        List all hals with default ordering and columns (`lshal list -liepc`)" << std::endl
+          << "        List all hals with default ordering and columns (`lshal list -Vliepc`)" << std::endl
           << "    lshal list [-h|--help]" << std::endl
           << "        -h, --help: Print help message for list (`lshal help list`)" << std::endl
           << "    lshal [list] [OPTIONS...]" << std::endl;
