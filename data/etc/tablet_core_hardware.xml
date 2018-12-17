@@ -51,6 +51,7 @@
     <feature name="android.software.companion_device_setup" />
     <feature name="android.software.autofill" />
     <feature name="android.software.cant_save_state" />
+    <feature name="android.software.secure_lock_screen" />
 
     <!-- Feature to specify if the device supports adding device admins. -->
     <feature name="android.software.device_admin" />
