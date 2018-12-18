@@ -3902,10 +3902,11 @@ void SurfaceFlinger::markLayerPendingRemovalLocked(const Mutex&, const sp<Layer>
     setTransactionFlags(eTransactionNeeded);
 }
 
-void SurfaceFlinger::onHandleDestroyed(const sp<Layer>& layer)
+void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer)
 {
     Mutex::Autolock lock(mStateLock);
     markLayerPendingRemovalLocked(mStateLock, layer);
+    layer.clear();
 }
 
 // ---------------------------------------------------------------------------
