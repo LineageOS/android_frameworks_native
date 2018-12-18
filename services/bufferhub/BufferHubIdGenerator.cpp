@@ -15,6 +15,7 @@
  */
 
 #include <bufferhub/BufferHubIdGenerator.h>
+#include <log/log.h>
 
 namespace android {
 namespace frameworks {
@@ -22,20 +23,18 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
-constexpr uint32_t BufferHubIdGenerator::kInvalidId;
-
 BufferHubIdGenerator& BufferHubIdGenerator::getInstance() {
     static BufferHubIdGenerator generator;
 
     return generator;
 }
 
-uint32_t BufferHubIdGenerator::getId() {
+int BufferHubIdGenerator::getId() {
     std::lock_guard<std::mutex> lock(mIdsInUseMutex);
 
     do {
-        if (++mLastId >= std::numeric_limits<uint32_t>::max()) {
-            mLastId = kInvalidId + 1;
+        if (++mLastId >= std::numeric_limits<int>::max()) {
+            mLastId = 0;
         }
     } while (mIdsInUse.find(mLastId) != mIdsInUse.end());
 
@@ -43,15 +42,14 @@ uint32_t BufferHubIdGenerator::getId() {
     return mLastId;
 }
 
-bool BufferHubIdGenerator::freeId(uint32_t id) {
+void BufferHubIdGenerator::freeId(int id) {
     std::lock_guard<std::mutex> lock(mIdsInUseMutex);
     auto iter = mIdsInUse.find(id);
     if (iter != mIdsInUse.end()) {
         mIdsInUse.erase(iter);
-        return true;
+    } else {
+        ALOGW("%s: Cannot free nonexistent id #%d", __FUNCTION__, id);
     }
-
-    return false;
 }
 
 } // namespace implementation

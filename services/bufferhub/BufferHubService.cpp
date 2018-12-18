@@ -343,15 +343,15 @@ void BufferHubService::onClientClosed(const BufferClient* client) {
 
 // Implementation of this function should be consistent with the definition of bufferInfo handle in
 // ui/BufferHubDefs.h.
-hidl_handle BufferHubService::buildBufferInfo(uint32_t bufferId, uint32_t clientBitMask,
+hidl_handle BufferHubService::buildBufferInfo(int bufferId, uint32_t clientBitMask,
                                               uint32_t userMetadataSize, const int metadataFd) {
     native_handle_t* infoHandle = native_handle_create(BufferHubDefs::kBufferInfoNumFds,
                                                        BufferHubDefs::kBufferInfoNumInts);
 
     infoHandle->data[0] = dup(metadataFd);
+    infoHandle->data[1] = bufferId;
     // Use memcpy to convert to int without missing digit.
     // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
-    memcpy(&infoHandle->data[1], &bufferId, sizeof(bufferId));
     memcpy(&infoHandle->data[2], &clientBitMask, sizeof(clientBitMask));
     memcpy(&infoHandle->data[3], &userMetadataSize, sizeof(userMetadataSize));
 
