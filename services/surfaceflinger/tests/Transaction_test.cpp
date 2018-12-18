@@ -2502,12 +2502,12 @@ public:
     }
 
     void verifyTransactionStats(const TransactionStats& transactionStats) const {
-        const auto& [latchTime, presentTime, surfaceStats] = transactionStats;
+        const auto& [latchTime, presentFence, surfaceStats] = transactionStats;
         if (mTransactionResult == ExpectedResult::Transaction::PRESENTED) {
             ASSERT_GE(latchTime, 0) << "bad latch time";
-            ASSERT_GE(presentTime, 0) << "bad present time";
+            ASSERT_NE(presentFence, nullptr);
         } else {
-            ASSERT_EQ(presentTime, -1) << "transaction shouldn't have been presented";
+            ASSERT_EQ(presentFence, nullptr) << "transaction shouldn't have been presented";
             ASSERT_EQ(latchTime, -1) << "unpresented transactions shouldn't be latched";
         }
 

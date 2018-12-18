@@ -21,6 +21,7 @@
 #include <binder/Parcelable.h>
 #include <binder/SafeInterface.h>
 
+#include <ui/Fence.h>
 #include <utils/Timers.h>
 
 #include <cstdint>
@@ -65,7 +66,7 @@ public:
     status_t readFromParcel(const Parcel* input) override;
 
     nsecs_t latchTime = -1;
-    nsecs_t presentTime = -1;
+    sp<Fence> presentFence = nullptr;
     std::vector<SurfaceStats> surfaceStats;
 };
 
