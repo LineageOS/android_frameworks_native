@@ -4,7 +4,6 @@
 #include <dvr/dvr_api.h>
 #include <pdx/service.h>
 #include <pdx/status.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/bufferhub_rpc.h>
 #include <private/dvr/display_protocol.h>
 

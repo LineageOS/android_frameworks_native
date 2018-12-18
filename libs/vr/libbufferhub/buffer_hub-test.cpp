@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
 #include <poll.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/bufferhub_rpc.h>
+#include <private/dvr/consumer_buffer.h>
+#include <private/dvr/producer_buffer.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
 #include <ui/BufferHubBuffer.h>
