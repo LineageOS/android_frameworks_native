@@ -57,6 +57,7 @@ class FakePointerController : public PointerControllerInterface {
     float mMinX, mMinY, mMaxX, mMaxY;
     float mX, mY;
     int32_t mButtonState;
+    int32_t mDisplayId;
 
 protected:
     virtual ~FakePointerController() { }
@@ -64,7 +65,7 @@ protected:
 public:
     FakePointerController() :
         mHaveBounds(false), mMinX(0), mMinY(0), mMaxX(0), mMaxY(0), mX(0), mY(0),
-        mButtonState(0) {
+        mButtonState(0), mDisplayId(ADISPLAY_ID_DEFAULT) {
     }
 
     void setBounds(float minX, float minY, float maxX, float maxY) {
@@ -73,6 +74,10 @@ public:
         mMinY = minY;
         mMaxX = maxX;
         mMaxY = maxY;
+    }
+
+    void setDisplayId(int32_t displayId) {
+        mDisplayId = displayId;
     }
 
     virtual void setPosition(float x, float y) {
@@ -91,6 +96,10 @@ public:
     virtual void getPosition(float* outX, float* outY) const {
         *outX = mX;
         *outY = mY;
+    }
+
+    virtual int32_t getDisplayId() const {
+        return mDisplayId;
     }
 
 private:
@@ -3167,6 +3176,30 @@ TEST_F(CursorInputMapperTest, Process_PointerCapture) {
     ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
             110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
     ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 110.0f, 220.0f));
+}
+
+TEST_F(CursorInputMapperTest, Process_ShouldHandleDisplayId) {
+    CursorInputMapper* mapper = new CursorInputMapper(mDevice);
+    addMapperAndConfigure(mapper);
+
+    // Setup PointerController for second display.
+    constexpr int32_t SECOND_DISPLAY_ID = 1;
+    mFakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
+    mFakePointerController->setPosition(100, 200);
+    mFakePointerController->setButtonState(0);
+    mFakePointerController->setDisplayId(SECOND_DISPLAY_ID);
+
+    NotifyMotionArgs args;
+    process(mapper, ARBITRARY_TIME, EV_REL, REL_X, 10);
+    process(mapper, ARBITRARY_TIME, EV_REL, REL_Y, 20);
+    process(mapper, ARBITRARY_TIME, EV_SYN, SYN_REPORT, 0);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&args));
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, args.source);
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, args.action);
+    ASSERT_NO_FATAL_FAILURE(assertPointerCoords(args.pointerCoords[0],
+            110.0f, 220.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f));
+    ASSERT_NO_FATAL_FAILURE(assertPosition(mFakePointerController, 110.0f, 220.0f));
+    ASSERT_EQ(SECOND_DISPLAY_ID, args.displayId);
 }
 
 
@@ -6315,6 +6348,32 @@ TEST_F(MultiTouchInputMapperTest, Viewports_Fallback) {
     processPosition(mapper, 100, 100);
     processSync(mapper);
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
+    // Setup PointerController for second display.
+    sp<FakePointerController> fakePointerController = new FakePointerController();
+    fakePointerController->setBounds(0, 0, 800 - 1, 480 - 1);
+    fakePointerController->setPosition(100, 200);
+    fakePointerController->setButtonState(0);
+    fakePointerController->setDisplayId(SECONDARY_DISPLAY_ID);
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    prepareAxes(POSITION);
+    addMapperAndConfigure(mapper);
+
+    // Check source is mouse that would obtain the PointerController.
+    ASSERT_EQ(AINPUT_SOURCE_MOUSE, mapper->getSources());
+
+    NotifyMotionArgs motionArgs;
+    processPosition(mapper, 100, 100);
+    processSync(mapper);
+
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
     ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
 }
 
