@@ -40,6 +40,7 @@ public:
     bool hasProtectedContent() const { return mHasProtectedContent; }
     bool hasContextPriority() const { return mHasContextPriority; }
     bool hasSurfacelessContext() const { return mHasSurfacelessContext; }
+    bool hasProtectedTexture() const { return mHasProtectedTexture; }
 
     void initWithGLStrings(GLubyte const* vendor, GLubyte const* renderer, GLubyte const* version,
                            GLubyte const* extensions);
@@ -65,12 +66,12 @@ private:
     bool mHasProtectedContent = false;
     bool mHasContextPriority = false;
     bool mHasSurfacelessContext = false;
+    bool mHasProtectedTexture = false;
 
     String8 mVendor;
     String8 mRenderer;
     String8 mVersion;
     String8 mExtensions;
-
     String8 mEGLVersion;
     String8 mEGLExtensions;
 
