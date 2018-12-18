@@ -239,6 +239,7 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         mActiveConfig(0),
         mColorTransform(HAL_COLOR_TRANSFORM_IDENTITY),
         mHasWideColorGamut(args.hasWideColorGamut),
+        mHasHdr10Plus(false),
         mHasHdr10(false),
         mHasHLG(false),
         mHasDolbyVision(false),
@@ -252,6 +253,9 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
     std::vector<Hdr> types = args.hdrCapabilities.getSupportedHdrTypes();
     for (Hdr hdrType : types) {
         switch (hdrType) {
+            case Hdr::HDR10_PLUS:
+                mHasHdr10Plus = true;
+                break;
             case Hdr::HDR10:
                 mHasHdr10 = true;
                 break;
@@ -277,11 +281,11 @@ DisplayDevice::DisplayDevice(DisplayDeviceCreationArgs&& args)
         // insert HDR10/HLG as we will force client composition for HDR10/HLG
         // layers
         if (!hasHDR10Support()) {
-          types.push_back(Hdr::HDR10);
+            types.push_back(Hdr::HDR10);
         }
 
         if (!hasHLGSupport()) {
-          types.push_back(Hdr::HLG);
+            types.push_back(Hdr::HLG);
         }
     }
     mHdrCapabilities = HdrCapabilities(types, maxLuminance, maxAverageLuminance, minLuminance);
@@ -748,8 +752,11 @@ void DisplayDevice::dump(std::string& result) const {
                   tr[2][1], tr[0][2], tr[1][2], tr[2][2]);
     auto const surface = static_cast<Surface*>(window);
     ui::Dataspace dataspace = surface->getBuffersDataSpace();
-    StringAppendF(&result, "   wideColorGamut=%d, hdr10=%d, colorMode=%s, dataspace: %s (%d)\n",
-                  mHasWideColorGamut, mHasHdr10, decodeColorMode(mActiveColorMode).c_str(),
+    StringAppendF(&result,
+                  "   wideColorGamut=%d, hdr10plus =%d, hdr10=%d, colorMode=%s, dataspace: %s "
+                  "(%d)\n",
+                  mHasWideColorGamut, mHasHdr10Plus, mHasHdr10,
+                  decodeColorMode(mActiveColorMode).c_str(),
                   dataspaceDetails(static_cast<android_dataspace>(dataspace)).c_str(), dataspace);
 
     String8 surfaceDump;

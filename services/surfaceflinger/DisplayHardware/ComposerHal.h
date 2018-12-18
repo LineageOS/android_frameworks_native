@@ -47,12 +47,13 @@ namespace V2_2 = hardware::graphics::composer::V2_2;
 namespace V2_3 = hardware::graphics::composer::V2_3;
 
 using types::V1_0::ColorTransform;
-using types::V1_0::Hdr;
 using types::V1_0::Transform;
 using types::V1_1::PixelFormat;
 using types::V1_1::RenderIntent;
 using types::V1_2::ColorMode;
 using types::V1_2::Dataspace;
+using types::V1_2::Hdr;
+
 using V2_1::Config;
 using V2_1::Display;
 using V2_1::Error;
@@ -65,6 +66,7 @@ using V2_3::IComposerClient;
 using DisplayCapability = IComposerClient::DisplayCapability;
 using PerFrameMetadata = IComposerClient::PerFrameMetadata;
 using PerFrameMetadataKey = IComposerClient::PerFrameMetadataKey;
+using PerFrameMetadataBlob = IComposerClient::PerFrameMetadataBlob;
 
 class Composer {
 public:
@@ -199,6 +201,8 @@ public:
                                             DisplayedFrameStats* outStats) = 0;
     virtual Error getDisplayCapabilities(Display display,
                                          std::vector<DisplayCapability>* outCapabilities) = 0;
+    virtual Error setLayerPerFrameMetadataBlobs(
+            Display display, Layer layer, const std::vector<PerFrameMetadataBlob>& metadata) = 0;
 };
 
 namespace impl {
@@ -407,6 +411,9 @@ public:
                                     DisplayedFrameStats* outStats) override;
     Error getDisplayCapabilities(Display display,
                                  std::vector<DisplayCapability>* outCapabilities) override;
+    Error setLayerPerFrameMetadataBlobs(
+            Display display, Layer layer,
+            const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) override;
 
 private:
     class CommandWriter : public CommandWriterBase {
