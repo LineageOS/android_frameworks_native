@@ -140,6 +140,16 @@ cc_binary {
     shared_libs: [
         "libbase",
         "liblog",
+        "libprotobuf-cpp-full",
+        "libselinux",
+        "libziparchive",
+    ],
+    static_libs: [
+        "libapex",
+        "libapexd",
+        "lib_apex_manifest_proto",
+        "libavb",
+        "libdm",
     ],
 }
 
