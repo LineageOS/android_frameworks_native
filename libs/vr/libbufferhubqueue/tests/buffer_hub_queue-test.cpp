@@ -1,8 +1,9 @@
 #include <base/logging.h>
 #include <binder/Parcel.h>
 #include <dvr/dvr_api.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/consumer_buffer.h>
+#include <private/dvr/producer_buffer.h>
 
 #include <gtest/gtest.h>
 #include <poll.h>

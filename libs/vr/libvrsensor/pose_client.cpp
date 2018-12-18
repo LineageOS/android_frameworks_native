@@ -8,8 +8,8 @@
 #include <pdx/client.h>
 #include <pdx/default_transport/client_channel_factory.h>
 #include <pdx/file_handle.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/consumer_buffer.h>
 #include <private/dvr/display_client.h>
 #include <private/dvr/pose-ipc.h>
 #include <private/dvr/shared_buffer_helpers.h>

@@ -2,7 +2,7 @@
 #define ANDROID_DVR_SERVICES_DISPLAYD_ACQUIRED_BUFFER_H_
 
 #include <pdx/file_handle.h>
-#include <private/dvr/buffer_hub_client.h>
+#include <private/dvr/consumer_buffer.h>
 
 #include <memory>
 
@@ -43,7 +43,7 @@ class AcquiredBuffer {
 
   // Accessors for the underlying BufferConsumer, the acquire fence, and the
   // use-case specific sequence value from the acquisition (see
-  // private/dvr/buffer_hub_client.h).
+  // private/dvr/consumer_buffer.h).
   std::shared_ptr<BufferConsumer> buffer() const { return buffer_; }
   int acquire_fence() const { return acquire_fence_.Get(); }
 

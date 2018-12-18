@@ -22,7 +22,6 @@
 #include <dvr/dvr_vsync.h>
 #include <pdx/file_handle.h>
 #include <pdx/rpc/variant.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/shared_buffer_helpers.h>
 #include <private/dvr/vsync_service.h>
 
