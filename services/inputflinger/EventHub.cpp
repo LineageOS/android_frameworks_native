@@ -69,6 +69,8 @@ using android::base::StringPrintf;
 
 namespace android {
 
+static constexpr bool DEBUG = false;
+
 static const char *WAKE_LOCK_ID = "KeyEvents";
 static const char *DEVICE_PATH = "/dev/input";
 
@@ -1063,26 +1065,45 @@ static const int32_t GAMEPAD_KEYCODES[] = {
         AKEYCODE_BUTTON_START, AKEYCODE_BUTTON_SELECT, AKEYCODE_BUTTON_MODE,
 };
 
-status_t EventHub::registerDeviceForEpollLocked(Device* device) {
-    struct epoll_event eventItem;
-    memset(&eventItem, 0, sizeof(eventItem));
-    eventItem.events = EPOLLIN;
-    if (mUsingEpollWakeup) {
-        eventItem.events |= EPOLLWAKEUP;
-    }
-    eventItem.data.fd = device->fd;
-    if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, device->fd, &eventItem)) {
-        ALOGE("Could not add device fd to epoll instance.  errno=%d", errno);
+status_t EventHub::registerFdForEpoll(int fd) {
+    struct epoll_event eventItem = {};
+    eventItem.events = EPOLLIN | EPOLLWAKEUP;
+    eventItem.data.fd = fd;
+    if (epoll_ctl(mEpollFd, EPOLL_CTL_ADD, fd, &eventItem)) {
+        ALOGE("Could not add fd to epoll instance: %s", strerror(errno));
         return -errno;
     }
     return OK;
 }
 
+status_t EventHub::unregisterFdFromEpoll(int fd) {
+    if (epoll_ctl(mEpollFd, EPOLL_CTL_DEL, fd, nullptr)) {
+        ALOGW("Could not remove fd from epoll instance: %s", strerror(errno));
+        return -errno;
+    }
+    return OK;
+}
+
+status_t EventHub::registerDeviceForEpollLocked(Device* device) {
+    if (device == nullptr) {
+        if (DEBUG) {
+            LOG_ALWAYS_FATAL("Cannot call registerDeviceForEpollLocked with null Device");
+        }
+        return BAD_VALUE;
+    }
+    status_t result = registerFdForEpoll(device->fd);
+    if (result != OK) {
+        ALOGE("Could not add input device fd to epoll for device %" PRId32, device->id);
+    }
+    return result;
+}
+
 status_t EventHub::unregisterDeviceFromEpollLocked(Device* device) {
     if (device->hasValidFd()) {
-        if (epoll_ctl(mEpollFd, EPOLL_CTL_DEL, device->fd, nullptr)) {
-            ALOGW("Could not remove device fd from epoll instance.  errno=%d", errno);
-            return -errno;
+        status_t result = unregisterFdFromEpoll(device->fd);
+        if (result != OK) {
+            ALOGW("Could not remove input device fd from epoll for device %" PRId32, device->id);
+            return result;
         }
     }
     return OK;
@@ -1103,7 +1124,7 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
 
     // Get device name.
     if(ioctl(fd, EVIOCGNAME(sizeof(buffer) - 1), &buffer) < 1) {
-        //fprintf(stderr, "could not get device name for %s, %s\n", devicePath, strerror(errno));
+        ALOGE("Could not get device name for %s: %s", devicePath, strerror(errno));
     } else {
         buffer[sizeof(buffer) - 1] = '\0';
         identifier.name = buffer;
@@ -1669,7 +1690,6 @@ status_t EventHub::readNotifyLocked() {
 
     while(res >= (int)sizeof(*event)) {
         event = (struct inotify_event *)(event_buf + event_pos);
-        //printf("%d: %08x \"%s\"\n", event->wd, event->mask, event->len ? event->name : "");
         if(event->len) {
             strcpy(filename, event->name);
             if(event->mask & IN_CREATE) {

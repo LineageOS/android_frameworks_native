@@ -391,6 +391,8 @@ private:
     bool isDeviceEnabled(int32_t deviceId);
     status_t enableDevice(int32_t deviceId);
     status_t disableDevice(int32_t deviceId);
+    status_t registerFdForEpoll(int fd);
+    status_t unregisterFdFromEpoll(int fd);
     status_t registerDeviceForEpollLocked(Device* device);
     status_t unregisterDeviceFromEpollLocked(Device* device);
 
