@@ -29,6 +29,7 @@
 #include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
+#include <cutils/properties.h>
 #include <gui/ISurfaceComposer.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Timers.h>
@@ -38,6 +39,7 @@
 #include "DispSyncSource.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
+#include "IdleTimer.h"
 #include "InjectVSyncSource.h"
 #include "SchedulerUtils.h"
 
@@ -68,6 +70,17 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
     primaryDispSync->init(mHasSyncFramework, mDispSyncPresentTimeOffset);
     mPrimaryDispSync = std::move(primaryDispSync);
     mEventControlThread = std::make_unique<impl::EventControlThread>(function);
+
+    char value[PROPERTY_VALUE_MAX];
+    property_get("debug.sf.set_idle_timer_ms", value, "0");
+    mSetIdleTimerMs = atoi(value);
+
+    if (mSetIdleTimerMs > 0) {
+        mIdleTimer =
+                std::make_unique<scheduler::IdleTimer>(std::chrono::milliseconds(mSetIdleTimerMs),
+                                                       [this] { expiredTimerCallback(); });
+        mIdleTimer->start();
+    }
 }
 
 Scheduler::~Scheduler() = default;
@@ -98,7 +111,8 @@ std::unique_ptr<EventThread> Scheduler::makeEventThread(
             std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, sourceName.c_str());
     const std::string threadName = connectionName + "Thread";
     return std::make_unique<impl::EventThread>(std::move(eventThreadSource), resyncCallback,
-                                               interceptCallback, threadName.c_str());
+                                               interceptCallback, [this] { resetIdleTimer(); },
+                                               threadName.c_str());
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
@@ -307,6 +321,20 @@ void Scheduler::determineTimestampAverage(bool isAutoTimestamp, const nsecs_t fr
     } else if (mean > 39 && mean < 42) {
         ATRACE_INT("FPS", 24);
     }
+}
+
+void Scheduler::resetIdleTimer() {
+    if (mIdleTimer) {
+        mIdleTimer->reset();
+        ATRACE_INT("ExpiredIdleTimer", 0);
+    }
+}
+
+void Scheduler::expiredTimerCallback() {
+    // TODO(b/113612090): Each time a timer expired, we should record the information into
+    // a circular buffer. Once this has happened a given amount (TBD) of times, we can comfortably
+    // say that the device is sitting in idle.
+    ATRACE_INT("ExpiredIdleTimer", 1);
 }
 
 } // namespace android

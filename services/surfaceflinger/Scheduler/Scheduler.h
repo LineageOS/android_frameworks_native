@@ -25,6 +25,7 @@
 #include "DispSync.h"
 #include "EventControlThread.h"
 #include "EventThread.h"
+#include "IdleTimer.h"
 #include "InjectVSyncSource.h"
 #include "LayerHistory.h"
 #include "SchedulerUtils.h"
@@ -126,6 +127,10 @@ private:
     // Collects the average difference between timestamps for each frame regardless
     // of which layer the timestamp came from.
     void determineTimestampAverage(bool isAutoTimestamp, const nsecs_t framePresentTime);
+    // Function that resets the idle timer.
+    void resetIdleTimer();
+    // Function that is called when the timer expires.
+    void expiredTimerCallback();
 
     // TODO(b/113612090): Instead of letting BufferQueueLayer to access mDispSync directly, it
     // should make request to Scheduler to compute next refresh.
@@ -163,6 +168,11 @@ private:
     size_t mCounter = 0;
 
     LayerHistory mLayerHistory;
+
+    // Timer that records time between requests for next vsync. If the time is higher than a given
+    // interval, a callback is fired. Set this variable to >0 to use this feature.
+    int64_t mSetIdleTimerMs = 0;
+    std::unique_ptr<scheduler::IdleTimer> mIdleTimer;
 };
 
 } // namespace android

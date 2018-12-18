@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <linux/unistd.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <sstream>
@@ -24,6 +25,9 @@
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
+#include <selinux/android.h>
+
+#include <apexd.h>
 
 #include "installd_constants.h"
 #include "otapreopt_utils.h"
@@ -138,6 +142,32 @@ static int otapreopt_chroot(const int argc, char **arg) {
       UNUSED(product_result);
     }
 
+    // Setup APEX mount point and its security context.
+    // The logic here is similar to the one in system/core/rootdir/init.rc:
+    //
+    //   mount tmpfs tmpfs /apex nodev noexec nosuid
+    //   chmod 0755 /apex
+    //   chown root root /apex
+    //   restorecon /apex
+    //
+    if (mount("tmpfs", "/postinstall/apex", "tmpfs", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr)
+        != 0) {
+      PLOG(ERROR) << "Failed to mount tmpfs in /postinstall/apex";
+      exit(209);
+    }
+    if (chmod("/postinstall/apex", 0755) != 0) {
+      PLOG(ERROR) << "Failed to chmod /postinstall/apex to 0755";
+      exit(210);
+    }
+    if (chown("/postinstall/apex", 0, 0) != 0) {
+      PLOG(ERROR) << "Failed to chown /postinstall/apex to root:root";
+      exit(211);
+    }
+    if (selinux_android_restorecon("/postinstall/apex", 0) < 0) {
+      PLOG(ERROR) << "Failed to restorecon /postinstall/apex";
+      exit(212);
+    }
+
     // Chdir into /postinstall.
     if (chdir("/postinstall") != 0) {
         PLOG(ERROR) << "Unable to chdir into /postinstall.";
@@ -153,6 +183,18 @@ static int otapreopt_chroot(const int argc, char **arg) {
     if (chdir("/") != 0) {
         PLOG(ERROR) << "Unable to chdir into /.";
         exit(205);
+    }
+
+    // Try to mount APEX packages in "/apex" in the chroot dir. We need at least
+    // the Android Runtime APEX, as it is required by otapreopt to run dex2oat.
+    {
+      // The logic here is (partially) copied and adapted from
+      // system/apex/apexd/apexd_main.cpp.
+
+      // Only scan the APEX directory under /system (within the chroot dir).
+      // Note that this leaves around the loop devices created and used by
+      // libapexd's code, but this is fine, as we expect to reboot soon after.
+      apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
     }
 
     // Now go on and run otapreopt.

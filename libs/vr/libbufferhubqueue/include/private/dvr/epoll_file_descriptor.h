@@ -28,7 +28,7 @@ class EpollFileDescriptor {
       return -EALREADY;
     }
 
-    fd_.reset(epoll_create(64));
+    fd_.reset(epoll_create1(EPOLL_CLOEXEC));
 
     if (fd_.get() < 0)
       return -errno;

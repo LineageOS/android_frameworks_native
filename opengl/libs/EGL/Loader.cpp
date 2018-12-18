@@ -554,33 +554,17 @@ static bool check_angle_rules(void* so, const char* app_name) {
     property_get("ro.product.manufacturer", manufacturer, "UNSET");
     property_get("ro.product.model", model, "UNSET");
 
-    // TODO: Replace this with the new function name once the version-1 API is removed:
-    fpANGLEGetUtilityAPI ANGLEGetUtilityAPI =
-            (fpANGLEGetUtilityAPI)dlsym(so, "ANGLEGetUtilityAPI");
+    fpANGLEGetFeatureSupportUtilAPIVersion ANGLEGetFeatureSupportUtilAPIVersion =
+            (fpANGLEGetFeatureSupportUtilAPIVersion)dlsym(so, "ANGLEGetFeatureSupportUtilAPIVersion");
 
-    if (ANGLEGetUtilityAPI) {
+    if (ANGLEGetFeatureSupportUtilAPIVersion) {
 
         // Negotiate the interface version by requesting most recent known to the platform
         unsigned int versionToUse = 2;
-        // TODO: Replace this with the new function name once the version-1 API is removed:
-        if ((ANGLEGetUtilityAPI)(&versionToUse)) {
+        if ((ANGLEGetFeatureSupportUtilAPIVersion)(&versionToUse)) {
 
             // Add and remove versions below as needed
             switch(versionToUse) {
-            case 1: {
-                ALOGV("Using version 1 of ANGLE feature-support library");
-                fpAndroidUseANGLEForApplication AndroidUseANGLEForApplication =
-                        (fpAndroidUseANGLEForApplication)dlsym(so, "AndroidUseANGLEForApplication");
-
-                if (AndroidUseANGLEForApplication) {
-                    use_angle = (AndroidUseANGLEForApplication)(rules_fd, rules_offset,
-                                                                rules_length, app_name_str.c_str(),
-                                                                manufacturer, model);
-                } else {
-                    ALOGW("Cannot find AndroidUseANGLEForApplication in ANGLE feature-support library");
-                }
-            }
-            break;
             case 2: {
                 ALOGV("Using version 2 of ANGLE feature-support library");
                 void* rules_handle = nullptr;
@@ -647,7 +631,7 @@ static bool check_angle_rules(void* so, const char* app_name) {
             ALOGW("Cannot use ANGLE feature-support library, it is older than supported by EGL, requested version %u", versionToUse);
         }
     } else {
-        ALOGW("Cannot find ANGLEGetUtilityAPI function");
+        ALOGW("Cannot find ANGLEGetFeatureSupportUtilAPIVersion function");
     }
 
     ALOGV("Close temporarily-loaded ANGLE opt-in/out logic");

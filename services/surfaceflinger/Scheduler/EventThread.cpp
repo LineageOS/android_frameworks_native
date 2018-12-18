@@ -48,10 +48,14 @@ EventThread::~EventThread() = default;
 namespace impl {
 
 EventThread::EventThread(std::unique_ptr<VSyncSource> src,
-                         ResyncWithRateLimitCallback resyncWithRateLimitCallback,
-                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
+                         const ResyncWithRateLimitCallback& resyncWithRateLimitCallback,
+                         const InterceptVSyncsCallback& interceptVSyncsCallback,
+                         const ResetIdleTimerCallback& resetIdleTimerCallback,
+                         const char* threadName)
       : EventThread(nullptr, std::move(src), resyncWithRateLimitCallback, interceptVSyncsCallback,
-                    threadName) {}
+                    threadName) {
+    mResetIdleTimer = resetIdleTimerCallback;
+}
 
 EventThread::EventThread(VSyncSource* src, ResyncWithRateLimitCallback resyncWithRateLimitCallback,
                          InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
@@ -150,6 +154,9 @@ void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>
 
 void EventThread::requestNextVsync(const sp<EventThread::Connection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
+    if (mResetIdleTimer) {
+        mResetIdleTimer();
+    }
 
     if (mResyncWithRateLimitCallback) {
         mResyncWithRateLimitCallback();
