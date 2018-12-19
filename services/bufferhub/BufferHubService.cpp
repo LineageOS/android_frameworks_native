@@ -39,7 +39,8 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
                                          BufferHubIdGenerator::getInstance().getId());
     if (node == nullptr || !node->IsValid()) {
         ALOGE("%s: creating BufferNode failed.", __FUNCTION__);
-        _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::ALLOCATION_FAILED);
+        _hidl_cb(/*status=*/BufferHubStatus::ALLOCATION_FAILED, /*bufferClient=*/nullptr,
+                 /*bufferTraits=*/{});
         return Void();
     }
 
@@ -48,7 +49,13 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
     std::lock_guard<std::mutex> lock(mClientSetMutex);
     mClientSet.emplace(client);
 
-    _hidl_cb(/*bufferClient=*/client, /*status=*/BufferHubStatus::NO_ERROR);
+    BufferTraits bufferTraits = {/*bufferDesc=*/description,
+                                 /*bufferHandle=*/hidl_handle(node->buffer_handle()),
+                                 // TODO(b/116681016): return real data to client
+                                 /*bufferInfo=*/hidl_handle()};
+
+    _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
+             /*bufferTraits=*/bufferTraits);
     return Void();
 }
 
@@ -56,7 +63,8 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
                                             importBuffer_cb _hidl_cb) {
     if (!tokenHandle.getNativeHandle() || tokenHandle->numFds != 0 || tokenHandle->numInts != 1) {
         // nullptr handle or wrong format
-        _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::INVALID_TOKEN);
+        _hidl_cb(/*status=*/BufferHubStatus::INVALID_TOKEN, /*bufferClient=*/nullptr,
+                 /*bufferTraits=*/{});
         return Void();
     }
 
@@ -68,7 +76,8 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
         auto iter = mTokenMap.find(token);
         if (iter == mTokenMap.end()) {
             // Invalid token
-            _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::INVALID_TOKEN);
+            _hidl_cb(/*status=*/BufferHubStatus::INVALID_TOKEN, /*bufferClient=*/nullptr,
+                     /*bufferTraits=*/{});
             return Void();
         }
 
@@ -81,15 +90,37 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
     if (!originClient) {
         // Should not happen since token should be removed if already gone
         ALOGE("%s: original client %p gone!", __FUNCTION__, originClientWp.unsafe_get());
-        _hidl_cb(/*bufferClient=*/nullptr, /*status=*/BufferHubStatus::BUFFER_FREED);
+        _hidl_cb(/*status=*/BufferHubStatus::BUFFER_FREED, /*bufferClient=*/nullptr,
+                 /*bufferTraits=*/{});
         return Void();
     }
 
     sp<BufferClient> client = new BufferClient(*originClient);
+    uint32_t clientStateMask = client->getBufferNode()->AddNewActiveClientsBitToMask();
+    if (clientStateMask == 0U) {
+        // Reach max client count
+        ALOGE("%s: import failed, BufferNode#%u reached maximum clients.", __FUNCTION__,
+              client->getBufferNode()->id());
+        _hidl_cb(/*status=*/BufferHubStatus::MAX_CLIENT, /*bufferClient=*/nullptr,
+                 /*bufferTraits=*/{});
+        return Void();
+    }
 
     std::lock_guard<std::mutex> lock(mClientSetMutex);
     mClientSet.emplace(client);
-    _hidl_cb(/*bufferClient=*/client, /*status=*/BufferHubStatus::NO_ERROR);
+
+    std::shared_ptr<BufferNode> node = client->getBufferNode();
+
+    HardwareBufferDescription bufferDesc;
+    memcpy(&bufferDesc, &node->buffer_desc(), sizeof(HardwareBufferDescription));
+
+    BufferTraits bufferTraits = {/*bufferDesc=*/bufferDesc,
+                                 /*bufferHandle=*/hidl_handle(node->buffer_handle()),
+                                 // TODO(b/116681016): return real data to client
+                                 /*bufferInfo=*/hidl_handle()};
+
+    _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
+             /*bufferTraits=*/bufferTraits);
     return Void();
 }
 
