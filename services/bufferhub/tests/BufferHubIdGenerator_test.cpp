@@ -27,7 +27,7 @@ TEST_F(BufferHubIdGeneratorTest, TestGenerateUniqueIncrementalID) {
     // resulting IDs should still keep incresing.
     const size_t kTestSize = 10U;
     uint32_t ids[kTestSize];
-    for (int i = 0; i < kTestSize; ++i) {
+    for (size_t i = 0UL; i < kTestSize; ++i) {
         ids[i] = mIdGenerator->getId();
         EXPECT_NE(ids[i], BufferHubIdGenerator::kInvalidId);
         if (i >= 1) {
