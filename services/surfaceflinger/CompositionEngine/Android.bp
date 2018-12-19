@@ -91,6 +91,7 @@ cc_test {
         "tests/DisplayTest.cpp",
         "tests/HwcBufferCacheTest.cpp",
         "tests/LayerTest.cpp",
+        "tests/MockHWC2.cpp",
         "tests/MockHWComposer.cpp",
         "tests/OutputTest.cpp",
         "tests/OutputLayerTest.cpp",
