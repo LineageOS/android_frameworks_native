@@ -34,6 +34,7 @@ cc_library_shared {
     ],
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
+        "libcrypto",
         "libcutils",
         "libhidlbase",
         "libhidltransport",
@@ -60,6 +61,7 @@ cc_binary {
     shared_libs: [
         "android.frameworks.bufferhub@1.0",
         "libbufferhubservice",
+        "libcrypto",
         "libcutils",
         "libhidltransport",
         "libhwbinder",
