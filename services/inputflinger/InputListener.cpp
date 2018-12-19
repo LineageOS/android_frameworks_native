@@ -74,14 +74,16 @@ NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int3
         int32_t buttonState, int32_t edgeFlags, uint32_t deviceTimestamp,
         uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
-        float xPrecision, float yPrecision, nsecs_t downTime) :
+        float xPrecision, float yPrecision, nsecs_t downTime,
+        const std::vector<TouchVideoFrame>& videoFrames) :
         NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId), source(source),
         displayId(displayId), policyFlags(policyFlags),
         action(action), actionButton(actionButton),
         flags(flags), metaState(metaState), buttonState(buttonState),
         edgeFlags(edgeFlags), deviceTimestamp(deviceTimestamp),
         pointerCount(pointerCount),
-        xPrecision(xPrecision), yPrecision(yPrecision), downTime(downTime) {
+        xPrecision(xPrecision), yPrecision(yPrecision), downTime(downTime),
+        videoFrames(videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
         this->pointerCoords[i].copyFrom(pointerCoords[i]);
@@ -95,7 +97,8 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
         metaState(other.metaState), buttonState(other.buttonState),
         edgeFlags(other.edgeFlags),
         deviceTimestamp(other.deviceTimestamp), pointerCount(other.pointerCount),
-        xPrecision(other.xPrecision), yPrecision(other.yPrecision), downTime(other.downTime) {
+        xPrecision(other.xPrecision), yPrecision(other.yPrecision), downTime(other.downTime),
+        videoFrames(other.videoFrames) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         pointerProperties[i].copyFrom(other.pointerProperties[i]);
         pointerCoords[i].copyFrom(other.pointerCoords[i]);

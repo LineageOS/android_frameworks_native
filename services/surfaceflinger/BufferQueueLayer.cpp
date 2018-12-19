@@ -454,7 +454,8 @@ void BufferQueueLayer::onFirstRef() {
     mConsumer->setContentsChangedListener(this);
     mConsumer->setName(mName);
 
-    if (mFlinger->isLayerTripleBufferingDisabled()) {
+    // BufferQueueCore::mMaxDequeuedBufferCount is default to 1
+    if (!mFlinger->isLayerTripleBufferingDisabled()) {
         mProducer->setMaxDequeuedBufferCount(2);
     }
 

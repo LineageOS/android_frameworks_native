@@ -53,6 +53,11 @@ namespace impl {
 class RenderEngine;
 }
 
+enum class Protection {
+    UNPROTECTED = 1,
+    PROTECTED = 2,
+};
+
 class RenderEngine {
 public:
     enum FeatureFlag {
@@ -150,6 +155,10 @@ public:
 
     // ----- BEGIN NEW INTERFACE -----
 
+    virtual bool isProtected() const = 0;
+    virtual bool supportsProtectedContent() const = 0;
+    virtual bool useProtectedContext(bool useProtectedContext) = 0;
+
     // Renders layers for a particular display via GPU composition. This method
     // should be called for every display that needs to be rendered via the GPU.
     // @param settings The display-wide settings that should be applied prior to
@@ -182,12 +191,12 @@ class BindNativeBufferAsFramebuffer {
 public:
     BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer)
           : mEngine(engine), mFramebuffer(mEngine.createFramebuffer()), mStatus(NO_ERROR) {
-        mStatus = mFramebuffer->setNativeWindowBuffer(buffer)
+        mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected())
                 ? mEngine.bindFrameBuffer(mFramebuffer.get())
                 : NO_MEMORY;
     }
     ~BindNativeBufferAsFramebuffer() {
-        mFramebuffer->setNativeWindowBuffer(nullptr);
+        mFramebuffer->setNativeWindowBuffer(nullptr, false);
         mEngine.unbindFrameBuffer(mFramebuffer.get());
     }
     status_t getStatus() const { return mStatus; }

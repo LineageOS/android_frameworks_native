@@ -59,7 +59,15 @@ status_t TransactionStats::writeToParcel(Parcel* output) const {
     if (err != NO_ERROR) {
         return err;
     }
-    err = output->writeInt64(presentTime);
+    if (presentFence) {
+        err = output->writeBool(true);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        err = output->write(*presentFence);
+    } else {
+        err = output->writeBool(false);
+    }
     if (err != NO_ERROR) {
         return err;
     }
@@ -71,9 +79,17 @@ status_t TransactionStats::readFromParcel(const Parcel* input) {
     if (err != NO_ERROR) {
         return err;
     }
-    err = input->readInt64(&presentTime);
+    bool hasFence = false;
+    err = input->readBool(&hasFence);
     if (err != NO_ERROR) {
         return err;
+    }
+    if (hasFence) {
+        presentFence = new Fence();
+        err = input->read(*presentFence);
+        if (err != NO_ERROR) {
+            return err;
+        }
     }
     return input->readParcelableVector(&surfaceStats);
 }

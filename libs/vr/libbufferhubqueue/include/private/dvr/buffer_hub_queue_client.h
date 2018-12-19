@@ -13,10 +13,11 @@
 // in these headers and their dependencies.
 #include <pdx/client.h>
 #include <pdx/status.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_parcelable.h>
 #include <private/dvr/bufferhub_rpc.h>
+#include <private/dvr/consumer_buffer.h>
 #include <private/dvr/epoll_file_descriptor.h>
+#include <private/dvr/producer_buffer.h>
 
 #if defined(__clang__)
 #pragma clang diagnostic pop

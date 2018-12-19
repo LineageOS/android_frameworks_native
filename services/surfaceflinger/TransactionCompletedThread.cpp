@@ -151,18 +151,6 @@ void TransactionCompletedThread::threadMain() {
     while (mKeepRunning) {
         mConditionVariable.wait(mMutex);
 
-        // Present fence should fire almost immediately. If the fence has not signaled in 100ms,
-        // there is a major problem and it will probably never fire.
-        nsecs_t presentTime = -1;
-        if (mPresentFence) {
-            status_t status = mPresentFence->wait(100);
-            if (status == NO_ERROR) {
-                presentTime = mPresentFence->getSignalTime();
-            } else {
-                ALOGE("present fence has not signaled, err %d", status);
-            }
-        }
-
         // We should never hit this case. The release fences from the previous frame should have
         // signaled long before the current frame is presented.
         for (const auto& fence : mPreviousReleaseFences) {
@@ -188,17 +176,11 @@ void TransactionCompletedThread::threadMain() {
 
                 // If the transaction has been latched
                 if (transactionStats.latchTime >= 0) {
-                    // If the present time is < 0, this transaction has been latched but not
-                    // presented. Skip it for now. This can happen when a new transaction comes
-                    // in between the latch and present steps. sendCallbacks is called by
-                    // SurfaceFlinger when the transaction is received to ensure that if the
-                    // transaction that didn't update state it still got a callback.
-                    if (presentTime < 0) {
+                    if (!mPresentFence) {
                         sendCallback = false;
                         break;
                     }
-
-                    transactionStats.presentTime = presentTime;
+                    transactionStats.presentFence = mPresentFence;
                 }
             }
             // If the listener has no pending transactions and all latched transactions have been

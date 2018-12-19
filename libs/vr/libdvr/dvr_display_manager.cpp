@@ -2,8 +2,8 @@
 
 #include <dvr/dvr_buffer.h>
 #include <pdx/rpc/variant.h>
-#include <private/dvr/buffer_hub_client.h>
 #include <private/dvr/buffer_hub_queue_client.h>
+#include <private/dvr/consumer_buffer.h>
 #include <private/dvr/display_client.h>
 #include <private/dvr/display_manager_client.h>
 

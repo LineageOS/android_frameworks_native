@@ -391,6 +391,8 @@ private:
     bool isDeviceEnabled(int32_t deviceId);
     status_t enableDevice(int32_t deviceId);
     status_t disableDevice(int32_t deviceId);
+    status_t registerFdForEpoll(int fd);
+    status_t unregisterFdFromEpoll(int fd);
     status_t registerDeviceForEpollLocked(Device* device);
     status_t unregisterDeviceFromEpollLocked(Device* device);
 
@@ -449,6 +451,9 @@ private:
     int mINotifyFd;
     int mWakeReadPipeFd;
     int mWakeWritePipeFd;
+
+    int mInputWd;
+    int mVideoWd;
 
     // Epoll FD list size hint.
     static const int EPOLL_SIZE_HINT = 8;

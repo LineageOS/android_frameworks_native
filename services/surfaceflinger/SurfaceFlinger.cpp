@@ -379,7 +379,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     mUseHwcVirtualDisplays = atoi(value);
     ALOGI_IF(mUseHwcVirtualDisplays, "Enabling HWC virtual displays");
 
-    property_get("ro.sf.disable_triple_buffer", value, "1");
+    property_get("ro.sf.disable_triple_buffer", value, "0");
     mLayerTripleBufferingDisabled = atoi(value);
     ALOGI_IF(mLayerTripleBufferingDisabled, "Disabling Triple Buffering");
 
@@ -5439,10 +5439,11 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }
+    auto& engine(getRenderEngine());
 
     // this binds the given EGLImage as a framebuffer for the
     // duration of this scope.
-    renderengine::BindNativeBufferAsFramebuffer bufferBond(getRenderEngine(), buffer);
+    renderengine::BindNativeBufferAsFramebuffer bufferBond(engine, buffer);
     if (bufferBond.getStatus() != NO_ERROR) {
         ALOGE("got ANWB binding error while taking screenshot");
         return INVALID_OPERATION;
@@ -5454,9 +5455,9 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     // dependent on the context's EGLConfig.
     renderScreenImplLocked(renderArea, traverseLayers, useIdentityTransform);
 
-    base::unique_fd syncFd = getRenderEngine().flush();
+    base::unique_fd syncFd = engine.flush();
     if (syncFd < 0) {
-        getRenderEngine().finish();
+        engine.finish();
     }
     *outSyncFd = syncFd.release();
 

@@ -58,9 +58,6 @@ public:
     /* Gets the absolute location of the pointer. */
     virtual void getPosition(float* outX, float* outY) const = 0;
 
-    /* Gets the id of the display where the pointer should be shown. */
-    virtual int32_t getDisplayId() const = 0;
-
     enum Transition {
         // Fade/unfade immediately.
         TRANSITION_IMMEDIATE,
