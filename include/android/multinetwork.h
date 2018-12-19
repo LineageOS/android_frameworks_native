@@ -131,7 +131,7 @@ int android_res_nquery(net_handle_t network,
  * POSIX error code (see errno.h) if an immediate error occurs.
  */
 int android_res_nsend(net_handle_t network,
-        const unsigned char *msg, int msglen) __INTRODUCED_IN(29);
+        const uint8_t *msg, size_t msglen) __INTRODUCED_IN(29);
 
 /**
  * Read a result for the query associated with the |fd| descriptor.
@@ -141,7 +141,7 @@ int android_res_nsend(net_handle_t network,
  *     >= 0: length of |answer|. |rcode| is the resolver return code (e.g., ns_r_nxdomain)
  */
 int android_res_nresult(int fd,
-        int *rcode, unsigned char *answer, int anslen) __INTRODUCED_IN(29);
+        int *rcode, uint8_t *answer, size_t anslen) __INTRODUCED_IN(29);
 
 /**
  * Attempts to cancel the in-progress query associated with the |nsend_fd|
