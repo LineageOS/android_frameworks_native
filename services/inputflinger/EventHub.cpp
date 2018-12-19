@@ -73,6 +73,8 @@ static constexpr bool DEBUG = false;
 
 static const char *WAKE_LOCK_ID = "KeyEvents";
 static const char *DEVICE_PATH = "/dev/input";
+// v4l2 devices go directly into /dev
+static const char *VIDEO_DEVICE_PATH = "/dev";
 
 static inline const char* toString(bool value) {
     return value ? "true" : "false";
@@ -98,6 +100,13 @@ static void getLinuxRelease(int* major, int* minor) {
         *major = 0, *minor = 0;
         ALOGE("Could not get linux version: %s", strerror(errno));
     }
+}
+
+/**
+ * Return true if name matches "v4l-touch*"
+ */
+static bool isV4lTouchNode(const char* name) {
+    return strstr(name, "v4l-touch") == name;
 }
 
 // --- Global Functions ---
@@ -206,18 +215,21 @@ EventHub::EventHub(void) :
     acquire_wake_lock(PARTIAL_WAKE_LOCK, WAKE_LOCK_ID);
 
     mEpollFd = epoll_create1(EPOLL_CLOEXEC);
-    LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance.  errno=%d", errno);
+    LOG_ALWAYS_FATAL_IF(mEpollFd < 0, "Could not create epoll instance: %s", strerror(errno));
 
     mINotifyFd = inotify_init();
-    int result = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
-    LOG_ALWAYS_FATAL_IF(result < 0, "Could not register INotify for %s.  errno=%d",
-            DEVICE_PATH, errno);
+    mInputWd = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
+    LOG_ALWAYS_FATAL_IF(mInputWd < 0, "Could not register INotify for %s: %s",
+            DEVICE_PATH, strerror(errno));
+    mVideoWd = inotify_add_watch(mINotifyFd, VIDEO_DEVICE_PATH, IN_DELETE | IN_CREATE);
+    LOG_ALWAYS_FATAL_IF(mVideoWd < 0, "Could not register INotify for %s: %s",
+            VIDEO_DEVICE_PATH, strerror(errno));
 
     struct epoll_event eventItem;
     memset(&eventItem, 0, sizeof(eventItem));
     eventItem.events = EPOLLIN;
     eventItem.data.fd = mINotifyFd;
-    result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);
+    int result = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mINotifyFd, &eventItem);
     LOG_ALWAYS_FATAL_IF(result != 0, "Could not add INotify to epoll instance.  errno=%d", errno);
 
     int wakeFds[2];
@@ -1667,8 +1679,6 @@ void EventHub::closeDeviceLocked(Device* device) {
 
 status_t EventHub::readNotifyLocked() {
     int res;
-    char devname[PATH_MAX];
-    char *filename;
     char event_buf[512];
     int event_size;
     int event_pos = 0;
@@ -1682,21 +1692,27 @@ status_t EventHub::readNotifyLocked() {
         ALOGW("could not get event, %s\n", strerror(errno));
         return -1;
     }
-    //printf("got %d bytes of event information\n", res);
-
-    strcpy(devname, DEVICE_PATH);
-    filename = devname + strlen(devname);
-    *filename++ = '/';
 
     while(res >= (int)sizeof(*event)) {
         event = (struct inotify_event *)(event_buf + event_pos);
         if(event->len) {
-            strcpy(filename, event->name);
-            if(event->mask & IN_CREATE) {
-                openDeviceLocked(devname);
-            } else {
-                ALOGI("Removing device '%s' due to inotify event\n", devname);
-                closeDeviceByPathLocked(devname);
+            if (event->wd == mInputWd) {
+                std::string filename = StringPrintf("%s/%s", DEVICE_PATH, event->name);
+                if(event->mask & IN_CREATE) {
+                    openDeviceLocked(filename.c_str());
+                } else {
+                    ALOGI("Removing device '%s' due to inotify event\n", filename.c_str());
+                    closeDeviceByPathLocked(filename.c_str());
+                }
+            }
+            else if (event->wd == mVideoWd) {
+                if (isV4lTouchNode(event->name)) {
+                    std::string filename = StringPrintf("%s/%s", VIDEO_DEVICE_PATH, event->name);
+                    ALOGV("Received an inotify event for a video device %s", filename.c_str());
+                }
+            }
+            else {
+                LOG_ALWAYS_FATAL("Unexpected inotify event, wd = %i", event->wd);
             }
         }
         event_size = sizeof(*event) + event->len;
