@@ -69,13 +69,6 @@ BufferLayer::BufferLayer(const LayerCreationArgs& args)
 
 BufferLayer::~BufferLayer() {
     mFlinger->deleteTextureAsync(mTextureName);
-
-    if (destroyAllHwcLayersPlusChildren()) {
-        ALOGE("Found stale hardware composer layers when destroying "
-              "surface flinger layer %s",
-              mName.string());
-    }
-
     mFlinger->mTimeStats->onDestroy(getSequence());
 }
 

@@ -126,8 +126,6 @@ Layer::~Layer() {
 
     mFrameTracker.logAndResetStats(mName);
 
-    destroyAllHwcLayersPlusChildren();
-
     mFlinger->onLayerDestroyed();
 }
 
@@ -208,61 +206,6 @@ sp<IBinder> Layer::getHandle() {
 // ---------------------------------------------------------------------------
 // h/w composer set-up
 // ---------------------------------------------------------------------------
-
-bool Layer::createHwcLayer(HWComposer* hwc, const sp<DisplayDevice>& displayDevice) {
-    LOG_ALWAYS_FATAL_IF(!displayDevice->getId());
-    auto displayId = *displayDevice->getId();
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    LOG_ALWAYS_FATAL_IF(!outputLayer);
-
-    LOG_ALWAYS_FATAL_IF(outputLayer->getState().hwc.has_value(),
-                        "Already have a layer for display %s",
-                        displayDevice->getDisplayName().c_str());
-
-    auto layer = std::shared_ptr<HWC2::Layer>(
-            hwc->createLayer(displayId),
-            [hwc, displayId](HWC2::Layer* layer) {
-               hwc->destroyLayer(displayId, layer); });
-    if (!layer) {
-        return false;
-    }
-    auto& state = outputLayer->editState();
-    state.hwc.emplace(layer);
-    return true;
-}
-
-bool Layer::destroyHwcLayer(const sp<DisplayDevice>& displayDevice) {
-    auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    if (outputLayer == nullptr) {
-        return false;
-    }
-    auto& state = outputLayer->editState();
-    bool result = state.hwc.has_value();
-    state.hwc.reset();
-    return result;
-}
-
-bool Layer::destroyHwcLayersForAllDisplays() {
-    bool destroyedAnyLayers = false;
-
-    for (const auto& [token, displayDevice] : mFlinger->mDisplays) {
-        if (destroyHwcLayer(displayDevice)) {
-            destroyedAnyLayers = true;
-        }
-    }
-
-    return destroyedAnyLayers;
-}
-
-bool Layer::destroyAllHwcLayersPlusChildren() {
-    bool result = destroyHwcLayersForAllDisplays();
-
-    for (const sp<Layer>& child : mDrawingChildren) {
-        result |= child->destroyAllHwcLayersPlusChildren();
-    }
-
-    return result;
-}
 
 bool Layer::hasHwcLayer(const sp<const DisplayDevice>& displayDevice) {
     auto outputLayer = findOutputLayerForDisplay(displayDevice);

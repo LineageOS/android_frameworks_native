@@ -15,15 +15,21 @@
  */
 
 #include <compositionengine/impl/OutputLayer.h>
+#include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
 #include <gtest/gtest.h>
 
+#include "MockHWC2.h"
+#include "MockHWComposer.h"
+
 namespace android::compositionengine {
 namespace {
 
 using testing::StrictMock;
+
+constexpr DisplayId DEFAULT_DISPLAY_ID = DisplayId{42};
 
 class OutputLayerTest : public testing::Test {
 public:
@@ -42,6 +48,38 @@ public:
  */
 
 TEST_F(OutputLayerTest, canInstantiateOutputLayer) {}
+
+/* ------------------------------------------------------------------------
+ * OutputLayer::initialize()
+ */
+
+TEST_F(OutputLayerTest, initializingOutputLayerWithoutHwcDoesNothingInteresting) {
+    StrictMock<compositionengine::mock::CompositionEngine> compositionEngine;
+
+    mOutputLayer.initialize(compositionEngine, std::nullopt);
+
+    EXPECT_FALSE(mOutputLayer.getState().hwc);
+}
+
+TEST_F(OutputLayerTest, initializingOutputLayerWithHwcDisplayCreatesHwcLayer) {
+    StrictMock<compositionengine::mock::CompositionEngine> compositionEngine;
+    StrictMock<android::mock::HWComposer> hwc;
+    StrictMock<HWC2::mock::Layer> hwcLayer;
+
+    EXPECT_CALL(compositionEngine, getHwComposer()).WillOnce(ReturnRef(hwc));
+    EXPECT_CALL(hwc, createLayer(DEFAULT_DISPLAY_ID)).WillOnce(Return(&hwcLayer));
+
+    mOutputLayer.initialize(compositionEngine, DEFAULT_DISPLAY_ID);
+
+    const auto& state = mOutputLayer.getState();
+    ASSERT_TRUE(state.hwc);
+
+    const auto& hwcState = *state.hwc;
+    EXPECT_EQ(&hwcLayer, hwcState.hwcLayer.get());
+
+    EXPECT_CALL(hwc, destroyLayer(DEFAULT_DISPLAY_ID, &hwcLayer));
+    mOutputLayer.editState().hwc.reset();
+}
 
 } // namespace
 } // namespace android::compositionengine
