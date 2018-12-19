@@ -2736,7 +2736,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 
     commitTransaction();
 
-    if ((inputChanged || mVisibleRegionsDirty) && mInputFlinger) {
+    if (inputChanged || mVisibleRegionsDirty) {
         updateInputWindows();
     }
 
@@ -2745,6 +2745,10 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
 
 void SurfaceFlinger::updateInputWindows() {
     ATRACE_CALL();
+
+    if (mInputFlinger == nullptr) {
+        return;
+    }
 
     Vector<InputWindowInfo> inputHandles;
 
@@ -3014,6 +3018,11 @@ bool SurfaceFlinger::handlePageFlip()
     getBE().flushFence = Fence::NO_FENCE;
 
     mVisibleRegionsDirty |= visibleRegions;
+
+    if (visibleRegions) {
+        // Update input window info if the layer receives its first buffer.
+        updateInputWindows();
+    }
 
     // If we will need to wake up at some time in the future to deal with a
     // queued frame that shouldn't be displayed during this vsync period, wake
