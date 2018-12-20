@@ -33,6 +33,7 @@ class LayerRef {
     LayerRef& operator=(const LayerRef&) = delete;
 
     // provides bool-like behavior
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator const Layer*() const { return layer_; }
 
     PFN_vkGetInstanceProcAddr GetGetInstanceProcAddr() const;
