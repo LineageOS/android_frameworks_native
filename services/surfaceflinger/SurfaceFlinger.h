@@ -706,6 +706,7 @@ private:
 
     void preComposition();
     void postComposition();
+    void getCompositorTiming(CompositorTiming* compositorTiming);
     void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,
                                 std::shared_ptr<FenceTime>& presentFenceTime);
     void setCompositorTimingSnapped(const DisplayStatInfo& stats,
@@ -764,13 +765,30 @@ private:
     void resyncToHardwareVsync(bool makeAvailable);
     void disableHardwareVsync(bool makeUnavailable);
 
-public:
-    void resyncWithRateLimit();
-    void getCompositorTiming(CompositorTiming* compositorTiming);
-private:
     // Sets the refresh rate to newFps by switching active configs, if they are available for
     // the desired refresh rate.
     void setRefreshRateTo(float newFps);
+
+    // Stores per-display state about VSYNC.
+    struct VsyncState {
+        explicit VsyncState(SurfaceFlinger& flinger) : flinger(flinger) {}
+
+        void resync();
+
+        SurfaceFlinger& flinger;
+        nsecs_t lastResyncTime = 0;
+    };
+
+    const std::shared_ptr<VsyncState> mPrimaryVsyncState{std::make_shared<VsyncState>(*this)};
+
+    auto makeResyncCallback() {
+        std::weak_ptr<VsyncState> ptr = mPrimaryVsyncState;
+        return [ptr]() {
+            if (const auto vsync = ptr.lock()) {
+                vsync->resync();
+            }
+        };
+    }
 
     /* ------------------------------------------------------------------------
      * Debugging & dumpsys

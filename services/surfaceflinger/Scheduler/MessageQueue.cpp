@@ -85,7 +85,8 @@ void MessageQueue::init(const sp<SurfaceFlinger>& flinger) {
     mHandler = new Handler(*this);
 }
 
-void MessageQueue::setEventThread(android::EventThread* eventThread) {
+void MessageQueue::setEventThread(android::EventThread* eventThread,
+                                  ResyncCallback resyncCallback) {
     if (mEventThread == eventThread) {
         return;
     }
@@ -95,7 +96,7 @@ void MessageQueue::setEventThread(android::EventThread* eventThread) {
     }
 
     mEventThread = eventThread;
-    mEvents = eventThread->createEventConnection();
+    mEvents = eventThread->createEventConnection(std::move(resyncCallback));
     mEvents->stealReceiveChannel(&mEventTube);
     mLooper->addFd(mEventTube.getFd(), 0, Looper::EVENT_INPUT, MessageQueue::cb_eventReceiver,
                    this);

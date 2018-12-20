@@ -47,10 +47,11 @@ public:
 
 class EventThreadTest : public testing::Test {
 protected:
-    class MockEventThreadConnection : public android::EventThreadConnection {
+    class MockEventThreadConnection : public EventThreadConnection {
     public:
-        explicit MockEventThreadConnection(android::impl::EventThread* eventThread)
-              : android::EventThreadConnection(eventThread) {}
+        MockEventThreadConnection(android::impl::EventThread* eventThread,
+                                  ResyncCallback&& resyncCallback)
+              : EventThreadConnection(eventThread, std::move(resyncCallback)) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
     };
 
@@ -113,14 +114,14 @@ EventThreadTest::~EventThreadTest() {
 void EventThreadTest::createThread() {
     mThread =
             std::make_unique<android::impl::EventThread>(&mVSyncSource,
-                                                         mResyncCallRecorder.getInvocable(),
                                                          mInterceptVSyncCallRecorder.getInvocable(),
                                                          "unit-test-event-thread");
 }
 
 sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection(
         ConnectionEventRecorder& recorder) {
-    sp<MockEventThreadConnection> connection = new MockEventThreadConnection(mThread.get());
+    sp<MockEventThreadConnection> connection =
+            new MockEventThreadConnection(mThread.get(), mResyncCallRecorder.getInvocable());
     EXPECT_CALL(*connection, postEvent(_)).WillRepeatedly(Invoke(recorder.getInvocable()));
     return connection;
 }

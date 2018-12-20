@@ -29,12 +29,12 @@
 #include <private/gui/BitTube.h>
 
 #include "Barrier.h"
+#include "EventThread.h"
 
 #include <functional>
 
 namespace android {
 
-class EventThread;
 class SurfaceFlinger;
 
 // ---------------------------------------------------------------------------
@@ -86,7 +86,7 @@ public:
 
     virtual void init(const sp<SurfaceFlinger>& flinger) = 0;
     // TODO(akrulec): Remove this function once everything is migrated to Scheduler.
-    virtual void setEventThread(EventThread* events) = 0;
+    virtual void setEventThread(EventThread* events, ResyncCallback resyncCallback) = 0;
     virtual void setEventConnection(const sp<EventThreadConnection>& connection) = 0;
     virtual void waitMessage() = 0;
     virtual status_t postMessage(const sp<MessageBase>& message, nsecs_t reltime = 0) = 0;
@@ -127,7 +127,7 @@ class MessageQueue final : public android::MessageQueue {
 public:
     ~MessageQueue() override = default;
     void init(const sp<SurfaceFlinger>& flinger) override;
-    void setEventThread(android::EventThread* events) override;
+    void setEventThread(android::EventThread* events, ResyncCallback resyncCallback) override;
     void setEventConnection(const sp<EventThreadConnection>& connection) override;
 
     void waitMessage() override;
