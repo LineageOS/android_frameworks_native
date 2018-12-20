@@ -74,7 +74,7 @@ TEST_F(BufferNodeTest, TestAddNewActiveClientsBitToMask_32NewClients) {
 
     for (int i = 0; i < BufferHubDefs::kMaxNumberOfClients; ++i) {
         new_client_state_mask = buffer_node->AddNewActiveClientsBitToMask();
-        EXPECT_NE(new_client_state_mask, 0);
+        EXPECT_NE(new_client_state_mask, 0U);
         EXPECT_FALSE(new_client_state_mask & current_mask);
         expected_mask = current_mask | new_client_state_mask;
         current_mask = buffer_node->GetActiveClientsBitMask();
