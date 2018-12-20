@@ -31,7 +31,7 @@ class BufferQueueCore;
 class BufferQueueConsumer : public BnGraphicBufferConsumer {
 
 public:
-    BufferQueueConsumer(const sp<BufferQueueCore>& core);
+    explicit BufferQueueConsumer(const sp<BufferQueueCore>& core);
     ~BufferQueueConsumer() override;
 
     // acquireBuffer attempts to acquire ownership of the next pending buffer in

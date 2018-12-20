@@ -128,7 +128,7 @@ private:
 
     class BufferTracker : public LightRefBase<BufferTracker> {
     public:
-        BufferTracker(const sp<GraphicBuffer>& buffer);
+        explicit BufferTracker(const sp<GraphicBuffer>& buffer);
 
         const sp<GraphicBuffer>& getBuffer() const { return mBuffer; }
         const sp<Fence>& getMergedFence() const { return mMergedFence; }
@@ -154,7 +154,7 @@ private:
     };
 
     // Only called from createSplitter
-    StreamSplitter(const sp<IGraphicBufferConsumer>& inputQueue);
+    explicit StreamSplitter(const sp<IGraphicBufferConsumer>& inputQueue);
 
     // Must be accessed through RefBase
     virtual ~StreamSplitter();
