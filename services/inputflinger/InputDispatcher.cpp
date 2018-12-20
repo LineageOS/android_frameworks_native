@@ -4024,172 +4024,174 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
 
 bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& connection,
         DispatchEntry* dispatchEntry, KeyEntry* keyEntry, bool handled) {
-    if (!(keyEntry->flags & AKEY_EVENT_FLAG_FALLBACK)) {
-        // Get the fallback key state.
-        // Clear it out after dispatching the UP.
-        int32_t originalKeyCode = keyEntry->keyCode;
-        int32_t fallbackKeyCode = connection->inputState.getFallbackKey(originalKeyCode);
-        if (keyEntry->action == AKEY_EVENT_ACTION_UP) {
-            connection->inputState.removeFallbackKey(originalKeyCode);
-        }
+    if (keyEntry->flags & AKEY_EVENT_FLAG_FALLBACK) {
+        return false;
+    }
 
-        if (handled || !dispatchEntry->hasForegroundTarget()) {
-            // If the application handles the original key for which we previously
-            // generated a fallback or if the window is not a foreground window,
-            // then cancel the associated fallback key, if any.
-            if (fallbackKeyCode != -1) {
-                // Dispatch the unhandled key to the policy with the cancel flag.
+    // Get the fallback key state.
+    // Clear it out after dispatching the UP.
+    int32_t originalKeyCode = keyEntry->keyCode;
+    int32_t fallbackKeyCode = connection->inputState.getFallbackKey(originalKeyCode);
+    if (keyEntry->action == AKEY_EVENT_ACTION_UP) {
+        connection->inputState.removeFallbackKey(originalKeyCode);
+    }
+
+    if (handled || !dispatchEntry->hasForegroundTarget()) {
+        // If the application handles the original key for which we previously
+        // generated a fallback or if the window is not a foreground window,
+        // then cancel the associated fallback key, if any.
+        if (fallbackKeyCode != -1) {
+            // Dispatch the unhandled key to the policy with the cancel flag.
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-                ALOGD("Unhandled key event: Asking policy to cancel fallback action.  "
-                        "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
-                        keyEntry->keyCode, keyEntry->action, keyEntry->repeatCount,
-                        keyEntry->policyFlags);
-#endif
-                KeyEvent event;
-                initializeKeyEvent(&event, keyEntry);
-                event.setFlags(event.getFlags() | AKEY_EVENT_FLAG_CANCELED);
-
-                mLock.unlock();
-
-                mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
-                        &event, keyEntry->policyFlags, &event);
-
-                mLock.lock();
-
-                // Cancel the fallback key.
-                if (fallbackKeyCode != AKEYCODE_UNKNOWN) {
-                    CancelationOptions options(CancelationOptions::CANCEL_FALLBACK_EVENTS,
-                            "application handled the original non-fallback key "
-                            "or is no longer a foreground target, "
-                            "canceling previously dispatched fallback key");
-                    options.keyCode = fallbackKeyCode;
-                    synthesizeCancelationEventsForConnectionLocked(connection, options);
-                }
-                connection->inputState.removeFallbackKey(originalKeyCode);
-            }
-        } else {
-            // If the application did not handle a non-fallback key, first check
-            // that we are in a good state to perform unhandled key event processing
-            // Then ask the policy what to do with it.
-            bool initialDown = keyEntry->action == AKEY_EVENT_ACTION_DOWN
-                    && keyEntry->repeatCount == 0;
-            if (fallbackKeyCode == -1 && !initialDown) {
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-                ALOGD("Unhandled key event: Skipping unhandled key event processing "
-                        "since this is not an initial down.  "
-                        "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
-                        originalKeyCode, keyEntry->action, keyEntry->repeatCount,
-                        keyEntry->policyFlags);
-#endif
-                return false;
-            }
-
-            // Dispatch the unhandled key to the policy.
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-            ALOGD("Unhandled key event: Asking policy to perform fallback action.  "
+            ALOGD("Unhandled key event: Asking policy to cancel fallback action.  "
                     "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
                     keyEntry->keyCode, keyEntry->action, keyEntry->repeatCount,
                     keyEntry->policyFlags);
 #endif
             KeyEvent event;
             initializeKeyEvent(&event, keyEntry);
+            event.setFlags(event.getFlags() | AKEY_EVENT_FLAG_CANCELED);
 
             mLock.unlock();
 
-            bool fallback = mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
-                    &event, keyEntry->policyFlags, &event);
+            mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
+                                          &event, keyEntry->policyFlags, &event);
 
             mLock.lock();
 
-            if (connection->status != Connection::STATUS_NORMAL) {
-                connection->inputState.removeFallbackKey(originalKeyCode);
-                return false;
-            }
-
-            // Latch the fallback keycode for this key on an initial down.
-            // The fallback keycode cannot change at any other point in the lifecycle.
-            if (initialDown) {
-                if (fallback) {
-                    fallbackKeyCode = event.getKeyCode();
-                } else {
-                    fallbackKeyCode = AKEYCODE_UNKNOWN;
-                }
-                connection->inputState.setFallbackKey(originalKeyCode, fallbackKeyCode);
-            }
-
-            ALOG_ASSERT(fallbackKeyCode != -1);
-
-            // Cancel the fallback key if the policy decides not to send it anymore.
-            // We will continue to dispatch the key to the policy but we will no
-            // longer dispatch a fallback key to the application.
-            if (fallbackKeyCode != AKEYCODE_UNKNOWN
-                    && (!fallback || fallbackKeyCode != event.getKeyCode())) {
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-                if (fallback) {
-                    ALOGD("Unhandled key event: Policy requested to send key %d"
-                            "as a fallback for %d, but on the DOWN it had requested "
-                            "to send %d instead.  Fallback canceled.",
-                            event.getKeyCode(), originalKeyCode, fallbackKeyCode);
-                } else {
-                    ALOGD("Unhandled key event: Policy did not request fallback for %d, "
-                            "but on the DOWN it had requested to send %d.  "
-                            "Fallback canceled.",
-                            originalKeyCode, fallbackKeyCode);
-                }
-#endif
-
+            // Cancel the fallback key.
+            if (fallbackKeyCode != AKEYCODE_UNKNOWN) {
                 CancelationOptions options(CancelationOptions::CANCEL_FALLBACK_EVENTS,
-                        "canceling fallback, policy no longer desires it");
+                                           "application handled the original non-fallback key "
+                                           "or is no longer a foreground target, "
+                                           "canceling previously dispatched fallback key");
                 options.keyCode = fallbackKeyCode;
                 synthesizeCancelationEventsForConnectionLocked(connection, options);
-
-                fallback = false;
-                fallbackKeyCode = AKEYCODE_UNKNOWN;
-                if (keyEntry->action != AKEY_EVENT_ACTION_UP) {
-                    connection->inputState.setFallbackKey(originalKeyCode,
-                            fallbackKeyCode);
-                }
             }
-
+            connection->inputState.removeFallbackKey(originalKeyCode);
+        }
+    } else {
+        // If the application did not handle a non-fallback key, first check
+        // that we are in a good state to perform unhandled key event processing
+        // Then ask the policy what to do with it.
+        bool initialDown = keyEntry->action == AKEY_EVENT_ACTION_DOWN
+                && keyEntry->repeatCount == 0;
+        if (fallbackKeyCode == -1 && !initialDown) {
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-            {
-                std::string msg;
-                const KeyedVector<int32_t, int32_t>& fallbackKeys =
-                        connection->inputState.getFallbackKeys();
-                for (size_t i = 0; i < fallbackKeys.size(); i++) {
-                    msg += StringPrintf(", %d->%d", fallbackKeys.keyAt(i),
-                            fallbackKeys.valueAt(i));
-                }
-                ALOGD("Unhandled key event: %zu currently tracked fallback keys%s.",
-                        fallbackKeys.size(), msg.c_str());
-            }
+            ALOGD("Unhandled key event: Skipping unhandled key event processing "
+                    "since this is not an initial down.  "
+                    "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
+                    originalKeyCode, keyEntry->action, keyEntry->repeatCount,
+                    keyEntry->policyFlags);
 #endif
+            return false;
+        }
 
+        // Dispatch the unhandled key to the policy.
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+        ALOGD("Unhandled key event: Asking policy to perform fallback action.  "
+                "keyCode=%d, action=%d, repeatCount=%d, policyFlags=0x%08x",
+                keyEntry->keyCode, keyEntry->action, keyEntry->repeatCount,
+                keyEntry->policyFlags);
+#endif
+        KeyEvent event;
+        initializeKeyEvent(&event, keyEntry);
+
+        mLock.unlock();
+
+        bool fallback = mPolicy->dispatchUnhandledKey(connection->inputChannel->getToken(),
+                                                      &event, keyEntry->policyFlags, &event);
+
+        mLock.lock();
+
+        if (connection->status != Connection::STATUS_NORMAL) {
+            connection->inputState.removeFallbackKey(originalKeyCode);
+            return false;
+        }
+
+        // Latch the fallback keycode for this key on an initial down.
+        // The fallback keycode cannot change at any other point in the lifecycle.
+        if (initialDown) {
             if (fallback) {
-                // Restart the dispatch cycle using the fallback key.
-                keyEntry->eventTime = event.getEventTime();
-                keyEntry->deviceId = event.getDeviceId();
-                keyEntry->source = event.getSource();
-                keyEntry->displayId = event.getDisplayId();
-                keyEntry->flags = event.getFlags() | AKEY_EVENT_FLAG_FALLBACK;
-                keyEntry->keyCode = fallbackKeyCode;
-                keyEntry->scanCode = event.getScanCode();
-                keyEntry->metaState = event.getMetaState();
-                keyEntry->repeatCount = event.getRepeatCount();
-                keyEntry->downTime = event.getDownTime();
-                keyEntry->syntheticRepeat = false;
+                fallbackKeyCode = event.getKeyCode();
+            } else {
+                fallbackKeyCode = AKEYCODE_UNKNOWN;
+            }
+            connection->inputState.setFallbackKey(originalKeyCode, fallbackKeyCode);
+        }
+
+        ALOG_ASSERT(fallbackKeyCode != -1);
+
+        // Cancel the fallback key if the policy decides not to send it anymore.
+        // We will continue to dispatch the key to the policy but we will no
+        // longer dispatch a fallback key to the application.
+        if (fallbackKeyCode != AKEYCODE_UNKNOWN
+                && (!fallback || fallbackKeyCode != event.getKeyCode())) {
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+            if (fallback) {
+                ALOGD("Unhandled key event: Policy requested to send key %d"
+                        "as a fallback for %d, but on the DOWN it had requested "
+                        "to send %d instead.  Fallback canceled.",
+                        event.getKeyCode(), originalKeyCode, fallbackKeyCode);
+            } else {
+                ALOGD("Unhandled key event: Policy did not request fallback for %d, "
+                        "but on the DOWN it had requested to send %d.  "
+                        "Fallback canceled.",
+                        originalKeyCode, fallbackKeyCode);
+            }
+#endif
+
+            CancelationOptions options(CancelationOptions::CANCEL_FALLBACK_EVENTS,
+                                       "canceling fallback, policy no longer desires it");
+            options.keyCode = fallbackKeyCode;
+            synthesizeCancelationEventsForConnectionLocked(connection, options);
+
+            fallback = false;
+            fallbackKeyCode = AKEYCODE_UNKNOWN;
+            if (keyEntry->action != AKEY_EVENT_ACTION_UP) {
+                connection->inputState.setFallbackKey(originalKeyCode,
+                                                      fallbackKeyCode);
+            }
+        }
 
 #if DEBUG_OUTBOUND_EVENT_DETAILS
-                ALOGD("Unhandled key event: Dispatching fallback key.  "
-                        "originalKeyCode=%d, fallbackKeyCode=%d, fallbackMetaState=%08x",
-                        originalKeyCode, fallbackKeyCode, keyEntry->metaState);
-#endif
-                return true; // restart the event
-            } else {
-#if DEBUG_OUTBOUND_EVENT_DETAILS
-                ALOGD("Unhandled key event: No fallback key.");
-#endif
+        {
+            std::string msg;
+            const KeyedVector<int32_t, int32_t>& fallbackKeys =
+                    connection->inputState.getFallbackKeys();
+            for (size_t i = 0; i < fallbackKeys.size(); i++) {
+                msg += StringPrintf(", %d->%d", fallbackKeys.keyAt(i),
+                        fallbackKeys.valueAt(i));
             }
+            ALOGD("Unhandled key event: %zu currently tracked fallback keys%s.",
+                    fallbackKeys.size(), msg.c_str());
+        }
+#endif
+
+        if (fallback) {
+            // Restart the dispatch cycle using the fallback key.
+            keyEntry->eventTime = event.getEventTime();
+            keyEntry->deviceId = event.getDeviceId();
+            keyEntry->source = event.getSource();
+            keyEntry->displayId = event.getDisplayId();
+            keyEntry->flags = event.getFlags() | AKEY_EVENT_FLAG_FALLBACK;
+            keyEntry->keyCode = fallbackKeyCode;
+            keyEntry->scanCode = event.getScanCode();
+            keyEntry->metaState = event.getMetaState();
+            keyEntry->repeatCount = event.getRepeatCount();
+            keyEntry->downTime = event.getDownTime();
+            keyEntry->syntheticRepeat = false;
+
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+            ALOGD("Unhandled key event: Dispatching fallback key.  "
+                    "originalKeyCode=%d, fallbackKeyCode=%d, fallbackMetaState=%08x",
+                    originalKeyCode, fallbackKeyCode, keyEntry->metaState);
+#endif
+            return true; // restart the event
+        } else {
+#if DEBUG_OUTBOUND_EVENT_DETAILS
+            ALOGD("Unhandled key event: No fallback key.");
+#endif
         }
     }
     return false;
