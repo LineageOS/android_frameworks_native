@@ -133,22 +133,7 @@ Layer::Layer(SurfaceFlinger* flinger, const sp<Client>& client, const String8& n
     CompositorTiming compositorTiming;
     flinger->getCompositorTiming(&compositorTiming);
     mFrameEventHistory.initializeCompositorTiming(compositorTiming);
-}
-
-void Layer::onFirstRef() NO_THREAD_SAFETY_ANALYSIS {
-    if (!isCreatedFromMainThread()) {
-        // Grab the SF state lock during this since it's the only way to safely access HWC
-        mFlinger->mStateLock.lock();
-    }
-
-    const auto& hwc = mFlinger->getHwComposer();
-    const auto& activeConfig = hwc.getActiveConfig(HWC_DISPLAY_PRIMARY);
-    nsecs_t displayPeriod = activeConfig->getVsyncPeriod();
-    mFrameTracker.setDisplayRefreshPeriod(displayPeriod);
-
-    if (!isCreatedFromMainThread()) {
-        mFlinger->mStateLock.unlock();
-    }
+    mFrameTracker.setDisplayRefreshPeriod(compositorTiming.interval);
 }
 
 Layer::~Layer() {
