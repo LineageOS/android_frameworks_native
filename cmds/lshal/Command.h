@@ -27,7 +27,7 @@ class Lshal;
 // Base class for all *Commands
 class Command {
 public:
-    Command(Lshal& lshal) : mLshal(lshal) {}
+    explicit Command(Lshal& lshal) : mLshal(lshal) {}
     virtual ~Command() = default;
     // Expect optind to be set by Lshal::main and points to the next argument
     // to process.
