@@ -24,11 +24,13 @@ cc_library {
         "IPCThreadStateBase.cpp",
     ],
 
+    header_libs: [
+        "libbase_headers",
+        "libutils_headers",
+    ],
+
     shared_libs: [
-        "libbase",
         "liblog",
-        "libcutils",
-        "libutils",
     ],
 
     export_include_dirs: ["include"],
