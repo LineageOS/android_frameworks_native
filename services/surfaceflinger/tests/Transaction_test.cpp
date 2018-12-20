@@ -1710,22 +1710,52 @@ TEST_F(LayerTransactionTest, SetCropOutOfBounds_BufferQueue) {
     shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
 }
 
-// TODO (marissaw): change Layer to make crop to be in bounds instead of passing a bad crop to hwc
-// TEST_F(LayerTransactionTest, SetCropOutOfBounds_BufferState) {
-//    sp<SurfaceControl> layer;
-//    ASSERT_NO_FATAL_FAILURE(
-//            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
-//    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
-//
-//    Transaction()
-//            .setCrop(layer, Rect(-128, -64, 128, 64))
-//            .setFrame(layer, Rect(0, 0, 32, 32))
-//            .apply();
-//    auto shot = screenshot();
-//    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
-//    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
-//}
-//
+TEST_F(LayerTransactionTest, SetCropOutOfBounds_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", mDisplayWidth, mDisplayHeight / 2,
+                                                ISurfaceComposerClient::eFXSurfaceBufferState));
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(mDisplayWidth, mDisplayHeight / 2, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, mDisplayWidth, mDisplayHeight / 4), Color::BLUE);
+    fillGraphicBufferColor(buffer, Rect(0, mDisplayHeight / 4, mDisplayWidth, mDisplayHeight / 2),
+                           Color::RED);
+
+    Transaction().setBuffer(layer, buffer).apply();
+
+    // Partially out of bounds in the negative (upper left) direction
+    Transaction().setCrop(layer, Rect(-128, -128, mDisplayWidth, mDisplayHeight / 4)).apply();
+    {
+        SCOPED_TRACE("out of bounds, negative (upper left) direction");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::BLACK);
+    }
+
+    // Partially out of bounds in the positive (lower right) direction
+    Transaction()
+            .setCrop(layer, Rect(0, mDisplayHeight / 4, mDisplayWidth + 1, mDisplayHeight))
+            .apply();
+    {
+        SCOPED_TRACE("out of bounds, positive (lower right) direction");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::RED);
+        shot->expectBorder(Rect(0, 0, mDisplayWidth, mDisplayHeight / 2), Color::BLACK);
+    }
+
+    // Fully out of buffer space bounds
+    Transaction().setCrop(layer, Rect(-128, -128, -1, -1)).apply();
+    {
+        SCOPED_TRACE("Fully out of bounds");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, mDisplayWidth, mDisplayHeight / 4), Color::BLUE);
+        shot->expectColor(Rect(0, mDisplayHeight / 4, mDisplayWidth, mDisplayHeight / 2),
+                          Color::RED);
+    }
+}
+
 TEST_F(LayerTransactionTest, SetCropWithTranslation_BufferQueue) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
