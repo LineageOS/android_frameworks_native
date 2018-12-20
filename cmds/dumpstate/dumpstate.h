@@ -72,7 +72,7 @@ extern "C" {
  */
 class DurationReporter {
   public:
-    DurationReporter(const std::string& title, bool log_only = false);
+    explicit DurationReporter(const std::string& title, bool log_only = false);
 
     ~DurationReporter();
 
@@ -111,7 +111,7 @@ class Progress {
      */
     static const int kDefaultMax;
 
-    Progress(const std::string& path = "");
+    explicit Progress(const std::string& path = "");
 
     // Gets the current progress.
     int32_t Get() const;
@@ -447,7 +447,7 @@ class Dumpstate {
 
   private:
     // Used by GetInstance() only.
-    Dumpstate(const std::string& version = VERSION_CURRENT);
+    explicit Dumpstate(const std::string& version = VERSION_CURRENT);
 
     DISALLOW_COPY_AND_ASSIGN(Dumpstate);
 };

@@ -76,7 +76,7 @@ class CommandOptions {
   private:
     class CommandOptionsValues {
       private:
-        CommandOptionsValues(int64_t timeout_ms);
+        explicit CommandOptionsValues(int64_t timeout_ms);
 
         int64_t timeout_ms_;
         bool always_;
@@ -88,7 +88,7 @@ class CommandOptions {
         friend class CommandOptionsBuilder;
     };
 
-    CommandOptions(const CommandOptionsValues& values);
+    explicit CommandOptions(const CommandOptionsValues& values);
 
     const CommandOptionsValues values;
 
@@ -119,7 +119,7 @@ class CommandOptions {
         CommandOptions Build();
 
       private:
-        CommandOptionsBuilder(int64_t timeout_ms);
+        explicit CommandOptionsBuilder(int64_t timeout_ms);
         CommandOptionsValues values;
         friend class CommandOptions;
     };
