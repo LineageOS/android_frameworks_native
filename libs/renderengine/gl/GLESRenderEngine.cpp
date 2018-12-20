@@ -608,7 +608,17 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
 }
 
 status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
-                                                     sp<Fence> bufferFence) {
+                                                     sp<Fence> bufferFence, bool readCache,
+                                                     bool persistCache) {
+    if (readCache) {
+        auto cachedImage = mImageCache.find(buffer->getId());
+
+        if (cachedImage != mImageCache.end()) {
+            bindExternalTextureImage(texName, *cachedImage->second);
+            return NO_ERROR;
+        }
+    }
+
     std::unique_ptr<Image> newImage = createImage();
 
     bool created = newImage->setNativeWindowBuffer(buffer->getNativeBuffer(),
@@ -644,7 +654,33 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<Graphi
         }
     }
 
+    // We don't always want to persist to the cache, e.g. on older devices we
+    // might bind for synchronization purpoeses, but that might leak if we never
+    // call drawLayers again, so it's just better to recreate the image again
+    // if needed when we draw.
+    if (persistCache) {
+        mImageCache.insert(std::make_pair(buffer->getId(), std::move(newImage)));
+    }
+
     return NO_ERROR;
+}
+
+void GLESRenderEngine::evictImages(const std::vector<LayerSettings>& layers) {
+    // destroy old image references that we're not going to draw with.
+    std::unordered_set<uint64_t> bufIds;
+    for (auto layer : layers) {
+        if (layer.source.buffer.buffer != nullptr) {
+            bufIds.emplace(layer.source.buffer.buffer->getId());
+        }
+    }
+
+    for (auto it = mImageCache.begin(); it != mImageCache.end();) {
+        if (bufIds.count(it->first) == 0) {
+            it = mImageCache.erase(it);
+        } else {
+            it++;
+        }
+    }
 }
 
 FloatRect GLESRenderEngine::setupLayerCropping(const LayerSettings& layer, Mesh& mesh) {
@@ -748,6 +784,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         return fbo.getStatus();
     }
 
+    evictImages(layers);
+
     setViewportAndProjection(display.physicalDisplay, display.clip);
 
     setOutputDataSpace(display.outputDataspace);
@@ -781,8 +819,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
             sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
 
+            bool readCache = layer.source.buffer.cacheHint == Buffer::CachingHint::USE_CACHE;
             bindExternalTextureBuffer(layer.source.buffer.textureName, gBuf,
-                                      layer.source.buffer.fence);
+                                      layer.source.buffer.fence, readCache, /*persistCache=*/true);
 
             usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
             Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
