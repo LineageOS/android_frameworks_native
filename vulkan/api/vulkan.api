@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 94
+define VERSION_PATCH 95
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -286,6 +286,10 @@ define NULL_HANDLE 0
 // 82
 @extension("VK_EXT_conditional_rendering") define VK_EXT_CONDITIONAL_RENDERING_SPEC_VERSION 1
 @extension("VK_EXT_conditional_rendering") define VK_EXT_CONDITIONAL_RENDERING_EXTENSION_NAME "VK_EXT_conditional_rendering"
+
+// 83
+@extension("VK_KHR_shader_float16_int8") define VK_KHR_SHADER_FLOAT16_INT8_SPEC_VERSION 1
+@extension("VK_KHR_shader_float16_int8") define VK_KHR_SHADER_FLOAT16_INT8_EXTENSION_NAME "VK_KHR_shader_float16_int8"
 
 // 84
 @extension("VK_KHR_16bit_storage") define VK_KHR_16BIT_STORAGE_SPEC_VERSION 1
@@ -574,6 +578,10 @@ define NULL_HANDLE 0
 // 197
 @extension("VK_KHR_driver_properties") define VK_KHR_DRIVER_PROPERTIES_SPEC_VERSION 1
 @extension("VK_KHR_driver_properties") define VK_KHR_DRIVER_PROPERTIES_EXTENSION_NAME "VK_KHR_driver_properties"
+
+// 198
+@extension("VK_KHR_shader_float_controls") define VK_KHR_SHADER_FLOAT_CONTROLS_SPEC_VERSION 1
+@extension("VK_KHR_shader_float_controls") define VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME "VK_KHR_shader_float_controls"
 
 // 199
 @extension("VK_NV_shader_subgroup_partitioned") define VK_NV_SHADER_SUBGROUP_PARTITIONED_SPEC_VERSION 1
@@ -1615,6 +1623,9 @@ enum VkStructureType {
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CONDITIONAL_RENDERING_FEATURES_EXT        = 1000081001,
     VK_STRUCTURE_TYPE_CONDITIONAL_RENDERING_BEGIN_INFO_EXT                      = 1000081002,
 
+    //@extension("VK_KHR_shader_float16_int8") // 83
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT16_INT8_FEATURES_KHR     = 1000082000,
+
     //@extension("VK_KHR_descriptor_update_template") // 86
     VK_STRUCTURE_TYPE_DESCRIPTOR_UPDATE_TEMPLATE_CREATE_INFO_KHR    = 1000085000,
 
@@ -1847,6 +1858,9 @@ enum VkStructureType {
 
     //@extension("VK_KHR_driver_properties") // 197
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES_KHR             = 1000196000,
+
+    //@extension("VK_KHR_shader_float_controls") // 198
+    VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FLOAT_CONTROLS_PROPERTIES_KHR     = 1000197000,
 
     //@extension("VK_AMD_shader_core_properties") // 186
     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD        = 1000185000,
@@ -6092,6 +6106,14 @@ class VkCommandBufferInheritanceConditionalRenderingInfoEXT {
     VkBool32                                    conditionalRenderingEnable
 }
 
+@extension("VK_KHR_shader_float16_int8") // 83
+class VkPhysicalDeviceFloat16Int8FeaturesKHR {
+    VkStructureType                             sType
+    void*                                       pNext
+    VkBool32                                    shaderFloat16
+    VkBool32                                    shaderInt8
+}
+
 @extension("VK_KHR_16bit_storage") // 84
 class VkPhysicalDevice16BitStorageFeaturesKHR {
     VkStructureType                             sType
@@ -6776,11 +6798,11 @@ class VkDebugUtilsMessengerCallbackDataEXT {
     s32                                             messageIdNumber
     const char*                                     pMessage
     u32                                             queueLabelCount
-    VkDebugUtilsLabelEXT*                           pQueueLabels
+    const VkDebugUtilsLabelEXT*                     pQueueLabels
     u32                                             cmdBufLabelCount
-    VkDebugUtilsLabelEXT*                           pCmdBufLabels
+    const VkDebugUtilsLabelEXT*                     pCmdBufLabels
     u32                                             objectCount
-    VkDebugUtilsObjectNameInfoEXT*                  pObjects
+    const VkDebugUtilsObjectNameInfoEXT*            pObjects
 }
 
 @extension("VK_EXT_debug_utils") // 129
@@ -7596,6 +7618,29 @@ class VkPhysicalDeviceDriverPropertiesKHR {
     char[VK_MAX_DRIVER_NAME_SIZE_KHR]               driverName
     char[VK_MAX_DRIVER_INFO_SIZE_KHR]               driverInfo
     VkConformanceVersionKHR                         conformanceVersion
+}
+
+@extension("VK_KHR_shader_float_controls") // 198
+class VkPhysicalDeviceFloatControlsPropertiesKHR {
+    VkStructureType                                 sType
+    void*                                           pNext
+    VkBool32                                        separateDenormSettings
+    VkBool32                                        separateRoundingModeSettings
+    VkBool32                                        shaderSignedZeroInfNanPreserveFloat16
+    VkBool32                                        shaderSignedZeroInfNanPreserveFloat32
+    VkBool32                                        shaderSignedZeroInfNanPreserveFloat64
+    VkBool32                                        shaderDenormPreserveFloat16
+    VkBool32                                        shaderDenormPreserveFloat32
+    VkBool32                                        shaderDenormPreserveFloat64
+    VkBool32                                        shaderDenormFlushToZeroFloat16
+    VkBool32                                        shaderDenormFlushToZeroFloat32
+    VkBool32                                        shaderDenormFlushToZeroFloat64
+    VkBool32                                        shaderRoundingModeRTEFloat16
+    VkBool32                                        shaderRoundingModeRTEFloat32
+    VkBool32                                        shaderRoundingModeRTEFloat64
+    VkBool32                                        shaderRoundingModeRTZFloat16
+    VkBool32                                        shaderRoundingModeRTZFloat32
+    VkBool32                                        shaderRoundingModeRTZFloat64
 }
 
 @extension("VK_NV_compute_shader_derivatives") // 202
