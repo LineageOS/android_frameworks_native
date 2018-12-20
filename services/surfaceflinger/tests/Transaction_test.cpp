@@ -281,7 +281,7 @@ public:
 
     void expectChildColor(uint32_t x, uint32_t y) { checkPixel(x, y, 200, 200, 200); }
 
-    ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
+    explicit ScreenCapture(const sp<GraphicBuffer>& outBuffer) : mOutBuffer(outBuffer) {
         mOutBuffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, reinterpret_cast<void**>(&mPixels));
     }
 
