@@ -134,7 +134,7 @@ class ErrorType {
 
   // ErrorType constructor for generic error codes. Explicitly not explicit,
   // implicit conversion from ErrorCode to ErrorType is desirable behavior.
-  // NOLINTNEXTLINE(runtime/explicit)
+  // NOLINTNEXTLINE(google-explicit-constructor)
   ErrorType(ErrorCode error_code) : error_code_(error_code) {}
 
   // ErrorType constructor for encoding type errors.
@@ -148,6 +148,7 @@ class ErrorType {
   // Evaluates to true if the ErrorType represents an error.
   explicit operator bool() const { return error_code_ != ErrorCode::NO_ERROR; }
 
+  // NOLINTNEXTLINE(google-explicit-constructor)
   operator ErrorCode() const { return error_code_; }
   ErrorCode error_code() const { return error_code_; }
 
@@ -159,6 +160,7 @@ class ErrorType {
     return unexpected_encoding_.encoding_type;
   }
 
+  // NOLINTNEXTLINE(google-explicit-constructor)
   operator std::string() const {
     std::ostringstream stream;
 

@@ -35,7 +35,7 @@ class BufferHubQueueParcelable : public Parcelable {
   }
 
   // Constructs an parcelable contains the channel parcelable.
-  BufferHubQueueParcelable(
+  explicit BufferHubQueueParcelable(
       std::unique_ptr<pdx::ChannelParcelable> channel_parcelable)
       : channel_parcelable_(std::move(channel_parcelable)) {}
 

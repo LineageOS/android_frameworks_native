@@ -94,7 +94,7 @@ struct TestTemplateType {
   FileHandleType fd;
 
   TestTemplateType() {}
-  TestTemplateType(FileHandleType fd) : fd(std::move(fd)) {}
+  explicit TestTemplateType(FileHandleType fd) : fd(std::move(fd)) {}
 
  private:
   PDX_SERIALIZABLE_MEMBERS(TestTemplateType<FileHandleType>, fd);
@@ -328,7 +328,7 @@ class TestClient : public ClientBase<TestClient> {
  private:
   friend BASE;
 
-  TestClient(LocalChannelHandle channel_handle)
+  explicit TestClient(LocalChannelHandle channel_handle)
       : BASE{android::pdx::uds::ClientChannel::Create(
             std::move(channel_handle))} {}
   TestClient()

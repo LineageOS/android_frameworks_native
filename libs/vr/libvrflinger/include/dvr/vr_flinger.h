@@ -49,7 +49,8 @@ class VrFlinger {
   // Needs to be a separate class for binder's ref counting
   class PersistentVrStateCallback : public BnPersistentVrStateCallbacks {
    public:
-    PersistentVrStateCallback(RequestDisplayCallback request_display_callback)
+    explicit PersistentVrStateCallback(
+        RequestDisplayCallback request_display_callback)
         : request_display_callback_(request_display_callback) {}
     void onPersistentVrStateChanged(bool enabled) override;
    private:

@@ -26,7 +26,7 @@ class ChannelManagerInterface {
 class ChannelHandleBase {
  public:
   ChannelHandleBase() = default;
-  ChannelHandleBase(const int32_t& value) : value_{value} {}
+  explicit ChannelHandleBase(const int32_t& value) : value_{value} {}
 
   ChannelHandleBase(const ChannelHandleBase&) = delete;
   ChannelHandleBase& operator=(const ChannelHandleBase&) = delete;
