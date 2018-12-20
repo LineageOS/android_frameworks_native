@@ -541,6 +541,10 @@ private:
             uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
             sp<Layer>* outLayer);
 
+    status_t createContainerLayer(const sp<Client>& client, const String8& name,
+            uint32_t w, uint32_t h, uint32_t flags, sp<IBinder>* outHandle,
+            sp<Layer>* outLayer);
+
     String8 getUniqueLayerName(const String8& name);
 
     // called in response to the window-manager calling
