@@ -607,6 +607,7 @@ struct WideColorNotSupportedVariant {
 // For this variant, the display is not a HWC display, so no HDR support should
 // be configured.
 struct NonHwcDisplayHdrSupportVariant {
+    static constexpr bool HDR10_PLUS_SUPPORTED = false;
     static constexpr bool HDR10_SUPPORTED = false;
     static constexpr bool HDR_HLG_SUPPORTED = false;
     static constexpr bool HDR_DOLBY_VISION_SUPPORTED = false;
@@ -615,10 +616,27 @@ struct NonHwcDisplayHdrSupportVariant {
     }
 };
 
+template <typename Display>
+struct Hdr10PlusSupportedVariant {
+    static constexpr bool HDR10_PLUS_SUPPORTED = true;
+    static constexpr bool HDR10_SUPPORTED = true;
+    static constexpr bool HDR_HLG_SUPPORTED = false;
+    static constexpr bool HDR_DOLBY_VISION_SUPPORTED = false;
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getHdrCapabilities(_, _, _, _, _))
+                .WillOnce(DoAll(SetArgPointee<1>(std::vector<Hdr>({
+                                        Hdr::HDR10_PLUS,
+                                        Hdr::HDR10,
+                                })),
+                                Return(Error::NONE)));
+    }
+};
+
 // For this variant, the composer should respond with a non-empty list of HDR
 // modes containing HDR10, so HDR10 support should be configured.
 template <typename Display>
 struct Hdr10SupportedVariant {
+    static constexpr bool HDR10_PLUS_SUPPORTED = false;
     static constexpr bool HDR10_SUPPORTED = true;
     static constexpr bool HDR_HLG_SUPPORTED = false;
     static constexpr bool HDR_DOLBY_VISION_SUPPORTED = false;
@@ -633,6 +651,7 @@ struct Hdr10SupportedVariant {
 // modes containing HLG, so HLG support should be configured.
 template <typename Display>
 struct HdrHlgSupportedVariant {
+    static constexpr bool HDR10_PLUS_SUPPORTED = false;
     static constexpr bool HDR10_SUPPORTED = false;
     static constexpr bool HDR_HLG_SUPPORTED = true;
     static constexpr bool HDR_DOLBY_VISION_SUPPORTED = false;
@@ -647,6 +666,7 @@ struct HdrHlgSupportedVariant {
 // modes containing DOLBY_VISION, so DOLBY_VISION support should be configured.
 template <typename Display>
 struct HdrDolbyVisionSupportedVariant {
+    static constexpr bool HDR10_PLUS_SUPPORTED = false;
     static constexpr bool HDR10_SUPPORTED = false;
     static constexpr bool HDR_HLG_SUPPORTED = false;
     static constexpr bool HDR_DOLBY_VISION_SUPPORTED = true;
@@ -661,6 +681,7 @@ struct HdrDolbyVisionSupportedVariant {
 // modes, so no HDR support should be configured.
 template <typename Display>
 struct HdrNotSupportedVariant {
+    static constexpr bool HDR10_PLUS_SUPPORTED = false;
     static constexpr bool HDR10_SUPPORTED = false;
     static constexpr bool HDR_HLG_SUPPORTED = false;
     static constexpr bool HDR_DOLBY_VISION_SUPPORTED = false;
@@ -692,17 +713,17 @@ struct Smpte2086PerFrameMetadataSupportVariant {
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID))
                 .WillOnce(Return(std::vector<PerFrameMetadataKey>({
-                                        PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X,
-                                        PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
-                                        PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
-                                        PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_Y,
-                                        PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_X,
-                                        PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_Y,
-                                        PerFrameMetadataKey::WHITE_POINT_X,
-                                        PerFrameMetadataKey::WHITE_POINT_Y,
-                                        PerFrameMetadataKey::MAX_LUMINANCE,
-                                        PerFrameMetadataKey::MIN_LUMINANCE,
-                                })));
+                        PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X,
+                        PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
+                        PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
+                        PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_Y,
+                        PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_X,
+                        PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_Y,
+                        PerFrameMetadataKey::WHITE_POINT_X,
+                        PerFrameMetadataKey::WHITE_POINT_Y,
+                        PerFrameMetadataKey::MAX_LUMINANCE,
+                        PerFrameMetadataKey::MIN_LUMINANCE,
+                })));
     }
 };
 
@@ -712,12 +733,22 @@ struct Cta861_3_PerFrameMetadataSupportVariant {
     static void setupComposerCallExpectations(DisplayTransactionTest* test) {
         EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID))
                 .WillOnce(Return(std::vector<PerFrameMetadataKey>({
-                                        PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL,
-                                        PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
-                                })));
+                        PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL,
+                        PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
+                })));
     }
 };
 
+template <typename Display>
+struct Hdr10_Plus_PerFrameMetadataSupportVariant {
+    static constexpr int PER_FRAME_METADATA_KEYS = HdrMetadata::Type::HDR10PLUS;
+    static void setupComposerCallExpectations(DisplayTransactionTest* test) {
+        EXPECT_CALL(*test->mComposer, getPerFrameMetadataKeys(Display::HWC_DISPLAY_ID))
+                .WillOnce(Return(std::vector<PerFrameMetadataKey>({
+                        PerFrameMetadataKey::HDR10_PLUS_SEI,
+                })));
+    }
+};
 /* ------------------------------------------------------------------------
  * Typical display configurations to test
  */
@@ -756,6 +787,10 @@ using WideColorP3ColorimetricDisplayCase =
         Case<PrimaryDisplayVariant, WideColorP3ColorimetricSupportedVariant<PrimaryDisplayVariant>,
              HdrNotSupportedVariant<PrimaryDisplayVariant>,
              NoPerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
+using Hdr10PlusDisplayCase =
+        Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
+             Hdr10SupportedVariant<PrimaryDisplayVariant>,
+             Hdr10_Plus_PerFrameMetadataSupportVariant<PrimaryDisplayVariant>>;
 using Hdr10DisplayCase =
         Case<PrimaryDisplayVariant, WideColorNotSupportedVariant<PrimaryDisplayVariant>,
              Hdr10SupportedVariant<PrimaryDisplayVariant>,
@@ -1243,6 +1278,7 @@ void SetupNewDisplayDeviceInternalTest::setupNewDisplayDeviceInternalTest() {
     EXPECT_EQ(Case::Display::WIDTH, device->getWidth());
     EXPECT_EQ(Case::Display::HEIGHT, device->getHeight());
     EXPECT_EQ(Case::WideColorSupport::WIDE_COLOR_SUPPORTED, device->hasWideColorGamut());
+    EXPECT_EQ(Case::HdrSupport::HDR10_PLUS_SUPPORTED, device->hasHDR10PlusSupport());
     EXPECT_EQ(Case::HdrSupport::HDR10_SUPPORTED, device->hasHDR10Support());
     EXPECT_EQ(Case::HdrSupport::HDR_HLG_SUPPORTED, device->hasHLGSupport());
     EXPECT_EQ(Case::HdrSupport::HDR_DOLBY_VISION_SUPPORTED, device->hasDolbyVisionSupport());
@@ -1279,6 +1315,10 @@ TEST_F(SetupNewDisplayDeviceInternalTest, createHwcVirtualDisplay) {
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createWideColorP3Display) {
     setupNewDisplayDeviceInternalTest<WideColorP3ColorimetricDisplayCase>();
+}
+
+TEST_F(SetupNewDisplayDeviceInternalTest, createHdr10PlusDisplay) {
+    setupNewDisplayDeviceInternalTest<Hdr10PlusDisplayCase>();
 }
 
 TEST_F(SetupNewDisplayDeviceInternalTest, createHdr10Display) {

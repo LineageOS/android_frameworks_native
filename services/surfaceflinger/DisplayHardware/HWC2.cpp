@@ -454,6 +454,11 @@ int32_t Display::getSupportedPerFrameMetadata() const
         supportedPerFrameMetadata |= HdrMetadata::Type::CTA861_3;
     }
 
+    // HDR10PLUS
+    if (hasMetadataKey(keys, Hwc2::PerFrameMetadataKey::HDR10_PLUS_SEI)) {
+        supportedPerFrameMetadata |= HdrMetadata::Type::HDR10PLUS;
+    }
+
     return supportedPerFrameMetadata;
 }
 
@@ -905,37 +910,49 @@ Error Layer::setPerFrameMetadata(const int32_t supportedPerFrameMetadata,
     if (validTypes & HdrMetadata::SMPTE2086) {
         perFrameMetadatas.insert(perFrameMetadatas.end(),
                                  {{Hwc2::PerFrameMetadataKey::DISPLAY_RED_PRIMARY_X,
-                                         mHdrMetadata.smpte2086.displayPrimaryRed.x},
-                                   {Hwc2::PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
-                                         mHdrMetadata.smpte2086.displayPrimaryRed.y},
-                                   {Hwc2::PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
-                                         mHdrMetadata.smpte2086.displayPrimaryGreen.x},
-                                   {Hwc2::PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_Y,
-                                         mHdrMetadata.smpte2086.displayPrimaryGreen.y},
-                                   {Hwc2::PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_X,
-                                         mHdrMetadata.smpte2086.displayPrimaryBlue.x},
-                                   {Hwc2::PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_Y,
-                                         mHdrMetadata.smpte2086.displayPrimaryBlue.y},
-                                   {Hwc2::PerFrameMetadataKey::WHITE_POINT_X,
-                                         mHdrMetadata.smpte2086.whitePoint.x},
-                                   {Hwc2::PerFrameMetadataKey::WHITE_POINT_Y,
-                                         mHdrMetadata.smpte2086.whitePoint.y},
-                                   {Hwc2::PerFrameMetadataKey::MAX_LUMINANCE,
-                                         mHdrMetadata.smpte2086.maxLuminance},
-                                   {Hwc2::PerFrameMetadataKey::MIN_LUMINANCE,
-                                         mHdrMetadata.smpte2086.minLuminance}});
+                                   mHdrMetadata.smpte2086.displayPrimaryRed.x},
+                                  {Hwc2::PerFrameMetadataKey::DISPLAY_RED_PRIMARY_Y,
+                                   mHdrMetadata.smpte2086.displayPrimaryRed.y},
+                                  {Hwc2::PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_X,
+                                   mHdrMetadata.smpte2086.displayPrimaryGreen.x},
+                                  {Hwc2::PerFrameMetadataKey::DISPLAY_GREEN_PRIMARY_Y,
+                                   mHdrMetadata.smpte2086.displayPrimaryGreen.y},
+                                  {Hwc2::PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_X,
+                                   mHdrMetadata.smpte2086.displayPrimaryBlue.x},
+                                  {Hwc2::PerFrameMetadataKey::DISPLAY_BLUE_PRIMARY_Y,
+                                   mHdrMetadata.smpte2086.displayPrimaryBlue.y},
+                                  {Hwc2::PerFrameMetadataKey::WHITE_POINT_X,
+                                   mHdrMetadata.smpte2086.whitePoint.x},
+                                  {Hwc2::PerFrameMetadataKey::WHITE_POINT_Y,
+                                   mHdrMetadata.smpte2086.whitePoint.y},
+                                  {Hwc2::PerFrameMetadataKey::MAX_LUMINANCE,
+                                   mHdrMetadata.smpte2086.maxLuminance},
+                                  {Hwc2::PerFrameMetadataKey::MIN_LUMINANCE,
+                                   mHdrMetadata.smpte2086.minLuminance}});
     }
 
     if (validTypes & HdrMetadata::CTA861_3) {
         perFrameMetadatas.insert(perFrameMetadatas.end(),
                                  {{Hwc2::PerFrameMetadataKey::MAX_CONTENT_LIGHT_LEVEL,
-                                         mHdrMetadata.cta8613.maxContentLightLevel},
-                                   {Hwc2::PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
-                                         mHdrMetadata.cta8613.maxFrameAverageLightLevel}});
+                                   mHdrMetadata.cta8613.maxContentLightLevel},
+                                  {Hwc2::PerFrameMetadataKey::MAX_FRAME_AVERAGE_LIGHT_LEVEL,
+                                   mHdrMetadata.cta8613.maxFrameAverageLightLevel}});
     }
 
-    auto intError = mComposer.setLayerPerFrameMetadata(mDisplayId, mId, perFrameMetadatas);
-    return static_cast<Error>(intError);
+    Error error = static_cast<Error>(
+            mComposer.setLayerPerFrameMetadata(mDisplayId, mId, perFrameMetadatas));
+
+    if (validTypes & HdrMetadata::HDR10PLUS) {
+        std::vector<Hwc2::PerFrameMetadataBlob> perFrameMetadataBlobs;
+        perFrameMetadataBlobs.push_back(
+                {Hwc2::PerFrameMetadataKey::HDR10_PLUS_SEI, mHdrMetadata.hdr10plus});
+        Error setMetadataBlobsError = static_cast<Error>(
+                mComposer.setLayerPerFrameMetadataBlobs(mDisplayId, mId, perFrameMetadataBlobs));
+        if (error == Error::None) {
+            return setMetadataBlobsError;
+        }
+    }
+    return error;
 }
 
 Error Layer::setDisplayFrame(const Rect& frame)
@@ -1014,5 +1031,4 @@ Error Layer::setColorTransform(const android::mat4& matrix) {
     auto intError = mComposer.setLayerColorTransform(mDisplayId, mId, matrix.asArray());
     return static_cast<Error>(intError);
 }
-
 } // namespace HWC2
