@@ -26,7 +26,7 @@ namespace android {
 
 class Dumpsys {
   public:
-    Dumpsys(android::IServiceManager* sm) : sm_(sm) {
+    explicit Dumpsys(android::IServiceManager* sm) : sm_(sm) {
     }
     /**
      * Main entry point into dumpsys.
