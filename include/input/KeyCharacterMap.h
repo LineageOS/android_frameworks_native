@@ -196,7 +196,7 @@ private:
         };
 
         struct Property {
-            inline Property(int32_t property = 0, int32_t metaState = 0) :
+            inline explicit Property(int32_t property = 0, int32_t metaState = 0) :
                     property(property), metaState(metaState) { }
 
             int32_t property;
