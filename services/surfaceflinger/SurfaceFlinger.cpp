@@ -3002,12 +3002,18 @@ bool SurfaceFlinger::handlePageFlip()
         }
     });
 
-    for (auto& layer : mLayersWithQueuedFrames) {
-        const Region dirty(layer->latchBuffer(visibleRegions, latchTime, getBE().flushFence));
-        layer->useSurfaceDamage();
-        invalidateLayerStack(layer, dirty);
-        if (layer->isBufferLatched()) {
-            newDataLatched = true;
+    if (!mLayersWithQueuedFrames.empty()) {
+        // mStateLock is needed for latchBuffer as LayerRejecter::reject()
+        // writes to Layer current state. See also b/119481871
+        Mutex::Autolock lock(mStateLock);
+
+        for (auto& layer : mLayersWithQueuedFrames) {
+            const Region dirty(layer->latchBuffer(visibleRegions, latchTime, getBE().flushFence));
+            layer->useSurfaceDamage();
+            invalidateLayerStack(layer, dirty);
+            if (layer->isBufferLatched()) {
+                newDataLatched = true;
+            }
         }
     }
 
