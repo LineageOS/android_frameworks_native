@@ -28,7 +28,7 @@ import platform "platform.api"
 // API version (major.minor.patch)
 define VERSION_MAJOR 1
 define VERSION_MINOR 1
-define VERSION_PATCH 95
+define VERSION_PATCH 96
 
 // API limits
 define VK_MAX_PHYSICAL_DEVICE_NAME_SIZE 256
@@ -620,7 +620,7 @@ define NULL_HANDLE 0
 @extension("VK_KHR_vulkan_memory_model") define VK_KHR_VULKAN_MEMORY_MODEL_EXTENSION_NAME "VK_KHR_vulkan_memory_model"
 
 // 213
-@extension("VK_EXT_pci_bus_info") define VK_EXT_PCI_BUS_INFO_SPEC_VERSION 1
+@extension("VK_EXT_pci_bus_info") define VK_EXT_PCI_BUS_INFO_SPEC_VERSION 2
 @extension("VK_EXT_pci_bus_info") define VK_EXT_PCI_BUS_INFO_EXENSION_NAME "VK_EXT_pci_bus_info"
 
 // 215
@@ -636,11 +636,11 @@ define NULL_HANDLE 0
 @extension("VK_EXT_scalar_block_layout") define VK_EXT_SCALAR_BLOCK_LAYOUT_EXTENSION_NAME "VK_EXT_scalar_block_layout"
 
 // 224
-@extension("VK_GOOGLE_hlsl_functionality1") define VK_GOOGLE_HLSL_FUNCTIONALITY1_SPEC_VERSION 0
+@extension("VK_GOOGLE_hlsl_functionality1") define VK_GOOGLE_HLSL_FUNCTIONALITY1_SPEC_VERSION 1
 @extension("VK_GOOGLE_hlsl_functionality1") define VK_GOOGLE_HLSL_FUNCTIONALITY1_EXTENSION_NAME "VK_GOOGLE_hlsl_functionality1"
 
 // 225
-@extension("VK_GOOGLE_decorate_string") define VK_GOOGLE_DECORATE_STRING_SPEC_VERSION 0
+@extension("VK_GOOGLE_decorate_string") define VK_GOOGLE_DECORATE_STRING_SPEC_VERSION 1
 @extension("VK_GOOGLE_decorate_string") define VK_GOOGLE_DECORATE_STRING_EXTENSION_NAME "VK_GOOGLE_decorate_string"
 
 // 247
@@ -7740,10 +7740,10 @@ class VkPhysicalDeviceVulkanMemoryModelFeaturesKHR {
 class VkPhysicalDevicePCIBusInfoPropertiesEXT {
     VkStructureType                                 sType
     void*                                           pNext
-    u16                                             pciDomain
-    u8                                              pciBus
-    u8                                              pciDevice
-    u8                                              pciFunction
+    u32                                             pciDomain
+    u32                                             pciBus
+    u32                                             pciDevice
+    u32                                             pciFunction
 }
 
 @extension("VK_FUCHSIA_imagepipe_surface") // 215
