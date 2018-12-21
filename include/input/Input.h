@@ -681,7 +681,7 @@ private:
  */
 class PooledInputEventFactory : public InputEventFactoryInterface {
 public:
-    PooledInputEventFactory(size_t maxPoolSize = 20);
+    explicit PooledInputEventFactory(size_t maxPoolSize = 20);
     virtual ~PooledInputEventFactory();
 
     virtual KeyEvent* createKeyEvent();
