@@ -69,7 +69,7 @@ public:
     bool isOpaque(const Layer::State& s) const override;
 
     // isVisible - true if this layer is visible, false otherwise
-    bool isVisible() const override EXCLUDES(mStateMutex);
+    bool isVisible() const override;
 
     // isProtected - true if the layer may contain protected content in the
     // GRALLOC_USAGE_PROTECTED sense.
@@ -91,7 +91,7 @@ public:
     bool onPostComposition(const std::optional<DisplayId>& displayId,
                            const std::shared_ptr<FenceTime>& glDoneFence,
                            const std::shared_ptr<FenceTime>& presentFence,
-                           const CompositorTiming& compositorTiming) override EXCLUDES(mStateMutex);
+                           const CompositorTiming& compositorTiming) override;
 
     // latchBuffer - called each time the screen is redrawn and returns whether
     // the visible regions need to be recomputed (this is a fairly heavy
@@ -101,13 +101,13 @@ public:
     // releaseFence will be populated with a native fence that fires when
     // composition has completed.
     Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                       const sp<Fence>& releaseFence) override EXCLUDES(mStateMutex);
+                       const sp<Fence>& releaseFence) override;
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
     void notifyAvailableFrames() override;
 
-    bool hasReadyFrame() const override EXCLUDES(mStateMutex);
+    bool hasReadyFrame() const override;
 
     // Returns the current scaling mode, unless mOverrideScalingMode
     // is set, in which case, it returns mOverrideScalingMode
@@ -118,24 +118,19 @@ public:
     // Functions that must be implemented by derived classes
     // -----------------------------------------------------------------------
 private:
-    virtual bool fenceHasSignaled() const EXCLUDES(mStateMutex) = 0;
+    virtual bool fenceHasSignaled() const = 0;
 
     virtual nsecs_t getDesiredPresentTime() = 0;
-    std::shared_ptr<FenceTime> getCurrentFenceTime() const EXCLUDES(mStateMutex) {
-        Mutex::Autolock lock(mStateMutex);
-        return getCurrentFenceTimeLocked();
-    }
-
-    virtual std::shared_ptr<FenceTime> getCurrentFenceTimeLocked() const REQUIRES(mStateMutex) = 0;
+    virtual std::shared_ptr<FenceTime> getCurrentFenceTime() const = 0;
 
     virtual void getDrawingTransformMatrix(float *matrix) = 0;
-    virtual uint32_t getDrawingTransform() const REQUIRES(mStateMutex) = 0;
-    virtual ui::Dataspace getDrawingDataSpace() const REQUIRES(mStateMutex) = 0;
-    virtual Rect getDrawingCrop() const REQUIRES(mStateMutex) = 0;
+    virtual uint32_t getDrawingTransform() const = 0;
+    virtual ui::Dataspace getDrawingDataSpace() const = 0;
+    virtual Rect getDrawingCrop() const = 0;
     virtual uint32_t getDrawingScalingMode() const = 0;
-    virtual Region getDrawingSurfaceDamage() const EXCLUDES(mStateMutex) = 0;
-    virtual const HdrMetadata& getDrawingHdrMetadata() const EXCLUDES(mStateMutex) = 0;
-    virtual int getDrawingApi() const EXCLUDES(mStateMutex) = 0;
+    virtual Region getDrawingSurfaceDamage() const = 0;
+    virtual const HdrMetadata& getDrawingHdrMetadata() const = 0;
+    virtual int getDrawingApi() const = 0;
     virtual PixelFormat getPixelFormat() const = 0;
 
     virtual uint64_t getFrameNumber() const = 0;
@@ -143,21 +138,20 @@ private:
     virtual bool getAutoRefresh() const = 0;
     virtual bool getSidebandStreamChanged() const = 0;
 
-    virtual std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions)
-            EXCLUDES(mStateMutex) = 0;
+    virtual std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) = 0;
 
-    virtual bool hasFrameUpdateLocked() const REQUIRES(mStateMutex) = 0;
+    virtual bool hasFrameUpdate() const = 0;
 
     virtual void setFilteringEnabled(bool enabled) = 0;
 
-    virtual status_t bindTextureImage() EXCLUDES(mStateMutex) = 0;
+    virtual status_t bindTextureImage() = 0;
     virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                                    const sp<Fence>& flushFence) REQUIRES(mStateMutex) = 0;
+                                    const sp<Fence>& flushFence) = 0;
 
-    virtual status_t updateActiveBuffer() REQUIRES(mStateMutex) = 0;
+    virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(DisplayId displayId) EXCLUDES(mStateMutex) = 0;
+    virtual void setHwcLayerBuffer(DisplayId displayId) = 0;
 
 protected:
     // Loads the corresponding system property once per process
@@ -166,14 +160,9 @@ protected:
     // Check all of the local sync points to ensure that all transactions
     // which need to have been applied prior to the frame which is about to
     // be latched have signaled
-    bool allTransactionsSignaled() REQUIRES(mStateMutex);
+    bool allTransactionsSignaled();
 
     static bool getOpacityForFormat(uint32_t format);
-
-    bool hasFrameUpdate() const EXCLUDES(mStateMutex) {
-        Mutex::Autolock lock(mStateMutex);
-        return hasFrameUpdateLocked();
-    }
 
     // from GLES
     const uint32_t mTextureName;
@@ -183,12 +172,9 @@ private:
     bool needsFiltering(const RenderArea& renderArea) const;
 
     // drawing
-    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const
-            EXCLUDES(mStateMutex);
+    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
 
-    uint64_t getHeadFrameNumber() const EXCLUDES(mStateMutex);
-
-    uint64_t getHeadFrameNumberLocked() const REQUIRES(mStateMutex);
+    uint64_t getHeadFrameNumber() const;
 
     uint32_t mCurrentScalingMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
 
@@ -200,7 +186,7 @@ private:
 
     bool mRefreshPending{false};
 
-    Rect getBufferSize(const State& s) const override REQUIRES(mStateMutex);
+    Rect getBufferSize(const State& s) const override;
 };
 
 } // namespace android

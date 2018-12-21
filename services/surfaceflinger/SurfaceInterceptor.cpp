@@ -101,23 +101,22 @@ void SurfaceInterceptor::addInitialSurfaceStateLocked(Increment* increment,
     transaction->set_animation(layerFlags & BnSurfaceComposer::eAnimation);
 
     const int32_t layerId(getLayerId(layer));
-    Mutex::Autolock lock(layer->mStateMutex);
-    addPositionLocked(transaction, layerId, layer->mState.current.active_legacy.transform.tx(),
-                      layer->mState.current.active_legacy.transform.ty());
-    addDepthLocked(transaction, layerId, layer->mState.current.z);
-    addAlphaLocked(transaction, layerId, layer->mState.current.color.a);
+    addPositionLocked(transaction, layerId, layer->mCurrentState.active_legacy.transform.tx(),
+                      layer->mCurrentState.active_legacy.transform.ty());
+    addDepthLocked(transaction, layerId, layer->mCurrentState.z);
+    addAlphaLocked(transaction, layerId, layer->mCurrentState.color.a);
     addTransparentRegionLocked(transaction, layerId,
-                               layer->mState.current.activeTransparentRegion_legacy);
-    addLayerStackLocked(transaction, layerId, layer->mState.current.layerStack);
-    addCropLocked(transaction, layerId, layer->mState.current.crop_legacy);
-    addCornerRadiusLocked(transaction, layerId, layer->mState.current.cornerRadius);
-    if (layer->mState.current.barrierLayer_legacy != nullptr) {
+                               layer->mCurrentState.activeTransparentRegion_legacy);
+    addLayerStackLocked(transaction, layerId, layer->mCurrentState.layerStack);
+    addCropLocked(transaction, layerId, layer->mCurrentState.crop_legacy);
+    addCornerRadiusLocked(transaction, layerId, layer->mCurrentState.cornerRadius);
+    if (layer->mCurrentState.barrierLayer_legacy != nullptr) {
         addDeferTransactionLocked(transaction, layerId,
-                                  layer->mState.current.barrierLayer_legacy.promote(),
-                                  layer->mState.current.frameNumber_legacy);
+                                  layer->mCurrentState.barrierLayer_legacy.promote(),
+                                  layer->mCurrentState.frameNumber_legacy);
     }
     addOverrideScalingModeLocked(transaction, layerId, layer->getEffectiveScalingMode());
-    addFlagsLocked(transaction, layerId, layer->mState.current.flags);
+    addFlagsLocked(transaction, layerId, layer->mCurrentState.flags);
 }
 
 void SurfaceInterceptor::addInitialDisplayStateLocked(Increment* increment,
@@ -427,9 +426,8 @@ void SurfaceInterceptor::addSurfaceCreationLocked(Increment* increment,
     SurfaceCreation* creation(increment->mutable_surface_creation());
     creation->set_id(getLayerId(layer));
     creation->set_name(getLayerName(layer));
-    Mutex::Autolock lock(layer->mStateMutex);
-    creation->set_w(layer->mState.current.active_legacy.w);
-    creation->set_h(layer->mState.current.active_legacy.h);
+    creation->set_w(layer->mCurrentState.active_legacy.w);
+    creation->set_h(layer->mCurrentState.active_legacy.h);
 }
 
 void SurfaceInterceptor::addSurfaceDeletionLocked(Increment* increment,

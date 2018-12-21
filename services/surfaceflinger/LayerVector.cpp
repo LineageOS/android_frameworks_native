@@ -38,12 +38,18 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
     const auto& l = *reinterpret_cast<const sp<Layer>*>(lhs);
     const auto& r = *reinterpret_cast<const sp<Layer>*>(rhs);
 
-    const auto& [ls, lz] = l->getLayerStackAndZ(mStateSet);
-    const auto& [rs, rz] = r->getLayerStackAndZ(mStateSet);
+    const auto& lState =
+            (mStateSet == StateSet::Current) ? l->getCurrentState() : l->getDrawingState();
+    const auto& rState =
+            (mStateSet == StateSet::Current) ? r->getCurrentState() : r->getDrawingState();
 
+    uint32_t ls = lState.layerStack;
+    uint32_t rs = rState.layerStack;
     if (ls != rs)
         return (ls > rs) ? 1 : -1;
 
+    int32_t lz = lState.z;
+    int32_t rz = rState.z;
     if (lz != rz)
         return (lz > rz) ? 1 : -1;
 
@@ -56,8 +62,9 @@ int LayerVector::do_compare(const void* lhs, const void* rhs) const
 void LayerVector::traverseInZOrder(StateSet stateSet, const Visitor& visitor) const {
     for (size_t i = 0; i < size(); i++) {
         const auto& layer = (*this)[i];
-        auto zOrderRelativeOf = layer->getZOrderRelativeOf(stateSet);
-        if (zOrderRelativeOf != nullptr) {
+        auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
+                                                      : layer->getDrawingState();
+        if (state.zOrderRelativeOf != nullptr) {
             continue;
         }
         layer->traverseInZOrder(stateSet, visitor);
@@ -67,8 +74,9 @@ void LayerVector::traverseInZOrder(StateSet stateSet, const Visitor& visitor) co
 void LayerVector::traverseInReverseZOrder(StateSet stateSet, const Visitor& visitor) const {
     for (auto i = static_cast<int64_t>(size()) - 1; i >= 0; i--) {
         const auto& layer = (*this)[i];
-        auto zOrderRelativeOf = layer->getZOrderRelativeOf(stateSet);
-        if (zOrderRelativeOf != nullptr) {
+        auto& state = (stateSet == StateSet::Current) ? layer->getCurrentState()
+                                                      : layer->getDrawingState();
+        if (state.zOrderRelativeOf != nullptr) {
             continue;
         }
         layer->traverseInReverseZOrder(stateSet, visitor);

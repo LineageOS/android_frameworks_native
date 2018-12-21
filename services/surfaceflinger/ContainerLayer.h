@@ -31,7 +31,7 @@ public:
     const char* getTypeId() const override { return "ContainerLayer"; }
     void onDraw(const RenderArea& renderArea, const Region& clip,
                 bool useIdentityTransform) override;
-    bool isVisible() const override EXCLUDES(mStateMutex);
+    bool isVisible() const override;
 
     void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
                          int32_t supportedPerFrameMetadata) override;
