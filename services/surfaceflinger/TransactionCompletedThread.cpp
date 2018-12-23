@@ -62,8 +62,7 @@ void TransactionCompletedThread::run() {
     mThread = std::thread(&TransactionCompletedThread::threadMain, this);
 }
 
-void TransactionCompletedThread::registerPendingLatchedCallbackHandle(
-        const sp<CallbackHandle>& handle) {
+void TransactionCompletedThread::registerPendingCallbackHandle(const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
 
     sp<IBinder> listener = IInterface::asBinder(handle->listener);
@@ -72,18 +71,9 @@ void TransactionCompletedThread::registerPendingLatchedCallbackHandle(
     mPendingTransactions[listener][callbackIds]++;
 }
 
-void TransactionCompletedThread::addLatchedCallbackHandles(
-        const std::deque<sp<CallbackHandle>>& handles, nsecs_t latchTime,
-        const sp<Fence>& previousReleaseFence) {
+void TransactionCompletedThread::addPresentedCallbackHandles(
+        const std::deque<sp<CallbackHandle>>& handles) {
     std::lock_guard lock(mMutex);
-
-    // If the previous release fences have not signaled, something as probably gone wrong.
-    // Store the fences and check them again before sending a callback.
-    if (previousReleaseFence &&
-        previousReleaseFence->getSignalTime() == Fence::SIGNAL_TIME_PENDING) {
-        ALOGD("release fence from the previous frame has not signaled");
-        mPreviousReleaseFences.push_back(previousReleaseFence);
-    }
 
     for (const auto& handle : handles) {
         auto listener = mPendingTransactions.find(IInterface::asBinder(handle->listener));
@@ -101,17 +91,16 @@ void TransactionCompletedThread::addLatchedCallbackHandles(
             ALOGE("there are more latched callbacks than there were registered callbacks");
         }
 
-        addCallbackHandle(handle, latchTime);
+        addCallbackHandle(handle);
     }
 }
 
-void TransactionCompletedThread::addUnlatchedCallbackHandle(const sp<CallbackHandle>& handle) {
+void TransactionCompletedThread::addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle) {
     std::lock_guard lock(mMutex);
     addCallbackHandle(handle);
 }
 
-void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle,
-                                                   nsecs_t latchTime) {
+void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& handle) {
     const sp<IBinder> listener = IInterface::asBinder(handle->listener);
 
     // If we don't already have a reference to this listener, linkToDeath so we get a notification
@@ -128,9 +117,9 @@ void TransactionCompletedThread::addCallbackHandle(const sp<CallbackHandle>& han
     listenerStats.listener = handle->listener;
 
     auto& transactionStats = listenerStats.transactionStats[handle->callbackIds];
-    transactionStats.latchTime = latchTime;
+    transactionStats.latchTime = handle->latchTime;
     transactionStats.surfaceStats.emplace_back(handle->surfaceControl, handle->acquireTime,
-                                               handle->releasePreviousBuffer);
+                                               handle->previousReleaseFence);
 }
 
 void TransactionCompletedThread::addPresentFence(const sp<Fence>& presentFence) {
@@ -150,15 +139,6 @@ void TransactionCompletedThread::threadMain() {
 
     while (mKeepRunning) {
         mConditionVariable.wait(mMutex);
-
-        // We should never hit this case. The release fences from the previous frame should have
-        // signaled long before the current frame is presented.
-        for (const auto& fence : mPreviousReleaseFences) {
-            status_t status = fence->wait(100);
-            if (status != NO_ERROR) {
-                ALOGE("previous release fence has not signaled, err %d", status);
-            }
-        }
 
         // For each listener
         auto it = mListenerStats.begin();
@@ -200,7 +180,6 @@ void TransactionCompletedThread::threadMain() {
 
         if (mPresentFence) {
             mPresentFence.clear();
-            mPreviousReleaseFences.clear();
         }
     }
 }

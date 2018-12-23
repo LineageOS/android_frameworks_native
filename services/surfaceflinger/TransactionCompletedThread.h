@@ -40,7 +40,9 @@ public:
     sp<IBinder> surfaceControl;
 
     bool releasePreviousBuffer = false;
+    sp<Fence> previousReleaseFence;
     nsecs_t acquireTime = -1;
+    nsecs_t latchTime = -1;
 };
 
 class TransactionCompletedThread {
@@ -54,14 +56,13 @@ public:
     // layer has received the CallbackHandle so the TransactionCompletedThread knows not to send
     // a callback for that Listener/Transaction pair until that CallbackHandle has been latched and
     // presented.
-    void registerPendingLatchedCallbackHandle(const sp<CallbackHandle>& handle);
-    // Notifies the TransactionCompletedThread that a pending CallbackHandle has been latched.
-    void addLatchedCallbackHandles(const std::deque<sp<CallbackHandle>>& handles, nsecs_t latchTime,
-                                   const sp<Fence>& previousReleaseFence);
+    void registerPendingCallbackHandle(const sp<CallbackHandle>& handle);
+    // Notifies the TransactionCompletedThread that a pending CallbackHandle has been presented.
+    void addPresentedCallbackHandles(const std::deque<sp<CallbackHandle>>& handles);
 
     // Adds the Transaction CallbackHandle from a layer that does not need to be relatched and
     // presented this frame.
-    void addUnlatchedCallbackHandle(const sp<CallbackHandle>& handle);
+    void addUnpresentedCallbackHandle(const sp<CallbackHandle>& handle);
 
     void addPresentFence(const sp<Fence>& presentFence);
 
@@ -70,8 +71,7 @@ public:
 private:
     void threadMain();
 
-    void addCallbackHandle(const sp<CallbackHandle>& handle, nsecs_t latchTime = -1)
-            REQUIRES(mMutex);
+    void addCallbackHandle(const sp<CallbackHandle>& handle) REQUIRES(mMutex);
 
     class ThreadDeathRecipient : public IBinder::DeathRecipient {
     public:
@@ -110,7 +110,6 @@ private:
     bool mKeepRunning GUARDED_BY(mMutex) = true;
 
     sp<Fence> mPresentFence GUARDED_BY(mMutex);
-    std::vector<sp<Fence>> mPreviousReleaseFences GUARDED_BY(mMutex);
 };
 
 } // namespace android

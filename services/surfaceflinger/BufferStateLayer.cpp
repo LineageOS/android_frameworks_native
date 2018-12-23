@@ -48,10 +48,28 @@ BufferStateLayer::~BufferStateLayer() = default;
 // Interface implementation for Layer
 // -----------------------------------------------------------------------
 void BufferStateLayer::onLayerDisplayed(const sp<Fence>& releaseFence) {
-    // The transaction completed callback can only be sent if the release fence from the PREVIOUS
-    // frame has fired. In practice, we should never actually wait on the previous release fence
-    // but we should store it just in case.
-    mPreviousReleaseFence = releaseFence;
+    // The previous release fence notifies the client that SurfaceFlinger is done with the previous
+    // buffer that was presented on this layer. The first transaction that came in this frame that
+    // replaced the previous buffer on this layer needs this release fence, because the fence will
+    // let the client know when that previous buffer is removed from the screen.
+    //
+    // Every other transaction on this layer does not need a release fence because no other
+    // Transactions that were set on this layer this frame are going to have their preceeding buffer
+    // removed from the display this frame.
+    //
+    // For example, if we have 3 transactions this frame. The first transaction doesn't contain a
+    // buffer so it doesn't need a previous release fence because the layer still needs the previous
+    // buffer. The second transaction contains a buffer so it needs a previous release fence because
+    // the previous buffer will be released this frame. The third transaction also contains a
+    // buffer. It replaces the buffer in the second transaction. The buffer in the second
+    // transaction will now no longer be presented so it is released immediately and the third
+    // transaction doesn't need a previous release fence.
+    for (auto& handle : mDrawingState.callbackHandles) {
+        if (handle->releasePreviousBuffer) {
+            handle->previousReleaseFence = releaseFence;
+            break;
+        }
+    }
 }
 
 void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
@@ -60,7 +78,10 @@ void BufferStateLayer::setTransformHint(uint32_t /*orientation*/) const {
 }
 
 void BufferStateLayer::releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) {
-    return;
+    mFlinger->getTransactionCompletedThread().addPresentedCallbackHandles(
+            mDrawingState.callbackHandles);
+
+    mDrawingState.callbackHandles = {};
 }
 
 bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
@@ -257,14 +278,14 @@ bool BufferStateLayer::setTransactionCompletedListeners(
 
             // Notify the transaction completed thread that there is a pending latched callback
             // handle
-            mFlinger->getTransactionCompletedThread().registerPendingLatchedCallbackHandle(handle);
+            mFlinger->getTransactionCompletedThread().registerPendingCallbackHandle(handle);
 
             // Store so latched time and release fence can be set
             mCurrentState.callbackHandles.push_back(handle);
 
         } else { // If this layer will NOT need to be relatched and presented this frame
             // Notify the transaction completed thread this handle is done
-            mFlinger->getTransactionCompletedThread().addUnlatchedCallbackHandle(handle);
+            mFlinger->getTransactionCompletedThread().addUnpresentedCallbackHandle(handle);
         }
     }
 
@@ -504,9 +525,9 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         return BAD_VALUE;
     }
 
-    mFlinger->getTransactionCompletedThread()
-            .addLatchedCallbackHandles(getDrawingState().callbackHandles, latchTime,
-                                       mPreviousReleaseFence);
+    for (auto& handle : mDrawingState.callbackHandles) {
+        handle->latchTime = latchTime;
+    }
 
     // Handle sync fences
     if (SyncFeatures::getInstance().useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {

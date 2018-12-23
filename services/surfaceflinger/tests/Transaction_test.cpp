@@ -2542,6 +2542,7 @@ public:
     enum PreviousBuffer {
         NOT_RELEASED = 0,
         RELEASED,
+        UNKNOWN,
     };
 
     void reset() {
@@ -2596,14 +2597,19 @@ private:
               : mBufferResult(bufferResult), mPreviousBufferResult(previousBufferResult) {}
 
         void verifySurfaceStats(const SurfaceStats& surfaceStats, nsecs_t latchTime) const {
-            const auto& [surfaceControl, acquireTime, releasePreviousBuffer] = surfaceStats;
+            const auto& [surfaceControl, acquireTime, previousReleaseFence] = surfaceStats;
 
             ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED)
                     << "bad acquire time";
             ASSERT_LE(acquireTime, latchTime) << "acquire time should be <= latch time";
-            ASSERT_EQ(releasePreviousBuffer,
-                      mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED)
-                    << "bad previous buffer released";
+
+            if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED) {
+                ASSERT_NE(previousReleaseFence, nullptr)
+                        << "failed to set release prev buffer fence";
+            } else if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::NOT_RELEASED) {
+                ASSERT_EQ(previousReleaseFence, nullptr)
+                        << "should not have set released prev buffer fence";
+            }
         }
 
     private:
@@ -3177,13 +3183,11 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame) {
     Transaction transaction;
     CallbackHelper callback;
     std::vector<ExpectedResult> expectedResults(50);
-    ExpectedResult::PreviousBuffer previousBufferResult =
-            ExpectedResult::PreviousBuffer::NOT_RELEASED;
     for (auto& expected : expectedResults) {
         expected.reset();
         expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
-                            ExpectedResult::Buffer::ACQUIRED, previousBufferResult);
-        previousBufferResult = ExpectedResult::PreviousBuffer::RELEASED;
+                            ExpectedResult::Buffer::ACQUIRED,
+                            ExpectedResult::PreviousBuffer::UNKNOWN);
 
         int err = fillTransaction(transaction, &callback, layer);
         if (err) {
