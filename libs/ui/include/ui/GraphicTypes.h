@@ -25,11 +25,11 @@
 namespace android {
 namespace ui {
 
-using android::hardware::graphics::common::V1_0::Hdr;
 using android::hardware::graphics::common::V1_1::PixelFormat;
 using android::hardware::graphics::common::V1_1::RenderIntent;
 using android::hardware::graphics::common::V1_2::ColorMode;
 using android::hardware::graphics::common::V1_2::Dataspace;
+using android::hardware::graphics::common::V1_2::Hdr;
 
 }  // namespace ui
 }  // namespace android

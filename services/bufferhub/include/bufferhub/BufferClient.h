@@ -49,6 +49,9 @@ public:
     Return<BufferHubStatus> close() override;
     Return<void> duplicate(duplicate_cb _hidl_cb) override;
 
+    // Non-binder functions
+    const std::shared_ptr<BufferNode>& getBufferNode() const { return mBufferNode; }
+
 private:
     BufferClient(wp<BufferHubService> service, const std::shared_ptr<BufferNode>& node)
           : mService(service), mBufferNode(node) {}

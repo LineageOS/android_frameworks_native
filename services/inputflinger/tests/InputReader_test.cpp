@@ -6284,4 +6284,34 @@ TEST_F(MultiTouchInputMapperTest, Configure_AssignsDisplayPort) {
     ASSERT_EQ(DISPLAY_ID, args.displayId);
 }
 
+/**
+ * Expect fallback to internal viewport if device is external and external viewport is not present.
+ */
+TEST_F(MultiTouchInputMapperTest, Viewports_Fallback) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    mDevice->setExternal(true);
+    addMapperAndConfigure(mapper);
+
+    ASSERT_EQ(AINPUT_SOURCE_TOUCHSCREEN, mapper->getSources());
+
+    NotifyMotionArgs motionArgs;
+
+    // Expect the event to be sent to the internal viewport,
+    // because an external viewport is not present.
+    processPosition(mapper, 100, 100);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(ADISPLAY_ID_DEFAULT, motionArgs.displayId);
+
+    // Expect the event to be sent to the external viewport if it is present.
+    prepareSecondaryDisplay(ViewportType::VIEWPORT_EXTERNAL);
+    processPosition(mapper, 100, 100);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
+}
+
 } // namespace android

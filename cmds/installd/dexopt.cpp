@@ -660,7 +660,8 @@ class RunProfman : public ExecVHelper {
                   const unique_fd& reference_profile_fd,
                   const std::vector<unique_fd>& apk_fds,
                   const std::vector<std::string>& dex_locations,
-                  bool copy_and_update) {
+                  bool copy_and_update,
+                  bool store_aggregation_counters) {
         const char* profman_bin =
                 is_debug_runtime() ? "/system/bin/profmand" : "/system/bin/profman";
 
@@ -688,6 +689,10 @@ class RunProfman : public ExecVHelper {
             AddArg("--copy-and-update-profile-key");
         }
 
+        if (store_aggregation_counters) {
+            AddArg("--store-aggregation-counters");
+        }
+
         // Do not add after dex2oat_flags, they should override others for debugging.
         PrepareArgs(profman_bin);
     }
@@ -695,12 +700,14 @@ class RunProfman : public ExecVHelper {
     void SetupMerge(const std::vector<unique_fd>& profiles_fd,
                     const unique_fd& reference_profile_fd,
                     const std::vector<unique_fd>& apk_fds = std::vector<unique_fd>(),
-                    const std::vector<std::string>& dex_locations = std::vector<std::string>()) {
+                    const std::vector<std::string>& dex_locations = std::vector<std::string>(),
+                    bool store_aggregation_counters = false) {
         SetupArgs(profiles_fd,
-                    reference_profile_fd,
-                    apk_fds,
-                    dex_locations,
-                    /*copy_and_update=*/false);
+                  reference_profile_fd,
+                  apk_fds,
+                  dex_locations,
+                  /*copy_and_update=*/false,
+                  store_aggregation_counters);
     }
 
     void SetupCopyAndUpdate(unique_fd&& profile_fd,
@@ -713,8 +720,12 @@ class RunProfman : public ExecVHelper {
         apk_fds_.push_back(std::move(apk_fd));
         reference_profile_fd_ = std::move(reference_profile_fd);
         std::vector<std::string> dex_locations = {dex_location};
-        SetupArgs(profiles_fd_, reference_profile_fd_, apk_fds_, dex_locations,
-                  /*copy_and_update=*/true);
+        SetupArgs(profiles_fd_,
+                  reference_profile_fd_,
+                  apk_fds_,
+                  dex_locations,
+                  /*copy_and_update=*/true,
+                  /*store_aggregation_counters=*/false);
     }
 
     void SetupDump(const std::vector<unique_fd>& profiles_fd,
@@ -724,8 +735,12 @@ class RunProfman : public ExecVHelper {
                    const unique_fd& output_fd) {
         AddArg("--dump-only");
         AddArg(StringPrintf("--dump-output-to-fd=%d", output_fd.get()));
-        SetupArgs(profiles_fd, reference_profile_fd, apk_fds, dex_locations,
-                  /*copy_and_update=*/false);
+        SetupArgs(profiles_fd,
+                  reference_profile_fd,
+                  apk_fds,
+                  dex_locations,
+                  /*copy_and_update=*/false,
+                  /*store_aggregation_counters=*/false);
     }
 
     void Exec() {
@@ -2618,7 +2633,11 @@ static bool create_boot_image_profile_snapshot(const std::string& package_name,
             }
         }
         RunProfman args;
-        args.SetupMerge(profiles_fd, snapshot_fd, apk_fds, dex_locations);
+        args.SetupMerge(profiles_fd,
+                        snapshot_fd,
+                        apk_fds,
+                        dex_locations,
+                        /*store_aggregation_counters=*/true);
         pid_t pid = fork();
         if (pid == 0) {
             /* child -- drop privileges before continuing */

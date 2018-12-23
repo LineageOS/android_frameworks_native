@@ -425,7 +425,7 @@ struct DescribeColorAspectsParams {
 
 // HDR color description parameters.
 // This is passed via OMX_SetConfig or OMX_GetConfig to video encoders and decoders when the
-// 'OMX.google.android.index.describeHDRColorInfo' extension is given and an HDR stream
+// 'OMX.google.android.index.describeHDRStaticInfo' extension is given and an HDR stream
 // is detected.  Component SHALL behave as described below if it supports this extension.
 //
 // Currently, only Static Metadata Descriptor Type 1 support is required.
@@ -494,6 +494,64 @@ struct DescribeHDRStaticInfoParams {
     OMX_VERSIONTYPE nVersion;      // IN
     OMX_U32 nPortIndex;            // IN
     HDRStaticInfo sInfo;           // IN/OUT
+};
+
+// HDR10+ metadata configuration.
+//
+// nParamSize: size of the storage starting at nValue (must be at least 1 and at most
+//             MAX_HDR10PLUSINFO_SIZE). This field must not be modified by the component.
+// nParamSizeUsed: size of the actual HDR10+ metadata starting at nValue. For OMX_SetConfig,
+//                 it must not be modified by the component. For OMX_GetConfig, the component
+//                 should put the actual size of the retrieved config in this field (and in
+//                 case where nParamSize is smaller than nParamSizeUsed, the component should
+//                 still update nParamSizeUsed without actually copying the metadata to nValue).
+// nValue: storage of the HDR10+ metadata conforming to the user_data_registered_itu_t_t35()
+//         syntax of SEI message for ST 2094-40.
+//
+// This is passed via OMX_SetConfig or OMX_GetConfig to video encoders and decoders when the
+// 'OMX.google.android.index.describeHDR10PlusInfo' extension is given. In general, this config
+// is associated with a particular frame. A typical sequence of usage is as follows:
+//
+// a) OMX_SetConfig associates the config with the next input buffer sent in OMX_EmptyThisBuffer
+//    (input A);
+// b) The component sends OMX_EventConfigUpdate to notify the client that there is a config
+//    update  on the output port that is associated with the next output buffer that's about to
+//    be sent via FillBufferDone callback (output A);
+// c) The client, upon receiving the OMX_EventConfigUpdate, calls OMX_GetConfig to retrieve
+//    the config and associates it with output A.
+//
+// All config updates will be retrieved in the order reported, and the client is required to
+// call OMX_GetConfig for each OMX_EventConfigUpdate for this config. Note that the order of
+// OMX_EventConfigUpdate relative to FillBufferDone callback determines which output frame
+// the config should be associated with, the actual OMX_GetConfig for the config could happen
+// before or after the component calls the FillBufferDone callback.
+//
+// Depending on the video codec type (in particular, whether the codec uses in-band or out-of-
+// band HDR10+ metadata), the component shall behave as detailed below:
+//
+// VIDEO DECODERS:
+// 1) If the codec utilizes out-of-band HDR10+ metadata, the decoder must support the sequence
+//    a) ~ c) outlined above;
+// 2) If the codec utilizes in-band HDR10+ metadata, OMX_SetConfig for this config should be
+//    ignored (as the metadata is embedded in the input buffer), while the notification and
+//    retrieval of the config on the output as outlined in b) & c) must be supported.
+//
+// VIDEO ENCODERS:
+// 1) If the codec utilizes out-of-band HDR10+ metadata, the decoder must support the sequence
+//    a) ~ c) outlined above;
+// 2) If the codec utilizes in-band HDR10+ metadata, OMX_SetConfig for this config outlined in
+//    a) must be supported. The notification as outlined in b) must not be sent, and the
+//    retrieval of the config via OMX_GetConfig should be ignored (as the metadata is embedded
+//    in the output buffer).
+
+#define MAX_HDR10PLUSINFO_SIZE 1024
+struct DescribeHDR10PlusInfoParams {
+    OMX_U32 nSize;                 // IN
+    OMX_VERSIONTYPE nVersion;      // IN
+    OMX_U32 nPortIndex;            // IN
+    OMX_U32 nParamSize;            // IN
+    OMX_U32 nParamSizeUsed;        // IN/OUT
+    OMX_U8 nValue[1];              // IN/OUT
 };
 
 }  // namespace android

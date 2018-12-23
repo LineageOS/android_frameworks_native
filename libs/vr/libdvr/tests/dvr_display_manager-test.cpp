@@ -1,5 +1,6 @@
 #include <android-base/properties.h>
 #include <base/logging.h>
+#include <cutils/properties.h>
 #include <gtest/gtest.h>
 #include <log/log.h>
 #include <poll.h>
@@ -479,6 +480,11 @@ TEST_F(DvrDisplayManagerTest, ExpectInt) {
 #endif
 
 TEST_F(DvrDisplayManagerTest, SurfaceCreateEvent) {
+  // This test doesn't apply to standalone vr devices.
+  if (property_get_bool("ro.boot.vr", false)) {
+    return;
+  }
+
   // Get surface state and verify there are no surfaces.
   ASSERT_STATUS_OK(manager_->UpdateSurfaceState());
   ASSERT_STATUS_EQ(0u, manager_->GetSurfaceCount());
@@ -518,6 +524,11 @@ TEST_F(DvrDisplayManagerTest, SurfaceCreateEvent) {
 }
 
 TEST_F(DvrDisplayManagerTest, SurfaceAttributeEvent) {
+  // This test doesn't apply to standalone vr devices.
+  if (property_get_bool("ro.boot.vr", false)) {
+    return;
+  }
+
   // Get surface state and verify there are no surfaces.
   ASSERT_STATUS_OK(manager_->UpdateSurfaceState());
   ASSERT_STATUS_EQ(0u, manager_->GetSurfaceCount());
@@ -757,6 +768,11 @@ TEST_F(DvrDisplayManagerTest, SurfaceAttributeTypes) {
 }
 
 TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
+  // This test doesn't apply to standalone vr devices.
+  if (property_get_bool("ro.boot.vr", false)) {
+    return;
+  }
+
   // Create an application surface.
   auto surface_status = CreateApplicationSurface();
   ASSERT_STATUS_OK(surface_status);
@@ -825,6 +841,11 @@ TEST_F(DvrDisplayManagerTest, SurfaceQueueEvent) {
 }
 
 TEST_F(DvrDisplayManagerTest, MultiLayerBufferQueue) {
+  // This test doesn't apply to standalone vr devices.
+  if (property_get_bool("ro.boot.vr", false)) {
+    return;
+  }
+
   // Create an application surface.
   auto surface_status = CreateApplicationSurface();
   ASSERT_STATUS_OK(surface_status);

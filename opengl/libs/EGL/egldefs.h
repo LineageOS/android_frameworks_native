@@ -76,11 +76,11 @@ struct egl_connection_t {
     void*               libGles1;
     void*               libGles2;
 
-    bool                angleDecided;
-    bool                useAngle;
+    bool                shouldUseAngle; // Should we attempt to load ANGLE
+    bool                angleDecided;   // Have we tried to load ANGLE
+    bool                useAngle;       // Was ANGLE successfully loaded
     EGLint              angleBackend;
     void*               vendorEGL;
-    void*               featureSo;
 };
 // clang-format on
 

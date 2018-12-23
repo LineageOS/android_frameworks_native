@@ -542,6 +542,20 @@ typedef enum OMX_EVENTTYPE
      *  fool-proof way to do that for video encoders.
      */
     OMX_EventDataSpaceChanged,
+
+    /**
+     * Event when a component has an updated configuration on output for the client to retrieve.
+     * |arg1| contains the port index (currently only output port is valid). |arg2| contains the
+     * index of the updated config.
+     *
+     * For config updates that's associated with one frame, the update should be applied to the
+     * next output frame that comes in EmptyBufferDone callback.
+     *
+     * Upon receiving this event, the client must call the corresponding OMX_GetConfig to retrieve
+     * the config update.
+     */
+    OMX_EventConfigUpdate,
+
     OMX_EventMax = 0x7FFFFFFF
 } OMX_EVENTTYPE;
 

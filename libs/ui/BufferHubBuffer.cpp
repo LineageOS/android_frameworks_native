@@ -169,6 +169,13 @@ int BufferHubBuffer::ImportGraphicBuffer() {
     buffer_state_ = &metadata_header->buffer_state;
     fence_state_ = &metadata_header->fence_state;
     active_clients_bit_mask_ = &metadata_header->active_clients_bit_mask;
+    // The C++ standard recommends (but does not require) that lock-free atomic operations are
+    // also address-free, that is, suitable for communication between processes using shared
+    // memory.
+    LOG_ALWAYS_FATAL_IF(!std::atomic_is_lock_free(buffer_state_) ||
+                                !std::atomic_is_lock_free(fence_state_) ||
+                                !std::atomic_is_lock_free(active_clients_bit_mask_),
+                        "Atomic variables in ashmen are not lock free.");
 
     // Import the buffer: We only need to hold on the native_handle_t here so that
     // GraphicBuffer instance can be created in future.

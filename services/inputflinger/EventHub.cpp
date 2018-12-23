@@ -40,7 +40,6 @@
 #include <hardware_legacy/power.h>
 
 #include <android-base/stringprintf.h>
-#include <cutils/properties.h>
 #include <openssl/sha.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
@@ -107,6 +106,24 @@ static void getLinuxRelease(int* major, int* minor) {
  */
 static bool isV4lTouchNode(const char* name) {
     return strstr(name, "v4l-touch") == name;
+}
+
+static nsecs_t processEventTimestamp(const struct input_event& event) {
+    // Use the time specified in the event instead of the current time
+    // so that downstream code can get more accurate estimates of
+    // event dispatch latency from the time the event is enqueued onto
+    // the evdev client buffer.
+    //
+    // The event's timestamp fortuitously uses the same monotonic clock
+    // time base as the rest of Android. The kernel event device driver
+    // (drivers/input/evdev.c) obtains timestamps using ktime_get_ts().
+    // The systemTime(SYSTEM_TIME_MONOTONIC) function we use everywhere
+    // calls clock_gettime(CLOCK_MONOTONIC) which is implemented as a
+    // system call that also queries ktime_get_ts().
+
+    const nsecs_t inputEventTime = seconds_to_nanoseconds(event.time.tv_sec) +
+            microseconds_to_nanoseconds(event.time.tv_usec);
+    return inputEventTime;
 }
 
 // --- Global Functions ---
@@ -485,8 +502,7 @@ status_t EventHub::mapKey(int32_t deviceId,
 
         // Check the key layout next.
         if (status != NO_ERROR && device->keyMap.haveKeyLayout()) {
-            if (!device->keyMap.keyLayoutMap->mapKey(
-                    scanCode, usageCode, outKeycode, outFlags)) {
+            if (!device->keyMap.keyLayoutMap->mapKey(scanCode, usageCode, outKeycode, outFlags)) {
                 status = NO_ERROR;
             }
         }
@@ -886,61 +902,7 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                     size_t count = size_t(readSize) / sizeof(struct input_event);
                     for (size_t i = 0; i < count; i++) {
                         struct input_event& iev = readBuffer[i];
-                        ALOGV("%s got: time=%d.%06d, type=%d, code=%d, value=%d",
-                                device->path.c_str(),
-                                (int) iev.time.tv_sec, (int) iev.time.tv_usec,
-                                iev.type, iev.code, iev.value);
-
-                        // Use the time specified in the event instead of the current time
-                        // so that downstream code can get more accurate estimates of
-                        // event dispatch latency from the time the event is enqueued onto
-                        // the evdev client buffer.
-                        //
-                        // The event's timestamp fortuitously uses the same monotonic clock
-                        // time base as the rest of Android.  The kernel event device driver
-                        // (drivers/input/evdev.c) obtains timestamps using ktime_get_ts().
-                        // The systemTime(SYSTEM_TIME_MONOTONIC) function we use everywhere
-                        // calls clock_gettime(CLOCK_MONOTONIC) which is implemented as a
-                        // system call that also queries ktime_get_ts().
-                        event->when = nsecs_t(iev.time.tv_sec) * 1000000000LL
-                                + nsecs_t(iev.time.tv_usec) * 1000LL;
-                        ALOGV("event time %" PRId64 ", now %" PRId64, event->when, now);
-
-                        // Bug 7291243: Add a guard in case the kernel generates timestamps
-                        // that appear to be far into the future because they were generated
-                        // using the wrong clock source.
-                        //
-                        // This can happen because when the input device is initially opened
-                        // it has a default clock source of CLOCK_REALTIME.  Any input events
-                        // enqueued right after the device is opened will have timestamps
-                        // generated using CLOCK_REALTIME.  We later set the clock source
-                        // to CLOCK_MONOTONIC but it is already too late.
-                        //
-                        // Invalid input event timestamps can result in ANRs, crashes and
-                        // and other issues that are hard to track down.  We must not let them
-                        // propagate through the system.
-                        //
-                        // Log a warning so that we notice the problem and recover gracefully.
-                        if (event->when >= now + 10 * 1000000000LL) {
-                            // Double-check.  Time may have moved on.
-                            nsecs_t time = systemTime(SYSTEM_TIME_MONOTONIC);
-                            if (event->when > time) {
-                                ALOGW("An input event from %s has a timestamp that appears to "
-                                        "have been generated using the wrong clock source "
-                                        "(expected CLOCK_MONOTONIC): "
-                                        "event time %" PRId64 ", current time %" PRId64
-                                        ", call time %" PRId64 ".  "
-                                        "Using current time instead.",
-                                        device->path.c_str(), event->when, time, now);
-                                event->when = time;
-                            } else {
-                                ALOGV("Event time is ok but failed the fast path and required "
-                                        "an extra call to systemTime: "
-                                        "event time %" PRId64 ", current time %" PRId64
-                                        ", call time %" PRId64 ".",
-                                        event->when, time, now);
-                            }
-                        }
+                        event->when = processEventTimestamp(iev);
                         event->deviceId = deviceId;
                         event->type = iev.type;
                         event->code = iev.code;

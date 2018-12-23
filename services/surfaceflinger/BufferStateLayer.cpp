@@ -26,6 +26,8 @@
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
+#include <limits>
+
 namespace android {
 
 // clang-format off
@@ -347,6 +349,22 @@ Rect BufferStateLayer::getDrawingCrop() const {
 
     if (s.crop.isEmpty() && s.buffer) {
         return s.buffer->getBounds();
+    } else if (s.buffer) {
+        Rect crop = s.crop;
+        crop.left = std::max(crop.left, 0);
+        crop.top = std::max(crop.top, 0);
+        uint32_t bufferWidth = s.buffer->getWidth();
+        uint32_t bufferHeight = s.buffer->getHeight();
+        if (bufferHeight <= std::numeric_limits<int32_t>::max() &&
+            bufferWidth <= std::numeric_limits<int32_t>::max()) {
+            crop.right = std::min(crop.right, static_cast<int32_t>(bufferWidth));
+            crop.bottom = std::min(crop.bottom, static_cast<int32_t>(bufferHeight));
+        }
+        if (!crop.isValid()) {
+            // Crop rect is out of bounds, return whole buffer
+            return s.buffer->getBounds();
+        }
+        return crop;
     }
     return s.crop;
 }

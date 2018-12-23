@@ -487,21 +487,43 @@ Error Composer::getHdrCapabilities(Display display,
         float* outMaxAverageLuminance, float* outMinLuminance)
 {
     Error error = kDefaultError;
-    mClient->getHdrCapabilities(display,
-            [&](const auto& tmpError, const auto& tmpTypes,
-                const auto& tmpMaxLuminance,
-                const auto& tmpMaxAverageLuminance,
-                const auto& tmpMinLuminance) {
-                error = tmpError;
-                if (error != Error::NONE) {
-                    return;
-                }
+    if (mClient_2_3) {
+        mClient_2_3->getHdrCapabilities_2_3(display,
+                                            [&](const auto& tmpError, const auto& tmpTypes,
+                                                const auto& tmpMaxLuminance,
+                                                const auto& tmpMaxAverageLuminance,
+                                                const auto& tmpMinLuminance) {
+                                                error = tmpError;
+                                                if (error != Error::NONE) {
+                                                    return;
+                                                }
 
-                *outTypes = tmpTypes;
-                *outMaxLuminance = tmpMaxLuminance;
-                *outMaxAverageLuminance = tmpMaxAverageLuminance;
-                *outMinLuminance = tmpMinLuminance;
-            });
+                                                *outTypes = tmpTypes;
+                                                *outMaxLuminance = tmpMaxLuminance;
+                                                *outMaxAverageLuminance = tmpMaxAverageLuminance;
+                                                *outMinLuminance = tmpMinLuminance;
+                                            });
+    } else {
+        mClient->getHdrCapabilities(display,
+                                    [&](const auto& tmpError, const auto& tmpTypes,
+                                        const auto& tmpMaxLuminance,
+                                        const auto& tmpMaxAverageLuminance,
+                                        const auto& tmpMinLuminance) {
+                                        error = tmpError;
+                                        if (error != Error::NONE) {
+                                            return;
+                                        }
+
+                                        outTypes->clear();
+                                        for (auto type : tmpTypes) {
+                                            outTypes->push_back(static_cast<Hdr>(type));
+                                        }
+
+                                        *outMaxLuminance = tmpMaxLuminance;
+                                        *outMaxAverageLuminance = tmpMaxAverageLuminance;
+                                        *outMinLuminance = tmpMinLuminance;
+                                    });
+    }
 
     return error;
 }
@@ -926,15 +948,33 @@ std::vector<IComposerClient::PerFrameMetadataKey> Composer::getPerFrameMetadataK
     }
 
     Error error = kDefaultError;
-    mClient_2_2->getPerFrameMetadataKeys(display, [&](const auto& tmpError, const auto& tmpKeys) {
-        error = tmpError;
-        if (error != Error::NONE) {
-            ALOGW("getPerFrameMetadataKeys failed with %d", tmpError);
-            return;
-        }
+    if (mClient_2_3) {
+        mClient_2_3->getPerFrameMetadataKeys_2_3(display,
+                                                 [&](const auto& tmpError, const auto& tmpKeys) {
+                                                     error = tmpError;
+                                                     if (error != Error::NONE) {
+                                                         ALOGW("getPerFrameMetadataKeys failed "
+                                                               "with %d",
+                                                               tmpError);
+                                                         return;
+                                                     }
+                                                     keys = tmpKeys;
+                                                 });
+    } else {
+        mClient_2_2
+                ->getPerFrameMetadataKeys(display, [&](const auto& tmpError, const auto& tmpKeys) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        ALOGW("getPerFrameMetadataKeys failed with %d", tmpError);
+                        return;
+                    }
 
-        keys = tmpKeys;
-    });
+                    keys.clear();
+                    for (auto key : tmpKeys) {
+                        keys.push_back(static_cast<IComposerClient::PerFrameMetadataKey>(key));
+                    }
+                });
+    }
 
     return keys;
 }
@@ -1102,6 +1142,19 @@ Error Composer::getDisplayedContentSample(Display display, uint64_t maxFrames, u
                                                }
                                            });
     return error;
+}
+
+Error Composer::setLayerPerFrameMetadataBlobs(
+        Display display, Layer layer,
+        const std::vector<IComposerClient::PerFrameMetadataBlob>& metadata) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+
+    mWriter.selectDisplay(display);
+    mWriter.selectLayer(layer);
+    mWriter.setLayerPerFrameMetadataBlobs(metadata);
+    return Error::NONE;
 }
 
 CommandReader::~CommandReader()

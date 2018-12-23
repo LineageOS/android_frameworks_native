@@ -41,7 +41,7 @@ struct DisplaySettings {
     mat4 globalTransform = mat4();
 
     // Maximum luminance pulled from the display's HDR capabilities.
-    float maxLuminence = 1.0f;
+    float maxLuminance = 1.0f;
 
     // Output dataspace that will be populated if wide color gamut is used, or
     // DataSpace::UNKNOWN otherwise.

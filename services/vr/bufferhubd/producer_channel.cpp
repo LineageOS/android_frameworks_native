@@ -310,7 +310,7 @@ void ProducerChannel::RemoveConsumerClientMask(uint32_t consumer_state_mask) {
 Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
     Message& message, uint32_t consumer_state_mask) {
   ATRACE_NAME(__FUNCTION__);
-  ALOGD_IF(TRACE, "%s: buffer_id=%d", __FUNCTION__, buffer_id());
+  ALOGD("%s: buffer_id=%d", __FUNCTION__, buffer_id());
 
   int channel_id;
   auto status = message.PushChannel(0, nullptr, &channel_id);
@@ -389,7 +389,8 @@ Status<RemoteChannelHandle> ProducerChannel::OnNewConsumer(Message& message) {
 Status<void> ProducerChannel::OnProducerPost(Message&,
                                              LocalFence acquire_fence) {
   ATRACE_NAME("ProducerChannel::OnProducerPost");
-  ALOGD_IF(TRACE, "ProducerChannel::OnProducerPost: buffer_id=%d", buffer_id());
+  ALOGD("ProducerChannel::OnProducerPost: buffer_id=%d, state=0x%x",
+        buffer_id(), buffer_state_->load(std::memory_order_acquire));
 
   epoll_event event;
   event.events = 0;
@@ -433,7 +434,7 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
 
 Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGain");
-  ALOGD_IF(TRACE, "ProducerChannel::OnGain: buffer_id=%d", buffer_id());
+  ALOGW("ProducerChannel::OnGain: buffer_id=%d", buffer_id());
 
   ClearAvailable();
   post_fence_.close();
@@ -542,7 +543,7 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
     if (orphaned_consumer_bit_mask_) {
       ALOGW(
           "%s: orphaned buffer detected during the this acquire/release cycle: "
-          "id=%d orphaned=0x%" PRIx32 " queue_index=%" PRIx64 ".",
+          "id=%d orphaned=0x%" PRIx32 " queue_index=%" PRId64 ".",
           __FUNCTION__, buffer_id(), orphaned_consumer_bit_mask_,
           metadata_header_->queue_index);
       orphaned_consumer_bit_mask_ = 0;
@@ -577,7 +578,7 @@ void ProducerChannel::OnConsumerOrphaned(const uint32_t& consumer_state_mask) {
 
   ALOGW(
       "%s: detected new orphaned consumer buffer_id=%d "
-      "consumer_state_mask=%" PRIx32 " queue_index=%" PRIx64
+      "consumer_state_mask=%" PRIx32 " queue_index=%" PRId64
       " buffer_state=%" PRIx32 " fence_state=%" PRIx32 ".",
       __FUNCTION__, buffer_id(), consumer_state_mask,
       metadata_header_->queue_index,

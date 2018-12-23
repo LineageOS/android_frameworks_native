@@ -123,6 +123,7 @@ public:
 
     bool hasWideColorGamut() const { return mHasWideColorGamut; }
     // Whether h/w composer has native support for specific HDR type.
+    bool hasHDR10PlusSupport() const { return mHasHdr10Plus; }
     bool hasHDR10Support() const { return mHasHdr10; }
     bool hasHLGSupport() const { return mHasHLG; }
     bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
@@ -276,6 +277,7 @@ private:
     // Initialized by SurfaceFlinger when the DisplayDevice is created.
     // Fed to RenderEngine during composition.
     bool mHasWideColorGamut;
+    bool mHasHdr10Plus;
     bool mHasHdr10;
     bool mHasHLG;
     bool mHasDolbyVision;

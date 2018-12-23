@@ -8,6 +8,8 @@ cc_test {
         "-DLOG_TAG=\"BufferHubServer_test\"",
         "-DTRACE=0",
         "-DATRACE_TAG=ATRACE_TAG_GRAPHICS",
+        "-Wall",
+        "-Werror",
     ],
     header_libs: [
         "libdvr_headers",

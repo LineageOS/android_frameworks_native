@@ -24,11 +24,15 @@
 
 #include <memory>
 
+#include <android/native_window.h>
+
 #include <binder/Binder.h>
 #include <binder/IServiceManager.h>
 #include <binder/Parcel.h>
 #include <binder/ProcessState.h>
 
+#include <gui/ISurfaceComposer.h>
+#include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <gui/SurfaceControl.h>
 
@@ -37,12 +41,15 @@
 #include <input/InputTransport.h>
 #include <input/Input.h>
 
+#include <ui/DisplayInfo.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 
 
 namespace android {
 namespace test {
+
+using Transaction = SurfaceComposerClient::Transaction;
 
 sp<IInputFlinger> getInputFlinger() {
    sp<IBinder> input(defaultServiceManager()->getService(
@@ -58,9 +65,8 @@ static const int LAYER_BASE = INT32_MAX - 10;
 
 class InputSurface {
 public:
-    InputSurface(const sp<SurfaceComposerClient>& scc, int width, int height) {
-        mSurfaceControl = scc->createSurface(String8("Test Surface"), 0, 0, PIXEL_FORMAT_RGBA_8888,
-                                             ISurfaceComposerClient::eFXSurfaceColor);
+    InputSurface(const sp<SurfaceControl> &sc, int width, int height) {
+        mSurfaceControl = sc;
 
         InputChannel::openInputChannelPair("testchannels", mServerChannel, mClientChannel);
         mServerChannel->setToken(new BBinder());
@@ -71,6 +77,31 @@ public:
         populateInputInfo(width, height);
 
         mInputConsumer = new InputConsumer(mClientChannel);
+    }
+
+    static std::unique_ptr<InputSurface> makeColorInputSurface(const sp<SurfaceComposerClient> &scc,
+                                                               int width, int height) {
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Surface"), 0 /* bufHeight */, 0 /* bufWidth */,
+                                   PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor);
+        return std::make_unique<InputSurface>(surfaceControl, width, height);
+    }
+
+    static std::unique_ptr<InputSurface> makeBufferInputSurface(
+            const sp<SurfaceComposerClient> &scc, int width, int height) {
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Buffer Surface"), width, height,
+                                   PIXEL_FORMAT_RGBA_8888, 0 /* flags */);
+        return std::make_unique<InputSurface>(surfaceControl, width, height);
+    }
+
+    static std::unique_ptr<InputSurface> makeContainerInputSurface(
+            const sp<SurfaceComposerClient> &scc, int width, int height) {
+        sp<SurfaceControl> surfaceControl =
+                scc->createSurface(String8("Test Container Surface"), 0 /* bufHeight */,
+                                   0 /* bufWidth */, PIXEL_FORMAT_RGBA_8888,
+                                   ISurfaceComposerClient::eFXSurfaceContainer);
+        return std::make_unique<InputSurface>(surfaceControl, width, height);
     }
 
     InputEvent* consumeEvent() {
@@ -180,6 +211,15 @@ public:
     void SetUp() {
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
+
+        DisplayInfo info;
+        auto display = mComposerClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
+        SurfaceComposerClient::getDisplayInfo(display, &info);
+
+        // After a new buffer is queued, SurfaceFlinger is notified and will
+        // latch the new buffer on next vsync.  Let's heuristically wait for 3
+        // vsyncs.
+        mBufferPostDelay = int32_t(1e6 / info.fps) * 3;
     }
 
     void TearDown() {
@@ -187,10 +227,23 @@ public:
     }
 
     std::unique_ptr<InputSurface> makeSurface(int width, int height) {
-        return std::make_unique<InputSurface>(mComposerClient, width, height);
+        return InputSurface::makeColorInputSurface(mComposerClient, width, height);
+    }
+
+    void postBuffer(const sp<SurfaceControl> &layer) {
+        // wait for previous transactions (such as setSize) to complete
+        Transaction().apply(true);
+        ANativeWindow_Buffer buffer = {};
+        EXPECT_EQ(NO_ERROR, layer->getSurface()->lock(&buffer, nullptr));
+        ASSERT_EQ(NO_ERROR, layer->getSurface()->unlockAndPost());
+        // Request an empty transaction to get applied synchronously to ensure the buffer is
+        // latched.
+        Transaction().apply(true);
+        usleep(mBufferPostDelay);
     }
 
     sp<SurfaceComposerClient> mComposerClient;
+    int32_t mBufferPostDelay;
 };
 
 void injectTap(int x, int y) {
@@ -267,5 +320,124 @@ TEST_F(InputSurfacesTest, input_respects_layering) {
     surface->expectTap(1, 1);
 }
 
+// Surface Insets are set to offset the client content and draw a border around the client surface
+// (such as shadows in dialogs). Inputs sent to the client are offset such that 0,0 is the start
+// of the client content.
+TEST_F(InputSurfacesTest, input_respects_surface_insets) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+    bgSurface->showAt(100, 100);
+
+    fgSurface->mInputInfo.surfaceInset = 5;
+    fgSurface->showAt(100, 100);
+
+    injectTap(106, 106);
+    fgSurface->expectTap(1, 1);
+
+    injectTap(101, 101);
+    bgSurface->expectTap(1, 1);
+}
+
+// Ensure a surface whose insets are cropped, handles the touch offset correctly. ref:b/120413463
+TEST_F(InputSurfacesTest, input_respects_cropped_surface_insets) {
+    std::unique_ptr<InputSurface> parentSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> childSurface = makeSurface(100, 100);
+    parentSurface->showAt(100, 100);
+
+    childSurface->mInputInfo.surfaceInset = 10;
+    childSurface->showAt(100, 100);
+
+    childSurface->doTransaction([&](auto &t, auto &sc) {
+        t.setPosition(sc, -5, -5);
+        t.reparent(sc, parentSurface->mSurfaceControl->getHandle());
+    });
+
+    injectTap(106, 106);
+    childSurface->expectTap(1, 1);
+
+    injectTap(101, 101);
+    parentSurface->expectTap(1, 1);
+}
+
+// Ensure we ignore transparent region when getting screen bounds when positioning input frame.
+TEST_F(InputSurfacesTest, input_ignores_transparent_region) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->doTransaction([](auto &t, auto &sc) {
+        Region transparentRegion(Rect(0, 0, 10, 10));
+        t.setTransparentRegionHint(sc, transparentRegion);
+    });
+    surface->showAt(100, 100);
+    injectTap(101, 101);
+    surface->expectTap(1, 1);
+}
+
+// Ensure we send the input to the right surface when the surface visibility changes due to the
+// first buffer being submitted. ref: b/120839715
+TEST_F(InputSurfacesTest, input_respects_buffer_layer_buffer) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> bufferSurface =
+            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
+
+    bgSurface->showAt(10, 10);
+    bufferSurface->showAt(10, 10);
+
+    injectTap(11, 11);
+    bgSurface->expectTap(1, 1);
+
+    postBuffer(bufferSurface->mSurfaceControl);
+    injectTap(11, 11);
+    bufferSurface->expectTap(1, 1);
+}
+
+TEST_F(InputSurfacesTest, input_respects_buffer_layer_alpha) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> bufferSurface =
+            InputSurface::makeBufferInputSurface(mComposerClient, 100, 100);
+    postBuffer(bufferSurface->mSurfaceControl);
+
+    bgSurface->showAt(10, 10);
+    bufferSurface->showAt(10, 10);
+
+    injectTap(11, 11);
+    bufferSurface->expectTap(1, 1);
+
+    bufferSurface->doTransaction([](auto &t, auto &sc) { t.setAlpha(sc, 0.0); });
+
+    injectTap(11, 11);
+    bgSurface->expectTap(1, 1);
+}
+
+TEST_F(InputSurfacesTest, input_respects_color_layer_alpha) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> fgSurface = makeSurface(100, 100);
+
+    bgSurface->showAt(10, 10);
+    fgSurface->showAt(10, 10);
+
+    injectTap(11, 11);
+    fgSurface->expectTap(1, 1);
+
+    fgSurface->doTransaction([](auto &t, auto &sc) { t.setAlpha(sc, 0.0); });
+
+    injectTap(11, 11);
+    bgSurface->expectTap(1, 1);
+}
+
+TEST_F(InputSurfacesTest, input_respects_container_layer_visiblity) {
+    std::unique_ptr<InputSurface> bgSurface = makeSurface(100, 100);
+    std::unique_ptr<InputSurface> containerSurface =
+            InputSurface::makeContainerInputSurface(mComposerClient, 100, 100);
+
+    bgSurface->showAt(10, 10);
+    containerSurface->showAt(10, 10);
+
+    injectTap(11, 11);
+    containerSurface->expectTap(1, 1);
+
+    containerSurface->doTransaction([](auto &t, auto &sc) { t.hide(sc); });
+
+    injectTap(11, 11);
+    bgSurface->expectTap(1, 1);
+}
 }
 }
