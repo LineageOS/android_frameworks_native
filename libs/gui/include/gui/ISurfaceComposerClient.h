@@ -42,6 +42,7 @@ public:
 
         eFXSurfaceNormal = 0x00000000,
         eFXSurfaceColor = 0x00020000,
+        eFXSurfaceContainer = 0x00080000,
         eFXSurfaceMask = 0x000F0000,
     };
 
