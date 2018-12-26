@@ -2738,6 +2738,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
     if (inputChanged || mVisibleRegionsDirty) {
         updateInputWindows();
     }
+    executeInputWindowCommands();
 
     updateCursorAsync();
 }
@@ -2760,6 +2761,23 @@ void SurfaceFlinger::updateInputWindows() {
         }
     });
     mInputFlinger->setInputWindows(inputHandles);
+}
+
+void SurfaceFlinger::executeInputWindowCommands() {
+    if (!mInputFlinger) {
+        return;
+    }
+
+    for (const auto& transferTouchFocusCommand : mInputWindowCommands.transferTouchFocusCommands) {
+        if (transferTouchFocusCommand.fromToken != nullptr &&
+            transferTouchFocusCommand.toToken != nullptr &&
+            transferTouchFocusCommand.fromToken != transferTouchFocusCommand.toToken) {
+            mInputFlinger->transferTouchFocus(transferTouchFocusCommand.fromToken,
+                                              transferTouchFocusCommand.toToken);
+        }
+    }
+
+    mInputWindowCommands.clear();
 }
 
 void SurfaceFlinger::updateCursorAsync()

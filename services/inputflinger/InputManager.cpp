@@ -111,6 +111,10 @@ void InputManager::setInputWindows(const Vector<InputWindowInfo>& infos) {
     }
 }
 
+void InputManager::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
+    mDispatcher->transferTouchFocus(fromToken, toToken);
+}
+
 // Used by tests only.
 void InputManager::registerInputChannel(const sp<InputChannel>& channel) {
     IPCThreadState* ipc = IPCThreadState::self();
