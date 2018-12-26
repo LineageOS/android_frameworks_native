@@ -166,6 +166,7 @@ SurfaceComposerClient::Transaction::Transaction(const Transaction& other) :
     mEarlyWakeup(other.mEarlyWakeup) {
     mDisplayStates = other.mDisplayStates;
     mComposerStates = other.mComposerStates;
+    mInputWindowCommands = other.mInputWindowCommands;
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Transaction&& other) {
@@ -198,6 +199,8 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
                                         std::make_move_iterator(surfaceControls.end()));
     }
     other.mListenerCallbacks.clear();
+
+    mInputWindowCommands.merge(other.mInputWindowCommands);
 
     return *this;
 }
@@ -265,8 +268,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     mEarlyWakeup = false;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-
-    sf->setTransactionState(composerStates, displayStates, flags, applyToken);
+    sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands);
+    mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;
 }
@@ -804,6 +807,16 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setInput
     s->what |= layer_state_t::eInputInfoChanged;
     return *this;
 }
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::transferTouchFocus(
+        const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
+    InputWindowCommands::TransferTouchFocusCommand transferTouchFocusCommand;
+    transferTouchFocusCommand.fromToken = fromToken;
+    transferTouchFocusCommand.toToken = toToken;
+    mInputWindowCommands.transferTouchFocusCommands.emplace_back(transferTouchFocusCommand);
+    return *this;
+}
+
 #endif
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroySurface(

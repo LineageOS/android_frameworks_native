@@ -3337,7 +3337,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
             if (composerStateContainsUnsignaledFences(states)) {
                 break;
             }
-            applyTransactionState(states, displays, flags);
+            applyTransactionState(states, displays, flags, mInputWindowCommands);
             transactionQueue.pop();
         }
 
@@ -3383,7 +3383,8 @@ bool SurfaceFlinger::composerStateContainsUnsignaledFences(const Vector<Composer
 
 void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const Vector<DisplayState>& displays, uint32_t flags,
-                                         const sp<IBinder>& applyToken) {
+                                         const sp<IBinder>& applyToken,
+                                         const InputWindowCommands& inputWindowCommands) {
     ATRACE_CALL();
     Mutex::Autolock _l(mStateLock);
 
@@ -3399,11 +3400,12 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
         return;
     }
 
-    applyTransactionState(states, displays, flags);
+    applyTransactionState(states, displays, flags, inputWindowCommands);
 }
 
 void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
-                                           const Vector<DisplayState>& displays, uint32_t flags) {
+                                           const Vector<DisplayState>& displays, uint32_t flags,
+                                           const InputWindowCommands& inputWindowCommands) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3443,6 +3445,8 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
     for (const ComposerState& state : states) {
         setDestroyStateLocked(state);
     }
+
+    transactionFlags |= addInputWindowCommands(inputWindowCommands);
 
     // If a synchronous transaction is explicitly requested without any changes, force a transaction
     // anyway. This can be used as a flush mechanism for previous async transactions.
@@ -3781,6 +3785,16 @@ void SurfaceFlinger::setDestroyStateLocked(const ComposerState& composerState) {
     }
 }
 
+uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
+    uint32_t flags = 0;
+    if (!inputWindowCommands.transferTouchFocusCommands.empty()) {
+        flags |= eTraversalNeeded;
+    }
+
+    mInputWindowCommands.merge(inputWindowCommands);
+    return flags;
+}
+
 status_t SurfaceFlinger::createLayer(
         const String8& name,
         const sp<Client>& client,
@@ -3995,7 +4009,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr);
+    setTransactionState(state, displays, 0, nullptr, mInputWindowCommands);
 
     const auto display = getDisplayDevice(displayToken);
     if (!display) return;
