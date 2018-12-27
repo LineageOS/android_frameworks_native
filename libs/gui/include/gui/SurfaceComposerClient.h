@@ -237,6 +237,18 @@ public:
         bool                        mAnimation = false;
         bool                        mEarlyWakeup = false;
 
+        // mDesiredPresentTime is the time in nanoseconds that the client would like the transaction
+        // to be presented. When it is not possible to present at exactly that time, it will be
+        // presented after the time has passed.
+        //
+        // Desired present times that are more than 1 second in the future may be ignored.
+        // When a desired present time has already passed, the transaction will be presented as soon
+        // as possible.
+        //
+        // Transactions from the same process are presented in the same order that they are applied.
+        // The desired present time does not affect this ordering.
+        int64_t mDesiredPresentTime = -1;
+
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
@@ -325,6 +337,7 @@ public:
         Transaction& setApi(const sp<SurfaceControl>& sc, int32_t api);
         Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
                                        const sp<NativeHandle>& sidebandStream);
+        Transaction& setDesiredPresentTime(nsecs_t desiredPresentTime);
 
         Transaction& addTransactionCompletedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);

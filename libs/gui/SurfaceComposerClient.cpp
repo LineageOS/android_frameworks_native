@@ -159,11 +159,12 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 
 // ---------------------------------------------------------------------------
 
-SurfaceComposerClient::Transaction::Transaction(const Transaction& other) :
-    mForceSynchronous(other.mForceSynchronous),
-    mTransactionNestCount(other.mTransactionNestCount),
-    mAnimation(other.mAnimation),
-    mEarlyWakeup(other.mEarlyWakeup) {
+SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
+      : mForceSynchronous(other.mForceSynchronous),
+        mTransactionNestCount(other.mTransactionNestCount),
+        mAnimation(other.mAnimation),
+        mEarlyWakeup(other.mEarlyWakeup),
+        mDesiredPresentTime(other.mDesiredPresentTime) {
     mDisplayStates = other.mDisplayStates;
     mComposerStates = other.mComposerStates;
     mInputWindowCommands = other.mInputWindowCommands;
@@ -218,7 +219,7 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
     s.state.parentHandleForChild = nullptr;
 
     composerStates.add(s);
-    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {});
+    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1);
 }
 
 status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
@@ -284,7 +285,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     mEarlyWakeup = false;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands);
+    sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
+                            mDesiredPresentTime);
     mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;
@@ -739,6 +741,12 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSideb
     s->sidebandStream = sidebandStream;
 
     registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesiredPresentTime(
+        nsecs_t desiredPresentTime) {
+    mDesiredPresentTime = desiredPresentTime;
     return *this;
 }
 

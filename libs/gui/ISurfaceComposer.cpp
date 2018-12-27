@@ -66,7 +66,8 @@ public:
     virtual void setTransactionState(const Vector<ComposerState>& state,
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
-                                     const InputWindowCommands& commands) {
+                                     const InputWindowCommands& commands,
+                                     int64_t desiredPresentTime) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -83,6 +84,7 @@ public:
         data.writeUint32(flags);
         data.writeStrongBinder(applyToken);
         commands.write(data);
+        data.writeInt64(desiredPresentTime);
         remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
@@ -748,7 +750,10 @@ status_t BnSurfaceComposer::onTransact(
             sp<IBinder> applyToken = data.readStrongBinder();
             InputWindowCommands inputWindowCommands;
             inputWindowCommands.read(data);
-            setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands);
+
+            int64_t desiredPresentTime = data.readInt64();
+            setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
+                                desiredPresentTime);
             return NO_ERROR;
         }
         case BOOT_FINISHED: {

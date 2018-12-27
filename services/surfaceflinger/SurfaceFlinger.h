@@ -412,7 +412,8 @@ private:
     void setTransactionState(const Vector<ComposerState>& state,
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
-                             const InputWindowCommands& inputWindowCommands) override;
+                             const InputWindowCommands& inputWindowCommands,
+                             int64_t desiredPresentTime) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
@@ -537,7 +538,8 @@ private:
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
-    bool composerStateContainsUnsignaledFences(const Vector<ComposerState>& states);
+    bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+                                       const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands);
@@ -982,12 +984,17 @@ private:
     };
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
-                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags)
-              : states(composerStates), displays(displayStates), flags(transactionFlags) {}
+                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
+                         int64_t desiredPresentTime)
+              : states(composerStates),
+                displays(displayStates),
+                flags(transactionFlags),
+                time(desiredPresentTime) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
+        int64_t time;
     };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IBinderHash> mTransactionQueues;
 

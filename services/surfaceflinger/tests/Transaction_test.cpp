@@ -2568,11 +2568,23 @@ public:
         }
     }
 
+    void addExpectedPresentTime(nsecs_t expectedPresentTime) {
+        mExpectedPresentTime = expectedPresentTime;
+    }
+
     void verifyTransactionStats(const TransactionStats& transactionStats) const {
         const auto& [latchTime, presentFence, surfaceStats] = transactionStats;
         if (mTransactionResult == ExpectedResult::Transaction::PRESENTED) {
             ASSERT_GE(latchTime, 0) << "bad latch time";
             ASSERT_NE(presentFence, nullptr);
+            if (mExpectedPresentTime >= 0) {
+                ASSERT_EQ(presentFence->wait(3000), NO_ERROR);
+                ASSERT_GE(presentFence->getSignalTime(), mExpectedPresentTime - nsecs_t(5 * 1e6));
+                // if the panel is running at 30 hz, at the worst case, our expected time just
+                // misses vsync and we have to wait another 33.3ms
+                ASSERT_LE(presentFence->getSignalTime(),
+                          mExpectedPresentTime + nsecs_t(66.666666 * 1e6));
+            }
         } else {
             ASSERT_EQ(presentFence, nullptr) << "transaction shouldn't have been presented";
             ASSERT_EQ(latchTime, -1) << "unpresented transactions shouldn't be latched";
@@ -2623,6 +2635,7 @@ private:
         }
     };
     ExpectedResult::Transaction mTransactionResult = ExpectedResult::Transaction::NOT_PRESENTED;
+    nsecs_t mExpectedPresentTime = -1;
     std::unordered_map<sp<IBinder>, ExpectedSurfaceResult, IBinderHash> mExpectedSurfaceResults;
 };
 
@@ -3270,6 +3283,143 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_SameStateChange) {
         transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
     }
     EXPECT_NO_FATAL_FAILURE(waitForCallbacks(callback, expectedResults, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the future
+    nsecs_t time = systemTime() + (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected.addExpectedPresentTime(time);
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback1;
+    int err = fillTransaction(transaction, &callback1, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the future
+    nsecs_t time = systemTime() + (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected1;
+    expected1.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected1.addExpectedPresentTime(time);
+
+    CallbackHelper callback2;
+    err = fillTransaction(transaction, &callback2, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 33ms after the first frame
+    time += (33.3 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected2;
+    expected2.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                         ExpectedResult::Buffer::ACQUIRED,
+                         ExpectedResult::PreviousBuffer::RELEASED);
+    expected2.addExpectedPresentTime(time);
+
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback1, expected1, true));
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2, expected2, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime_OutOfOrder) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback1;
+    int err = fillTransaction(transaction, &callback1, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the future
+    nsecs_t time = systemTime() + (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected1;
+    expected1.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected1.addExpectedPresentTime(time);
+
+    CallbackHelper callback2;
+    err = fillTransaction(transaction, &callback2, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 33ms before the previous frame
+    time -= (33.3 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected2;
+    expected2.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                         ExpectedResult::Buffer::ACQUIRED,
+                         ExpectedResult::PreviousBuffer::RELEASED);
+
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback1, expected1, true));
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2, expected2, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime_Past) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the past
+    nsecs_t time = systemTime() - (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected.addExpectedPresentTime(systemTime());
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
 }
 
 class LayerUpdateTest : public LayerTransactionTest {

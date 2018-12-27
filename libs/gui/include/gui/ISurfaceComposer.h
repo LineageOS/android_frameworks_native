@@ -116,7 +116,8 @@ public:
     virtual void setTransactionState(const Vector<ComposerState>& state,
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
-                                     const InputWindowCommands& inputWindowCommands) = 0;
+                                     const InputWindowCommands& inputWindowCommands,
+                                     int64_t desiredPresentTime) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission

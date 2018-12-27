@@ -556,7 +556,9 @@ public:
     void setTransactionState(const Vector<ComposerState>& /*state*/,
                              const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                              const sp<IBinder>& /*applyToken*/,
-                             const InputWindowCommands& /*inputWindowCommands*/) override {}
+                             const InputWindowCommands& /*inputWindowCommands*/,
+                             int64_t /*desiredPresentTime*/) override {}
+
     void bootFinished() override {}
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& /*surface*/) const override {
