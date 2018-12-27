@@ -23,9 +23,10 @@ namespace android {
 
 class SchedulerTest : public testing::Test {
 protected:
-    class MockEventThreadConnection : public BnDisplayEventConnection {
+    class MockEventThreadConnection : public android::EventThreadConnection {
     public:
-        MockEventThreadConnection() = default;
+        explicit MockEventThreadConnection(EventThread* eventThread)
+              : EventThreadConnection(eventThread) {}
         ~MockEventThreadConnection() = default;
 
         MOCK_METHOD1(stealReceiveChannel, status_t(gui::BitTube* outChannel));
@@ -77,7 +78,9 @@ SchedulerTest::SchedulerTest() {
     std::unique_ptr<mock::EventThread> eventThread = std::make_unique<mock::EventThread>();
     mEventThread = eventThread.get();
     mScheduler = std::make_unique<MockScheduler>(std::move(eventThread));
-    mEventThreadConnection = new MockEventThreadConnection();
+    EXPECT_CALL(*mEventThread, registerDisplayEventConnection(_)).WillOnce(Return(0));
+
+    mEventThreadConnection = new MockEventThreadConnection(mEventThread);
 
     // createConnection call to scheduler makes a createEventConnection call to EventThread. Make
     // sure that call gets executed and returns an EventThread::Connection object.

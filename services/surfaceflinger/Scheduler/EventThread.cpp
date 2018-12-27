@@ -43,6 +43,40 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
+EventThreadConnection::EventThreadConnection(EventThread* eventThread)
+      : count(-1), mEventThread(eventThread), mChannel(gui::BitTube::DefaultSize) {}
+
+EventThreadConnection::~EventThreadConnection() {
+    // do nothing here -- clean-up will happen automatically
+    // when the main thread wakes up
+}
+
+void EventThreadConnection::onFirstRef() {
+    // NOTE: mEventThread doesn't hold a strong reference on us
+    mEventThread->registerDisplayEventConnection(this);
+}
+
+status_t EventThreadConnection::stealReceiveChannel(gui::BitTube* outChannel) {
+    outChannel->setReceiveFd(mChannel.moveReceiveFd());
+    return NO_ERROR;
+}
+
+status_t EventThreadConnection::setVsyncRate(uint32_t count) {
+    mEventThread->setVsyncRate(count, this);
+    return NO_ERROR;
+}
+
+void EventThreadConnection::requestNextVsync() {
+    mEventThread->requestNextVsync(this);
+}
+
+status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {
+    ssize_t size = DisplayEventReceiver::sendEvents(&mChannel, &event, 1);
+    return size < 0 ? status_t(size) : status_t(NO_ERROR);
+}
+
+// ---------------------------------------------------------------------------
+
 EventThread::~EventThread() = default;
 
 namespace impl {
@@ -110,12 +144,11 @@ void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
     mVSyncSource->setPhaseOffset(phaseOffset);
 }
 
-sp<BnDisplayEventConnection> EventThread::createEventConnection() const {
-    return new Connection(const_cast<EventThread*>(this));
+sp<EventThreadConnection> EventThread::createEventConnection() const {
+    return new EventThreadConnection(const_cast<EventThread*>(this));
 }
 
-status_t EventThread::registerDisplayEventConnection(
-        const sp<EventThread::Connection>& connection) {
+status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
 
     // this should never happen
@@ -132,8 +165,7 @@ status_t EventThread::registerDisplayEventConnection(
     return NO_ERROR;
 }
 
-void EventThread::removeDisplayEventConnectionLocked(
-        const wp<EventThread::Connection>& connection) {
+void EventThread::removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection) {
     auto it = std::find(mDisplayEventConnections.cbegin(),
             mDisplayEventConnections.cend(), connection);
     if (it != mDisplayEventConnections.cend()) {
@@ -141,7 +173,7 @@ void EventThread::removeDisplayEventConnectionLocked(
     }
 }
 
-void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>& connection) {
+void EventThread::setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) {
     if (int32_t(count) >= 0) { // server must protect against bad params
         std::lock_guard<std::mutex> lock(mMutex);
         const int32_t new_count = (count == 0) ? -1 : count;
@@ -152,7 +184,7 @@ void EventThread::setVsyncRate(uint32_t count, const sp<EventThread::Connection>
     }
 }
 
-void EventThread::requestNextVsync(const sp<EventThread::Connection>& connection) {
+void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) {
     std::lock_guard<std::mutex> lock(mMutex);
     if (mResetIdleTimer) {
         mResetIdleTimer();
@@ -212,11 +244,11 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
     std::unique_lock<std::mutex> lock(mMutex);
     while (mKeepRunning) {
         DisplayEventReceiver::Event event;
-        std::vector<sp<EventThread::Connection>> signalConnections;
+        std::vector<sp<EventThreadConnection>> signalConnections;
         signalConnections = waitForEventLocked(&lock, &event);
 
         // dispatch events to listeners...
-        for (const sp<Connection>& conn : signalConnections) {
+        for (const sp<EventThreadConnection>& conn : signalConnections) {
             // now see if we still need to report this event
             status_t err = conn->postEvent(event);
             if (err == -EAGAIN || err == -EWOULDBLOCK) {
@@ -239,9 +271,9 @@ void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
 
 // This will return when (1) a vsync event has been received, and (2) there was
 // at least one connection interested in receiving it when we started waiting.
-std::vector<sp<EventThread::Connection>> EventThread::waitForEventLocked(
+std::vector<sp<EventThreadConnection>> EventThread::waitForEventLocked(
         std::unique_lock<std::mutex>* lock, DisplayEventReceiver::Event* outEvent) {
-    std::vector<sp<EventThread::Connection>> signalConnections;
+    std::vector<sp<EventThreadConnection>> signalConnections;
 
     while (signalConnections.empty() && mKeepRunning) {
         bool eventPending = false;
@@ -276,7 +308,7 @@ std::vector<sp<EventThread::Connection>> EventThread::waitForEventLocked(
         // find out connections waiting for events
         auto it = mDisplayEventConnections.begin();
         while (it != mDisplayEventConnections.end()) {
-            sp<Connection> connection(it->promote());
+            sp<EventThreadConnection> connection(it->promote());
             if (connection != nullptr) {
                 bool added = false;
                 if (connection->count >= 0) {
@@ -399,49 +431,13 @@ void EventThread::dump(std::string& result) const {
     StringAppendF(&result, "  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
     StringAppendF(&result, "  numListeners=%zu,\n  events-delivered: %u\n",
                   mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
-    for (const wp<Connection>& weak : mDisplayEventConnections) {
-        sp<Connection> connection = weak.promote();
+    for (const wp<EventThreadConnection>& weak : mDisplayEventConnections) {
+        sp<EventThreadConnection> connection = weak.promote();
         StringAppendF(&result, "    %p: count=%d\n", connection.get(),
                       connection != nullptr ? connection->count : 0);
     }
     StringAppendF(&result, "  other-events-pending: %zu\n", mPendingEvents.size());
 }
-
-// ---------------------------------------------------------------------------
-
-EventThread::Connection::Connection(EventThread* eventThread)
-      : count(-1), mEventThread(eventThread), mChannel(gui::BitTube::DefaultSize) {}
-
-EventThread::Connection::~Connection() {
-    // do nothing here -- clean-up will happen automatically
-    // when the main thread wakes up
-}
-
-void EventThread::Connection::onFirstRef() {
-    // NOTE: mEventThread doesn't hold a strong reference on us
-    mEventThread->registerDisplayEventConnection(this);
-}
-
-status_t EventThread::Connection::stealReceiveChannel(gui::BitTube* outChannel) {
-    outChannel->setReceiveFd(mChannel.moveReceiveFd());
-    return NO_ERROR;
-}
-
-status_t EventThread::Connection::setVsyncRate(uint32_t count) {
-    mEventThread->setVsyncRate(count, this);
-    return NO_ERROR;
-}
-
-void EventThread::Connection::requestNextVsync() {
-    mEventThread->requestNextVsync(this);
-}
-
-status_t EventThread::Connection::postEvent(const DisplayEventReceiver::Event& event) {
-    ssize_t size = DisplayEventReceiver::sendEvents(&mChannel, &event, 1);
-    return size < 0 ? status_t(size) : status_t(NO_ERROR);
-}
-
-// ---------------------------------------------------------------------------
 
 } // namespace impl
 } // namespace android

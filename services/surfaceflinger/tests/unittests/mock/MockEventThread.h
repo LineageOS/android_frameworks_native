@@ -28,12 +28,16 @@ public:
     EventThread();
     ~EventThread() override;
 
-    MOCK_CONST_METHOD0(createEventConnection, sp<BnDisplayEventConnection>());
+    MOCK_CONST_METHOD0(createEventConnection, sp<EventThreadConnection>());
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(DisplayType, bool));
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_METHOD1(setPhaseOffset, void(nsecs_t phaseOffset));
+    MOCK_METHOD1(registerDisplayEventConnection,
+                 status_t(const sp<android::EventThreadConnection> &));
+    MOCK_METHOD2(setVsyncRate, void(uint32_t, const sp<android::EventThreadConnection> &));
+    MOCK_METHOD1(requestNextVsync, void(const sp<android::EventThreadConnection> &));
 };
 
 } // namespace mock

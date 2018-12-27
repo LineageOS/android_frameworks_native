@@ -126,7 +126,7 @@ EventThread* Scheduler::getEventThread(const sp<Scheduler::ConnectionHandle>& ha
     return mConnections[handle->id]->thread.get();
 }
 
-sp<BnDisplayEventConnection> Scheduler::getEventConnection(const sp<ConnectionHandle>& handle) {
+sp<EventThreadConnection> Scheduler::getEventConnection(const sp<ConnectionHandle>& handle) {
     RETURN_VALUE_IF_INVALID(nullptr);
     return mConnections[handle->id]->eventConnection;
 }

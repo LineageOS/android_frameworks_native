@@ -38,6 +38,7 @@
 namespace android {
 // ---------------------------------------------------------------------------
 
+class EventThread;
 class EventThreadTest;
 class SurfaceFlinger;
 
@@ -57,6 +58,28 @@ public:
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
 };
 
+class EventThreadConnection : public BnDisplayEventConnection {
+public:
+    explicit EventThreadConnection(EventThread* eventThread);
+    virtual ~EventThreadConnection();
+
+    virtual status_t postEvent(const DisplayEventReceiver::Event& event);
+
+    status_t stealReceiveChannel(gui::BitTube* outChannel) override;
+    status_t setVsyncRate(uint32_t count) override;
+    void requestNextVsync() override; // asynchronous
+
+    // count >= 1 : continuous event. count is the vsync rate
+    // count == 0 : one-shot event that has not fired
+    // count ==-1 : one-shot event that fired this round / disabled
+    int32_t count;
+
+private:
+    virtual void onFirstRef();
+    EventThread* const mEventThread;
+    gui::BitTube mChannel;
+};
+
 class EventThread {
 public:
     // TODO: Remove once stable display IDs are plumbed through SF/WM interface.
@@ -64,7 +87,7 @@ public:
 
     virtual ~EventThread();
 
-    virtual sp<BnDisplayEventConnection> createEventConnection() const = 0;
+    virtual sp<EventThreadConnection> createEventConnection() const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -78,32 +101,16 @@ public:
     virtual void dump(std::string& result) const = 0;
 
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+
+    virtual status_t registerDisplayEventConnection(
+            const sp<EventThreadConnection>& connection) = 0;
+    virtual void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) = 0;
+    virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
 };
 
 namespace impl {
 
 class EventThread : public android::EventThread, private VSyncSource::Callback {
-    class Connection : public BnDisplayEventConnection {
-    public:
-        explicit Connection(EventThread* eventThread);
-        virtual ~Connection();
-
-        virtual status_t postEvent(const DisplayEventReceiver::Event& event);
-
-        // count >= 1 : continuous event. count is the vsync rate
-        // count == 0 : one-shot event that has not fired
-        // count ==-1 : one-shot event that fired this round / disabled
-        int32_t count;
-
-    private:
-        virtual void onFirstRef();
-        status_t stealReceiveChannel(gui::BitTube* outChannel) override;
-        status_t setVsyncRate(uint32_t count) override;
-        void requestNextVsync() override; // asynchronous
-        EventThread* const mEventThread;
-        gui::BitTube mChannel;
-    };
-
 public:
     using ResyncWithRateLimitCallback = std::function<void()>;
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
@@ -118,10 +125,11 @@ public:
                 const ResetIdleTimerCallback& resetIdleTimerCallback, const char* threadName);
     ~EventThread();
 
-    sp<BnDisplayEventConnection> createEventConnection() const override;
+    sp<EventThreadConnection> createEventConnection() const override;
 
-    void setVsyncRate(uint32_t count, const sp<Connection>& connection);
-    void requestNextVsync(const sp<Connection>& connection);
+    status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
+    void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) override;
+    void requestNextVsync(const sp<EventThreadConnection>& connection) override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
@@ -144,14 +152,14 @@ private:
                 ResyncWithRateLimitCallback resyncWithRateLimitCallback,
                 InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
 
-    status_t registerDisplayEventConnection(const sp<Connection>& connection);
 
     void threadMain();
-    std::vector<sp<EventThread::Connection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
-                                                                DisplayEventReceiver::Event* event)
+    std::vector<sp<EventThreadConnection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
+                                                              DisplayEventReceiver::Event* event)
             REQUIRES(mMutex);
 
-    void removeDisplayEventConnectionLocked(const wp<Connection>& connection) REQUIRES(mMutex);
+    void removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection)
+            REQUIRES(mMutex);
     void enableVSyncLocked() REQUIRES(mMutex);
     void disableVSyncLocked() REQUIRES(mMutex);
 
@@ -170,7 +178,7 @@ private:
     mutable std::condition_variable mCondition;
 
     // protected by mLock
-    std::vector<wp<Connection>> mDisplayEventConnections GUARDED_BY(mMutex);
+    std::vector<wp<EventThreadConnection>> mDisplayEventConnections GUARDED_BY(mMutex);
     std::queue<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
     std::array<DisplayEventReceiver::Event, 2> mVSyncEvent GUARDED_BY(mMutex);
     bool mUseSoftwareVSync GUARDED_BY(mMutex) = false;
