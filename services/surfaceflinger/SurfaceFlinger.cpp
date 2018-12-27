@@ -729,6 +729,11 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
+    if (mUseScheduler) {
+        mScheduler->setExpiredIdleTimerCallback([this]() { setRefreshRateTo(60.f /* fps */); });
+        mScheduler->setResetIdleTimerCallback([this]() { setRefreshRateTo(90.f /* fps */); });
+    }
+
     ALOGV("Done initializing");
 }
 
@@ -934,14 +939,45 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     return display->getActiveConfig();
 }
 
-void SurfaceFlinger::setActiveConfigInternal(const sp<DisplayDevice>& display, int mode) {
+status_t SurfaceFlinger::setActiveConfigAsync(const sp<IBinder>& displayToken, int mode) {
+    ATRACE_NAME("setActiveConfigAsync");
+    postMessageAsync(new LambdaMessage([=] { setActiveConfigInternal(displayToken, mode); }));
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
+    ATRACE_NAME("setActiveConfigSync");
+    postMessageSync(new LambdaMessage([&] { setActiveConfigInternal(displayToken, mode); }));
+    return NO_ERROR;
+}
+
+void SurfaceFlinger::setActiveConfigInternal(const sp<IBinder>& displayToken, int mode) {
+    Vector<DisplayInfo> configs;
+    getDisplayConfigs(displayToken, &configs);
+    if (mode < 0 || mode >= static_cast<int>(configs.size())) {
+        ALOGE("Attempt to set active config %d for display with %zu configs", mode, configs.size());
+        return;
+    }
+
+    const auto display = getDisplayDevice(displayToken);
+    if (!display) {
+        ALOGE("Attempt to set active config %d for invalid display token %p", mode,
+              displayToken.get());
+        return;
+    }
     if (display->isVirtual()) {
-        ALOGE("%s: Invalid operation on virtual display", __FUNCTION__);
+        ALOGW("Attempt to set active config %d for virtual display", mode);
+        return;
+    }
+    int currentDisplayPowerMode = display->getPowerMode();
+    if (currentDisplayPowerMode != HWC_POWER_MODE_NORMAL) {
+        // Don't change active config when in AoD.
         return;
     }
 
     int currentMode = display->getActiveConfig();
     if (mode == currentMode) {
+        // Don't update config if we are already running in the desired mode.
         return;
     }
 
@@ -950,29 +986,9 @@ void SurfaceFlinger::setActiveConfigInternal(const sp<DisplayDevice>& display, i
 
     display->setActiveConfig(mode);
     getHwComposer().setActiveConfig(*displayId, mode);
-}
 
-status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
-    postMessageSync(new LambdaMessage([&] {
-        Vector<DisplayInfo> configs;
-        getDisplayConfigs(displayToken, &configs);
-        if (mode < 0 || mode >= static_cast<int>(configs.size())) {
-            ALOGE("Attempt to set active config %d for display with %zu configs", mode,
-                  configs.size());
-            return;
-        }
-        const auto display = getDisplayDevice(displayToken);
-        if (!display) {
-            ALOGE("Attempt to set active config %d for invalid display token %p", mode,
-                  displayToken.get());
-        } else if (display->isVirtual()) {
-            ALOGW("Attempt to set active config %d for virtual display", mode);
-        } else {
-            setActiveConfigInternal(display, mode);
-        }
-    }));
-
-    return NO_ERROR;
+    ATRACE_INT("ActiveConfigMode", mode);
+    resyncToHardwareVsync(true);
 }
 
 status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
@@ -1382,6 +1398,49 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
+void SurfaceFlinger::setRefreshRateTo(float newFps) {
+    const auto displayId = getInternalDisplayId();
+    if (!displayId || mBootStage != BootStage::FINISHED) {
+        return;
+    }
+    // TODO(b/113612090): There should be a message queue flush here. Because this esentially
+    // runs on a mainthread, we cannot call postMessageSync. This can be resolved in a better
+    // manner, once the setActiveConfig is synchronous, and is executed at a known time in a
+    // refresh cycle.
+
+    // Don't do any updating if the current fps is the same as the new one.
+    const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
+    const nsecs_t currentVsyncPeriod = activeConfig->getVsyncPeriod();
+    if (currentVsyncPeriod == 0) {
+        return;
+    }
+    // TODO(b/113612090): Consider having an enum value for correct refresh rates, rather than
+    // floating numbers.
+    const float currentFps = 1e9 / currentVsyncPeriod;
+    if (std::abs(currentFps - newFps) <= 1) {
+        return;
+    }
+
+    auto configs = getHwComposer().getConfigs(*displayId);
+    for (int i = 0; i < configs.size(); i++) {
+        const nsecs_t vsyncPeriod = configs.at(i)->getVsyncPeriod();
+        if (vsyncPeriod == 0) {
+            continue;
+        }
+        const float fps = 1e9 / vsyncPeriod;
+        // TODO(b/113612090): There should be a better way at determining which config
+        // has the right refresh rate.
+        if (std::abs(fps - newFps) <= 1) {
+            const auto display = getBuiltInDisplay(HWC_DISPLAY_PRIMARY);
+            if (!display) return;
+            // This is posted in async function to avoid deadlock when getDisplayDevice
+            // requires mStateLock.
+            setActiveConfigAsync(display, i);
+            ATRACE_INT("FPS", newFps);
+        }
+    }
+}
+
 void SurfaceFlinger::onHotplugReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                                        HWC2::Connection connection) {
     ALOGV("%s(%d, %" PRIu64 ", %s)", __FUNCTION__, sequenceId, hwcDisplayId,
@@ -1413,7 +1472,7 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDispl
     if (sequenceId != getBE().mComposerSequenceId) {
         return;
     }
-    repaintEverything();
+    repaintEverythingForHWC();
 }
 
 void SurfaceFlinger::setVsyncEnabled(EventThread::DisplayType /*displayType*/, bool enabled) {
@@ -5175,6 +5234,11 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
 void SurfaceFlinger::repaintEverything() {
     mRepaintEverything = true;
     signalTransaction();
+}
+
+void SurfaceFlinger::repaintEverythingForHWC() {
+    mRepaintEverything = true;
+    mEventQueue->invalidateForHWC();
 }
 
 // A simple RAII class to disconnect from an ANativeWindow* when it goes out of scope

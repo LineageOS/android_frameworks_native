@@ -36,6 +36,9 @@ class EventControlThread;
 
 class Scheduler {
 public:
+    using ExpiredIdleTimerCallback = std::function<void()>;
+    using ResetIdleTimerCallback = std::function<void()>;
+
     // Enum to indicate whether to start the transaction early, or at vsync time.
     enum class TransactionStart { EARLY, NORMAL };
 
@@ -111,6 +114,10 @@ public:
                                      const std::string layerName);
     // Increments counter in the layer history to indicate that SF has started a new frame.
     void incrementFrameCounter();
+    // Callback that gets invoked once the idle timer expires.
+    void setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expiredTimerCallback);
+    // Callback that gets invoked once the idle timer is reset.
+    void setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback);
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
@@ -173,6 +180,10 @@ private:
     // interval, a callback is fired. Set this variable to >0 to use this feature.
     int64_t mSetIdleTimerMs = 0;
     std::unique_ptr<scheduler::IdleTimer> mIdleTimer;
+
+    std::mutex mCallbackLock;
+    ExpiredIdleTimerCallback mExpiredTimerCallback GUARDED_BY(mCallbackLock);
+    ResetIdleTimerCallback mResetTimerCallback GUARDED_BY(mCallbackLock);
 };
 
 } // namespace android
