@@ -18,6 +18,7 @@
 
 #include <gmock/gmock.h>
 
+#include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
 
 namespace android {
@@ -30,7 +31,7 @@ public:
 
     MOCK_METHOD1(init, void(const sp<SurfaceFlinger>&));
     MOCK_METHOD1(setEventThread, void(android::EventThread*));
-    MOCK_METHOD1(setEventConnection, void(const sp<BnDisplayEventConnection>& connection));
+    MOCK_METHOD1(setEventConnection, void(const sp<android::EventThreadConnection>& connection));
     MOCK_METHOD0(waitMessage, void());
     MOCK_METHOD2(postMessage, status_t(const sp<MessageBase>&, nsecs_t));
     MOCK_METHOD0(invalidate, void());

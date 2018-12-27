@@ -47,10 +47,10 @@ public:
 
 class EventThreadTest : public testing::Test {
 protected:
-    class MockEventThreadConnection : public android::impl::EventThread::Connection {
+    class MockEventThreadConnection : public android::EventThreadConnection {
     public:
         explicit MockEventThreadConnection(android::impl::EventThread* eventThread)
-              : android::impl::EventThread::Connection(eventThread) {}
+              : android::EventThreadConnection(eventThread) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
     };
 

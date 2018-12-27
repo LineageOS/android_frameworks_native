@@ -53,14 +53,14 @@ public:
 
     class Connection {
     public:
-        Connection(sp<ConnectionHandle> handle, sp<BnDisplayEventConnection> eventConnection,
+        Connection(sp<ConnectionHandle> handle, sp<EventThreadConnection> eventConnection,
                    std::unique_ptr<EventThread> eventThread)
               : handle(handle), eventConnection(eventConnection), thread(std::move(eventThread)) {}
 
         ~Connection() = default;
 
         sp<ConnectionHandle> handle;
-        sp<BnDisplayEventConnection> eventConnection;
+        sp<EventThreadConnection> eventConnection;
         const std::unique_ptr<EventThread> thread;
     };
 
@@ -79,7 +79,7 @@ public:
     // Getter methods.
     EventThread* getEventThread(const sp<ConnectionHandle>& handle);
 
-    sp<BnDisplayEventConnection> getEventConnection(const sp<ConnectionHandle>& handle);
+    sp<EventThreadConnection> getEventConnection(const sp<ConnectionHandle>& handle);
 
     // Should be called when receiving a hotplug event.
     void hotplugReceived(const sp<ConnectionHandle>& handle, EventThread::DisplayType displayType,
