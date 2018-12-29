@@ -104,15 +104,9 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
     // TODO(b/72323293, b/72703005): Remove these invalid bits from callers
     usage &= ~static_cast<uint64_t>((1 << 10) | (1 << 13));
 
-    Gralloc2::IMapper::BufferDescriptorInfo info = {};
-    info.width = width;
-    info.height = height;
-    info.layerCount = layerCount;
-    info.format = static_cast<Gralloc2::PixelFormat>(format);
-    info.usage = usage;
-
-    Gralloc2::Error error = mAllocator->allocate(info, stride, handle);
-    if (error == Gralloc2::Error::NONE) {
+    status_t error =
+            mAllocator->allocate(width, height, format, layerCount, usage, 1, stride, handle);
+    if (error == NO_ERROR) {
         Mutex::Autolock _l(sLock);
         KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
         uint32_t bpp = bytesPerPixel(format);
