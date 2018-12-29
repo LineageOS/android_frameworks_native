@@ -1344,6 +1344,17 @@ status_t EventHub::openDeviceLocked(const char *devicePath) {
         setLedForControllerLocked(device);
     }
 
+    // Find a matching video device by comparing device names
+    for (std::unique_ptr<TouchVideoDevice>& videoDevice : mUnattachedVideoDevices) {
+        if (device->identifier.name == videoDevice->getName()) {
+            device->videoDevice = std::move(videoDevice);
+            break;
+        }
+    }
+    mUnattachedVideoDevices.erase(std::remove_if(mUnattachedVideoDevices.begin(),
+            mUnattachedVideoDevices.end(),
+            [](const std::unique_ptr<TouchVideoDevice>& videoDevice){
+            return videoDevice == nullptr; }), mUnattachedVideoDevices.end());
 
     if (registerDeviceForEpollLocked(device) != OK) {
         delete device;
@@ -1406,6 +1417,17 @@ void EventHub::openVideoDeviceLocked(const std::string& devicePath) {
         ALOGE("Could not create touch video device for %s. Ignoring", devicePath.c_str());
         return;
     }
+    // Transfer ownership of this video device to a matching input device
+    for (size_t i = 0; i < mDevices.size(); i++) {
+        Device* device = mDevices.valueAt(i);
+        if (videoDevice->getName() == device->identifier.name) {
+            device->videoDevice = std::move(videoDevice);
+            return;
+        }
+    }
+
+    // Couldn't find a matching input device, so just add it to a temporary holding queue.
+    // A matching input device may appear later.
     ALOGI("Adding video device %s to list of unattached video devices",
             videoDevice->getName().c_str());
     mUnattachedVideoDevices.push_back(std::move(videoDevice));
@@ -1599,7 +1621,21 @@ void EventHub::closeDeviceByPathLocked(const char *devicePath) {
     ALOGV("Remove device: %s not found, device may already have been removed.", devicePath);
 }
 
+/**
+ * Find the video device by filename, and close it.
+ * The video device is closed by path during an inotify event, where we don't have the
+ * additional context about the video device fd, or the associated input device.
+ */
 void EventHub::closeVideoDeviceByPathLocked(const std::string& devicePath) {
+    // A video device may be owned by an existing input device, or it may be stored in
+    // the mUnattachedVideoDevices queue. Check both locations.
+    for (size_t i = 0; i < mDevices.size(); i++) {
+        Device* device = mDevices.valueAt(i);
+        if (device->videoDevice && device->videoDevice->getPath() == devicePath) {
+            device->videoDevice = nullptr;
+            return;
+        }
+    }
     mUnattachedVideoDevices.erase(std::remove_if(mUnattachedVideoDevices.begin(),
             mUnattachedVideoDevices.end(), [&devicePath](
             const std::unique_ptr<TouchVideoDevice>& videoDevice) {
@@ -1625,6 +1661,9 @@ void EventHub::closeDeviceLocked(Device* device) {
     }
 
     unregisterDeviceFromEpollLocked(device);
+    if (device->videoDevice) {
+        mUnattachedVideoDevices.push_back(std::move(device->videoDevice));
+    }
 
     releaseControllerNumberLocked(device);
 
@@ -1804,6 +1843,12 @@ void EventHub::dump(std::string& dump) {
                     device->configurationFile.c_str());
             dump += StringPrintf(INDENT3 "HaveKeyboardLayoutOverlay: %s\n",
                     toString(device->overlayKeyMap != nullptr));
+            dump += INDENT3 "VideoDevice: ";
+            if (device->videoDevice) {
+                dump += device->videoDevice->dump() + "\n";
+            } else {
+                dump += "<none>\n";
+            }
         }
 
         dump += INDENT "Unattached video devices:\n";

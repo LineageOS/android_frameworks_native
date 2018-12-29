@@ -336,6 +336,8 @@ private:
         const std::string path;
         const InputDeviceIdentifier identifier;
 
+        std::unique_ptr<TouchVideoDevice> videoDevice;
+
         uint32_t classes;
 
         uint8_t keyBitmask[(KEY_MAX + 1) / 8];
