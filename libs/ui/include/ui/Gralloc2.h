@@ -23,55 +23,43 @@
 #include <android/hardware/graphics/common/1.1/types.h>
 #include <android/hardware/graphics/mapper/2.0/IMapper.h>
 #include <android/hardware/graphics/mapper/2.1/IMapper.h>
+#include <ui/Gralloc.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
 #include <utils/StrongPointer.h>
 
 namespace android {
 
-namespace Gralloc2 {
-
 using hardware::graphics::allocator::V2_0::IAllocator;
 using hardware::graphics::mapper::V2_1::IMapper;
 
-// A wrapper to IMapper
-class Mapper {
+class Gralloc2Mapper : public GrallocMapper {
 public:
     static void preload();
 
-    Mapper();
+    Gralloc2Mapper();
 
-    status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const;
+    status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const override;
 
-    // Import a buffer that is from another HAL, another process, or is
-    // cloned.
-    //
-    // The returned handle must be freed with freeBuffer.
     status_t importBuffer(const hardware::hidl_handle& rawHandle,
-                          buffer_handle_t* outBufferHandle) const;
+                          buffer_handle_t* outBufferHandle) const override;
 
-    void freeBuffer(buffer_handle_t bufferHandle) const;
+    void freeBuffer(buffer_handle_t bufferHandle) const override;
 
     status_t validateBufferSize(buffer_handle_t bufferHandle, uint32_t width, uint32_t height,
                                 android::PixelFormat format, uint32_t layerCount, uint64_t usage,
-                                uint32_t stride) const;
+                                uint32_t stride) const override;
 
-    void getTransportSize(buffer_handle_t bufferHandle,
-            uint32_t* outNumFds, uint32_t* outNumInts) const;
+    void getTransportSize(buffer_handle_t bufferHandle, uint32_t* outNumFds,
+                          uint32_t* outNumInts) const override;
 
-    // The ownership of acquireFence is always transferred to the callee, even
-    // on errors.
     status_t lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                  int acquireFence, void** outData) const;
+                  int acquireFence, void** outData) const override;
 
-    // The ownership of acquireFence is always transferred to the callee, even
-    // on errors.
     status_t lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                  int acquireFence, android_ycbcr* ycbcr) const;
+                  int acquireFence, android_ycbcr* ycbcr) const override;
 
-    // unlock returns a fence sync object (or -1) and the fence sync object is
-    // owned by the caller
-    int unlock(buffer_handle_t bufferHandle) const;
+    int unlock(buffer_handle_t bufferHandle) const override;
 
 private:
     // Determines whether the passed info is compatible with the mapper.
@@ -81,30 +69,22 @@ private:
     sp<IMapper> mMapperV2_1;
 };
 
-// A wrapper to IAllocator
-class Allocator {
+class Gralloc2Allocator : public GrallocAllocator {
 public:
     // An allocator relies on a mapper, and that mapper must be alive at all
     // time.
-    Allocator(const Mapper& mapper);
+    Gralloc2Allocator(const Gralloc2Mapper& mapper);
 
-    std::string dumpDebugInfo() const;
+    std::string dumpDebugInfo() const override;
 
-    /*
-     * The returned buffers are already imported and must not be imported
-     * again.  outBufferHandles must point to a space that can contain at
-     * least "bufferCount" buffer_handle_t.
-     */
     status_t allocate(uint32_t width, uint32_t height, PixelFormat format, uint32_t layerCount,
                       uint64_t usage, uint32_t bufferCount, uint32_t* outStride,
-                      buffer_handle_t* outBufferHandles) const;
+                      buffer_handle_t* outBufferHandles) const override;
 
 private:
-    const Mapper& mMapper;
+    const Gralloc2Mapper& mMapper;
     sp<IAllocator> mAllocator;
 };
-
-} // namespace Gralloc2
 
 } // namespace android
 

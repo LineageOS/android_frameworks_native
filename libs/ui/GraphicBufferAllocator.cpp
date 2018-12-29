@@ -29,6 +29,7 @@
 #include <utils/Singleton.h>
 #include <utils/Trace.h>
 
+#include <ui/Gralloc.h>
 #include <ui/Gralloc2.h>
 #include <ui/GraphicBufferMapper.h>
 
@@ -44,11 +45,9 @@ KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
 GraphicBufferAllocator::GraphicBufferAllocator()
-  : mMapper(GraphicBufferMapper::getInstance()),
-    mAllocator(std::make_unique<Gralloc2::Allocator>(
-                mMapper.getGrallocMapper()))
-{
-}
+      : mMapper(GraphicBufferMapper::getInstance()),
+        mAllocator(std::make_unique<Gralloc2Allocator>(
+                reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()))) {}
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}
 

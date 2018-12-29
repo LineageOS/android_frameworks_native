@@ -35,10 +35,8 @@ namespace android {
 
 // ---------------------------------------------------------------------------
 
-namespace Gralloc2 {
-class Mapper;
-}
-
+class GrallocMapper;
+class Gralloc2Mapper;
 class Rect;
 
 class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
@@ -80,9 +78,8 @@ public:
 
     status_t unlockAsync(buffer_handle_t handle, int *fenceFd);
 
-    const Gralloc2::Mapper& getGrallocMapper() const
-    {
-        return *mMapper;
+    const GrallocMapper& getGrallocMapper() const {
+        return reinterpret_cast<const GrallocMapper&>(*mMapper);
     }
 
 private:
@@ -90,7 +87,7 @@ private:
 
     GraphicBufferMapper();
 
-    const std::unique_ptr<const Gralloc2::Mapper> mMapper;
+    const std::unique_ptr<const Gralloc2Mapper> mMapper;
 };
 
 // ---------------------------------------------------------------------------

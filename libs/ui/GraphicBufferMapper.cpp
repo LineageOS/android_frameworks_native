@@ -32,6 +32,7 @@
 #include <utils/Log.h>
 #include <utils/Trace.h>
 
+#include <ui/Gralloc.h>
 #include <ui/Gralloc2.h>
 #include <ui/GraphicBuffer.h>
 
@@ -43,13 +44,10 @@ namespace android {
 ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
 void GraphicBufferMapper::preloadHal() {
-    Gralloc2::Mapper::preload();
+    Gralloc2Mapper::preload();
 }
 
-GraphicBufferMapper::GraphicBufferMapper()
-  : mMapper(std::make_unique<const Gralloc2::Mapper>())
-{
-}
+GraphicBufferMapper::GraphicBufferMapper() : mMapper(std::make_unique<const Gralloc2Mapper>()) {}
 
 status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
         uint32_t width, uint32_t height, uint32_t layerCount,

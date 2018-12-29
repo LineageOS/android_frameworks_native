@@ -35,8 +35,6 @@ using android::hardware::graphics::mapper::V2_0::YCbCrLayout;
 
 namespace android {
 
-namespace Gralloc2 {
-
 namespace {
 
 static constexpr Error kTransactionError = Error::NO_RESOURCES;
@@ -65,8 +63,8 @@ uint64_t getValid11UsageBits() {
     return valid11UsageBits;
 }
 
-static inline Gralloc2::IMapper::Rect sGralloc2Rect(const Rect& rect) {
-    Gralloc2::IMapper::Rect outRect{};
+static inline IMapper::Rect sGralloc2Rect(const Rect& rect) {
+    IMapper::Rect outRect{};
     outRect.left = rect.left;
     outRect.top = rect.top;
     outRect.width = rect.width();
@@ -76,12 +74,11 @@ static inline Gralloc2::IMapper::Rect sGralloc2Rect(const Rect& rect) {
 
 }  // anonymous namespace
 
-void Mapper::preload() {
+void Gralloc2Mapper::preload() {
     android::hardware::preloadPassthroughService<hardware::graphics::mapper::V2_0::IMapper>();
 }
 
-Mapper::Mapper()
-{
+Gralloc2Mapper::Gralloc2Mapper() {
     mMapper = hardware::graphics::mapper::V2_0::IMapper::getService();
     if (mMapper == nullptr) {
         LOG_ALWAYS_FATAL("gralloc-mapper is missing");
@@ -94,7 +91,8 @@ Mapper::Mapper()
     mMapperV2_1 = IMapper::castFrom(mMapper);
 }
 
-status_t Mapper::validateBufferDescriptorInfo(IMapper::BufferDescriptorInfo* descriptorInfo) const {
+status_t Gralloc2Mapper::validateBufferDescriptorInfo(
+        IMapper::BufferDescriptorInfo* descriptorInfo) const {
     uint64_t validUsageBits = getValid10UsageBits();
     if (mMapperV2_1 != nullptr) {
         validUsageBits = validUsageBits | getValid11UsageBits();
@@ -108,7 +106,8 @@ status_t Mapper::validateBufferDescriptorInfo(IMapper::BufferDescriptorInfo* des
     return NO_ERROR;
 }
 
-status_t Mapper::createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const {
+status_t Gralloc2Mapper::createDescriptor(void* bufferDescriptorInfo,
+                                          void* outBufferDescriptor) const {
     IMapper::BufferDescriptorInfo* descriptorInfo =
             static_cast<IMapper::BufferDescriptorInfo*>(bufferDescriptorInfo);
     BufferDescriptor* outDescriptor = static_cast<BufferDescriptor*>(outBufferDescriptor);
@@ -146,8 +145,8 @@ status_t Mapper::createDescriptor(void* bufferDescriptorInfo, void* outBufferDes
     return static_cast<status_t>((ret.isOk()) ? error : kTransactionError);
 }
 
-status_t Mapper::importBuffer(const hardware::hidl_handle& rawHandle,
-                              buffer_handle_t* outBufferHandle) const {
+status_t Gralloc2Mapper::importBuffer(const hardware::hidl_handle& rawHandle,
+                                      buffer_handle_t* outBufferHandle) const {
     Error error;
     auto ret = mMapper->importBuffer(rawHandle,
             [&](const auto& tmpError, const auto& tmpBuffer)
@@ -163,8 +162,7 @@ status_t Mapper::importBuffer(const hardware::hidl_handle& rawHandle,
     return static_cast<status_t>((ret.isOk()) ? error : kTransactionError);
 }
 
-void Mapper::freeBuffer(buffer_handle_t bufferHandle) const
-{
+void Gralloc2Mapper::freeBuffer(buffer_handle_t bufferHandle) const {
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
     auto ret = mMapper->freeBuffer(buffer);
 
@@ -173,9 +171,10 @@ void Mapper::freeBuffer(buffer_handle_t bufferHandle) const
             buffer, error);
 }
 
-status_t Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32_t width, uint32_t height,
-                                    android::PixelFormat format, uint32_t layerCount,
-                                    uint64_t usage, uint32_t stride) const {
+status_t Gralloc2Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32_t width,
+                                            uint32_t height, android::PixelFormat format,
+                                            uint32_t layerCount, uint64_t usage,
+                                            uint32_t stride) const {
     if (mMapperV2_1 == nullptr) {
         return NO_ERROR;
     }
@@ -193,9 +192,8 @@ status_t Mapper::validateBufferSize(buffer_handle_t bufferHandle, uint32_t width
     return static_cast<status_t>((ret.isOk()) ? static_cast<Error>(ret) : kTransactionError);
 }
 
-void Mapper::getTransportSize(buffer_handle_t bufferHandle,
-        uint32_t* outNumFds, uint32_t* outNumInts) const
-{
+void Gralloc2Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t* outNumFds,
+                                      uint32_t* outNumInts) const {
     *outNumFds = uint32_t(bufferHandle->numFds);
     *outNumInts = uint32_t(bufferHandle->numInts);
 
@@ -221,8 +219,8 @@ void Mapper::getTransportSize(buffer_handle_t bufferHandle,
     ALOGE_IF(error != Error::NONE, "getTransportSize(%p) failed with %d", buffer, error);
 }
 
-status_t Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                      int acquireFence, void** outData) const {
+status_t Gralloc2Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
+                              int acquireFence, void** outData) const {
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
 
     IMapper::Rect accessRegion = sGralloc2Rect(bounds);
@@ -260,8 +258,8 @@ status_t Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& 
     return static_cast<status_t>(error);
 }
 
-status_t Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                      int acquireFence, android_ycbcr* ycbcr) const {
+status_t Gralloc2Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
+                              int acquireFence, android_ycbcr* ycbcr) const {
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
 
     IMapper::Rect accessRegion = sGralloc2Rect(bounds);
@@ -306,8 +304,7 @@ status_t Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& 
     return static_cast<status_t>((ret.isOk()) ? error : kTransactionError);
 }
 
-int Mapper::unlock(buffer_handle_t bufferHandle) const
-{
+int Gralloc2Mapper::unlock(buffer_handle_t bufferHandle) const {
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
 
     int releaseFence = -1;
@@ -340,17 +337,14 @@ int Mapper::unlock(buffer_handle_t bufferHandle) const
     return releaseFence;
 }
 
-Allocator::Allocator(const Mapper& mapper)
-    : mMapper(mapper)
-{
+Gralloc2Allocator::Gralloc2Allocator(const Gralloc2Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
     if (mAllocator == nullptr) {
         LOG_ALWAYS_FATAL("gralloc-alloc is missing");
     }
 }
 
-std::string Allocator::dumpDebugInfo() const
-{
+std::string Gralloc2Allocator::dumpDebugInfo() const {
     std::string debugInfo;
 
     mAllocator->dumpDebugInfo([&](const auto& tmpDebugInfo) {
@@ -360,9 +354,9 @@ std::string Allocator::dumpDebugInfo() const
     return debugInfo;
 }
 
-status_t Allocator::allocate(uint32_t width, uint32_t height, PixelFormat format,
-                             uint32_t layerCount, uint64_t usage, uint32_t bufferCount,
-                             uint32_t* outStride, buffer_handle_t* outBufferHandles) const {
+status_t Gralloc2Allocator::allocate(uint32_t width, uint32_t height, PixelFormat format,
+                                     uint32_t layerCount, uint64_t usage, uint32_t bufferCount,
+                                     uint32_t* outStride, buffer_handle_t* outBufferHandles) const {
     IMapper::BufferDescriptorInfo descriptorInfo = {};
     descriptorInfo.width = width;
     descriptorInfo.height = height;
@@ -406,7 +400,5 @@ status_t Allocator::allocate(uint32_t width, uint32_t height, PixelFormat format
 
     return (ret.isOk()) ? error : static_cast<status_t>(kTransactionError);
 }
-
-} // namespace Gralloc2
 
 } // namespace android
