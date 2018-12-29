@@ -36,7 +36,6 @@ namespace android {
 // ---------------------------------------------------------------------------
 
 class GrallocMapper;
-class Gralloc2Mapper;
 class Rect;
 
 class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
@@ -87,7 +86,7 @@ private:
 
     GraphicBufferMapper();
 
-    const std::unique_ptr<const Gralloc2Mapper> mMapper;
+    std::unique_ptr<const GrallocMapper> mMapper;
 };
 
 // ---------------------------------------------------------------------------

@@ -14,15 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_UI_GRALLOC2_H
-#define ANDROID_UI_GRALLOC2_H
+#ifndef ANDROID_UI_GRALLOC3_H
+#define ANDROID_UI_GRALLOC3_H
 
 #include <string>
 
-#include <android/hardware/graphics/allocator/2.0/IAllocator.h>
+#include <android/hardware/graphics/allocator/3.0/IAllocator.h>
 #include <android/hardware/graphics/common/1.1/types.h>
-#include <android/hardware/graphics/mapper/2.0/IMapper.h>
-#include <android/hardware/graphics/mapper/2.1/IMapper.h>
+#include <android/hardware/graphics/mapper/3.0/IMapper.h>
 #include <ui/Gralloc.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
@@ -30,11 +29,11 @@
 
 namespace android {
 
-class Gralloc2Mapper : public GrallocMapper {
+class Gralloc3Mapper : public GrallocMapper {
 public:
     static void preload();
 
-    Gralloc2Mapper();
+    Gralloc3Mapper();
 
     bool isSupported() const override;
 
@@ -63,17 +62,16 @@ public:
 private:
     // Determines whether the passed info is compatible with the mapper.
     status_t validateBufferDescriptorInfo(
-            hardware::graphics::mapper::V2_1::IMapper::BufferDescriptorInfo* descriptorInfo) const;
+            hardware::graphics::mapper::V3_0::IMapper::BufferDescriptorInfo* descriptorInfo) const;
 
-    sp<hardware::graphics::mapper::V2_0::IMapper> mMapper;
-    sp<hardware::graphics::mapper::V2_1::IMapper> mMapperV2_1;
+    sp<hardware::graphics::mapper::V3_0::IMapper> mMapper;
 };
 
-class Gralloc2Allocator : public GrallocAllocator {
+class Gralloc3Allocator : public GrallocAllocator {
 public:
     // An allocator relies on a mapper, and that mapper must be alive at all
     // time.
-    Gralloc2Allocator(const Gralloc2Mapper& mapper);
+    Gralloc3Allocator(const Gralloc3Mapper& mapper);
 
     bool isSupported() const override;
 
@@ -84,10 +82,10 @@ public:
                       buffer_handle_t* outBufferHandles) const override;
 
 private:
-    const Gralloc2Mapper& mMapper;
-    sp<hardware::graphics::allocator::V2_0::IAllocator> mAllocator;
+    const Gralloc3Mapper& mMapper;
+    sp<hardware::graphics::allocator::V3_0::IAllocator> mAllocator;
 };
 
 } // namespace android
 
-#endif // ANDROID_UI_GRALLOC2_H
+#endif // ANDROID_UI_GRALLOC3_H

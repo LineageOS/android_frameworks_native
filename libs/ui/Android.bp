@@ -62,6 +62,7 @@ cc_library_shared {
         "FrameStats.cpp",
         "Gralloc.cpp",
         "Gralloc2.cpp",
+        "Gralloc3.cpp",
         "GraphicBuffer.cpp",
         "GraphicBufferAllocator.cpp",
         "GraphicBufferMapper.cpp",
@@ -79,9 +80,11 @@ cc_library_shared {
 
     shared_libs: [
         "android.hardware.graphics.allocator@2.0",
+        "android.hardware.graphics.allocator@3.0",
         "android.hardware.graphics.common@1.2",
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@2.1",
+        "android.hardware.graphics.mapper@3.0",
         "android.hardware.configstore@1.0",
         "android.hardware.configstore-utils",
         "libbase",

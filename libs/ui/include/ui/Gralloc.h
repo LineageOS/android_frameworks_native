@@ -31,6 +31,8 @@ class GrallocMapper {
 public:
     virtual ~GrallocMapper();
 
+    virtual bool isSupported() const = 0;
+
     virtual status_t createDescriptor(void* bufferDescriptorInfo,
                                       void* outBufferDescriptor) const = 0;
 
@@ -70,6 +72,8 @@ public:
 class GrallocAllocator {
 public:
     virtual ~GrallocAllocator();
+
+    virtual bool isSupported() const = 0;
 
     virtual std::string dumpDebugInfo() const = 0;
 

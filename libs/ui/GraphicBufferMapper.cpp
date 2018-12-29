@@ -34,6 +34,7 @@
 
 #include <ui/Gralloc.h>
 #include <ui/Gralloc2.h>
+#include <ui/Gralloc3.h>
 #include <ui/GraphicBuffer.h>
 
 #include <system/graphics.h>
@@ -45,9 +46,19 @@ ANDROID_SINGLETON_STATIC_INSTANCE( GraphicBufferMapper )
 
 void GraphicBufferMapper::preloadHal() {
     Gralloc2Mapper::preload();
+    Gralloc3Mapper::preload();
 }
 
-GraphicBufferMapper::GraphicBufferMapper() : mMapper(std::make_unique<const Gralloc2Mapper>()) {}
+GraphicBufferMapper::GraphicBufferMapper() {
+    mMapper = std::make_unique<const Gralloc3Mapper>();
+    if (!mMapper->isSupported()) {
+        mMapper = std::make_unique<const Gralloc2Mapper>();
+    }
+
+    if (!mMapper->isSupported()) {
+        LOG_ALWAYS_FATAL("gralloc-mapper is missing");
+    }
+}
 
 status_t GraphicBufferMapper::importBuffer(buffer_handle_t rawHandle,
         uint32_t width, uint32_t height, uint32_t layerCount,
