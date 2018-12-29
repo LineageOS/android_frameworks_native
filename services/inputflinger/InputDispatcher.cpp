@@ -2691,7 +2691,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             event.initialize(args->deviceId, args->source, args->displayId,
                     args->action, args->actionButton,
                     args->flags, args->edgeFlags, args->metaState, args->buttonState,
-                    0, 0, args->xPrecision, args->yPrecision,
+                    MotionClassification::NONE, 0, 0, args->xPrecision, args->yPrecision,
                     args->downTime, args->eventTime,
                     args->pointerCount, args->pointerProperties, args->pointerCoords);
 

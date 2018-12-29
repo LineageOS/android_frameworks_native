@@ -220,6 +220,27 @@ enum {
     POLICY_FLAG_PASS_TO_USER = 0x40000000,
 };
 
+/**
+ * Classifications of the current gesture, if available.
+ *
+ * The following values must be kept in sync with MotionEvent.java
+ */
+enum class MotionClassification : uint8_t {
+    /**
+     * No classification is available.
+     */
+    NONE = 0,
+    /**
+     * Too early to classify the current gesture. Need more events. Look for changes in the
+     * upcoming motion events.
+     */
+    AMBIGUOUS_GESTURE = 1,
+    /**
+     * The current gesture likely represents a user intentionally exerting force on the touchscreen.
+     */
+    DEEP_PRESS = 2,
+};
+
 /*
  * Pointer coordinate data.
  */
@@ -419,6 +440,8 @@ public:
 
     inline void setButtonState(int32_t buttonState) { mButtonState = buttonState; }
 
+    inline MotionClassification getClassification() const { return mClassification; }
+
     inline int32_t getActionButton() const { return mActionButton; }
 
     inline void setActionButton(int32_t button) { mActionButton = button; }
@@ -582,6 +605,7 @@ public:
             int32_t edgeFlags,
             int32_t metaState,
             int32_t buttonState,
+            MotionClassification classification,
             float xOffset,
             float yOffset,
             float xPrecision,
@@ -635,6 +659,7 @@ protected:
     int32_t mEdgeFlags;
     int32_t mMetaState;
     int32_t mButtonState;
+    MotionClassification mClassification;
     float mXOffset;
     float mYOffset;
     float mXPrecision;

@@ -260,7 +260,7 @@ void MotionEventTest::initializeEventWithHistory(MotionEvent* event) {
     event->initialize(2, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE, 0,
             AMOTION_EVENT_FLAG_WINDOW_IS_OBSCURED,
             AMOTION_EVENT_EDGE_FLAG_TOP, AMETA_ALT_ON, AMOTION_EVENT_BUTTON_PRIMARY,
-            X_OFFSET, Y_OFFSET, 2.0f, 2.1f,
+            MotionClassification::NONE, X_OFFSET, Y_OFFSET, 2.0f, 2.1f,
             ARBITRARY_DOWN_TIME, ARBITRARY_EVENT_TIME,
             2, pointerProperties, pointerCoords);
 
@@ -572,8 +572,11 @@ TEST_F(MotionEventTest, Transform) {
         pointerCoords[i].setAxisValue(AMOTION_EVENT_AXIS_ORIENTATION, angle);
     }
     MotionEvent event;
-    event.initialize(0, 0, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, pointerCount, pointerProperties, pointerCoords);
+    event.initialize(0 /*deviceId*/, AINPUT_SOURCE_UNKNOWN, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE,
+            0 /*actionButton*/, 0 /*flags*/, AMOTION_EVENT_EDGE_FLAG_NONE,
+            AMETA_NONE, 0 /*buttonState*/, MotionClassification::NONE,
+            0 /*xOffset*/, 0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
+            0 /*downTime*/, 0 /*eventTime*/, pointerCount, pointerProperties, pointerCoords);
     float originalRawX = 0 + 3;
     float originalRawY = -RADIUS + 2;
 
