@@ -151,7 +151,8 @@ ProgramCache::Key ProgramCache::computeKey(const Description& description) {
     needs.set(Key::Y410_BT2020_MASK,
               description.isY410BT2020 ? Key::Y410_BT2020_ON : Key::Y410_BT2020_OFF);
 
-    if (needs.hasTransformMatrix() || (needs.getInputTF() != needs.getOutputTF())) {
+    if (needs.hasTransformMatrix() ||
+        (description.inputTransferFunction != description.outputTransferFunction)) {
         switch (description.inputTransferFunction) {
             case Description::TransferFunction::LINEAR:
             default:

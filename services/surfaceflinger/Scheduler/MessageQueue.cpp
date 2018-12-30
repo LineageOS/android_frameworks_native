@@ -101,7 +101,7 @@ void MessageQueue::setEventThread(android::EventThread* eventThread) {
                    this);
 }
 
-void MessageQueue::setEventConnection(const sp<BnDisplayEventConnection>& connection) {
+void MessageQueue::setEventConnection(const sp<EventThreadConnection>& connection) {
     if (mEventTube.getFd() >= 0) {
         mLooper->removeFd(mEventTube.getFd());
     }

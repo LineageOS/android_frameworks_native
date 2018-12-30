@@ -37,6 +37,8 @@
 #include <linux/input.h>
 #include <sys/epoll.h>
 
+#include "TouchVideoDevice.h"
+
 /* Convenience constants. */
 
 #define BTN_FIRST 0x100  // first button code
@@ -334,6 +336,8 @@ private:
         const std::string path;
         const InputDeviceIdentifier identifier;
 
+        std::unique_ptr<TouchVideoDevice> videoDevice;
+
         uint32_t classes;
 
         uint8_t keyBitmask[(KEY_MAX + 1) / 8];
@@ -378,11 +382,13 @@ private:
     };
 
     status_t openDeviceLocked(const char *devicePath);
+    void openVideoDeviceLocked(const std::string& devicePath);
     void createVirtualKeyboardLocked();
     void addDeviceLocked(Device* device);
     void assignDescriptorLocked(InputDeviceIdentifier& identifier);
 
-    status_t closeDeviceByPathLocked(const char *devicePath);
+    void closeDeviceByPathLocked(const char *devicePath);
+    void closeVideoDeviceByPathLocked(const std::string& devicePath);
     void closeDeviceLocked(Device* device);
     void closeAllDevicesLocked();
 
@@ -397,6 +403,7 @@ private:
     status_t unregisterDeviceFromEpollLocked(Device* device);
 
     status_t scanDirLocked(const char *dirname);
+    status_t scanVideoDirLocked(const std::string& dirname);
     void scanDevicesLocked();
     status_t readNotifyLocked();
 
@@ -438,6 +445,14 @@ private:
     BitSet32 mControllerNumbers;
 
     KeyedVector<int32_t, Device*> mDevices;
+    /**
+     * Video devices that report touchscreen heatmap, but have not (yet) been paired
+     * with a specific input device. Video device discovery is independent from input device
+     * discovery, so the two types of devices could be found in any order.
+     * Ideally, video devices in this queue do not have an open fd, or at least aren't
+     * actively streaming.
+     */
+    std::vector<std::unique_ptr<TouchVideoDevice>> mUnattachedVideoDevices;
 
     Device *mOpeningDevices;
     Device *mClosingDevices;

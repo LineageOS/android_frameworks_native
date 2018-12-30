@@ -62,6 +62,7 @@ cc_library_shared {
         "EventHub.cpp",
         "InputReader.cpp",
         "InputReaderFactory.cpp",
+        "TouchVideoDevice.cpp",
     ],
 
     shared_libs: [
