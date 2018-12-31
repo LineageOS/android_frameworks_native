@@ -1,0 +1,50 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "dfc76445_98dd36fd",
+        "filename": "services/surfaceflinger/DisplayHardware/HWComposer.h",
+        "patchSetId": 2
+      },
+      "lineNbr": 186,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-12-31T22:48:09Z",
+      "side": 1,
+      "message": "For reference: this is defined as 2 in hwcomposer_defs.h.",
+      "range": {
+        "startLine": 186,
+        "startChar": 51,
+        "endLine": 186,
+        "endChar": 70
+      },
+      "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "5ec3dddb_11e67418",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 2297,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2018-12-31T22:48:09Z",
+      "side": 1,
+      "message": "I\u0027m having a hard time following what QC is intending here.\n\nThis is extra weird because display \u003c NUM_BUILTIN_DISPLAY_TYPES means display \u003d\u003d 0 or display \u003d\u003d 1 will pass this check. However, returning DisplayDevice::DISPLAY_PRIMARY (0) and DisplayDevice::DISPLAY_EXTERNAL (1) above should result in the same end result as this fallback block.\n\nShouldn\u0027t this just fix the detection logic above instead of hacking in a general fallback case?",
+      "range": {
+        "startLine": 2297,
+        "startChar": 15,
+        "endLine": 2297,
+        "endChar": 85
+      },
+      "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    }
+  ]
+}
