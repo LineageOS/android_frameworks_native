@@ -203,10 +203,10 @@ private:
     // requested buffer usage or geometry differs from that of the buffer
     // allocated to a slot.
     struct BufferHubSlot : public BufferSlot {
-        BufferHubSlot() : mBufferProducer(nullptr), mIsReallocating(false) {}
+        BufferHubSlot() : mProducerBuffer(nullptr), mIsReallocating(false) {}
         // BufferSlot comes from android framework, using m prefix to comply with
         // the name convention with the reset of data fields from BufferSlot.
-        std::shared_ptr<dvr::BufferProducer> mBufferProducer;
+        std::shared_ptr<dvr::ProducerBuffer> mProducerBuffer;
         bool mIsReallocating;
     };
     BufferHubSlot buffers_[dvr::BufferHubQueue::kMaxQueueCapacity];

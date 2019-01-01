@@ -14,7 +14,6 @@ using android::dvr::display::DisplayClient;
 using android::dvr::display::Surface;
 using android::dvr::display::SurfaceAttributes;
 using android::dvr::display::SurfaceAttributeValue;
-using android::dvr::CreateDvrReadBufferFromBufferConsumer;
 using android::pdx::rpc::EmptyVariant;
 
 namespace {

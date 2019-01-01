@@ -6,23 +6,13 @@
 namespace android {
 namespace dvr {
 
-// BufferProducer was originally poorly named and gets easily confused with
-// IGraphicBufferProducer. Actually, BufferProducer is a single buffer that can
-// produce (i.e. write) data into a buffer, but it doesn't produce buffer. On
-// the other hand, IGraphicBufferProducer is the producer end of a BufferQueue
-// and it is used to produce buffers.
-//
-// TODO(b/116855254): Remove this typedef once rename is complete in other
-// projects and/or branches.
-typedef class ProducerBuffer BufferProducer;
-
 // This represents a writable buffer. Calling Post notifies all clients and
 // makes the buffer read-only. Call Gain to acquire write access. A buffer
 // may have many consumers.
 //
 // The user of ProducerBuffer is responsible with making sure that the Post() is
 // done with the correct metadata type and size. The user is also responsible
-// for making sure that remote ends (BufferConsumers) are also using the correct
+// for making sure that remote ends (ConsumerBuffers) are also using the correct
 // metadata when acquiring the buffer. The API guarantees that a Post() with a
 // metadata of wrong size will fail. However, it currently does not do any
 // type checking.

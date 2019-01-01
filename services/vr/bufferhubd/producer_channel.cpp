@@ -455,7 +455,7 @@ Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   uint32_t buffer_state = buffer_state_->load(std::memory_order_acquire);
   if (!BufferHubDefs::IsClientGained(
       buffer_state, BufferHubDefs::kFirstClientStateMask)) {
-    // Can only detach a BufferProducer when it's in gained state.
+    // Can only detach a ProducerBuffer when it's in gained state.
     ALOGW(
         "ProducerChannel::OnProducerDetach: The buffer (id=%d, state=%"
         PRIx32

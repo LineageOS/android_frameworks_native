@@ -6,16 +6,6 @@
 namespace android {
 namespace dvr {
 
-// BufferConsumer was originally poorly named and gets easily confused with
-// IGraphicBufferConsumer. Actually, BufferConsumer is a single buffer that can
-// consume (i.e. read) data from a buffer, but it doesn't consume buffer. On
-// the other hand, IGraphicBufferConsumer is the consumer end of a BufferQueue
-// and it is used to consume buffers.
-//
-// TODO(b/116855254): Remove this typedef once rename is complete in other
-// projects and/or branches.
-typedef class ConsumerBuffer BufferConsumer;
-
 // This is a connection to a producer buffer, which can be located in another
 // application. When that buffer is Post()ed, this fd will be signaled and
 // Acquire allows read access. The user is responsible for making sure that

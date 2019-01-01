@@ -64,13 +64,13 @@ status_t BufferHubProducer::requestBuffer(int slot, sp<GraphicBuffer>* buf) {
     } else if (buffers_[slot].mGraphicBuffer != nullptr) {
         ALOGE("requestBuffer: slot %d is not empty.", slot);
         return BAD_VALUE;
-    } else if (buffers_[slot].mBufferProducer == nullptr) {
+    } else if (buffers_[slot].mProducerBuffer == nullptr) {
         ALOGE("requestBuffer: slot %d is not dequeued.", slot);
         return BAD_VALUE;
     }
 
-    const auto& buffer_producer = buffers_[slot].mBufferProducer;
-    sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
+    const auto& producer_buffer = buffers_[slot].mProducerBuffer;
+    sp<GraphicBuffer> graphic_buffer = producer_buffer->buffer()->buffer();
 
     buffers_[slot].mGraphicBuffer = graphic_buffer;
     buffers_[slot].mRequestBufferCalled = true;
@@ -158,19 +158,19 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
     }
 
     size_t slot = 0;
-    std::shared_ptr<BufferProducer> buffer_producer;
+    std::shared_ptr<ProducerBuffer> producer_buffer;
 
     for (size_t retry = 0; retry < BufferHubQueue::kMaxQueueCapacity; retry++) {
         LocalHandle fence;
         auto buffer_status = queue_->Dequeue(dequeue_timeout_ms_, &slot, &fence);
         if (!buffer_status) return NO_MEMORY;
 
-        buffer_producer = buffer_status.take();
-        if (!buffer_producer) return NO_MEMORY;
+        producer_buffer = buffer_status.take();
+        if (!producer_buffer) return NO_MEMORY;
 
-        if (width == buffer_producer->width() && height == buffer_producer->height() &&
-            uint32_t(format) == buffer_producer->format()) {
-            // The producer queue returns a buffer producer matches the request.
+        if (width == producer_buffer->width() && height == producer_buffer->height() &&
+            uint32_t(format) == producer_buffer->format()) {
+            // The producer queue returns a producer buffer matches the request.
             break;
         }
 
@@ -179,8 +179,8 @@ status_t BufferHubProducer::dequeueBuffer(int* out_slot, sp<Fence>* out_fence, u
         ALOGI("dequeueBuffer: requested buffer (w=%u, h=%u, format=%u) is different "
               "from the buffer returned at slot: %zu (w=%u, h=%u, format=%u). Need "
               "re-allocattion.",
-              width, height, format, slot, buffer_producer->width(), buffer_producer->height(),
-              buffer_producer->format());
+              width, height, format, slot, producer_buffer->width(), producer_buffer->height(),
+              producer_buffer->format());
         // Mark the slot as reallocating, so that later we can set
         // BUFFER_NEEDS_REALLOCATION when the buffer actually get dequeued.
         buffers_[slot].mIsReallocating = true;
@@ -249,18 +249,18 @@ status_t BufferHubProducer::DetachBufferLocked(size_t slot) {
         ALOGE("detachBuffer: buffer in slot %zu has not been requested", slot);
         return BAD_VALUE;
     }
-    std::shared_ptr<BufferProducer> buffer_producer = queue_->GetBuffer(slot);
-    if (buffer_producer == nullptr || buffer_producer->buffer() == nullptr) {
-        ALOGE("detachBuffer: Invalid BufferProducer at slot %zu.", slot);
+    std::shared_ptr<ProducerBuffer> producer_buffer = queue_->GetBuffer(slot);
+    if (producer_buffer == nullptr || producer_buffer->buffer() == nullptr) {
+        ALOGE("detachBuffer: Invalid ProducerBuffer at slot %zu.", slot);
         return BAD_VALUE;
     }
-    sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
+    sp<GraphicBuffer> graphic_buffer = producer_buffer->buffer()->buffer();
     if (graphic_buffer == nullptr) {
         ALOGE("detachBuffer: Invalid GraphicBuffer at slot %zu.", slot);
         return BAD_VALUE;
     }
 
-    // Remove the BufferProducer from the ProducerQueue.
+    // Remove the ProducerBuffer from the ProducerQueue.
     status_t error = RemoveBuffer(slot);
     if (error != NO_ERROR) {
         ALOGE("detachBuffer: Failed to remove buffer, slot=%zu, error=%d.", slot, error);
@@ -269,9 +269,9 @@ status_t BufferHubProducer::DetachBufferLocked(size_t slot) {
 
     // Here we need to convert the existing ProducerBuffer into a DetachedBufferHandle and inject
     // the handle into the GraphicBuffer object at the requested slot.
-    auto status_or_handle = buffer_producer->Detach();
+    auto status_or_handle = producer_buffer->Detach();
     if (!status_or_handle.ok()) {
-        ALOGE("detachBuffer: Failed to detach from a BufferProducer at slot %zu, error=%d.", slot,
+        ALOGE("detachBuffer: Failed to detach from a ProducerBuffer at slot %zu, error=%d.", slot,
               status_or_handle.error());
         return BAD_VALUE;
     }
@@ -301,14 +301,14 @@ status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<F
     // sequence, except for two things:
     //
     // 1) It is unnecessary to know the dimensions, format, or usage of the next buffer, i.e. the
-    // function just returns whatever BufferProducer is available from the ProducerQueue and no
+    // function just returns whatever ProducerBuffer is available from the ProducerQueue and no
     // buffer allocation or re-allocation will happen.
     // 2) It will not block, since if it cannot find an appropriate buffer to return, it will return
     // an error instead.
     size_t slot = 0;
     LocalHandle fence;
 
-    // First, dequeue a BufferProducer from the ProducerQueue with no timeout. Report error
+    // First, dequeue a ProducerBuffer from the ProducerQueue with no timeout. Report error
     // immediately if ProducerQueue::Dequeue() fails.
     auto status_or_buffer = queue_->Dequeue(/*timeout=*/0, &slot, &fence);
     if (!status_or_buffer.ok()) {
@@ -316,8 +316,8 @@ status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<F
         return NO_MEMORY;
     }
 
-    std::shared_ptr<BufferProducer> buffer_producer = status_or_buffer.take();
-    if (buffer_producer == nullptr) {
+    std::shared_ptr<ProducerBuffer> producer_buffer = status_or_buffer.take();
+    if (producer_buffer == nullptr) {
         ALOGE("detachNextBuffer: Dequeued buffer is null.");
         return NO_MEMORY;
     }
@@ -331,14 +331,14 @@ status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<F
               buffers_[slot].mBufferState.string());
         return BAD_VALUE;
     }
-    if (buffers_[slot].mBufferProducer == nullptr) {
-        ALOGE("detachNextBuffer: BufferProducer at slot %zu is null.", slot);
+    if (buffers_[slot].mProducerBuffer == nullptr) {
+        ALOGE("detachNextBuffer: ProducerBuffer at slot %zu is null.", slot);
         return BAD_VALUE;
     }
-    if (buffers_[slot].mBufferProducer->id() != buffer_producer->id()) {
-        ALOGE("detachNextBuffer: BufferProducer at slot %zu has mismatched id, actual: "
+    if (buffers_[slot].mProducerBuffer->id() != producer_buffer->id()) {
+        ALOGE("detachNextBuffer: ProducerBuffer at slot %zu has mismatched id, actual: "
               "%d, expected: %d.",
-              slot, buffers_[slot].mBufferProducer->id(), buffer_producer->id());
+              slot, buffers_[slot].mProducerBuffer->id(), producer_buffer->id());
         return BAD_VALUE;
     }
 
@@ -347,8 +347,8 @@ status_t BufferHubProducer::detachNextBuffer(sp<GraphicBuffer>* out_buffer, sp<F
     buffers_[slot].mBufferState.dequeue();
 
     // Second, request the buffer.
-    sp<GraphicBuffer> graphic_buffer = buffer_producer->buffer()->buffer();
-    buffers_[slot].mGraphicBuffer = buffer_producer->buffer()->buffer();
+    sp<GraphicBuffer> graphic_buffer = producer_buffer->buffer()->buffer();
+    buffers_[slot].mGraphicBuffer = producer_buffer->buffer()->buffer();
 
     // Finally, detach the buffer and then return.
     status_t error = DetachBufferLocked(slot);
@@ -452,11 +452,11 @@ status_t BufferHubProducer::queueBuffer(int slot, const QueueBufferInput& input,
         return BAD_VALUE;
     }
 
-    // Post the buffer producer with timestamp in the metadata.
-    const auto& buffer_producer = buffers_[slot].mBufferProducer;
+    // Post the producer buffer with timestamp in the metadata.
+    const auto& producer_buffer = buffers_[slot].mProducerBuffer;
 
     // Check input crop is not out of boundary of current buffer.
-    Rect buffer_rect(buffer_producer->width(), buffer_producer->height());
+    Rect buffer_rect(producer_buffer->width(), producer_buffer->height());
     Rect cropped_rect(Rect::EMPTY_RECT);
     crop.intersect(buffer_rect, &cropped_rect);
     if (cropped_rect != crop) {
@@ -477,11 +477,11 @@ status_t BufferHubProducer::queueBuffer(int slot, const QueueBufferInput& input,
     meta_data.scaling_mode = int32_t(scaling_mode);
     meta_data.transform = int32_t(transform);
 
-    buffer_producer->PostAsync(&meta_data, fence_fd);
+    producer_buffer->PostAsync(&meta_data, fence_fd);
     buffers_[slot].mBufferState.queue();
 
-    output->width = buffer_producer->width();
-    output->height = buffer_producer->height();
+    output->width = producer_buffer->width();
+    output->height = producer_buffer->height();
     output->transformHint = 0; // default value, we don't use it yet.
 
     // |numPendingBuffers| counts of the number of buffers that has been enqueued
@@ -519,8 +519,8 @@ status_t BufferHubProducer::cancelBuffer(int slot, const sp<Fence>& fence) {
         return BAD_VALUE;
     }
 
-    auto buffer_producer = buffers_[slot].mBufferProducer;
-    queue_->Enqueue(buffer_producer, size_t(slot), 0U);
+    auto producer_buffer = buffers_[slot].mProducerBuffer;
+    queue_->Enqueue(producer_buffer, size_t(slot), 0U);
     buffers_[slot].mBufferState.cancel();
     buffers_[slot].mFence = fence;
     ALOGV("cancelBuffer: slot %d", slot);
@@ -791,12 +791,12 @@ status_t BufferHubProducer::AllocateBuffer(uint32_t width, uint32_t height, uint
     }
 
     size_t slot = status.get();
-    auto buffer_producer = queue_->GetBuffer(slot);
+    auto producer_buffer = queue_->GetBuffer(slot);
 
-    LOG_ALWAYS_FATAL_IF(buffer_producer == nullptr, "Failed to get buffer producer at slot: %zu",
-                        slot);
+    LOG_ALWAYS_FATAL_IF(producer_buffer == nullptr,
+                        "Failed to get the producer buffer at slot: %zu", slot);
 
-    buffers_[slot].mBufferProducer = buffer_producer;
+    buffers_[slot].mProducerBuffer = producer_buffer;
 
     return NO_ERROR;
 }
@@ -810,7 +810,7 @@ status_t BufferHubProducer::RemoveBuffer(size_t slot) {
     }
 
     // Reset in memory objects related the the buffer.
-    buffers_[slot].mBufferProducer = nullptr;
+    buffers_[slot].mProducerBuffer = nullptr;
     buffers_[slot].mBufferState.detachProducer();
     buffers_[slot].mFence = Fence::NO_FENCE;
     buffers_[slot].mGraphicBuffer = nullptr;
@@ -821,7 +821,7 @@ status_t BufferHubProducer::RemoveBuffer(size_t slot) {
 status_t BufferHubProducer::FreeAllBuffers() {
     for (size_t slot = 0; slot < BufferHubQueue::kMaxQueueCapacity; slot++) {
         // Reset in memory objects related the the buffer.
-        buffers_[slot].mBufferProducer = nullptr;
+        buffers_[slot].mProducerBuffer = nullptr;
         buffers_[slot].mBufferState.reset();
         buffers_[slot].mFence = Fence::NO_FENCE;
         buffers_[slot].mGraphicBuffer = nullptr;
