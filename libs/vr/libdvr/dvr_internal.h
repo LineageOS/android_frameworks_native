@@ -16,20 +16,10 @@ typedef struct DvrWriteBuffer DvrWriteBuffer;
 namespace android {
 namespace dvr {
 
-// TODO(b/116855254): Remove this typedef once rename is complete in libdvr.
-// Note that the dvr::BufferProducer and dvr::BufferConsumer were poorly named,
-// they should really be named as ProducerBuffer and ConsumerBuffer.
-typedef class ProducerBuffer BufferProducer;
-typedef class ConsumerBuffer BufferConsumer;
 class IonBuffer;
 
 DvrBuffer* CreateDvrBufferFromIonBuffer(
     const std::shared_ptr<IonBuffer>& ion_buffer);
-
-DvrReadBuffer* CreateDvrReadBufferFromBufferConsumer(
-    const std::shared_ptr<BufferConsumer>& buffer_consumer);
-DvrWriteBuffer* CreateDvrWriteBufferFromBufferProducer(
-    const std::shared_ptr<BufferProducer>& buffer_producer);
 
 }  // namespace dvr
 }  // namespace android
@@ -42,7 +32,7 @@ struct DvrWriteBuffer {
   // DvrWriteBuffer acquired from a DvrWriteBufferQueue.
   int32_t slot = -1;
 
-  std::shared_ptr<android::dvr::BufferProducer> write_buffer;
+  std::shared_ptr<android::dvr::ProducerBuffer> write_buffer;
 };
 
 struct DvrReadBuffer {
@@ -51,7 +41,7 @@ struct DvrReadBuffer {
   // DvrReadBuffer acquired from a DvrReadBufferQueue.
   int32_t slot = -1;
 
-  std::shared_ptr<android::dvr::BufferConsumer> read_buffer;
+  std::shared_ptr<android::dvr::ConsumerBuffer> read_buffer;
 };
 
 struct DvrBuffer {

@@ -41,12 +41,12 @@ class BufferHubChannel : public pdx::Channel {
 
   // Captures buffer info for use by BufferHubService::DumpState().
   struct BufferInfo {
-    // Common data field shared by BufferProducer and ProducerQueue.
+    // Common data field shared by ProducerBuffer and ProducerQueue.
     int id = -1;
     int type = -1;
     size_t consumer_count = 0;
 
-    // Data field for buffer producer.
+    // Data field for producer buffer.
     uint32_t width = 0;
     uint32_t height = 0;
     uint32_t layer_count = 0;
