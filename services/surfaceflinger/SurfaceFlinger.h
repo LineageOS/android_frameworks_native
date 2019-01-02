@@ -442,7 +442,8 @@ private:
     virtual void destroyDisplay(const sp<IBinder>& displayToken);
     virtual sp<IBinder> getBuiltInDisplay(int32_t id);
     virtual void setTransactionState(const Vector<ComposerState>& state,
-            const Vector<DisplayState>& displays, uint32_t flags);
+                                     const Vector<DisplayState>& displays, uint32_t flags,
+                                     const sp<IBinder>& applyToken);
     virtual void bootFinished();
     virtual bool authenticateSurfaceTexture(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
@@ -553,6 +554,10 @@ private:
     /* ------------------------------------------------------------------------
      * Transactions
      */
+    void applyTransactionState(const Vector<ComposerState>& state,
+                               const Vector<DisplayState>& displays, uint32_t flags)
+            REQUIRES(mStateLock);
+    bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
     // Can only be called from the main thread or with mStateLock held
@@ -561,6 +566,7 @@ private:
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
+    bool composerStateContainsUnsignaledFences(const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
     void setDestroyStateLocked(const ComposerState& composerState);
@@ -964,6 +970,22 @@ private:
     std::mutex mTexturePoolMutex;
     uint32_t mTexturePoolSize = 0;
     std::vector<uint32_t> mTexturePool;
+
+    struct IBinderHash {
+        std::size_t operator()(const sp<IBinder>& strongPointer) const {
+            return std::hash<IBinder*>{}(strongPointer.get());
+        }
+    };
+    struct TransactionState {
+        TransactionState(const Vector<ComposerState>& composerStates,
+                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags)
+              : states(composerStates), displays(displayStates), flags(transactionFlags) {}
+
+        Vector<ComposerState> states;
+        Vector<DisplayState> displays;
+        uint32_t flags;
+    };
+    std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IBinderHash> mTransactionQueues;
 
     /* ------------------------------------------------------------------------
      * Feature prototyping
