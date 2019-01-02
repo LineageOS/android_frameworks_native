@@ -58,7 +58,7 @@ class ColorFract {
     float c2(void) const { return _c2; }
     float c3(void) const { return _c3; }
 
-    operator std::string();
+    operator std::string(); // NOLINT(google-explicit-constructor)
 
   private:
     float _c1;
@@ -71,7 +71,7 @@ class ColorFract {
 class ColorRGB {
   public:
     ColorRGB(): _r(0.0), _g(0.0), _b(0.0) {};
-    ColorRGB(float f): _r(f), _g(f), _b(f) {}; // Gray, NOLINT(implicit)
+    ColorRGB(float f): _r(f), _g(f), _b(f) {}; // Gray, NOLINT(google-explicit-constructor)
     ColorRGB(float r, float g, float b): _r(r), _g(g), _b(b) {};
     float r(void) const { return _r; }
     float g(void) const { return _g; }
@@ -93,8 +93,8 @@ class HwcTestDim {
     void setWidth(uint32_t w) { _w = w; }
     void setHeight(uint32_t h) { _h = h; }
 
-    operator std::string();
-    operator hwc_rect() const;
+    operator std::string(); // NOLINT(google-explicit-constructor)
+    operator hwc_rect() const; // NOLINT(google-explicit-constructor)
 
   private:
     uint32_t _w;
