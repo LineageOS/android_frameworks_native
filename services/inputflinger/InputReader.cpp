@@ -2834,7 +2834,8 @@ void CursorInputMapper::sync(nsecs_t when) {
                 NotifyMotionArgs releaseArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
                         mSource, displayId, policyFlags,
                         AMOTION_EVENT_ACTION_BUTTON_RELEASE, actionButton, 0,
-                        metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+                        metaState, buttonState,
+                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                         /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                         mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
                 getListener()->notifyMotion(&releaseArgs);
@@ -2843,7 +2844,7 @@ void CursorInputMapper::sync(nsecs_t when) {
 
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), mSource,
                 displayId, policyFlags, motionEventAction, 0, 0, metaState, currentButtonState,
-                AMOTION_EVENT_EDGE_FLAG_NONE,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                 mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
@@ -2855,7 +2856,8 @@ void CursorInputMapper::sync(nsecs_t when) {
                 buttonState |= actionButton;
                 NotifyMotionArgs pressArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
                         mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_BUTTON_PRESS,
-                        actionButton, 0, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+                        actionButton, 0, metaState, buttonState,
+                        MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                         /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                         mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
                 getListener()->notifyMotion(&pressArgs);
@@ -2869,7 +2871,8 @@ void CursorInputMapper::sync(nsecs_t when) {
                 && (mSource == AINPUT_SOURCE_MOUSE)) {
             NotifyMotionArgs hoverArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
                     mSource, displayId, policyFlags, AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
-                    metaState, currentButtonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+                    metaState, currentButtonState,
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                     /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                     mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
             getListener()->notifyMotion(&hoverArgs);
@@ -2883,7 +2886,7 @@ void CursorInputMapper::sync(nsecs_t when) {
             NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
                     mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, currentButtonState,
-                    AMOTION_EVENT_EDGE_FLAG_NONE,
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                     /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                     mXPrecision, mYPrecision, downTime, /* videoFrames */ {});
             getListener()->notifyMotion(&scrollArgs);
@@ -3014,8 +3017,8 @@ void RotaryEncoderInputMapper::sync(nsecs_t when) {
 
         NotifyMotionArgs scrollArgs(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
-                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, 0,
-                AMOTION_EVENT_EDGE_FLAG_NONE,
+                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, /* buttonState */ 0,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                 0, 0, 0, /* videoFrames */ {});
         getListener()->notifyMotion(&scrollArgs);
@@ -5413,7 +5416,7 @@ void TouchInputMapper::dispatchPointerGestures(nsecs_t when, uint32_t policyFlag
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0,
-                metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
+                metaState, buttonState, MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                 /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
                 0, 0, mPointerGesture.downTime, /* videoFrames */ {});
         getListener()->notifyMotion(&args);
@@ -6338,8 +6341,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         // Send up.
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
-                AMOTION_EVENT_ACTION_UP, 0, 0, metaState, mLastRawState.buttonState, 0,
-                /* deviceTimestamp */ 0,
+                AMOTION_EVENT_ACTION_UP, 0, 0, metaState, mLastRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
                 mPointerSimple.downTime, /* videoFrames */ {});
@@ -6352,8 +6355,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         // Send hover exit.
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
-                AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState, mLastRawState.buttonState, 0,
-                /* deviceTimestamp */ 0,
+                AMOTION_EVENT_ACTION_HOVER_EXIT, 0, 0, metaState, mLastRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.lastProperties, &mPointerSimple.lastCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
                 mPointerSimple.downTime, /* videoFrames */ {});
@@ -6368,7 +6371,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             // Send down.
             NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                     mSource, displayId, policyFlags,
-                    AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState, mCurrentRawState.buttonState, 0,
+                    AMOTION_EVENT_ACTION_DOWN, 0, 0, metaState, mCurrentRawState.buttonState,
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                     /* deviceTimestamp */ 0,
                     1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                     mOrientedXPrecision, mOrientedYPrecision,
@@ -6379,8 +6383,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         // Send move.
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
-                AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, mCurrentRawState.buttonState, 0,
-                /* deviceTimestamp */ 0,
+                AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, mCurrentRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
                 mPointerSimple.downTime, /* videoFrames */ {});
@@ -6395,8 +6399,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
             NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                     mSource, displayId, policyFlags,
                     AMOTION_EVENT_ACTION_HOVER_ENTER, 0, 0, metaState,
-                    mCurrentRawState.buttonState, 0,
-                    /* deviceTimestamp */ 0,
+                    mCurrentRawState.buttonState, MotionClassification::NONE,
+                    AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                     1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                     mOrientedXPrecision, mOrientedYPrecision,
                     mPointerSimple.downTime, /* videoFrames */ {});
@@ -6407,8 +6411,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
                 AMOTION_EVENT_ACTION_HOVER_MOVE, 0, 0, metaState,
-                mCurrentRawState.buttonState, 0,
-                /* deviceTimestamp */ 0,
+                mCurrentRawState.buttonState, MotionClassification::NONE,
+                AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &mPointerSimple.currentCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
                 mPointerSimple.downTime, /* videoFrames */ {});
@@ -6429,8 +6433,8 @@ void TouchInputMapper::dispatchPointerSimple(nsecs_t when, uint32_t policyFlags,
 
         NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
                 mSource, displayId, policyFlags,
-                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, mCurrentRawState.buttonState, 0,
-                /* deviceTimestamp */ 0,
+                AMOTION_EVENT_ACTION_SCROLL, 0, 0, metaState, mCurrentRawState.buttonState,
+                MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0,
                 1, &mPointerSimple.currentProperties, &pointerCoords,
                 mOrientedXPrecision, mOrientedYPrecision,
                 mPointerSimple.downTime, /* videoFrames */ {});
@@ -6497,8 +6501,8 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
     std::vector<TouchVideoFrame> frames = mDevice->getEventHub()->getVideoFrames(deviceId);
     NotifyMotionArgs args(mContext->getNextSequenceNum(), when, deviceId,
             source, displayId, policyFlags,
-            action, actionButton, flags, metaState, buttonState, edgeFlags,
-            deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
+            action, actionButton, flags, metaState, buttonState, MotionClassification::NONE,
+            edgeFlags, deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
             xPrecision, yPrecision, downTime, std::move(frames));
     getListener()->notifyMotion(&args);
 }
@@ -7422,9 +7426,9 @@ void JoystickInputMapper::sync(nsecs_t when, bool force) {
 
     NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(),
             AINPUT_SOURCE_JOYSTICK, ADISPLAY_ID_NONE, policyFlags,
-            AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState, AMOTION_EVENT_EDGE_FLAG_NONE,
-            /* deviceTimestamp */ 0, 1, &pointerProperties, &pointerCoords,
-            0, 0, 0, /* videoFrames */ {});
+            AMOTION_EVENT_ACTION_MOVE, 0, 0, metaState, buttonState, MotionClassification::NONE,
+            AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0, 1,
+            &pointerProperties, &pointerCoords, 0, 0, 0, /* videoFrames */ {});
     getListener()->notifyMotion(&args);
 }
 
