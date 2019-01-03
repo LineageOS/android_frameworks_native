@@ -268,7 +268,11 @@ int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) {
     AHardwareBuffer_Desc trialDesc = *desc;
     trialDesc.width = 4;
     trialDesc.height = desc->format == AHARDWAREBUFFER_FORMAT_BLOB ? 1 : 4;
-    trialDesc.layers = desc->layers == 1 ? 1 : 2;
+    if (desc->usage & AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP) {
+        trialDesc.layers = desc->layers == 6 ? 6 : 12;
+    } else {
+        trialDesc.layers = desc->layers == 1 ? 1 : 2;
+    }
     AHardwareBuffer* trialBuffer = nullptr;
     int result = AHardwareBuffer_allocate(&trialDesc, &trialBuffer);
     if (result == NO_ERROR) {
