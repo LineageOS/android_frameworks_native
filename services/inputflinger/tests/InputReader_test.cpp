@@ -692,6 +692,10 @@ private:
         return 1;
     }
 
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) {
+        return {};
+    }
+
     virtual int32_t getScanCodeState(int32_t deviceId, int32_t scanCode) const {
         Device* device = getDevice(deviceId);
         if (device) {

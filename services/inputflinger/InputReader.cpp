@@ -6483,11 +6483,13 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
         }
     }
 
-    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, getDeviceId(), 
+    const int32_t deviceId = getDeviceId();
+    std::vector<TouchVideoFrame> frames = mDevice->getEventHub()->getVideoFrames(deviceId);
+    NotifyMotionArgs args(mContext->getNextSequenceNum(), when, deviceId,
             source, mViewport.displayId, policyFlags,
             action, actionButton, flags, metaState, buttonState, edgeFlags,
             deviceTimestamp, pointerCount, pointerProperties, pointerCoords,
-            xPrecision, yPrecision, downTime, /* videoFrames */ {});
+            xPrecision, yPrecision, downTime, std::move(frames));
     getListener()->notifyMotion(&args);
 }
 
