@@ -124,7 +124,8 @@ public:
 
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
     virtual void setTransactionState(const Vector<ComposerState>& state,
-            const Vector<DisplayState>& displays, uint32_t flags) = 0;
+                                     const Vector<DisplayState>& displays, uint32_t flags,
+                                     const sp<IBinder>& applyToken) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission

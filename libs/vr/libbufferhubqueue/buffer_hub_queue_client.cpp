@@ -480,7 +480,7 @@ Status<std::vector<size_t>> ProducerQueue::AllocateBuffers(
 
     // Note that import might (though very unlikely) fail. If so, buffer_handle
     // will be closed and included in returned buffer_slots.
-    if (AddBuffer(BufferProducer::Import(std::move(buffer_handle)),
+    if (AddBuffer(ProducerBuffer::Import(std::move(buffer_handle)),
                   buffer_slot)) {
       ALOGD_IF(TRACE, "ProducerQueue::AllocateBuffers: new buffer at slot: %zu",
                buffer_slot);
@@ -517,7 +517,7 @@ Status<size_t> ProducerQueue::AllocateBuffer(uint32_t width, uint32_t height,
 }
 
 Status<void> ProducerQueue::AddBuffer(
-    const std::shared_ptr<BufferProducer>& buffer, size_t slot) {
+    const std::shared_ptr<ProducerBuffer>& buffer, size_t slot) {
   ALOGD_IF(TRACE, "ProducerQueue::AddBuffer: queue_id=%d buffer_id=%d slot=%zu",
            id(), buffer->id(), slot);
   // For producer buffer, we need to enqueue the newly added buffer
@@ -530,7 +530,7 @@ Status<void> ProducerQueue::AddBuffer(
 }
 
 Status<size_t> ProducerQueue::InsertBuffer(
-    const std::shared_ptr<BufferProducer>& buffer) {
+    const std::shared_ptr<ProducerBuffer>& buffer) {
   if (buffer == nullptr ||
       !BufferHubDefs::IsClientGained(buffer->buffer_state(),
                                      buffer->client_state_mask())) {
@@ -554,7 +554,7 @@ Status<size_t> ProducerQueue::InsertBuffer(
   size_t slot = status_or_slot.get();
 
   // Note that we are calling AddBuffer() from the base class to explicitly
-  // avoid Enqueue() the BufferProducer.
+  // avoid Enqueue() the ProducerBuffer.
   auto status = BufferHubQueue::AddBuffer(buffer, slot);
   if (!status) {
     ALOGE("ProducerQueue::InsertBuffer: Failed to add buffer: %s.",
@@ -576,13 +576,13 @@ Status<void> ProducerQueue::RemoveBuffer(size_t slot) {
   return BufferHubQueue::RemoveBuffer(slot);
 }
 
-Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
+Status<std::shared_ptr<ProducerBuffer>> ProducerQueue::Dequeue(
     int timeout, size_t* slot, LocalHandle* release_fence) {
   DvrNativeBufferMetadata canonical_meta;
   return Dequeue(timeout, slot, &canonical_meta, release_fence);
 }
 
-pdx::Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
+pdx::Status<std::shared_ptr<ProducerBuffer>> ProducerQueue::Dequeue(
     int timeout, size_t* slot, DvrNativeBufferMetadata* out_meta,
     pdx::LocalHandle* release_fence, bool gain_posted_buffer) {
   ATRACE_NAME("ProducerQueue::Dequeue");
@@ -591,14 +591,14 @@ pdx::Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
     return ErrorStatus(EINVAL);
   }
 
-  std::shared_ptr<BufferProducer> buffer;
+  std::shared_ptr<ProducerBuffer> buffer;
   Status<std::shared_ptr<BufferHubBase>> dequeue_status =
       BufferHubQueue::Dequeue(timeout, slot);
   if (dequeue_status.ok()) {
-    buffer = std::static_pointer_cast<BufferProducer>(dequeue_status.take());
+    buffer = std::static_pointer_cast<ProducerBuffer>(dequeue_status.take());
   } else {
     if (gain_posted_buffer) {
-      Status<std::shared_ptr<BufferProducer>> dequeue_unacquired_status =
+      Status<std::shared_ptr<ProducerBuffer>> dequeue_unacquired_status =
           ProducerQueue::DequeueUnacquiredBuffer(slot);
       if (!dequeue_unacquired_status.ok()) {
         ALOGE("%s: DequeueUnacquiredBuffer returned error: %d", __FUNCTION__,
@@ -618,7 +618,7 @@ pdx::Status<std::shared_ptr<BufferProducer>> ProducerQueue::Dequeue(
   return {std::move(buffer)};
 }
 
-Status<std::shared_ptr<BufferProducer>> ProducerQueue::DequeueUnacquiredBuffer(
+Status<std::shared_ptr<ProducerBuffer>> ProducerQueue::DequeueUnacquiredBuffer(
     size_t* slot) {
   if (unavailable_buffers_slot_.size() < 1) {
     ALOGE(
@@ -632,7 +632,7 @@ Status<std::shared_ptr<BufferProducer>> ProducerQueue::DequeueUnacquiredBuffer(
   // unavailable_buffers_slot_.
   for (auto iter = unavailable_buffers_slot_.begin();
        iter != unavailable_buffers_slot_.end(); iter++) {
-    std::shared_ptr<BufferProducer> buffer = ProducerQueue::GetBuffer(*iter);
+    std::shared_ptr<ProducerBuffer> buffer = ProducerQueue::GetBuffer(*iter);
     if (buffer == nullptr) {
       ALOGE("%s failed. Buffer slot %d is  null.", __FUNCTION__,
             static_cast<int>(*slot));
@@ -718,9 +718,9 @@ Status<size_t> ConsumerQueue::ImportBuffers() {
     ALOGD_IF(TRACE, ": buffer_handle=%d", __FUNCTION__,
              buffer_handle_slot.first.value());
 
-    std::unique_ptr<BufferConsumer> buffer_consumer =
-        BufferConsumer::Import(std::move(buffer_handle_slot.first));
-    if (!buffer_consumer) {
+    std::unique_ptr<ConsumerBuffer> consumer_buffer =
+        ConsumerBuffer::Import(std::move(buffer_handle_slot.first));
+    if (!consumer_buffer) {
       ALOGE("%s: Failed to import buffer: slot=%zu", __FUNCTION__,
             buffer_handle_slot.second);
       last_error = ErrorStatus(EPIPE);
@@ -728,7 +728,7 @@ Status<size_t> ConsumerQueue::ImportBuffers() {
     }
 
     auto add_status =
-        AddBuffer(std::move(buffer_consumer), buffer_handle_slot.second);
+        AddBuffer(std::move(consumer_buffer), buffer_handle_slot.second);
     if (!add_status) {
       ALOGE("%s: Failed to add buffer: %s", __FUNCTION__,
             add_status.GetErrorMessage().c_str());
@@ -745,13 +745,13 @@ Status<size_t> ConsumerQueue::ImportBuffers() {
 }
 
 Status<void> ConsumerQueue::AddBuffer(
-    const std::shared_ptr<BufferConsumer>& buffer, size_t slot) {
+    const std::shared_ptr<ConsumerBuffer>& buffer, size_t slot) {
   ALOGD_IF(TRACE, "%s: queue_id=%d buffer_id=%d slot=%zu", __FUNCTION__, id(),
            buffer->id(), slot);
   return BufferHubQueue::AddBuffer(buffer, slot);
 }
 
-Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(
+Status<std::shared_ptr<ConsumerBuffer>> ConsumerQueue::Dequeue(
     int timeout, size_t* slot, void* meta, size_t user_metadata_size,
     LocalHandle* acquire_fence) {
   if (user_metadata_size != user_metadata_size_) {
@@ -780,7 +780,7 @@ Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(
   return status;
 }
 
-Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(
+Status<std::shared_ptr<ConsumerBuffer>> ConsumerQueue::Dequeue(
     int timeout, size_t* slot, DvrNativeBufferMetadata* out_meta,
     pdx::LocalHandle* acquire_fence) {
   ATRACE_NAME("ConsumerQueue::Dequeue");
@@ -793,7 +793,7 @@ Status<std::shared_ptr<BufferConsumer>> ConsumerQueue::Dequeue(
   if (!status)
     return status.error_status();
 
-  auto buffer = std::static_pointer_cast<BufferConsumer>(status.take());
+  auto buffer = std::static_pointer_cast<ConsumerBuffer>(status.take());
   const int ret = buffer->AcquireAsync(out_meta, acquire_fence);
   if (ret < 0)
     return ErrorStatus(-ret);

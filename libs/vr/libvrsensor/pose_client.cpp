@@ -221,7 +221,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
       return -status.error();
     }
 
-    auto buffer = BufferConsumer::Import(status.take());
+    auto buffer = ConsumerBuffer::Import(status.take());
     if (!buffer) {
       ALOGE("Pose failed to import ring buffer");
       return -EIO;
@@ -290,7 +290,7 @@ class PoseClient : public pdx::ClientBase<PoseClient> {
   const DvrVsyncPoseBuffer* mapped_vsync_pose_buffer_ = nullptr;
 
   struct ControllerClientState {
-    std::unique_ptr<BufferConsumer> pose_buffer;
+    std::unique_ptr<ConsumerBuffer> pose_buffer;
     const DvrPoseAsync* mapped_pose_buffer = nullptr;
   };
   ControllerClientState controllers_[MAX_CONTROLLERS];

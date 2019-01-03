@@ -125,7 +125,7 @@ TEST_F(BufferHubQueueTest, TestDequeue) {
 }
 
 TEST_F(BufferHubQueueTest,
-       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_withBufferConsumer) {
+       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_withConsumerBuffer) {
   ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
 
   // Allocate 3 buffers to use.
@@ -205,7 +205,7 @@ TEST_F(BufferHubQueueTest,
 }
 
 TEST_F(BufferHubQueueTest,
-       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_noBufferConsumer) {
+       TestDequeuePostedBufferIfNoAvailableReleasedBuffer_noConsumerBuffer) {
   ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
 
   // Allocate 4 buffers to use.
@@ -332,7 +332,7 @@ TEST_F(BufferHubQueueTest, TestInsertBuffer) {
   EXPECT_EQ(producer_queue_->capacity(), 0);
   EXPECT_EQ(consumer_queue_->capacity(), 0);
 
-  std::shared_ptr<BufferProducer> p1 = BufferProducer::Create(
+  std::shared_ptr<ProducerBuffer> p1 = ProducerBuffer::Create(
       kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage, 0);
   ASSERT_TRUE(p1 != nullptr);
   ASSERT_EQ(p1->GainAsync(), 0);
@@ -345,7 +345,7 @@ TEST_F(BufferHubQueueTest, TestInsertBuffer) {
   EXPECT_EQ(status_or_slot.error(), EINVAL);
 
   // Inserting a gained buffer will succeed.
-  std::shared_ptr<BufferProducer> p2 = BufferProducer::Create(
+  std::shared_ptr<ProducerBuffer> p2 = ProducerBuffer::Create(
       kBufferWidth, kBufferHeight, kBufferFormat, kBufferUsage);
   ASSERT_EQ(p2->GainAsync(), 0);
   ASSERT_TRUE(p2 != nullptr);
@@ -382,7 +382,7 @@ TEST_F(BufferHubQueueTest, TestRemoveBuffer) {
   // Dequeue all the buffers and keep track of them in an array. This prevents
   // the producer queue ring buffer ref counts from interfering with the tests.
   struct Entry {
-    std::shared_ptr<BufferProducer> buffer;
+    std::shared_ptr<ProducerBuffer> buffer;
     LocalHandle fence;
     size_t slot;
   };
@@ -848,10 +848,10 @@ TEST_F(BufferHubQueueTest, TestFreeAllBuffers) {
   size_t slot;
   LocalHandle fence;
   pdx::Status<void> status;
-  pdx::Status<std::shared_ptr<BufferConsumer>> consumer_status;
-  pdx::Status<std::shared_ptr<BufferProducer>> producer_status;
-  std::shared_ptr<BufferConsumer> consumer_buffer;
-  std::shared_ptr<BufferProducer> producer_buffer;
+  pdx::Status<std::shared_ptr<ConsumerBuffer>> consumer_status;
+  pdx::Status<std::shared_ptr<ProducerBuffer>> producer_status;
+  std::shared_ptr<ConsumerBuffer> consumer_buffer;
+  std::shared_ptr<ProducerBuffer> producer_buffer;
   DvrNativeBufferMetadata mi, mo;
 
   ASSERT_TRUE(CreateQueues(config_builder_.Build(), UsagePolicy{}));
@@ -994,7 +994,7 @@ TEST_F(BufferHubQueueTest, TestProducerExportToParcelable) {
   auto s3 = producer_queue_->Dequeue(0, &slot, &producer_meta, &fence);
   EXPECT_TRUE(s3.ok());
 
-  std::shared_ptr<BufferProducer> p1 = s3.take();
+  std::shared_ptr<ProducerBuffer> p1 = s3.take();
   ASSERT_NE(p1, nullptr);
 
   producer_meta.timestamp = 42;
@@ -1061,7 +1061,7 @@ TEST_F(BufferHubQueueTest, TestCreateConsumerParcelable) {
   auto s2 = producer_queue_->Dequeue(0, &slot, &producer_meta, &fence);
   EXPECT_TRUE(s2.ok());
 
-  std::shared_ptr<BufferProducer> p1 = s2.take();
+  std::shared_ptr<ProducerBuffer> p1 = s2.take();
   ASSERT_NE(p1, nullptr);
 
   producer_meta.timestamp = 42;

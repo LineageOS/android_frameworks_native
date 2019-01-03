@@ -183,7 +183,7 @@ public:
     uint32_t lower(void) { return _l; }
     uint32_t upper(void) { return _u; }
 
-    operator string();
+    operator string(); // NOLINT(google-explicit-constructor)
 
 private:
     uint32_t _l; // lower
@@ -216,7 +216,9 @@ public:
     static void double2Rational(double f, Range nRange, Range dRange,
                                Rational& lower, Rational& upper);
         
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator string() const;
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator double() const { return (double) _n / (double) _d; }
 
 
