@@ -106,7 +106,7 @@ bool initializeAnglePlatform(EGLDisplay dpy) {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
             .library_namespace = ns,
     };
-    void* so = android_dlopen_ext("libEGL_angle.so", RTLD_LOCAL | RTLD_NOW, &dlextinfo);
+    void* so = android_dlopen_ext("libGLESv2_angle.so", RTLD_LOCAL | RTLD_NOW, &dlextinfo);
     angleGetDisplayPlatform =
             reinterpret_cast<GetDisplayPlatformFunc>(dlsym(so, "ANGLEGetDisplayPlatform"));
 
