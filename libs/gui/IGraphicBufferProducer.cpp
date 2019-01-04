@@ -536,7 +536,7 @@ BpGraphicBufferProducer::~BpGraphicBufferProducer() {}
 class HpGraphicBufferProducer : public HpInterface<
         BpGraphicBufferProducer, H2BGraphicBufferProducer> {
 public:
-    HpGraphicBufferProducer(const sp<IBinder>& base) : PBase(base) {}
+    explicit HpGraphicBufferProducer(const sp<IBinder>& base) : PBase(base) {}
 
     status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override {
         return mBase->requestBuffer(slot, buf);

@@ -29,7 +29,8 @@ class BufferQueueProducer : public BnGraphicBufferProducer,
 public:
     friend class BufferQueue; // Needed to access binderDied
 
-    BufferQueueProducer(const sp<BufferQueueCore>& core, bool consumerIsSurfaceFlinger = false);
+    explicit BufferQueueProducer(const sp<BufferQueueCore>& core,
+                                 bool consumerIsSurfaceFlinger = false);
     ~BufferQueueProducer() override;
 
     // requestBuffer returns the GraphicBuffer for slot N.

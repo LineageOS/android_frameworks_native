@@ -59,7 +59,7 @@ struct H2BGraphicBufferProducer : public ::android::H2BConverter<
         HGraphicBufferProducer,
         BGraphicBufferProducer,
         BnGraphicBufferProducer> {
-    H2BGraphicBufferProducer(sp<HGraphicBufferProducer> const& base) : CBase(base) {}
+    explicit H2BGraphicBufferProducer(sp<HGraphicBufferProducer> const& base) : CBase(base) {}
 
     status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override;
     status_t setMaxDequeuedBufferCount(int maxDequeuedBuffers) override;
