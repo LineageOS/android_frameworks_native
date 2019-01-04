@@ -443,7 +443,8 @@ private:
     virtual sp<IBinder> getBuiltInDisplay(int32_t id);
     virtual void setTransactionState(const Vector<ComposerState>& state,
                                      const Vector<DisplayState>& displays, uint32_t flags,
-                                     const sp<IBinder>& applyToken);
+                                     const sp<IBinder>& applyToken,
+                                     const InputWindowCommands& inputWindowCommands);
     virtual void bootFinished();
     virtual bool authenticateSurfaceTexture(
         const sp<IGraphicBufferProducer>& bufferProducer) const;
@@ -555,8 +556,8 @@ private:
      * Transactions
      */
     void applyTransactionState(const Vector<ComposerState>& state,
-                               const Vector<DisplayState>& displays, uint32_t flags)
-            REQUIRES(mStateLock);
+                               const Vector<DisplayState>& displays, uint32_t flags,
+                               const InputWindowCommands& inputWindowCommands) REQUIRES(mStateLock);
     bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
@@ -570,6 +571,7 @@ private:
     uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
     void setDestroyStateLocked(const ComposerState& composerState);
+    uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands);
 
     /* ------------------------------------------------------------------------
      * Layer management
@@ -1020,6 +1022,8 @@ private:
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
 
     sp<IInputFlinger> mInputFlinger;
+
+    InputWindowCommands mInputWindowCommands;
 };
 }; // namespace android
 

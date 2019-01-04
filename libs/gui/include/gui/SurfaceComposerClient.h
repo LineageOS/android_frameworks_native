@@ -219,6 +219,7 @@ public:
         bool                        mAnimation = false;
         bool                        mEarlyWakeup = false;
 
+        InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
         layer_state_t* getLayerState(const sp<SurfaceControl>& sc);
@@ -335,6 +336,7 @@ public:
 
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
+        Transaction& transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
 #endif
 
         Transaction& destroySurface(const sp<SurfaceControl>& sc);

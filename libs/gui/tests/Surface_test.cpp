@@ -559,7 +559,8 @@ public:
     sp<IBinder> getBuiltInDisplay(int32_t /*id*/) override { return nullptr; }
     void setTransactionState(const Vector<ComposerState>& /*state*/,
                              const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
-                             const sp<IBinder>& /*applyToken*/) override {}
+                             const sp<IBinder>& /*applyToken*/,
+                             const InputWindowCommands& /*inputWindowCommands*/) override {}
     void bootFinished() override {}
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& /*surface*/) const override {

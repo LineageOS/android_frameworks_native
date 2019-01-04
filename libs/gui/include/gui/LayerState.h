@@ -228,6 +228,20 @@ struct DisplayState {
     status_t read(const Parcel& input);
 };
 
+struct InputWindowCommands {
+    struct TransferTouchFocusCommand {
+        sp<IBinder> fromToken;
+        sp<IBinder> toToken;
+    };
+
+    std::vector<TransferTouchFocusCommand> transferTouchFocusCommands;
+
+    void merge(const InputWindowCommands& other);
+    void clear();
+    void write(Parcel& output) const;
+    void read(const Parcel& input);
+};
+
 static inline int compare_type(const ComposerState& lhs, const ComposerState& rhs) {
     if (lhs.client < rhs.client) return -1;
     if (lhs.client > rhs.client) return 1;
