@@ -871,7 +871,11 @@ const char* dump_traces() {
             is_java_process ? 5 : 20, fd);
 
         if (ret == -1) {
-            dprintf(fd, "dumping failed, likely due to a timeout\n");
+            // For consistency, the header and footer to this message match those
+            // dumped by debuggerd in the success case.
+            dprintf(fd, "\n---- pid %d at [unknown] ----\n", pid);
+            dprintf(fd, "Dump failed, likely due to a timeout.\n");
+            dprintf(fd, "---- end %d ----", pid);
             timeout_failures++;
             continue;
         }
