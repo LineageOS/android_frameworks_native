@@ -85,4 +85,22 @@ bool SensorPrivacyManager::isSensorPrivacyEnabled()
     return false;
 }
 
+status_t SensorPrivacyManager::linkToDeath(const sp<IBinder::DeathRecipient>& recipient)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        return IInterface::asBinder(service)->linkToDeath(recipient);
+    }
+    return INVALID_OPERATION;
+}
+
+status_t SensorPrivacyManager::unlinkToDeath(const sp<IBinder::DeathRecipient>& recipient)
+{
+    sp<hardware::ISensorPrivacyManager> service = getService();
+    if (service != nullptr) {
+        return IInterface::asBinder(service)->unlinkToDeath(recipient);
+    }
+    return INVALID_OPERATION;
+}
+
 }; // namespace android
