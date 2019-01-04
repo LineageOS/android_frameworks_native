@@ -94,6 +94,12 @@ class BufferHubBase : public pdx::Client {
     return buffer_state_->load(std::memory_order_acquire);
   };
 
+  // Returns whether the buffer is already released by all current clients.
+  bool is_released() {
+    return (buffer_state() &
+            active_clients_bit_mask_->load(std::memory_order_acquire)) == 0;
+  }
+
   // A state mask which is unique to a buffer hub client among all its siblings
   // sharing the same concrete graphic buffer.
   uint32_t client_state_mask() const { return client_state_mask_; }

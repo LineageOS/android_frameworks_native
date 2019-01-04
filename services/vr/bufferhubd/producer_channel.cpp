@@ -369,7 +369,9 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
           (consumer_state_mask & BufferHubDefs::kHighBitsMask);
     }
   }
-  if (update_buffer_state) {
+  if (update_buffer_state || BufferHubDefs::IsClientPosted(
+                                 buffer_state_->load(std::memory_order_acquire),
+                                 consumer_state_mask)) {
     consumer->OnProducerPosted();
   }
 
@@ -537,8 +539,13 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
 
   uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
+  uint32_t current_active_clients_bit_mask =
+      active_clients_bit_mask_->load(std::memory_order_acquire);
+  // Signal producer if all current active consumers have released the buffer.
   if (BufferHubDefs::IsBufferReleased(current_buffer_state &
-                                      ~orphaned_consumer_bit_mask_)) {
+                                      ~orphaned_consumer_bit_mask_ &
+                                      current_active_clients_bit_mask)) {
+    buffer_state_->store(0U);
     SignalAvailable();
     if (orphaned_consumer_bit_mask_) {
       ALOGW(
@@ -564,8 +571,13 @@ void ProducerChannel::OnConsumerOrphaned(const uint32_t& consumer_state_mask) {
 
   uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
+  uint32_t current_active_clients_bit_mask =
+      active_clients_bit_mask_->load(std::memory_order_acquire);
+  // Signal producer if all current active consumers have released the buffer.
   if (BufferHubDefs::IsBufferReleased(current_buffer_state &
-                                      ~orphaned_consumer_bit_mask_)) {
+                                      ~orphaned_consumer_bit_mask_ &
+                                      current_active_clients_bit_mask)) {
+    buffer_state_->store(0U);
     SignalAvailable();
   }
 
