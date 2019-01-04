@@ -64,6 +64,7 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 #define ASENSOR_RESOLUTION_INVALID     (nanf(""))
 #define ASENSOR_FIFO_COUNT_INVALID     (-1)
 #define ASENSOR_DELAY_INVALID          INT32_MIN
+#define ASENSOR_INVALID                (-1)
 
 /* (Keep in sync with hardware/sensors-base.h and Sensor.java.) */
 
@@ -518,6 +519,7 @@ struct ASensor;
  * - ASensor_getStringType()
  * - ASensor_getReportingMode()
  * - ASensor_isWakeUpSensor()
+ * - ASensor_getHandle()
  */
 typedef struct ASensor ASensor;
 /**
@@ -858,6 +860,24 @@ bool ASensor_isDirectChannelTypeSupported(ASensor const* sensor, int channelType
  */
 int ASensor_getHighestDirectReportRateLevel(ASensor const* sensor) __INTRODUCED_IN(26);
 #endif /* __ANDROID_API__ >= 26 */
+
+#if __ANDROID_API__ >= __ANDROID_API_Q__
+/**
+ * Returns the sensor's handle.
+ *
+ * The handle identifies the sensor within the system and is included in the
+ * {@link ASensorEvent#sensor} field of sensor events, including those sent with type
+ * {@link ASENSOR_TYPE_ADDITIONAL_INFO}.
+ *
+ * A sensor's handle is able to be used to map {@link ASENSOR_TYPE_ADDITIONAL_INFO} events to the
+ * sensor that generated the event.
+ *
+ * It is important to note that the value returned by {@link ASensor_getHandle} is not the same as
+ * the value returned by the Java API {@link android.hardware.Sensor#getId} and no mapping exists
+ * between the values.
+ */
+int ASensor_getHandle(ASensor const* sensor) __INTRODUCED_IN(__ANDROID_API_Q__);
+#endif /* __ANDROID_API__ >= ANDROID_API_Q__ */
 
 #ifdef __cplusplus
 };
