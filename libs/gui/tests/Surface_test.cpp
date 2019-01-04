@@ -670,8 +670,7 @@ private:
 
 class FakeProducerFrameEventHistory : public ProducerFrameEventHistory {
 public:
-    FakeProducerFrameEventHistory(FenceToFenceTimeMap* fenceMap)
-        : mFenceMap(fenceMap) {}
+    explicit FakeProducerFrameEventHistory(FenceToFenceTimeMap* fenceMap) : mFenceMap(fenceMap) {}
 
     ~FakeProducerFrameEventHistory() {}
 

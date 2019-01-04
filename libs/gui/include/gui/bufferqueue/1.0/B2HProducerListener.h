@@ -50,7 +50,7 @@ typedef ::android::IProducerListener
 
 struct B2HProducerListener : public HProducerListener {
     sp<BProducerListener> mBase;
-    B2HProducerListener(sp<BProducerListener> const& base);
+    explicit B2HProducerListener(sp<BProducerListener> const& base);
     Return<void> onBufferReleased() override;
     Return<bool> needsReleaseNotify() override;
 };
