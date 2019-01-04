@@ -108,6 +108,7 @@ void add_mountinfo();
 #define LOGPERSIST_DATA_DIR "/data/misc/logd"
 #define PROFILE_DATA_DIR_CUR "/data/misc/profiles/cur"
 #define PROFILE_DATA_DIR_REF "/data/misc/profiles/ref"
+#define XFRM_STAT_PROC_FILE "/proc/net/xfrm_stat"
 #define WLUTIL "/vendor/xbin/wlutil"
 #define WMTRACE_DATA_DIR "/data/misc/wmtrace"
 
@@ -1469,8 +1470,11 @@ static bool DumpstateDefault() {
     add_mountinfo();
     DumpIpTablesAsRoot();
 
-    // Capture any IPSec policies in play.  No keys are exposed here.
+    // Capture any IPSec policies in play. No keys are exposed here.
     RunCommand("IP XFRM POLICY", {"ip", "xfrm", "policy"}, CommandOptions::WithTimeout(10).Build());
+
+    // Dump IPsec stats. No keys are exposed here.
+    DumpFile("XFRM STATS", XFRM_STAT_PROC_FILE);
 
     // Run ss as root so we can see socket marks.
     RunCommand("DETAILED SOCKET STATE", {"ss", "-eionptu"}, CommandOptions::WithTimeout(10).Build());
