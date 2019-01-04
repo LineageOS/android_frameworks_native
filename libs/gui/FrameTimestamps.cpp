@@ -158,7 +158,7 @@ void FrameEvents::dump(String8& outString) const
 namespace {
 
 struct FrameNumberEqual {
-    FrameNumberEqual(uint64_t frameNumber) : mFrameNumber(frameNumber) {}
+    explicit FrameNumberEqual(uint64_t frameNumber) : mFrameNumber(frameNumber) {}
     bool operator()(const FrameEvents& frame) {
         return frame.valid && mFrameNumber == frame.frameNumber;
     }

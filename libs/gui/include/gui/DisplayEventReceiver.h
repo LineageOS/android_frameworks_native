@@ -84,7 +84,7 @@ public:
      * or requestNextVsync to receive them.
      * Other events start being delivered immediately.
      */
-    DisplayEventReceiver(
+    explicit DisplayEventReceiver(
             ISurfaceComposer::VsyncSource vsyncSource = ISurfaceComposer::eVsyncSourceApp);
 
     /*

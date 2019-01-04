@@ -300,7 +300,7 @@ private:
     // also only creating new EGLImages from buffers when required.
     class EglImage : public LightRefBase<EglImage>  {
     public:
-        EglImage(sp<GraphicBuffer> graphicBuffer);
+        explicit EglImage(sp<GraphicBuffer> graphicBuffer);
 
         // createIfNeeded creates an EGLImage if required (we haven't created
         // one yet, or the EGLDisplay or crop-rect has changed).
