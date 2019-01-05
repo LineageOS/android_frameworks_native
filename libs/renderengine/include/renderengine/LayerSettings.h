@@ -19,6 +19,7 @@
 #include <math/mat4.h>
 #include <math/vec3.h>
 #include <renderengine/Texture.h>
+#include <ui/Fence.h>
 #include <ui/FloatRect.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/GraphicTypes.h>
@@ -36,6 +37,9 @@ struct Buffer {
     // ignored.
     sp<GraphicBuffer> buffer = nullptr;
 
+    // Fence that will fire when the buffer is ready to be bound.
+    sp<Fence> fence = nullptr;
+
     // Texture identifier to bind the external texture to.
     // TODO(alecmouri): This is GL-specific...make the type backend-agnostic.
     uint32_t textureName = 0;
@@ -48,6 +52,11 @@ struct Buffer {
 
     // Wheteher to use pre-multiplied alpha
     bool usePremultipliedAlpha = true;
+
+    // Override flag that alpha for each pixel in the buffer *must* be 1.0.
+    // LayerSettings::alpha is still used if isOpaque==true - this flag only
+    // overrides the alpha channel of the buffer.
+    bool isOpaque = false;
 
     // HDR color-space setting for Y410.
     bool isY410BT2020 = false;
@@ -81,7 +90,7 @@ struct LayerSettings {
     // Source pixels for this layer.
     PixelSource source = PixelSource();
 
-    // Alpha option to apply to the source pixels
+    // Alpha option to blend with the source pixels
     half alpha = half(0.0);
 
     // Color space describing how the source pixels should be interpreted.
