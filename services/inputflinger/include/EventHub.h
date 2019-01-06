@@ -211,6 +211,7 @@ public:
      * Returns the number of events obtained, or 0 if the timeout expired.
      */
     virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize) = 0;
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) = 0;
 
     /*
      * Query current input state.
@@ -303,6 +304,7 @@ public:
             const int32_t* keyCodes, uint8_t* outFlags) const;
 
     virtual size_t getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSize);
+    virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId);
 
     virtual bool hasScanCode(int32_t deviceId, int32_t scanCode) const;
     virtual bool hasLed(int32_t deviceId, int32_t led) const;
@@ -381,7 +383,7 @@ private:
         }
     };
 
-    status_t openDeviceLocked(const char *devicePath);
+    status_t openDeviceLocked(const char* devicePath);
     void openVideoDeviceLocked(const std::string& devicePath);
     void createVirtualKeyboardLocked();
     void addDeviceLocked(Device* device);
@@ -400,7 +402,9 @@ private:
     status_t registerFdForEpoll(int fd);
     status_t unregisterFdFromEpoll(int fd);
     status_t registerDeviceForEpollLocked(Device* device);
+    void registerVideoDeviceForEpollLocked(const TouchVideoDevice& videoDevice);
     status_t unregisterDeviceFromEpollLocked(Device* device);
+    void unregisterVideoDeviceFromEpollLocked(const TouchVideoDevice& videoDevice);
 
     status_t scanDirLocked(const char *dirname);
     status_t scanVideoDirLocked(const std::string& dirname);
@@ -410,6 +414,10 @@ private:
     Device* getDeviceByDescriptorLocked(const std::string& descriptor) const;
     Device* getDeviceLocked(int32_t deviceId) const;
     Device* getDeviceByPathLocked(const char* devicePath) const;
+    /**
+     * Look through all available fd's (both for input devices and for video devices),
+     * and return the device pointer.
+     */
     Device* getDeviceByFdLocked(int fd) const;
 
     bool hasKeycodeLocked(Device* device, int keycode) const;
@@ -469,9 +477,6 @@ private:
 
     int mInputWd;
     int mVideoWd;
-
-    // Epoll FD list size hint.
-    static const int EPOLL_SIZE_HINT = 8;
 
     // Maximum number of signalled FDs to handle at a time.
     static const int EPOLL_MAX_EVENTS = 16;

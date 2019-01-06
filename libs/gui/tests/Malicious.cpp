@@ -27,7 +27,7 @@ namespace test {
 
 class ProxyBQP : public BnGraphicBufferProducer {
 public:
-    ProxyBQP(const sp<IGraphicBufferProducer>& producer) : mProducer(producer) {}
+    explicit ProxyBQP(const sp<IGraphicBufferProducer>& producer) : mProducer(producer) {}
 
     // Pass through calls to mProducer
     status_t requestBuffer(int slot, sp<GraphicBuffer>* buf) override {
@@ -102,7 +102,7 @@ protected:
 
 class MaliciousBQP : public ProxyBQP {
 public:
-    MaliciousBQP(const sp<IGraphicBufferProducer>& producer) : ProxyBQP(producer) {}
+    explicit MaliciousBQP(const sp<IGraphicBufferProducer>& producer) : ProxyBQP(producer) {}
 
     void beMalicious(int32_t value) { mMaliciousValue = value; }
 

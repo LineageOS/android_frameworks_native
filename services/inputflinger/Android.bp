@@ -22,6 +22,7 @@ cc_library_shared {
 
     shared_libs: [
         "libinputflinger_base",
+        "libinputreporter",
         "libinputreader",
         "libbase",
         "libbinder",
@@ -105,6 +106,35 @@ cc_library_shared {
     shared_libs: [
         "libbase",
         "libinput",
+        "liblog",
+        "libutils",
+    ],
+
+    header_libs: [
+        "libinputflinger_headers",
+    ],
+
+    export_header_lib_headers: [
+        "libinputflinger_headers",
+    ],
+
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+    ],
+}
+
+cc_library_shared {
+    name: "libinputreporter",
+
+    srcs: [
+        "InputReporter.cpp",
+    ],
+
+    shared_libs: [
+        "libbase",
         "liblog",
         "libutils",
     ],

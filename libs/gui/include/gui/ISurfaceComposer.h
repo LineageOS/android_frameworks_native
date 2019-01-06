@@ -42,6 +42,7 @@ struct ComposerState;
 struct DisplayState;
 struct DisplayInfo;
 struct DisplayStatInfo;
+struct InputWindowCommands;
 class LayerDebugInfo;
 class HdrCapabilities;
 class IDisplayEventConnection;
@@ -125,7 +126,8 @@ public:
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
     virtual void setTransactionState(const Vector<ComposerState>& state,
                                      const Vector<DisplayState>& displays, uint32_t flags,
-                                     const sp<IBinder>& applyToken) = 0;
+                                     const sp<IBinder>& applyToken,
+                                     const InputWindowCommands& inputWindowCommands) = 0;
 
     /* signal that we're done booting.
      * Requires ACCESS_SURFACE_FLINGER permission

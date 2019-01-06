@@ -98,6 +98,10 @@ bool HWComposer::hasCapability(HWC2::Capability capability) const
 bool HWComposer::hasDisplayCapability(const std::optional<DisplayId>& displayId,
                                       HWC2::DisplayCapability capability) const {
     if (!displayId) {
+        // Checkout global capabilities for displays without a corresponding HWC display.
+        if (capability == HWC2::DisplayCapability::SkipClientColorTransform) {
+            return hasCapability(HWC2::Capability::SkipClientColorTransform);
+        }
         return false;
     }
     RETURN_IF_INVALID_DISPLAY(*displayId, false);

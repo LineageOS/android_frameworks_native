@@ -257,6 +257,7 @@ InputDispatcher::InputDispatcher(const sp<InputDispatcherPolicyInterface>& polic
     mFocusedDisplayId(ADISPLAY_ID_DEFAULT),
     mInputTargetWaitCause(INPUT_TARGET_WAIT_CAUSE_NONE) {
     mLooper = new Looper(false);
+    mReporter = createInputReporter();
 
     mKeyRepeatState.lastKeyEntry = nullptr;
 
@@ -841,6 +842,7 @@ bool InputDispatcher::dispatchKeyLocked(nsecs_t currentTime, KeyEntry* entry,
     if (*dropReason != DROP_REASON_NOT_DROPPED) {
         setInjectionResultLocked(entry, *dropReason == DROP_REASON_POLICY
                 ? INPUT_EVENT_INJECTION_SUCCEEDED : INPUT_EVENT_INJECTION_FAILED);
+        mReporter->reportDroppedKey(entry->sequenceNum);
         return true;
     }
 
@@ -4025,6 +4027,10 @@ void InputDispatcher::doDispatchCycleFinishedLockedInterruptible(
 bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& connection,
         DispatchEntry* dispatchEntry, KeyEntry* keyEntry, bool handled) {
     if (keyEntry->flags & AKEY_EVENT_FLAG_FALLBACK) {
+        if (!handled) {
+            // Report the key as unhandled, since the fallback was not handled.
+            mReporter->reportUnhandledKey(keyEntry->sequenceNum);
+        }
         return false;
     }
 
@@ -4192,6 +4198,9 @@ bool InputDispatcher::afterKeyEventLockedInterruptible(const sp<Connection>& con
 #if DEBUG_OUTBOUND_EVENT_DETAILS
             ALOGD("Unhandled key event: No fallback key.");
 #endif
+
+            // Report the key as unhandled, since there is no fallback key.
+            mReporter->reportUnhandledKey(keyEntry->sequenceNum);
         }
     }
     return false;

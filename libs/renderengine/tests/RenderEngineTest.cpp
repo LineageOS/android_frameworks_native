@@ -27,14 +27,29 @@ constexpr int DEFAULT_DISPLAY_OFFSET = 64;
 namespace android {
 
 struct RenderEngineTest : public ::testing::Test {
-    sp<GraphicBuffer> allocateDefaultBuffer() {
+    static sp<GraphicBuffer> allocateDefaultBuffer() {
         return new GraphicBuffer(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
                                  HAL_PIXEL_FORMAT_RGBA_8888, 1,
-                                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                         GRALLOC_USAGE_HW_RENDER,
                                  "output");
     }
 
+    // Allocates a 1x1 buffer to fill with a solid color
+    static sp<GraphicBuffer> allocateSourceBuffer(uint32_t width, uint32_t height) {
+        return new GraphicBuffer(width, height, HAL_PIXEL_FORMAT_RGBA_8888, 1,
+                                 GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN |
+                                         GRALLOC_USAGE_HW_TEXTURE,
+                                 "input");
+    }
+
     RenderEngineTest() { mBuffer = allocateDefaultBuffer(); }
+
+    ~RenderEngineTest() {
+        for (uint32_t texName : mTexNames) {
+            sRE->deleteTextures(1, &texName);
+        }
+    }
 
     void expectBufferColor(const Rect& region, uint8_t r, uint8_t g, uint8_t b, uint8_t a,
                            uint8_t tolerance = 0) {
@@ -146,24 +161,97 @@ struct RenderEngineTest : public ::testing::Test {
     void fillBufferCheckersRotate270();
 
     template <typename SourceVariant>
+    void fillBufferWithLayerTransform();
+
+    template <typename SourceVariant>
     void fillBufferLayerTransform();
 
     template <typename SourceVariant>
+    void fillBufferWithColorTransform();
+
+    template <typename SourceVariant>
     void fillBufferColorTransform();
+
+    void fillRedBufferTextureTransform();
+
+    void fillBufferTextureTransform();
+
+    void fillRedBufferWithPremultiplyAlpha();
+
+    void fillBufferWithPremultiplyAlpha();
+
+    void fillRedBufferWithoutPremultiplyAlpha();
+
+    void fillBufferWithoutPremultiplyAlpha();
 
     // Dumb hack to get aroud the fact that tear-down for renderengine isn't
     // well defined right now, so we can't create multiple instances
     static std::unique_ptr<renderengine::RenderEngine> sRE;
 
     sp<GraphicBuffer> mBuffer;
+
+    std::vector<uint32_t> mTexNames;
 };
 
 std::unique_ptr<renderengine::RenderEngine> RenderEngineTest::sRE =
         renderengine::RenderEngine::create(static_cast<int32_t>(ui::PixelFormat::RGBA_8888), 0);
 
 struct ColorSourceVariant {
-    static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b) {
+    static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
+                          RenderEngineTest* /*fixture*/) {
         layer.source.solidColor = half3(r, g, b);
+    }
+};
+
+struct RelaxOpaqueBufferVariant {
+    static void setOpaqueBit(renderengine::LayerSettings& layer) {
+        layer.source.buffer.isOpaque = false;
+    }
+
+    static uint8_t getAlphaChannel() { return 255; }
+};
+
+struct ForceOpaqueBufferVariant {
+    static void setOpaqueBit(renderengine::LayerSettings& layer) {
+        layer.source.buffer.isOpaque = true;
+    }
+
+    static uint8_t getAlphaChannel() {
+        // The isOpaque bit will override the alpha channel, so this should be
+        // arbitrary.
+        return 10;
+    }
+};
+
+template <typename OpaquenessVariant>
+struct BufferSourceVariant {
+    static void fillColor(renderengine::LayerSettings& layer, half r, half g, half b,
+                          RenderEngineTest* fixture) {
+        sp<GraphicBuffer> buf = RenderEngineTest::allocateSourceBuffer(1, 1);
+        uint32_t texName;
+        RenderEngineTest::sRE->genTextures(1, &texName);
+        fixture->mTexNames.push_back(texName);
+
+        uint8_t* pixels;
+        buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+                  reinterpret_cast<void**>(&pixels));
+
+        for (int32_t j = 0; j < buf->getHeight(); j++) {
+            uint8_t* iter = pixels + (buf->getStride() * j) * 4;
+            for (int32_t i = 0; i < buf->getWidth(); i++) {
+                iter[0] = uint8_t(r * 255);
+                iter[1] = uint8_t(g * 255);
+                iter[2] = uint8_t(b * 255);
+                iter[3] = OpaquenessVariant::getAlphaChannel();
+                iter += 4;
+            }
+        }
+
+        buf->unlock();
+
+        layer.source.buffer.buffer = buf;
+        layer.source.buffer.textureName = texName;
+        OpaquenessVariant::setOpaqueBit(layer);
     }
 };
 
@@ -177,7 +265,7 @@ void RenderEngineTest::fillBuffer(half r, half g, half b, half a) {
 
     renderengine::LayerSettings layer;
     layer.geometry.boundaries = fullscreenRect().toFloatRect();
-    SourceVariant::fillColor(layer, r, g, b);
+    SourceVariant::fillColor(layer, r, g, b, this);
     layer.alpha = a;
 
     layers.push_back(layer);
@@ -219,7 +307,7 @@ void RenderEngineTest::fillRedOffsetBuffer() {
 
     renderengine::LayerSettings layer;
     layer.geometry.boundaries = offsetRectAtZero().toFloatRect();
-    SourceVariant::fillColor(layer, 1.0f, 0.0f, 0.0f);
+    SourceVariant::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layer.alpha = 1.0f;
 
     layers.push_back(layer);
@@ -253,19 +341,19 @@ void RenderEngineTest::fillBufferCheckers(mat4 transform) {
     renderengine::LayerSettings layerOne;
     Rect rectOne(0, 0, 1, 1);
     layerOne.geometry.boundaries = rectOne.toFloatRect();
-    SourceVariant::fillColor(layerOne, 1.0f, 0.0f, 0.0f);
+    SourceVariant::fillColor(layerOne, 1.0f, 0.0f, 0.0f, this);
     layerOne.alpha = 1.0f;
 
     renderengine::LayerSettings layerTwo;
     Rect rectTwo(0, 1, 1, 2);
     layerTwo.geometry.boundaries = rectTwo.toFloatRect();
-    SourceVariant::fillColor(layerTwo, 0.0f, 1.0f, 0.0f);
+    SourceVariant::fillColor(layerTwo, 0.0f, 1.0f, 0.0f, this);
     layerTwo.alpha = 1.0f;
 
     renderengine::LayerSettings layerThree;
     Rect rectThree(1, 0, 2, 1);
     layerThree.geometry.boundaries = rectThree.toFloatRect();
-    SourceVariant::fillColor(layerThree, 0.0f, 0.0f, 1.0f);
+    SourceVariant::fillColor(layerThree, 0.0f, 0.0f, 1.0f, this);
     layerThree.alpha = 1.0f;
 
     layers.push_back(layerOne);
@@ -343,7 +431,7 @@ void RenderEngineTest::fillBufferCheckersRotate270() {
 }
 
 template <typename SourceVariant>
-void RenderEngineTest::fillBufferLayerTransform() {
+void RenderEngineTest::fillBufferWithLayerTransform() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     // Here logical space is 2x2
@@ -355,13 +443,18 @@ void RenderEngineTest::fillBufferLayerTransform() {
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
     // Translate one pixel diagonally
     layer.geometry.positionTransform = mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 0, 1);
+    SourceVariant::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
     layer.source.solidColor = half3(1.0f, 0.0f, 0.0f);
     layer.alpha = 1.0f;
 
     layers.push_back(layer);
 
     invokeDraw(settings, layers, mBuffer);
+}
 
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferLayerTransform() {
+    fillBufferWithLayerTransform<SourceVariant>();
     expectBufferColor(Rect(0, 0, DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT / 2), 0, 0, 0, 0);
     expectBufferColor(Rect(0, 0, DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 0);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT / 2,
@@ -370,7 +463,7 @@ void RenderEngineTest::fillBufferLayerTransform() {
 }
 
 template <typename SourceVariant>
-void RenderEngineTest::fillBufferColorTransform() {
+void RenderEngineTest::fillBufferWithColorTransform() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
     settings.clip = Rect(1, 1);
@@ -379,7 +472,7 @@ void RenderEngineTest::fillBufferColorTransform() {
 
     renderengine::LayerSettings layer;
     layer.geometry.boundaries = Rect(1, 1).toFloatRect();
-    layer.source.solidColor = half3(0.5f, 0.25f, 0.125f);
+    SourceVariant::fillColor(layer, 0.5f, 0.25f, 0.125f, this);
     layer.alpha = 1.0f;
 
     // construct a fake color matrix
@@ -388,11 +481,146 @@ void RenderEngineTest::fillBufferColorTransform() {
     // set red channel to red + green
     layer.colorTransform = mat4(1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
 
+    layer.alpha = 1.0f;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
     layers.push_back(layer);
 
     invokeDraw(settings, layers, mBuffer);
+}
 
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferColorTransform() {
+    fillBufferWithColorTransform<SourceVariant>();
     expectBufferColor(fullscreenRect(), 191, 0, 0, 255);
+}
+
+void RenderEngineTest::fillRedBufferTextureTransform() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = Rect(1, 1);
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    // Here will allocate a checker board texture, but transform texture
+    // coordinates so that only the upper left is applied.
+    sp<GraphicBuffer> buf = allocateSourceBuffer(2, 2);
+    uint32_t texName;
+    RenderEngineTest::sRE->genTextures(1, &texName);
+    this->mTexNames.push_back(texName);
+
+    uint8_t* pixels;
+    buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+              reinterpret_cast<void**>(&pixels));
+    // Red top left, Green top right, Blue bottom left, Black bottom right
+    pixels[0] = 255;
+    pixels[1] = 0;
+    pixels[2] = 0;
+    pixels[3] = 255;
+    pixels[4] = 0;
+    pixels[5] = 255;
+    pixels[6] = 0;
+    pixels[7] = 255;
+    pixels[8] = 0;
+    pixels[9] = 0;
+    pixels[10] = 255;
+    pixels[11] = 255;
+    buf->unlock();
+
+    layer.source.buffer.buffer = buf;
+    layer.source.buffer.textureName = texName;
+    // Transform coordinates to only be inside the red quadrant.
+    layer.source.buffer.textureTransform = mat4::scale(vec4(0.2, 0.2, 1, 1));
+    layer.alpha = 1.0f;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers, mBuffer);
+}
+
+void RenderEngineTest::fillBufferTextureTransform() {
+    fillRedBufferTextureTransform();
+    expectBufferColor(fullscreenRect(), 255, 0, 0, 255);
+}
+
+void RenderEngineTest::fillRedBufferWithPremultiplyAlpha() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    // Here logical space is 1x1
+    settings.clip = Rect(1, 1);
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    uint32_t texName;
+    RenderEngineTest::sRE->genTextures(1, &texName);
+    this->mTexNames.push_back(texName);
+
+    uint8_t* pixels;
+    buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+              reinterpret_cast<void**>(&pixels));
+    pixels[0] = 255;
+    pixels[1] = 0;
+    pixels[2] = 0;
+    pixels[3] = 255;
+    buf->unlock();
+
+    layer.source.buffer.buffer = buf;
+    layer.source.buffer.textureName = texName;
+    layer.source.buffer.usePremultipliedAlpha = true;
+    layer.alpha = 0.5f;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers, mBuffer);
+}
+
+void RenderEngineTest::fillBufferWithPremultiplyAlpha() {
+    fillRedBufferWithPremultiplyAlpha();
+    expectBufferColor(fullscreenRect(), 128, 0, 0, 128);
+}
+
+void RenderEngineTest::fillRedBufferWithoutPremultiplyAlpha() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    // Here logical space is 1x1
+    settings.clip = Rect(1, 1);
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    sp<GraphicBuffer> buf = allocateSourceBuffer(1, 1);
+    uint32_t texName;
+    RenderEngineTest::sRE->genTextures(1, &texName);
+    this->mTexNames.push_back(texName);
+
+    uint8_t* pixels;
+    buf->lock(GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN,
+              reinterpret_cast<void**>(&pixels));
+    pixels[0] = 255;
+    pixels[1] = 0;
+    pixels[2] = 0;
+    pixels[3] = 255;
+    buf->unlock();
+
+    layer.source.buffer.buffer = buf;
+    layer.source.buffer.textureName = texName;
+    layer.source.buffer.usePremultipliedAlpha = false;
+    layer.alpha = 0.5f;
+    layer.geometry.boundaries = Rect(1, 1).toFloatRect();
+
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers, mBuffer);
+}
+
+void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
+    fillRedBufferWithoutPremultiplyAlpha();
+    expectBufferColor(fullscreenRect(), 128, 0, 0, 64, 1);
 }
 
 TEST_F(RenderEngineTest, drawLayers_noLayersToDraw) {
@@ -441,6 +669,106 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferLayerTransform_colorSource) {
 
 TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
     fillBufferLayerTransform<ColorSourceVariant>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_opaqueBufferSource) {
+    fillRedBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillGreenBuffer_opaqueBufferSource) {
+    fillGreenBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBlueBuffer_opaqueBufferSource) {
+    fillBlueBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillRedTransparentBuffer_opaqueBufferSource) {
+    fillRedTransparentBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_opaqueBufferSource) {
+    fillBufferPhysicalOffset<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_opaqueBufferSource) {
+    fillBufferCheckersRotate0<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_opaqueBufferSource) {
+    fillBufferCheckersRotate90<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_opaqueBufferSource) {
+    fillBufferCheckersRotate180<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_opaqueBufferSource) {
+    fillBufferCheckersRotate270<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferLayerTransform_opaqueBufferSource) {
+    fillBufferLayerTransform<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource) {
+    fillBufferLayerTransform<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_bufferSource) {
+    fillRedBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillGreenBuffer_bufferSource) {
+    fillGreenBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBlueBuffer_bufferSource) {
+    fillBlueBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillRedTransparentBuffer_bufferSource) {
+    fillRedTransparentBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferPhysicalOffset_bufferSource) {
+    fillBufferPhysicalOffset<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate0_bufferSource) {
+    fillBufferCheckersRotate0<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate90_bufferSource) {
+    fillBufferCheckersRotate90<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate180_bufferSource) {
+    fillBufferCheckersRotate180<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferCheckersRotate270_bufferSource) {
+    fillBufferCheckersRotate270<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferLayerTransform_bufferSource) {
+    fillBufferLayerTransform<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
+    fillBufferLayerTransform<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
+    fillBufferTextureTransform();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
+    fillBufferWithPremultiplyAlpha();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
+    fillBufferWithoutPremultiplyAlpha();
 }
 
 } // namespace android

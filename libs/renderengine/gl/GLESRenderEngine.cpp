@@ -24,6 +24,7 @@
 #include <math.h>
 #include <fstream>
 #include <sstream>
+#include <unordered_set>
 
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
@@ -32,6 +33,7 @@
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
 #include <renderengine/private/Description.h>
+#include <sync/sync.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
 #include <ui/Rect.h>
@@ -584,6 +586,46 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
     }
 }
 
+status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
+                                                     sp<Fence> bufferFence) {
+    std::unique_ptr<Image> newImage = createImage();
+
+    bool created = newImage->setNativeWindowBuffer(buffer->getNativeBuffer(),
+                                                   buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+    if (!created) {
+        ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
+              buffer->getWidth(), buffer->getHeight(), buffer->getStride(), buffer->getUsage(),
+              buffer->getPixelFormat());
+        bindExternalTextureImage(texName, *createImage());
+        return NO_INIT;
+    }
+
+    bindExternalTextureImage(texName, *newImage);
+
+    // Wait for the new buffer to be ready.
+    if (bufferFence != nullptr && bufferFence->isValid()) {
+        if (GLExtensions::getInstance().hasWaitSync()) {
+            base::unique_fd fenceFd(bufferFence->dup());
+            if (fenceFd == -1) {
+                ALOGE("error dup'ing fence fd: %d", errno);
+                return -errno;
+            }
+            if (!waitFence(std::move(fenceFd))) {
+                ALOGE("failed to wait on fence fd");
+                return UNKNOWN_ERROR;
+            }
+        } else {
+            status_t err = bufferFence->waitForever("RenderEngine::bindExternalTextureBuffer");
+            if (err != NO_ERROR) {
+                ALOGE("error waiting for fence: %d", err);
+                return err;
+            }
+        }
+    }
+
+    return NO_ERROR;
+}
+
 status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
     EGLImageKHR eglImage = glFramebuffer->getEGLImage();
@@ -673,32 +715,62 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
     mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
 
-    Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2);
+    Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
     for (auto layer : layers) {
-        // for now, assume that all pixel sources are solid colors.
-        // TODO(alecmouri): support buffer sources
-        if (layer.source.buffer.buffer != nullptr) {
-            continue;
-        }
-
-        setColorTransform(display.colorTransform * layer.colorTransform);
-
         mState.projectionMatrix = projectionMatrix * layer.geometry.positionTransform;
 
-        FloatRect bounds = layer.geometry.boundaries;
+        const FloatRect bounds = layer.geometry.boundaries;
         Mesh::VertexArray<vec2> position(mesh.getPositionArray<vec2>());
         position[0] = vec2(bounds.left, bounds.top);
         position[1] = vec2(bounds.left, bounds.bottom);
         position[2] = vec2(bounds.right, bounds.bottom);
         position[3] = vec2(bounds.right, bounds.top);
 
-        half3 solidColor = layer.source.solidColor;
-        half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
-        setupLayerBlending(/*premultipliedAlpha=*/true, /*opaque=*/false, /*disableTexture=*/true,
+        setColorTransform(display.colorTransform * layer.colorTransform);
+
+        bool usePremultipliedAlpha = true;
+        bool disableTexture = true;
+
+        if (layer.source.buffer.buffer != nullptr) {
+            disableTexture = false;
+
+            sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
+
+            bindExternalTextureBuffer(layer.source.buffer.textureName, gBuf,
+                                      layer.source.buffer.fence);
+
+            usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
+            Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
+            texture.setMatrix(layer.source.buffer.textureTransform.asArray());
+            texture.setFiltering(layer.source.buffer.useTextureFiltering);
+
+            texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
+            setSourceY410BT2020(layer.source.buffer.isY410BT2020);
+
+            renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
+            texCoords[0] = vec2(0.0, 1.0);
+            texCoords[1] = vec2(0.0, 0.0);
+            texCoords[2] = vec2(1.0, 0.0);
+            texCoords[3] = vec2(1.0, 1.0);
+            setupLayerTexturing(texture);
+        }
+
+        const half3 solidColor = layer.source.solidColor;
+        const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
+        // Buffer sources will have a black solid color ignored in the shader,
+        // so in that scenario the solid color passed here is arbitrary.
+        setupLayerBlending(usePremultipliedAlpha, layer.source.buffer.isOpaque, disableTexture,
                            color, /*cornerRadius=*/0.0);
         setSourceDataSpace(layer.sourceDataspace);
 
         drawMesh(mesh);
+
+        // Cleanup if there's a buffer source
+        if (layer.source.buffer.buffer != nullptr) {
+            disableBlending();
+            setSourceY410BT2020(false);
+            disableTexturing();
+        }
     }
 
     *drawFence = flush();

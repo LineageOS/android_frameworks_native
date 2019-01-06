@@ -37,6 +37,7 @@
 #include <unordered_map>
 
 #include "InputListener.h"
+#include "InputReporter.h"
 
 
 namespace android {
@@ -1186,6 +1187,8 @@ private:
     void traceInboundQueueLengthLocked();
     void traceOutboundQueueLengthLocked(const sp<Connection>& connection);
     void traceWaitQueueLengthLocked(const sp<Connection>& connection);
+
+    sp<InputReporter> mReporter;
 };
 
 /* Enqueues and dispatches input events, endlessly. */

@@ -127,6 +127,7 @@ private:
     // Defines the viewport, and sets the projection matrix to the projection
     // defined by the clip.
     void setViewportAndProjection(Rect viewport, Rect clip);
+    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;
