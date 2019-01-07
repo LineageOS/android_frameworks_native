@@ -162,10 +162,10 @@ TEST_F(CredentialsTest, ClientInitTest) {
     setSystemUID();
     ASSERT_NO_FATAL_FAILURE(initClient());
 
-    // No one else can init the client.
+    // Anyone else can init the client.
     setBinUID();
     mComposerClient = new SurfaceComposerClient;
-    ASSERT_EQ(NO_INIT, mComposerClient->initCheck());
+    ASSERT_NO_FATAL_FAILURE(initClient());
 }
 
 TEST_F(CredentialsTest, GetBuiltInDisplayAccessTest) {
@@ -220,22 +220,6 @@ TEST_F(CredentialsTest, SetActiveColorModeTest) {
         return SurfaceComposerClient::setActiveColorMode(display, ui::ColorMode::NATIVE);
     };
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, PERMISSION_DENIED));
-}
-
-TEST_F(CredentialsTest, CreateSurfaceTest) {
-    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
-    DisplayInfo info;
-    SurfaceComposerClient::getDisplayInfo(display, &info);
-    const ssize_t displayWidth = info.w;
-    const ssize_t displayHeight = info.h;
-
-    std::function<bool()> condition = [=]() {
-        mBGSurfaceControl =
-                mComposerClient->createSurface(SURFACE_NAME, displayWidth, displayHeight,
-                                               PIXEL_FORMAT_RGBA_8888, 0);
-        return mBGSurfaceControl != nullptr && mBGSurfaceControl->isValid();
-    };
-    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges(condition, true, false));
 }
 
 TEST_F(CredentialsTest, CreateDisplayTest) {

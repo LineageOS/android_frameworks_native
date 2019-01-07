@@ -39,7 +39,6 @@ class Client : public BnSurfaceComposerClient
 {
 public:
     explicit Client(const sp<SurfaceFlinger>& flinger);
-    Client(const sp<SurfaceFlinger>& flinger, const sp<Layer>& parentLayer);
     ~Client();
 
     status_t initCheck() const;
@@ -50,8 +49,6 @@ public:
     void detachLayer(const Layer* layer);
 
     sp<Layer> getLayerUser(const sp<IBinder>& handle) const;
-
-    void updateParent(const sp<Layer>& parentLayer);
 
 private:
     // ISurfaceComposerClient interface
@@ -68,17 +65,11 @@ private:
 
     virtual status_t getLayerFrameStats(const sp<IBinder>& handle, FrameStats* outStats) const;
 
-    virtual status_t onTransact(
-        uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags);
-
-    sp<Layer> getParentLayer(bool* outParentDied = nullptr) const;
-
     // constant
     sp<SurfaceFlinger> mFlinger;
 
     // protected by mLock
     DefaultKeyedVector< wp<IBinder>, wp<Layer> > mLayers;
-    wp<Layer> mParentLayer;
 
     // thread-safe
     mutable Mutex mLock;

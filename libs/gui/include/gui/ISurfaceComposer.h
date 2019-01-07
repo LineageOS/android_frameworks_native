@@ -87,21 +87,10 @@ public:
         eVsyncSourceSurfaceFlinger = 1
     };
 
-    /* create connection with surface flinger, requires
-     * ACCESS_SURFACE_FLINGER permission
+    /* 
+     * Create a connection with SurfaceFlinger.
      */
     virtual sp<ISurfaceComposerClient> createConnection() = 0;
-
-    /** create a scoped connection with surface flinger.
-     * Surfaces produced with this connection will act
-     * as children of the passed in GBP. That is to say
-     * SurfaceFlinger will draw them relative and confined to
-     * drawing of buffers from the layer associated with parent.
-     * As this is graphically equivalent in reach to just drawing
-     * pixels into the parent buffers, it requires no special permission.
-     */
-    virtual sp<ISurfaceComposerClient> createScopedConnection(
-            const sp<IGraphicBufferProducer>& parent) = 0;
 
     /* return an IDisplayEventConnection */
     virtual sp<IDisplayEventConnection> createDisplayEventConnection(
@@ -356,7 +345,6 @@ public:
         ENABLE_VSYNC_INJECTIONS,
         INJECT_VSYNC,
         GET_LAYER_DEBUG_INFO,
-        CREATE_SCOPED_CONNECTION,
         GET_COMPOSITION_PREFERENCE,
         GET_COLOR_MANAGEMENT,
         GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,

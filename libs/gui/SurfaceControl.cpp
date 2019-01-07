@@ -54,6 +54,13 @@ SurfaceControl::SurfaceControl(
 {
 }
 
+SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
+    mClient = other->mClient;
+    mHandle = other->mHandle;
+    mGraphicBufferProducer = other->mGraphicBufferProducer;
+    mOwned = false;
+}
+
 SurfaceControl::~SurfaceControl()
 {
     destroy();

@@ -910,11 +910,6 @@ SurfaceComposerClient::SurfaceComposerClient()
 {
 }
 
-SurfaceComposerClient::SurfaceComposerClient(const sp<IGraphicBufferProducer>& root)
-    : mStatus(NO_INIT), mParent(root)
-{
-}
-
 SurfaceComposerClient::SurfaceComposerClient(const sp<ISurfaceComposerClient>& client)
     : mStatus(NO_ERROR), mClient(client)
 {
@@ -923,10 +918,8 @@ SurfaceComposerClient::SurfaceComposerClient(const sp<ISurfaceComposerClient>& c
 void SurfaceComposerClient::onFirstRef() {
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
     if (sf != nullptr && mStatus == NO_INIT) {
-        auto rootProducer = mParent.promote();
         sp<ISurfaceComposerClient> conn;
-        conn = (rootProducer != nullptr) ? sf->createScopedConnection(rootProducer) :
-                sf->createConnection();
+        conn = sf->createConnection();
         if (conn != nullptr) {
             mClient = conn;
             mStatus = NO_ERROR;
