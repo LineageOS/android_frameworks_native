@@ -141,6 +141,16 @@ bool BufferStateLayer::setFrame(const Rect& frame) {
     int w = frame.getWidth();
     int h = frame.getHeight();
 
+    if (x < 0) {
+        x = 0;
+        w = frame.right;
+    }
+
+    if (y < 0) {
+        y = 0;
+        h = frame.bottom;
+    }
+
     Mutex::Autolock lock(mStateMutex);
     if (mState.current.active.transform.tx() == x && mState.current.active.transform.ty() == y &&
         mState.current.active.w == w && mState.current.active.h == h) {
