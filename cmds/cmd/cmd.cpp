@@ -40,6 +40,8 @@
 #include "selinux/selinux.h"
 #include "selinux/android.h"
 
+#include "cmd.h"
+
 #define DEBUG 0
 
 using namespace android;
@@ -59,7 +61,10 @@ typedef std::unique_ptr<char[], SecurityContext_Delete> Unique_SecurityContext;
 class MyShellCallback : public BnShellCallback
 {
 public:
+    TextOutput& mErrorLog;
     bool mActive = true;
+
+    MyShellCallback(TextOutput& errorLog) : mErrorLog(errorLog) {}
 
     virtual int openFile(const String16& path, const String16& seLinuxContext,
             const String16& mode) {
@@ -69,7 +74,7 @@ public:
         String8 fullPath(cwd);
         fullPath.appendPath(path8);
         if (!mActive) {
-            aerr << "Open attempt after active for: " << fullPath << endl;
+            mErrorLog << "Open attempt after active for: " << fullPath << endl;
             return -EPERM;
         }
 #if DEBUG
@@ -78,20 +83,20 @@ public:
         int flags = 0;
         bool checkRead = false;
         bool checkWrite = false;
-        if (mode == String16("w")) {
+        if (mode == u"w") {
             flags = O_WRONLY|O_CREAT|O_TRUNC;
             checkWrite = true;
-        } else if (mode == String16("w+")) {
+        } else if (mode == u"w+") {
             flags = O_RDWR|O_CREAT|O_TRUNC;
             checkRead = checkWrite = true;
-        } else if (mode == String16("r")) {
+        } else if (mode == u"r") {
             flags = O_RDONLY;
             checkRead = true;
-        } else if (mode == String16("r+")) {
+        } else if (mode == u"r+") {
             flags = O_RDWR;
             checkRead = checkWrite = true;
         } else {
-            aerr << "Invalid mode requested: " << mode.string() << endl;
+            mErrorLog << "Invalid mode requested: " << mode.string() << endl;
             return -EINVAL;
         }
         int fd = open(fullPath.string(), flags, S_IRWXU|S_IRWXG);
@@ -114,9 +119,7 @@ public:
                     ALOGD("openFile: failed selinux write check!");
 #endif
                     close(fd);
-                    aerr << "System server has no access to write file context " << context.get()
-                            << " (from path " << fullPath.string() << ", context "
-                            << seLinuxContext8.string() << ")" << endl;
+                    mErrorLog << "System server has no access to write file context " << context.get() << " (from path " << fullPath.string() << ", context " << seLinuxContext8.string() << ")" << endl;
                     return -EPERM;
                 }
             }
@@ -128,9 +131,7 @@ public:
                     ALOGD("openFile: failed selinux read check!");
 #endif
                     close(fd);
-                    aerr << "System server has no access to read file context " << context.get()
-                            << " (from path " << fullPath.string() << ", context "
-                            << seLinuxContext8.string() << ")" << endl;
+                    mErrorLog << "System server has no access to read file context " << context.get() << " (from path " << fullPath.string() << ", context " << seLinuxContext8.string() << ")" << endl;
                     return -EPERM;
                 }
             }
@@ -163,9 +164,8 @@ public:
     }
 };
 
-int main(int argc, char* const argv[])
-{
-    signal(SIGPIPE, SIG_IGN);
+int cmdMain(const std::vector<std::string_view>& argv, TextOutput& outputLog, TextOutput& errorLog,
+            int in, int out, int err, RunMode runMode) {
     sp<ProcessState> proc = ProcessState::self();
     proc->startThreadPool();
 
@@ -173,68 +173,77 @@ int main(int argc, char* const argv[])
     ALOGD("cmd: starting");
 #endif
     sp<IServiceManager> sm = defaultServiceManager();
-    fflush(stdout);
+    if (runMode == RunMode::kStandalone) {
+        fflush(stdout);
+    }
     if (sm == nullptr) {
         ALOGW("Unable to get default service manager!");
-        aerr << "cmd: Unable to get default service manager!" << endl;
+        errorLog << "cmd: Unable to get default service manager!" << endl;
         return 20;
     }
 
-    if (argc == 1) {
-        aerr << "cmd: No service specified; use -l to list all services" << endl;
+    int argc = argv.size();
+
+    if (argc == 0) {
+        errorLog << "cmd: No service specified; use -l to list all services" << endl;
         return 20;
     }
 
-    if ((argc == 2) && (strcmp(argv[1], "-l") == 0)) {
+    if ((argc == 1) && (argv[0] == "-l")) {
         Vector<String16> services = sm->listServices();
         services.sort(sort_func);
-        aout << "Currently running services:" << endl;
+        outputLog << "Currently running services:" << endl;
 
         for (size_t i=0; i<services.size(); i++) {
             sp<IBinder> service = sm->checkService(services[i]);
             if (service != nullptr) {
-                aout << "  " << services[i] << endl;
+                outputLog << "  " << services[i] << endl;
             }
         }
         return 0;
     }
 
+    const auto cmd = argv[0];
+
     Vector<String16> args;
-    for (int i=2; i<argc; i++) {
-        args.add(String16(argv[i]));
+    String16 serviceName = String16(cmd.data(), cmd.size());
+    for (int i = 1; i < argc; i++) {
+        args.add(String16(argv[i].data(), argv[i].size()));
     }
-    String16 cmd = String16(argv[1]);
-    sp<IBinder> service = sm->checkService(cmd);
+    sp<IBinder> service = sm->checkService(serviceName);
     if (service == nullptr) {
-        ALOGW("Can't find service %s", argv[1]);
-        aerr << "cmd: Can't find service: " << argv[1] << endl;
+        if (runMode == RunMode::kStandalone) {
+            ALOGW("Can't find service %.*s", static_cast<int>(cmd.size()), cmd.data());
+        }
+        errorLog << "cmd: Can't find service: " << cmd << endl;
         return 20;
     }
 
-    sp<MyShellCallback> cb = new MyShellCallback();
+    sp<MyShellCallback> cb = new MyShellCallback(errorLog);
     sp<MyResultReceiver> result = new MyResultReceiver();
 
 #if DEBUG
-    ALOGD("cmd: Invoking %s in=%d, out=%d, err=%d", argv[1], STDIN_FILENO, STDOUT_FILENO,
-            STDERR_FILENO);
+    ALOGD("cmd: Invoking %s in=%d, out=%d, err=%d", cmd, in, out, err);
 #endif
 
     // TODO: block until a result is returned to MyResultReceiver.
-    status_t err = IBinder::shellCommand(service, STDIN_FILENO, STDOUT_FILENO, STDERR_FILENO, args,
-            cb, result);
-    if (err < 0) {
+    status_t error = IBinder::shellCommand(service, in, out, err, args, cb, result);
+    if (error < 0) {
         const char* errstr;
-        switch (err) {
+        switch (error) {
             case BAD_TYPE: errstr = "Bad type"; break;
             case FAILED_TRANSACTION: errstr = "Failed transaction"; break;
             case FDS_NOT_ALLOWED: errstr = "File descriptors not allowed"; break;
             case UNEXPECTED_NULL: errstr = "Unexpected null"; break;
-            default: errstr = strerror(-err); break;
+            default: errstr = strerror(-error); break;
         }
-        ALOGW("Failure calling service %s: %s (%d)", argv[1], errstr, -err);
-        aout << "cmd: Failure calling service " << argv[1] << ": " << errstr << " ("
-                << (-err) << ")" << endl;
-        return err;
+        if (runMode == RunMode::kStandalone) {
+            ALOGW("Failure calling service %.*s: %s (%d)", static_cast<int>(cmd.size()), cmd.data(),
+                  errstr, -error);
+        }
+        outputLog << "cmd: Failure calling service " << cmd << ": " << errstr << " (" << (-error)
+                  << ")" << endl;
+        return error;
     }
 
     cb->mActive = false;
