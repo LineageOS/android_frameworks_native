@@ -89,13 +89,10 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
     return -EBUSY;
   }
 
-  // Set the producer client buffer state to released, other clients' buffer
-  // state to posted.
-  uint32_t current_active_clients_bit_mask =
-      active_clients_bit_mask_->load(std::memory_order_acquire);
-  uint32_t updated_buffer_state = current_active_clients_bit_mask &
-                                  (~client_state_mask()) &
-                                  BufferHubDefs::kHighBitsMask;
+  // Set the producer client buffer state to released, that of all other clients
+  // (both existing and non-existing clients) to posted.
+  uint32_t updated_buffer_state =
+      (~client_state_mask()) & BufferHubDefs::kHighBitsMask;
   while (!buffer_state_->compare_exchange_weak(
       current_buffer_state, updated_buffer_state, std::memory_order_acq_rel,
       std::memory_order_acquire)) {
@@ -176,7 +173,9 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   }
   if (BufferHubDefs::AnyClientAcquired(current_buffer_state) ||
       BufferHubDefs::AnyClientGained(current_buffer_state) ||
-      (BufferHubDefs::AnyClientPosted(current_buffer_state) &&
+      (BufferHubDefs::AnyClientPosted(
+           current_buffer_state &
+           active_clients_bit_mask_->load(std::memory_order_acquire)) &&
        !gain_posted_buffer)) {
     ALOGE("%s: not released id=%d state=%" PRIx32 ".", __FUNCTION__, id(),
           current_buffer_state);
@@ -198,7 +197,9 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
 
     if (BufferHubDefs::AnyClientAcquired(current_buffer_state) ||
         BufferHubDefs::AnyClientGained(current_buffer_state) ||
-        (BufferHubDefs::AnyClientPosted(current_buffer_state) &&
+        (BufferHubDefs::AnyClientPosted(
+             current_buffer_state &
+             active_clients_bit_mask_->load(std::memory_order_acquire)) &&
          !gain_posted_buffer)) {
       ALOGE(
           "%s: Failed to gain the buffer. The buffer is no longer released. "

@@ -361,9 +361,11 @@ TEST_F(LibBufferHubTest, TestGainPostedBuffer_noConsumer) {
   ASSERT_TRUE(p.get() != nullptr);
   ASSERT_EQ(0, p->GainAsync());
   ASSERT_EQ(0, p->Post(LocalHandle()));
-  // Producer state bit is in released state after post. The overall state of
-  // the buffer is also released because there is no consumer of this buffer.
-  ASSERT_TRUE(IsBufferReleased(p->buffer_state()));
+  // Producer state bit is in released state after post, other clients shall be
+  // in posted state although there is no consumer of this buffer yet.
+  ASSERT_TRUE(IsClientReleased(p->buffer_state(), p->client_state_mask()));
+  ASSERT_FALSE(IsBufferReleased(p->buffer_state()));
+  ASSERT_TRUE(AnyClientPosted(p->buffer_state()));
 
   // Gain in released state should succeed.
   LocalHandle invalid_fence;
@@ -450,27 +452,17 @@ TEST_F(LibBufferHubTest, TestCreateTheFirstConsumerAfterPostingBuffer) {
   LocalHandle invalid_fence;
 
   // Post the gained buffer before any consumer gets created.
-  // The buffer should be in released state because it is not expected to be
-  // read by any clients.
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
-  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+  EXPECT_FALSE(IsBufferReleased(p->buffer_state()));
   EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
-  // Newly created consumer will not be signalled for the posted buffer before
-  // its creation. It cannot acquire the buffer immediately.
+  // Newly created consumer will be signalled for the posted buffer although it
+  // is created after producer posting.
   std::unique_ptr<ConsumerBuffer> c =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c.get() != nullptr);
-  EXPECT_FALSE(IsClientPosted(c->buffer_state(), c->client_state_mask()));
-  EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
-
-  // Producer should be able to gain back and post the buffer
-  EXPECT_EQ(0, p->GainAsync());
-  EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
-
-  // Consumer should be able to pick up the buffer this time.
+  EXPECT_TRUE(IsClientPosted(c->buffer_state(), c->client_state_mask()));
   EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
-  EXPECT_TRUE(IsClientAcquired(c->buffer_state(), c->client_state_mask()));
 }
 
 TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
