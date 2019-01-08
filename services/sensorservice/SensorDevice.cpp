@@ -35,6 +35,7 @@ using namespace android::hardware::sensors::V1_0;
 using namespace android::hardware::sensors::V1_0::implementation;
 using android::hardware::sensors::V2_0::ISensorsCallback;
 using android::hardware::sensors::V2_0::EventQueueFlagBits;
+using android::hardware::sensors::V2_0::WakeLockQueueFlagBits;
 using android::hardware::hidl_vec;
 using android::hardware::Return;
 using android::SensorDeviceUtils::HidlServiceRegistrationWaiter;
@@ -94,6 +95,8 @@ struct SensorsCallback : public ISensorsCallback {
 SensorDevice::SensorDevice()
         : mHidlTransportErrors(20),
           mRestartWaiter(new HidlServiceRegistrationWaiter()),
+          mEventQueueFlag(nullptr),
+          mWakeLockQueueFlag(nullptr),
           mReconnecting(false) {
     if (!connectHidlService()) {
         return;
@@ -136,6 +139,11 @@ SensorDevice::~SensorDevice() {
     if (mEventQueueFlag != nullptr) {
         hardware::EventFlag::deleteEventFlag(&mEventQueueFlag);
         mEventQueueFlag = nullptr;
+    }
+
+    if (mWakeLockQueueFlag != nullptr) {
+        hardware::EventFlag::deleteEventFlag(&mWakeLockQueueFlag);
+        mWakeLockQueueFlag = nullptr;
     }
 }
 
@@ -198,10 +206,16 @@ SensorDevice::HalConnectionStatus SensorDevice::connectHidlServiceV2_0() {
                 SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT,
                 true /* configureEventFlagWord */);
 
+        hardware::EventFlag::deleteEventFlag(&mEventQueueFlag);
         hardware::EventFlag::createEventFlag(mEventQueue->getEventFlagWord(), &mEventQueueFlag);
 
+        hardware::EventFlag::deleteEventFlag(&mWakeLockQueueFlag);
+        hardware::EventFlag::createEventFlag(mWakeLockQueue->getEventFlagWord(),
+                                             &mWakeLockQueueFlag);
+
         CHECK(mSensors != nullptr && mEventQueue != nullptr &&
-                mWakeLockQueue != nullptr && mEventQueueFlag != nullptr);
+                mWakeLockQueue != nullptr && mEventQueueFlag != nullptr &&
+                mWakeLockQueueFlag != nullptr);
 
         status_t status = StatusFromResult(checkReturn(mSensors->initialize(
                 *mEventQueue->getDesc(),
@@ -512,9 +526,12 @@ Return<void> SensorDevice::onDynamicSensorsDisconnected(
 }
 
 void SensorDevice::writeWakeLockHandled(uint32_t count) {
-    if (mSensors != nullptr && mSensors->supportsMessageQueues() &&
-            !mWakeLockQueue->write(&count)) {
-        ALOGW("Failed to write wake lock handled");
+    if (mSensors != nullptr && mSensors->supportsMessageQueues()) {
+        if (mWakeLockQueue->write(&count)) {
+            mWakeLockQueueFlag->wake(asBaseType(WakeLockQueueFlagBits::DATA_WRITTEN));
+        } else {
+            ALOGW("Failed to write wake lock handled");
+        }
     }
 }
 
