@@ -671,12 +671,22 @@ protected:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
+    // Computes the crop applied to this layer. windowBounds is the boundary of
+    // layer-stack space, so the cropping rectangle will be clipped to those
+    // bounds in that space. The crop rectangle is returned in buffer space. If
+    // windowBounds is invalid, then it is ignored.
+    virtual FloatRect computeCrop(const Rect& windowBounds) const;
+
+    // See the above method, but pulls the window boundaries from the display.
+    FloatRect computeCrop(const sp<const DisplayDevice>& display) const {
+        return computeCrop(display->getViewport());
+    }
     // Compute the initial crop as specified by parent layers and the
     // SurfaceControl for this layer. Does not include buffer crop from the
     // IGraphicBufferProducer client, as that should not affect child clipping.
     // Returns in screen space.
-    Rect computeInitialCrop(const sp<const DisplayDevice>& display) const;
+    Rect computeInitialCrop(const Rect& windowBounds) const;
+
     /**
      * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
      * crop coordinates, transforming them into layer space.
