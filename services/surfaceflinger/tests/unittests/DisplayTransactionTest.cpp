@@ -21,9 +21,8 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <log/log.h>
-
+#include <renderengine/mock/RenderEngine.h>
 #include <ui/DebugUtils.h>
 
 #include "DisplayIdentificationTest.h"
@@ -36,7 +35,6 @@
 #include "mock/MockMessageQueue.h"
 #include "mock/MockNativeWindowSurface.h"
 #include "mock/MockSurfaceInterceptor.h"
-#include "mock/RenderEngine/MockRenderEngine.h"
 #include "mock/gui/MockGraphicBufferConsumer.h"
 #include "mock/gui/MockGraphicBufferProducer.h"
 #include "mock/system/window/MockNativeWindow.h"
