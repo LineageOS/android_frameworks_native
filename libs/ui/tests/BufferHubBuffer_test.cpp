@@ -67,9 +67,9 @@ protected:
     }
 
     std::unique_ptr<BufferHubBuffer> b1;
-    uint64_t b1ClientMask = 0U;
+    uint32_t b1ClientMask = 0U;
     std::unique_ptr<BufferHubBuffer> b2;
-    uint64_t b2ClientMask = 0U;
+    uint32_t b2ClientMask = 0U;
 
 private:
     // Creates b1 and b2 as the clients of the same buffer for testing.
@@ -125,7 +125,7 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
     int id1 = b1->id();
-    uint64_t bufferStateMask1 = b1->client_state_mask();
+    uint32_t bufferStateMask1 = b1->client_state_mask();
     EXPECT_NE(bufferStateMask1, 0U);
     EXPECT_TRUE(b1->IsValid());
     EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
@@ -148,7 +148,7 @@ TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
     EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
 
     int id2 = b2->id();
-    uint64_t bufferStateMask2 = b2->client_state_mask();
+    uint32_t bufferStateMask2 = b2->client_state_mask();
     EXPECT_NE(bufferStateMask2, 0U);
 
     // These two buffer instances are based on the same physical buffer under the
@@ -338,6 +338,54 @@ TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInAcquiredState
     ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
 
     EXPECT_EQ(b2->Release(), 0);
+}
+
+TEST_F(BufferHubBufferStateTransitionTest, BasicUsage) {
+    // 1 producer buffer and 1 consumer buffer initialised in testcase setup.
+    // Test if this set of basic operation succeed:
+    // Producer post three times to the consumer, and released by consumer.
+    for (int i = 0; i < 3; ++i) {
+        ASSERT_EQ(b1->Gain(), 0);
+        ASSERT_EQ(b1->Post(), 0);
+        ASSERT_EQ(b2->Acquire(), 0);
+        ASSERT_EQ(b2->Release(), 0);
+    }
+}
+
+TEST_F(BufferHubBufferTest, createNewConsumerAfterGain) {
+    // Create a poducer buffer and gain.
+    std::unique_ptr<BufferHubBuffer> b1 =
+            BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+                                    kUserMetadataSize);
+    ASSERT_EQ(b1->Gain(), 0);
+
+    // Create a consumer of the buffer and test if the consumer can acquire the
+    // buffer if producer posts.
+    auto statusOrHandle = b1->Duplicate();
+    ASSERT_TRUE(statusOrHandle);
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(statusOrHandle.take()));
+    ASSERT_NE(b1->client_state_mask(), b2->client_state_mask());
+
+    ASSERT_EQ(b1->Post(), 0);
+    EXPECT_EQ(b2->Acquire(), 0);
+}
+
+TEST_F(BufferHubBufferTest, createNewConsumerAfterPost) {
+    // Create a poducer buffer and post.
+    std::unique_ptr<BufferHubBuffer> b1 =
+            BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+                                    kUserMetadataSize);
+    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->Post(), 0);
+
+    // Create a consumer of the buffer and test if the consumer can acquire the
+    // buffer if producer posts.
+    auto statusOrHandle = b1->Duplicate();
+    ASSERT_TRUE(statusOrHandle);
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(statusOrHandle.take()));
+    ASSERT_NE(b1->client_state_mask(), b2->client_state_mask());
+
+    EXPECT_EQ(b2->Acquire(), 0);
 }
 
 } // namespace
