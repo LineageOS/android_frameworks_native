@@ -179,7 +179,6 @@ LIBGLESV1_CM {
     glLoadPaletteFromModelViewMatrixOES;
     glLogicOp;
     glMapBufferOES;
-    glMapBufferRangeEXT;
     glMaterialf;
     glMaterialfv;
     glMaterialx;
