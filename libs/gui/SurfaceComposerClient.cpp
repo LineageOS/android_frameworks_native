@@ -972,6 +972,29 @@ sp<SurfaceControl> SurfaceComposerClient::createSurface(
     return s;
 }
 
+sp<SurfaceControl> SurfaceComposerClient::createWithSurfaceParent(const String8& name, uint32_t w,
+                                                                  uint32_t h, PixelFormat format,
+                                                                  uint32_t flags, Surface* parent,
+                                                                  int32_t windowType,
+                                                                  int32_t ownerUid) {
+    sp<SurfaceControl> sur;
+    status_t err = mStatus;
+
+    if (mStatus == NO_ERROR) {
+        sp<IBinder> handle;
+        sp<IGraphicBufferProducer> parentGbp = parent->getIGraphicBufferProducer();
+        sp<IGraphicBufferProducer> gbp;
+
+        err = mClient->createWithSurfaceParent(name, w, h, format, flags, parentGbp, windowType,
+                                               ownerUid, &handle, &gbp);
+        ALOGE_IF(err, "SurfaceComposerClient::createWithSurfaceParent error %s", strerror(-err));
+        if (err == NO_ERROR) {
+            return new SurfaceControl(this, handle, gbp, true /* owned */);
+        }
+    }
+    return nullptr;
+}
+
 status_t SurfaceComposerClient::createSurfaceChecked(
         const String8& name,
         uint32_t w,
@@ -1134,6 +1157,7 @@ status_t SurfaceComposerClient::getDisplayedContentSample(const sp<IBinder>& dis
     return ComposerService::getComposerService()->getDisplayedContentSample(display, maxFrames,
                                                                             timestamp, outStats);
 }
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
