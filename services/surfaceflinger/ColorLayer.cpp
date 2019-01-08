@@ -40,16 +40,15 @@ ColorLayer::~ColorLayer() = default;
 
 void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
                         bool useIdentityTransform) {
-    Mutex::Autolock lock(mStateMutex);
     half4 color = getColor();
     if (color.a > 0) {
         renderengine::Mesh mesh(renderengine::Mesh::TRIANGLE_FAN, 4, 2);
         computeGeometry(renderArea, mesh, useIdentityTransform);
         auto& engine(mFlinger->getRenderEngine());
 
-        Rect win{computeBoundsLocked()};
+        Rect win{computeBounds()};
 
-        const auto roundedCornerState = getRoundedCornerStateLocked();
+        const auto roundedCornerState = getRoundedCornerState();
         const auto cropRect = roundedCornerState.cropRect;
         setupRoundedCornersCropCoordinates(win, cropRect);
 
@@ -92,7 +91,6 @@ void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& trans
     }
     getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
 
-    Mutex::Autolock lock(mStateMutex);
     half4 color = getColor();
     error = hwcLayer->setColor({static_cast<uint8_t>(std::round(255.0f * color.r)),
                                 static_cast<uint8_t>(std::round(255.0f * color.g)),
@@ -113,12 +111,12 @@ void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& trans
     }
     getBE().compositionInfo.hwc.transform = HWC2::Transform::None;
 
-    error = hwcLayer->setColorTransform(getColorTransformLocked());
+    error = hwcLayer->setColorTransform(getColorTransform());
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to setColorTransform: %s (%d)", mName.string(),
                 to_string(error).c_str(), static_cast<int32_t>(error));
     }
-    getBE().compositionInfo.hwc.colorTransform = getColorTransformLocked();
+    getBE().compositionInfo.hwc.colorTransform = getColorTransform();
 
     error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
     if (error != HWC2::Error::None) {
