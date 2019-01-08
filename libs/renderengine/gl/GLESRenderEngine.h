@@ -128,6 +128,9 @@ private:
     // defined by the clip.
     void setViewportAndProjection(Rect viewport, Rect clip);
     status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence);
+    // Computes the cropping window for the layer and sets up cropping
+    // coordinates for the mesh.
+    FloatRect setupLayerCropping(const LayerSettings& layer, Mesh& mesh);
 
     EGLDisplay mEGLDisplay;
     EGLConfig mEGLConfig;

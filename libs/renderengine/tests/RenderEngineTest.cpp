@@ -172,6 +172,12 @@ struct RenderEngineTest : public ::testing::Test {
     template <typename SourceVariant>
     void fillBufferColorTransform();
 
+    template <typename SourceVariant>
+    void fillRedBufferWithRoundedCorners();
+
+    template <typename SourceVariant>
+    void fillBufferWithRoundedCorners();
+
     void fillRedBufferTextureTransform();
 
     void fillBufferTextureTransform();
@@ -501,6 +507,42 @@ void RenderEngineTest::fillBufferColorTransform() {
     expectBufferColor(fullscreenRect(), 191, 0, 0, 255);
 }
 
+template <typename SourceVariant>
+void RenderEngineTest::fillRedBufferWithRoundedCorners() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<renderengine::LayerSettings> layers;
+
+    renderengine::LayerSettings layer;
+    layer.geometry.boundaries = fullscreenRect().toFloatRect();
+    layer.geometry.roundedCornersRadius = 5.0f;
+    layer.geometry.roundedCornersCrop = fullscreenRect().toFloatRect();
+    SourceVariant::fillColor(layer, 1.0f, 0.0f, 0.0f, this);
+    layer.alpha = 1.0f;
+
+    layers.push_back(layer);
+
+    invokeDraw(settings, layers, mBuffer);
+}
+
+template <typename SourceVariant>
+void RenderEngineTest::fillBufferWithRoundedCorners() {
+    fillRedBufferWithRoundedCorners<SourceVariant>();
+    // Corners should be ignored...
+    expectBufferColor(Rect(0, 0, 1, 1), 0, 0, 0, 0);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH - 1, 0, DEFAULT_DISPLAY_WIDTH, 1), 0, 0, 0, 0);
+    expectBufferColor(Rect(0, DEFAULT_DISPLAY_HEIGHT - 1, 1, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 0);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH - 1, DEFAULT_DISPLAY_HEIGHT - 1,
+                           DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                      0, 0, 0, 0);
+    // ...And the non-rounded portion should be red.
+    // Other pixels may be anti-aliased, so let's not check those.
+    expectBufferColor(Rect(5, 5, DEFAULT_DISPLAY_WIDTH - 5, DEFAULT_DISPLAY_HEIGHT - 5), 255, 0, 0,
+                      255);
+}
+
 void RenderEngineTest::fillRedBufferTextureTransform() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
@@ -701,6 +743,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_colorSource) {
     fillBufferLayerTransform<ColorSourceVariant>();
 }
 
+TEST_F(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
+    fillBufferWithRoundedCorners<ColorSourceVariant>();
+}
+
 TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_opaqueBufferSource) {
     fillRedBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
@@ -745,6 +791,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource)
     fillBufferLayerTransform<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
+TEST_F(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource) {
+    fillBufferWithRoundedCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
 TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_bufferSource) {
     fillRedBuffer<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
@@ -787,6 +837,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferLayerTransform_bufferSource) {
 
 TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_bufferSource) {
     fillBufferLayerTransform<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
+    fillBufferWithRoundedCorners<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
 TEST_F(RenderEngineTest, drawLayers_fillBufferTextureTransform) {

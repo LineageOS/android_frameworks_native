@@ -69,6 +69,20 @@ struct Geometry {
 
     // Transform matrix to apply to mesh coordinates.
     mat4 positionTransform = mat4();
+
+    // Radius of rounded corners, if greater than 0. Otherwise, this layer's
+    // corners are not rounded.
+    // Having corner radius will force GPU composition on the layer and its children, drawing it
+    // with a special shader. The shader will receive the radius and the crop rectangle as input,
+    // modifying the opacity of the destination texture, multiplying it by a number between 0 and 1.
+    // We query Layer#getRoundedCornerState() to retrieve the radius as well as the rounded crop
+    // rectangle to figure out how to apply the radius for this layer. The crop rectangle will be
+    // in local layer coordinate space, so we have to take the layer transform into account when
+    // walking up the tree.
+    float roundedCornersRadius = 0.0;
+
+    // Rectangle within which corners will be rounded.
+    FloatRect roundedCornersCrop = FloatRect();
 };
 
 // Descriptor of the source pixels for this layer.
