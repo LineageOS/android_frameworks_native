@@ -95,6 +95,26 @@ status_t Client::createSurface(
                                  ownerUid, handle, gbp, &parent);
 }
 
+status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
+                                         PixelFormat format, uint32_t flags,
+                                         const sp<IGraphicBufferProducer>& parent,
+                                         int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
+                                         sp<IGraphicBufferProducer>* gbp) {
+    if (mFlinger->authenticateSurfaceTexture(parent) == false) {
+        return BAD_VALUE;
+    }
+
+    const auto& layer = (static_cast<MonitoredProducer*>(parent.get()))->getLayer();
+    if (layer == nullptr) {
+        return BAD_VALUE;
+    }
+
+    sp<IBinder> parentHandle = layer->getHandle();
+
+    return createSurface(name, w, h, format, flags, parentHandle, windowType, ownerUid, handle,
+                         gbp);
+}
+
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {
     sp<Layer> layer = getLayerUser(handle);
     if (layer == nullptr) {

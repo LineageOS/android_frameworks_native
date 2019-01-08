@@ -58,6 +58,16 @@ public:
     /*
      * Requires ACCESS_SURFACE_FLINGER permission
      */
+    virtual status_t createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
+                                             PixelFormat format, uint32_t flags,
+                                             const sp<IGraphicBufferProducer>& parent,
+                                             int32_t windowType, int32_t ownerUid,
+                                             sp<IBinder>* handle,
+                                             sp<IGraphicBufferProducer>* gbp) = 0;
+
+    /*
+     * Requires ACCESS_SURFACE_FLINGER permission
+     */
     virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const = 0;
 
     /*
