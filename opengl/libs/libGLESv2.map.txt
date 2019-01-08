@@ -1,19 +1,28 @@
 LIBGLESV2 {
   global:
+    glActiveShaderProgramEXT;
     glActiveTexture;
     glAttachShader;
+    glBeginQueryEXT;
     glBeginPerfMonitorAMD;
     glBindAttribLocation;
     glBindBuffer;
+    glBindFragDataLocationEXT; # introduced=24
+    glBindFragDataLocationIndexedEXT; # introduced=24
     glBindFramebuffer;
+    glBindProgramPipelineEXT;
     glBindRenderbuffer;
     glBindTexture;
     glBindVertexArrayOES; # introduced-mips=9 introduced-x86=9
     glBlendColor;
     glBlendEquation;
+    glBlendEquationiOES; # introduced=24
     glBlendEquationSeparate;
+    glBlendEquationSeparateiOES; # introduced=24
     glBlendFunc;
+    glBlendFunciOES; # introduced=24
     glBlendFuncSeparate;
+    glBlendFuncSeparateiOES; # introduced=24
     glBufferData;
     glBufferSubData;
     glCheckFramebufferStatus;
@@ -22,6 +31,7 @@ LIBGLESV2 {
     glClearDepthf;
     glClearStencil;
     glColorMask;
+    glColorMaskiOES; # introduced=24
     glCompileShader;
     glCompressedTexImage2D;
     glCompressedTexImage3DOES;
@@ -34,12 +44,16 @@ LIBGLESV2 {
     glCoverageOperationNV; # introduced-mips=9 introduced-x86=9
     glCreateProgram;
     glCreateShader;
+    glCreateShaderProgramvEXT;
     glCullFace;
+    glDebugMessageCallbackKHR; # introduced=21
     glDeleteBuffers;
     glDeleteFencesNV;
     glDeleteFramebuffers;
     glDeletePerfMonitorsAMD;
     glDeleteProgram;
+    glDeleteProgramPipelinesEXT;
+    glDeleteQueriesEXT;
     glDeleteRenderbuffers;
     glDeleteShader;
     glDeleteTextures;
@@ -49,17 +63,32 @@ LIBGLESV2 {
     glDepthRangef;
     glDetachShader;
     glDisable;
+    glDisableiOES; # introduced=24
     glDisableDriverControlQCOM;
     glDisableVertexAttribArray;
     glDiscardFramebufferEXT; # introduced-mips=9 introduced-x86=9
     glDrawArrays;
+    glDrawArraysInstancedBaseInstanceEXT; # introduced=24
+    glDrawArraysInstancedEXT; # introduced=21
+    glDrawBuffersEXT; # introduced=21
+    glDrawBuffersIndexedEXT; # introduced=21
     glDrawElements;
+    glDrawElementsBaseVertexEXT; # introduced=24
+    glDrawElementsBaseVertexOES; # introduced=24
+    glDrawElementsInstancedBaseInstanceEXT; # introduced=24
+    glDrawElementsInstancedBaseVertexEXT; # introduced=24
+    glDrawElementsInstancedBaseVertexOES; # introduced=24
+    glDrawElementsInstancedBaseVertexBaseInstanceEXT; # introduced=24
+    glDrawRangeElementsBaseVertexEXT; # introduced=24
+    glDrawRangeElementsBaseVertexOES; # introduced=24
     glEGLImageTargetRenderbufferStorageOES;
     glEGLImageTargetTexture2DOES;
     glEnable;
+    glEnableiOES; # introduced=24
     glEnableDriverControlQCOM;
     glEnableVertexAttribArray;
     glEndPerfMonitorAMD;
+    glEndQueryEXT;
     glEndTilingQCOM; # introduced-mips=9 introduced-x86=9
     glExtGetBufferPointervQCOM; # introduced-mips=9 introduced-x86=9
     glExtGetBuffersQCOM; # introduced-mips=9 introduced-x86=9
@@ -76,17 +105,20 @@ LIBGLESV2 {
     glFinish;
     glFinishFenceNV;
     glFlush;
+    glFlushMappedBufferRangeEXT; # introduced=21
     glFramebufferRenderbuffer;
     glFramebufferTexture2D;
     glFramebufferTexture2DMultisampleIMG; # introduced-mips=9 introduced-x86=9
     glFramebufferTexture2DMultisampleEXT; # introduced=28
     glFramebufferTexture3DOES;
+    glFramebufferTextureOES; # introduced=24
     glFrontFace;
     glGenBuffers;
     glGenFencesNV;
     glGenFramebuffers;
     glGenPerfMonitorsAMD;
     glGenRenderbuffers;
+    glGenQueriesEXT;
     glGenTextures;
     glGenVertexArraysOES; # introduced-mips=9 introduced-x86=9
     glGenerateMipmap;
@@ -102,24 +134,49 @@ LIBGLESV2 {
     glGetError;
     glGetFenceivNV;
     glGetFloatv;
+    glGetFragDataIndexEXT; # introduced=24
     glGetFramebufferAttachmentParameteriv;
+    glGetGraphicsResetStatusEXT;
+    glGetGraphicsResetStatusKHR; # introduced=24
+    glGetIntegeri_vEXT; # introduced=21
     glGetIntegerv;
+    glGetnUniformfvEXT;
+    glGetnUniformfvKHR; # introduced=24
+    glGetnUniformivEXT;
+    glGetnUniformivKHR; # introduced=24
+    glGetnUniformuivKHR; # introduced=24
+    glGetObjectLabelEXT;
+    glCopyImageSubDataOES; # introduced=24
     glGetPerfMonitorCounterDataAMD;
     glGetPerfMonitorCounterInfoAMD;
     glGetPerfMonitorCounterStringAMD;
     glGetPerfMonitorCountersAMD;
     glGetPerfMonitorGroupStringAMD;
     glGetPerfMonitorGroupsAMD;
+    glGetPointervKHR; # introduced=21
     glGetProgramBinaryOES;
     glGetProgramInfoLog;
     glGetProgramiv;
+    glGenProgramPipelinesEXT;
+    glGetProgramPipelineInfoLogEXT;
+    glGetProgramPipelineivEXT;
+    glGetProgramResourceLocationIndexEXT; # introduced=24
+    glGetQueryivEXT;
+    glGetQueryObjectivEXT; # introduced=21
+    glGetQueryObjectuivEXT;
+    glGetQueryObjecti64vEXT; # introduced=21
+    glGetQueryObjectui64vEXT; # introduced=21
     glGetRenderbufferParameteriv;
+    glGetSamplerParameterIivOES; # introduced=24
+    glGetSamplerParameterIuivOES; # introduced=24
     glGetShaderInfoLog;
     glGetShaderPrecisionFormat;
     glGetShaderSource;
     glGetShaderiv;
     glGetString;
     glGetTexParameterfv;
+    glGetTexParameterIivOES; # introduced=24
+    glGetTexParameterIuivOES; # introduced=24
     glGetTexParameteriv;
     glGetUniformLocation;
     glGetUniformfv;
@@ -128,29 +185,83 @@ LIBGLESV2 {
     glGetVertexAttribfv;
     glGetVertexAttribiv;
     glHint;
+    glInsertEventMarkerEXT;
     glIsBuffer;
     glIsEnabled;
+    glIsEnablediOES; # introduced=24
     glIsFenceNV;
     glIsFramebuffer;
     glIsProgram;
+    glIsProgramPipelineEXT;
+    glIsQueryEXT;
     glIsRenderbuffer;
     glIsShader;
     glIsTexture;
     glIsVertexArrayOES; # introduced-mips=9 introduced-x86=9
+    glLabelObjectEXT;
     glLineWidth;
     glLinkProgram;
     glMapBufferOES;
     glMultiDrawArraysEXT; # introduced-mips=9 introduced-x86=9
+    glMultiDrawArraysIndirectEXT; # introduced=24
+    glMultiDrawElementsIndirectEXT; # introduced=24
+    glMultiDrawElementsBaseVertexEXT; # introduced=24
+    glDrawElementsInstancedEXT; # introduced=21
     glMultiDrawElementsEXT; # introduced-mips=9 introduced-x86=9
+    glPatchParameteriOES; # introduced=24
     glPixelStorei;
     glPolygonOffset;
+    glPopGroupMarkerEXT; # introduced=21
+    glPrimitiveBoundingBoxOES; # introduced=24
     glProgramBinaryOES;
+    glProgramParameteriEXT;
+    glProgramUniform1fEXT;
+    glProgramUniform1fvEXT;
+    glProgramUniform1iEXT;
+    glProgramUniform1ivEXT;
+    glProgramUniform1uiEXT; # introduced=21
+    glProgramUniform1uivEXT; # introduced=21
+    glProgramUniform2fEXT;
+    glProgramUniform2fvEXT;
+    glProgramUniform2iEXT;
+    glProgramUniform2ivEXT;
+    glProgramUniform2uiEXT; # introduced=21
+    glProgramUniform2uivEXT; # introduced=21
+    glProgramUniform3fEXT;
+    glProgramUniform3fvEXT;
+    glProgramUniform3iEXT;
+    glProgramUniform3ivEXT;
+    glProgramUniform3uiEXT; # introduced=21
+    glProgramUniform3uivEXT; # introduced=21
+    glProgramUniform4fEXT;
+    glProgramUniform4fvEXT;
+    glProgramUniform4iEXT;
+    glProgramUniform4ivEXT;
+    glProgramUniform4uiEXT; # introduced=21
+    glProgramUniform4uivEXT; # introduced=21
+    glProgramUniformMatrix2fvEXT;
+    glProgramUniformMatrix2x3fvEXT; # introduced=21
+    glProgramUniformMatrix2x4fvEXT; # introduced=21
+    glProgramUniformMatrix3fvEXT;
+    glProgramUniformMatrix3x2fvEXT; # introduced=21
+    glProgramUniformMatrix3x4fvEXT; # introduced=21
+    glProgramUniformMatrix4fvEXT;
+    glProgramUniformMatrix4x2fvEXT; # introduced=21
+    glProgramUniformMatrix4x3fvEXT; # introduced=21
+    glPushGroupMarkerEXT;
+    glQueryCounterEXT; # introduced=21
+    glRasterSamplesEXT; # introduced=24
+    glReadBufferIndexedEXT; # introduced=21
+    glReadnPixelsEXT;
+    glReadnPixelsKHR; # introduced=24
     glReadPixels;
     glReleaseShaderCompiler;
     glRenderbufferStorage;
     glRenderbufferStorageMultisampleEXT; # introduced=28
     glRenderbufferStorageMultisampleIMG; # introduced-mips=9 introduced-x86=9
     glSampleCoverage;
+    glSamplerParameterIivOES; # introduced=24
+    glSamplerParameterIuivOES; # introduced=24
     glScissor;
     glSelectPerfMonitorCountersAMD;
     glSetFenceNV;
@@ -164,14 +275,27 @@ LIBGLESV2 {
     glStencilOp;
     glStencilOpSeparate;
     glTestFenceNV;
+    glTexBufferOES; # introduced=24
+    glTexBufferRangeOES; # introduced=24
     glTexImage2D;
     glTexImage3DOES;
+    glTexPageCommitmentEXT; # introduced=24
     glTexParameterf;
     glTexParameterfv;
     glTexParameteri;
+    glTexParameterIivOES; # introduced=24
+    glTexParameterIuivOES; # introduced=24
     glTexParameteriv;
+    glTexStorage1DEXT;
+    glTexStorage2DEXT;
+    glTexStorage3DEXT;
     glTexSubImage2D;
     glTexSubImage3DOES;
+    glTextureStorage1DEXT;
+    glTextureStorage2DEXT;
+    glTextureStorage3DEXT;
+    glTextureViewEXT; # introduced=21
+    glTextureViewOES; # introduced=24
     glUniform1f;
     glUniform1fv;
     glUniform1i;
@@ -193,7 +317,11 @@ LIBGLESV2 {
     glUniformMatrix4fv;
     glUnmapBufferOES;
     glUseProgram;
+    glUseProgramStagesEXT;
     glValidateProgram;
+    glValidateProgramPipelineEXT;
+    glVertexAttribDivisorANGLE; # introduced=21
+    glVertexAttribDivisorEXT; # introduced=21
     glVertexAttrib1f;
     glVertexAttrib1fv;
     glVertexAttrib2f;

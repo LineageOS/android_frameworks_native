@@ -75,6 +75,8 @@ public:
     status_t getLayerFrameStats(FrameStats* outStats) const;
 
     sp<SurfaceComposerClient> getClient() const;
+    
+    explicit SurfaceControl(const sp<SurfaceControl>& other);
 
 private:
     // can't be copied
