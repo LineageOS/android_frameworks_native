@@ -64,7 +64,6 @@ static constexpr char kBufferHubClientPath[] = "system/buffer_hub/client";
 
 using BufferHubDefs::AnyClientAcquired;
 using BufferHubDefs::AnyClientGained;
-using BufferHubDefs::AnyClientPosted;
 using BufferHubDefs::IsClientAcquired;
 using BufferHubDefs::IsClientGained;
 using BufferHubDefs::IsClientPosted;
@@ -226,8 +225,7 @@ int BufferHubBuffer::Gain() {
 
 int BufferHubBuffer::Post() {
     uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
-    uint32_t current_active_clients_bit_mask = 0U;
-    uint32_t updated_buffer_state = 0U;
+    uint32_t updated_buffer_state = (~mClientStateMask) & kHighBitsMask;
     do {
         if (!IsClientGained(current_buffer_state, mClientStateMask)) {
             ALOGE("%s: Cannot post a buffer that is not gained by this client. buffer_id=%d "
@@ -236,9 +234,7 @@ int BufferHubBuffer::Post() {
             return -EBUSY;
         }
         // Set the producer client buffer state to released, other clients' buffer state to posted.
-        current_active_clients_bit_mask = active_clients_bit_mask_->load(std::memory_order_acquire);
-        updated_buffer_state =
-                current_active_clients_bit_mask & (~mClientStateMask) & kHighBitsMask;
+        // Post to all existing and non-existing clients.
     } while (!buffer_state_->compare_exchange_weak(current_buffer_state, updated_buffer_state,
                                                    std::memory_order_acq_rel,
                                                    std::memory_order_acquire));
