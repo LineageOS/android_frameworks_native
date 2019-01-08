@@ -94,11 +94,11 @@ struct LayerSettings {
     half alpha = half(0.0);
 
     // Color space describing how the source pixels should be interpreted.
-    ui::Dataspace sourceDataspace;
+    ui::Dataspace sourceDataspace = ui::Dataspace::UNKNOWN;
 
     // Additional layer-specific color transform to be applied before the global
     // transform.
-    mat4 colorTransform;
+    mat4 colorTransform = mat4();
 };
 
 } // namespace renderengine

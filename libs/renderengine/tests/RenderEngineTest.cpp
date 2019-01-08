@@ -184,6 +184,12 @@ struct RenderEngineTest : public ::testing::Test {
 
     void fillBufferWithoutPremultiplyAlpha();
 
+    void fillGreenColorBufferThenClearRegion();
+
+    void clearLeftRegion();
+
+    void fillBufferThenClearRegion();
+
     // Dumb hack to get aroud the fact that tear-down for renderengine isn't
     // well defined right now, so we can't create multiple instances
     static std::unique_ptr<renderengine::RenderEngine> sRE;
@@ -623,6 +629,30 @@ void RenderEngineTest::fillBufferWithoutPremultiplyAlpha() {
     expectBufferColor(fullscreenRect(), 128, 0, 0, 64, 1);
 }
 
+void RenderEngineTest::clearLeftRegion() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    // Here logical space is 4x4
+    settings.clip = Rect(4, 4);
+    settings.globalTransform = mat4::scale(vec4(2, 4, 0, 1));
+    settings.clearRegion = Region(Rect(1, 1));
+    std::vector<renderengine::LayerSettings> layers;
+    // dummy layer, without bounds should not render anything
+    renderengine::LayerSettings layer;
+    layers.push_back(layer);
+    invokeDraw(settings, layers, mBuffer);
+}
+
+void RenderEngineTest::fillBufferThenClearRegion() {
+    fillGreenBuffer<ColorSourceVariant>();
+    // Reuse mBuffer
+    clearLeftRegion();
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 255);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
+                           DEFAULT_DISPLAY_HEIGHT),
+                      0, 255, 0, 255);
+}
+
 TEST_F(RenderEngineTest, drawLayers_noLayersToDraw) {
     drawEmptyLayers();
 }
@@ -769,6 +799,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBuffer_premultipliesAlpha) {
 
 TEST_F(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
     fillBufferWithoutPremultiplyAlpha();
+}
+
+TEST_F(RenderEngineTest, drawLayers_fillBufferThenClearRegion) {
+    fillBufferThenClearRegion();
 }
 
 } // namespace android
