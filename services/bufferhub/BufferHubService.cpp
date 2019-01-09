@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
+#include <iomanip>
+#include <sstream>
+
 #include <android/hardware_buffer.h>
 #include <bufferhub/BufferHubService.h>
 #include <cutils/native_handle.h>
 #include <log/log.h>
+#include <system/graphics-base.h>
+
+using ::android::BufferHubDefs::MetadataHeader;
+using ::android::hardware::Void;
 
 namespace android {
 namespace frameworks {
 namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
-
-using hardware::Void;
 
 Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& description,
                                               const uint32_t userMetadataSize,
@@ -121,6 +126,138 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
              /*bufferTraits=*/bufferTraits);
+    return Void();
+}
+
+Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_string>& args) {
+    if (fd.getNativeHandle() == nullptr || fd->numFds < 1) {
+        ALOGE("%s: missing fd for writing.", __FUNCTION__);
+        return Void();
+    }
+
+    FILE* out = fdopen(dup(fd->data[0]), "w");
+
+    if (args.size() != 0) {
+        fprintf(out,
+                "Note: lshal bufferhub currently does not support args. Input arguments are "
+                "ignored.\n");
+    }
+
+    std::ostringstream stream;
+
+    // Get the number of clients of each buffer.
+    // Map from bufferId to bufferNode_clientCount pair.
+    std::map<int, std::pair<const std::shared_ptr<BufferNode>, uint32_t>> clientCount;
+    {
+        std::lock_guard<std::mutex> lock(mClientSetMutex);
+        for (auto iter = mClientSet.begin(); iter != mClientSet.end(); ++iter) {
+            sp<BufferClient> client = iter->promote();
+            if (client != nullptr) {
+                const std::shared_ptr<BufferNode> node = client->getBufferNode();
+                auto mapIter = clientCount.find(node->id());
+                if (mapIter != clientCount.end()) {
+                    ++mapIter->second.second;
+                } else {
+                    clientCount.emplace(node->id(),
+                                        std::pair<std::shared_ptr<BufferNode>, uint32_t>(node, 1U));
+                }
+            }
+        }
+    }
+
+    stream << "Active Buffers:\n";
+    stream << std::right;
+    stream << std::setw(6) << "Id";
+    stream << " ";
+    stream << std::setw(9) << "Clients";
+    stream << " ";
+    stream << std::setw(14) << "Geometry";
+    stream << " ";
+    stream << std::setw(6) << "Format";
+    stream << " ";
+    stream << std::setw(10) << "Usage";
+    stream << " ";
+    stream << std::setw(10) << "State";
+    stream << " ";
+    stream << std::setw(10) << "Index";
+    stream << std::endl;
+
+    for (auto iter = clientCount.begin(); iter != clientCount.end(); ++iter) {
+        const std::shared_ptr<BufferNode> node = std::move(iter->second.first);
+        const uint32_t clientCount = iter->second.second;
+        AHardwareBuffer_Desc desc = node->buffer_desc();
+
+        MetadataHeader* metadataHeader =
+                const_cast<BufferHubMetadata*>(&node->metadata())->metadata_header();
+        const uint32_t state = metadataHeader->buffer_state.load(std::memory_order_acquire);
+        const uint64_t index = metadataHeader->queue_index;
+
+        stream << std::right;
+        stream << std::setw(6) << /*Id=*/node->id();
+        stream << " ";
+        stream << std::setw(9) << /*Clients=*/clientCount;
+        stream << " ";
+        if (desc.format == HAL_PIXEL_FORMAT_BLOB) {
+            std::string size = std::to_string(desc.width) + " B";
+            stream << std::setw(14) << /*Geometry=*/size;
+        } else {
+            std::string dimensions = std::to_string(desc.width) + "x" +
+                    std::to_string(desc.height) + "x" + std::to_string(desc.layers);
+            stream << std::setw(14) << /*Geometry=*/dimensions;
+        }
+        stream << " ";
+        stream << std::setw(6) << /*Format=*/desc.format;
+        stream << " ";
+        stream << "0x" << std::hex << std::setfill('0');
+        stream << std::setw(8) << /*Usage=*/desc.usage;
+        stream << std::dec << std::setfill(' ');
+        stream << " ";
+        stream << "0x" << std::hex << std::setfill('0');
+        stream << std::setw(8) << /*State=*/state;
+        stream << " ";
+        stream << std::setw(8) << /*Index=*/index;
+        stream << std::endl;
+    }
+
+    stream << std::endl;
+
+    // Get the number of tokens of each buffer.
+    // Map from bufferId to tokenCount
+    std::map<int, uint32_t> tokenCount;
+    {
+        std::lock_guard<std::mutex> lock(mTokenMapMutex);
+        for (auto iter = mTokenMap.begin(); iter != mTokenMap.end(); ++iter) {
+            sp<BufferClient> client = iter->second.promote();
+            if (client != nullptr) {
+                const std::shared_ptr<BufferNode> node = client->getBufferNode();
+                auto mapIter = tokenCount.find(node->id());
+                if (mapIter != tokenCount.end()) {
+                    ++mapIter->second;
+                } else {
+                    tokenCount.emplace(node->id(), 1U);
+                }
+            }
+        }
+    }
+
+    stream << "Unused Tokens:\n";
+    stream << std::right;
+    stream << std::setw(8) << "Buffer Id";
+    stream << " ";
+    stream << std::setw(6) << "Tokens";
+    stream << std::endl;
+
+    for (auto iter = tokenCount.begin(); iter != tokenCount.end(); ++iter) {
+        stream << std::right;
+        stream << std::setw(8) << /*Buffer Id=*/iter->first;
+        stream << " ";
+        stream << std::setw(6) << /*Tokens=*/iter->second;
+        stream << std::endl;
+    }
+
+    fprintf(out, "%s", stream.str().c_str());
+
+    fclose(out);
     return Void();
 }
 
