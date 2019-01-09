@@ -343,11 +343,12 @@ public:
      */
     virtual void setInputFilterEnabled(bool enabled) = 0;
 
-    /* Transfers touch focus from the window associated with one channel to the
-     * window associated with the other channel.
+    /* Transfers touch focus from one window to another window.
      *
      * Returns true on success.  False if the window did not actually have touch focus.
      */
+    virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) = 0;
+
     virtual bool transferTouchFocus(const sp<InputChannel>& fromChannel,
             const sp<InputChannel>& toChannel) = 0;
 
@@ -414,6 +415,7 @@ public:
     virtual void setInputDispatchMode(bool enabled, bool frozen);
     virtual void setInputFilterEnabled(bool enabled);
 
+    virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
     virtual bool transferTouchFocus(const sp<InputChannel>& fromChannel,
             const sp<InputChannel>& toChannel);
 
@@ -995,7 +997,7 @@ private:
     std::unordered_map<int32_t, Vector<sp<InputWindowHandle>>> mWindowHandlesByDisplay;
     // Get window handles by display, return an empty vector if not found.
     Vector<sp<InputWindowHandle>> getWindowHandlesLocked(int32_t displayId) const;
-    sp<InputWindowHandle> getWindowHandleLocked(const sp<InputChannel>& inputChannel) const;
+    sp<InputWindowHandle> getWindowHandleLocked(const sp<IBinder>& windowHandleToken) const;
     sp<InputChannel> getInputChannelLocked(const sp<IBinder>& windowToken) const;
     bool hasWindowHandleLocked(const sp<InputWindowHandle>& windowHandle) const;
 

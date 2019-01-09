@@ -523,6 +523,7 @@ private:
     void handleTransactionLocked(uint32_t transactionFlags);
 
     void updateInputWindows();
+    void executeInputWindowCommands();
     void updateCursorAsync();
 
     /* handlePageFlip - latch a new buffer if available and compute the dirty
