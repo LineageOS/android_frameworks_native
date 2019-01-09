@@ -19,9 +19,11 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
 #include <gui/IProducerListener.h>
 #include <log/log.h>
+#include <renderengine/mock/Framebuffer.h>
+#include <renderengine/mock/Image.h>
+#include <renderengine/mock/RenderEngine.h>
 #include <system/window.h>
 #include <utils/String8.h>
 
@@ -36,7 +38,6 @@
 #include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
 #include "mock/MockMessageQueue.h"
-#include "mock/RenderEngine/MockRenderEngine.h"
 #include "mock/system/window/MockNativeWindow.h"
 
 namespace android {
@@ -767,7 +768,7 @@ struct BaseLayerVariant {
 
         const auto displayId = test->mDisplay->getId();
         ASSERT_TRUE(displayId);
-        layer->createHwcLayer(test->mFlinger.mFlinger->getBE().mHwc.get(), *displayId);
+        layer->createHwcLayer(&test->mFlinger.getHwComposer(), *displayId);
 
         Mock::VerifyAndClear(test->mComposer);
 

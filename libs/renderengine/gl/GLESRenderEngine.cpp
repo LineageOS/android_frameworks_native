@@ -626,6 +626,25 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<Graphi
     return NO_ERROR;
 }
 
+FloatRect GLESRenderEngine::setupLayerCropping(const LayerSettings& layer, Mesh& mesh) {
+    // Translate win by the rounded corners rect coordinates, to have all values in
+    // layer coordinate space.
+    FloatRect cropWin = layer.geometry.boundaries;
+    const FloatRect& roundedCornersCrop = layer.geometry.roundedCornersCrop;
+    cropWin.left -= roundedCornersCrop.left;
+    cropWin.right -= roundedCornersCrop.left;
+    cropWin.top -= roundedCornersCrop.top;
+    cropWin.bottom -= roundedCornersCrop.top;
+    Mesh::VertexArray<vec2> cropCoords(mesh.getCropCoordArray<vec2>());
+    cropCoords[0] = vec2(cropWin.left, cropWin.top);
+    cropCoords[1] = vec2(cropWin.left, cropWin.top + cropWin.getHeight());
+    cropCoords[2] = vec2(cropWin.right, cropWin.top + cropWin.getHeight());
+    cropCoords[3] = vec2(cropWin.right, cropWin.top);
+
+    setupCornerRadiusCropSize(roundedCornersCrop.getWidth(), roundedCornersCrop.getHeight());
+    return cropWin;
+}
+
 status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
     EGLImageKHR eglImage = glFramebuffer->getEGLImage();
@@ -714,6 +733,10 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     setDisplayMaxLuminance(display.maxLuminance);
 
     mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
+    mState.projectionMatrix = projectionMatrix;
+    if (!display.clearRegion.isEmpty()) {
+        fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
+    }
 
     Mesh mesh(Mesh::TRIANGLE_FAN, 4, 2, 2);
     for (auto layer : layers) {
@@ -726,6 +749,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         position[2] = vec2(bounds.right, bounds.bottom);
         position[3] = vec2(bounds.right, bounds.top);
 
+        setupLayerCropping(layer, mesh);
         setColorTransform(display.colorTransform * layer.colorTransform);
 
         bool usePremultipliedAlpha = true;
@@ -760,7 +784,7 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         // Buffer sources will have a black solid color ignored in the shader,
         // so in that scenario the solid color passed here is arbitrary.
         setupLayerBlending(usePremultipliedAlpha, layer.source.buffer.isOpaque, disableTexture,
-                           color, /*cornerRadius=*/0.0);
+                           color, layer.geometry.roundedCornersRadius);
         setSourceDataSpace(layer.sourceDataspace);
 
         drawMesh(mesh);

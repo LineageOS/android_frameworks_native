@@ -146,7 +146,21 @@ void binder_close(struct binder_state *bs)
 
 int binder_become_context_manager(struct binder_state *bs)
 {
-    return ioctl(bs->fd, BINDER_SET_CONTEXT_MGR, 0);
+    struct flat_binder_object obj;
+    memset(&obj, 0, sizeof(obj));
+    obj.flags = FLAT_BINDER_FLAG_TXN_SECURITY_CTX;
+
+    int result = ioctl(bs->fd, BINDER_SET_CONTEXT_MGR_EXT, &obj);
+
+    // fallback to original method
+    if (result != 0) {
+#ifndef VENDORSERVICEMANAGER
+        android_errorWriteLog(0x534e4554, "121035042");
+#endif
+
+        result = ioctl(bs->fd, BINDER_SET_CONTEXT_MGR, 0);
+    }
+    return result;
 }
 
 int binder_write(struct binder_state *bs, void *data, size_t len)
@@ -240,13 +254,28 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
 #endif
             ptr += sizeof(struct binder_ptr_cookie);
             break;
+        case BR_TRANSACTION_SEC_CTX:
         case BR_TRANSACTION: {
-            struct binder_transaction_data *txn = (struct binder_transaction_data *) ptr;
-            if ((end - ptr) < sizeof(*txn)) {
-                ALOGE("parse: txn too small!\n");
-                return -1;
+            struct binder_transaction_data_secctx txn;
+            if (cmd == BR_TRANSACTION_SEC_CTX) {
+                if ((end - ptr) < sizeof(struct binder_transaction_data_secctx)) {
+                    ALOGE("parse: txn too small (binder_transaction_data_secctx)!\n");
+                    return -1;
+                }
+                memcpy(&txn, (void*) ptr, sizeof(struct binder_transaction_data_secctx));
+                ptr += sizeof(struct binder_transaction_data_secctx);
+            } else /* BR_TRANSACTION */ {
+                if ((end - ptr) < sizeof(struct binder_transaction_data)) {
+                    ALOGE("parse: txn too small (binder_transaction_data)!\n");
+                    return -1;
+                }
+                memcpy(&txn.transaction_data, (void*) ptr, sizeof(struct binder_transaction_data));
+                ptr += sizeof(struct binder_transaction_data);
+
+                txn.secctx = 0;
             }
-            binder_dump_txn(txn);
+
+            binder_dump_txn(&txn.transaction_data);
             if (func) {
                 unsigned rdata[256/4];
                 struct binder_io msg;
@@ -254,15 +283,14 @@ int binder_parse(struct binder_state *bs, struct binder_io *bio,
                 int res;
 
                 bio_init(&reply, rdata, sizeof(rdata), 4);
-                bio_init_from_txn(&msg, txn);
-                res = func(bs, txn, &msg, &reply);
-                if (txn->flags & TF_ONE_WAY) {
-                    binder_free_buffer(bs, txn->data.ptr.buffer);
+                bio_init_from_txn(&msg, &txn.transaction_data);
+                res = func(bs, &txn, &msg, &reply);
+                if (txn.transaction_data.flags & TF_ONE_WAY) {
+                    binder_free_buffer(bs, txn.transaction_data.data.ptr.buffer);
                 } else {
-                    binder_send_reply(bs, &reply, txn->data.ptr.buffer, res);
+                    binder_send_reply(bs, &reply, txn.transaction_data.data.ptr.buffer, res);
                 }
             }
-            ptr += sizeof(*txn);
             break;
         }
         case BR_REPLY: {

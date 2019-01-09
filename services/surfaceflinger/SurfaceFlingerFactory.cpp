@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <compositionengine/impl/CompositionEngine.h>
 #include <ui/GraphicBuffer.h>
 
 #include "BufferQueueLayer.h"
@@ -59,7 +60,7 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
         }
 
         std::unique_ptr<HWComposer> createHWComposer(const std::string& serviceName) override {
-            return std::make_unique<HWComposer>(
+            return std::make_unique<android::impl::HWComposer>(
                     std::make_unique<Hwc2::impl::Composer>(serviceName));
         }
 
@@ -100,6 +101,10 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
         std::unique_ptr<surfaceflinger::NativeWindowSurface> createNativeWindowSurface(
                 const sp<IGraphicBufferProducer>& producer) override {
             return surfaceflinger::impl::createNativeWindowSurface(producer);
+        }
+
+        std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() override {
+            return compositionengine::impl::createCompositionEngine();
         }
 
         sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) override {

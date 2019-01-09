@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,13 +18,12 @@
 
 #include <gmock/gmock.h>
 #include <renderengine/DisplaySettings.h>
-#include <renderengine/Framebuffer.h>
-#include <renderengine/Image.h>
 #include <renderengine/LayerSettings.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/Texture.h>
 #include <ui/GraphicBuffer.h>
+#include <ui/Region.h>
 
 namespace android {
 namespace renderengine {
@@ -35,7 +34,7 @@ public:
     RenderEngine();
     ~RenderEngine() override;
 
-    MOCK_METHOD0(createFramebuffer, std::unique_ptr<Framebuffer>());
+    MOCK_METHOD0(createFramebuffer, std::unique_ptr<renderengine::Framebuffer>());
     MOCK_METHOD0(createImage, std::unique_ptr<renderengine::Image>());
     MOCK_CONST_METHOD0(primeCache, void());
     MOCK_METHOD1(dump, void(std::string&));
@@ -69,9 +68,9 @@ public:
     MOCK_METHOD1(setSourceDataSpace, void(ui::Dataspace));
     MOCK_METHOD1(setOutputDataSpace, void(ui::Dataspace));
     MOCK_METHOD1(setDisplayMaxLuminance, void(const float));
-    MOCK_METHOD1(bindFrameBuffer, status_t(Framebuffer*));
-    MOCK_METHOD1(unbindFrameBuffer, void(Framebuffer*));
-    MOCK_METHOD1(drawMesh, void(const Mesh&));
+    MOCK_METHOD1(bindFrameBuffer, status_t(renderengine::Framebuffer*));
+    MOCK_METHOD1(unbindFrameBuffer, void(renderengine::Framebuffer*));
+    MOCK_METHOD1(drawMesh, void(const renderengine::Mesh&));
     MOCK_CONST_METHOD0(getMaxTextureSize, size_t());
     MOCK_CONST_METHOD0(getMaxViewportDims, size_t());
     MOCK_CONST_METHOD0(isProtected, bool());
@@ -80,22 +79,6 @@ public:
     MOCK_METHOD4(drawLayers,
                  status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
                           ANativeWindowBuffer*, base::unique_fd*));
-};
-
-class Image : public renderengine::Image {
-public:
-    Image();
-    ~Image() override;
-
-    MOCK_METHOD2(setNativeWindowBuffer, bool(ANativeWindowBuffer*, bool));
-};
-
-class Framebuffer : public renderengine::Framebuffer {
-public:
-    Framebuffer();
-    ~Framebuffer() override;
-
-    MOCK_METHOD2(setNativeWindowBuffer, bool(ANativeWindowBuffer*, bool));
 };
 
 } // namespace mock

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2018 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,23 +14,16 @@
  * limitations under the License.
  */
 
-#include "mock/RenderEngine/MockRenderEngine.h"
-
-#include <ui/Region.h>
+#include <renderengine/mock/RenderEngine.h>
 
 namespace android {
 namespace renderengine {
 namespace mock {
 
-// Explicit default instantiation is recommended.
+// The Google Mock documentation recommends explicit non-header instantiations
+// for better compile time performance.
 RenderEngine::RenderEngine() = default;
 RenderEngine::~RenderEngine() = default;
-
-Image::Image() = default;
-Image::~Image() = default;
-
-Framebuffer::Framebuffer() = default;
-Framebuffer::~Framebuffer() = default;
 
 } // namespace mock
 } // namespace renderengine
