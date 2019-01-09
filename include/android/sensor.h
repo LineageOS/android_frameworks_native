@@ -208,6 +208,35 @@ enum {
      */
     ASENSOR_TYPE_HEART_BEAT = 31,
     /**
+     * This sensor type is for delivering additional sensor information aside
+     * from sensor event data.
+     *
+     * Additional information may include:
+     *     - {@link ASENSOR_ADDITIONAL_INFO_INTERNAL_TEMPERATURE}
+     *     - {@link ASENSOR_ADDITIONAL_INFO_SAMPLING}
+     *     - {@link ASENSOR_ADDITIONAL_INFO_SENSOR_PLACEMENT}
+     *     - {@link ASENSOR_ADDITIONAL_INFO_UNTRACKED_DELAY}
+     *     - {@link ASENSOR_ADDITIONAL_INFO_VEC3_CALIBRATION}
+     *
+     * This type will never bind to a sensor. In other words, no sensor in the
+     * sensor list can have the type {@link ASENSOR_TYPE_ADDITIONAL_INFO}.
+     *
+     * If a device supports the sensor additional information feature, it will
+     * report additional information events via {@link ASensorEvent} and will
+     * have {@link ASensorEvent#type} set to
+     * {@link ASENSOR_TYPE_ADDITIONAL_INFO} and {@link ASensorEvent#sensor} set
+     * to the handle of the reporting sensor.
+     *
+     * Additional information reports consist of multiple frames ordered by
+     * {@link ASensorEvent#timestamp}. The first frame in the report will have
+     * a {@link AAdditionalInfoEvent#type} of
+     * {@link ASENSOR_ADDITIONAL_INFO_BEGIN}, and the last frame in the report
+     * will have a {@link AAdditionalInfoEvent#type} of
+     * {@link ASENSOR_ADDITIONAL_INFO_END}.
+     *
+     */
+    ASENSOR_TYPE_ADDITIONAL_INFO = 33,
+    /**
      * {@link ASENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT}
      */
     ASENSOR_TYPE_LOW_LATENCY_OFFBODY_DETECT = 34,
@@ -271,6 +300,51 @@ enum {
     ASENSOR_DIRECT_CHANNEL_TYPE_SHARED_MEMORY = 1,
     /** AHardwareBuffer */
     ASENSOR_DIRECT_CHANNEL_TYPE_HARDWARE_BUFFER = 2
+};
+
+/**
+ * Sensor Additional Info Types.
+ *
+ * Used to populate {@link AAdditionalInfoEvent#type}.
+ */
+enum {
+    /** Marks the beginning of additional information frames */
+    ASENSOR_ADDITIONAL_INFO_BEGIN = 0,
+
+    /** Marks the end of additional information frames */
+    ASENSOR_ADDITIONAL_INFO_END = 1,
+
+    /**
+     * Estimation of the delay that is not tracked by sensor timestamps. This
+     * includes delay introduced by sensor front-end filtering, data transport,
+     * etc.
+     * float[2]: delay in seconds, standard deviation of estimated value
+     */
+    ASENSOR_ADDITIONAL_INFO_UNTRACKED_DELAY = 0x10000,
+
+    /** float: Celsius temperature */
+    ASENSOR_ADDITIONAL_INFO_INTERNAL_TEMPERATURE,
+
+    /**
+     * First three rows of a homogeneous matrix, which represents calibration to
+     * a three-element vector raw sensor reading.
+     * float[12]: 3x4 matrix in row major order
+     */
+    ASENSOR_ADDITIONAL_INFO_VEC3_CALIBRATION,
+
+    /**
+     * Location and orientation of sensor element in the device frame: origin is
+     * the geometric center of the mobile device screen surface; the axis
+     * definition corresponds to Android sensor definitions.
+     * float[12]: 3x4 matrix in row major order
+     */
+    ASENSOR_ADDITIONAL_INFO_SENSOR_PLACEMENT,
+
+    /**
+     * float[2]: raw sample period in seconds,
+     *           standard deviation of sampling period
+     */
+    ASENSOR_ADDITIONAL_INFO_SAMPLING,
 };
 
 /*
@@ -341,7 +415,7 @@ typedef struct ADynamicSensorEvent {
     int32_t  handle;
 } ADynamicSensorEvent;
 
-typedef struct {
+typedef struct AAdditionalInfoEvent {
     int32_t type;
     int32_t serial;
     union {
