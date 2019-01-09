@@ -217,7 +217,7 @@ public:
 
     /* Notifies the system that an input channel is unrecoverably broken. */
     virtual void notifyInputChannelBroken(const sp<IBinder>& token) = 0;
-    virtual void notifyFocusChanged(const sp<IBinder>& token) = 0;
+    virtual void notifyFocusChanged(const sp<IBinder>& oldToken, const sp<IBinder>& newToken) = 0;
 
     /* Gets the input dispatcher configuration. */
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) = 0;
@@ -631,7 +631,8 @@ private:
         uint32_t seq;
         bool handled;
         sp<InputChannel> inputChannel;
-        sp<IBinder> token;
+        sp<IBinder> oldToken;
+        sp<IBinder> newToken;
     };
 
     // Generic queue implementation.
@@ -1161,7 +1162,8 @@ private:
             nsecs_t currentTime, const sp<Connection>& connection, uint32_t seq, bool handled);
     void onDispatchCycleBrokenLocked(
             nsecs_t currentTime, const sp<Connection>& connection);
-    void onFocusChangedLocked(const sp<InputWindowHandle>& newFocus);
+    void onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
+            const sp<InputWindowHandle>& newFocus);
     void onANRLocked(
             nsecs_t currentTime, const sp<InputApplicationHandle>& applicationHandle,
             const sp<InputWindowHandle>& windowHandle,
