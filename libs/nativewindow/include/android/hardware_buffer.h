@@ -208,6 +208,17 @@ enum AHardwareBuffer_UsageFlags {
      */
     AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT       = AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER,
     /**
+     * The buffer will be used as a composer HAL overlay layer.
+     *
+     * This flag is currently only needed when using ASurfaceTransaction_setBuffer
+     * to set a buffer. In all other cases, the framework adds this flag
+     * internally to buffers that could be presented in a composer overlay.
+     * ASurfaceTransaction_setBuffer is special because it uses buffers allocated
+     * directly through AHardwareBuffer_allocate instead of buffers allocated
+     * by the framework.
+     */
+    AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY       = 1ULL << 11,
+    /**
      * The buffer is protected from direct CPU access or being read by
      * non-secure hardware, such as video encoders.
      *
