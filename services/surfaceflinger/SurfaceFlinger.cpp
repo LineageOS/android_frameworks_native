@@ -2827,10 +2827,8 @@ void SurfaceFlinger::commitTransaction()
             // showing at its last configured state until we eventually
             // abandon the buffer queue.
             if (l->isRemovedFromCurrentState()) {
-                l->traverseInZOrder(LayerVector::StateSet::Drawing, [&](Layer* child) {
-                    child->destroyHwcLayersForAllDisplays();
-                    latchAndReleaseBuffer(child);
-                });
+                l->destroyHwcLayersForAllDisplays();
+                latchAndReleaseBuffer(l);
             }
         }
         mLayersPendingRemoval.clear();
@@ -3304,30 +3302,6 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeLayer(const sp<Layer>& layer) {
-    Mutex::Autolock _l(mStateLock);
-    return removeLayerLocked(mStateLock, layer);
-}
-
-status_t SurfaceFlinger::removeLayerLocked(const Mutex& lock, const sp<Layer>& layer) {
-    if (layer->isLayerDetached()) {
-        return NO_ERROR;
-    }
-
-    const auto& p = layer->getParent();
-    ssize_t index;
-    if (p != nullptr) {
-        index = p->removeChild(layer);
-    } else {
-        index = mCurrentState.layersSortedByZ.remove(layer);
-    }
-
-    layer->onRemovedFromCurrentState();
-
-    markLayerPendingRemovalLocked(lock, layer);
-    return NO_ERROR;
-}
-
 uint32_t SurfaceFlinger::peekTransactionFlags() {
     return mTransactionFlags;
 }
@@ -3461,14 +3435,6 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         mTransactionCompletedThread.sendCallbacks();
     }
     transactionFlags |= clientStateFlags;
-
-    // Iterate through all layers again to determine if any need to be destroyed. Marking layers
-    // as destroyed should only occur after setting all other states. This is to allow for a
-    // child re-parent to happen before marking its original parent as destroyed (which would
-    // then mark the child as destroyed).
-    for (const ComposerState& state : states) {
-        setDestroyStateLocked(state);
-    }
 
     transactionFlags |= addInputWindowCommands(inputWindowCommands);
 
@@ -3795,20 +3761,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     return flags;
 }
 
-void SurfaceFlinger::setDestroyStateLocked(const ComposerState& composerState) {
-    const layer_state_t& state = composerState.state;
-    sp<Client> client(static_cast<Client*>(composerState.client.get()));
-
-    sp<Layer> layer(client->getLayerUser(state.surface));
-    if (layer == nullptr) {
-        return;
-    }
-
-    if (state.what & layer_state_t::eDestroySurface) {
-        removeLayerLocked(mStateLock, layer);
-    }
-}
-
 uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& inputWindowCommands) {
     uint32_t flags = 0;
     if (!inputWindowCommands.transferTouchFocusCommands.empty()) {
@@ -3988,21 +3940,7 @@ status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
 }
 
 
-status_t SurfaceFlinger::onLayerRemoved(const sp<Client>& client, const sp<IBinder>& handle)
-{
-    // called by a client when it wants to remove a Layer
-    status_t err = NO_ERROR;
-    sp<Layer> l(client->getLayerUser(handle));
-    if (l != nullptr) {
-        mInterceptor->saveSurfaceDeletion(l);
-        err = removeLayer(l);
-        ALOGE_IF(err<0 && err != NAME_NOT_FOUND,
-                "error removing layer=%p (%s)", l.get(), strerror(-err));
-    }
-    return err;
-}
-
-void SurfaceFlinger::markLayerPendingRemovalLocked(const Mutex&, const sp<Layer>& layer) {
+void SurfaceFlinger::markLayerPendingRemovalLocked(const sp<Layer>& layer) {
     mLayersPendingRemoval.add(layer);
     mLayersRemoved = true;
     setTransactionFlags(eTransactionNeeded);
@@ -4011,7 +3949,14 @@ void SurfaceFlinger::markLayerPendingRemovalLocked(const Mutex&, const sp<Layer>
 void SurfaceFlinger::onHandleDestroyed(sp<Layer>& layer)
 {
     Mutex::Autolock lock(mStateLock);
-    markLayerPendingRemovalLocked(mStateLock, layer);
+    // If a layer has a parent, we allow it to out-live it's handle
+    // with the idea that the parent holds a reference and will eventually
+    // be cleaned up. However no one cleans up the top-level so we do so
+    // here.
+    if (layer->getParent() == nullptr) {
+        mCurrentState.layersSortedByZ.remove(layer);
+    }
+    markLayerPendingRemovalLocked(layer);
     layer.clear();
 }
 

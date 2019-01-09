@@ -58,11 +58,6 @@ public:
     /*
      * Requires ACCESS_SURFACE_FLINGER permission
      */
-    virtual status_t destroySurface(const sp<IBinder>& handle) = 0;
-
-    /*
-     * Requires ACCESS_SURFACE_FLINGER permission
-     */
     virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const = 0;
 
     /*

@@ -205,6 +205,22 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     return *this;
 }
 
+void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle,
+        const sp<ISurfaceComposerClient>& client) {
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    Vector<ComposerState> composerStates;
+    Vector<DisplayState> displayStates;
+
+    ComposerState s;
+    s.client = client;
+    s.state.surface = handle;
+    s.state.what |= layer_state_t::eReparent;
+    s.state.parentHandleForChild = nullptr;
+
+    composerStates.add(s);
+    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {});
+}
+
 status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     if (mStatus != NO_ERROR) {
         return mStatus;
@@ -819,17 +835,6 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::transfer
 
 #endif
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::destroySurface(
-        const sp<SurfaceControl>& sc) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-    s->what |= layer_state_t::eDestroySurface;
-    return *this;
-}
-
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorTransform(
     const sp<SurfaceControl>& sc, const mat3& matrix, const vec3& translation) {
     layer_state_t* s = getLayerState(sc);
@@ -1001,13 +1006,6 @@ status_t SurfaceComposerClient::createSurfaceChecked(
             *outSurface = new SurfaceControl(this, handle, gbp, true /* owned */);
         }
     }
-    return err;
-}
-
-status_t SurfaceComposerClient::destroySurface(const sp<IBinder>& sid) {
-    if (mStatus != NO_ERROR)
-        return mStatus;
-    status_t err = mClient->destroySurface(sid);
     return err;
 }
 
