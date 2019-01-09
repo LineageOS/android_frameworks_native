@@ -352,4 +352,10 @@ void Scheduler::expiredTimerCallback() {
     }
 }
 
+std::string Scheduler::doDump() {
+    std::ostringstream stream;
+    stream << "+  Idle timer interval: " << mSetIdleTimerMs << " ms" << std::endl;
+    return stream.str();
+}
+
 } // namespace android

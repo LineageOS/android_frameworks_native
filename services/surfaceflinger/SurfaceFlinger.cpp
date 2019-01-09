@@ -737,6 +737,8 @@ void SurfaceFlinger::init() {
     if (mUseScheduler) {
         mScheduler->setExpiredIdleTimerCallback([this]() { setRefreshRateTo(60.f /* fps */); });
         mScheduler->setResetIdleTimerCallback([this]() { setRefreshRateTo(90.f /* fps */); });
+        mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(
+                getHwComposer().getConfigs(*display->getId()));
     }
 
     ALOGV("Done initializing");
@@ -986,6 +988,9 @@ void SurfaceFlinger::setActiveConfigInternal(const sp<IBinder>& displayToken, in
     if (mode == currentMode) {
         // Don't update config if we are already running in the desired mode.
         return;
+    }
+    if (mUseScheduler) {
+        mRefreshRateStats->setConfigMode(mode);
     }
 
     const auto displayId = display->getId();
@@ -4323,6 +4328,10 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
+        if (mUseScheduler) {
+            // Update refresh rate stats.
+            mRefreshRateStats->setPowerMode(mode);
+        }
     }
 
     ALOGD("Finished setting power mode %d on display %s", mode, to_string(*displayId).c_str());
@@ -4947,6 +4956,15 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
         result.append("VrFlinger state:\n");
         result.append(mVrFlinger->Dump());
         result.append("\n");
+    }
+
+    /**
+     * Scheduler dump state.
+     */
+    if (mUseScheduler) {
+        result.append("\nScheduler state:\n");
+        result.append(mScheduler->doDump() + "\n");
+        result.append(mRefreshRateStats->doDump() + "\n");
     }
 }
 
