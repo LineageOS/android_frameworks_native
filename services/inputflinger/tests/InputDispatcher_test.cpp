@@ -515,7 +515,7 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
             ADISPLAY_ID_DEFAULT);
 
-    // Set focus application.
+    // Set focused application.
     mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
     // Expect one focus window exist in display.
@@ -531,6 +531,32 @@ TEST_F(InputDispatcherTest, SetInputWindow_FocusedWindow) {
     // Focused window should receive event.
     windowTop->assertNoEvents();
     windowSecond->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
+}
+
+TEST_F(InputDispatcherTest, SetInputWindow_FocusPriority) {
+    sp<FakeApplicationHandle> application = new FakeApplicationHandle();
+    sp<FakeWindowHandle> windowTop = new FakeWindowHandle(application, mDispatcher, "Top",
+            ADISPLAY_ID_DEFAULT);
+    sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
+            ADISPLAY_ID_DEFAULT);
+
+    // Set focused application.
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
+
+    // Display has two focused windows. Add them to inputWindowsHandles in z-order (top most first)
+    windowTop->setFocus();
+    windowSecond->setFocus();
+    Vector<sp<InputWindowHandle>> inputWindowHandles;
+    inputWindowHandles.add(windowTop);
+    inputWindowHandles.add(windowSecond);
+
+    mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
+
+    // Top focused window should receive event.
+    windowTop->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
+    windowSecond->assertNoEvents();
 }
 
 TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
