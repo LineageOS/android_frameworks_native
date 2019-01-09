@@ -31,7 +31,6 @@ namespace { // Anonymous
 
 enum class Tag : uint32_t {
     CREATE_SURFACE = IBinder::FIRST_CALL_TRANSACTION,
-    CREATE_WITH_SURFACE_PARENT,
     DESTROY_SURFACE,
     CLEAR_LAYER_FRAME_STATS,
     GET_LAYER_FRAME_STATS,
@@ -56,18 +55,6 @@ public:
                                                                             format, flags, parent,
                                                                             windowType, ownerUid,
                                                                             handle, gbp);
-    }
-
-    status_t createWithSurfaceParent(const String8& name, uint32_t width, uint32_t height,
-                                     PixelFormat format, uint32_t flags,
-                                     const sp<IGraphicBufferProducer>& parent, int32_t windowType,
-                                     int32_t ownerUid, sp<IBinder>* handle,
-                                     sp<IGraphicBufferProducer>* gbp) override {
-        return callRemote<decltype(
-                &ISurfaceComposerClient::createWithSurfaceParent)>(Tag::CREATE_WITH_SURFACE_PARENT,
-                                                                   name, width, height, format,
-                                                                   flags, parent, windowType,
-                                                                   ownerUid, handle, gbp);
     }
 
     status_t destroySurface(const sp<IBinder>& handle) override {
@@ -105,8 +92,6 @@ status_t BnSurfaceComposerClient::onTransact(uint32_t code, const Parcel& data, 
     switch (tag) {
         case Tag::CREATE_SURFACE:
             return callLocal(data, reply, &ISurfaceComposerClient::createSurface);
-        case Tag::CREATE_WITH_SURFACE_PARENT:
-            return callLocal(data, reply, &ISurfaceComposerClient::createWithSurfaceParent);
         case Tag::DESTROY_SURFACE:
             return callLocal(data, reply, &ISurfaceComposerClient::destroySurface);
         case Tag::CLEAR_LAYER_FRAME_STATS:
