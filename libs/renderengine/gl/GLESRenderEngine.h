@@ -17,8 +17,13 @@
 #ifndef SF_GLESRENDERENGINE_H_
 #define SF_GLESRENDERENGINE_H_
 
+#include <android-base/thread_annotations.h>
 #include <stdint.h>
 #include <sys/types.h>
+#include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <thread>
 
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
@@ -119,6 +124,7 @@ private:
                                        Protection protection);
     static EGLSurface createDummyEglPbufferSurface(EGLDisplay display, EGLConfig config,
                                                    int hwcFormat, Protection protection);
+    bool waitSync(EGLSyncKHR sync, EGLint flags);
 
     // A data space is considered HDR data space if it has BT2020 color space
     // with PQ or HLG transfer function.
@@ -159,6 +165,8 @@ private:
     mat4 mBt2020ToDisplayP3;
 
     bool mInProtectedContext = false;
+    // If set to true, then enables tracing flush() and finish() to systrace.
+    bool mTraceGpuCompletion = false;
     int32_t mFboHeight = 0;
 
     // Current dataspace of layer being rendered
@@ -170,6 +178,30 @@ private:
     // Whether device supports color management, currently color management
     // supports sRGB, DisplayP3 color spaces.
     const bool mUseColorManagement = false;
+
+    class FlushTracer {
+    public:
+        FlushTracer(GLESRenderEngine* engine);
+        ~FlushTracer();
+        void queueSync(EGLSyncKHR sync) EXCLUDES(mMutex);
+
+        struct QueueEntry {
+            EGLSyncKHR mSync = nullptr;
+            uint64_t mFrameNum = 0;
+        };
+
+    private:
+        void loop();
+        GLESRenderEngine* const mEngine;
+        std::thread mThread;
+        std::condition_variable_any mCondition;
+        std::mutex mMutex;
+        std::queue<QueueEntry> mQueue GUARDED_BY(mMutex);
+        uint64_t mFramesQueued GUARDED_BY(mMutex) = 0;
+        bool mRunning = true;
+    };
+    friend class FlushTracer;
+    std::unique_ptr<FlushTracer> mFlushTracer;
 };
 
 } // namespace gl

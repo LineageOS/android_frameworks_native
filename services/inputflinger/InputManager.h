@@ -91,6 +91,7 @@ public:
     virtual sp<InputDispatcherInterface> getDispatcher();
 
     virtual void setInputWindows(const Vector<InputWindowInfo>& handles);
+    virtual void transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
 
     virtual void registerInputChannel(const sp<InputChannel>& channel);
     virtual void unregisterInputChannel(const sp<InputChannel>& channel);

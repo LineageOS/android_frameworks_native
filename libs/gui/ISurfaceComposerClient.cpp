@@ -31,7 +31,6 @@ namespace { // Anonymous
 
 enum class Tag : uint32_t {
     CREATE_SURFACE = IBinder::FIRST_CALL_TRANSACTION,
-    DESTROY_SURFACE,
     CLEAR_LAYER_FRAME_STATS,
     GET_LAYER_FRAME_STATS,
     LAST = GET_LAYER_FRAME_STATS,
@@ -55,11 +54,6 @@ public:
                                                                             format, flags, parent,
                                                                             windowType, ownerUid,
                                                                             handle, gbp);
-    }
-
-    status_t destroySurface(const sp<IBinder>& handle) override {
-        return callRemote<decltype(&ISurfaceComposerClient::destroySurface)>(Tag::DESTROY_SURFACE,
-                                                                             handle);
     }
 
     status_t clearLayerFrameStats(const sp<IBinder>& handle) const override {
@@ -92,8 +86,6 @@ status_t BnSurfaceComposerClient::onTransact(uint32_t code, const Parcel& data, 
     switch (tag) {
         case Tag::CREATE_SURFACE:
             return callLocal(data, reply, &ISurfaceComposerClient::createSurface);
-        case Tag::DESTROY_SURFACE:
-            return callLocal(data, reply, &ISurfaceComposerClient::destroySurface);
         case Tag::CLEAR_LAYER_FRAME_STATS:
             return callLocal(data, reply, &ISurfaceComposerClient::clearLayerFrameStats);
         case Tag::GET_LAYER_FRAME_STATS:

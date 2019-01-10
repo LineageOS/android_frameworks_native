@@ -70,8 +70,6 @@ class Replayer {
     status_t doTransaction(const Transaction& transaction, const std::shared_ptr<Event>& event);
     status_t createSurfaceControl(const SurfaceCreation& create,
             const std::shared_ptr<Event>& event);
-    status_t deleteSurfaceControl(const SurfaceDeletion& delete_,
-            const std::shared_ptr<Event>& event);
     status_t injectVSyncEvent(const VSyncEvent& vsyncEvent, const std::shared_ptr<Event>& event);
     void createDisplay(const DisplayCreation& create, const std::shared_ptr<Event>& event);
     void deleteDisplay(const DisplayDeletion& delete_, const std::shared_ptr<Event>& event);
@@ -120,7 +118,6 @@ class Replayer {
     void setDisplayProjection(SurfaceComposerClient::Transaction& t,
             display_id id, const ProjectionChange& pc);
 
-    void doDeleteSurfaceControls();
     void waitUntilTimestamp(int64_t timestamp);
     void waitUntilDeferredTransactionLayerExists(
             const DeferredTransactionChange& dtc, std::unique_lock<std::mutex>& lock);

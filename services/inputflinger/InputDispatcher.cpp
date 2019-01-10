@@ -2386,7 +2386,8 @@ void InputDispatcher::synthesizeCancelationEventsForConnectionLocked(
             }
 
             InputTarget target;
-            sp<InputWindowHandle> windowHandle = getWindowHandleLocked(connection->inputChannel);
+            sp<InputWindowHandle> windowHandle = getWindowHandleLocked(
+                    connection->inputChannel->getToken());
             if (windowHandle != nullptr) {
                 const InputWindowInfo* windowInfo = windowHandle->getInfo();
                 target.xOffset = -windowInfo->frameLeft;
@@ -3024,13 +3025,13 @@ Vector<sp<InputWindowHandle>> InputDispatcher::getWindowHandlesLocked(int32_t di
 }
 
 sp<InputWindowHandle> InputDispatcher::getWindowHandleLocked(
-        const sp<InputChannel>& inputChannel) const {
+        const sp<IBinder>& windowHandleToken) const {
     for (auto& it : mWindowHandlesByDisplay) {
         const Vector<sp<InputWindowHandle>> windowHandles = it.second;
         size_t numWindows = windowHandles.size();
         for (size_t i = 0; i < numWindows; i++) {
             const sp<InputWindowHandle>& windowHandle = windowHandles.itemAt(i);
-            if (windowHandle->getToken() == inputChannel->getToken()) {
+            if (windowHandle->getToken() == windowHandleToken) {
                 return windowHandle;
             }
         }
@@ -3375,26 +3376,29 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
 
 bool InputDispatcher::transferTouchFocus(const sp<InputChannel>& fromChannel,
         const sp<InputChannel>& toChannel) {
+    return transferTouchFocus(fromChannel->getToken(), toChannel->getToken());
+}
+
+bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
+    if (fromToken == toToken) {
 #if DEBUG_FOCUS
-    ALOGD("transferTouchFocus: fromChannel=%s, toChannel=%s",
-            fromChannel->getName().c_str(), toChannel->getName().c_str());
+        ALOGD("Trivial transfer to same window.");
 #endif
+        return true;
+    }
+
     { // acquire lock
         AutoMutex _l(mLock);
 
-        sp<InputWindowHandle> fromWindowHandle = getWindowHandleLocked(fromChannel);
-        sp<InputWindowHandle> toWindowHandle = getWindowHandleLocked(toChannel);
+        sp<InputWindowHandle> fromWindowHandle = getWindowHandleLocked(fromToken);
+        sp<InputWindowHandle> toWindowHandle = getWindowHandleLocked(toToken);
+#if DEBUG_FOCUS
+        ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
+            fromWindowHandle->getName().c_str(), toWindowHandle->getName().c_str());
+#endif
         if (fromWindowHandle == nullptr || toWindowHandle == nullptr) {
-#if DEBUG_FOCUS
-            ALOGD("Cannot transfer focus because from or to window not found.");
-#endif
+            ALOGW("Cannot transfer focus because from or to window not found.");
             return false;
-        }
-        if (fromWindowHandle == toWindowHandle) {
-#if DEBUG_FOCUS
-            ALOGD("Trivial transfer to same window.");
-#endif
-            return true;
         }
         if (fromWindowHandle->getInfo()->displayId != toWindowHandle->getInfo()->displayId) {
 #if DEBUG_FOCUS
@@ -3433,6 +3437,9 @@ Found:
             return false;
         }
 
+
+        sp<InputChannel> fromChannel = getInputChannelLocked(fromToken);
+        sp<InputChannel> toChannel = getInputChannelLocked(toToken);
         ssize_t fromConnectionIndex = getConnectionIndexLocked(fromChannel);
         ssize_t toConnectionIndex = getConnectionIndexLocked(toChannel);
         if (fromConnectionIndex >= 0 && toConnectionIndex >= 0) {

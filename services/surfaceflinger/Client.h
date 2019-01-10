@@ -39,13 +39,12 @@ class Client : public BnSurfaceComposerClient
 {
 public:
     explicit Client(const sp<SurfaceFlinger>& flinger);
-    ~Client();
+    ~Client() = default;
 
     status_t initCheck() const;
 
     // protected by SurfaceFlinger::mStateLock
     void attachLayer(const sp<IBinder>& handle, const sp<Layer>& layer);
-
     void detachLayer(const Layer* layer);
 
     sp<Layer> getLayerUser(const sp<IBinder>& handle) const;
@@ -58,8 +57,6 @@ private:
             const sp<IBinder>& parent, int32_t windowType, int32_t ownerUid,
             sp<IBinder>* handle,
             sp<IGraphicBufferProducer>* gbp);
-
-    virtual status_t destroySurface(const sp<IBinder>& handle);
 
     virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const;
 

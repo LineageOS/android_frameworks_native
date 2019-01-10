@@ -63,7 +63,13 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
 
 SurfaceControl::~SurfaceControl()
 {
-    destroy();
+    if (mClient != nullptr && mHandle != nullptr && mOwned) {
+        SurfaceComposerClient::doDropReferenceTransaction(mHandle, mClient->getClient());
+    }
+    mClient.clear();
+    mHandle.clear();
+    mGraphicBufferProducer.clear();
+    IPCThreadState::self()->flushCommands();
 }
 
 void SurfaceControl::destroy()
@@ -71,7 +77,7 @@ void SurfaceControl::destroy()
     // Avoid destroying the server-side surface if we are not the owner of it, meaning that we
     // retrieved it from another process.
     if (isValid() && mOwned) {
-        mClient->destroySurface(mHandle);
+        SurfaceComposerClient::Transaction().reparent(this, nullptr).apply();
     }
     // clear all references and trigger an IPC now, to make sure things
     // happen without delay, since these resources are quite heavy.

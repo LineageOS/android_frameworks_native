@@ -806,18 +806,6 @@ TEST_F(SurfaceInterceptorTest, InterceptSurfaceCreationWorks) {
             Increment::IncrementCase::kSurfaceCreation);
 }
 
-TEST_F(SurfaceInterceptorTest, InterceptSurfaceDeletionWorks) {
-    enableInterceptor();
-    sp<SurfaceControl> layerToDelete = mComposerClient->createSurface(String8(LAYER_NAME),
-            SIZE_UPDATE, SIZE_UPDATE, PIXEL_FORMAT_RGBA_8888, 0);
-    mComposerClient->destroySurface(layerToDelete->getHandle());
-    disableInterceptor();
-
-    Trace capturedTrace;
-    ASSERT_EQ(NO_ERROR, readProtoFile(&capturedTrace));
-    ASSERT_TRUE(singleIncrementFound(capturedTrace, Increment::IncrementCase::kSurfaceDeletion));
-}
-
 TEST_F(SurfaceInterceptorTest, InterceptDisplayCreationWorks) {
     captureTest(&SurfaceInterceptorTest::displayCreation,
             Increment::IncrementCase::kDisplayCreation);
