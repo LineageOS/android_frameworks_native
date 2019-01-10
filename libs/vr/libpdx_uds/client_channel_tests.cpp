@@ -45,7 +45,7 @@ struct TestProtocol {
 
 class TestService : public ServiceBase<TestService> {
  public:
-  TestService(std::unique_ptr<Endpoint> endpoint)
+  explicit TestService(std::unique_ptr<Endpoint> endpoint)
       : ServiceBase{"TestService", std::move(endpoint)} {}
 
   Status<void> HandleMessage(Message& message) override {
@@ -78,7 +78,7 @@ class TestClient : public ClientBase<TestClient> {
 
 class TestServiceRunner {
  public:
-  TestServiceRunner(LocalHandle channel_socket) {
+  explicit TestServiceRunner(LocalHandle channel_socket) {
     auto endpoint = Endpoint::CreateFromSocketFd(LocalHandle{});
     endpoint->RegisterNewChannelForTests(std::move(channel_socket));
     service_ = TestService::Create(std::move(endpoint));

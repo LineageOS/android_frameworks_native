@@ -57,7 +57,7 @@ Status<void> RecvMsgAll(RecvInterface* receiver,
 
 class SendPayload : public MessageWriter, public OutputResourceMapper {
  public:
-  SendPayload(SendInterface* sender = nullptr) : sender_{sender} {}
+  explicit SendPayload(SendInterface* sender = nullptr) : sender_{sender} {}
   Status<void> Send(const BorrowedHandle& socket_fd);
   Status<void> Send(const BorrowedHandle& socket_fd, const ucred* cred,
                     const iovec* data_vec = nullptr, size_t vec_count = 0);
@@ -85,7 +85,8 @@ class SendPayload : public MessageWriter, public OutputResourceMapper {
 
 class ReceivePayload : public MessageReader, public InputResourceMapper {
  public:
-  ReceivePayload(RecvInterface* receiver = nullptr) : receiver_{receiver} {}
+  explicit ReceivePayload(RecvInterface* receiver = nullptr)
+      : receiver_{receiver} {}
   Status<void> Receive(const BorrowedHandle& socket_fd);
   Status<void> Receive(const BorrowedHandle& socket_fd, ucred* cred);
 

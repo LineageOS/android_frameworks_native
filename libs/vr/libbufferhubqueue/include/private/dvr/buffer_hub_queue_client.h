@@ -130,8 +130,8 @@ class BufferHubQueue : public pdx::Client {
   bool hung_up() const { return hung_up_; }
 
  protected:
-  BufferHubQueue(pdx::LocalChannelHandle channel);
-  BufferHubQueue(const std::string& endpoint_path);
+  explicit BufferHubQueue(pdx::LocalChannelHandle channel);
+  explicit BufferHubQueue(const std::string& endpoint_path);
 
   // Imports the queue parameters by querying BufferHub for the parameters for
   // this channel.
@@ -417,7 +417,7 @@ class ConsumerQueue : public BufferHubQueue {
  private:
   friend BufferHubQueue;
 
-  ConsumerQueue(pdx::LocalChannelHandle handle);
+  explicit ConsumerQueue(pdx::LocalChannelHandle handle);
 
   // Add a consumer buffer to populate the queue. Once added, a consumer buffer
   // is NOT available to use until the producer side |Post| it. |WaitForBuffers|
