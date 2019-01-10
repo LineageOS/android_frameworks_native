@@ -1566,6 +1566,15 @@ static void DumpstateWifiOnly() {
     RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
 
+    if (ds.IsZipping()) {
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
+                   CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+        DumpHals();
+    } else {
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
+                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+    }
+
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
