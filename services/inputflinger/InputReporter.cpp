@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-#include "InputReporter.h"
+#include "InputReporterInterface.h"
 
 namespace android {
 
 // --- InputReporter ---
+
+class InputReporter : public InputReporterInterface {
+public:
+    void reportUnhandledKey(uint32_t sequenceNum) override;
+    void reportDroppedKey(uint32_t sequenceNum) override;
+};
 
 void InputReporter::reportUnhandledKey(uint32_t sequenceNum) {
   // do nothing
@@ -28,7 +34,7 @@ void InputReporter::reportDroppedKey(uint32_t sequenceNum) {
   // do nothing
 }
 
-sp<InputReporter> createInputReporter() {
+sp<InputReporterInterface> createInputReporter() {
   return new InputReporter();
 }
 
