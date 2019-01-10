@@ -12,7 +12,7 @@ namespace dvr {
 class ParcelableComposerLayer : public Parcelable {
  public:
   ParcelableComposerLayer();
-  ParcelableComposerLayer(const ComposerView::ComposerLayer& layer);
+  explicit ParcelableComposerLayer(const ComposerView::ComposerLayer& layer);
   ~ParcelableComposerLayer() override;
 
   ComposerView::ComposerLayer layer() const { return layer_; }

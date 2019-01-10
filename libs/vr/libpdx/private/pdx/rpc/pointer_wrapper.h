@@ -13,7 +13,7 @@ class PointerWrapper {
  public:
   using BaseType = T;
 
-  PointerWrapper(T* pointer) : pointer_(pointer) {}
+  explicit PointerWrapper(T* pointer) : pointer_(pointer) {}
   PointerWrapper(const PointerWrapper&) = default;
   PointerWrapper(PointerWrapper&&) noexcept = default;
   PointerWrapper& operator=(const PointerWrapper&) = default;

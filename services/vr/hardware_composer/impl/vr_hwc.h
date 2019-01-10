@@ -112,9 +112,7 @@ struct HwcLayer {
   using Composition =
       hardware::graphics::composer::V2_1::IComposerClient::Composition;
 
-  HwcLayer(Layer new_id) {
-    info.id = new_id;
-  }
+  explicit HwcLayer(Layer new_id) { info.id = new_id; }
 
   void dumpDebugInfo(std::string* result) const;
 
