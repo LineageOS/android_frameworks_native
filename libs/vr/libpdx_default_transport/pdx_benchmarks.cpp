@@ -82,7 +82,7 @@ ssize_t ssizeof(const T&) {
 class SchedStats {
  public:
   SchedStats() : SchedStats(gettid()) {}
-  SchedStats(pid_t task_id) : task_id_(task_id) {}
+  explicit SchedStats(pid_t task_id) : task_id_(task_id) {}
   SchedStats(const SchedStats&) = default;
   SchedStats& operator=(const SchedStats&) = default;
 
@@ -379,7 +379,7 @@ class BenchmarkService : public ServiceBase<BenchmarkService> {
  private:
   friend BASE;
 
-  BenchmarkService(std::unique_ptr<Endpoint> endpoint)
+  explicit BenchmarkService(std::unique_ptr<Endpoint> endpoint)
       : BASE("BenchmarkService", std::move(endpoint)),
         send_buffer(kMaxMessageSize),
         receive_buffer(kMaxMessageSize) {}
@@ -492,7 +492,7 @@ class BenchmarkClient : public ClientBase<BenchmarkClient> {
  private:
   friend BASE;
 
-  BenchmarkClient(const std::string& service_path)
+  explicit BenchmarkClient(const std::string& service_path)
       : BASE(ClientChannelFactory::Create(service_path),
              ProgramOptions.timeout) {}
 

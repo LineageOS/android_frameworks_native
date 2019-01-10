@@ -83,7 +83,7 @@ class ServicePayload : public MessagePayload<Slot>,
                        public MessageWriter,
                        public MessageReader {
  public:
-  ServicePayload(Message& message) : message_(message) {}
+  explicit ServicePayload(Message& message) : message_(message) {}
 
   // MessageWriter
   void* GetNextWriteBufferSection(size_t size) override {
@@ -120,7 +120,8 @@ class ClientPayload : public MessagePayload<Slot>,
       MessageBuffer<ThreadLocalTypeSlot<ClientPayload<Slot>>, 1024u, int>;
   using BufferType = typename ContainerType::BufferType;
 
-  ClientPayload(Transaction& transaction) : transaction_{transaction} {}
+  explicit ClientPayload(Transaction& transaction)
+      : transaction_{transaction} {}
 
   // MessageWriter
   void* GetNextWriteBufferSection(size_t size) override {

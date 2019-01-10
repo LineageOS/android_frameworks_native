@@ -14,18 +14,22 @@ using namespace android::pdx::rpc;
 namespace {
 
 struct BaseType {
+  // NOLINTNEXTLINE(google-explicit-constructor)
   BaseType(int value) : value(value) {}
   int value;
 };
 
 struct DerivedType : BaseType {
+  // NOLINTNEXTLINE(google-explicit-constructor)
   DerivedType(int value) : BaseType{value} {};
 };
 
 template <typename T>
 class TestType {
  public:
+  // NOLINTNEXTLINE(google-explicit-constructor)
   TestType(const T& value) : value_(value) {}
+  // NOLINTNEXTLINE(google-explicit-constructor)
   TestType(T&& value) : value_(std::move(value)) {}
   TestType(const TestType&) = default;
   TestType(TestType&&) = default;
@@ -43,7 +47,9 @@ class TestType {
 template <typename T>
 class InstrumentType {
  public:
+  // NOLINTNEXTLINE(google-explicit-constructor)
   InstrumentType(const T& value) : value_(value) { constructor_count_++; }
+  // NOLINTNEXTLINE(google-explicit-constructor)
   InstrumentType(T&& value) : value_(std::move(value)) { constructor_count_++; }
   InstrumentType(const InstrumentType& other) : value_(other.value_) {
     constructor_count_++;
@@ -51,9 +57,11 @@ class InstrumentType {
   InstrumentType(InstrumentType&& other) : value_(std::move(other.value_)) {
     constructor_count_++;
   }
+  // NOLINTNEXTLINE(google-explicit-constructor)
   InstrumentType(const TestType<T>& other) : value_(other.get()) {
     constructor_count_++;
   }
+  // NOLINTNEXTLINE(google-explicit-constructor)
   InstrumentType(TestType<T>&& other) : value_(other.take()) {
     constructor_count_++;
   }
@@ -1101,6 +1109,7 @@ TEST(Variant, HasType) {
 TEST(Variant, IsConstructible) {
   using ArrayType = const float[3];
   struct ImplicitBool {
+    // NOLINTNEXTLINE(google-explicit-constructor)
     operator bool() const { return true; }
   };
   struct ExplicitBool {

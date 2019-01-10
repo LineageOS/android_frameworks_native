@@ -70,7 +70,7 @@ struct TestTemplateType {
   FileHandleType fd;
 
   TestTemplateType() {}
-  TestTemplateType(FileHandleType fd) : fd(std::move(fd)) {}
+  explicit TestTemplateType(FileHandleType fd) : fd(std::move(fd)) {}
 
   bool operator==(const TestTemplateType& other) const {
     return fd.Get() == other.fd.Get();
