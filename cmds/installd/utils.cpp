@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <fts.h>
 #include <stdlib.h>
+#include <sys/capability.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <sys/xattr.h>
@@ -34,6 +35,7 @@
 #include <log/log.h>
 #include <private/android_filesystem_config.h>
 
+#include "dexopt_return_codes.h"
 #include "globals.h"  // extern variables.
 
 #ifndef LOG_TAG
@@ -1060,6 +1062,27 @@ bool collect_profiles(std::vector<std::string>* profiles_paths) {
         return false;
     } else {
         return collect_profiles(d, android_profiles_dir, profiles_paths);
+    }
+}
+
+void drop_capabilities(uid_t uid) {
+    if (setgid(uid) != 0) {
+        PLOG(ERROR) << "setgid(" << uid << ") failed in installd during dexopt";
+        exit(DexoptReturnCodes::kSetGid);
+    }
+    if (setuid(uid) != 0) {
+        PLOG(ERROR) << "setuid(" << uid << ") failed in installd during dexopt";
+        exit(DexoptReturnCodes::kSetUid);
+    }
+    // drop capabilities
+    struct __user_cap_header_struct capheader;
+    struct __user_cap_data_struct capdata[2];
+    memset(&capheader, 0, sizeof(capheader));
+    memset(&capdata, 0, sizeof(capdata));
+    capheader.version = _LINUX_CAPABILITY_VERSION_3;
+    if (capset(&capheader, &capdata[0]) < 0) {
+        PLOG(ERROR) << "capset failed";
+        exit(DexoptReturnCodes::kCapSet);
     }
 }
 
