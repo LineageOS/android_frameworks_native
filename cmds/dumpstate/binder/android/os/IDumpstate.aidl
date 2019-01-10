@@ -63,6 +63,12 @@ interface IDumpstate {
 
     /*
      * Starts a bugreport in the background.
+     *
+     * @param bugreportFd the file to which the zipped bugreport should be written
+     * @param screenshotFd the file to which screenshot should be written; optional
+     * @param bugreportMode the mode that specifies other run time options; must be one of above
+     * @param listener callback for updates; optional
      */
-    int startBugreport(int fd, int bugreportMode);
+     void startBugreport(FileDescriptor bugreportFd, FileDescriptor screenshotFd, int bugreportMode,
+                         IDumpstateListener listener);
 }
