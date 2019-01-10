@@ -95,7 +95,7 @@ class Channel : public std::enable_shared_from_this<Channel> {
 class Message : public OutputResourceMapper, public InputResourceMapper {
  public:
   Message();
-  Message(const MessageInfo& info);
+  explicit Message(const MessageInfo& info);
   ~Message();
 
   /*

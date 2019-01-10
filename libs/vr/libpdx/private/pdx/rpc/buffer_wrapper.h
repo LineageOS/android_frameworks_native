@@ -110,10 +110,10 @@ class BufferWrapper<std::vector<T, Allocator>> {
   using const_iterator = typename BufferType::const_iterator;
 
   BufferWrapper() {}
-  BufferWrapper(const BufferType& buffer) : buffer_(buffer) {}
+  explicit BufferWrapper(const BufferType& buffer) : buffer_(buffer) {}
   BufferWrapper(const BufferType& buffer, const Allocator& allocator)
       : buffer_(buffer, allocator) {}
-  BufferWrapper(BufferType&& buffer) : buffer_(std::move(buffer)) {}
+  explicit BufferWrapper(BufferType&& buffer) : buffer_(std::move(buffer)) {}
   BufferWrapper(BufferType&& buffer, const Allocator& allocator)
       : buffer_(std::move(buffer), allocator) {}
   BufferWrapper(const BufferWrapper&) = default;

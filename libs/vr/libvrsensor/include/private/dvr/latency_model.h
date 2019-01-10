@@ -10,7 +10,7 @@ namespace dvr {
 // window_size measurements and return their average after that.
 class LatencyModel {
  public:
-  LatencyModel(size_t window_size);
+  explicit LatencyModel(size_t window_size);
   ~LatencyModel() = default;
 
   void AddLatency(int64_t latency_ns);

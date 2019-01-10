@@ -116,19 +116,24 @@ struct Wrapper {
   Wrapper(const Wrapper&) = default;
 
   // Implicit conversion from ValueType.
+  // NOLINTNEXTLINE(google-explicit-constructor)
   Wrapper(ValueType value) : value(value) {}
 
   // Implicit conversion from BaseType.
+  // NOLINTNEXTLINE(google-explicit-constructor)
   Wrapper(BaseType value) : value(static_cast<ValueType>(value)) {}
 
   // Implicit conversion from an enum type of the same underlying type.
   template <typename T, typename = EnableIfMatchingEnum<T, ValueType>>
+  // NOLINTNEXTLINE(google-explicit-constructor)
   Wrapper(const T& value) : value(static_cast<ValueType>(value)) {}
 
   // Implicit conversion to BaseType.
+  // NOLINTNEXTLINE(google-explicit-constructor)
   operator BaseType() const { return static_cast<BaseType>(value); }
 
   // Implicit conversion to ValueType.
+  // NOLINTNEXTLINE(google-explicit-constructor)
   operator ValueType() const { return value; }
 
   template <typename T, typename = EnableIfMatchingEnum<T, ValueType>>
@@ -275,8 +280,10 @@ struct Vsync final : public Wrapper<HWC2::Vsync> {
 struct Color final {
   Color(const Color&) = default;
   Color(uint8_t r, uint8_t g, uint8_t b, uint8_t a) : r(r), g(g), b(b), a(a) {}
+  // NOLINTNEXTLINE(google-explicit-constructor)
   Color(hwc_color_t color) : r(color.r), g(color.g), b(color.b), a(color.a) {}
 
+  // NOLINTNEXTLINE(google-explicit-constructor)
   operator hwc_color_t() const { return {r, g, b, a}; }
 
   uint8_t r __attribute__((aligned(1)));
