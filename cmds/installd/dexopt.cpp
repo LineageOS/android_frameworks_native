@@ -627,27 +627,6 @@ static void open_profile_files(uid_t uid, const std::string& package_name,
     }
 }
 
-static void drop_capabilities(uid_t uid) {
-    if (setgid(uid) != 0) {
-        PLOG(ERROR) << "setgid(" << uid << ") failed in installd during dexopt";
-        exit(DexoptReturnCodes::kSetGid);
-    }
-    if (setuid(uid) != 0) {
-        PLOG(ERROR) << "setuid(" << uid << ") failed in installd during dexopt";
-        exit(DexoptReturnCodes::kSetUid);
-    }
-    // drop capabilities
-    struct __user_cap_header_struct capheader;
-    struct __user_cap_data_struct capdata[2];
-    memset(&capheader, 0, sizeof(capheader));
-    memset(&capdata, 0, sizeof(capdata));
-    capheader.version = _LINUX_CAPABILITY_VERSION_3;
-    if (capset(&capheader, &capdata[0]) < 0) {
-        PLOG(ERROR) << "capset failed";
-        exit(DexoptReturnCodes::kCapSet);
-    }
-}
-
 static constexpr int PROFMAN_BIN_RETURN_CODE_COMPILE = 0;
 static constexpr int PROFMAN_BIN_RETURN_CODE_SKIP_COMPILATION = 1;
 static constexpr int PROFMAN_BIN_RETURN_CODE_BAD_PROFILES = 2;

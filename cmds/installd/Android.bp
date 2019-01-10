@@ -18,6 +18,7 @@ cc_defaults {
         "dexopt.cpp",
         "globals.cpp",
         "utils.cpp",
+        "view_compiler.cpp",
         ":installd_aidl",
     ],
     header_libs: [
@@ -188,6 +189,7 @@ cc_binary {
         "globals.cpp",
         "otapreopt.cpp",
         "utils.cpp",
+        "view_compiler.cpp",
     ],
 
     header_libs: ["dex2oat_headers"],

@@ -140,6 +140,8 @@ int prepare_app_cache_dir(const std::string& parent, const char* name, mode_t ta
 // It returns true if there were no errors at all, and false otherwise.
 bool collect_profiles(std::vector<std::string>* profiles_paths);
 
+void drop_capabilities(uid_t uid);
+
 }  // namespace installd
 }  // namespace android
 

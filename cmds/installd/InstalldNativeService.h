@@ -89,6 +89,9 @@ public:
             const std::unique_ptr<std::string>& dexMetadataPath,
             const std::unique_ptr<std::string>& compilationReason);
 
+    binder::Status compileLayouts(const std::string& apkPath, const std::string& packageName,
+                                  const std::string& outDexFile, int uid, bool* _aidl_return);
+
     binder::Status rmdex(const std::string& codePath, const std::string& instructionSet);
 
     binder::Status mergeProfiles(int32_t uid, const std::string& packageName,
