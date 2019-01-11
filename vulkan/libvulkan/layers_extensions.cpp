@@ -139,12 +139,12 @@ bool LayerLibrary::Open() {
         auto app_namespace = android::GraphicsEnv::getInstance().getAppNamespace();
         if (app_namespace &&
             !android::base::StartsWith(path_, kSystemLayerLibraryDir)) {
-            std::string error_msg;
-            dlhandle_ = OpenNativeLibrary(
+            char* error_msg = nullptr;
+            dlhandle_ = OpenNativeLibraryInNamespace(
                 app_namespace, path_.c_str(), &native_bridge_, &error_msg);
             if (!dlhandle_) {
-                ALOGE("failed to load layer library '%s': %s", path_.c_str(),
-                      error_msg.c_str());
+                ALOGE("failed to load layer library '%s': %s", path_.c_str(), error_msg);
+                android::NativeLoaderFreeErrorMessage(error_msg);
                 refcount_ = 0;
                 return false;
             }
@@ -165,9 +165,10 @@ void LayerLibrary::Close() {
     std::lock_guard<std::mutex> lock(mutex_);
     if (--refcount_ == 0) {
         ALOGV("closing layer library '%s'", path_.c_str());
-        std::string error_msg;
+        char* error_msg = nullptr;
         if (!android::CloseNativeLibrary(dlhandle_, native_bridge_, &error_msg)) {
-            ALOGE("failed to unload library '%s': %s", path_.c_str(), error_msg.c_str());
+            ALOGE("failed to unload library '%s': %s", path_.c_str(), error_msg);
+            android::NativeLoaderFreeErrorMessage(error_msg);
             refcount_++;
         } else {
            dlhandle_ = nullptr;
