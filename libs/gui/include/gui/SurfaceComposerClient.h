@@ -168,15 +168,27 @@ public:
     );
 
     status_t createSurfaceChecked(
-            const String8& name,// name of the surface
-            uint32_t w,         // width in pixel
-            uint32_t h,         // height in pixel
-            PixelFormat format, // pixel-format desired
+            const String8& name, // name of the surface
+            uint32_t w,          // width in pixel
+            uint32_t h,          // height in pixel
+            PixelFormat format,  // pixel-format desired
             sp<SurfaceControl>* outSurface,
-            uint32_t flags = 0, // usage flags
+            uint32_t flags = 0,               // usage flags
             SurfaceControl* parent = nullptr, // parent
             int32_t windowType = -1, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
-            int32_t ownerUid = -1 // UID of the task
+            int32_t ownerUid = -1    // UID of the task
+    );
+
+    //! Create a surface
+    sp<SurfaceControl> createWithSurfaceParent(
+            const String8& name,       // name of the surface
+            uint32_t w,                // width in pixel
+            uint32_t h,                // height in pixel
+            PixelFormat format,        // pixel-format desired
+            uint32_t flags = 0,        // usage flags
+            Surface* parent = nullptr, // parent
+            int32_t windowType = -1,   // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
+            int32_t ownerUid = -1      // UID of the task
     );
 
     //! Create a virtual display
