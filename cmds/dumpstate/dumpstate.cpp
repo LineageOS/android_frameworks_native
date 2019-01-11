@@ -1881,8 +1881,9 @@ static void PrepareToWriteToFile() {
     ds.tmp_path_ = ds.GetPath(".tmp");
     ds.log_path_ = ds.GetPath("-dumpstate_log-" + std::to_string(ds.pid_) + ".txt");
 
-    std::string destination = ds.options_->fd != -1 ? StringPrintf("[fd:%d]", ds.options_->fd)
-                                                    : ds.bugreport_dir_.c_str();
+    std::string destination = ds.options_->bugreport_fd.get() != -1
+                                  ? StringPrintf("[fd:%d]", ds.options_->bugreport_fd.get())
+                                  : ds.bugreport_dir_.c_str();
     MYLOGD(
         "Bugreport dir: %s\n"
         "Internal Bugreport dir: %s\n"
@@ -1960,8 +1961,8 @@ static void FinalizeFile() {
             }
             // The zip file lives in an internal directory. Copy it over to output.
             bool copy_succeeded = false;
-            if (ds.options_->fd != -1) {
-                copy_succeeded = android::os::CopyFileToFd(ds.path_, ds.options_->fd);
+            if (ds.options_->bugreport_fd.get() != -1) {
+                copy_succeeded = android::os::CopyFileToFd(ds.path_, ds.options_->bugreport_fd.get());
             } else {
                 ds.final_path_ = ds.GetPath(ds.bugreport_dir_, ".zip");
                 copy_succeeded = android::os::CopyFileToFile(ds.path_, ds.final_path_);
@@ -2164,7 +2165,7 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI("telephony_only: %d\n", options.telephony_only);
     MYLOGI("wifi_only: %d\n", options.wifi_only);
     MYLOGI("do_progress_updates: %d\n", options.do_progress_updates);
-    MYLOGI("fd: %d\n", options.fd);
+    MYLOGI("fd: %d\n", options.bugreport_fd.get());
     MYLOGI("use_outfile: %s\n", options.use_outfile.c_str());
     MYLOGI("extra_options: %s\n", options.extra_options.c_str());
     MYLOGI("args: %s\n", options.args.c_str());
@@ -2172,14 +2173,17 @@ static void LogDumpOptions(const Dumpstate::DumpOptions& options) {
     MYLOGI("notification_description: %s\n", options.notification_description.c_str());
 }
 
-void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode) {
+void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
+                                        const android::base::unique_fd& bugreport_fd_in,
+                                        const android::base::unique_fd& screenshot_fd_in) {
     // In the new API world, date is always added; output is always a zip file.
     // TODO(111441001): remove these options once they are obsolete.
     do_add_date = true;
     do_zip_file = true;
 
-    // STOPSHIP b/111441001: Remove hardcoded output file path; accept fd.
-    use_outfile = "/data/user_de/0/com.android.shell/files/bugreports/bugreport";
+    // Duplicate the fds because the passed in fds don't outlive the binder transaction.
+    bugreport_fd.reset(dup(bugreport_fd_in.get()));
+    screenshot_fd.reset(dup(screenshot_fd_in.get()));
 
     extra_options = ModeToString(bugreport_mode);
     SetOptionsFromMode(bugreport_mode, this);
@@ -2230,11 +2234,11 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
 }
 
 bool Dumpstate::DumpOptions::ValidateOptions() const {
-    if (fd != -1 && !do_zip_file) {
+    if (bugreport_fd.get() != -1 && !do_zip_file) {
         return false;
     }
 
-    bool has_out_file_options = !use_outfile.empty() || fd != -1;
+    bool has_out_file_options = !use_outfile.empty() || bugreport_fd.get() != -1;
     if ((do_zip_file || do_add_date || do_progress_updates || do_broadcast) &&
         !has_out_file_options) {
         return false;
