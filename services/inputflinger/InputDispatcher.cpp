@@ -3374,11 +3374,6 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
     mLooper->wake();
 }
 
-bool InputDispatcher::transferTouchFocus(const sp<InputChannel>& fromChannel,
-        const sp<InputChannel>& toChannel) {
-    return transferTouchFocus(fromChannel->getToken(), toChannel->getToken());
-}
-
 bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
     if (fromToken == toToken) {
 #if DEBUG_FOCUS
@@ -3392,14 +3387,14 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
         sp<InputWindowHandle> fromWindowHandle = getWindowHandleLocked(fromToken);
         sp<InputWindowHandle> toWindowHandle = getWindowHandleLocked(toToken);
-#if DEBUG_FOCUS
-        ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
-            fromWindowHandle->getName().c_str(), toWindowHandle->getName().c_str());
-#endif
         if (fromWindowHandle == nullptr || toWindowHandle == nullptr) {
             ALOGW("Cannot transfer focus because from or to window not found.");
             return false;
         }
+#if DEBUG_FOCUS
+        ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
+            fromWindowHandle->getName().c_str(), toWindowHandle->getName().c_str());
+#endif
         if (fromWindowHandle->getInfo()->displayId != toWindowHandle->getInfo()->displayId) {
 #if DEBUG_FOCUS
             ALOGD("Cannot transfer focus because windows are on different displays.");

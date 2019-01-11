@@ -349,9 +349,6 @@ public:
      */
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) = 0;
 
-    virtual bool transferTouchFocus(const sp<InputChannel>& fromChannel,
-            const sp<InputChannel>& toChannel) = 0;
-
     /* Registers input channels that may be used as targets for input events.
      * If inputWindowHandle is null, and displayId is not ADISPLAY_ID_NONE,
      * the channel will receive a copy of all input events form the specific displayId.
@@ -416,8 +413,6 @@ public:
     virtual void setInputFilterEnabled(bool enabled);
 
     virtual bool transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
-    virtual bool transferTouchFocus(const sp<InputChannel>& fromChannel,
-            const sp<InputChannel>& toChannel);
 
     virtual status_t registerInputChannel(const sp<InputChannel>& inputChannel,
             int32_t displayId);
