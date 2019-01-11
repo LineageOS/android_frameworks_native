@@ -45,7 +45,7 @@ private:
     using FwkReceiver = ::android::DisplayEventReceiver;
 
     struct AttachedEvent : LooperCallback {
-        AttachedEvent(const sp<IEventCallback> &callback);
+        explicit AttachedEvent(const sp<IEventCallback> &callback);
         ~AttachedEvent();
 
         bool detach();
