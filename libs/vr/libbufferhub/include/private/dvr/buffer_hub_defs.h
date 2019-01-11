@@ -162,39 +162,6 @@ class BufferTraits {
   void operator=(const BufferTraits&) = delete;
 };
 
-struct DetachedBufferRPC {
- private:
-  enum {
-    kOpDetachedBufferBase = 1000,
-
-    // Allocates a standalone DetachedBuffer not associated with any producer
-    // consumer set.
-    kOpCreate,
-
-    // Imports the given channel handle to a DetachedBuffer, taking ownership.
-    kOpImport,
-
-    // Creates a DetachedBuffer client from an existing one. The new client will
-    // share the same underlying gralloc buffer and ashmem region for metadata.
-    kOpDuplicate,
-  };
-
-  // Aliases.
-  using LocalChannelHandle = pdx::LocalChannelHandle;
-  using LocalHandle = pdx::LocalHandle;
-  using Void = pdx::rpc::Void;
-
- public:
-  PDX_REMOTE_METHOD(Create, kOpCreate,
-                    void(uint32_t width, uint32_t height, uint32_t layer_count,
-                         uint32_t format, uint64_t usage,
-                         size_t user_metadata_size));
-  PDX_REMOTE_METHOD(Import, kOpImport, BufferTraits<LocalHandle>(Void));
-  PDX_REMOTE_METHOD(Duplicate, kOpDuplicate, LocalChannelHandle(Void));
-
-  PDX_REMOTE_API(API, Create, Import, Duplicate);
-};
-
 }  // namespace dvr
 }  // namespace android
 
