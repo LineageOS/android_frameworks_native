@@ -63,7 +63,7 @@ private:
     virtual void notifyInputChannelBroken(const sp<IBinder>&) {
     }
 
-    virtual void notifyFocusChanged(const sp<IBinder>&) {
+    virtual void notifyFocusChanged(const sp<IBinder>&, const sp<IBinder>&) {
     }
 
     virtual void getDispatcherConfiguration(InputDispatcherConfiguration* outConfig) {
