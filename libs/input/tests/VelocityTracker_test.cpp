@@ -90,7 +90,8 @@ MotionEvent* createSimpleMotionEvent(const Position* positions, size_t numSample
 
     MotionEvent* event = new MotionEvent();
     PointerCoords coords;
-    PointerProperties properties[1];
+    constexpr size_t pointerCount = 1;
+    PointerProperties properties[pointerCount];
 
     properties[0].id = DEFAULT_POINTER_ID;
     properties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
@@ -98,8 +99,11 @@ MotionEvent* createSimpleMotionEvent(const Position* positions, size_t numSample
     // First sample added separately with initialize
     coords.setAxisValue(AMOTION_EVENT_AXIS_X, positions[0].x);
     coords.setAxisValue(AMOTION_EVENT_AXIS_Y, positions[0].y);
-    event->initialize(0, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID, AMOTION_EVENT_ACTION_MOVE,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, positions[0].time, 1, properties, &coords);
+    event->initialize(0 /*deviceId*/, AINPUT_SOURCE_TOUCHSCREEN, DISPLAY_ID,
+            AMOTION_EVENT_ACTION_MOVE, 0 /*actionButton*/, 0 /*flags*/,
+            AMOTION_EVENT_EDGE_FLAG_NONE, AMETA_NONE, 0 /*buttonState*/, MotionClassification::NONE,
+            0 /*xOffset*/, 0 /*yOffset*/, 0 /*xPrecision*/, 0 /*yPrecision*/,
+            0 /*downTime*/, positions[0].time, pointerCount, properties, &coords);
 
     for (size_t i = 1; i < numSamples; i++) {
         coords.setAxisValue(AMOTION_EVENT_AXIS_X, positions[i].x);
