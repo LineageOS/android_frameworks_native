@@ -158,6 +158,29 @@ struct __attribute__((aligned(8))) MetadataHeader {
 static_assert(sizeof(MetadataHeader) == 128, "Unexpected MetadataHeader size");
 static constexpr size_t kMetadataHeaderSize = sizeof(MetadataHeader);
 
+/**
+ * android.frameworks.bufferhub@1.0::BufferTraits.bufferInfo is an opaque handle. See
+ * https://cs.corp.google.com/android/frameworks/hardware/interfaces/bufferhub/1.0/types.hal for
+ * more details about android.frameworks.bufferhub@1.0::BufferTraits.
+ *
+ * This definition could be changed, but implementation of BufferHubService::buildBufferInfo
+ * (frameworks/native/services/bufferhub), VtsHalBufferHubV1_0TargetTest
+ * (frameworks/hardware/interfaces/bufferhub) and BufferHubBuffer::readBufferTraits (libui) will
+ * also need to be updated.
+ *
+ * It's definition should follow the following format:
+ * {
+ *   NumFds = 1,
+ *   NumInts = 3,
+ *   data[0] = Ashmem fd for BufferHubMetadata,
+ *   data[1] = buffer id,
+ *   data[2] = client state bit mask,
+ *   data[3] = user metadata size,
+ * }
+ */
+static constexpr int kBufferInfoNumFds = 1;
+static constexpr int kBufferInfoNumInts = 3;
+
 } // namespace BufferHubDefs
 
 } // namespace android
