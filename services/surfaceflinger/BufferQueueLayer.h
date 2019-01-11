@@ -137,6 +137,8 @@ private:
     // thread-safe
     std::atomic<int32_t> mQueuedFrames{0};
     std::atomic<bool> mSidebandStreamChanged{false};
+
+    void fakeVsync();
 };
 
 } // namespace android

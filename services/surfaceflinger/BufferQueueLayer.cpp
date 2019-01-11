@@ -352,6 +352,14 @@ void BufferQueueLayer::setHwcLayerBuffer(DisplayId displayId) {
 // Interface implementation for BufferLayerConsumer::ContentsChangedListener
 // -----------------------------------------------------------------------
 
+void BufferQueueLayer::fakeVsync() {
+    mRefreshPending = false;
+    bool ignored = false;
+    latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
+    usleep(16000);
+    releasePendingBuffer(systemTime());
+}
+
 void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
@@ -390,10 +398,7 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // If this layer is orphaned, then we run a fake vsync pulse so that
     // dequeueBuffer doesn't block indefinitely.
     if (isRemovedFromCurrentState()) {
-        bool ignored = false;
-        latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
-        usleep(16000);
-        releasePendingBuffer(systemTime());
+        fakeVsync();
     } else {
         mFlinger->signalLayerUpdate();
     }
