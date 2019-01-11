@@ -5,7 +5,6 @@
 #include <private/dvr/producer_buffer.h>
 #include <sys/epoll.h>
 #include <sys/eventfd.h>
-#include <ui/BufferHubBuffer.h>
 #include <ui/BufferHubDefs.h>
 
 #include <mutex>
@@ -20,9 +19,6 @@
     return result;                            \
   })()
 
-using android::BufferHubBuffer;
-using android::GraphicBuffer;
-using android::sp;
 using android::BufferHubDefs::AnyClientAcquired;
 using android::BufferHubDefs::AnyClientGained;
 using android::BufferHubDefs::AnyClientPosted;
@@ -31,19 +27,15 @@ using android::BufferHubDefs::IsClientAcquired;
 using android::BufferHubDefs::IsClientPosted;
 using android::BufferHubDefs::IsClientReleased;
 using android::BufferHubDefs::kFirstClientBitMask;
-using android::BufferHubDefs::kMetadataHeaderSize;
 using android::dvr::ConsumerBuffer;
 using android::dvr::ProducerBuffer;
-using android::pdx::LocalChannelHandle;
 using android::pdx::LocalHandle;
 using android::pdx::Status;
 
 const int kWidth = 640;
 const int kHeight = 480;
-const int kLayerCount = 1;
 const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
-const size_t kUserMetadataSize = 0;
 // Maximum number of consumers for the buffer that only has one producer in the
 // test.
 const size_t kMaxConsumerCount =
@@ -808,7 +800,7 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   // TODO(b/112338294) rewrite test after migration
   return;
 
-  std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
+  /* std::unique_ptr<ProducerBuffer> p = ProducerBuffer::Create(
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
   std::unique_ptr<ConsumerBuffer> c =
       ConsumerBuffer::Import(p->CreateConsumer());
@@ -876,49 +868,14 @@ TEST_F(LibBufferHubTest, TestDetachBufferFromProducer) {
   EXPECT_TRUE(d->IsConnected());
   EXPECT_TRUE(d->IsValid());
 
-  EXPECT_EQ(d->id(), p_id);
-}
-
-TEST_F(LibBufferHubTest, TestCreateBufferHubBufferFails) {
-  // Buffer Creation will fail: BLOB format requires height to be 1.
-  auto b1 = BufferHubBuffer::Create(kWidth, /*height=2*/ 2, kLayerCount,
-                                    /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage,
-                                    kUserMetadataSize);
-
-  EXPECT_FALSE(b1->IsConnected());
-  EXPECT_FALSE(b1->IsValid());
-
-  // Buffer Creation will fail: user metadata size too large.
-  auto b2 = BufferHubBuffer::Create(
-      kWidth, kHeight, kLayerCount, kFormat, kUsage,
-      /*user_metadata_size=*/std::numeric_limits<size_t>::max());
-
-  EXPECT_FALSE(b2->IsConnected());
-  EXPECT_FALSE(b2->IsValid());
-
-  // Buffer Creation will fail: user metadata size too large.
-  auto b3 = BufferHubBuffer::Create(
-      kWidth, kHeight, kLayerCount, kFormat, kUsage,
-      /*user_metadata_size=*/std::numeric_limits<size_t>::max() -
-          kMetadataHeaderSize);
-
-  EXPECT_FALSE(b3->IsConnected());
-  EXPECT_FALSE(b3->IsValid());
-}
-
-TEST_F(LibBufferHubTest, TestCreateBufferHubBuffer) {
-  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                    kUsage, kUserMetadataSize);
-  EXPECT_TRUE(b1->IsConnected());
-  EXPECT_TRUE(b1->IsValid());
-  EXPECT_NE(b1->id(), 0);
+  EXPECT_EQ(d->id(), p_id); */
 }
 
 TEST_F(LibBufferHubTest, TestDetach) {
   // TODO(b/112338294) rewrite test after migration
   return;
 
-  std::unique_ptr<ProducerBuffer> p1 = ProducerBuffer::Create(
+  /* std::unique_ptr<ProducerBuffer> p1 = ProducerBuffer::Create(
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
   ASSERT_TRUE(p1.get() != nullptr);
   int p1_id = p1->id();
@@ -936,47 +893,5 @@ TEST_F(LibBufferHubTest, TestDetach) {
   EXPECT_FALSE(h1.valid());
   EXPECT_TRUE(b1->IsValid());
   int b1_id = b1->id();
-  EXPECT_EQ(b1_id, p1_id);
-}
-
-TEST_F(LibBufferHubTest, TestDuplicateBufferHubBuffer) {
-  auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat,
-                                    kUsage, kUserMetadataSize);
-  int b1_id = b1->id();
-  EXPECT_TRUE(b1->IsValid());
-  EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
-  EXPECT_NE(b1->client_state_mask(), 0U);
-
-  auto status_or_handle = b1->Duplicate();
-  EXPECT_TRUE(status_or_handle);
-
-  // The detached buffer should still be valid.
-  EXPECT_TRUE(b1->IsConnected());
-  EXPECT_TRUE(b1->IsValid());
-
-  // Gets the channel handle for the duplicated buffer.
-  LocalChannelHandle h2 = status_or_handle.take();
-  EXPECT_TRUE(h2.valid());
-
-  std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(h2));
-  EXPECT_FALSE(h2.valid());
-  ASSERT_TRUE(b2 != nullptr);
-  EXPECT_TRUE(b2->IsValid());
-  EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
-  EXPECT_NE(b2->client_state_mask(), 0U);
-
-  int b2_id = b2->id();
-
-  // These two buffer instances are based on the same physical buffer under the
-  // hood, so they should share the same id.
-  EXPECT_EQ(b1_id, b2_id);
-  // We use client_state_mask() to tell those two instances apart.
-  EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
-
-  // Both buffer instances should be in gained state.
-  EXPECT_TRUE(IsBufferReleased(b1->buffer_state()));
-  EXPECT_TRUE(IsBufferReleased(b2->buffer_state()));
-
-  // TODO(b/112338294) rewrite test after migration
-  return;
+  EXPECT_EQ(b1_id, p1_id); */
 }

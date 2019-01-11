@@ -16,10 +16,9 @@
 
 #define LOG_TAG "BufferHubBufferTest"
 
-#include <android/frameworks/bufferhub/1.0/IBufferClient.h>
-#include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <android/hardware_buffer.h>
 #include <cutils/native_handle.h>
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
@@ -29,35 +28,37 @@ namespace android {
 
 namespace {
 
+using ::android::BufferHubDefs::AnyClientAcquired;
+using ::android::BufferHubDefs::AnyClientGained;
+using ::android::BufferHubDefs::AnyClientPosted;
+using ::android::BufferHubDefs::IsBufferReleased;
+using ::android::BufferHubDefs::IsClientAcquired;
+using ::android::BufferHubDefs::IsClientGained;
+using ::android::BufferHubDefs::IsClientPosted;
+using ::android::BufferHubDefs::IsClientReleased;
+using ::android::BufferHubDefs::kMetadataHeaderSize;
+using ::testing::IsNull;
+using ::testing::NotNull;
+
 const int kWidth = 640;
 const int kHeight = 480;
 const int kLayerCount = 1;
 const int kFormat = HAL_PIXEL_FORMAT_RGBA_8888;
 const int kUsage = 0;
-const size_t kUserMetadataSize = 0;
-
-using BufferHubDefs::AnyClientAcquired;
-using BufferHubDefs::AnyClientGained;
-using BufferHubDefs::AnyClientPosted;
-using BufferHubDefs::IsBufferReleased;
-using BufferHubDefs::IsClientAcquired;
-using BufferHubDefs::IsClientGained;
-using BufferHubDefs::IsClientPosted;
-using BufferHubDefs::IsClientReleased;
-using BufferHubDefs::kFirstClientBitMask;
-using BufferHubDefs::kMetadataHeaderSize;
-using frameworks::bufferhub::V1_0::BufferHubStatus;
-using frameworks::bufferhub::V1_0::IBufferClient;
-using frameworks::bufferhub::V1_0::IBufferHub;
-using hardware::hidl_handle;
-using hardware::graphics::common::V1_2::HardwareBufferDescription;
-using hidl::base::V1_0::IBase;
-using pdx::LocalChannelHandle;
+const AHardwareBuffer_Desc kDesc = {kWidth, kHeight,        kLayerCount,  kFormat,
+                                    kUsage, /*stride=*/0UL, /*rfu0=*/0UL, /*rfu1=*/0ULL};
+const size_t kUserMetadataSize = 1;
 
 class BufferHubBufferTest : public ::testing::Test {
 protected:
     void SetUp() override { android::hardware::ProcessState::self()->startThreadPool(); }
 };
+
+bool cmpAHardwareBufferDesc(const AHardwareBuffer_Desc& desc, const AHardwareBuffer_Desc& other) {
+    // Not comparing stride because it's unknown before allocation
+    return desc.format == other.format && desc.height == other.height &&
+            desc.layers == other.layers && desc.usage == other.usage && desc.width == other.width;
+}
 
 class BufferHubBufferStateTransitionTest : public BufferHubBufferTest {
 protected:
@@ -78,91 +79,126 @@ private:
 
 void BufferHubBufferStateTransitionTest::CreateTwoClientsOfABuffer() {
     b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
+    ASSERT_THAT(b1, NotNull());
     b1ClientMask = b1->client_state_mask();
     ASSERT_NE(b1ClientMask, 0U);
-    auto statusOrHandle = b1->Duplicate();
-    ASSERT_TRUE(statusOrHandle);
-    LocalChannelHandle h2 = statusOrHandle.take();
-    b2 = BufferHubBuffer::Import(std::move(h2));
+
+    native_handle_t* token = b1->Duplicate();
+    ASSERT_THAT(token, NotNull());
+
+    // TODO(b/122543147): use a movalbe wrapper for token
+    b2 = BufferHubBuffer::Import(token);
+    native_handle_close(token);
+    native_handle_delete(token);
+    ASSERT_THAT(b2, NotNull());
+
     b2ClientMask = b2->client_state_mask();
     ASSERT_NE(b2ClientMask, 0U);
     ASSERT_NE(b2ClientMask, b1ClientMask);
 }
 
-TEST_F(BufferHubBufferTest, CreateBufferHubBufferFails) {
+TEST_F(BufferHubBufferTest, CreateBufferFails) {
     // Buffer Creation will fail: BLOB format requires height to be 1.
     auto b1 = BufferHubBuffer::Create(kWidth, /*height=*/2, kLayerCount,
                                       /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage, kUserMetadataSize);
 
-    EXPECT_FALSE(b1->IsConnected());
-    EXPECT_FALSE(b1->IsValid());
+    EXPECT_THAT(b1, IsNull());
 
     // Buffer Creation will fail: user metadata size too large.
     auto b2 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       /*userMetadataSize=*/std::numeric_limits<size_t>::max());
 
-    EXPECT_FALSE(b2->IsConnected());
-    EXPECT_FALSE(b2->IsValid());
+    EXPECT_THAT(b2, IsNull());
 
     // Buffer Creation will fail: user metadata size too large.
     const size_t userMetadataSize = std::numeric_limits<size_t>::max() - kMetadataHeaderSize;
     auto b3 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       userMetadataSize);
 
-    EXPECT_FALSE(b3->IsConnected());
-    EXPECT_FALSE(b3->IsValid());
+    EXPECT_THAT(b3, IsNull());
 }
 
-TEST_F(BufferHubBufferTest, CreateBufferHubBuffer) {
+TEST_F(BufferHubBufferTest, CreateBuffer) {
     auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
+    ASSERT_THAT(b1, NotNull());
     EXPECT_TRUE(b1->IsConnected());
     EXPECT_TRUE(b1->IsValid());
-    EXPECT_NE(b1->id(), 0);
+    EXPECT_TRUE(cmpAHardwareBufferDesc(b1->desc(), kDesc));
+    EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
 }
 
-TEST_F(BufferHubBufferTest, DuplicateBufferHubBuffer) {
+TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
     auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
-    int id1 = b1->id();
-    uint32_t bufferStateMask1 = b1->client_state_mask();
-    EXPECT_NE(bufferStateMask1, 0U);
+    ASSERT_THAT(b1, NotNull());
     EXPECT_TRUE(b1->IsValid());
-    EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
 
-    auto statusOrHandle = b1->Duplicate();
-    EXPECT_TRUE(statusOrHandle);
+    native_handle_t* token = b1->Duplicate();
+    EXPECT_TRUE(token);
 
     // The detached buffer should still be valid.
     EXPECT_TRUE(b1->IsConnected());
     EXPECT_TRUE(b1->IsValid());
 
-    // Gets the channel handle for the duplicated buffer.
-    LocalChannelHandle h2 = statusOrHandle.take();
-    EXPECT_TRUE(h2.valid());
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    native_handle_close(token);
+    native_handle_delete(token);
 
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(h2));
-    EXPECT_FALSE(h2.valid());
-    ASSERT_TRUE(b2 != nullptr);
+    ASSERT_THAT(b2, NotNull());
     EXPECT_TRUE(b2->IsValid());
-    EXPECT_EQ(b2->user_metadata_size(), kUserMetadataSize);
 
-    int id2 = b2->id();
-    uint32_t bufferStateMask2 = b2->client_state_mask();
-    EXPECT_NE(bufferStateMask2, 0U);
+    EXPECT_TRUE(cmpAHardwareBufferDesc(b1->desc(), b2->desc()));
+    EXPECT_EQ(b1->user_metadata_size(), b2->user_metadata_size());
 
     // These two buffer instances are based on the same physical buffer under the
     // hood, so they should share the same id.
-    EXPECT_EQ(id1, id2);
+    EXPECT_EQ(b1->id(), b2->id());
     // We use client_state_mask() to tell those two instances apart.
-    EXPECT_NE(bufferStateMask1, bufferStateMask2);
+    EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
 
     // Both buffer instances should be in released state currently.
     EXPECT_TRUE(IsBufferReleased(b1->buffer_state()));
     EXPECT_TRUE(IsBufferReleased(b2->buffer_state()));
+}
 
-    // TODO(b/112338294): rewrite test after migration
-    return;
+TEST_F(BufferHubBufferTest, ImportFreedBuffer) {
+    auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+                                      kUserMetadataSize);
+    ASSERT_THAT(b1, NotNull());
+    EXPECT_TRUE(b1->IsValid());
+
+    native_handle_t* token = b1->Duplicate();
+    EXPECT_TRUE(token);
+
+    // Explicitly destroy b1. Backend buffer should be freed and token becomes invalid
+    b1.reset();
+
+    // TODO(b/122543147): use a movalbe wrapper for token
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    native_handle_close(token);
+    native_handle_delete(token);
+
+    // Import should fail with INVALID_TOKEN
+    EXPECT_THAT(b2, IsNull());
+}
+
+// nullptr must not crash the service
+TEST_F(BufferHubBufferTest, ImportNullToken) {
+    auto b1 = BufferHubBuffer::Import(nullptr);
+    EXPECT_THAT(b1, IsNull());
+}
+
+// TODO(b/118180214): remove the comment after ag/5856474 landed
+// This test has a very little chance to fail (number of existing tokens / 2 ^ 32)
+TEST_F(BufferHubBufferTest, ImportInvalidToken) {
+    native_handle_t* token = native_handle_create(/*numFds=*/0, /*numInts=*/1);
+    token->data[0] = 0;
+
+    auto b1 = BufferHubBuffer::Import(token);
+    native_handle_delete(token);
+
+    EXPECT_THAT(b1, IsNull());
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromReleasedState) {
@@ -357,13 +393,20 @@ TEST_F(BufferHubBufferTest, createNewConsumerAfterGain) {
     std::unique_ptr<BufferHubBuffer> b1 =
             BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                     kUserMetadataSize);
+    ASSERT_THAT(b1, NotNull());
     ASSERT_EQ(b1->Gain(), 0);
 
     // Create a consumer of the buffer and test if the consumer can acquire the
     // buffer if producer posts.
-    auto statusOrHandle = b1->Duplicate();
-    ASSERT_TRUE(statusOrHandle);
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(statusOrHandle.take()));
+    // TODO(b/122543147): use a movalbe wrapper for token
+    native_handle_t* token = b1->Duplicate();
+    ASSERT_TRUE(token);
+
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    native_handle_close(token);
+    native_handle_delete(token);
+
+    ASSERT_THAT(b2, NotNull());
     ASSERT_NE(b1->client_state_mask(), b2->client_state_mask());
 
     ASSERT_EQ(b1->Post(), 0);
@@ -380,13 +423,20 @@ TEST_F(BufferHubBufferTest, createNewConsumerAfterPost) {
 
     // Create a consumer of the buffer and test if the consumer can acquire the
     // buffer if producer posts.
-    auto statusOrHandle = b1->Duplicate();
-    ASSERT_TRUE(statusOrHandle);
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(std::move(statusOrHandle.take()));
+    // TODO(b/122543147): use a movalbe wrapper for token
+    native_handle_t* token = b1->Duplicate();
+    ASSERT_TRUE(token);
+
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    native_handle_close(token);
+    native_handle_delete(token);
+
+    ASSERT_THAT(b2, NotNull());
     ASSERT_NE(b1->client_state_mask(), b2->client_state_mask());
 
     EXPECT_EQ(b2->Acquire(), 0);
 }
 
 } // namespace
+
 } // namespace android

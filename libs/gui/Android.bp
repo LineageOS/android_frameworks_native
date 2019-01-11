@@ -121,6 +121,7 @@ cc_library_shared {
     ],
 
     shared_libs: [
+        "android.frameworks.bufferhub@1.0",
         "android.hardware.graphics.common@1.1",
         "libbase",
         "libsync",
@@ -153,6 +154,7 @@ cc_library_shared {
                 "BufferHubProducer.cpp",
             ],
             exclude_shared_libs: [
+                "android.frameworks.bufferhub@1.0",
                 "libbufferhub",
                 "libbufferhubqueue",
                 "libpdx_default_transport",
