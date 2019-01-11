@@ -168,8 +168,8 @@ protected:
     const uint32_t mTextureName;
 
 private:
-    // needsLinearFiltering - true if this surface's state requires filtering
-    bool needsFiltering(const RenderArea& renderArea) const;
+    // Returns true if this layer requires filtering
+    bool needsFiltering() const;
 
     // drawing
     void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;

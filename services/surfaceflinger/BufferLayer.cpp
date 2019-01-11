@@ -176,7 +176,7 @@ void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
 
     if (!blackOutLayer) {
         // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = needsFiltering(renderArea) || isFixedSize();
+        const bool useFiltering = needsFiltering() || renderArea.needsFiltering() || isFixedSize();
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
@@ -597,8 +597,11 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
     return true;
 }
 
-bool BufferLayer::needsFiltering(const RenderArea& renderArea) const {
-    return mNeedsFiltering || renderArea.needsFiltering();
+bool BufferLayer::needsFiltering() const {
+    const auto displayFrame = getBE().compositionInfo.hwc.displayFrame;
+    const auto sourceCrop = getBE().compositionInfo.hwc.sourceCrop;
+    return mNeedsFiltering || sourceCrop.getHeight() != displayFrame.getHeight() ||
+            sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
 void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
@@ -623,7 +626,6 @@ void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityT
      */
     const Rect bounds{computeBounds()}; // Rounds from FloatRect
 
-    ui::Transform t = getTransform();
     Rect win = bounds;
     const int bufferWidth = getBufferSize(s).getWidth();
     const int bufferHeight = getBufferSize(s).getHeight();
