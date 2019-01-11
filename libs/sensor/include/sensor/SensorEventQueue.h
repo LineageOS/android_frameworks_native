@@ -34,6 +34,7 @@ struct ASensorEvent;
 // Concrete types for the NDK
 struct ASensorEventQueue {
     ALooper* looper;
+    bool requestAdditionalInfo;
 };
 
 // ----------------------------------------------------------------------------
