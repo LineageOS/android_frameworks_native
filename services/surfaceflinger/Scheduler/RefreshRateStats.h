@@ -82,9 +82,11 @@ public:
 
         std::unordered_map<std::string, int64_t> totalTime;
         for (auto config : mRefreshRateConfigs->getRefreshRates()) {
+            int64_t totalTimeForConfig = 0;
             if (mConfigModesTotalTime.find(config.configId) != mConfigModesTotalTime.end()) {
-                totalTime[config.name] = mConfigModesTotalTime.at(config.configId);
+                totalTimeForConfig = mConfigModesTotalTime.at(config.configId);
             }
+            totalTime[config.name] = totalTimeForConfig;
         }
         return totalTime;
     }
