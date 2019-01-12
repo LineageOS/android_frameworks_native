@@ -202,6 +202,8 @@ public:
         mat4 colorTransform;
         bool hasColorTransform;
 
+        ui::Dataspace colorDataspace; // The dataspace of the background color layer
+
         // The deque of callback handles for this frame. The back of the deque contains the most
         // recent callback handle.
         std::deque<sp<CallbackHandle>> callbackHandles;
@@ -308,6 +310,8 @@ public:
             const std::vector<sp<CallbackHandle>>& /*handles*/) {
         return false;
     };
+    virtual bool setColorAlpha(float /*alpha*/) { return false; };
+    virtual bool setColorDataspace(ui::Dataspace /*dataspace*/) { return false; };
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 

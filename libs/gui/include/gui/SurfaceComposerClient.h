@@ -324,6 +324,12 @@ public:
 
         Transaction& setColor(const sp<SurfaceControl>& sc, const half3& color);
 
+        // Sets the alpha of the background color layer if it exists.
+        Transaction& setColorAlpha(const sp<SurfaceControl>& sc, float alpha);
+
+        // Sets the dataspace of the background color layer if it exists.
+        Transaction& setColorDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
+
         Transaction& setTransform(const sp<SurfaceControl>& sc, uint32_t transform);
         Transaction& setTransformToDisplayInverse(const sp<SurfaceControl>& sc,
                                                   bool transformToDisplayInverse);

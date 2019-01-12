@@ -643,6 +643,36 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorAlpha(
+        const sp<SurfaceControl>& sc, float alpha) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eColorAlphaChanged;
+    s->colorAlpha = alpha;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorDataspace(
+        const sp<SurfaceControl>& sc, ui::Dataspace dataspace) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+
+    s->what |= layer_state_t::eColorDataspaceChanged;
+    s->colorDataspace = dataspace;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setTransform(
         const sp<SurfaceControl>& sc, uint32_t transform) {
     layer_state_t* s = getLayerState(sc);
