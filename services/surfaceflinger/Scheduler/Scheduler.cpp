@@ -238,6 +238,16 @@ void Scheduler::incrementFrameCounter() {
     mLayerHistory.incrementCounter();
 }
 
+void Scheduler::setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expiredTimerCallback) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    mExpiredTimerCallback = expiredTimerCallback;
+}
+
+void Scheduler::setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback) {
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    mResetTimerCallback = resetTimerCallback;
+}
+
 void Scheduler::updateFrameSkipping(const int64_t skipCount) {
     ATRACE_INT("FrameSkipCount", skipCount);
     if (mSkipCount != skipCount) {
@@ -314,12 +324,12 @@ void Scheduler::determineTimestampAverage(bool isAutoTimestamp, const nsecs_t fr
     // TODO(b/113612090): This are current numbers from trial and error while running videos
     // from YouTube at 24, 30, and 60 fps.
     if (mean > 14 && mean < 18) {
-        ATRACE_INT("FPS", 60);
+        ATRACE_INT("MediaFPS", 60);
     } else if (mean > 31 && mean < 34) {
-        ATRACE_INT("FPS", 30);
+        ATRACE_INT("MediaFPS", 30);
         return;
     } else if (mean > 39 && mean < 42) {
-        ATRACE_INT("FPS", 24);
+        ATRACE_INT("MediaFPS", 24);
     }
 }
 
@@ -328,13 +338,19 @@ void Scheduler::resetIdleTimer() {
         mIdleTimer->reset();
         ATRACE_INT("ExpiredIdleTimer", 0);
     }
+
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    if (mResetTimerCallback) {
+        mResetTimerCallback();
+    }
 }
 
 void Scheduler::expiredTimerCallback() {
-    // TODO(b/113612090): Each time a timer expired, we should record the information into
-    // a circular buffer. Once this has happened a given amount (TBD) of times, we can comfortably
-    // say that the device is sitting in idle.
-    ATRACE_INT("ExpiredIdleTimer", 1);
+    std::lock_guard<std::mutex> lock(mCallbackLock);
+    if (mExpiredTimerCallback) {
+        mExpiredTimerCallback();
+        ATRACE_INT("ExpiredIdleTimer", 1);
+    }
 }
 
 } // namespace android

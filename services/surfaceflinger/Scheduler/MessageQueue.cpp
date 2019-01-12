@@ -148,6 +148,10 @@ void MessageQueue::invalidate() {
     mEvents->requestNextVsync();
 }
 
+void MessageQueue::invalidateForHWC() {
+    mEvents->requestNextVsyncForHWC();
+}
+
 void MessageQueue::refresh() {
     mHandler->dispatchRefresh();
 }

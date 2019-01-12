@@ -311,6 +311,9 @@ public:
     // force full composition on all displays
     void repaintEverything();
 
+    // force full composition on all displays without resetting the scheduler idle timer.
+    void repaintEverythingForHWC();
+
     surfaceflinger::Factory& getFactory() { return mFactory; }
 
     // The CompositionEngine encapsulates all composition related interfaces and actions.
@@ -502,8 +505,10 @@ private:
 
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays();
+    // setActiveConfigInternal() posted on a main thread for async execution
+    status_t setActiveConfigAsync(const sp<IBinder>& displayToken, int mode);
     // called on the main thread in response to setActiveConfig()
-    void setActiveConfigInternal(const sp<DisplayDevice>& display, int mode);
+    void setActiveConfigInternal(const sp<IBinder>& displayToken, int mode);
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode);
 
@@ -763,6 +768,9 @@ public:
     void resyncWithRateLimit();
     void getCompositorTiming(CompositorTiming* compositorTiming);
 private:
+    // Sets the refresh rate to newFps by switching active configs, if they are available for
+    // the desired refresh rate.
+    void setRefreshRateTo(float newFps);
 
     /* ------------------------------------------------------------------------
      * Debugging & dumpsys
