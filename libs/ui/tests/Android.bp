@@ -31,12 +31,14 @@ cc_test {
 cc_test {
     name: "GraphicBuffer_test",
     header_libs: [
-        "libbufferhub_headers",
         "libdvr_headers",
         "libnativewindow_headers",
     ],
     shared_libs: [
-        "libpdx_default_transport",
+        "android.frameworks.bufferhub@1.0",
+        "libcutils",
+        "libhidlbase",
+        "libhwbinder",
         "libui",
         "libutils",
     ],
@@ -47,7 +49,6 @@ cc_test {
 cc_test {
     name: "BufferHub_test",
     header_libs: [
-        "libbufferhub_headers",
         "libdvr_headers",
         "libnativewindow_headers",
     ],
@@ -60,7 +61,6 @@ cc_test {
         "libhidlbase",
         "libhwbinder",
         "liblog",
-        "libpdx_default_transport",
         "libui",
         "libutils"
     ],

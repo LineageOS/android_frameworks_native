@@ -2691,7 +2691,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
             event.initialize(args->deviceId, args->source, args->displayId,
                     args->action, args->actionButton,
                     args->flags, args->edgeFlags, args->metaState, args->buttonState,
-                    0, 0, args->xPrecision, args->yPrecision,
+                    args->classification, 0, 0, args->xPrecision, args->yPrecision,
                     args->downTime, args->eventTime,
                     args->pointerCount, args->pointerProperties, args->pointerCoords);
 
@@ -3175,7 +3175,7 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             }
 
             if (mFocusedDisplayId == displayId) {
-                onFocusChangedLocked(newFocusedWindowHandle);
+                onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
             }
 
         }
@@ -3293,7 +3293,7 @@ void InputDispatcher::setFocusedDisplay(int32_t displayId) {
             // Sanity check
             sp<InputWindowHandle> newFocusedWindowHandle =
                     getValueByKey(mFocusedWindowHandlesByDisplay, displayId);
-            onFocusChangedLocked(newFocusedWindowHandle);
+            onFocusChangedLocked(oldFocusedWindowHandle, newFocusedWindowHandle);
 
             if (newFocusedWindowHandle == nullptr) {
                 ALOGW("Focused display #%" PRId32 " does not have a focused window.", displayId);
@@ -3374,11 +3374,6 @@ void InputDispatcher::setInputFilterEnabled(bool enabled) {
     mLooper->wake();
 }
 
-bool InputDispatcher::transferTouchFocus(const sp<InputChannel>& fromChannel,
-        const sp<InputChannel>& toChannel) {
-    return transferTouchFocus(fromChannel->getToken(), toChannel->getToken());
-}
-
 bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken) {
     if (fromToken == toToken) {
 #if DEBUG_FOCUS
@@ -3392,14 +3387,14 @@ bool InputDispatcher::transferTouchFocus(const sp<IBinder>& fromToken, const sp<
 
         sp<InputWindowHandle> fromWindowHandle = getWindowHandleLocked(fromToken);
         sp<InputWindowHandle> toWindowHandle = getWindowHandleLocked(toToken);
-#if DEBUG_FOCUS
-        ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
-            fromWindowHandle->getName().c_str(), toWindowHandle->getName().c_str());
-#endif
         if (fromWindowHandle == nullptr || toWindowHandle == nullptr) {
             ALOGW("Cannot transfer focus because from or to window not found.");
             return false;
         }
+#if DEBUG_FOCUS
+        ALOGD("transferTouchFocus: fromWindowHandle=%s, toWindowHandle=%s",
+            fromWindowHandle->getName().c_str(), toWindowHandle->getName().c_str());
+#endif
         if (fromWindowHandle->getInfo()->displayId != toWindowHandle->getInfo()->displayId) {
 #if DEBUG_FOCUS
             ALOGD("Cannot transfer focus because windows are on different displays.");
@@ -3860,11 +3855,14 @@ void InputDispatcher::onDispatchCycleBrokenLocked(
     commandEntry->connection = connection;
 }
 
-void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& newFocus) {
-    sp<IBinder> token = newFocus != nullptr ? newFocus->getToken() : nullptr;
+void InputDispatcher::onFocusChangedLocked(const sp<InputWindowHandle>& oldFocus,
+        const sp<InputWindowHandle>& newFocus) {
+    sp<IBinder> oldToken = oldFocus != nullptr ? oldFocus->getToken() : nullptr;
+    sp<IBinder> newToken = newFocus != nullptr ? newFocus->getToken() : nullptr;
     CommandEntry* commandEntry = postCommandLocked(
             & InputDispatcher::doNotifyFocusChangedLockedInterruptible);
-    commandEntry->token = token;
+    commandEntry->oldToken = oldToken;
+    commandEntry->newToken = newToken;
 }
 
 void InputDispatcher::onANRLocked(
@@ -3926,9 +3924,10 @@ void InputDispatcher::doNotifyInputChannelBrokenLockedInterruptible(
 
 void InputDispatcher::doNotifyFocusChangedLockedInterruptible(
         CommandEntry* commandEntry) {
-    sp<IBinder> token = commandEntry->token;
+    sp<IBinder> oldToken = commandEntry->oldToken;
+    sp<IBinder> newToken = commandEntry->newToken;
     mLock.unlock();
-    mPolicy->notifyFocusChanged(token);
+    mPolicy->notifyFocusChanged(oldToken, newToken);
     mLock.lock();
 }
 

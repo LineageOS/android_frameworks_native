@@ -167,9 +167,11 @@ protected:
     // from GLES
     const uint32_t mTextureName;
 
+    bool mRefreshPending{false};
+
 private:
-    // needsLinearFiltering - true if this surface's state requires filtering
-    bool needsFiltering(const RenderArea& renderArea) const;
+    // Returns true if this layer requires filtering
+    bool needsFiltering() const;
 
     // drawing
     void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
@@ -183,8 +185,6 @@ private:
 
     // The texture used to draw the layer in GLES composition mode
     mutable renderengine::Texture mTexture;
-
-    bool mRefreshPending{false};
 
     Rect getBufferSize(const State& s) const override;
 };

@@ -68,6 +68,9 @@ public:
     status_t stealReceiveChannel(gui::BitTube* outChannel) override;
     status_t setVsyncRate(uint32_t count) override;
     void requestNextVsync() override; // asynchronous
+    // Requesting Vsync for HWC does not reset the idle timer, since HWC requires a refresh
+    // in order to update the configs.
+    void requestNextVsyncForHWC();
 
     // count >= 1 : continuous event. count is the vsync rate
     // count == 0 : one-shot event that has not fired
@@ -105,7 +108,9 @@ public:
     virtual status_t registerDisplayEventConnection(
             const sp<EventThreadConnection>& connection) = 0;
     virtual void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) = 0;
-    virtual void requestNextVsync(const sp<EventThreadConnection>& connection) = 0;
+    // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
+    virtual void requestNextVsync(const sp<EventThreadConnection>& connection,
+                                  bool resetIdleTimer) = 0;
 };
 
 namespace impl {
@@ -129,7 +134,8 @@ public:
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) override;
-    void requestNextVsync(const sp<EventThreadConnection>& connection) override;
+    void requestNextVsync(const sp<EventThreadConnection>& connection,
+                          bool resetIdleTimer) override;
 
     // called before the screen is turned off from main thread
     void onScreenReleased() override;
@@ -165,6 +171,9 @@ private:
 
     // Implements VSyncSource::Callback
     void onVSyncEvent(nsecs_t timestamp) override;
+
+    // Acquires mutex and requests next vsync.
+    void requestNextVsyncInternal(const sp<EventThreadConnection>& connection) EXCLUDES(mMutex);
 
     // TODO(b/113612090): Once the Scheduler is complete this pointer will become obsolete.
     VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;

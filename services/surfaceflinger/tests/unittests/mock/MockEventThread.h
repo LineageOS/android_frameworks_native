@@ -37,7 +37,7 @@ public:
     MOCK_METHOD1(registerDisplayEventConnection,
                  status_t(const sp<android::EventThreadConnection> &));
     MOCK_METHOD2(setVsyncRate, void(uint32_t, const sp<android::EventThreadConnection> &));
-    MOCK_METHOD1(requestNextVsync, void(const sp<android::EventThreadConnection> &));
+    MOCK_METHOD2(requestNextVsync, void(const sp<android::EventThreadConnection> &, bool));
 };
 
 } // namespace mock

@@ -60,11 +60,13 @@ class Flags {
   using Base = Flags<Integer>;
   using Type = Integer;
 
+  // NOLINTNEXTLINE(google-explicit-constructor)
   Flags(const Integer& value) : value_{value} {}
   Flags(const Flags&) = default;
   Flags& operator=(const Flags&) = default;
 
   Integer value() const { return value_; }
+  // NOLINTNEXTLINE(google-explicit-constructor)
   operator Integer() const { return value_; }
 
   bool IsSet(Integer bits) const { return (value_ & bits) == bits; }

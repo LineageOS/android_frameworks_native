@@ -234,6 +234,7 @@ void MotionEvent::initialize(
         int32_t edgeFlags,
         int32_t metaState,
         int32_t buttonState,
+        MotionClassification classification,
         float xOffset,
         float yOffset,
         float xPrecision,
@@ -250,6 +251,7 @@ void MotionEvent::initialize(
     mEdgeFlags = edgeFlags;
     mMetaState = metaState;
     mButtonState = buttonState;
+    mClassification = classification;
     mXOffset = xOffset;
     mYOffset = yOffset;
     mXPrecision = xPrecision;
@@ -270,6 +272,7 @@ void MotionEvent::copyFrom(const MotionEvent* other, bool keepHistory) {
     mEdgeFlags = other->mEdgeFlags;
     mMetaState = other->mMetaState;
     mButtonState = other->mButtonState;
+    mClassification = other->mClassification;
     mXOffset = other->mXOffset;
     mYOffset = other->mYOffset;
     mXPrecision = other->mXPrecision;
@@ -451,6 +454,7 @@ status_t MotionEvent::readFromParcel(Parcel* parcel) {
     mEdgeFlags = parcel->readInt32();
     mMetaState = parcel->readInt32();
     mButtonState = parcel->readInt32();
+    mClassification = static_cast<MotionClassification>(parcel->readByte());
     mXOffset = parcel->readFloat();
     mYOffset = parcel->readFloat();
     mXPrecision = parcel->readFloat();
@@ -501,6 +505,7 @@ status_t MotionEvent::writeToParcel(Parcel* parcel) const {
     parcel->writeInt32(mEdgeFlags);
     parcel->writeInt32(mMetaState);
     parcel->writeInt32(mButtonState);
+    parcel->writeByte(static_cast<int8_t>(mClassification));
     parcel->writeFloat(mXOffset);
     parcel->writeFloat(mYOffset);
     parcel->writeFloat(mXPrecision);

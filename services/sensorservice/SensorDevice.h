@@ -238,6 +238,7 @@ private:
     std::unique_ptr<WakeLockQueue> mWakeLockQueue;
 
     hardware::EventFlag* mEventQueueFlag;
+    hardware::EventFlag* mWakeLockQueueFlag;
 
     std::array<Event, SensorEventQueue::MAX_RECEIVE_BUFFER_EVENT_COUNT> mEventBuffer;
 

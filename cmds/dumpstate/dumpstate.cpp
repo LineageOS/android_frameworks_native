@@ -1572,6 +1572,15 @@ static void DumpstateWifiOnly() {
     RunDumpsys("DUMPSYS", {"wifi"}, CommandOptions::WithTimeout(90).Build(),
                SEC_TO_MSEC(10));
 
+    if (ds.IsZipping()) {
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z"},
+                   CommandOptions::WithTimeout(2).AsRootIfAvailable().Build());
+        DumpHals();
+    } else {
+        RunCommand("HARDWARE HALS", {"lshal", "-lVSietrpc", "--types=b,c,l,z", "--debug"},
+                   CommandOptions::WithTimeout(10).AsRootIfAvailable().Build());
+    }
+
     printf("========================================================\n");
     printf("== dumpstate: done (id %d)\n", ds.id_);
     printf("========================================================\n");
@@ -1692,7 +1701,7 @@ void Dumpstate::DumpstateBoard() {
     printf("*** See dumpstate-board.txt entry ***\n");
 }
 
-static void ShowUsageAndExit(int exit_code = 1) {
+static void ShowUsage() {
     fprintf(stderr,
             "usage: dumpstate [-h] [-b soundfile] [-e soundfile] [-o file] [-d] [-p] "
             "[-z]] [-s] [-S] [-q] [-B] [-P] [-R] [-V version]\n"
@@ -1712,12 +1721,6 @@ static void ShowUsageAndExit(int exit_code = 1) {
             "  -R: take bugreport in remote mode (requires -o, -z, -d and -B, "
             "shouldn't be used with -P)\n"
             "  -v: prints the dumpstate header and exit\n");
-    exit(exit_code);
-}
-
-static void ExitOnInvalidArgs() {
-    fprintf(stderr, "invalid combination of args\n");
-    ShowUsageAndExit();
 }
 
 static void register_sig_handler() {
@@ -2514,17 +2517,18 @@ int run_main(int argc, char* argv[]) {
 
     switch (status) {
         case Dumpstate::RunStatus::OK:
-            return 0;
-            // TODO(b/111441001): Exit directly in the following cases.
+            exit(0);
         case Dumpstate::RunStatus::HELP:
-            ShowUsageAndExit(0 /* exit code */);
-            break;
+            ShowUsage();
+            exit(0);
         case Dumpstate::RunStatus::INVALID_INPUT:
-            ExitOnInvalidArgs();
-            break;
+            fprintf(stderr, "Invalid combination of args\n");
+            ShowUsage();
+            exit(1);
         case Dumpstate::RunStatus::ERROR:
-            exit(-1);
-            break;
+            exit(2);
+        default:
+            fprintf(stderr, "Unknown status: %d\n", status);
+            exit(2);
     }
-    return 0;
 }

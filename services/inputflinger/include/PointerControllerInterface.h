@@ -98,6 +98,9 @@ public:
 
     /* Removes all spots. */
     virtual void clearSpots() = 0;
+
+    /* Gets the id of the display where the pointer should be shown. */
+    virtual int32_t getDisplayId() const = 0;
 };
 
 } // namespace android

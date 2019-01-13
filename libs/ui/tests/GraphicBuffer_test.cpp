@@ -39,7 +39,7 @@ TEST_F(GraphicBufferTest, CreateFromBufferHubBuffer) {
     std::unique_ptr<BufferHubBuffer> b1 =
             BufferHubBuffer::Create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
                                     kTestUsage, /*userMetadataSize=*/0);
-    EXPECT_NE(b1, nullptr);
+    ASSERT_NE(b1, nullptr);
     EXPECT_TRUE(b1->IsValid());
 
     sp<GraphicBuffer> gb(new GraphicBuffer(std::move(b1)));

@@ -30,7 +30,7 @@ void BufferNode::InitializeMetadata() {
 
 // Allocates a new BufferNode.
 BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
-                       uint64_t usage, size_t user_metadata_size, uint32_t id)
+                       uint64_t usage, size_t user_metadata_size, int id)
       : mId(id) {
     uint32_t out_stride = 0;
     // graphicBufferId is not used in GraphicBufferAllocator::allocate
@@ -73,12 +73,8 @@ BufferNode::~BufferNode() {
     }
 
     // Free the id, if valid
-    if (id() != BufferHubIdGenerator::kInvalidId) {
-        if (BufferHubIdGenerator::getInstance().freeId(id())) {
-            ALOGI("%s: id #%u is freed.", __FUNCTION__, id());
-        } else {
-            ALOGE("%s: Cannot free nonexistent id #%u", __FUNCTION__, id());
-        }
+    if (mId >= 0) {
+        BufferHubIdGenerator::getInstance().freeId(mId);
     }
 }
 

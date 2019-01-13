@@ -67,7 +67,13 @@ status_t EventThreadConnection::setVsyncRate(uint32_t count) {
 }
 
 void EventThreadConnection::requestNextVsync() {
-    mEventThread->requestNextVsync(this);
+    ATRACE_NAME("requestNextVsync");
+    mEventThread->requestNextVsync(this, true);
+}
+
+void EventThreadConnection::requestNextVsyncForHWC() {
+    ATRACE_NAME("requestNextVsyncForHWC");
+    mEventThread->requestNextVsync(this, false);
 }
 
 status_t EventThreadConnection::postEvent(const DisplayEventReceiver::Event& event) {
@@ -184,15 +190,16 @@ void EventThread::setVsyncRate(uint32_t count, const sp<EventThreadConnection>& 
     }
 }
 
-void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection) {
-    std::lock_guard<std::mutex> lock(mMutex);
-    if (mResetIdleTimer) {
+void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, bool reset) {
+    if (mResetIdleTimer && reset) {
+        ATRACE_NAME("resetIdleTimer");
         mResetIdleTimer();
     }
-
     if (mResyncWithRateLimitCallback) {
         mResyncWithRateLimitCallback();
     }
+
+    std::lock_guard<std::mutex> lock(mMutex);
 
     if (connection->count < 0) {
         connection->count = 0;

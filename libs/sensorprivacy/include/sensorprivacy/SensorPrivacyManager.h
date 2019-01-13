@@ -34,6 +34,9 @@ public:
     void removeSensorPrivacyListener(const sp<hardware::ISensorPrivacyListener>& listener);
     bool isSensorPrivacyEnabled();
 
+    status_t linkToDeath(const sp<IBinder::DeathRecipient>& recipient);
+    status_t unlinkToDeath(const sp<IBinder::DeathRecipient>& recipient);
+
 private:
     Mutex mLock;
     sp<hardware::ISensorPrivacyManager> mService;

@@ -71,8 +71,8 @@ void NotifyKeyArgs::notify(const sp<InputListenerInterface>& listener) const {
 NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId,
         uint32_t source, int32_t displayId, uint32_t policyFlags,
         int32_t action, int32_t actionButton, int32_t flags, int32_t metaState,
-        int32_t buttonState, int32_t edgeFlags, uint32_t deviceTimestamp,
-        uint32_t pointerCount,
+        int32_t buttonState, MotionClassification classification,
+        int32_t edgeFlags, uint32_t deviceTimestamp, uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
         float xPrecision, float yPrecision, nsecs_t downTime,
         const std::vector<TouchVideoFrame>& videoFrames) :
@@ -80,7 +80,7 @@ NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int3
         displayId(displayId), policyFlags(policyFlags),
         action(action), actionButton(actionButton),
         flags(flags), metaState(metaState), buttonState(buttonState),
-        edgeFlags(edgeFlags), deviceTimestamp(deviceTimestamp),
+        classification(classification), edgeFlags(edgeFlags), deviceTimestamp(deviceTimestamp),
         pointerCount(pointerCount),
         xPrecision(xPrecision), yPrecision(yPrecision), downTime(downTime),
         videoFrames(videoFrames) {
@@ -95,7 +95,7 @@ NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
         source(other.source), displayId(other.displayId), policyFlags(other.policyFlags),
         action(other.action), actionButton(other.actionButton), flags(other.flags),
         metaState(other.metaState), buttonState(other.buttonState),
-        edgeFlags(other.edgeFlags),
+        classification(other.classification), edgeFlags(other.edgeFlags),
         deviceTimestamp(other.deviceTimestamp), pointerCount(other.pointerCount),
         xPrecision(other.xPrecision), yPrecision(other.yPrecision), downTime(other.downTime),
         videoFrames(other.videoFrames) {

@@ -200,7 +200,7 @@ TEST_F(EventThreadTest, canCreateAndDestroyThreadWithNoEventsSent) {
 
 TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     // Signal that we want the next vsync event to be posted to the connection
-    mThread->requestNextVsync(mConnection);
+    mThread->requestNextVsync(mConnection, false);
 
     // EventThread should immediately request a resync.
     EXPECT_TRUE(mResyncCallRecorder.waitForCall().has_value());

@@ -10,7 +10,7 @@ namespace dvr {
 class ParcelableComposerFrame : public Parcelable {
  public:
   ParcelableComposerFrame();
-  ParcelableComposerFrame(const ComposerView::Frame& frame);
+  explicit ParcelableComposerFrame(const ComposerView::Frame& frame);
   ~ParcelableComposerFrame() override;
 
   ComposerView::Frame frame() const { return frame_; }

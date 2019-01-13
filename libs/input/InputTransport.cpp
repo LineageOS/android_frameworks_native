@@ -1112,6 +1112,7 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
             msg->body.motion.edgeFlags,
             msg->body.motion.metaState,
             msg->body.motion.buttonState,
+            MotionClassification::NONE,
             msg->body.motion.xOffset,
             msg->body.motion.yOffset,
             msg->body.motion.xPrecision,

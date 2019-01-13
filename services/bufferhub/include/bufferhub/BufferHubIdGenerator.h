@@ -28,30 +28,28 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
-// A thread-safe incremental uint32_t id generator.
+// A thread-safe, non-negative, incremental, int id generator.
 class BufferHubIdGenerator {
 public:
-    // 0 is considered invalid
-    static constexpr uint32_t kInvalidId = 0U;
-
     // Get the singleton instance of this class
     static BufferHubIdGenerator& getInstance();
 
-    // Gets next available id. If next id is greater than std::numeric_limits<uint32_t>::max() (2 ^
-    // 32 - 1), it will try to get an id start from 1 again.
-    uint32_t getId();
+    // Gets next available id. If next id is greater than std::numeric_limits<int32_t>::max(), it
+    // will try to get an id start from 0 again.
+    int getId();
 
-    // Free a specific id. Return true on freed, false on not found.
-    bool freeId(uint32_t id);
+    // Free a specific id.
+    void freeId(int id);
 
 private:
     BufferHubIdGenerator() = default;
     ~BufferHubIdGenerator() = default;
 
+    // Start from -1 so all valid ids will be >= 0
+    int mLastId = -1;
+
     std::mutex mIdsInUseMutex;
-    // Start from kInvalidID to avoid generating it.
-    uint32_t mLastId = kInvalidId;
-    std::set<uint32_t> mIdsInUse GUARDED_BY(mIdsInUseMutex);
+    std::set<int> mIdsInUse GUARDED_BY(mIdsInUseMutex);
 };
 
 } // namespace implementation

@@ -17,8 +17,10 @@
 #ifndef ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
 #define ANDROID_FRAMEWORKS_BUFFERHUB_V1_0_BUFFER_HUB_SERVICE_H
 
+#include <map>
 #include <mutex>
-#include <random>
+#include <set>
+#include <vector>
 
 #include <android/frameworks/bufferhub/1.0/IBufferHub.h>
 #include <bufferhub/BufferClient.h>
@@ -39,6 +41,8 @@ using hardware::graphics::common::V1_2::HardwareBufferDescription;
 
 class BufferHubService : public IBufferHub {
 public:
+    BufferHubService();
+
     Return<void> allocateBuffer(const HardwareBufferDescription& description,
                                 const uint32_t userMetadataSize,
                                 allocateBuffer_cb _hidl_cb) override;
@@ -53,6 +57,10 @@ public:
     void onClientClosed(const BufferClient* client);
 
 private:
+    // Helper function to build BufferTraits.bufferInfo handle
+    hidl_handle buildBufferInfo(int bufferId, uint32_t clientBitMask, uint32_t userMetadataSize,
+                                const int metadataFd);
+
     // Helper function to remove all the token belongs to a specific client.
     void removeTokenByClient(const BufferClient* client);
 
@@ -60,11 +68,19 @@ private:
     std::mutex mClientSetMutex;
     std::set<wp<BufferClient>> mClientSet GUARDED_BY(mClientSetMutex);
 
-    // TODO(b/118180214): use a more secure implementation
-    std::mt19937 mTokenEngine;
-    // The mapping from token to the client creates it.
-    std::mutex mTokenMapMutex;
-    std::map<uint32_t, const wp<BufferClient>> mTokenMap GUARDED_BY(mTokenMapMutex);
+    // Token generation related
+    // A random number used as private key for HMAC
+    uint64_t mKey;
+    static constexpr size_t kKeyLen = sizeof(uint64_t);
+
+    std::mutex mTokenMutex;
+    // The first TokenId will be 1. TokenId could be negative.
+    int mLastTokenId GUARDED_BY(mTokenMutex) = 0;
+    static constexpr size_t mTokenIdSize = sizeof(int);
+    // A map from token id to the token-buffer_client pair. Using token id as the key to reduce
+    // looking up time
+    std::map<int, std::pair<std::vector<uint8_t>, const wp<BufferClient>>> mTokenMap
+            GUARDED_BY(mTokenMutex);
 };
 
 } // namespace implementation

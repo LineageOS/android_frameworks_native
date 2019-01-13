@@ -40,6 +40,7 @@
 #include <hardware_legacy/power.h>
 
 #include <android-base/stringprintf.h>
+#include <cutils/properties.h>
 #include <openssl/sha.h>
 #include <utils/Log.h>
 #include <utils/Timers.h>
@@ -106,6 +107,19 @@ static void getLinuxRelease(int* major, int* minor) {
  */
 static bool isV4lTouchNode(const char* name) {
     return strstr(name, "v4l-touch") == name;
+}
+
+/**
+ * Returns true if V4L devices should be scanned.
+ *
+ * The system property ro.input.video_enabled can be used to control whether
+ * EventHub scans and opens V4L devices. As V4L does not support multiple
+ * clients, EventHub effectively blocks access to these devices when it opens
+ * them. This property enables other clients to read these devices for testing
+ * and development.
+ */
+static bool isV4lScanningEnabled() {
+  return property_get_bool("ro.input.video_enabled", true /* default_value */);
 }
 
 static nsecs_t processEventTimestamp(const struct input_event& event) {
@@ -237,9 +251,14 @@ EventHub::EventHub(void) :
     mInputWd = inotify_add_watch(mINotifyFd, DEVICE_PATH, IN_DELETE | IN_CREATE);
     LOG_ALWAYS_FATAL_IF(mInputWd < 0, "Could not register INotify for %s: %s",
             DEVICE_PATH, strerror(errno));
-    mVideoWd = inotify_add_watch(mINotifyFd, VIDEO_DEVICE_PATH, IN_DELETE | IN_CREATE);
-    LOG_ALWAYS_FATAL_IF(mVideoWd < 0, "Could not register INotify for %s: %s",
-            VIDEO_DEVICE_PATH, strerror(errno));
+    if (isV4lScanningEnabled()) {
+        mVideoWd = inotify_add_watch(mINotifyFd, VIDEO_DEVICE_PATH, IN_DELETE | IN_CREATE);
+        LOG_ALWAYS_FATAL_IF(mVideoWd < 0, "Could not register INotify for %s: %s",
+                VIDEO_DEVICE_PATH, strerror(errno));
+    } else {
+        mVideoWd = -1;
+        ALOGI("Video device scanning disabled");
+    }
 
     struct epoll_event eventItem;
     memset(&eventItem, 0, sizeof(eventItem));
@@ -1056,9 +1075,11 @@ void EventHub::scanDevicesLocked() {
     if(result < 0) {
         ALOGE("scan dir failed for %s", DEVICE_PATH);
     }
-    result = scanVideoDirLocked(VIDEO_DEVICE_PATH);
-    if (result != OK) {
-        ALOGE("scan video dir failed for %s", VIDEO_DEVICE_PATH);
+    if (isV4lScanningEnabled()) {
+        result = scanVideoDirLocked(VIDEO_DEVICE_PATH);
+        if (result != OK) {
+            ALOGE("scan video dir failed for %s", VIDEO_DEVICE_PATH);
+        }
     }
     if (mDevices.indexOfKey(VIRTUAL_KEYBOARD_ID) < 0) {
         createVirtualKeyboardLocked();

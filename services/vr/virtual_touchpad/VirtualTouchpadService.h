@@ -13,7 +13,7 @@ namespace dvr {
 //
 class VirtualTouchpadService : public BnVirtualTouchpadService {
  public:
-  VirtualTouchpadService(std::unique_ptr<VirtualTouchpad> touchpad)
+  explicit VirtualTouchpadService(std::unique_ptr<VirtualTouchpad> touchpad)
       : touchpad_(std::move(touchpad)), client_pid_(0) {}
   ~VirtualTouchpadService() override;
 

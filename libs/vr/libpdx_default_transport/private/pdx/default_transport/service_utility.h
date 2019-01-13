@@ -41,7 +41,8 @@ class ServiceUtility : public ClientBase<ServiceUtility> {
  private:
   friend BASE;
 
-  ServiceUtility(const std::string& endpoint_path, int* error = nullptr)
+  explicit ServiceUtility(const std::string& endpoint_path,
+                          int* error = nullptr)
       : BASE(ClientChannelFactory::Create(endpoint_path), 0) {
     if (error)
       *error = Client::error();

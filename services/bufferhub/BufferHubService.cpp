@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
+#include <array>
 #include <iomanip>
+#include <random>
 #include <sstream>
 
 #include <android/hardware_buffer.h>
 #include <bufferhub/BufferHubService.h>
 #include <cutils/native_handle.h>
 #include <log/log.h>
+#include <openssl/hmac.h>
 #include <system/graphics-base.h>
+#include <ui/BufferHubDefs.h>
 
 using ::android::BufferHubDefs::MetadataHeader;
 using ::android::hardware::Void;
@@ -31,6 +35,13 @@ namespace frameworks {
 namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
+
+BufferHubService::BufferHubService() {
+    std::mt19937_64 randomEngine;
+    randomEngine.seed(time(nullptr));
+
+    mKey = randomEngine();
+}
 
 Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& description,
                                               const uint32_t userMetadataSize,
@@ -54,10 +65,12 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
     std::lock_guard<std::mutex> lock(mClientSetMutex);
     mClientSet.emplace(client);
 
+    hidl_handle bufferInfo =
+            buildBufferInfo(node->id(), node->AddNewActiveClientsBitToMask(),
+                            node->user_metadata_size(), node->metadata().ashmem_fd());
     BufferTraits bufferTraits = {/*bufferDesc=*/description,
                                  /*bufferHandle=*/hidl_handle(node->buffer_handle()),
-                                 // TODO(b/116681016): return real data to client
-                                 /*bufferInfo=*/hidl_handle()};
+                                 /*bufferInfo=*/bufferInfo};
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
              /*bufferTraits=*/bufferTraits);
@@ -66,27 +79,49 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
 
 Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
                                             importBuffer_cb _hidl_cb) {
-    if (!tokenHandle.getNativeHandle() || tokenHandle->numFds != 0 || tokenHandle->numInts != 1) {
+    if (!tokenHandle.getNativeHandle() || tokenHandle->numFds != 0 || tokenHandle->numInts <= 1) {
         // nullptr handle or wrong format
         _hidl_cb(/*status=*/BufferHubStatus::INVALID_TOKEN, /*bufferClient=*/nullptr,
                  /*bufferTraits=*/{});
         return Void();
     }
 
-    uint32_t token = tokenHandle->data[0];
+    int tokenId = tokenHandle->data[0];
 
     wp<BufferClient> originClientWp;
     {
-        std::lock_guard<std::mutex> lock(mTokenMapMutex);
-        auto iter = mTokenMap.find(token);
+        std::lock_guard<std::mutex> lock(mTokenMutex);
+        auto iter = mTokenMap.find(tokenId);
         if (iter == mTokenMap.end()) {
-            // Invalid token
+            // Token Id not exist
+            ALOGD("%s: token #%d not found.", __FUNCTION__, tokenId);
             _hidl_cb(/*status=*/BufferHubStatus::INVALID_TOKEN, /*bufferClient=*/nullptr,
                      /*bufferTraits=*/{});
             return Void();
         }
 
-        originClientWp = iter->second;
+        const std::vector<uint8_t>& tokenHMAC = iter->second.first;
+
+        int numIntsForHMAC = (int)ceil(tokenHMAC.size() * sizeof(uint8_t) / (double)sizeof(int));
+        if (tokenHandle->numInts - 1 != numIntsForHMAC) {
+            // HMAC size not match
+            ALOGD("%s: token #%d HMAC size not match. Expected: %d Actual: %d", __FUNCTION__,
+                  tokenId, numIntsForHMAC, tokenHandle->numInts - 1);
+            _hidl_cb(/*status=*/BufferHubStatus::INVALID_TOKEN, /*bufferClient=*/nullptr,
+                     /*bufferTraits=*/{});
+            return Void();
+        }
+
+        size_t hmacSize = tokenHMAC.size() * sizeof(uint8_t);
+        if (memcmp(tokenHMAC.data(), &tokenHandle->data[1], hmacSize) != 0) {
+            // HMAC not match
+            ALOGD("%s: token #%d HMAC not match.", __FUNCTION__, tokenId);
+            _hidl_cb(/*status=*/BufferHubStatus::INVALID_TOKEN, /*bufferClient=*/nullptr,
+                     /*bufferTraits=*/{});
+            return Void();
+        }
+
+        originClientWp = iter->second.second;
         mTokenMap.erase(iter);
     }
 
@@ -119,10 +154,12 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
     HardwareBufferDescription bufferDesc;
     memcpy(&bufferDesc, &node->buffer_desc(), sizeof(HardwareBufferDescription));
 
+    hidl_handle bufferInfo =
+            buildBufferInfo(node->id(), clientStateMask, node->user_metadata_size(),
+                            node->metadata().ashmem_fd());
     BufferTraits bufferTraits = {/*bufferDesc=*/bufferDesc,
                                  /*bufferHandle=*/hidl_handle(node->buffer_handle()),
-                                 // TODO(b/116681016): return real data to client
-                                 /*bufferInfo=*/hidl_handle()};
+                                 /*bufferInfo=*/bufferInfo};
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
              /*bufferTraits=*/bufferTraits);
@@ -225,9 +262,9 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
     // Map from bufferId to tokenCount
     std::map<int, uint32_t> tokenCount;
     {
-        std::lock_guard<std::mutex> lock(mTokenMapMutex);
+        std::lock_guard<std::mutex> lock(mTokenMutex);
         for (auto iter = mTokenMap.begin(); iter != mTokenMap.end(); ++iter) {
-            sp<BufferClient> client = iter->second.promote();
+            sp<BufferClient> client = iter->second.second.promote();
             if (client != nullptr) {
                 const std::shared_ptr<BufferNode> node = client->getBufferNode();
                 auto mapIter = tokenCount.find(node->id());
@@ -262,21 +299,35 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
 }
 
 hidl_handle BufferHubService::registerToken(const wp<BufferClient>& client) {
-    uint32_t token;
-    std::lock_guard<std::mutex> lock(mTokenMapMutex);
+    // Find next available token id
+    std::lock_guard<std::mutex> lock(mTokenMutex);
     do {
-        token = mTokenEngine();
-    } while (mTokenMap.find(token) != mTokenMap.end());
+        ++mLastTokenId;
+    } while (mTokenMap.find(mLastTokenId) != mTokenMap.end());
 
-    // native_handle_t use int[], so here need one slots to fit in uint32_t
-    native_handle_t* handle = native_handle_create(/*numFds=*/0, /*numInts=*/1);
-    handle->data[0] = token;
+    std::array<uint8_t, EVP_MAX_MD_SIZE> hmac;
+    uint32_t hmacSize = 0U;
+
+    HMAC(/*evp_md=*/EVP_sha256(), /*key=*/&mKey, /*key_len=*/kKeyLen,
+         /*data=*/(uint8_t*)&mLastTokenId, /*data_len=*/mTokenIdSize,
+         /*out=*/hmac.data(), /*out_len=*/&hmacSize);
+
+    int numIntsForHMAC = (int)ceil(hmacSize / (double)sizeof(int));
+    native_handle_t* handle = native_handle_create(/*numFds=*/0, /*numInts=*/1 + numIntsForHMAC);
+    handle->data[0] = mLastTokenId;
+    // Set all the the bits of last int to 0 since it might not be fully overwritten
+    handle->data[numIntsForHMAC] = 0;
+    memcpy(&handle->data[1], hmac.data(), hmacSize);
 
     // returnToken owns the native_handle_t* thus doing lifecycle management
     hidl_handle returnToken;
     returnToken.setTo(handle, /*shoudOwn=*/true);
 
-    mTokenMap.emplace(token, client);
+    std::vector<uint8_t> hmacVec;
+    hmacVec.resize(hmacSize);
+    memcpy(hmacVec.data(), hmac.data(), hmacSize);
+    mTokenMap.emplace(mLastTokenId, std::pair(hmacVec, client));
+
     return returnToken;
 }
 
@@ -290,11 +341,31 @@ void BufferHubService::onClientClosed(const BufferClient* client) {
     }
 }
 
+// Implementation of this function should be consistent with the definition of bufferInfo handle in
+// ui/BufferHubDefs.h.
+hidl_handle BufferHubService::buildBufferInfo(int bufferId, uint32_t clientBitMask,
+                                              uint32_t userMetadataSize, const int metadataFd) {
+    native_handle_t* infoHandle = native_handle_create(BufferHubDefs::kBufferInfoNumFds,
+                                                       BufferHubDefs::kBufferInfoNumInts);
+
+    infoHandle->data[0] = dup(metadataFd);
+    infoHandle->data[1] = bufferId;
+    // Use memcpy to convert to int without missing digit.
+    // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
+    memcpy(&infoHandle->data[2], &clientBitMask, sizeof(clientBitMask));
+    memcpy(&infoHandle->data[3], &userMetadataSize, sizeof(userMetadataSize));
+
+    hidl_handle bufferInfo;
+    bufferInfo.setTo(infoHandle, /*shouldOwn=*/true);
+
+    return bufferInfo;
+}
+
 void BufferHubService::removeTokenByClient(const BufferClient* client) {
-    std::lock_guard<std::mutex> lock(mTokenMapMutex);
+    std::lock_guard<std::mutex> lock(mTokenMutex);
     auto iter = mTokenMap.begin();
     while (iter != mTokenMap.end()) {
-        if (iter->second == client) {
+        if (iter->second.second == client) {
             auto oldIter = iter;
             ++iter;
             mTokenMap.erase(oldIter);

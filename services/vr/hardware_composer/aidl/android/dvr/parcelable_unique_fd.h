@@ -13,7 +13,7 @@ namespace dvr {
 class ParcelableUniqueFd : public Parcelable {
  public:
   ParcelableUniqueFd();
-  ParcelableUniqueFd(const base::unique_fd& fence);
+  explicit ParcelableUniqueFd(const base::unique_fd& fence);
   ~ParcelableUniqueFd() override;
 
   void set_fence(const base::unique_fd& fence) {
