@@ -23,6 +23,8 @@ namespace android {
 
 BufferHubEventFd::BufferHubEventFd() : mFd(eventfd(0, EFD_CLOEXEC | EFD_NONBLOCK)) {}
 
+BufferHubEventFd::BufferHubEventFd(int fd) : mFd(fd) {}
+
 status_t BufferHubEventFd::signal() const {
     if (!isValid()) {
         ALOGE("%s: cannot signal an invalid eventfd.", __FUNCTION__);

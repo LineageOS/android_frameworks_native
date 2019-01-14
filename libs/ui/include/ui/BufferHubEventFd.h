@@ -30,6 +30,12 @@ public:
     BufferHubEventFd();
 
     /**
+     * Constructs from a valid event fd. Caller is responsible for the validity of the fd. Takes
+     * ownership.
+     */
+    BufferHubEventFd(int fd);
+
+    /**
      * Returns whether this BufferHubEventFd holds a valid event_fd.
      */
     bool isValid() const { return get() >= 0; }
