@@ -181,7 +181,7 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
     }
 
     // Import the metadata. Dup since hidl_handle owns the fd
-    unique_fd ashmemFd(dup(bufferTraits.bufferInfo->data[0]));
+    unique_fd ashmemFd(fcntl(bufferTraits.bufferInfo->data[0], F_DUPFD_CLOEXEC, 0));
     mMetadata = BufferHubMetadata::Import(std::move(ashmemFd));
 
     if (!mMetadata.IsValid()) {
