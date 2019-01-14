@@ -25,8 +25,8 @@ namespace lshal {
 template<typename S>
 class NullableOStream {
 public:
-    NullableOStream(S &os) : mOs(&os) {}
-    NullableOStream(S *os) : mOs(os) {}
+    explicit NullableOStream(S &os) : mOs(&os) {}
+    explicit NullableOStream(S *os) : mOs(os) {}
     NullableOStream &operator=(S &os) {
         mOs = &os;
         return *this;
@@ -57,7 +57,7 @@ public:
     S& buf() const {
         return *mOs;
     }
-    operator bool() const {
+    operator bool() const { // NOLINT(google-explicit-constructor)
         return mOs != nullptr;
     }
 private:

@@ -31,7 +31,7 @@ class Lshal;
 
 class HelpCommand : public Command {
 public:
-    HelpCommand(Lshal &lshal) : Command(lshal) {}
+    explicit HelpCommand(Lshal &lshal) : Command(lshal) {}
     ~HelpCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;

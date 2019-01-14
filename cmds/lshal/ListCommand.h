@@ -57,7 +57,7 @@ enum class HalType {
 
 class ListCommand : public Command {
 public:
-    ListCommand(Lshal &lshal) : Command(lshal) {}
+    explicit ListCommand(Lshal &lshal) : Command(lshal) {}
     virtual ~ListCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;
