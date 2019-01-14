@@ -61,6 +61,13 @@ std::string create_data_user_de_package_path(const char* volume_uuid,
 std::string create_data_user_ce_package_path_as_user_link(
         const char* volume_uuid, userid_t userid, const char* package_name);
 
+std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user);
+std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user);
+std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
+        userid_t user, const char* package_name);
+std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
+        userid_t user, const char* package_name);
+
 std::string create_data_media_path(const char* volume_uuid, userid_t userid);
 std::string create_data_media_obb_path(const char* volume_uuid, const char* package_name);
 std::string create_data_media_package_path(const char* volume_uuid, userid_t userid,
