@@ -81,7 +81,7 @@ public:
 
 class DelayedEventGenerator {
 public:
-    DelayedEventGenerator(std::function<void()> onTimerExpired)
+    explicit DelayedEventGenerator(std::function<void()> onTimerExpired)
           : mOnTimerExpired(onTimerExpired), mThread([this]() { loop(); }) {}
 
     ~DelayedEventGenerator() {

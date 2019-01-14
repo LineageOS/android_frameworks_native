@@ -33,7 +33,7 @@ class StartPropertySetThread : public Thread {
 // Any property_set() will block during init stage so need to be offloaded
 // to this thread. see b/63844978.
 public:
-    StartPropertySetThread(bool timestampPropertyValue);
+    explicit StartPropertySetThread(bool timestampPropertyValue);
     status_t Start();
 private:
     virtual bool threadLoop();

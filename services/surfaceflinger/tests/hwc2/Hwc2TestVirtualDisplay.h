@@ -29,7 +29,7 @@
 
 class Hwc2TestVirtualDisplay {
 public:
-    Hwc2TestVirtualDisplay(Hwc2TestCoverage coverage);
+    explicit Hwc2TestVirtualDisplay(Hwc2TestCoverage coverage);
 
     std::string dump() const;
 
