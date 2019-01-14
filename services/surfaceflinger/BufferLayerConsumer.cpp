@@ -100,8 +100,7 @@ void BufferLayerConsumer::setContentsChangedListener(const wp<ContentsChangedLis
 
 status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, nsecs_t expectedPresentTime,
                                              bool* autoRefresh, bool* queuedBuffer,
-                                             uint64_t maxFrameNumber,
-                                             const sp<Fence>& releaseFence) {
+                                             uint64_t maxFrameNumber) {
     ATRACE_CALL();
     BLC_LOGV("updateTexImage");
     Mutex::Autolock lock(mMutex);
@@ -146,7 +145,7 @@ status_t BufferLayerConsumer::updateTexImage(BufferRejecter* rejecter, nsecs_t e
     }
 
     // Release the previous buffer.
-    err = updateAndReleaseLocked(item, &mPendingRelease, releaseFence);
+    err = updateAndReleaseLocked(item, &mPendingRelease);
     if (err != NO_ERROR) {
         return err;
     }
@@ -224,24 +223,10 @@ status_t BufferLayerConsumer::acquireBufferLocked(BufferItem* item, nsecs_t pres
 }
 
 status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
-                                                     PendingRelease* pendingRelease,
-                                                     const sp<Fence>& releaseFence) {
+                                                     PendingRelease* pendingRelease) {
     status_t err = NO_ERROR;
 
     int slot = item.mSlot;
-
-    // Do whatever sync ops we need to do before releasing the old slot.
-    if (slot != mCurrentTexture) {
-        err = syncForReleaseLocked(releaseFence);
-        if (err != NO_ERROR) {
-            // Release the buffer we just acquired.  It's not safe to
-            // release the old buffer, so instead we just drop the new frame.
-            // As we are still under lock since acquireBuffer, it is safe to
-            // release by slot.
-            releaseBufferLocked(slot, mSlots[slot].mGraphicBuffer);
-            return err;
-        }
-    }
 
     BLC_LOGV("updateAndRelease: (slot=%d buf=%p) -> (slot=%d buf=%p)", mCurrentTexture,
              mCurrentTextureBuffer != nullptr ? mCurrentTextureBuffer->handle : 0, slot,
@@ -296,30 +281,6 @@ status_t BufferLayerConsumer::bindTextureImageLocked() {
     ATRACE_CALL();
 
     return mRE.bindExternalTextureBuffer(mTexName, mCurrentTextureBuffer, mCurrentFence, false);
-}
-
-status_t BufferLayerConsumer::syncForReleaseLocked(const sp<Fence>& releaseFence) {
-    BLC_LOGV("syncForReleaseLocked");
-
-    if (mCurrentTexture != BufferQueue::INVALID_BUFFER_SLOT) {
-        if (mRE.useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {
-            // TODO(alecmouri): fail further upstream if the fence is invalid
-            if (!releaseFence->isValid()) {
-                BLC_LOGE("syncForReleaseLocked: failed to flush RenderEngine");
-                return UNKNOWN_ERROR;
-            }
-            status_t err =
-                    addReleaseFenceLocked(mCurrentTexture, mCurrentTextureBuffer, releaseFence);
-            if (err != OK) {
-                BLC_LOGE("syncForReleaseLocked: error adding release fence: "
-                         "%s (%d)",
-                         strerror(-err), err);
-                return err;
-            }
-        }
-    }
-
-    return OK;
 }
 
 void BufferLayerConsumer::getTransformMatrix(float mtx[16]) {

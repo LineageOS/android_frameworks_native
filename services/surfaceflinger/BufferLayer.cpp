@@ -380,8 +380,7 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     return true;
 }
 
-bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                              const sp<Fence>& releaseFence) {
+bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
     ATRACE_CALL();
 
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
@@ -420,7 +419,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         return false;
     }
 
-    status_t err = updateTexImage(recomputeVisibleRegions, latchTime, releaseFence);
+    status_t err = updateTexImage(recomputeVisibleRegions, latchTime);
     if (err != NO_ERROR) {
         return false;
     }

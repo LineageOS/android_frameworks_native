@@ -1813,18 +1813,6 @@ void SurfaceFlinger::handleMessageRefresh() {
                 mHadClientComposition || getHwComposer().hasClientComposition(displayId);
     }
 
-    // Setup RenderEngine sync fences if native sync is supported.
-    if (getRenderEngine().useNativeFenceSync()) {
-        if (mHadClientComposition) {
-            base::unique_fd flushFence(getRenderEngine().flush());
-            ALOGE_IF(flushFence < 0, "Failed to flush RenderEngine!");
-            getBE().flushFence = new Fence(std::move(flushFence));
-        } else {
-            // Cleanup for hygiene.
-            getBE().flushFence = Fence::NO_FENCE;
-        }
-    }
-
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
@@ -3157,7 +3145,7 @@ void SurfaceFlinger::updateCursorAsync()
 void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
     if (layer->hasReadyFrame()) {
         bool ignored = false;
-        layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
+        layer->latchBuffer(ignored, systemTime());
     }
     layer->releasePendingBuffer(systemTime());
 }
@@ -3407,7 +3395,7 @@ bool SurfaceFlinger::handlePageFlip()
         Mutex::Autolock lock(mStateLock);
 
         for (auto& layer : mLayersWithQueuedFrames) {
-            if (layer->latchBuffer(visibleRegions, latchTime, getBE().flushFence)) {
+            if (layer->latchBuffer(visibleRegions, latchTime)) {
                 mLayersPendingRefresh.push_back(layer);
             }
             layer->useSurfaceDamage();
@@ -3416,11 +3404,6 @@ bool SurfaceFlinger::handlePageFlip()
             }
         }
     }
-
-    // Clear the renderengine fence here...
-    // downstream code assumes that a cleared fence == NO_FENCE, so reassign to
-    // clear instead of sp::clear.
-    getBE().flushFence = Fence::NO_FENCE;
 
     mVisibleRegionsDirty |= visibleRegions;
 
