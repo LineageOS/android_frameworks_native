@@ -149,7 +149,7 @@ using TableEntryCompare = std::function<bool(const TableEntry &, const TableEntr
 
 class MergedTable {
 public:
-    MergedTable(std::vector<const Table*>&& tables) : mTables(std::move(tables)) {}
+    explicit MergedTable(std::vector<const Table*>&& tables) : mTables(std::move(tables)) {}
     TextTable createTextTable();
 private:
     std::vector<const Table*> mTables;
