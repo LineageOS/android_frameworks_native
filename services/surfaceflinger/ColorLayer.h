@@ -39,7 +39,7 @@ public:
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
 
 protected:
-    FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
+    FloatRect computeCrop(const Rect& /*windowbounds*/) const override { return {}; }
 };
 
 } // namespace android
