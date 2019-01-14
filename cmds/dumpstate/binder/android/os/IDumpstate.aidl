@@ -25,8 +25,6 @@ import android.os.DumpstateOptions;
   * {@hide}
   */
 interface IDumpstate {
-
-
     // TODO: remove method once startBugReport is used by Shell.
     /*
      * Sets the listener for this dumpstate progress.
@@ -69,6 +67,6 @@ interface IDumpstate {
      * @param bugreportMode the mode that specifies other run time options; must be one of above
      * @param listener callback for updates; optional
      */
-     void startBugreport(FileDescriptor bugreportFd, FileDescriptor screenshotFd, int bugreportMode,
-                         IDumpstateListener listener);
+    void startBugreport(FileDescriptor bugreportFd, FileDescriptor screenshotFd, int bugreportMode,
+                        IDumpstateListener listener);
 }
