@@ -31,7 +31,7 @@ class Lshal;
 
 class DebugCommand : public Command {
 public:
-    DebugCommand(Lshal &lshal) : Command(lshal) {}
+    explicit DebugCommand(Lshal &lshal) : Command(lshal) {}
     ~DebugCommand() = default;
     Status main(const Arg &arg) override;
     void usage() const override;
