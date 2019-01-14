@@ -41,13 +41,12 @@ namespace {
 
 class BufferHandle {
 public:
-    BufferHandle(const native_handle_t* buffer)
-    {
+    explicit BufferHandle(const native_handle_t* buffer) {
         // nullptr is not a valid handle to HIDL
         mHandle = (buffer) ? buffer : native_handle_init(mStorage, 0, 0);
     }
 
-    operator const hidl_handle&() const
+    operator const hidl_handle&() const // NOLINT(google-explicit-constructor)
     {
         return mHandle;
     }
@@ -81,7 +80,7 @@ public:
         }
     }
 
-    operator const hidl_handle&() const
+    operator const hidl_handle&() const // NOLINT(google-explicit-constructor)
     {
         return mHandle;
     }
