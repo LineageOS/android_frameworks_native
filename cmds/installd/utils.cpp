@@ -192,6 +192,27 @@ std::string create_data_user_de_path(const char* volume_uuid, userid_t userid) {
     return StringPrintf("%s/user_de/%u", data.c_str(), userid);
 }
 
+
+std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user) {
+    return StringPrintf("%s/misc_ce/%u/rollback", create_data_path(volume_uuid).c_str(), user);
+}
+
+std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user) {
+    return StringPrintf("%s/misc_de/%u/rollback", create_data_path(volume_uuid).c_str(), user);
+}
+
+std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
+        userid_t user, const char* package_name) {
+    return StringPrintf("%s/%s",
+           create_data_misc_ce_rollback_path(volume_uuid, user).c_str(), package_name);
+}
+
+std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
+        userid_t user, const char* package_name) {
+    return StringPrintf("%s/%s",
+           create_data_misc_de_rollback_path(volume_uuid, user).c_str(), package_name);
+}
+
 /**
  * Create the path name for media for a certain userid.
  */
