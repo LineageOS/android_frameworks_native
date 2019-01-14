@@ -100,10 +100,7 @@ public:
  */
 class TransactionScope : public android::SurfaceComposerClient::Transaction {
 public:
-    TransactionScope(FakeComposerClient& composer) :
-            Transaction(),
-            mComposer(composer) {
-    }
+    explicit TransactionScope(FakeComposerClient& composer) : Transaction(), mComposer(composer) {}
 
     ~TransactionScope() {
         int frameCount = mComposer.getFrameCount();
