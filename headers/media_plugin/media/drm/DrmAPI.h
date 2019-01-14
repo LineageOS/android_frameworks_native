@@ -140,6 +140,8 @@ namespace android {
             kHdcpV2_1,
             // HDCP version 2.2 Type 1.
             kHdcpV2_2,
+            // HDCP version 2.3 Type 1.
+            kHdcpV2_3,
             // No digital output, implicitly secure
             kHdcpNoOutput = 0x7fff
         };
