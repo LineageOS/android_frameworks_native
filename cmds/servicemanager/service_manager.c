@@ -77,11 +77,9 @@ static bool check_mac_perms(pid_t spid, const char* sid, uid_t uid, const char *
     ad.uid = uid;
     ad.name = name;
 
-#ifndef VENDORSERVICEMANAGER
     if (sid == NULL) {
         android_errorWriteLog(0x534e4554, "121035042");
     }
-#endif
 
     int result = selinux_check_access(sid ? sid : lookup_sid, tctx, class, perm, (void *) &ad);
     allowed = (result == 0);
