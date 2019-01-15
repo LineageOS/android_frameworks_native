@@ -285,7 +285,7 @@ private:
 // Composer is a wrapper to IComposer, a proxy to server-side composer.
 class Composer final : public Hwc2::Composer {
 public:
-    Composer(const std::string& serviceName);
+    explicit Composer(const std::string& serviceName);
     ~Composer() override;
 
     std::vector<IComposer::Capability> getCapabilities() override;
@@ -418,7 +418,7 @@ public:
 private:
     class CommandWriter : public CommandWriterBase {
     public:
-        CommandWriter(uint32_t initialMaxSize);
+        explicit CommandWriter(uint32_t initialMaxSize);
         ~CommandWriter() override;
 
         void setLayerInfo(uint32_t type, uint32_t appId);

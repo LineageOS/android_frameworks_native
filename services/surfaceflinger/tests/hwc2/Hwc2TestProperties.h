@@ -171,7 +171,7 @@ class Hwc2TestColor;
 
 class Hwc2TestBlendMode : public Hwc2TestProperty<hwc2_blend_mode_t> {
 public:
-    Hwc2TestBlendMode(Hwc2TestCoverage coverage);
+    explicit Hwc2TestBlendMode(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 
@@ -192,8 +192,8 @@ protected:
 
 class Hwc2TestColor : public Hwc2TestProperty<hwc_color_t> {
 public:
-    Hwc2TestColor(Hwc2TestCoverage coverage,
-            hwc2_blend_mode_t blendMode = HWC2_BLEND_MODE_NONE);
+    explicit Hwc2TestColor(Hwc2TestCoverage coverage,
+                           hwc2_blend_mode_t blendMode = HWC2_BLEND_MODE_NONE);
 
     std::string dump() const override;
 
@@ -217,7 +217,7 @@ protected:
 
 class Hwc2TestComposition : public Hwc2TestProperty<hwc2_composition_t> {
 public:
-    Hwc2TestComposition(Hwc2TestCoverage coverage);
+    explicit Hwc2TestComposition(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 
@@ -232,7 +232,7 @@ protected:
 
 class Hwc2TestDataspace : public Hwc2TestProperty<android::ui::Dataspace> {
 public:
-    Hwc2TestDataspace(Hwc2TestCoverage coverage);
+    explicit Hwc2TestDataspace(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 
@@ -248,7 +248,7 @@ class Hwc2TestVirtualBuffer;
 
 class Hwc2TestDisplayDimension : public Hwc2TestProperty<UnsignedArea> {
 public:
-    Hwc2TestDisplayDimension(Hwc2TestCoverage coverage);
+    explicit Hwc2TestDisplayDimension(Hwc2TestCoverage coverage);
 
     std::string dump() const;
 
@@ -291,7 +291,7 @@ protected:
 
 class Hwc2TestPlaneAlpha : public Hwc2TestProperty<float> {
 public:
-    Hwc2TestPlaneAlpha(Hwc2TestCoverage coverage);
+    explicit Hwc2TestPlaneAlpha(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 
@@ -306,7 +306,7 @@ protected:
 
 class Hwc2TestSourceCrop : public Hwc2TestProperty<hwc_frect_t> {
 public:
-    Hwc2TestSourceCrop(Hwc2TestCoverage coverage, const Area& bufferArea = {0, 0});
+    explicit Hwc2TestSourceCrop(Hwc2TestCoverage coverage, const Area& bufferArea = {0, 0});
 
     std::string dump() const override;
 
@@ -330,7 +330,7 @@ protected:
 
 class Hwc2TestSurfaceDamage : public Hwc2TestProperty<hwc_region_t> {
 public:
-    Hwc2TestSurfaceDamage(Hwc2TestCoverage coverage);
+    explicit Hwc2TestSurfaceDamage(Hwc2TestCoverage coverage);
     ~Hwc2TestSurfaceDamage();
 
     std::string dump() const override;
@@ -356,7 +356,7 @@ protected:
 
 class Hwc2TestTransform : public Hwc2TestProperty<hwc_transform_t> {
 public:
-    Hwc2TestTransform(Hwc2TestCoverage coverage);
+    explicit Hwc2TestTransform(Hwc2TestCoverage coverage);
 
     std::string dump() const override;
 

@@ -3131,7 +3131,9 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 
             for (size_t i = 0; i < newHandles.size(); i++) {
                 const sp<InputWindowHandle>& windowHandle = newHandles.itemAt(i);
-                if (windowHandle->getInfo()->hasFocus && windowHandle->getInfo()->visible) {
+                // Set newFocusedWindowHandle to the top most focused window instead of the last one
+                if (!newFocusedWindowHandle && windowHandle->getInfo()->hasFocus
+                        && windowHandle->getInfo()->visible) {
                     newFocusedWindowHandle = windowHandle;
                 }
                 if (windowHandle == mLastHoverWindowHandle) {

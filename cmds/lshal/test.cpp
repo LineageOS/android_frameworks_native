@@ -191,7 +191,7 @@ public:
 // expose protected fields and methods for ListCommand
 class MockListCommand : public ListCommand {
 public:
-    MockListCommand(Lshal* lshal) : ListCommand(*lshal) {}
+    explicit MockListCommand(Lshal* lshal) : ListCommand(*lshal) {}
 
     Status parseArgs(const Arg& arg) { return ListCommand::parseArgs(arg); }
     Status main(const Arg& arg) { return ListCommand::main(arg); }
@@ -308,7 +308,7 @@ static hidl_hash getHashFromId(pid_t serverId) {
 // Fake service returned by mocked IServiceManager::get.
 class TestService : public IBase {
 public:
-    TestService(pid_t id) : mId(id) {}
+    explicit TestService(pid_t id) : mId(id) {}
     hardware::Return<void> getDebugInfo(getDebugInfo_cb cb) override {
         cb({ mId /* pid */, getPtr(mId), DebugInfo::Architecture::IS_64BIT });
         return hardware::Void();

@@ -26,7 +26,7 @@ namespace sftest {
 
 class FakeComposerService : public IComposer {
 public:
-    FakeComposerService(android::sp<ComposerClient>& client);
+    explicit FakeComposerService(android::sp<ComposerClient>& client);
     virtual ~FakeComposerService();
 
     Return<void> getCapabilities(getCapabilities_cb hidl_cb) override;

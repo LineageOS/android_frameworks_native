@@ -380,7 +380,7 @@ Rect Layer::getCroppedBufferSize(const State& s) const {
     return size;
 }
 
-Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
+Rect Layer::computeInitialCrop(const Rect& windowBounds) const {
     // the crop is the area of the window that gets cropped, but not
     // scaled in any ways.
     const State& s(getDrawingState());
@@ -391,12 +391,17 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     // pixels in the buffer.
 
     FloatRect activeCropFloat = computeBounds();
-    ui::Transform t = getTransform();
-    // Transform to screen space.
-    activeCropFloat = t.transform(activeCropFloat);
-    activeCropFloat = activeCropFloat.intersect(display->getViewport().toFloatRect());
-    // Back to layer space to work with the content crop.
-    activeCropFloat = t.inverse().transform(activeCropFloat);
+
+    // If we have valid window boundaries then we need to crop to the window
+    // boundaries in layer space.
+    if (windowBounds.isValid()) {
+        const ui::Transform t = getTransform();
+        // Transform to screen space.
+        activeCropFloat = t.transform(activeCropFloat);
+        activeCropFloat = activeCropFloat.intersect(windowBounds.toFloatRect());
+        // Back to layer space to work with the content crop.
+        activeCropFloat = t.inverse().transform(activeCropFloat);
+    }
     // This needs to be here as transform.transform(Rect) computes the
     // transformed rect and then takes the bounding box of the result before
     // returning. This means
@@ -426,7 +431,7 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     cropCoords[3] = vec2(win.right, win.top);
 }
 
-FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
+FloatRect Layer::computeCrop(const Rect& windowBounds) const {
     // the content crop is the area of the content that gets scaled to the
     // layer's size. This is in buffer space.
     FloatRect crop = getContentCrop().toFloatRect();
@@ -434,7 +439,7 @@ FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
     // In addition there is a WM-specified crop we pull from our drawing state.
     const State& s(getDrawingState());
 
-    Rect activeCrop = computeInitialCrop(display);
+    Rect activeCrop = computeInitialCrop(windowBounds);
     Rect bufferSize = getBufferSize(s);
 
     // Transform the window crop to match the buffer coordinate system,
