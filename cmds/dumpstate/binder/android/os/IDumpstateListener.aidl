@@ -22,18 +22,48 @@ package android.os;
   * {@hide}
   */
 interface IDumpstateListener {
+    /**
+     * Called when there is a progress update.
+     *
+     * @param progress the progress in [0, 100]
+     */
+    oneway void onProgress(int progress);
+
+    /* Options specified are invalid or incompatible */
+    const int BUGREPORT_ERROR_INVALID_INPUT = 1;
+
+    /* Bugreport encountered a runtime error */
+    const int BUGREPORT_ERROR_RUNTIME_ERROR = 2;
+
+    /**
+     * Called on an error condition with one of the error codes listed above.
+     */
+    oneway void onError(int errorCode);
+
+    /**
+     * Called when taking bugreport finishes successfully
+     *
+     * @param durationMs time capturing bugreport took in milliseconds
+     * @param title title for the bugreport; helpful in reminding the user why they took it
+     * @param description detailed description for the bugreport
+     */
+     oneway void onFinished(long durationMs, @utf8InCpp String title,
+                            @utf8InCpp String description);
+
+    // TODO(b/111441001): Remove old methods when not used anymore.
     void onProgressUpdated(int progress);
     void onMaxProgressUpdated(int maxProgress);
 
     /**
-    * Called after every section is complete.
-    * @param  name          section name
-    * @param  status        values from status_t
-    *                       {@code OK} section completed successfully
-    *                       {@code TIMEOUT} dump timed out
-    *                       {@code != OK} error
-    * @param  size          size in bytes, may be invalid if status != OK
-    * @param  durationMs    duration in ms
-    */
+     * Called after every section is complete.
+     *
+     * @param  name          section name
+     * @param  status        values from status_t
+     *                       {@code OK} section completed successfully
+     *                       {@code TIMEOUT} dump timed out
+     *                       {@code != OK} error
+     * @param  size          size in bytes, may be invalid if status != OK
+     * @param  durationMs    duration in ms
+     */
     void onSectionComplete(@utf8InCpp String name, int status, int size, int durationMs);
 }
