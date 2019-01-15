@@ -25,53 +25,46 @@
  * NOTE: Make sure this file doesn't include  anything from <gl/ > or <gl2/ >
  */
 
-#include <cutils/compiler.h>
 #include <cutils/atomic.h>
-
-#include <utils/Errors.h>
-#include <utils/KeyedVector.h>
-#include <utils/RefBase.h>
-#include <utils/SortedVector.h>
-#include <utils/threads.h>
-#include <utils/Trace.h>
-
-#include <ui/FenceTime.h>
-#include <ui/PixelFormat.h>
-#include <math/mat4.h>
-
+#include <cutils/compiler.h>
+#include <gui/BufferQueue.h>
 #include <gui/FrameTimestamps.h>
 #include <gui/ISurfaceComposer.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
-
 #include <gui/OccupancyTracker.h>
-#include <gui/BufferQueue.h>
-
 #include <hardware/hwcomposer_defs.h>
-
+#include <layerproto/LayerProtoHeader.h>
+#include <math/mat4.h>
 #include <serviceutils/PriorityDumper.h>
-
 #include <system/graphics.h>
+#include <ui/FenceTime.h>
+#include <ui/PixelFormat.h>
+#include <utils/Errors.h>
+#include <utils/KeyedVector.h>
+#include <utils/RefBase.h>
+#include <utils/SortedVector.h>
+#include <utils/Trace.h>
+#include <utils/threads.h>
 
 #include "Barrier.h"
 #include "DisplayDevice.h"
+#include "DisplayHardware/HWC2.h"
+#include "DisplayHardware/HWComposer.h"
+#include "Effects/Daltonizer.h"
 #include "FrameTracker.h"
 #include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
-#include "SurfaceFlingerFactory.h"
-#include "SurfaceInterceptor.h"
-#include "SurfaceTracing.h"
-#include "TransactionCompletedThread.h"
-
-#include "DisplayHardware/HWC2.h"
-#include "DisplayHardware/HWComposer.h"
-#include "Effects/Daltonizer.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
+#include "SurfaceFlingerFactory.h"
+#include "SurfaceInterceptor.h"
+#include "SurfaceTracing.h"
+#include "TransactionCompletedThread.h"
 
 #include <map>
 #include <mutex>
@@ -81,8 +74,6 @@
 #include <thread>
 #include <unordered_map>
 #include <utility>
-
-#include <layerproto/LayerProtoHeader.h>
 
 using namespace android::surfaceflinger;
 
@@ -147,10 +138,6 @@ public:
     SurfaceFlingerBE();
 
     const std::string mHwcServiceName; // "default" for real use, something else for testing.
-
-    // constant members (no synchronization needed for access)
-    EGLContext mEGLContext;
-    EGLDisplay mEGLDisplay;
 
     FenceTimeline mGlCompositionDoneTimeline;
     FenceTimeline mDisplayTimeline;
@@ -412,77 +399,74 @@ private:
     /* ------------------------------------------------------------------------
      * IBinder interface
      */
-    virtual status_t onTransact(uint32_t code, const Parcel& data,
-        Parcel* reply, uint32_t flags);
-    virtual status_t dump(int fd, const Vector<String16>& args) { return priorityDump(fd, args); }
+    status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
+    status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
 
     /* ------------------------------------------------------------------------
      * ISurfaceComposer interface
      */
-    virtual sp<ISurfaceComposerClient> createConnection();
-    virtual sp<IBinder> createDisplay(const String8& displayName, bool secure);
-    virtual void destroyDisplay(const sp<IBinder>& displayToken);
-    virtual sp<IBinder> getBuiltInDisplay(int32_t id);
-    virtual void setTransactionState(const Vector<ComposerState>& state,
-                                     const Vector<DisplayState>& displays, uint32_t flags,
-                                     const sp<IBinder>& applyToken,
-                                     const InputWindowCommands& inputWindowCommands);
-    virtual void bootFinished();
-    virtual bool authenticateSurfaceTexture(
-        const sp<IGraphicBufferProducer>& bufferProducer) const;
-    virtual status_t getSupportedFrameTimestamps(
-            std::vector<FrameEvent>* outSupported) const;
-    virtual sp<IDisplayEventConnection> createDisplayEventConnection(
-            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp);
-    virtual status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
-                                   const ui::Dataspace reqDataspace,
-                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
-                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   ISurfaceComposer::Rotation rotation);
-    virtual status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
-                                   const ui::Dataspace reqDataspace,
-                                   const ui::PixelFormat reqPixelFormat, const Rect& sourceCrop,
-                                   float frameScale, bool childrenOnly);
-    virtual status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats);
-    virtual status_t getDisplayConfigs(const sp<IBinder>& displayToken,
-                                       Vector<DisplayInfo>* configs);
-    virtual int getActiveConfig(const sp<IBinder>& displayToken);
-    virtual status_t getDisplayColorModes(const sp<IBinder>& displayToken,
-                                          Vector<ui::ColorMode>* configs);
-    virtual ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken);
-    virtual status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode);
-    virtual void setPowerMode(const sp<IBinder>& displayToken, int mode);
-    virtual status_t setActiveConfig(const sp<IBinder>& displayToken, int id);
-    virtual status_t clearAnimationFrameStats();
-    virtual status_t getAnimationFrameStats(FrameStats* outStats) const;
-    virtual status_t getHdrCapabilities(const sp<IBinder>& displayToken,
-                                        HdrCapabilities* outCapabilities) const;
-    virtual status_t enableVSyncInjections(bool enable);
-    virtual status_t injectVSync(nsecs_t when);
-    virtual status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const;
-    virtual status_t getColorManagement(bool* outGetColorManagement) const;
+    sp<ISurfaceComposerClient> createConnection() override;
+    sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
+    void destroyDisplay(const sp<IBinder>& displayToken) override;
+    sp<IBinder> getBuiltInDisplay(int32_t id) override;
+    void setTransactionState(const Vector<ComposerState>& state,
+                             const Vector<DisplayState>& displays, uint32_t flags,
+                             const sp<IBinder>& applyToken,
+                             const InputWindowCommands& inputWindowCommands) override;
+    void bootFinished() override;
+    bool authenticateSurfaceTexture(
+            const sp<IGraphicBufferProducer>& bufferProducer) const override;
+    status_t getSupportedFrameTimestamps(std::vector<FrameEvent>* outSupported) const override;
+    sp<IDisplayEventConnection> createDisplayEventConnection(
+            ISurfaceComposer::VsyncSource vsyncSource = eVsyncSourceApp) override;
+    status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
+                           const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
+                           Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
+                           bool useIdentityTransform, ISurfaceComposer::Rotation rotation) override;
+    status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
+                           const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
+                           const Rect& sourceCrop, float frameScale, bool childrenOnly) override;
+    status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
+    status_t getDisplayConfigs(const sp<IBinder>& displayToken,
+                               Vector<DisplayInfo>* configs) override;
+    int getActiveConfig(const sp<IBinder>& displayToken) override;
+    status_t getDisplayColorModes(const sp<IBinder>& displayToken,
+                                  Vector<ui::ColorMode>* configs) override;
+    ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken) override;
+    status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
+    void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
+    status_t setActiveConfig(const sp<IBinder>& displayToken, int id) override;
+    status_t clearAnimationFrameStats() override;
+    status_t getAnimationFrameStats(FrameStats* outStats) const override;
+    status_t getHdrCapabilities(const sp<IBinder>& displayToken,
+                                HdrCapabilities* outCapabilities) const override;
+    status_t enableVSyncInjections(bool enable) override;
+    status_t injectVSync(nsecs_t when) override;
+    status_t getLayerDebugInfo(std::vector<LayerDebugInfo>* outLayers) const override;
+    status_t getColorManagement(bool* outGetColorManagement) const override;
     status_t getCompositionPreference(ui::Dataspace* outDataspace, ui::PixelFormat* outPixelFormat,
                                       ui::Dataspace* outWideColorGamutDataspace,
                                       ui::PixelFormat* outWideColorGamutPixelFormat) const override;
-    virtual status_t getDisplayedContentSamplingAttributes(
-            const sp<IBinder>& display, ui::PixelFormat* outFormat, ui::Dataspace* outDataspace,
-            uint8_t* outComponentMask) const override;
-    virtual status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
-                                                      uint8_t componentMask,
-                                                      uint64_t maxFrames) const override;
-    virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
-                                               uint64_t timestamp,
-                                               DisplayedFrameStats* outStats) const override;
+    status_t getDisplayedContentSamplingAttributes(const sp<IBinder>& display,
+                                                   ui::PixelFormat* outFormat,
+                                                   ui::Dataspace* outDataspace,
+                                                   uint8_t* outComponentMask) const override;
+    status_t setDisplayContentSamplingEnabled(const sp<IBinder>& display, bool enable,
+                                              uint8_t componentMask,
+                                              uint64_t maxFrames) const override;
+    status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
+                                       uint64_t timestamp,
+                                       DisplayedFrameStats* outStats) const override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
-    virtual void binderDied(const wp<IBinder>& who);
+    void binderDied(const wp<IBinder>& who) override;
 
     /* ------------------------------------------------------------------------
      * RefBase interface
      */
-    virtual void onFirstRef();
+    void onFirstRef() override;
 
     /* ------------------------------------------------------------------------
      * HWC2::ComposerCallback / HWComposer::EventHandler interface
