@@ -5,6 +5,12 @@
 # Access control to these files is now entirely in selinux policy.
 
 on post-fs
+    # On userdebug allow to enable any event via the generic
+    # set_event interface:
+    # echo sched/foo > set_event == echo 1 > events/sched/foo/enable.
+    chmod 0666 /sys/kernel/tracing/set_event
+    chmod 0666 /sys/kernel/debug/tracing/set_event
+
     chmod 0666 /sys/kernel/tracing/events/workqueue/enable
     chmod 0666 /sys/kernel/debug/tracing/events/workqueue/enable
     chmod 0666 /sys/kernel/tracing/events/regulator/enable
