@@ -1153,6 +1153,14 @@ status_t SurfaceFlinger::getDisplayedContentSample(const sp<IBinder>& displayTok
                                                      outStats);
 }
 
+status_t SurfaceFlinger::getProtectedContentSupport(bool* outSupported) const {
+    if (!outSupported) {
+        return BAD_VALUE;
+    }
+    *outSupported = getRenderEngine().supportsProtectedContent();
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
@@ -5004,7 +5012,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case SET_TRANSACTION_STATE:
         case CREATE_CONNECTION:
         case GET_COLOR_MANAGEMENT:
-        case GET_COMPOSITION_PREFERENCE: {
+        case GET_COMPOSITION_PREFERENCE:
+        case GET_PROTECTED_CONTENT_SUPPORT: {
             return OK;
         }
         case CAPTURE_LAYERS:

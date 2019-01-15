@@ -457,6 +457,7 @@ private:
     status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
                                        uint64_t timestamp,
                                        DisplayedFrameStats* outStats) const override;
+    status_t getProtectedContentSupport(bool* outSupported) const override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
