@@ -37,8 +37,6 @@
 #include <unordered_set>
 #include <vector>
 
-#include "PowerAdvisor.h"
-
 namespace android {
     struct DisplayedFrameStats;
     class Fence;
@@ -125,7 +123,6 @@ private:
     std::unique_ptr<android::Hwc2::Composer> mComposer;
     std::unordered_set<Capability> mCapabilities;
     std::unordered_map<hwc2_display_t, std::unique_ptr<Display>> mDisplays;
-    android::Hwc2::impl::PowerAdvisor mPowerAdvisor;
     bool mRegisteredCallback = false;
 };
 
@@ -273,9 +270,8 @@ namespace impl {
 
 class Display : public HWC2::Display {
 public:
-    Display(android::Hwc2::Composer& composer, android::Hwc2::PowerAdvisor& advisor,
-            const std::unordered_set<Capability>& capabilities, hwc2_display_t id,
-            DisplayType type);
+    Display(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
+            hwc2_display_t id, DisplayType type);
     ~Display() override;
 
     // Required by HWC2
@@ -352,7 +348,6 @@ private:
     // this HWC2::Display, so these references are guaranteed to be valid for
     // the lifetime of this object.
     android::Hwc2::Composer& mComposer;
-    android::Hwc2::PowerAdvisor& mPowerAdvisor;
     const std::unordered_set<Capability>& mCapabilities;
 
     hwc2_display_t mId;

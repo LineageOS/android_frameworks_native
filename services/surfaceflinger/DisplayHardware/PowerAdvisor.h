@@ -22,10 +22,12 @@
 #undef HWC2_INCLUDE_STRINGIFICATION
 #undef HWC2_USE_CPP11
 
+#include <unordered_set>
+
 #include <android/hardware/power/1.3/IPower.h>
 #include <utils/StrongPointer.h>
 
-#include <unordered_set>
+#include "DisplayIdentification.h"
 
 namespace android {
 namespace Hwc2 {
@@ -34,7 +36,7 @@ class PowerAdvisor {
 public:
     virtual ~PowerAdvisor();
 
-    virtual void setExpensiveRenderingExpected(hwc2_display_t displayId, bool expected) = 0;
+    virtual void setExpensiveRenderingExpected(DisplayId displayId, bool expected) = 0;
 };
 
 namespace impl {
@@ -48,12 +50,12 @@ public:
     PowerAdvisor();
     ~PowerAdvisor() override;
 
-    void setExpensiveRenderingExpected(hwc2_display_t displayId, bool expected) override;
+    void setExpensiveRenderingExpected(DisplayId displayId, bool expected) override;
 
 private:
     sp<V1_3::IPower> getPowerHal();
 
-    std::unordered_set<hwc2_display_t> mExpensiveDisplays;
+    std::unordered_set<DisplayId> mExpensiveDisplays;
     bool mNotifiedExpensiveRendering = false;
     bool mReconnectPowerHal = false;
 };
