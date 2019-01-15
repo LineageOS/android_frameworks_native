@@ -102,6 +102,27 @@ void ComposerService::composerServiceDied()
     mDeathObserver = nullptr;
 }
 
+class DefaultComposerClient: public Singleton<DefaultComposerClient> {
+    Mutex mLock;
+    sp<SurfaceComposerClient> mClient;
+    friend class Singleton<ComposerService>;
+public:
+    static sp<SurfaceComposerClient> getComposerClient() {
+        DefaultComposerClient& dc = DefaultComposerClient::getInstance();
+        Mutex::Autolock _l(dc.mLock);
+        if (dc.mClient == nullptr) {
+            dc.mClient = new SurfaceComposerClient;
+        }
+        return dc.mClient;
+    }
+};
+ANDROID_SINGLETON_STATIC_INSTANCE(DefaultComposerClient);
+
+
+sp<SurfaceComposerClient> SurfaceComposerClient::getDefault() {
+    return DefaultComposerClient::getComposerClient();
+}
+
 // ---------------------------------------------------------------------------
 
 // TransactionCompletedListener does not use ANDROID_SINGLETON_STATIC_INSTANCE because it needs
@@ -926,6 +947,54 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
     s->colorTransform = mat4(matrix, translation);
 
     registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setGeometry(
+        const sp<SurfaceControl>& sc, const Rect& source, const Rect& dst, int transform) {
+    setCrop_legacy(sc, source);
+
+    int x = dst.left;
+    int y = dst.top;
+    float xScale = dst.getWidth() / static_cast<float>(source.getWidth());
+    float yScale = dst.getHeight() / static_cast<float>(source.getHeight());
+    float matrix[4] = {1, 0, 0, 1};
+
+    switch (transform) {
+        case NATIVE_WINDOW_TRANSFORM_FLIP_H:
+            matrix[0] = -xScale; matrix[1] = 0;
+            matrix[2] = 0; matrix[3] = yScale;
+            x += source.getWidth();
+            break;
+        case NATIVE_WINDOW_TRANSFORM_FLIP_V:
+            matrix[0] = xScale; matrix[1] = 0;
+            matrix[2] = 0; matrix[3] = -yScale;
+            y += source.getHeight();
+            break;
+        case NATIVE_WINDOW_TRANSFORM_ROT_90:
+            matrix[0] = 0; matrix[1] = -yScale;
+            matrix[2] = xScale; matrix[3] = 0;
+            x += source.getHeight();
+            break;
+        case NATIVE_WINDOW_TRANSFORM_ROT_180:
+            matrix[0] = -xScale; matrix[1] = 0;
+            matrix[2] = 0; matrix[3] = -yScale;
+            x += source.getWidth();
+            y += source.getHeight();
+            break;
+        case NATIVE_WINDOW_TRANSFORM_ROT_270:
+            matrix[0] = 0; matrix[1] = yScale;
+            matrix[2] = -xScale; matrix[3] = 0;
+            y += source.getWidth();
+            break;
+        default:
+            matrix[0] = xScale; matrix[1] = 0;
+            matrix[2] = 0; matrix[3] = yScale;
+            break;
+    }
+    setMatrix(sc, matrix[0], matrix[1], matrix[2], matrix[3]);
+    setPosition(sc, x, y);
+
     return *this;
 }
 
