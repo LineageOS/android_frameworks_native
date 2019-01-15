@@ -342,9 +342,11 @@ class Dumpstate {
         bool wifi_only = false;
         // Whether progress updates should be published.
         bool do_progress_updates = false;
-        // File descriptor to output zip file. -1 indicates not set. Takes precedence over
-        // use_outfile.
-        int fd = -1;
+        // File descriptor to output zip file. Takes precedence over use_outfile.
+        android::base::unique_fd bugreport_fd;
+        // File descriptor to screenshot file.
+        // TODO(b/111441001): Use this fd.
+        android::base::unique_fd screenshot_fd;
         // Partial path to output file.
         std::string use_outfile;
         // TODO: rename to MODE.
@@ -360,7 +362,8 @@ class Dumpstate {
         RunStatus Initialize(int argc, char* argv[]);
 
         /* Initializes options from the requested mode. */
-        void Initialize(BugreportMode bugreport_mode);
+        void Initialize(BugreportMode bugreport_mode, const android::base::unique_fd& bugreport_fd,
+                        const android::base::unique_fd& screenshot_fd);
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
