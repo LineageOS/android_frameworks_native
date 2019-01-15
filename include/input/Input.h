@@ -241,6 +241,11 @@ enum class MotionClassification : uint8_t {
     DEEP_PRESS = 2,
 };
 
+/**
+ * String representation of MotionClassification
+ */
+const char* motionClassificationToString(MotionClassification classification);
+
 /*
  * Pointer coordinate data.
  */

@@ -29,6 +29,17 @@
 
 namespace android {
 
+const char* motionClassificationToString(MotionClassification classification) {
+    switch (classification) {
+        case MotionClassification::NONE:
+            return "NONE";
+        case MotionClassification::AMBIGUOUS_GESTURE:
+            return "AMBIGUOUS_GESTURE";
+        case MotionClassification::DEEP_PRESS:
+            return "DEEP_PRESS";
+    }
+}
+
 // --- InputEvent ---
 
 void InputEvent::initialize(int32_t deviceId, int32_t source, int32_t displayId) {

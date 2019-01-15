@@ -2155,7 +2155,7 @@ void InputDispatcher::startDispatchCycleLocked(nsecs_t currentTime,
                     motionEntry->deviceId, motionEntry->source, motionEntry->displayId,
                     dispatchEntry->resolvedAction, motionEntry->actionButton,
                     dispatchEntry->resolvedFlags, motionEntry->edgeFlags,
-                    motionEntry->metaState, motionEntry->buttonState,
+                    motionEntry->metaState, motionEntry->buttonState, motionEntry->classification,
                     xOffset, yOffset, motionEntry->xPrecision, motionEntry->yPrecision,
                     motionEntry->downTime, motionEntry->eventTime,
                     motionEntry->pointerCount, motionEntry->pointerProperties,
@@ -2491,6 +2491,7 @@ InputDispatcher::splitMotionEvent(const MotionEntry* originalMotionEntry, BitSet
             originalMotionEntry->flags,
             originalMotionEntry->metaState,
             originalMotionEntry->buttonState,
+            originalMotionEntry->classification,
             originalMotionEntry->edgeFlags,
             originalMotionEntry->xPrecision,
             originalMotionEntry->yPrecision,
@@ -2707,7 +2708,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
         MotionEntry* newEntry = new MotionEntry(args->sequenceNum, args->eventTime,
                 args->deviceId, args->source, args->displayId, policyFlags,
                 args->action, args->actionButton, args->flags,
-                args->metaState, args->buttonState,
+                args->metaState, args->buttonState, args->classification,
                 args->edgeFlags, args->xPrecision, args->yPrecision, args->downTime,
                 args->pointerCount, args->pointerProperties, args->pointerCoords, 0, 0);
 
@@ -2845,7 +2846,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
                 policyFlags,
                 action, actionButton, motionEvent->getFlags(),
                 motionEvent->getMetaState(), motionEvent->getButtonState(),
-                motionEvent->getEdgeFlags(),
+                motionEvent->getClassification(), motionEvent->getEdgeFlags(),
                 motionEvent->getXPrecision(), motionEvent->getYPrecision(),
                 motionEvent->getDownTime(),
                 uint32_t(pointerCount), pointerProperties, samplePointerCoords,
@@ -2860,7 +2861,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
                     motionEvent->getDisplayId(), policyFlags,
                     action, actionButton, motionEvent->getFlags(),
                     motionEvent->getMetaState(), motionEvent->getButtonState(),
-                    motionEvent->getEdgeFlags(),
+                    motionEvent->getClassification(), motionEvent->getEdgeFlags(),
                     motionEvent->getXPrecision(), motionEvent->getYPrecision(),
                     motionEvent->getDownTime(),
                     uint32_t(pointerCount), pointerProperties, samplePointerCoords,
@@ -4404,8 +4405,8 @@ void InputDispatcher::KeyEntry::recycle() {
 InputDispatcher::MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId,
         uint32_t source, int32_t displayId, uint32_t policyFlags, int32_t action,
         int32_t actionButton,
-        int32_t flags, int32_t metaState, int32_t buttonState, int32_t edgeFlags,
-        float xPrecision, float yPrecision, nsecs_t downTime,
+        int32_t flags, int32_t metaState, int32_t buttonState, MotionClassification classification,
+        int32_t edgeFlags, float xPrecision, float yPrecision, nsecs_t downTime,
         uint32_t pointerCount,
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
         float xOffset, float yOffset) :
@@ -4413,7 +4414,8 @@ InputDispatcher::MotionEntry::MotionEntry(uint32_t sequenceNum, nsecs_t eventTim
         eventTime(eventTime),
         deviceId(deviceId), source(source), displayId(displayId), action(action),
         actionButton(actionButton), flags(flags), metaState(metaState), buttonState(buttonState),
-        edgeFlags(edgeFlags), xPrecision(xPrecision), yPrecision(yPrecision),
+        classification(classification), edgeFlags(edgeFlags),
+        xPrecision(xPrecision), yPrecision(yPrecision),
         downTime(downTime), pointerCount(pointerCount) {
     for (uint32_t i = 0; i < pointerCount; i++) {
         this->pointerProperties[i].copyFrom(pointerProperties[i]);
@@ -4430,9 +4432,10 @@ InputDispatcher::MotionEntry::~MotionEntry() {
 void InputDispatcher::MotionEntry::appendDescription(std::string& msg) const {
     msg += StringPrintf("MotionEvent(deviceId=%d, source=0x%08x, displayId=%" PRId32
             ", action=%s, actionButton=0x%08x, flags=0x%08x, metaState=0x%08x, buttonState=0x%08x, "
-            "edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, pointers=[",
+            "classification=%s, edgeFlags=0x%08x, xPrecision=%.1f, yPrecision=%.1f, pointers=[",
             deviceId, source, displayId, motionActionToString(action).c_str(), actionButton, flags,
-            metaState, buttonState, edgeFlags, xPrecision, yPrecision);
+            metaState, buttonState, motionClassificationToString(classification), edgeFlags,
+            xPrecision, yPrecision);
 
     for (uint32_t i = 0; i < pointerCount; i++) {
         if (i) {
@@ -4733,15 +4736,15 @@ void InputDispatcher::InputState::synthesizeCancelationEvents(nsecs_t currentTim
     for (size_t i = 0; i < mMotionMementos.size(); i++) {
         const MotionMemento& memento = mMotionMementos.itemAt(i);
         if (shouldCancelMotion(memento, options)) {
+            const int32_t action = memento.hovering ?
+                    AMOTION_EVENT_ACTION_HOVER_EXIT : AMOTION_EVENT_ACTION_CANCEL;
             outEvents.push(new MotionEntry(SYNTHESIZED_EVENT_SEQUENCE_NUM, currentTime,
                     memento.deviceId, memento.source, memento.displayId, memento.policyFlags,
-                    memento.hovering
-                            ? AMOTION_EVENT_ACTION_HOVER_EXIT
-                            : AMOTION_EVENT_ACTION_CANCEL,
-                    memento.flags, 0, 0, 0, 0,
+                    action, 0 /*actionButton*/, memento.flags, AMETA_NONE, 0 /*buttonState*/,
+                    MotionClassification::NONE, AMOTION_EVENT_EDGE_FLAG_NONE,
                     memento.xPrecision, memento.yPrecision, memento.downTime,
                     memento.pointerCount, memento.pointerProperties, memento.pointerCoords,
-                    0, 0));
+                    0 /*xOffset*/, 0 /*yOffset*/));
         }
     }
 }
