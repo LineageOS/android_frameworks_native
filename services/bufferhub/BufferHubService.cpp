@@ -216,7 +216,7 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
     stream << " ";
     stream << std::setw(10) << "State";
     stream << " ";
-    stream << std::setw(10) << "Index";
+    stream << std::setw(8) << "Index";
     stream << std::endl;
 
     for (auto iter = clientCount.begin(); iter != clientCount.end(); ++iter) {
@@ -251,6 +251,7 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
         stream << " ";
         stream << "0x" << std::hex << std::setfill('0');
         stream << std::setw(8) << /*State=*/state;
+        stream << std::dec << std::setfill(' ');
         stream << " ";
         stream << std::setw(8) << /*Index=*/index;
         stream << std::endl;
