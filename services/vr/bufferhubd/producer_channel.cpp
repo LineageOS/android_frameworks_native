@@ -333,7 +333,10 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
 
   uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  if (BufferHubDefs::IsBufferReleased(current_buffer_state) ||
+  // Return the consumer channel handle without signal when adding the new
+  // consumer to a buffer that is available to producer (a.k.a a fully-released
+  // buffer) or a gained buffer.
+  if (current_buffer_state == 0U ||
       BufferHubDefs::AnyClientGained(current_buffer_state)) {
     return {status.take()};
   }
@@ -356,7 +359,7 @@ Status<RemoteChannelHandle> ProducerChannel::CreateConsumer(
           ". About to try again if the buffer is still not gained nor fully "
           "released.",
           __FUNCTION__, current_buffer_state, updated_buffer_state);
-      if (BufferHubDefs::IsBufferReleased(current_buffer_state) ||
+      if (current_buffer_state == 0U ||
           BufferHubDefs::AnyClientGained(current_buffer_state)) {
         ALOGI("%s: buffer is gained or fully released, state=%" PRIx32 ".",
               __FUNCTION__, current_buffer_state);
@@ -536,14 +539,7 @@ Status<void> ProducerChannel::OnConsumerRelease(Message&,
     }
   }
 
-  uint32_t current_buffer_state =
-      buffer_state_->load(std::memory_order_acquire);
-  uint32_t current_active_clients_bit_mask =
-      active_clients_bit_mask_->load(std::memory_order_acquire);
-  // Signal producer if all current active consumers have released the buffer.
-  if (BufferHubDefs::IsBufferReleased(current_buffer_state &
-                                      ~orphaned_consumer_bit_mask_ &
-                                      current_active_clients_bit_mask)) {
+  if (IsBufferReleasedByAllActiveClientsExceptForOrphans()) {
     buffer_state_->store(0U);
     SignalAvailable();
     if (orphaned_consumer_bit_mask_) {
@@ -568,14 +564,7 @@ void ProducerChannel::OnConsumerOrphaned(const uint32_t& consumer_state_mask) {
            __FUNCTION__, consumer_state_mask);
   orphaned_consumer_bit_mask_ |= consumer_state_mask;
 
-  uint32_t current_buffer_state =
-      buffer_state_->load(std::memory_order_acquire);
-  uint32_t current_active_clients_bit_mask =
-      active_clients_bit_mask_->load(std::memory_order_acquire);
-  // Signal producer if all current active consumers have released the buffer.
-  if (BufferHubDefs::IsBufferReleased(current_buffer_state &
-                                      ~orphaned_consumer_bit_mask_ &
-                                      current_active_clients_bit_mask)) {
+  if (IsBufferReleasedByAllActiveClientsExceptForOrphans()) {
     buffer_state_->store(0U);
     SignalAvailable();
   }
@@ -667,11 +656,18 @@ void ProducerChannel::RemoveConsumer(ConsumerChannel* channel) {
 bool ProducerChannel::CheckParameters(uint32_t width, uint32_t height,
                                       uint32_t layer_count, uint32_t format,
                                       uint64_t usage,
-                                      size_t user_metadata_size) {
+                                      size_t user_metadata_size) const {
   return user_metadata_size == user_metadata_size_ &&
          buffer_.width() == width && buffer_.height() == height &&
          buffer_.layer_count() == layer_count && buffer_.format() == format &&
          buffer_.usage() == usage;
+}
+
+bool ProducerChannel::IsBufferReleasedByAllActiveClientsExceptForOrphans()
+    const {
+  return (buffer_state_->load(std::memory_order_acquire) &
+          ~orphaned_consumer_bit_mask_ &
+          active_clients_bit_mask_->load(std::memory_order_acquire)) == 0U;
 }
 
 }  // namespace dvr

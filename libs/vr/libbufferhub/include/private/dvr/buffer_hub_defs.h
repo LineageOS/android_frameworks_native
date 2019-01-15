@@ -51,10 +51,6 @@ static inline bool IsClientAcquired(uint32_t state, uint32_t client_bit_mask) {
   return android::BufferHubDefs::IsClientAcquired(state, client_bit_mask);
 }
 
-static inline bool IsBufferReleased(uint32_t state) {
-  return android::BufferHubDefs::IsBufferReleased(state);
-}
-
 static inline bool IsClientReleased(uint32_t state, uint32_t client_bit_mask) {
   return android::BufferHubDefs::IsClientReleased(state, client_bit_mask);
 }
