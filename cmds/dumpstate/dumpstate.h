@@ -449,6 +449,8 @@ class Dumpstate {
     std::vector<DumpData> anr_data_;
 
   private:
+    RunStatus RunInternal();
+
     // Used by GetInstance() only.
     explicit Dumpstate(const std::string& version = VERSION_CURRENT);
 
