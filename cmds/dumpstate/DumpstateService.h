@@ -42,8 +42,8 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
                                bool getSectionDetails,
                                sp<IDumpstateToken>* returned_token) override;
 
-    binder::Status startBugreport(const android::base::unique_fd& bugreportFd,
-                                  const android::base::unique_fd& screenshotFd, int bugreport_mode,
+    binder::Status startBugreport(const android::base::unique_fd& bugreport_fd,
+                                  const android::base::unique_fd& screenshot_fd, int bugreport_mode,
                                   const sp<IDumpstateListener>& listener) override;
 
   private:
