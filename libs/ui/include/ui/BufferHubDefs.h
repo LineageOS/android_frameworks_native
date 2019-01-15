@@ -170,15 +170,16 @@ static constexpr size_t kMetadataHeaderSize = sizeof(MetadataHeader);
  *
  * It's definition should follow the following format:
  * {
- *   NumFds = 1,
+ *   NumFds = 2,
  *   NumInts = 3,
  *   data[0] = Ashmem fd for BufferHubMetadata,
- *   data[1] = buffer id,
- *   data[2] = client state bit mask,
- *   data[3] = user metadata size,
+ *   data[1] = event fd,
+ *   data[2] = buffer id,
+ *   data[3] = client state bit mask,
+ *   data[4] = user metadata size,
  * }
  */
-static constexpr int kBufferInfoNumFds = 1;
+static constexpr int kBufferInfoNumFds = 2;
 static constexpr int kBufferInfoNumInts = 3;
 
 } // namespace BufferHubDefs

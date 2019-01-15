@@ -21,6 +21,7 @@
 #include <android/hardware_buffer.h>
 #include <cutils/native_handle.h>
 #include <ui/BufferHubDefs.h>
+#include <ui/BufferHubEventFd.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {
@@ -54,6 +55,8 @@ public:
     native_handle_t* DuplicateHandle() {
         return native_handle_clone(mBufferHandle.getNativeHandle());
     }
+
+    const BufferHubEventFd& eventFd() const { return mEventFd; }
 
     // Returns the current value of MetadataHeader::buffer_state.
     uint32_t buffer_state() {
@@ -122,6 +125,9 @@ private:
 
     // Wraps the gralloc buffer handle of this buffer.
     hardware::hidl_handle mBufferHandle;
+
+    // Event fd used for signalling buffer state changes. Shared by all clients of the same buffer.
+    BufferHubEventFd mEventFd;
 
     // An ashmem-based metadata object. The same shared memory are mapped to the
     // bufferhubd daemon and all buffer clients.
