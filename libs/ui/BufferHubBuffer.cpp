@@ -319,11 +319,6 @@ bool BufferHubBuffer::IsValid() const {
             mMetadata.IsValid() && mBufferClient != nullptr;
 }
 
-// TODO(b/68770788): implement Poll() once we have event fd
-int BufferHubBuffer::Poll(int /* timeoutMs */) {
-    return -ENOSYS;
-}
-
 native_handle_t* BufferHubBuffer::Duplicate() {
     if (mBufferClient == nullptr) {
         ALOGE("%s: missing BufferClient!", __FUNCTION__);
