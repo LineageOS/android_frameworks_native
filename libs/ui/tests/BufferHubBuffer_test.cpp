@@ -189,8 +189,6 @@ TEST_F(BufferHubBufferTest, ImportNullToken) {
     EXPECT_THAT(b1, IsNull());
 }
 
-// TODO(b/118180214): remove the comment after ag/5856474 landed
-// This test has a very little chance to fail (number of existing tokens / 2 ^ 32)
 TEST_F(BufferHubBufferTest, ImportInvalidToken) {
     native_handle_t* token = native_handle_create(/*numFds=*/0, /*numInts=*/1);
     token->data[0] = 0;
