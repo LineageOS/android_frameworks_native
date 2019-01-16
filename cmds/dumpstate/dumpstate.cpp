@@ -2262,6 +2262,28 @@ void Dumpstate::SetOptions(std::unique_ptr<DumpOptions> options) {
     options_ = std::move(options);
 }
 
+Dumpstate::RunStatus Dumpstate::Run() {
+    Dumpstate::RunStatus status = RunInternal();
+    if (listener_ != nullptr) {
+        switch (status) {
+            case Dumpstate::RunStatus::OK:
+                // TODO(b/111441001): duration argument does not make sense. Remove.
+                listener_->onFinished(0 /* duration */, options_->notification_title,
+                                      options_->notification_description);
+                break;
+            case Dumpstate::RunStatus::HELP:
+                break;
+            case Dumpstate::RunStatus::INVALID_INPUT:
+                listener_->onError(android::os::IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
+                break;
+            case Dumpstate::RunStatus::ERROR:
+                listener_->onError(android::os::IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
+                break;
+        }
+    }
+    return status;
+}
+
 /*
  * Dumps relevant information to a bugreport based on the given options.
  *
@@ -2283,7 +2305,7 @@ void Dumpstate::SetOptions(std::unique_ptr<DumpOptions> options) {
  * Bugreports are first generated in a local directory and later copied to the caller's fd or
  * directory.
  */
-Dumpstate::RunStatus Dumpstate::Run() {
+Dumpstate::RunStatus Dumpstate::RunInternal() {
     LogDumpOptions(*options_);
     if (!options_->ValidateOptions()) {
         MYLOGE("Invalid options specified\n");
@@ -2488,6 +2510,7 @@ Dumpstate::RunStatus Dumpstate::Run() {
     /* tell activity manager we're done */
     if (options_->do_broadcast) {
         SendBugreportFinishedBroadcast();
+        // Note that listener_ is notified in Run();
     }
 
     MYLOGD("Final progress: %d/%d (estimated %d)\n", progress_->Get(), progress_->GetMax(),
