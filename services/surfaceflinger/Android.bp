@@ -55,6 +55,7 @@ cc_defaults {
         "libui",
         "libinput",
         "libutils",
+        "libutilscallstack",
     ],
     static_libs: [
         "libcompositionengine",

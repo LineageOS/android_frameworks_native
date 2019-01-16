@@ -44,6 +44,8 @@ class SurfaceFlinger;
 
 // ---------------------------------------------------------------------------
 
+using ResyncCallback = std::function<void()>;
+
 class VSyncSource {
 public:
     class Callback {
@@ -60,7 +62,7 @@ public:
 
 class EventThreadConnection : public BnDisplayEventConnection {
 public:
-    explicit EventThreadConnection(EventThread* eventThread);
+    EventThreadConnection(EventThread* eventThread, ResyncCallback resyncCallback);
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -71,6 +73,9 @@ public:
     // Requesting Vsync for HWC does not reset the idle timer, since HWC requires a refresh
     // in order to update the configs.
     void requestNextVsyncForHWC();
+
+    // Called in response to requestNextVsync.
+    const ResyncCallback resyncCallback;
 
     // count >= 1 : continuous event. count is the vsync rate
     // count == 0 : one-shot event that has not fired
@@ -90,7 +95,8 @@ public:
 
     virtual ~EventThread();
 
-    virtual sp<EventThreadConnection> createEventConnection() const = 0;
+    virtual sp<EventThreadConnection> createEventConnection(
+            ResyncCallback resyncCallback) const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -117,20 +123,18 @@ namespace impl {
 
 class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
-    using ResyncWithRateLimitCallback = std::function<void()>;
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
     using ResetIdleTimerCallback = std::function<void()>;
 
     // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
-    EventThread(VSyncSource* src, ResyncWithRateLimitCallback resyncWithRateLimitCallback,
-                InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
+    EventThread(VSyncSource* src, InterceptVSyncsCallback interceptVSyncsCallback,
+                const char* threadName);
     EventThread(std::unique_ptr<VSyncSource> src,
-                const ResyncWithRateLimitCallback& resyncWithRateLimitCallback,
                 const InterceptVSyncsCallback& interceptVSyncsCallback,
                 const ResetIdleTimerCallback& resetIdleTimerCallback, const char* threadName);
     ~EventThread();
 
-    sp<EventThreadConnection> createEventConnection() const override;
+    sp<EventThreadConnection> createEventConnection(ResyncCallback resyncCallback) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) override;
@@ -155,7 +159,6 @@ private:
 
     // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
     EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
-                ResyncWithRateLimitCallback resyncWithRateLimitCallback,
                 InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
 
 
@@ -179,7 +182,6 @@ private:
     VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
     std::unique_ptr<VSyncSource> mVSyncSourceUnique GUARDED_BY(mMutex) = nullptr;
     // constants
-    const ResyncWithRateLimitCallback mResyncWithRateLimitCallback;
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
 
     std::thread mThread;

@@ -94,9 +94,6 @@ public:
     // current cycle of the usage of the buffer.
     int Release();
 
-    // Polls the fd for |timeoutMs| milliseconds (-1 for infinity).
-    int Poll(int timeoutMs);
-
     // Creates a token that stands for this BufferHubBuffer client and could be used for Import to
     // create another BufferHubBuffer. The new BufferHubBuffer will share the same underlying
     // gralloc buffer and ashmem region for metadata. Note that the caller owns the token and
