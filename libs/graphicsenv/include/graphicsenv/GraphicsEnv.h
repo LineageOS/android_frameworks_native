@@ -23,7 +23,7 @@ struct android_namespace_t;
 
 namespace android {
 
-class NativeLoaderNamespace;
+struct NativeLoaderNamespace;
 
 class GraphicsEnv {
 public:
