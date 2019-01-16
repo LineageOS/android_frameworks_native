@@ -28,7 +28,7 @@ public:
     EventThread();
     ~EventThread() override;
 
-    MOCK_CONST_METHOD0(createEventConnection, sp<EventThreadConnection>());
+    MOCK_CONST_METHOD1(createEventConnection, sp<EventThreadConnection>(ResyncCallback));
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(DisplayType, bool));

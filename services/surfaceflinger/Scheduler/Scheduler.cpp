@@ -86,39 +86,38 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
 Scheduler::~Scheduler() = default;
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
-        const std::string& connectionName, int64_t phaseOffsetNs,
-        impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
+        const std::string& connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const int64_t id = sNextId++;
     ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
 
     std::unique_ptr<EventThread> eventThread =
-            makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs, resyncCallback,
+            makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs,
                             interceptCallback);
     auto connection = std::make_unique<Connection>(new ConnectionHandle(id),
-                                                   eventThread->createEventConnection(),
+                                                   eventThread->createEventConnection(
+                                                           std::move(resyncCallback)),
                                                    std::move(eventThread));
+
     mConnections.insert(std::make_pair(id, std::move(connection)));
     return mConnections[id]->handle;
 }
 
 std::unique_ptr<EventThread> Scheduler::makeEventThread(
         const std::string& connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
-        impl::EventThread::ResyncWithRateLimitCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const std::string sourceName = connectionName + "Source";
     std::unique_ptr<VSyncSource> eventThreadSource =
             std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, sourceName.c_str());
     const std::string threadName = connectionName + "Thread";
-    return std::make_unique<impl::EventThread>(std::move(eventThreadSource), resyncCallback,
-                                               interceptCallback, [this] { resetIdleTimer(); },
-                                               threadName.c_str());
+    return std::make_unique<impl::EventThread>(std::move(eventThreadSource), interceptCallback,
+                                               [this] { resetIdleTimer(); }, threadName.c_str());
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        const sp<Scheduler::ConnectionHandle>& handle) {
+        const sp<Scheduler::ConnectionHandle>& handle, ResyncCallback resyncCallback) {
     RETURN_VALUE_IF_INVALID(nullptr);
-    return mConnections[handle->id]->thread->createEventConnection();
+    return mConnections[handle->id]->thread->createEventConnection(std::move(resyncCallback));
 }
 
 EventThread* Scheduler::getEventThread(const sp<Scheduler::ConnectionHandle>& handle) {

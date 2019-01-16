@@ -618,6 +618,8 @@ void SurfaceFlinger::init() {
 
     Mutex::Autolock _l(mStateLock);
 
+    auto resyncCallback = makeResyncCallback();
+
     // start the EventThread
     if (mUseScheduler) {
         mScheduler = getFactory().createScheduler([this](bool enabled) {
@@ -626,12 +628,11 @@ void SurfaceFlinger::init() {
 
         mAppConnectionHandle =
                 mScheduler->createConnection("appConnection", SurfaceFlinger::vsyncPhaseOffsetNs,
-                                             [this] { resyncWithRateLimit(); },
+                                             resyncCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
                 mScheduler->createConnection("sfConnection", SurfaceFlinger::sfVsyncPhaseOffsetNs,
-                                             [this] { resyncWithRateLimit(); },
-                                             [this](nsecs_t timestamp) {
+                                             resyncCallback, [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
 
@@ -644,7 +645,6 @@ void SurfaceFlinger::init() {
                                                  SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
         mEventThread =
                 std::make_unique<impl::EventThread>(mEventThreadSource.get(),
-                                                    [this] { resyncWithRateLimit(); },
                                                     impl::EventThread::InterceptVSyncsCallback(),
                                                     "appEventThread");
         mSfEventThreadSource =
@@ -653,12 +653,11 @@ void SurfaceFlinger::init() {
 
         mSFEventThread =
                 std::make_unique<impl::EventThread>(mSfEventThreadSource.get(),
-                                                    [this] { resyncWithRateLimit(); },
                                                     [this](nsecs_t timestamp) {
                                                         mInterceptor->saveVSyncEvent(timestamp);
                                                     },
                                                     "sfEventThread");
-        mEventQueue->setEventThread(mSFEventThread.get());
+        mEventQueue->setEventThread(mSFEventThread.get(), std::move(resyncCallback));
         mVsyncModulator.setEventThreads(mSFEventThread.get(), mEventThread.get());
     }
 
@@ -1169,6 +1168,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             return;
         }
 
+        auto resyncCallback = makeResyncCallback();
+
         // TODO(akrulec): Part of the Injector should be refactored, so that it
         // can be passed to Scheduler.
         if (enable) {
@@ -1176,14 +1177,14 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             if (mVSyncInjector.get() == nullptr) {
                 mVSyncInjector = std::make_unique<InjectVSyncSource>();
                 mInjectorEventThread = std::make_unique<
-                        impl::EventThread>(mVSyncInjector.get(), [this] { resyncWithRateLimit(); },
+                        impl::EventThread>(mVSyncInjector.get(),
                                            impl::EventThread::InterceptVSyncsCallback(),
                                            "injEventThread");
             }
-            mEventQueue->setEventThread(mInjectorEventThread.get());
+            mEventQueue->setEventThread(mInjectorEventThread.get(), std::move(resyncCallback));
         } else {
             ALOGV("VSync Injections disabled");
-            mEventQueue->setEventThread(mSFEventThread.get());
+            mEventQueue->setEventThread(mSFEventThread.get(), std::move(resyncCallback));
         }
 
         mInjectVSyncs = enable;
@@ -1240,17 +1241,19 @@ status_t SurfaceFlinger::getCompositionPreference(
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
         ISurfaceComposer::VsyncSource vsyncSource) {
+    auto resyncCallback = makeResyncCallback();
+
     if (mUseScheduler) {
         if (vsyncSource == eVsyncSourceSurfaceFlinger) {
-            return mScheduler->createDisplayEventConnection(mSfConnectionHandle);
+            return mScheduler->createDisplayEventConnection(mSfConnectionHandle, resyncCallback);
         } else {
-            return mScheduler->createDisplayEventConnection(mAppConnectionHandle);
+            return mScheduler->createDisplayEventConnection(mAppConnectionHandle, resyncCallback);
         }
     } else {
         if (vsyncSource == eVsyncSourceSurfaceFlinger) {
-            return mSFEventThread->createEventConnection();
+            return mSFEventThread->createEventConnection(resyncCallback);
         } else {
-            return mEventThread->createEventConnection();
+            return mEventThread->createEventConnection(resyncCallback);
         }
     }
 }
@@ -1352,16 +1355,15 @@ void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
     }
 }
 
-void SurfaceFlinger::resyncWithRateLimit() {
+void SurfaceFlinger::VsyncState::resync() {
     static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
 
     // No explicit locking is needed here since EventThread holds a lock while calling this method
-    static nsecs_t sLastResyncAttempted = 0;
     const nsecs_t now = systemTime();
-    if (now - sLastResyncAttempted > kIgnoreDelay) {
-        resyncToHardwareVsync(false);
+    if (now - lastResyncTime > kIgnoreDelay) {
+        flinger.resyncToHardwareVsync(false);
     }
-    sLastResyncAttempted = now;
+    lastResyncTime = now;
 }
 
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
