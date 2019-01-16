@@ -949,16 +949,22 @@ void Dumpstate::UpdateProgress(int32_t delta_sec) {
         fsync(control_socket_fd_);
     }
 
+    int percent = 100 * progress / max;
     if (listener_ != nullptr) {
-        if (progress % 100 == 0) {
-            // We don't want to spam logcat, so only log multiples of 100.
-            MYLOGD("Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress, max);
+        if (percent % 5 == 0) {
+            // We don't want to spam logcat, so only log multiples of 5.
+            MYLOGD("Setting progress (%s): %d/%d (%d%%)\n", listener_name_.c_str(), progress, max,
+                   percent);
         } else {
             // stderr is ignored on normal invocations, but useful when calling
             // /system/bin/dumpstate directly for debuggging.
-            fprintf(stderr, "Setting progress (%s): %d/%d\n", listener_name_.c_str(), progress, max);
+            fprintf(stderr, "Setting progress (%s): %d/%d (%d%%)\n", listener_name_.c_str(),
+                    progress, max, percent);
         }
+        // TODO(b/111441001): Remove in favor of onProgress
         listener_->onProgressUpdated(progress);
+
+        listener_->onProgress(percent);
     }
 }
 
