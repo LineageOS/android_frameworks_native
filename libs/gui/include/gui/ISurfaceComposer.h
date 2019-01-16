@@ -309,6 +309,12 @@ public:
     virtual status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
                                                uint64_t timestamp,
                                                DisplayedFrameStats* outStats) const = 0;
+
+    /*
+     * Gets whether SurfaceFlinger can support protected content in GPU composition.
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t getProtectedContentSupport(bool* outSupported) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -350,6 +356,7 @@ public:
         GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES,
         SET_DISPLAY_CONTENT_SAMPLING_ENABLED,
         GET_DISPLAYED_CONTENT_SAMPLE,
+        GET_PROTECTED_CONTENT_SUPPORT,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

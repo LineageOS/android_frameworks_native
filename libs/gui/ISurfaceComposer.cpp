@@ -681,6 +681,18 @@ public:
         result = reply.readUint64Vector(&outStats->component_3_sample);
         return result;
     }
+
+    virtual status_t getProtectedContentSupport(bool* outSupported) const {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        remote()->transact(BnSurfaceComposer::GET_PROTECTED_CONTENT_SUPPORT, data, &reply);
+        bool result;
+        status_t err = reply.readBool(&result);
+        if (err == NO_ERROR) {
+            *outSupported = result;
+        }
+        return err;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1017,7 +1029,7 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeInt32(static_cast<int32_t>(wideColorGamutDataspace));
                 reply->writeInt32(static_cast<int32_t>(wideColorGamutPixelFormat));
             }
-            return NO_ERROR;
+            return error;
         }
         case GET_COLOR_MANAGEMENT: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1026,7 +1038,7 @@ status_t BnSurfaceComposer::onTransact(
             if (error == NO_ERROR) {
                 reply->writeBool(result);
             }
-            return result;
+            return error;
         }
         case GET_DISPLAYED_CONTENT_SAMPLING_ATTRIBUTES: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
@@ -1109,6 +1121,15 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeUint64Vector(stats.component_3_sample);
             }
             return result;
+        }
+        case GET_PROTECTED_CONTENT_SUPPORT: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            bool result;
+            status_t error = getProtectedContentSupport(&result);
+            if (error == NO_ERROR) {
+                reply->writeBool(result);
+            }
+            return error;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

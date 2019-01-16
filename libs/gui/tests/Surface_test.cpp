@@ -655,7 +655,8 @@ public:
         return NO_ERROR;
     }
 
-    virtual status_t getColorManagement(bool* /*outGetColorManagement*/) const { return NO_ERROR; }
+    status_t getColorManagement(bool* /*outGetColorManagement*/) const override { return NO_ERROR; }
+    status_t getProtectedContentSupport(bool* /*outSupported*/) const override { return NO_ERROR; }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
