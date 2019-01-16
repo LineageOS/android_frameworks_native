@@ -73,7 +73,13 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
             buildBufferInfo(bufferInfoStorage, node->id(), node->addNewActiveClientsBitToMask(),
                             node->userMetadataSize(), node->metadata().ashmemFd(),
                             node->eventFd().get());
-    BufferTraits bufferTraits = {/*bufferDesc=*/description,
+    // During the gralloc allocation carried out by BufferNode, gralloc allocator will populate the
+    // fields of its HardwareBufferDescription (i.e. strides) according to the actual
+    // gralloc implementation. We need to read those fields back and send them to the client via
+    // BufferTraits.
+    HardwareBufferDescription allocatedBufferDesc;
+    memcpy(&allocatedBufferDesc, &node->bufferDesc(), sizeof(AHardwareBuffer_Desc));
+    BufferTraits bufferTraits = {/*bufferDesc=*/allocatedBufferDesc,
                                  /*bufferHandle=*/hidl_handle(node->bufferHandle()),
                                  /*bufferInfo=*/std::move(bufferInfo)};
 
