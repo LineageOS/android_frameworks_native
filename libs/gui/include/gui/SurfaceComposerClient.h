@@ -145,6 +145,12 @@ public:
                                              ui::Dataspace* wideColorGamutDataspace,
                                              ui::PixelFormat* wideColorGamutPixelFormat);
 
+    /*
+     * Gets whether SurfaceFlinger can support protected content in GPU composition.
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    static bool getProtectedContentSupport();
+
     /**
      * Called from SurfaceControl d'tor to 'destroy' the surface (or rather, reparent it
      * to null), but without needing an sp<SurfaceControl> to avoid infinite ressurection.

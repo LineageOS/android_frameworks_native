@@ -375,12 +375,13 @@ void LayerLoader::LoadLayers() {
                 auto app_namespace = android::GraphicsEnv::getInstance().getAppNamespace();
                 if (app_namespace && !android::base::StartsWith(layer, kSystemLayerLibraryDir)) {
                     bool native_bridge = false;
-                    std::string error_message;
-                    handle = OpenNativeLibrary(app_namespace, layer.c_str(), &native_bridge,
-                                               &error_message);
+                    char* error_message = nullptr;
+                    handle = OpenNativeLibraryInNamespace(
+                        app_namespace, layer.c_str(), &native_bridge, &error_message);
                     if (!handle) {
                         ALOGE("Failed to load layer %s with error: %s", layer.c_str(),
-                              error_message.c_str());
+                              error_message);
+                        android::NativeLoaderFreeErrorMessage(error_message);
                         return;
                     }
 

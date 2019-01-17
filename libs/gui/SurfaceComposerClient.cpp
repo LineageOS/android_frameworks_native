@@ -1118,6 +1118,12 @@ status_t SurfaceComposerClient::getCompositionPreference(
                                        wideColorGamutDataspace, wideColorGamutPixelFormat);
 }
 
+bool SurfaceComposerClient::getProtectedContentSupport() {
+    bool supported = false;
+    ComposerService::getComposerService()->getProtectedContentSupport(&supported);
+    return supported;
+}
+
 status_t SurfaceComposerClient::clearAnimationFrameStats() {
     return ComposerService::getComposerService()->clearAnimationFrameStats();
 }

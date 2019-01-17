@@ -235,9 +235,14 @@ public:
 
     auto setDisplayStateLocked(const DisplayState& s) { return mFlinger->setDisplayStateLocked(s); }
 
-    auto onInitializeDisplays() { return mFlinger->onInitializeDisplays(); }
+    // Allow reading display state without locking, as if called on the SF main thread.
+    auto onInitializeDisplays() NO_THREAD_SAFETY_ANALYSIS {
+        return mFlinger->onInitializeDisplays();
+    }
 
-    auto setPowerModeInternal(const sp<DisplayDevice>& display, int mode) {
+    // Allow reading display state without locking, as if called on the SF main thread.
+    auto setPowerModeInternal(const sp<DisplayDevice>& display,
+                              int mode) NO_THREAD_SAFETY_ANALYSIS {
         return mFlinger->setPowerModeInternal(display, mode);
     }
 

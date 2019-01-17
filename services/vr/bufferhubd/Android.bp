@@ -28,7 +28,6 @@ sharedLibraries = [
 cc_library_static {
     name: "libbufferhubd",
     srcs: [
-        "buffer_channel.cpp",
         "buffer_hub.cpp",
         "consumer_channel.cpp",
         "consumer_queue_channel.cpp",
