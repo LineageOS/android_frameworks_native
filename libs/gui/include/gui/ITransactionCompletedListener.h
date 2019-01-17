@@ -52,12 +52,12 @@ public:
     status_t readFromParcel(const Parcel* input) override;
 
     SurfaceStats() = default;
-    SurfaceStats(const sp<IBinder>& sc, nsecs_t time, bool releasePrevBuffer)
-          : surfaceControl(sc), acquireTime(time), releasePreviousBuffer(releasePrevBuffer) {}
+    SurfaceStats(const sp<IBinder>& sc, nsecs_t time, const sp<Fence>& prevReleaseFence)
+          : surfaceControl(sc), acquireTime(time), previousReleaseFence(prevReleaseFence) {}
 
     sp<IBinder> surfaceControl;
     nsecs_t acquireTime = -1;
-    bool releasePreviousBuffer = false;
+    sp<Fence> previousReleaseFence;
 };
 
 class TransactionStats : public Parcelable {

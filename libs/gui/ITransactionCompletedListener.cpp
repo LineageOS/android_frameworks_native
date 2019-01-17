@@ -39,7 +39,16 @@ status_t SurfaceStats::writeToParcel(Parcel* output) const {
     if (err != NO_ERROR) {
         return err;
     }
-    return output->writeBool(releasePreviousBuffer);
+    if (previousReleaseFence) {
+        err = output->writeBool(true);
+        if (err != NO_ERROR) {
+            return err;
+        }
+        err = output->write(*previousReleaseFence);
+    } else {
+        err = output->writeBool(false);
+    }
+    return err;
 }
 
 status_t SurfaceStats::readFromParcel(const Parcel* input) {
@@ -51,7 +60,19 @@ status_t SurfaceStats::readFromParcel(const Parcel* input) {
     if (err != NO_ERROR) {
         return err;
     }
-    return input->readBool(&releasePreviousBuffer);
+    bool hasFence = false;
+    err = input->readBool(&hasFence);
+    if (err != NO_ERROR) {
+        return err;
+    }
+    if (hasFence) {
+        previousReleaseFence = new Fence();
+        err = input->read(*previousReleaseFence);
+        if (err != NO_ERROR) {
+            return err;
+        }
+    }
+    return NO_ERROR;
 }
 
 status_t TransactionStats::writeToParcel(Parcel* output) const {
