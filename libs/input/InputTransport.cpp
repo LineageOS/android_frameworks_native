@@ -157,6 +157,8 @@ void InputMessage::getSanitizedCopy(InputMessage* msg) const {
             msg->body.motion.metaState = body.motion.metaState;
             // int32_t buttonState
             msg->body.motion.buttonState = body.motion.buttonState;
+            // MotionClassification classification
+            msg->body.motion.classification = body.motion.classification;
             // int32_t edgeFlags
             msg->body.motion.edgeFlags = body.motion.edgeFlags;
             // nsecs_t downTime
@@ -448,6 +450,7 @@ status_t InputPublisher::publishMotionEvent(
         int32_t edgeFlags,
         int32_t metaState,
         int32_t buttonState,
+        MotionClassification classification,
         float xOffset,
         float yOffset,
         float xPrecision,
@@ -461,13 +464,13 @@ status_t InputPublisher::publishMotionEvent(
     ALOGD("channel '%s' publisher ~ publishMotionEvent: seq=%u, deviceId=%d, source=0x%x, "
             "displayId=%" PRId32 ", "
             "action=0x%x, actionButton=0x%08x, flags=0x%x, edgeFlags=0x%x, "
-            "metaState=0x%x, buttonState=0x%x, xOffset=%f, yOffset=%f, "
+            "metaState=0x%x, buttonState=0x%x, classification=%s, xOffset=%f, yOffset=%f, "
             "xPrecision=%f, yPrecision=%f, downTime=%" PRId64 ", eventTime=%" PRId64 ", "
             "pointerCount=%" PRIu32,
             mChannel->getName().c_str(), seq,
             deviceId, source, displayId, action, actionButton, flags, edgeFlags, metaState,
-            buttonState, xOffset, yOffset, xPrecision, yPrecision, downTime, eventTime,
-            pointerCount);
+            buttonState, motionClassificationToString(classification),
+            xOffset, yOffset, xPrecision, yPrecision, downTime, eventTime, pointerCount);
 #endif
 
     if (!seq) {
@@ -493,6 +496,7 @@ status_t InputPublisher::publishMotionEvent(
     msg.body.motion.edgeFlags = edgeFlags;
     msg.body.motion.metaState = metaState;
     msg.body.motion.buttonState = buttonState;
+    msg.body.motion.classification = classification;
     msg.body.motion.xOffset = xOffset;
     msg.body.motion.yOffset = yOffset;
     msg.body.motion.xPrecision = xPrecision;
@@ -1112,7 +1116,7 @@ void InputConsumer::initializeMotionEvent(MotionEvent* event, const InputMessage
             msg->body.motion.edgeFlags,
             msg->body.motion.metaState,
             msg->body.motion.buttonState,
-            MotionClassification::NONE,
+            msg->body.motion.classification,
             msg->body.motion.xOffset,
             msg->body.motion.yOffset,
             msg->body.motion.xPrecision,
