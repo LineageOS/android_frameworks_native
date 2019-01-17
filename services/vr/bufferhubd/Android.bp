@@ -14,7 +14,6 @@
 
 sharedLibraries = [
     "libbase",
-    "libbufferhubservice",
     "libcutils",
     "libgtest_prod",
     "libgui",
