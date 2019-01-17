@@ -40,13 +40,14 @@
 #define BQ_LOGW(x, ...) ALOGW("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
 #define BQ_LOGE(x, ...) ALOGE("[%s] " x, mConsumerName.string(), ##__VA_ARGS__)
 
-#define ATRACE_BUFFER_INDEX(index)                                   \
-    if (ATRACE_ENABLED()) {                                          \
-        char ___traceBuf[1024];                                      \
-        snprintf(___traceBuf, 1024, "%s: %d",                        \
-                mCore->mConsumerName.string(), (index));             \
-        android::ScopedTrace ___bufTracer(ATRACE_TAG, ___traceBuf);  \
-    }
+#define ATRACE_BUFFER_INDEX(index)                                                         \
+    do {                                                                                   \
+        if (ATRACE_ENABLED()) {                                                            \
+            char ___traceBuf[1024];                                                        \
+            snprintf(___traceBuf, 1024, "%s: %d", mCore->mConsumerName.string(), (index)); \
+            android::ScopedTrace ___bufTracer(ATRACE_TAG, ___traceBuf);                    \
+        }                                                                                  \
+    } while (false)
 
 namespace android {
 
