@@ -3337,9 +3337,11 @@ status_t SurfaceFlinger::addClientLayer(const sp<Client>& client,
         }
         if (parent == nullptr && addToCurrentState) {
             mCurrentState.layersSortedByZ.add(lbc);
-        } else if (parent == nullptr || parent->isRemovedFromCurrentState()) {
-                ALOGE("addClientLayer called with a removed parent");
-                lbc->onRemovedFromCurrentState();
+        } else if (parent == nullptr) {
+            lbc->onRemovedFromCurrentState();
+        } else if (parent->isRemovedFromCurrentState()) {
+            parent->addChild(lbc);
+            lbc->onRemovedFromCurrentState();
         } else {
             parent->addChild(lbc);
         }
