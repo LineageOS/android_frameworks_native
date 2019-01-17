@@ -316,6 +316,11 @@ public:
      * Requires the ACCESS_SURFACE_FLINGER permission.
      */
     virtual status_t getProtectedContentSupport(bool* outSupported) const = 0;
+
+    virtual status_t cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
+                                 int32_t* outBufferId) = 0;
+
+    virtual status_t uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -358,6 +363,8 @@ public:
         SET_DISPLAY_CONTENT_SAMPLING_ENABLED,
         GET_DISPLAYED_CONTENT_SAMPLE,
         GET_PROTECTED_CONTENT_SUPPORT,
+        CACHE_BUFFER,
+        UNCACHE_BUFFER,
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

@@ -152,6 +152,12 @@ public:
     static void doDropReferenceTransaction(const sp<IBinder>& handle,
             const sp<ISurfaceComposerClient>& client);
 
+    // Caches a buffer with the ISurfaceComposer so the buffer does not need to be resent across
+    // processes
+    static status_t cacheBuffer(const sp<GraphicBuffer>& buffer, int32_t* outBufferId);
+    // Uncaches a buffer set by cacheBuffer
+    static status_t uncacheBuffer(int32_t bufferId);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
@@ -329,6 +335,7 @@ public:
         Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
+        Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);

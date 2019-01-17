@@ -48,6 +48,7 @@
 #include <utils/threads.h>
 
 #include "Barrier.h"
+#include "BufferStateLayerCache.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
@@ -459,6 +460,9 @@ private:
                                        uint64_t timestamp,
                                        DisplayedFrameStats* outStats) const override;
     status_t getProtectedContentSupport(bool* outSupported) const override;
+    status_t cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
+                         int32_t* outBufferId) override;
+    status_t uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
@@ -1034,6 +1038,8 @@ private:
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowCommands mInputWindowCommands;
+
+    BufferStateLayerCache mBufferStateLayerCache;
 };
 }; // namespace android
 

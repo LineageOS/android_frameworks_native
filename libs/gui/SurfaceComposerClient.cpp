@@ -660,6 +660,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCachedBuffer(
+        const sp<SurfaceControl>& sc, int32_t bufferId) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eCachedBufferChanged;
+    s->cachedBuffer.token = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    s->cachedBuffer.bufferId = bufferId;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAcquireFence(
         const sp<SurfaceControl>& sc, const sp<Fence>& fence) {
     layer_state_t* s = getLayerState(sc);
@@ -1053,6 +1068,26 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
         return mStatus;
     }
     return mClient->getLayerFrameStats(token, outStats);
+}
+
+// ----------------------------------------------------------------------------
+
+status_t SurfaceComposerClient::cacheBuffer(const sp<GraphicBuffer>& buffer, int32_t* outBufferId) {
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    if (buffer == nullptr || outBufferId == nullptr) {
+        return BAD_VALUE;
+    }
+    return sf->cacheBuffer(IInterface::asBinder(TransactionCompletedListener::getIInstance()),
+                           buffer, outBufferId);
+}
+
+status_t SurfaceComposerClient::uncacheBuffer(int32_t bufferId) {
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    if (bufferId < 0) {
+        return BAD_VALUE;
+    }
+    return sf->uncacheBuffer(IInterface::asBinder(TransactionCompletedListener::getIInstance()),
+                             bufferId);
 }
 
 // ----------------------------------------------------------------------------

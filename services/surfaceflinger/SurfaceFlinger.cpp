@@ -1160,6 +1160,20 @@ status_t SurfaceFlinger::getProtectedContentSupport(bool* outSupported) const {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
+                                     int32_t* outBufferId) {
+    if (!outBufferId) {
+        return BAD_VALUE;
+    }
+    *outBufferId = mBufferStateLayerCache.add(token, buffer);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) {
+    mBufferStateLayerCache.release(token, bufferId);
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
@@ -3932,6 +3946,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
+    if (what & layer_state_t::eCachedBufferChanged) {
+        sp<GraphicBuffer> buffer =
+                mBufferStateLayerCache.get(s.cachedBuffer.token, s.cachedBuffer.bufferId);
+        if (layer->setBuffer(buffer)) flags |= eTraversalNeeded;
+    }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
@@ -5025,7 +5044,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CREATE_CONNECTION:
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
-        case GET_PROTECTED_CONTENT_SUPPORT: {
+        case GET_PROTECTED_CONTENT_SUPPORT:
+        case CACHE_BUFFER:
+        case UNCACHE_BUFFER: {
             return OK;
         }
         case CAPTURE_LAYERS:

@@ -2323,6 +2323,143 @@ TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
     Transaction().setSidebandStream(layer, nullptr).apply();
 }
 
+TEST_F(LayerTransactionTest, CacheBuffer_BufferState) {
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+}
+
+TEST_F(LayerTransactionTest, CacheBuffers_BufferState) {
+    std::vector<int32_t> bufferIds;
+    int32_t bufferCount = 20;
+
+    for (int i = 0; i < bufferCount; i++) {
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                          BufferUsage::COMPOSER_OVERLAY,
+                                  "test");
+        int32_t bufferId = -1;
+        ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+        if (bufferId < 0) {
+            EXPECT_GE(bufferId, 0);
+            break;
+        }
+        bufferIds.push_back(bufferId);
+    }
+
+    for (int32_t bufferId : bufferIds) {
+        ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+    }
+}
+
+TEST_F(LayerTransactionTest, CacheBufferInvalid_BufferState) {
+    sp<GraphicBuffer> buffer = nullptr;
+
+    int32_t bufferId = -1;
+    ASSERT_NE(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_LT(bufferId, 0);
+}
+
+TEST_F(LayerTransactionTest, UncacheBufferTwice_BufferState) {
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+    mClient->uncacheBuffer(bufferId);
+}
+
+TEST_F(LayerTransactionTest, UncacheBufferInvalidId_BufferState) {
+    mClient->uncacheBuffer(-1);
+    mClient->uncacheBuffer(0);
+    mClient->uncacheBuffer(1);
+    mClient->uncacheBuffer(5);
+    mClient->uncacheBuffer(1000);
+}
+
+TEST_F(LayerTransactionTest, SetCachedBuffer_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    Transaction().setCachedBuffer(layer, bufferId).apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+}
+
+TEST_F(LayerTransactionTest, SetCachedBufferDelayed_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> cachedBuffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(cachedBuffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::BLUE);
+    Transaction().setBuffer(layer, buffer).apply();
+    {
+        SCOPED_TRACE("Uncached buffer");
+
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    fillGraphicBufferColor(cachedBuffer, Rect(0, 0, 32, 32), Color::RED);
+    Transaction().setCachedBuffer(layer, bufferId).apply();
+    {
+        SCOPED_TRACE("Cached buffer");
+
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+}
+
 class ColorTransformHelper {
 public:
     static void DegammaColorSingle(half& s) {

@@ -660,6 +660,12 @@ public:
     status_t getColorManagement(bool* /*outGetColorManagement*/) const override { return NO_ERROR; }
     status_t getProtectedContentSupport(bool* /*outSupported*/) const override { return NO_ERROR; }
 
+    status_t cacheBuffer(const sp<IBinder>& /*token*/, const sp<GraphicBuffer>& /*buffer*/,
+                         int32_t* /*outBufferId*/) {
+        return NO_ERROR;
+    }
+    status_t uncacheBuffer(const sp<IBinder>& /*token*/, int32_t /*bufferId*/) { return NO_ERROR; }
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 
