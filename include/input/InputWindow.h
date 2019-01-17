@@ -163,6 +163,7 @@ struct InputWindowInfo {
     int32_t ownerUid;
     int32_t inputFeatures;
     int32_t displayId;
+    int32_t portalToDisplayId = ADISPLAY_ID_NONE;
     InputApplicationInfo applicationInfo;
 
     void addTouchableRegion(const Rect& region);
