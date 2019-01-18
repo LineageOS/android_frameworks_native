@@ -139,13 +139,13 @@ public:
 
     mat() { }
     mat(const mat& rhs)  : base(rhs) { }
-    mat(const base& rhs) : base(rhs) { }  // NOLINT(implicit)
+    mat(const base& rhs) : base(rhs) { }  // NOLINT(google-explicit-constructor)
 
     // -----------------------------------------------------------------------
     // conversion constructors
 
     // sets the diagonal to the value, off-diagonal to zero
-    mat(pTYPE rhs) {  // NOLINT(implicit)
+    mat(pTYPE rhs) {  // NOLINT(google-explicit-constructor)
         helpers::doAssign(*this, rhs);
     }
 
