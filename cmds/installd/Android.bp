@@ -136,7 +136,10 @@ cc_binary {
     ],
     clang: true,
 
-    srcs: ["otapreopt_chroot.cpp"],
+    srcs: [
+        "otapreopt_chroot.cpp",
+        "otapreopt_utils.cpp",
+    ],
     shared_libs: [
         "libbase",
         "liblog",
@@ -197,6 +200,7 @@ cc_binary {
         "dexopt.cpp",
         "globals.cpp",
         "otapreopt.cpp",
+        "otapreopt_utils.cpp",
         "utils.cpp",
     ],
 

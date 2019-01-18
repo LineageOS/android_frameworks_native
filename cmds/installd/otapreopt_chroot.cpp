@@ -195,23 +195,43 @@ static int otapreopt_chroot(const int argc, char **arg) {
     // Note that this leaves around the loop devices created and used by
     // libapexd's code, but this is fine, as we expect to reboot soon after.
     apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
+    // Collect activated packages.
+    std::vector<apex::ApexFile> active_packages = apex::getActivePackages();
 
     // Now go on and run otapreopt.
 
-    // Incoming:  cmd + status-fd + target-slot + cmd... + null      | Incoming | = argc + 1
-    // Outgoing:  cmd             + target-slot + cmd... + null      | Outgoing | = argc
-    const char** argv = new const char*[argc];
-
-    argv[0] = "/system/bin/otapreopt";
+    // Incoming:  cmd + status-fd + target-slot + cmd...      | Incoming | = argc
+    // Outgoing:  cmd             + target-slot + cmd...      | Outgoing | = argc - 1
+    std::vector<std::string> cmd;
+    cmd.reserve(argc);
+    cmd.push_back("/system/bin/otapreopt");
 
     // The first parameter is the status file descriptor, skip.
-    for (size_t i = 2; i <= static_cast<size_t>(argc); ++i) {
-        argv[i - 1] = arg[i];
+    for (size_t i = 2; i < static_cast<size_t>(argc); ++i) {
+        cmd.push_back(arg[i]);
     }
 
-    execv(argv[0], static_cast<char * const *>(const_cast<char**>(argv)));
-    PLOG(ERROR) << "execv(OTAPREOPT) failed.";
-    exit(99);
+    // Fork and execute otapreopt in its own process.
+    std::string error_msg;
+    bool exec_result = Exec(cmd, &error_msg);
+    if (!exec_result) {
+        LOG(ERROR) << "Running otapreopt failed: " << error_msg;
+    }
+
+    // Tear down the work down by the apexd logic above (i.e. deactivate packages).
+    for (const apex::ApexFile& apex_file : active_packages) {
+        const std::string& package_path = apex_file.GetPath();
+        apex::Status status = apex::deactivatePackage(package_path);
+        if (!status.Ok()) {
+            LOG(ERROR) << "Failed to deactivate " << package_path << ": " << status.ErrorMessage();
+        }
+    }
+
+    if (!exec_result) {
+        exit(213);
+    }
+
+    return 0;
 }
 
 }  // namespace installd
