@@ -158,6 +158,12 @@ public:
     static void doDropReferenceTransaction(const sp<IBinder>& handle,
             const sp<ISurfaceComposerClient>& client);
 
+    // Caches a buffer with the ISurfaceComposer so the buffer does not need to be resent across
+    // processes
+    static status_t cacheBuffer(const sp<GraphicBuffer>& buffer, int32_t* outBufferId);
+    // Uncaches a buffer set by cacheBuffer
+    static status_t uncacheBuffer(int32_t bufferId);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
@@ -243,6 +249,18 @@ public:
         bool                        mAnimation = false;
         bool                        mEarlyWakeup = false;
 
+        // mDesiredPresentTime is the time in nanoseconds that the client would like the transaction
+        // to be presented. When it is not possible to present at exactly that time, it will be
+        // presented after the time has passed.
+        //
+        // Desired present times that are more than 1 second in the future may be ignored.
+        // When a desired present time has already passed, the transaction will be presented as soon
+        // as possible.
+        //
+        // Transactions from the same process are presented in the same order that they are applied.
+        // The desired present time does not affect this ordering.
+        int64_t mDesiredPresentTime = -1;
+
         InputWindowCommands mInputWindowCommands;
         int mStatus = NO_ERROR;
 
@@ -323,6 +341,7 @@ public:
         Transaction& setCrop(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setFrame(const sp<SurfaceControl>& sc, const Rect& frame);
         Transaction& setBuffer(const sp<SurfaceControl>& sc, const sp<GraphicBuffer>& buffer);
+        Transaction& setCachedBuffer(const sp<SurfaceControl>& sc, int32_t bufferId);
         Transaction& setAcquireFence(const sp<SurfaceControl>& sc, const sp<Fence>& fence);
         Transaction& setDataspace(const sp<SurfaceControl>& sc, ui::Dataspace dataspace);
         Transaction& setHdrMetadata(const sp<SurfaceControl>& sc, const HdrMetadata& hdrMetadata);
@@ -331,6 +350,7 @@ public:
         Transaction& setApi(const sp<SurfaceControl>& sc, int32_t api);
         Transaction& setSidebandStream(const sp<SurfaceControl>& sc,
                                        const sp<NativeHandle>& sidebandStream);
+        Transaction& setDesiredPresentTime(nsecs_t desiredPresentTime);
 
         Transaction& addTransactionCompletedCallback(
                 TransactionCompletedCallbackTakesContext callback, void* callbackContext);

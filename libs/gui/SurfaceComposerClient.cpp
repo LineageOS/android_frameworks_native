@@ -159,11 +159,12 @@ void TransactionCompletedListener::onTransactionCompleted(ListenerStats listener
 
 // ---------------------------------------------------------------------------
 
-SurfaceComposerClient::Transaction::Transaction(const Transaction& other) :
-    mForceSynchronous(other.mForceSynchronous),
-    mTransactionNestCount(other.mTransactionNestCount),
-    mAnimation(other.mAnimation),
-    mEarlyWakeup(other.mEarlyWakeup) {
+SurfaceComposerClient::Transaction::Transaction(const Transaction& other)
+      : mForceSynchronous(other.mForceSynchronous),
+        mTransactionNestCount(other.mTransactionNestCount),
+        mAnimation(other.mAnimation),
+        mEarlyWakeup(other.mEarlyWakeup),
+        mDesiredPresentTime(other.mDesiredPresentTime) {
     mDisplayStates = other.mDisplayStates;
     mComposerStates = other.mComposerStates;
     mInputWindowCommands = other.mInputWindowCommands;
@@ -218,7 +219,7 @@ void SurfaceComposerClient::doDropReferenceTransaction(const sp<IBinder>& handle
     s.state.parentHandleForChild = nullptr;
 
     composerStates.add(s);
-    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {});
+    sf->setTransactionState(composerStates, displayStates, 0, nullptr, {}, -1);
 }
 
 status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
@@ -284,7 +285,8 @@ status_t SurfaceComposerClient::Transaction::apply(bool synchronous) {
     mEarlyWakeup = false;
 
     sp<IBinder> applyToken = IInterface::asBinder(TransactionCompletedListener::getIInstance());
-    sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands);
+    sf->setTransactionState(composerStates, displayStates, flags, applyToken, mInputWindowCommands,
+                            mDesiredPresentTime);
     mInputWindowCommands.clear();
     mStatus = NO_ERROR;
     return NO_ERROR;
@@ -658,6 +660,21 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBuffe
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setCachedBuffer(
+        const sp<SurfaceControl>& sc, int32_t bufferId) {
+    layer_state_t* s = getLayerState(sc);
+    if (!s) {
+        mStatus = BAD_INDEX;
+        return *this;
+    }
+    s->what |= layer_state_t::eCachedBufferChanged;
+    s->cachedBuffer.token = IInterface::asBinder(TransactionCompletedListener::getIInstance());
+    s->cachedBuffer.bufferId = bufferId;
+
+    registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setAcquireFence(
         const sp<SurfaceControl>& sc, const sp<Fence>& fence) {
     layer_state_t* s = getLayerState(sc);
@@ -739,6 +756,12 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setSideb
     s->sidebandStream = sidebandStream;
 
     registerSurfaceControlForCallback(sc);
+    return *this;
+}
+
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setDesiredPresentTime(
+        nsecs_t desiredPresentTime) {
+    mDesiredPresentTime = desiredPresentTime;
     return *this;
 }
 
@@ -1045,6 +1068,26 @@ status_t SurfaceComposerClient::getLayerFrameStats(const sp<IBinder>& token,
         return mStatus;
     }
     return mClient->getLayerFrameStats(token, outStats);
+}
+
+// ----------------------------------------------------------------------------
+
+status_t SurfaceComposerClient::cacheBuffer(const sp<GraphicBuffer>& buffer, int32_t* outBufferId) {
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    if (buffer == nullptr || outBufferId == nullptr) {
+        return BAD_VALUE;
+    }
+    return sf->cacheBuffer(IInterface::asBinder(TransactionCompletedListener::getIInstance()),
+                           buffer, outBufferId);
+}
+
+status_t SurfaceComposerClient::uncacheBuffer(int32_t bufferId) {
+    sp<ISurfaceComposer> sf(ComposerService::getComposerService());
+    if (bufferId < 0) {
+        return BAD_VALUE;
+    }
+    return sf->uncacheBuffer(IInterface::asBinder(TransactionCompletedListener::getIInstance()),
+                             bufferId);
 }
 
 // ----------------------------------------------------------------------------

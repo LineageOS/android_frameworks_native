@@ -114,6 +114,7 @@ filegroup {
         "BufferLayerConsumer.cpp",
         "BufferQueueLayer.cpp",
         "BufferStateLayer.cpp",
+        "BufferStateLayerCache.cpp",
         "Client.cpp",
         "ColorLayer.cpp",
         "ContainerLayer.cpp",

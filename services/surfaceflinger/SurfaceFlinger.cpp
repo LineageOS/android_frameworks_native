@@ -1163,6 +1163,20 @@ status_t SurfaceFlinger::getProtectedContentSupport(bool* outSupported) const {
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
+                                     int32_t* outBufferId) {
+    if (!outBufferId) {
+        return BAD_VALUE;
+    }
+    *outBufferId = mBufferStateLayerCache.add(token, buffer);
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) {
+    mBufferStateLayerCache.release(token, bufferId);
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
@@ -3510,8 +3524,8 @@ bool SurfaceFlinger::flushTransactionQueues() {
         auto& [applyToken, transactionQueue] = *it;
 
         while (!transactionQueue.empty()) {
-            const auto& [states, displays, flags] = transactionQueue.front();
-            if (composerStateContainsUnsignaledFences(states)) {
+            const auto& [states, displays, flags, desiredPresentTime] = transactionQueue.front();
+            if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
             applyTransactionState(states, displays, flags, mInputWindowCommands);
@@ -3545,23 +3559,33 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
     return false;
 }
 
-bool SurfaceFlinger::composerStateContainsUnsignaledFences(const Vector<ComposerState>& states) {
+bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+                                                   const Vector<ComposerState>& states) {
+    const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+    // Do not present if the desiredPresentTime has not passed unless it is more than one second
+    // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
+    if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&
+        desiredPresentTime < expectedPresentTime + s2ns(1)) {
+        return false;
+    }
+
     for (const ComposerState& state : states) {
         const layer_state_t& s = state.state;
         if (!(s.what & layer_state_t::eAcquireFenceChanged)) {
             continue;
         }
         if (s.acquireFence && s.acquireFence->getStatus() == Fence::Status::Unsignaled) {
-            return true;
+            return false;
         }
     }
-    return false;
+    return true;
 }
 
 void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const Vector<DisplayState>& displays, uint32_t flags,
                                          const sp<IBinder>& applyToken,
-                                         const InputWindowCommands& inputWindowCommands) {
+                                         const InputWindowCommands& inputWindowCommands,
+                                         int64_t desiredPresentTime) {
     ATRACE_CALL();
     Mutex::Autolock _l(mStateLock);
 
@@ -3571,8 +3595,8 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
 
     // If its TransactionQueue already has a pending TransactionState or if it is pending
     if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
-        composerStateContainsUnsignaledFences(states)) {
-        mTransactionQueues[applyToken].emplace(states, displays, flags);
+        !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
+        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime);
         setTransactionFlags(eTransactionNeeded);
         return;
     }
@@ -3934,6 +3958,11 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
+    if (what & layer_state_t::eCachedBufferChanged) {
+        sp<GraphicBuffer> buffer =
+                mBufferStateLayerCache.get(s.cachedBuffer.token, s.cachedBuffer.bufferId);
+        if (layer->setBuffer(buffer)) flags |= eTraversalNeeded;
+    }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
     // Do not put anything that updates layer state or modifies flags after
     // setTransactionCompletedListener
@@ -4162,7 +4191,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mInputWindowCommands);
+    setTransactionState(state, displays, 0, nullptr, mInputWindowCommands, -1);
 
     setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
 
@@ -5016,7 +5045,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case CREATE_CONNECTION:
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
-        case GET_PROTECTED_CONTENT_SUPPORT: {
+        case GET_PROTECTED_CONTENT_SUPPORT:
+        case CACHE_BUFFER:
+        case UNCACHE_BUFFER: {
             return OK;
         }
         case CAPTURE_LAYERS:

@@ -47,6 +47,7 @@
 #include <utils/threads.h>
 
 #include "Barrier.h"
+#include "BufferStateLayerCache.h"
 #include "DisplayDevice.h"
 #include "DisplayHardware/HWC2.h"
 #include "DisplayHardware/HWComposer.h"
@@ -414,7 +415,8 @@ private:
     void setTransactionState(const Vector<ComposerState>& state,
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
-                             const InputWindowCommands& inputWindowCommands) override;
+                             const InputWindowCommands& inputWindowCommands,
+                             int64_t desiredPresentTime) override;
     void bootFinished() override;
     bool authenticateSurfaceTexture(
             const sp<IGraphicBufferProducer>& bufferProducer) const override;
@@ -460,6 +462,9 @@ private:
                                        uint64_t timestamp,
                                        DisplayedFrameStats* outStats) const override;
     status_t getProtectedContentSupport(bool* outSupported) const override;
+    status_t cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
+                         int32_t* outBufferId) override;
+    status_t uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
@@ -539,7 +544,8 @@ private:
     void latchAndReleaseBuffer(const sp<Layer>& layer);
     void commitTransaction();
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
-    bool composerStateContainsUnsignaledFences(const Vector<ComposerState>& states);
+    bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
+                                       const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
     uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands);
@@ -989,12 +995,17 @@ private:
     };
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
-                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags)
-              : states(composerStates), displays(displayStates), flags(transactionFlags) {}
+                         const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
+                         int64_t desiredPresentTime)
+              : states(composerStates),
+                displays(displayStates),
+                flags(transactionFlags),
+                time(desiredPresentTime) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
+        int64_t time;
     };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IBinderHash> mTransactionQueues;
 
@@ -1034,6 +1045,8 @@ private:
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowCommands mInputWindowCommands;
+
+    BufferStateLayerCache mBufferStateLayerCache;
 };
 }; // namespace android
 

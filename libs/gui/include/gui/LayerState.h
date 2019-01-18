@@ -84,6 +84,7 @@ struct layer_state_t {
         eInputInfoChanged = 0x40000000,
         eCornerRadiusChanged = 0x80000000,
         eFrameChanged = 0x1'00000000,
+        eCachedBufferChanged = 0x2'00000000,
     };
 
     layer_state_t()
@@ -124,6 +125,10 @@ struct layer_state_t {
         float dtdx{0};
         float dtdy{0};
         float dsdy{0};
+    };
+    struct cached_buffer_t {
+        sp<IBinder> token = nullptr;
+        int32_t bufferId = -1;
     };
     sp<IBinder> surface;
     uint64_t what;
@@ -173,6 +178,8 @@ struct layer_state_t {
 #ifndef NO_INPUT
     InputWindowInfo inputInfo;
 #endif
+
+    cached_buffer_t cachedBuffer;
 };
 
 struct ComposerState {
