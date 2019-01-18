@@ -25,7 +25,7 @@ class SensorService;
 
 class SensorService::SensorRecord {
 public:
-    SensorRecord(const sp<const SensorEventConnection>& connection);
+    explicit SensorRecord(const sp<const SensorEventConnection>& connection);
     bool addConnection(const sp<const SensorEventConnection>& connection);
     bool removeConnection(const wp<const SensorEventConnection>& connection);
     size_t getNumConnections() const { return mConnections.size(); }
