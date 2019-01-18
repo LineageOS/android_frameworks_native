@@ -2135,7 +2135,7 @@ bool Layer::isRemovedFromCurrentState() const  {
     return mRemovedFromCurrentState;
 }
 
-InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
+InputWindowInfo Layer::fillInputInfo() {
     InputWindowInfo info = mDrawingState.inputInfo;
 
     ui::Transform t = getTransform();
@@ -2148,20 +2148,18 @@ InputWindowInfo Layer::fillInputInfo(const Rect& screenBounds) {
     }
 
     // Transform layer size to screen space and inset it by surface insets.
-    Rect layerBounds = getCroppedBufferSize(getDrawingState());
+    Rect layerBounds = getBufferSize(getDrawingState());
+    if (!layerBounds.isValid()) {
+        layerBounds = getCroppedBufferSize(getDrawingState());
+    }
     layerBounds = t.transform(layerBounds);
     layerBounds.inset(info.surfaceInset, info.surfaceInset, info.surfaceInset, info.surfaceInset);
 
-    // Intersect with screen bounds to shrink the frame by the surface insets. The surface insets
-    // are not set on the screen bounds directly since the surface inset region may already be
-    // cropped by a parent layer.
-    Rect frame;
-    screenBounds.intersect(layerBounds, &frame);
-
-    info.frameLeft = frame.left;
-    info.frameTop = frame.top;
-    info.frameRight = frame.right;
-    info.frameBottom = frame.bottom;
+    // Input coordinate should match the layer bounds.
+    info.frameLeft = layerBounds.left;
+    info.frameTop = layerBounds.top;
+    info.frameRight = layerBounds.right;
+    info.frameBottom = layerBounds.bottom;
 
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.

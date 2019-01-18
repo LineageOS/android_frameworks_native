@@ -2944,8 +2944,7 @@ void SurfaceFlinger::updateInputWindows() {
         if (layer->hasInput()) {
             // When calculating the screen bounds we ignore the transparent region since it may
             // result in an unwanted offset.
-            inputHandles.add(layer->fillInputInfo(
-                    layer->computeScreenBounds(false /* reduceTransparentRegion */)));
+            inputHandles.add(layer->fillInputInfo());
         }
     });
     mInputFlinger->setInputWindows(inputHandles);
