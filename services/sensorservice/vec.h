@@ -322,12 +322,12 @@ public:
 
     vec() { }
     vec(const vec& rhs)  : base(rhs) { }
-    vec(const base& rhs) : base(rhs) { }  // NOLINT(implicit)
+    vec(const base& rhs) : base(rhs) { }  // NOLINT(google-explicit-constructor)
 
     // -----------------------------------------------------------------------
     // conversion constructors
 
-    vec(pTYPE rhs) {  // NOLINT(implicit)
+    vec(pTYPE rhs) {  // NOLINT(google-explicit-constructor)
         for (size_t i=0 ; i<SIZE ; i++)
             base::operator[](i) = rhs;
     }

@@ -43,7 +43,7 @@ using ::android::sp;
 
 struct SensorManager final : public ISensorManager {
 
-    SensorManager(JavaVM* vm);
+    explicit SensorManager(JavaVM* vm);
     ~SensorManager();
 
     // Methods from ::android::frameworks::sensorservice::V1_0::ISensorManager follow.

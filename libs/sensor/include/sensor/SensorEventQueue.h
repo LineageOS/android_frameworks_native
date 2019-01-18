@@ -64,7 +64,7 @@ public:
     // Default sensor sample period
     static constexpr int32_t SENSOR_DELAY_NORMAL = 200000;
 
-    SensorEventQueue(const sp<ISensorEventConnection>& connection);
+    explicit SensorEventQueue(const sp<ISensorEventConnection>& connection);
     virtual ~SensorEventQueue();
     virtual void onFirstRef();
 

@@ -71,7 +71,7 @@ private:
     void sensorManagerDied();
     static status_t waitForSensorService(sp<ISensorServer> *server);
 
-    SensorManager(const String16& opPackageName);
+    explicit SensorManager(const String16& opPackageName);
     status_t assertStateLocked();
 
 private:
