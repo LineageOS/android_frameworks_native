@@ -774,7 +774,8 @@ enum {
     AKEYCODE_THUMBS_UP = 286,
     /** Thumbs down key. Apps can use this to let user downvote content. */
     AKEYCODE_THUMBS_DOWN = 287,
-    /** Consumed by system to switch current viewer profile. */
+    /** Used to switch current account that is consuming content.
+     * May be consumed by system to switch current viewer profile. */
     AKEYCODE_PROFILE_SWITCH = 288
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
