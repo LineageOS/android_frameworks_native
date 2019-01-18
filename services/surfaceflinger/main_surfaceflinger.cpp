@@ -21,6 +21,7 @@
 #include <android/frameworks/displayservice/1.0/IDisplayService.h>
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/graphics/allocator/2.0/IAllocator.h>
+#include <android/hardware/graphics/allocator/3.0/IAllocator.h>
 #include <binder/IPCThreadState.h>
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
@@ -41,10 +42,14 @@ static status_t startGraphicsAllocatorService() {
         return OK;
     }
 
-    using android::hardware::graphics::allocator::V2_0::IAllocator;
+    status_t result = hardware::registerPassthroughServiceImplementation<
+            android::hardware::graphics::allocator::V3_0::IAllocator>();
+    if (result == OK) {
+        return OK;
+    }
 
-    status_t result =
-        hardware::registerPassthroughServiceImplementation<IAllocator>();
+    result = hardware::registerPassthroughServiceImplementation<
+            android::hardware::graphics::allocator::V2_0::IAllocator>();
     if (result != OK) {
         ALOGE("could not start graphics allocator service");
         return result;
