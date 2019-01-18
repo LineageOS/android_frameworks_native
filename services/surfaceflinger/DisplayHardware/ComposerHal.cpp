@@ -214,7 +214,6 @@ std::vector<IComposer::Capability> Composer::getCapabilities()
             [&](const auto& tmpCapabilities) {
                 capabilities = tmpCapabilities;
             });
-
     return capabilities;
 }
 
@@ -1157,6 +1156,30 @@ Error Composer::setLayerPerFrameMetadataBlobs(
     mWriter.selectLayer(layer);
     mWriter.setLayerPerFrameMetadataBlobs(metadata);
     return Error::NONE;
+}
+
+Error Composer::getDisplayBrightnessSupport(Display display, bool* outSupport) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    Error error = kDefaultError;
+    mClient_2_3->getDisplayBrightnessSupport(display,
+                                             [&](const auto& tmpError, const auto& tmpSupport) {
+                                                 error = tmpError;
+                                                 if (error != Error::NONE) {
+                                                     return;
+                                                 }
+
+                                                 *outSupport = tmpSupport;
+                                             });
+    return error;
+}
+
+Error Composer::setDisplayBrightness(Display display, float brightness) {
+    if (!mClient_2_3) {
+        return Error::UNSUPPORTED;
+    }
+    return mClient_2_3->setDisplayBrightness(display, brightness);
 }
 
 CommandReader::~CommandReader()

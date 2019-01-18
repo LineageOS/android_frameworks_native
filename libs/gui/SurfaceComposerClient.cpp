@@ -1503,6 +1503,17 @@ status_t SurfaceComposerClient::removeRegionSamplingListener(
     return ComposerService::getComposerService()->removeRegionSamplingListener(listener);
 }
 
+bool SurfaceComposerClient::getDisplayBrightnessSupport(const sp<IBinder>& displayToken) {
+    bool support = false;
+    ComposerService::getComposerService()->getDisplayBrightnessSupport(displayToken, &support);
+    return support;
+}
+
+status_t SurfaceComposerClient::setDisplayBrightness(const sp<IBinder>& displayToken,
+                                                     float brightness) {
+    return ComposerService::getComposerService()->setDisplayBrightness(displayToken, brightness);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,

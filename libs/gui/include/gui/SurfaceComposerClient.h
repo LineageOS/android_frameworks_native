@@ -168,6 +168,32 @@ public:
     // Queries whether a given display is wide color display.
     static status_t isWideColorDisplay(const sp<IBinder>& display, bool* outIsWideColorDisplay);
 
+    /*
+     * Returns whether brightness operations are supported on a display.
+     *
+     * displayToken
+     *      The token of the display.
+     *
+     * Returns whether brightness operations are supported on a display or not.
+     */
+    static bool getDisplayBrightnessSupport(const sp<IBinder>& displayToken);
+
+    /*
+     * Sets the brightness of a display.
+     *
+     * displayToken
+     *      The token of the display whose brightness is set.
+     * brightness
+     *      A number between 0.0 (minimum brightness) and 1.0 (maximum brightness), or -1.0f to
+     *      turn the backlight off.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND    if the display handle is invalid, or
+     *      BAD_VALUE         if the brightness value is invalid, or
+     *      INVALID_OPERATION if brightness operaetions are not supported.
+     */
+    static status_t setDisplayBrightness(const sp<IBinder>& displayToken, float brightness);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 

@@ -376,6 +376,37 @@ public:
      */
     virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                               std::vector<int32_t>* outAllowedConfigs) = 0;
+    /*
+     * Gets whether brightness operations are supported on a display.
+     *
+     * displayToken
+     *      The token of the display.
+     * outSupport
+     *      An output parameter for whether brightness operations are supported.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND if the display is invalid, or
+     *      BAD_VALUE      if the output parameter is invalid.
+     */
+    virtual status_t getDisplayBrightnessSupport(const sp<IBinder>& displayToken,
+                                                 bool* outSupport) const = 0;
+
+    /*
+     * Sets the brightness of a display.
+     *
+     * displayToken
+     *      The token of the display whose brightness is set.
+     * brightness
+     *      A number between 0.0f (minimum brightness) and 1.0 (maximum brightness), or -1.0f to
+     *      turn the backlight off.
+     *
+     * Returns NO_ERROR upon success. Otherwise,
+     *      NAME_NOT_FOUND    if the display is invalid, or
+     *      BAD_VALUE         if the brightness is invalid, or
+     *      INVALID_OPERATION if brightness operations are not supported.
+     */
+    virtual status_t setDisplayBrightness(const sp<IBinder>& displayToken,
+                                          float brightness) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -425,6 +456,8 @@ public:
         REMOVE_REGION_SAMPLING_LISTENER,
         SET_ALLOWED_DISPLAY_CONFIGS,
         GET_ALLOWED_DISPLAY_CONFIGS,
+        GET_DISPLAY_BRIGHTNESS_SUPPORT,
+        SET_DISPLAY_BRIGHTNESS,
         // Always append new enum to the end.
     };
 

@@ -784,6 +784,19 @@ status_t HWComposer::getDisplayedContentSample(DisplayId displayId, uint64_t max
     return NO_ERROR;
 }
 
+status_t HWComposer::setDisplayBrightness(DisplayId displayId, float brightness) {
+    RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
+    const auto error = mDisplayData[displayId].hwcDisplay->setDisplayBrightness(brightness);
+    if (error == HWC2::Error::Unsupported) {
+        RETURN_IF_HWC_ERROR(error, displayId, INVALID_OPERATION);
+    }
+    if (error == HWC2::Error::BadParameter) {
+        RETURN_IF_HWC_ERROR(error, displayId, BAD_VALUE);
+    }
+    RETURN_IF_HWC_ERROR(error, displayId, UNKNOWN_ERROR);
+    return NO_ERROR;
+}
+
 bool HWComposer::isUsingVrComposer() const {
     return getComposer()->isUsingVrComposer();
 }

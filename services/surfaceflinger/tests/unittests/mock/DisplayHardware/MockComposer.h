@@ -121,6 +121,8 @@ public:
     MOCK_METHOD2(getDisplayCapabilities, Error(Display, std::vector<DisplayCapability>*));
     MOCK_METHOD3(setLayerPerFrameMetadataBlobs,
                  Error(Display, Layer, const std::vector<IComposerClient::PerFrameMetadataBlob>&));
+    MOCK_METHOD2(setDisplayBrightness, Error(Display, float));
+    MOCK_METHOD2(getDisplayBrightnessSupport, Error(Display, bool*));
 };
 
 } // namespace mock
