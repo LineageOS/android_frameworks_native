@@ -475,47 +475,6 @@ static bool dump_anrd_trace() {
     return false;
 }
 
-static void dump_systrace() {
-    if (!ds.IsZipping()) {
-        MYLOGD("Not dumping systrace because it's not a zipped bugreport\n");
-        return;
-    }
-    std::string systrace_path = ds.GetPath("-systrace.txt");
-    if (systrace_path.empty()) {
-        MYLOGE("Not dumping systrace because path is empty\n");
-        return;
-    }
-    const char* path = "/sys/kernel/debug/tracing/tracing_on";
-    long int is_tracing;
-    if (read_file_as_long(path, &is_tracing)) {
-        return; // error already logged
-    }
-    if (is_tracing <= 0) {
-        MYLOGD("Skipping systrace because '%s' content is '%ld'\n", path, is_tracing);
-        return;
-    }
-
-    MYLOGD("Running '/system/bin/atrace --async_dump -o %s', which can take several minutes",
-            systrace_path.c_str());
-    if (RunCommand("SYSTRACE", {"/system/bin/atrace", "--async_dump", "-o", systrace_path},
-                   CommandOptions::WithTimeout(120).Build())) {
-        MYLOGE("systrace timed out, its zip entry will be incomplete\n");
-        // TODO: RunCommand tries to kill the process, but atrace doesn't die
-        // peacefully; ideally, we should call strace to stop itself, but there is no such option
-        // yet (just a --async_stop, which stops and dump
-        // if (RunCommand("SYSTRACE", {"/system/bin/atrace", "--kill"})) {
-        //   MYLOGE("could not stop systrace ");
-        // }
-    }
-    if (!ds.AddZipEntry("systrace.txt", systrace_path)) {
-        MYLOGE("Unable to add systrace file %s to zip file\n", systrace_path.c_str());
-    } else {
-        if (remove(systrace_path.c_str())) {
-            MYLOGE("Error removing systrace file %s: %s", systrace_path.c_str(), strerror(errno));
-        }
-    }
-}
-
 static bool skip_not_stat(const char *path) {
     static const char stat[] = "/stat";
     size_t len = strlen(path);
@@ -1440,12 +1399,8 @@ static void dumpstate() {
 
 /* Dumps state for the default case. Returns true if everything went fine. */
 static bool DumpstateDefault() {
-    // Dumps systrace right away, otherwise it will be filled with unnecessary events.
-    // First try to dump anrd trace if the daemon is running. Otherwise, dump
-    // the raw trace.
-    if (!dump_anrd_trace()) {
-        dump_systrace();
-    }
+    // Try to dump anrd trace if the daemon is running.
+    dump_anrd_trace();
 
     // Invoking the following dumpsys calls before dump_traces() to try and
     // keep the system stats as close to its initial state as possible.
