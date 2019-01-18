@@ -218,7 +218,7 @@ public:
     auto setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
                                        const std::optional<DisplayId>& displayId,
                                        const DisplayDeviceState& state,
-                                       const sp<DisplaySurface>& dispSurface,
+                                       const sp<compositionengine::DisplaySurface>& dispSurface,
                                        const sp<IGraphicBufferProducer>& producer) {
         return mFlinger->setupNewDisplayDeviceInternal(displayToken, displayId, state, dispSurface,
                                                        producer);
@@ -492,7 +492,7 @@ public:
             return *this;
         }
 
-        auto& setDisplaySurface(const sp<DisplaySurface>& displaySurface) {
+        auto& setDisplaySurface(const sp<compositionengine::DisplaySurface>& displaySurface) {
             mCreationArgs.displaySurface = displaySurface;
             return *this;
         }

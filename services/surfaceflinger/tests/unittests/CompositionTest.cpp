@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "CompositionTest"
 
+#include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <gui/IProducerListener.h>
@@ -33,7 +34,6 @@
 
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
-#include "mock/DisplayHardware/MockDisplaySurface.h"
 #include "mock/MockDispSync.h"
 #include "mock/MockEventControlThread.h"
 #include "mock/MockEventThread.h"
@@ -144,7 +144,8 @@ public:
     TestableSurfaceFlinger mFlinger;
     sp<DisplayDevice> mDisplay;
     sp<DisplayDevice> mExternalDisplay;
-    sp<mock::DisplaySurface> mDisplaySurface = new mock::DisplaySurface();
+    sp<compositionengine::mock::DisplaySurface> mDisplaySurface =
+            new compositionengine::mock::DisplaySurface();
     mock::NativeWindow* mNativeWindow = new mock::NativeWindow();
 
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
@@ -326,11 +327,14 @@ struct BaseDisplayVariant {
     }
 
     static void setupHwcCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_HWC)).Times(1);
+        EXPECT_CALL(*test->mDisplaySurface,
+                    prepareFrame(compositionengine::DisplaySurface::COMPOSITION_HWC))
+                .Times(1);
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_GLES))
+        EXPECT_CALL(*test->mDisplaySurface,
+                    prepareFrame(compositionengine::DisplaySurface::COMPOSITION_GLES))
                 .Times(1);
         EXPECT_CALL(*test->mDisplaySurface, getClientTargetAcquireFence())
                 .WillRepeatedly(ReturnRef(test->mClientTargetAcquireFence));

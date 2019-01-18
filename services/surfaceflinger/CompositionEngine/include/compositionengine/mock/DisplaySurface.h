@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,16 +16,13 @@
 
 #pragma once
 
+#include <compositionengine/DisplaySurface.h>
 #include <gmock/gmock.h>
-
 #include <utils/String8.h>
 
-#include "DisplayHardware/DisplaySurface.h"
+namespace android::compositionengine::mock {
 
-namespace android {
-namespace mock {
-
-class DisplaySurface : public android::DisplaySurface {
+class DisplaySurface : public compositionengine::DisplaySurface {
 public:
     DisplaySurface();
     ~DisplaySurface() override;
@@ -39,5 +36,4 @@ public:
     MOCK_CONST_METHOD0(getClientTargetAcquireFence, const sp<Fence>&());
 };
 
-} // namespace mock
-} // namespace android
+} // namespace android::compositionengine::mock

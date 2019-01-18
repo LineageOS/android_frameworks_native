@@ -44,7 +44,6 @@
 
 namespace android {
 
-class DisplaySurface;
 class Fence;
 class HWComposer;
 class IGraphicBufferProducer;
@@ -55,35 +54,33 @@ struct CompositionInfo;
 struct DisplayDeviceCreationArgs;
 struct DisplayInfo;
 
-class DisplayDevice : public LightRefBase<DisplayDevice>
-{
+namespace compositionengine {
+class Display;
+class DisplaySurface;
+} // namespace compositionengine
+
+class DisplayDevice : public LightRefBase<DisplayDevice> {
 public:
     constexpr static float sDefaultMinLumiance = 0.0;
     constexpr static float sDefaultMaxLumiance = 500.0;
-
-    // region in layer-stack space
-    mutable Region dirtyRegion;
-    // region in screen space
-    Region undefinedRegion;
-    bool lastCompositionHadVisibleLayers;
 
     enum {
         NO_LAYER_STACK = 0xFFFFFFFF,
     };
 
     explicit DisplayDevice(DisplayDeviceCreationArgs&& args);
-    ~DisplayDevice();
+    virtual ~DisplayDevice();
+
+    std::shared_ptr<compositionengine::Display> getCompositionDisplay() const {
+        return mCompositionDisplay;
+    }
 
     bool isVirtual() const { return mIsVirtual; }
     bool isPrimary() const { return mIsPrimary; }
 
     // isSecure indicates whether this display can be trusted to display
     // secure surfaces.
-    bool isSecure() const { return mIsSecure; }
-
-    // Flip the front and back buffers if the back buffer is "dirty".  Might
-    // be instantaneous, might involve copying the frame buffer around.
-    void flip() const;
+    bool isSecure() const;
 
     int         getWidth() const;
     int         getHeight() const;
@@ -93,44 +90,34 @@ public:
     const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
     void                    setLayersNeedingFences(const Vector< sp<Layer> >& layers);
     const Vector< sp<Layer> >& getLayersNeedingFences() const;
-    Region                  getDirtyRegion(bool repaintEverything) const;
 
     void                    setLayerStack(uint32_t stack);
     void                    setDisplaySize(const int newWidth, const int newHeight);
     void                    setProjection(int orientation, const Rect& viewport, const Rect& frame);
 
     int                     getOrientation() const { return mOrientation; }
-    uint32_t                getOrientationTransform() const;
     static uint32_t         getPrimaryDisplayOrientationTransform();
-    const ui::Transform&   getTransform() const { return mGlobalTransform; }
-    const Rect              getViewport() const { return mViewport; }
-    const Rect              getFrame() const { return mFrame; }
-    const Rect&             getScissor() const { return mScissor; }
-    bool                    needsFiltering() const { return mNeedsFiltering; }
+    const ui::Transform& getTransform() const;
+    const Rect& getViewport() const;
+    const Rect& getFrame() const;
+    const Rect& getScissor() const;
+    bool needsFiltering() const;
+    uint32_t getLayerStack() const;
 
-    uint32_t                getLayerStack() const { return mLayerStack; }
-
-    const std::optional<DisplayId>& getId() const { return mId; }
+    const std::optional<DisplayId>& getId() const;
     const wp<IBinder>& getDisplayToken() const { return mDisplayToken; }
     int32_t getSequenceId() const { return mSequenceId; }
 
-    int32_t getSupportedPerFrameMetadata() const { return mSupportedPerFrameMetadata; }
+    const Region& getUndefinedRegion() const;
 
-    // We pass in mustRecompose so we can keep VirtualDisplaySurface's state
-    // machine happy without actually queueing a buffer if nothing has changed
-    status_t beginFrame(bool mustRecompose) const;
-    status_t prepareFrame(HWComposer& hwc, std::vector<CompositionInfo>& compositionInfo);
+    int32_t getSupportedPerFrameMetadata() const;
 
-    bool hasWideColorGamut() const { return mHasWideColorGamut; }
+    bool hasWideColorGamut() const;
     // Whether h/w composer has native support for specific HDR type.
-    bool hasHDR10PlusSupport() const { return mHasHdr10Plus; }
-    bool hasHDR10Support() const { return mHasHdr10; }
-    bool hasHLGSupport() const { return mHasHLG; }
-    bool hasDolbyVisionSupport() const { return mHasDolbyVision; }
-
-    // Return true if the HDR dataspace is supported but
-    // there is no corresponding color mode.
-    bool hasLegacyHdrSupport(ui::Dataspace dataspace) const;
+    bool hasHDR10PlusSupport() const;
+    bool hasHDR10Support() const;
+    bool hasHLGSupport() const;
+    bool hasDolbyVisionSupport() const;
 
     // The returned HdrCapabilities is the combination of HDR capabilities from
     // hardware composer and RenderEngine. When the DisplayDevice supports wide
@@ -138,40 +125,16 @@ public:
     // color space for both PQ and HLG HDR contents. The minimum and maximum
     // luminance will be set to sDefaultMinLumiance and sDefaultMaxLumiance
     // respectively if hardware composer doesn't return meaningful values.
-    const HdrCapabilities& getHdrCapabilities() const { return mHdrCapabilities; }
+    const HdrCapabilities& getHdrCapabilities() const;
 
     // Return true if intent is supported by the display.
     bool hasRenderIntent(ui::RenderIntent intent) const;
 
-    void getBestColorMode(ui::Dataspace dataspace, ui::RenderIntent intent,
-                          ui::Dataspace* outDataspace, ui::ColorMode* outMode,
-                          ui::RenderIntent* outIntent) const;
-
-    void setProtected(bool useProtected);
-    // Queues the drawn buffer for consumption by HWC.
-    void queueBuffer(HWComposer& hwc);
-    // Allocates a buffer as scratch space for GPU composition
-    sp<GraphicBuffer> dequeueBuffer();
-
-    // called after h/w composer has completed its set() call
-    void onPresentDisplayCompleted();
-
-    Rect getBounds() const {
-        return Rect(mDisplayWidth, mDisplayHeight);
-    }
-    inline Rect bounds() const { return getBounds(); }
+    const Rect& getBounds() const;
+    const Rect& bounds() const { return getBounds(); }
 
     void setDisplayName(const std::string& displayName);
     const std::string& getDisplayName() const { return mDisplayName; }
-
-    // Acquires a new buffer for GPU composition.
-    void readyNewBuffer();
-    // Marks the current buffer has finished, so that it can be presented and
-    // swapped out.
-    void finishBuffer();
-    void setViewportAndProjection() const;
-
-    const sp<Fence>& getClientTargetAcquireFence() const;
 
     /* ------------------------------------------------------------------------
      * Display power mode management.
@@ -180,13 +143,6 @@ public:
     void setPowerMode(int mode);
     bool isPoweredOn() const;
 
-    ui::ColorMode getActiveColorMode() const;
-    void setActiveColorMode(ui::ColorMode mode);
-    ui::RenderIntent getActiveRenderIntent() const;
-    void setActiveRenderIntent(ui::RenderIntent renderIntent);
-    android_color_transform_t getColorTransform() const;
-    void setColorTransform(const mat4& transform);
-    void setCompositionDataSpace(ui::Dataspace dataspace);
     ui::Dataspace getCompositionDataSpace() const;
 
     /* ------------------------------------------------------------------------
@@ -196,7 +152,7 @@ public:
     void setActiveConfig(int mode);
 
     // release HWC resources (if any) for removable displays
-    void disconnect(HWComposer& hwc);
+    void disconnect();
 
     /* ------------------------------------------------------------------------
      * Debugging
@@ -206,29 +162,18 @@ public:
     void dump(std::string& result) const;
 
 private:
+    /*
+     *  Constants, set during initialization
+     */
     const sp<SurfaceFlinger> mFlinger;
     const wp<IBinder> mDisplayToken;
     const int32_t mSequenceId;
 
-    std::optional<DisplayId> mId;
+    const int mDisplayInstallOrientation;
+    const std::shared_ptr<compositionengine::Display> mCompositionDisplay;
 
-    // ANativeWindow this display is rendering into
-    sp<ANativeWindow> mNativeWindow;
-    // Current buffer that this display can render to.
-    sp<GraphicBuffer> mGraphicBuffer;
-    sp<DisplaySurface> mDisplaySurface;
-    // File descriptor indicating that mGraphicBuffer is ready for display, i.e.
-    // that drawing to the buffer is now complete.
-    base::unique_fd mBufferReady;
-
-    int             mDisplayWidth;
-    int             mDisplayHeight;
-    const int       mDisplayInstallOrientation;
-    mutable uint32_t mPageFlipCount;
-    std::string     mDisplayName;
-
+    std::string mDisplayName;
     const bool mIsVirtual;
-    const bool mIsSecure;
 
     /*
      * Can only accessed from the main thread, these members
@@ -243,66 +188,17 @@ private:
     /*
      * Transaction state
      */
+    static uint32_t displayStateOrientationToTransformOrientation(int orientation);
     static status_t orientationToTransfrom(int orientation,
                                            int w, int h, ui::Transform* tr);
 
-    // The identifier of the active layer stack for this display. Several displays
-    // can use the same layer stack: A z-ordered group of layers (sometimes called
-    // "surfaces"). Any given layer can only be on a single layer stack.
-    uint32_t mLayerStack;
-
     int mOrientation;
     static uint32_t sPrimaryDisplayOrientation;
-    // user-provided visible area of the layer stack
-    Rect mViewport;
-    // user-provided rectangle where mViewport gets mapped to
-    Rect mFrame;
-    // pre-computed scissor to apply to the display
-    Rect mScissor;
-    ui::Transform mGlobalTransform;
-    bool mNeedsFiltering;
+
     // Current power mode
     int mPowerMode;
     // Current active config
     int mActiveConfig;
-    // current active color mode
-    ui::ColorMode mActiveColorMode = ui::ColorMode::NATIVE;
-    // Current active render intent.
-    ui::RenderIntent mActiveRenderIntent = ui::RenderIntent::COLORIMETRIC;
-    ui::Dataspace mCompositionDataSpace = ui::Dataspace::UNKNOWN;
-    // Current color transform
-    android_color_transform_t mColorTransform;
-
-    // Need to know if display is wide-color capable or not.
-    // Initialized by SurfaceFlinger when the DisplayDevice is created.
-    // Fed to RenderEngine during composition.
-    bool mHasWideColorGamut;
-    bool mHasHdr10Plus;
-    bool mHasHdr10;
-    bool mHasHLG;
-    bool mHasDolbyVision;
-    HdrCapabilities mHdrCapabilities;
-    const int32_t mSupportedPerFrameMetadata;
-
-    // Mappings from desired Dataspace/RenderIntent to the supported
-    // Dataspace/ColorMode/RenderIntent.
-    using ColorModeKey = uint64_t;
-    struct ColorModeValue {
-        ui::Dataspace dataspace;
-        ui::ColorMode colorMode;
-        ui::RenderIntent renderIntent;
-    };
-
-    static ColorModeKey getColorModeKey(ui::Dataspace dataspace, ui::RenderIntent intent) {
-        return (static_cast<uint64_t>(dataspace) << 32) | static_cast<uint32_t>(intent);
-    }
-    void populateColorModes(
-            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes);
-    void addColorMode(
-            const std::unordered_map<ui::ColorMode, std::vector<ui::RenderIntent>>& hwcColorModes,
-            const ui::ColorMode mode, const ui::RenderIntent intent);
-
-    std::unordered_map<ColorModeKey, ColorModeValue> mColorModes;
 
     // TODO(b/74619554): Remove special cases for primary display.
     const bool mIsPrimary;
@@ -341,7 +237,7 @@ struct DisplayDeviceCreationArgs {
     bool isVirtual{false};
     bool isSecure{false};
     sp<ANativeWindow> nativeWindow;
-    sp<DisplaySurface> displaySurface;
+    sp<compositionengine::DisplaySurface> displaySurface;
     int displayInstallOrientation{DisplayState::eOrientationDefault};
     bool hasWideColorGamut{false};
     HdrCapabilities hdrCapabilities;

@@ -100,6 +100,10 @@ class TimeStats;
 class VSyncSource;
 struct CompositionInfo;
 
+namespace compositionengine {
+class DisplaySurface;
+} // namespace compositionengine
+
 namespace impl {
 class EventThread;
 } // namespace impl
@@ -504,10 +508,6 @@ private:
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
-    // Called on the main thread in response to setActiveColorMode()
-    void setActiveColorModeInternal(const sp<DisplayDevice>& display, ui::ColorMode colorMode,
-                                    ui::Dataspace dataSpace, ui::RenderIntent renderIntent);
-
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
 
@@ -743,11 +743,11 @@ private:
     /* ------------------------------------------------------------------------
      * Display management
      */
-    sp<DisplayDevice> setupNewDisplayDeviceInternal(const wp<IBinder>& displayToken,
-                                                    const std::optional<DisplayId>& displayId,
-                                                    const DisplayDeviceState& state,
-                                                    const sp<DisplaySurface>& dispSurface,
-                                                    const sp<IGraphicBufferProducer>& producer);
+    sp<DisplayDevice> setupNewDisplayDeviceInternal(
+            const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
+            const DisplayDeviceState& state,
+            const sp<compositionengine::DisplaySurface>& dispSurface,
+            const sp<IGraphicBufferProducer>& producer);
     void processDisplayChangesLocked();
     void processDisplayHotplugEventsLocked();
 
