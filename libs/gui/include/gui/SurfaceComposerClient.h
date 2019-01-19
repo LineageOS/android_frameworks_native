@@ -53,34 +53,23 @@ class Region;
 
 // ---------------------------------------------------------------------------
 
-using TransactionCompletedCallbackTakesContext =
-        std::function<void(void* /*context*/, const TransactionStats&)>;
-using TransactionCompletedCallback = std::function<void(const TransactionStats&)>;
+struct SurfaceControlStats {
+    SurfaceControlStats(const sp<SurfaceControl>& sc, nsecs_t time,
+                        const sp<Fence>& prevReleaseFence)
+          : surfaceControl(sc), acquireTime(time), previousReleaseFence(prevReleaseFence) {}
 
-class TransactionCompletedListener : public BnTransactionCompletedListener {
-    TransactionCompletedListener();
-
-    CallbackId getNextIdLocked() REQUIRES(mMutex);
-
-    std::mutex mMutex;
-
-    bool mListening GUARDED_BY(mMutex) = false;
-
-    CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
-
-    std::map<CallbackId, TransactionCompletedCallback> mCallbacks GUARDED_BY(mMutex);
-
-public:
-    static sp<TransactionCompletedListener> getInstance();
-    static sp<ITransactionCompletedListener> getIInstance();
-
-    void startListeningLocked() REQUIRES(mMutex);
-
-    CallbackId addCallback(const TransactionCompletedCallback& callback);
-
-    // Overrides BnTransactionCompletedListener's onTransactionCompleted
-    void onTransactionCompleted(ListenerStats stats) override;
+    sp<SurfaceControl> surfaceControl;
+    nsecs_t acquireTime = -1;
+    sp<Fence> previousReleaseFence;
 };
+
+using TransactionCompletedCallbackTakesContext =
+        std::function<void(void* /*context*/, nsecs_t /*latchTime*/,
+                           const sp<Fence>& /*presentFence*/,
+                           const std::vector<SurfaceControlStats>& /*stats*/)>;
+using TransactionCompletedCallback =
+        std::function<void(nsecs_t /*latchTime*/, const sp<Fence>& /*presentFence*/,
+                           const std::vector<SurfaceControlStats>& /*stats*/)>;
 
 // ---------------------------------------------------------------------------
 
@@ -455,6 +444,50 @@ public:
                                        const ui::Dataspace reqDataSpace,
                                        const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                        float frameScale, sp<GraphicBuffer>* outBuffer);
+};
+
+// ---------------------------------------------------------------------------
+
+class TransactionCompletedListener : public BnTransactionCompletedListener {
+    TransactionCompletedListener();
+
+    CallbackId getNextIdLocked() REQUIRES(mMutex);
+
+    std::mutex mMutex;
+
+    bool mListening GUARDED_BY(mMutex) = false;
+
+    CallbackId mCallbackIdCounter GUARDED_BY(mMutex) = 1;
+
+    struct IBinderHash {
+        std::size_t operator()(const sp<IBinder>& iBinder) const {
+            return std::hash<IBinder*>{}(iBinder.get());
+        }
+    };
+
+    struct CallbackTranslation {
+        TransactionCompletedCallback callbackFunction;
+        std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
+    };
+
+    std::unordered_map<CallbackId, CallbackTranslation> mCallbacks GUARDED_BY(mMutex);
+
+public:
+    static sp<TransactionCompletedListener> getInstance();
+    static sp<ITransactionCompletedListener> getIInstance();
+
+    void startListeningLocked() REQUIRES(mMutex);
+
+    CallbackId addCallbackFunction(
+            const TransactionCompletedCallback& callbackFunction,
+            const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
+                    surfaceControls);
+
+    void addSurfaceControlToCallbacks(const sp<SurfaceControl>& surfaceControl,
+                                      const std::unordered_set<CallbackId>& callbackIds);
+
+    // Overrides BnTransactionCompletedListener's onTransactionCompleted
+    void onTransactionCompleted(ListenerStats stats) override;
 };
 
 // ---------------------------------------------------------------------------

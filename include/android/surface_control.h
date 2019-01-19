@@ -29,6 +29,7 @@
 #include <sys/cdefs.h>
 
 #include <android/hardware_buffer.h>
+#include <android/hdr_metadata.h>
 #include <android/native_window.h>
 
 __BEGIN_DECLS
@@ -60,10 +61,11 @@ ASurfaceControl* ASurfaceControl_create(ASurfaceControl* parent, const char* deb
                                         __INTRODUCED_IN(29);
 
 /**
- * Destroys the |surface_control| object. After releasing the ASurfaceControl the caller no longer
- * has ownership of the AsurfaceControl.
+ * Releases the |surface_control| object. After releasing the ASurfaceControl the caller no longer
+ * has ownership of the AsurfaceControl. The surface and it's children may remain on display as long
+ * as their parent remains on display.
  */
-void ASurfaceControl_destroy(ASurfaceControl* surface_control) __INTRODUCED_IN(29);
+void ASurfaceControl_release(ASurfaceControl* surface_control) __INTRODUCED_IN(29);
 
 struct ASurfaceTransaction;
 
@@ -94,24 +96,94 @@ void ASurfaceTransaction_delete(ASurfaceTransaction* transaction) __INTRODUCED_I
 void ASurfaceTransaction_apply(ASurfaceTransaction* transaction) __INTRODUCED_IN(29);
 
 /**
+ * An opaque handle returned during a callback that can be used to query general stats and stats for
+ * surfaces which were either removed or for which buffers were updated after this transaction was
+ * applied.
+ */
+typedef struct ASurfaceTransactionStats ASurfaceTransactionStats;
+
+/**
  * Since the transactions are applied asynchronously, the
  * ASurfaceTransaction_OnComplete callback can be used to be notified when a frame
  * including the updates in a transaction was presented.
  *
  * |context| is the optional context provided by the client that is passed into
  * the callback.
- * |present_fence| is the sync fence that signals when the transaction has been presented.
- * The recipient of the callback takes ownership of the present_fence and is responsible for closing
- * it.
  *
- * It is safe to assume that once the present fence singals, that reads for all buffers,
- * submitted in previous transactions, which are not in the surface tree after a transaction is
- * applied, are finished and the buffers may be reused.
+ * |stats| is an opaque handle that can be passed to ASurfaceTransactionStats functions to query
+ * information about the transaction. The handle is only valid during the the callback.
  *
  * THREADING
  * The transaction completed callback can be invoked on any thread.
  */
-typedef void (*ASurfaceTransaction_OnComplete)(void* context, int32_t present_fence);
+typedef void (*ASurfaceTransaction_OnComplete)(void* context, ASurfaceTransactionStats* stats)
+                                               __INTRODUCED_IN(29);
+
+/**
+ * Returns the timestamp of when the frame was latched by the framework. Once a frame is
+ * latched by the framework, it is presented at the following hardware vsync.
+ */
+int64_t ASurfaceTransactionStats_getLatchTime(ASurfaceTransactionStats* surface_transaction_stats)
+                                              __INTRODUCED_IN(29);
+
+/**
+ * Returns a sync fence that signals when the transaction has been presented.
+ * The recipient of the callback takes ownership of the fence and is responsible for closing
+ * it.
+ */
+int ASurfaceTransactionStats_getPresentFenceFd(ASurfaceTransactionStats* surface_transaction_stats)
+                                               __INTRODUCED_IN(29);
+
+/**
+ * |outASurfaceControls| returns an array of ASurfaceControl pointers that were updated during the
+ * transaction. Stats for the surfaces can be queried through ASurfaceTransactionStats functions.
+ * When the client is done using the array, it must release it by calling
+ * ASurfaceTransactionStats_releaseASurfaceControls.
+ *
+ * |outASurfaceControlsSize| returns the size of the ASurfaceControls array.
+ */
+void ASurfaceTransactionStats_getASurfaceControls(ASurfaceTransactionStats* surface_transaction_stats,
+                                                  ASurfaceControl*** outASurfaceControls,
+                                                  size_t* outASurfaceControlsSize)
+                                                  __INTRODUCED_IN(29);
+/**
+ * Releases the array of ASurfaceControls that were returned by
+ * ASurfaceTransactionStats_getASurfaceControls.
+ */
+void ASurfaceTransactionStats_releaseASurfaceControls(ASurfaceControl** surface_controls)
+                                                      __INTRODUCED_IN(29);
+
+/**
+ * Returns the timestamp of when the CURRENT buffer was acquired. A buffer is considered
+ * acquired when its acquire_fence_fd has signaled. A buffer cannot be latched or presented until
+ * it is acquired. If no acquire_fence_fd was provided, this timestamp will be set to -1.
+ */
+int64_t ASurfaceTransactionStats_getAcquireTime(ASurfaceTransactionStats* surface_transaction_stats,
+                                                ASurfaceControl* surface_control)
+                                                __INTRODUCED_IN(29);
+
+/**
+ * The returns the fence used to signal the release of the PREVIOUS buffer set on
+ * this surface. If this fence is valid (>=0), the PREVIOUS buffer has not yet been released and the
+ * fence will signal when the PREVIOUS buffer has been released. If the fence is -1 , the PREVIOUS
+ * buffer is already released. The recipient of the callback takes ownership of the
+ * previousReleaseFenceFd and is responsible for closing it.
+ *
+ * Each time a buffer is set through ASurfaceTransaction_setBuffer()/_setCachedBuffer() on a
+ * transaction which is applied, the framework takes a ref on this buffer. The framework treats the
+ * addition of a buffer to a particular surface as a unique ref. When a transaction updates or
+ * removes a buffer from a surface, or removes the surface itself from the tree, this ref is
+ * guaranteed to be released in the OnComplete callback for this transaction. The
+ * ASurfaceControlStats provided in the callback for this surface may contain an optional fence
+ * which must be signaled before the ref is assumed to be released.
+ *
+ * The client must ensure that all pending refs on a buffer are released before attempting to reuse
+ * this buffer, otherwise synchronization errors may occur.
+ */
+int ASurfaceTransactionStats_getPreviousReleaseFenceFd(
+                                                ASurfaceTransactionStats* surface_transaction_stats,
+                                                ASurfaceControl* surface_control)
+                                                __INTRODUCED_IN(29);
 
 /**
  * Sets the callback that will be invoked when the updates from this transaction
@@ -120,6 +192,16 @@ typedef void (*ASurfaceTransaction_OnComplete)(void* context, int32_t present_fe
  */
 void ASurfaceTransaction_setOnComplete(ASurfaceTransaction* transaction, void* context,
                                        ASurfaceTransaction_OnComplete func) __INTRODUCED_IN(29);
+
+/**
+ * Reparents the |surface_control| from its old parent to the |new_parent| surface control.
+ * Any children of the* reparented |surface_control| will remain children of the |surface_control|.
+ *
+ * The |new_parent| can be null. Surface controls with a null parent do not appear on the display.
+ */
+void ASurfaceTransaction_reparent(ASurfaceTransaction* transaction,
+                                  ASurfaceControl* surface_control, ASurfaceControl* new_parent)
+                                  __INTRODUCED_IN(29);
 
 /* Parameter for ASurfaceTransaction_setVisibility */
 enum {
@@ -148,15 +230,15 @@ void ASurfaceTransaction_setZOrder(ASurfaceTransaction* transaction,
 
 /**
  * Updates the AHardwareBuffer displayed for |surface_control|. If not -1, the
- * fence_fd should be a file descriptor that is signaled when all pending work
+ * acquire_fence_fd should be a file descriptor that is signaled when all pending work
  * for the buffer is complete and the buffer can be safely read.
  *
- * The frameworks takes ownership of the |fence_fd| passed and is responsible
+ * The frameworks takes ownership of the |acquire_fence_fd| passed and is responsible
  * for closing it.
  */
 void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,
                                    ASurfaceControl* surface_control, AHardwareBuffer* buffer,
-                                   int fence_fd = -1) __INTRODUCED_IN(29);
+                                   int acquire_fence_fd = -1) __INTRODUCED_IN(29);
 
 /**
  * |source| the sub-rect within the buffer's content to be rendered inside the surface's area
@@ -189,8 +271,9 @@ enum {
  * opaque or visual errors can occur.
  */
 void ASurfaceTransaction_setBufferTransparency(ASurfaceTransaction* transaction,
-                                         ASurfaceControl* surface_control, int8_t transparency)
-                                         __INTRODUCED_IN(29);
+                                               ASurfaceControl* surface_control,
+                                               int8_t transparency)
+                                               __INTRODUCED_IN(29);
 
 /**
  * Updates the region for the content on this surface updated in this
@@ -199,6 +282,50 @@ void ASurfaceTransaction_setBufferTransparency(ASurfaceTransaction* transaction,
 void ASurfaceTransaction_setDamageRegion(ASurfaceTransaction* transaction,
                                          ASurfaceControl* surface_control, const ARect rects[],
                                          uint32_t count) __INTRODUCED_IN(29);
+
+/**
+ * Specifies a desiredPresentTime for the transaction. The framework will try to present
+ * the transaction at or after the time specified.
+ *
+ * Transactions will not be presented until all of their acquire fences have signaled even if the
+ * app requests an earlier present time.
+ *
+ * If an earlier transaction has a desired present time of x, and a later transaction has a desired
+ * present time that is before x, the later transaction will not preempt the earlier transaction.
+ */
+void ASurfaceTransaction_setDesiredPresentTime(ASurfaceTransaction* transaction,
+                                               int64_t desiredPresentTime) __INTRODUCED_IN(29);
+
+/**
+ * Sets the alpha for the buffer. It uses a premultiplied blending.
+ *
+ * The |alpha| must be between 0.0 and 1.0.
+ */
+void ASurfaceTransaction_setBufferAlpha(ASurfaceTransaction* transaction,
+                                        ASurfaceControl* surface_control, float alpha)
+                                        __INTRODUCED_IN(29);
+
+/*
+ * SMPTE ST 2086 "Mastering Display Color Volume" static metadata
+ *
+ * When |metadata| is set to null, the framework does not use any smpte2086 metadata when rendering
+ * the surface's buffer.
+ */
+void ASurfaceTransaction_setHdrMetadata_smpte2086(ASurfaceTransaction* transaction,
+                                                  ASurfaceControl* surface_control,
+                                                  struct AHdrMetadata_smpte2086* metadata)
+                                                  __INTRODUCED_IN(29);
+
+/*
+ * Sets the CTA 861.3 "HDR Static Metadata Extension" static metadata on a surface.
+ *
+ * When |metadata| is set to null, the framework does not use any cta861.3 metadata when rendering
+ * the surface's buffer.
+ */
+void ASurfaceTransaction_setHdrMetadata_cta861_3(ASurfaceTransaction* transaction,
+                                                 ASurfaceControl* surface_control,
+                                                 struct AHdrMetadata_cta861_3* metadata)
+                                                 __INTRODUCED_IN(29);
 
 #endif // __ANDROID_API__ >= 29
 
