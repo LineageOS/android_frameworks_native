@@ -35,6 +35,9 @@ interface IDumpstateListener {
     /* Bugreport encountered a runtime error */
     const int BUGREPORT_ERROR_RUNTIME_ERROR = 2;
 
+    /* User denied consent to share the bugreport with the specified app */
+    const int BUGREPORT_ERROR_USER_DENIED_CONSENT = 3;
+
     /**
      * Called on an error condition with one of the error codes listed above.
      */
