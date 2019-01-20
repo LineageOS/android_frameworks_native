@@ -38,12 +38,16 @@ namespace android {
 #define VDS_LOGV(msg, ...) ALOGV("[%s] " msg, \
         mDisplayName.c_str(), ##__VA_ARGS__)
 
-static const char* dbgCompositionTypeStr(DisplaySurface::CompositionType type) {
+static const char* dbgCompositionTypeStr(compositionengine::DisplaySurface::CompositionType type) {
     switch (type) {
-        case DisplaySurface::COMPOSITION_UNKNOWN: return "UNKNOWN";
-        case DisplaySurface::COMPOSITION_GLES:    return "GLES";
-        case DisplaySurface::COMPOSITION_HWC:     return "HWC";
-        case DisplaySurface::COMPOSITION_MIXED:   return "MIXED";
+        case compositionengine::DisplaySurface::COMPOSITION_UNKNOWN:
+            return "UNKNOWN";
+        case compositionengine::DisplaySurface::COMPOSITION_GLES:
+            return "GLES";
+        case compositionengine::DisplaySurface::COMPOSITION_HWC:
+            return "HWC";
+        case compositionengine::DisplaySurface::COMPOSITION_MIXED:
+            return "MIXED";
         default:                                  return "<INVALID>";
     }
 }

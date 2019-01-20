@@ -1280,7 +1280,7 @@ void GLESRenderEngine::FlushTracer::loop() {
             std::lock_guard<std::mutex> lock(mMutex);
 
             mCondition.wait(mMutex,
-                            [&]() REQUIRES(mMutex) { return !mQueue.empty() && !mRunning; });
+                            [&]() REQUIRES(mMutex) { return !mQueue.empty() || !mRunning; });
 
             if (!mRunning) {
                 // if mRunning is false, then FlushTracer is being destroyed, so

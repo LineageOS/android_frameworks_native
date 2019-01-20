@@ -15,6 +15,7 @@
  */
 
 #include <compositionengine/impl/CompositionEngine.h>
+#include <compositionengine/impl/Display.h>
 #include <renderengine/RenderEngine.h>
 
 #include "DisplayHardware/HWComposer.h"
@@ -31,6 +32,11 @@ std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine() 
 
 CompositionEngine::CompositionEngine() = default;
 CompositionEngine::~CompositionEngine() = default;
+
+std::shared_ptr<compositionengine::Display> CompositionEngine::createDisplay(
+        DisplayCreationArgs&& args) {
+    return compositionengine::impl::createDisplay(*this, std::move(args));
+}
 
 HWComposer& CompositionEngine::getHwComposer() const {
     return *mHwComposer.get();

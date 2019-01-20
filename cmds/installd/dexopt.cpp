@@ -43,6 +43,7 @@
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
+#include <processgroup/sched_policy.h>
 #include <selinux/android.h>
 #include <system/thread_defs.h>
 
@@ -624,27 +625,6 @@ static void open_profile_files(uid_t uid, const std::string& package_name,
         if (profile_fd.get() >= 0) {
             profiles_fd->push_back(std::move(profile_fd));
         }
-    }
-}
-
-static void drop_capabilities(uid_t uid) {
-    if (setgid(uid) != 0) {
-        PLOG(ERROR) << "setgid(" << uid << ") failed in installd during dexopt";
-        exit(DexoptReturnCodes::kSetGid);
-    }
-    if (setuid(uid) != 0) {
-        PLOG(ERROR) << "setuid(" << uid << ") failed in installd during dexopt";
-        exit(DexoptReturnCodes::kSetUid);
-    }
-    // drop capabilities
-    struct __user_cap_header_struct capheader;
-    struct __user_cap_data_struct capdata[2];
-    memset(&capheader, 0, sizeof(capheader));
-    memset(&capdata, 0, sizeof(capdata));
-    capheader.version = _LINUX_CAPABILITY_VERSION_3;
-    if (capset(&capheader, &capdata[0]) < 0) {
-        PLOG(ERROR) << "capset failed";
-        exit(DexoptReturnCodes::kCapSet);
     }
 }
 

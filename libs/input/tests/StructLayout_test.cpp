@@ -57,7 +57,8 @@ void TestInputMessageAlignment() {
   CHECK_OFFSET(InputMessage::Body::Motion, flags, 36);
   CHECK_OFFSET(InputMessage::Body::Motion, metaState, 40);
   CHECK_OFFSET(InputMessage::Body::Motion, buttonState, 44);
-  CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 48);
+  CHECK_OFFSET(InputMessage::Body::Motion, classification, 48);
+  CHECK_OFFSET(InputMessage::Body::Motion, edgeFlags, 52);
   CHECK_OFFSET(InputMessage::Body::Motion, downTime, 56);
   CHECK_OFFSET(InputMessage::Body::Motion, xOffset, 64);
   CHECK_OFFSET(InputMessage::Body::Motion, yOffset, 68);

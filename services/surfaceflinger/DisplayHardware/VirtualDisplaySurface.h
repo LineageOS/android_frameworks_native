@@ -20,12 +20,12 @@
 #include <optional>
 #include <string>
 
-#include "DisplayIdentification.h"
-#include "DisplaySurface.h"
-#include "HWComposerBufferCache.h"
-
+#include <compositionengine/DisplaySurface.h>
 #include <gui/ConsumerBase.h>
 #include <gui/IGraphicBufferProducer.h>
+
+#include "DisplayIdentification.h"
+#include "HWComposerBufferCache.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -73,7 +73,7 @@ class IProducerListener;
  * the HWC output buffer. When HWC composition is complete, the scratch buffer
  * is released and the output buffer is queued to the sink.
  */
-class VirtualDisplaySurface : public DisplaySurface,
+class VirtualDisplaySurface : public compositionengine::DisplaySurface,
                               public BnGraphicBufferProducer,
                               private ConsumerBase {
 public:

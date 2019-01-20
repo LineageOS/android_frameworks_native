@@ -29,7 +29,9 @@
 #include <utils/Singleton.h>
 #include <utils/Trace.h>
 
+#include <ui/Gralloc.h>
 #include <ui/Gralloc2.h>
+#include <ui/Gralloc3.h>
 #include <ui/GraphicBufferMapper.h>
 
 namespace android {
@@ -43,11 +45,17 @@ Mutex GraphicBufferAllocator::sLock;
 KeyedVector<buffer_handle_t,
     GraphicBufferAllocator::alloc_rec_t> GraphicBufferAllocator::sAllocList;
 
-GraphicBufferAllocator::GraphicBufferAllocator()
-  : mMapper(GraphicBufferMapper::getInstance()),
-    mAllocator(std::make_unique<Gralloc2::Allocator>(
-                mMapper.getGrallocMapper()))
-{
+GraphicBufferAllocator::GraphicBufferAllocator() : mMapper(GraphicBufferMapper::getInstance()) {
+    mAllocator = std::make_unique<const Gralloc3Allocator>(
+            reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
+    if (!mAllocator->isSupported()) {
+        mAllocator = std::make_unique<const Gralloc2Allocator>(
+                reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
+    }
+
+    if (!mAllocator->isSupported()) {
+        LOG_ALWAYS_FATAL("gralloc-allocator is missing");
+    }
 }
 
 GraphicBufferAllocator::~GraphicBufferAllocator() {}
@@ -104,15 +112,9 @@ status_t GraphicBufferAllocator::allocate(uint32_t width, uint32_t height,
     // TODO(b/72323293, b/72703005): Remove these invalid bits from callers
     usage &= ~static_cast<uint64_t>((1 << 10) | (1 << 13));
 
-    Gralloc2::IMapper::BufferDescriptorInfo info = {};
-    info.width = width;
-    info.height = height;
-    info.layerCount = layerCount;
-    info.format = static_cast<Gralloc2::PixelFormat>(format);
-    info.usage = usage;
-
-    Gralloc2::Error error = mAllocator->allocate(info, stride, handle);
-    if (error == Gralloc2::Error::NONE) {
+    status_t error =
+            mAllocator->allocate(width, height, format, layerCount, usage, 1, stride, handle);
+    if (error == NO_ERROR) {
         Mutex::Autolock _l(sLock);
         KeyedVector<buffer_handle_t, alloc_rec_t>& list(sAllocList);
         uint32_t bpp = bytesPerPixel(format);

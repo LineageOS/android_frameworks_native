@@ -18,6 +18,7 @@ cc_defaults {
         "dexopt.cpp",
         "globals.cpp",
         "utils.cpp",
+        "view_compiler.cpp",
         ":installd_aidl",
     ],
     header_libs: [
@@ -30,6 +31,7 @@ cc_defaults {
         "libcutils",
         "liblog",
         "liblogwrap",
+        "libprocessgroup",
         "libselinux",
         "libutils",
     ],
@@ -168,6 +170,7 @@ cc_library_static {
         "libbase",
         "libcutils",
         "liblog",
+        "libprocessgroup",
         "libutils",
     ],
 }
@@ -188,6 +191,7 @@ cc_binary {
         "globals.cpp",
         "otapreopt.cpp",
         "utils.cpp",
+        "view_compiler.cpp",
     ],
 
     header_libs: ["dex2oat_headers"],
@@ -204,6 +208,7 @@ cc_binary {
         "libcutils",
         "liblog",
         "liblogwrap",
+        "libprocessgroup",
         "libselinux",
         "libutils",
     ],

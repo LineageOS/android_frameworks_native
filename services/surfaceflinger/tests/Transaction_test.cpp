@@ -2323,6 +2323,143 @@ TEST_F(LayerTransactionTest, SetSidebandStreamNull_BufferState) {
     Transaction().setSidebandStream(layer, nullptr).apply();
 }
 
+TEST_F(LayerTransactionTest, CacheBuffer_BufferState) {
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+}
+
+TEST_F(LayerTransactionTest, CacheBuffers_BufferState) {
+    std::vector<int32_t> bufferIds;
+    int32_t bufferCount = 20;
+
+    for (int i = 0; i < bufferCount; i++) {
+        sp<GraphicBuffer> buffer =
+                new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                                  BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                          BufferUsage::COMPOSER_OVERLAY,
+                                  "test");
+        int32_t bufferId = -1;
+        ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+        if (bufferId < 0) {
+            EXPECT_GE(bufferId, 0);
+            break;
+        }
+        bufferIds.push_back(bufferId);
+    }
+
+    for (int32_t bufferId : bufferIds) {
+        ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+    }
+}
+
+TEST_F(LayerTransactionTest, CacheBufferInvalid_BufferState) {
+    sp<GraphicBuffer> buffer = nullptr;
+
+    int32_t bufferId = -1;
+    ASSERT_NE(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_LT(bufferId, 0);
+}
+
+TEST_F(LayerTransactionTest, UncacheBufferTwice_BufferState) {
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+    mClient->uncacheBuffer(bufferId);
+}
+
+TEST_F(LayerTransactionTest, UncacheBufferInvalidId_BufferState) {
+    mClient->uncacheBuffer(-1);
+    mClient->uncacheBuffer(0);
+    mClient->uncacheBuffer(1);
+    mClient->uncacheBuffer(5);
+    mClient->uncacheBuffer(1000);
+}
+
+TEST_F(LayerTransactionTest, SetCachedBuffer_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::RED);
+
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(buffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    Transaction().setCachedBuffer(layer, bufferId).apply();
+
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+}
+
+TEST_F(LayerTransactionTest, SetCachedBufferDelayed_BufferState) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    sp<GraphicBuffer> cachedBuffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    int32_t bufferId = -1;
+    ASSERT_EQ(NO_ERROR, mClient->cacheBuffer(cachedBuffer, &bufferId));
+    ASSERT_GE(bufferId, 0);
+
+    sp<GraphicBuffer> buffer =
+            new GraphicBuffer(32, 32, PIXEL_FORMAT_RGBA_8888, 1,
+                              BufferUsage::CPU_READ_OFTEN | BufferUsage::CPU_WRITE_OFTEN |
+                                      BufferUsage::COMPOSER_OVERLAY,
+                              "test");
+    fillGraphicBufferColor(buffer, Rect(0, 0, 32, 32), Color::BLUE);
+    Transaction().setBuffer(layer, buffer).apply();
+    {
+        SCOPED_TRACE("Uncached buffer");
+
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    fillGraphicBufferColor(cachedBuffer, Rect(0, 0, 32, 32), Color::RED);
+    Transaction().setCachedBuffer(layer, bufferId).apply();
+    {
+        SCOPED_TRACE("Cached buffer");
+
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
+}
+
 class ColorTransformHelper {
 public:
     static void DegammaColorSingle(half& s) {
@@ -2542,6 +2679,7 @@ public:
     enum PreviousBuffer {
         NOT_RELEASED = 0,
         RELEASED,
+        UNKNOWN,
     };
 
     void reset() {
@@ -2567,11 +2705,23 @@ public:
         }
     }
 
+    void addExpectedPresentTime(nsecs_t expectedPresentTime) {
+        mExpectedPresentTime = expectedPresentTime;
+    }
+
     void verifyTransactionStats(const TransactionStats& transactionStats) const {
         const auto& [latchTime, presentFence, surfaceStats] = transactionStats;
         if (mTransactionResult == ExpectedResult::Transaction::PRESENTED) {
             ASSERT_GE(latchTime, 0) << "bad latch time";
             ASSERT_NE(presentFence, nullptr);
+            if (mExpectedPresentTime >= 0) {
+                ASSERT_EQ(presentFence->wait(3000), NO_ERROR);
+                ASSERT_GE(presentFence->getSignalTime(), mExpectedPresentTime - nsecs_t(5 * 1e6));
+                // if the panel is running at 30 hz, at the worst case, our expected time just
+                // misses vsync and we have to wait another 33.3ms
+                ASSERT_LE(presentFence->getSignalTime(),
+                          mExpectedPresentTime + nsecs_t(66.666666 * 1e6));
+            }
         } else {
             ASSERT_EQ(presentFence, nullptr) << "transaction shouldn't have been presented";
             ASSERT_EQ(latchTime, -1) << "unpresented transactions shouldn't be latched";
@@ -2596,14 +2746,19 @@ private:
               : mBufferResult(bufferResult), mPreviousBufferResult(previousBufferResult) {}
 
         void verifySurfaceStats(const SurfaceStats& surfaceStats, nsecs_t latchTime) const {
-            const auto& [surfaceControl, acquireTime, releasePreviousBuffer] = surfaceStats;
+            const auto& [surfaceControl, acquireTime, previousReleaseFence] = surfaceStats;
 
             ASSERT_EQ(acquireTime > 0, mBufferResult == ExpectedResult::Buffer::ACQUIRED)
                     << "bad acquire time";
             ASSERT_LE(acquireTime, latchTime) << "acquire time should be <= latch time";
-            ASSERT_EQ(releasePreviousBuffer,
-                      mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED)
-                    << "bad previous buffer released";
+
+            if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::RELEASED) {
+                ASSERT_NE(previousReleaseFence, nullptr)
+                        << "failed to set release prev buffer fence";
+            } else if (mPreviousBufferResult == ExpectedResult::PreviousBuffer::NOT_RELEASED) {
+                ASSERT_EQ(previousReleaseFence, nullptr)
+                        << "should not have set released prev buffer fence";
+            }
         }
 
     private:
@@ -2617,6 +2772,7 @@ private:
         }
     };
     ExpectedResult::Transaction mTransactionResult = ExpectedResult::Transaction::NOT_PRESENTED;
+    nsecs_t mExpectedPresentTime = -1;
     std::unordered_map<sp<IBinder>, ExpectedSurfaceResult, IBinderHash> mExpectedSurfaceResults;
 };
 
@@ -3177,13 +3333,11 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame) {
     Transaction transaction;
     CallbackHelper callback;
     std::vector<ExpectedResult> expectedResults(50);
-    ExpectedResult::PreviousBuffer previousBufferResult =
-            ExpectedResult::PreviousBuffer::NOT_RELEASED;
     for (auto& expected : expectedResults) {
         expected.reset();
         expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
-                            ExpectedResult::Buffer::ACQUIRED, previousBufferResult);
-        previousBufferResult = ExpectedResult::PreviousBuffer::RELEASED;
+                            ExpectedResult::Buffer::ACQUIRED,
+                            ExpectedResult::PreviousBuffer::UNKNOWN);
 
         int err = fillTransaction(transaction, &callback, layer);
         if (err) {
@@ -3266,6 +3420,143 @@ TEST_F(LayerCallbackTest, MultipleTransactions_SingleFrame_SameStateChange) {
         transaction.setFrame(layer, Rect(0, 0, 32, 32)).apply();
     }
     EXPECT_NO_FATAL_FAILURE(waitForCallbacks(callback, expectedResults, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the future
+    nsecs_t time = systemTime() + (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected.addExpectedPresentTime(time);
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime_Multiple) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback1;
+    int err = fillTransaction(transaction, &callback1, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the future
+    nsecs_t time = systemTime() + (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected1;
+    expected1.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected1.addExpectedPresentTime(time);
+
+    CallbackHelper callback2;
+    err = fillTransaction(transaction, &callback2, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 33ms after the first frame
+    time += (33.3 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected2;
+    expected2.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                         ExpectedResult::Buffer::ACQUIRED,
+                         ExpectedResult::PreviousBuffer::RELEASED);
+    expected2.addExpectedPresentTime(time);
+
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback1, expected1, true));
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2, expected2, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime_OutOfOrder) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback1;
+    int err = fillTransaction(transaction, &callback1, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the future
+    nsecs_t time = systemTime() + (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected1;
+    expected1.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected1.addExpectedPresentTime(time);
+
+    CallbackHelper callback2;
+    err = fillTransaction(transaction, &callback2, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 33ms before the previous frame
+    time -= (33.3 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected2;
+    expected2.addSurface(ExpectedResult::Transaction::PRESENTED, layer,
+                         ExpectedResult::Buffer::ACQUIRED,
+                         ExpectedResult::PreviousBuffer::RELEASED);
+
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback1, expected1, true));
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback2, expected2, true));
+}
+
+TEST_F(LayerCallbackTest, DesiredPresentTime_Past) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createBufferStateLayer());
+
+    Transaction transaction;
+    CallbackHelper callback;
+    int err = fillTransaction(transaction, &callback, layer);
+    if (err) {
+        GTEST_SUCCEED() << "test not supported";
+        return;
+    }
+
+    // Try to present 100ms in the past
+    nsecs_t time = systemTime() - (100 * 1e6);
+
+    transaction.setDesiredPresentTime(time);
+    transaction.apply();
+
+    ExpectedResult expected;
+    expected.addSurface(ExpectedResult::Transaction::PRESENTED, layer);
+    expected.addExpectedPresentTime(systemTime());
+    EXPECT_NO_FATAL_FAILURE(waitForCallback(callback, expected, true));
 }
 
 class LayerUpdateTest : public LayerTransactionTest {

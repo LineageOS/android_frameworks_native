@@ -773,7 +773,7 @@ public:
     bool mPendingHWCDestroy{false};
     void setInputInfo(const InputWindowInfo& info);
 
-    InputWindowInfo fillInputInfo(const Rect& screenBounds);
+    InputWindowInfo fillInputInfo();
     bool hasInput() const;
 
 protected:

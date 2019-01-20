@@ -105,8 +105,9 @@ struct InputMessage {
             int32_t flags;
             int32_t metaState;
             int32_t buttonState;
+            MotionClassification classification; // base type: uint8_t
+            uint8_t empty2[3];
             int32_t edgeFlags;
-            uint32_t empty2;
             nsecs_t downTime __attribute__((aligned(8)));
             float xOffset;
             float yOffset;
@@ -271,6 +272,7 @@ public:
             int32_t edgeFlags,
             int32_t metaState,
             int32_t buttonState,
+            MotionClassification classification,
             float xOffset,
             float yOffset,
             float xPrecision,

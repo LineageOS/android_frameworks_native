@@ -489,5 +489,13 @@ TEST_F(InputSurfacesTest, transfer_touch_focus) {
     toSurface->expectMotionEvent(AMOTION_EVENT_ACTION_UP, 1, 1);
     fromSurface->expectNoMotionEvent(AMOTION_EVENT_ACTION_UP);
 }
+
+TEST_F(InputSurfacesTest, input_respects_outscreen) {
+    std::unique_ptr<InputSurface> surface = makeSurface(100, 100);
+    surface->showAt(-1, -1);
+
+    injectTap(0, 0);
+    surface->expectTap(1, 1);
+}
 }
 }

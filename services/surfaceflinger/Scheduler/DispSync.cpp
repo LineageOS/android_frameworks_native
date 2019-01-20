@@ -657,6 +657,9 @@ nsecs_t DispSync::computeNextRefresh(int periodOffset) const {
     Mutex::Autolock lock(mMutex);
     nsecs_t now = systemTime(SYSTEM_TIME_MONOTONIC);
     nsecs_t phase = mReferenceTime + mPhase;
+    if (mPeriod == 0) {
+        return 0;
+    }
     return (((now - phase) / mPeriod) + periodOffset + 1) * mPeriod + phase;
 }
 

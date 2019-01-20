@@ -66,7 +66,8 @@ public:
     virtual void setTransactionState(const Vector<ComposerState>& state,
                                      const Vector<DisplayState>& displays, uint32_t flags,
                                      const sp<IBinder>& applyToken,
-                                     const InputWindowCommands& commands) {
+                                     const InputWindowCommands& commands,
+                                     int64_t desiredPresentTime) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
 
@@ -83,6 +84,7 @@ public:
         data.writeUint32(flags);
         data.writeStrongBinder(applyToken);
         commands.write(data);
+        data.writeInt64(desiredPresentTime);
         remote()->transact(BnSurfaceComposer::SET_TRANSACTION_STATE, data, &reply);
     }
 
@@ -693,6 +695,42 @@ public:
         }
         return err;
     }
+
+    virtual status_t cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
+                                 int32_t* outBufferId) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+
+        data.writeStrongBinder(token);
+        if (buffer) {
+            data.writeBool(true);
+            data.write(*buffer);
+        } else {
+            data.writeBool(false);
+        }
+
+        status_t result = remote()->transact(BnSurfaceComposer::CACHE_BUFFER, data, &reply);
+        if (result != NO_ERROR) {
+            return result;
+        }
+
+        int32_t id = -1;
+        result = reply.readInt32(&id);
+        if (result == NO_ERROR) {
+            *outBufferId = id;
+        }
+        return result;
+    }
+
+    virtual status_t uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+
+        data.writeStrongBinder(token);
+        data.writeInt32(bufferId);
+
+        return remote()->transact(BnSurfaceComposer::UNCACHE_BUFFER, data, &reply);
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -748,7 +786,10 @@ status_t BnSurfaceComposer::onTransact(
             sp<IBinder> applyToken = data.readStrongBinder();
             InputWindowCommands inputWindowCommands;
             inputWindowCommands.read(data);
-            setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands);
+
+            int64_t desiredPresentTime = data.readInt64();
+            setTransactionState(state, displays, stateFlags, applyToken, inputWindowCommands,
+                                desiredPresentTime);
             return NO_ERROR;
         }
         case BOOT_FINISHED: {
@@ -1130,6 +1171,48 @@ status_t BnSurfaceComposer::onTransact(
                 reply->writeBool(result);
             }
             return error;
+        }
+        case CACHE_BUFFER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> token;
+            status_t result = data.readStrongBinder(&token);
+            if (result != NO_ERROR) {
+                ALOGE("cache buffer failure in reading token: %d", result);
+                return result;
+            }
+
+            sp<GraphicBuffer> buffer = new GraphicBuffer();
+            if (data.readBool()) {
+                result = data.read(*buffer);
+                if (result != NO_ERROR) {
+                    ALOGE("cache buffer failure in reading buffer: %d", result);
+                    return result;
+                }
+            }
+            int32_t bufferId = -1;
+            status_t error = cacheBuffer(token, buffer, &bufferId);
+            if (error == NO_ERROR) {
+                reply->writeInt32(bufferId);
+            }
+            return error;
+        }
+        case UNCACHE_BUFFER: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> token;
+            status_t result = data.readStrongBinder(&token);
+            if (result != NO_ERROR) {
+                ALOGE("uncache buffer failure in reading token: %d", result);
+                return result;
+            }
+
+            int32_t bufferId = -1;
+            result = data.readInt32(&bufferId);
+            if (result != NO_ERROR) {
+                ALOGE("uncache buffer failure in reading buffer id: %d", result);
+                return result;
+            }
+
+            return uncacheBuffer(token, bufferId);
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
