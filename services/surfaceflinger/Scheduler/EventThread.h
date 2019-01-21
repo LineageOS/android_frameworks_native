@@ -21,8 +21,8 @@
 #include <array>
 #include <condition_variable>
 #include <cstdint>
+#include <deque>
 #include <mutex>
-#include <queue>
 #include <thread>
 #include <vector>
 
@@ -46,6 +46,13 @@ class SurfaceFlinger;
 
 using ResyncCallback = std::function<void()>;
 
+enum class VSyncRequest {
+    None = -1,
+    Single = 0,
+    Periodic = 1,
+    // Subsequent values are periods.
+};
+
 class VSyncSource {
 public:
     class Callback {
@@ -68,7 +75,7 @@ public:
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
 
     status_t stealReceiveChannel(gui::BitTube* outChannel) override;
-    status_t setVsyncRate(uint32_t count) override;
+    status_t setVsyncRate(uint32_t rate) override;
     void requestNextVsync() override; // asynchronous
     // Requesting Vsync for HWC does not reset the idle timer, since HWC requires a refresh
     // in order to update the configs.
@@ -77,10 +84,7 @@ public:
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
 
-    // count >= 1 : continuous event. count is the vsync rate
-    // count == 0 : one-shot event that has not fired
-    // count ==-1 : one-shot event that fired this round / disabled
-    int32_t count;
+    VSyncRequest vsyncRequest = VSyncRequest::None;
 
 private:
     virtual void onFirstRef();
@@ -113,7 +117,7 @@ public:
 
     virtual status_t registerDisplayEventConnection(
             const sp<EventThreadConnection>& connection) = 0;
-    virtual void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) = 0;
+    virtual void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) = 0;
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection,
                                   bool resetIdleTimer) = 0;
@@ -137,7 +141,7 @@ public:
     sp<EventThreadConnection> createEventConnection(ResyncCallback resyncCallback) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
-    void setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) override;
+    void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
     void requestNextVsync(const sp<EventThreadConnection>& connection,
                           bool resetIdleTimer) override;
 
@@ -157,18 +161,22 @@ public:
 private:
     friend EventThreadTest;
 
+    using DisplayEventConsumers = std::vector<sp<EventThreadConnection>>;
+
     // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
     EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
                 InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName);
 
+    void threadMain(std::unique_lock<std::mutex>& lock) REQUIRES(mMutex);
 
-    void threadMain();
-    std::vector<sp<EventThreadConnection>> waitForEventLocked(std::unique_lock<std::mutex>* lock,
-                                                              DisplayEventReceiver::Event* event)
-            REQUIRES(mMutex);
+    bool shouldConsumeEvent(const DisplayEventReceiver::Event& event,
+                            const sp<EventThreadConnection>& connection) const REQUIRES(mMutex);
+    void dispatchEvent(const DisplayEventReceiver::Event& event,
+                       const DisplayEventConsumers& consumers) REQUIRES(mMutex);
 
     void removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection)
             REQUIRES(mMutex);
+
     void enableVSyncLocked() REQUIRES(mMutex);
     void disableVSyncLocked() REQUIRES(mMutex);
 
@@ -181,16 +189,16 @@ private:
     // TODO(b/113612090): Once the Scheduler is complete this pointer will become obsolete.
     VSyncSource* mVSyncSource GUARDED_BY(mMutex) = nullptr;
     std::unique_ptr<VSyncSource> mVSyncSourceUnique GUARDED_BY(mMutex) = nullptr;
-    // constants
+
     const InterceptVSyncsCallback mInterceptVSyncsCallback;
+    const char* const mThreadName;
 
     std::thread mThread;
     mutable std::mutex mMutex;
     mutable std::condition_variable mCondition;
 
-    // protected by mLock
     std::vector<wp<EventThreadConnection>> mDisplayEventConnections GUARDED_BY(mMutex);
-    std::queue<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
+    std::deque<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
     std::array<DisplayEventReceiver::Event, 2> mVSyncEvent GUARDED_BY(mMutex);
     bool mUseSoftwareVSync GUARDED_BY(mMutex) = false;
     bool mVsyncEnabled GUARDED_BY(mMutex) = false;

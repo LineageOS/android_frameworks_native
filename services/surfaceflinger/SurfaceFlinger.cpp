@@ -4386,6 +4386,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                 {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
                 {"--static-screen"s, dumper(&SurfaceFlinger::dumpStaticScreenStats)},
                 {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
+                {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
                 {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
         };
 
@@ -4467,6 +4468,26 @@ void SurfaceFlinger::appendSfConfigString(std::string& result) const {
     StringAppendF(&result, " NUM_FRAMEBUFFER_SURFACE_BUFFERS=%" PRId64,
                   maxFrameBufferAcquiredBuffers);
     result.append("]");
+}
+
+void SurfaceFlinger::dumpVSync(std::string& result) const {
+    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
+    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
+    StringAppendF(&result,
+                  "         app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
+                  "   early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
+                  "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
+                  "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
+                  vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset, sfEarlyOffset,
+                  appEarlyGlOffset, sfEarlyGlOffset, dispSyncPresentTimeOffset, getVsyncPeriod());
+
+    StringAppendF(&result, "Scheduler: %s\n\n", mUseScheduler ? "enabled" : "disabled");
+
+    if (mUseScheduler) {
+        mScheduler->dump(mAppConnectionHandle, result);
+    } else {
+        mEventThread->dump(result);
+    }
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
@@ -4703,27 +4724,14 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     result.append("Sync configuration: ");
     colorizer.reset(result);
     result.append(SyncFeatures::getInstance().toString());
-    result.append("\n");
+    result.append("\n\n");
 
     colorizer.bold(result);
-    result.append("DispSync configuration:\n");
+    result.append("VSYNC configuration:\n");
     colorizer.reset(result);
-
-    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
-    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
-    StringAppendF(&result,
-                  "app phase %" PRId64 " ns, "
-                  "sf phase %" PRId64 " ns, "
-                  "early app phase %" PRId64 " ns, "
-                  "early sf phase %" PRId64 " ns, "
-                  "early app gl phase %" PRId64 " ns, "
-                  "early sf gl phase %" PRId64 " ns, "
-                  "present offset %" PRId64 " ns (refresh %" PRId64 " ns)\n",
-                  vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset, sfEarlyOffset,
-                  appEarlyGlOffset, sfEarlyGlOffset, dispSyncPresentTimeOffset, getVsyncPeriod());
-
-    // Dump static screen stats
+    dumpVSync(result);
     result.append("\n");
+
     dumpStaticScreenStats(result);
     result.append("\n");
 
@@ -4796,17 +4804,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     }
 
     StringAppendF(&result, "  transaction time: %f us\n", inTransactionDuration / 1000.0);
-
-    StringAppendF(&result, "  use Scheduler: %s\n", mUseScheduler ? "true" : "false");
-    /*
-     * VSYNC state
-     */
-    if (mUseScheduler) {
-        mScheduler->dump(mAppConnectionHandle, result);
-    } else {
-        mEventThread->dump(result);
-    }
-    result.append("\n");
 
     /*
      * Tracing state

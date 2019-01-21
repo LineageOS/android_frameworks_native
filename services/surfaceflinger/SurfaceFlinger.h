@@ -863,6 +863,7 @@ private:
     void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
     void logFrameStats();
 
+    void dumpVSync(std::string& result) const REQUIRES(mStateLock);
     void dumpStaticScreenStats(std::string& result) const;
     // Not const because each Layer needs to query Fences and cache timestamps.
     void dumpFrameEventsLocked(std::string& result);

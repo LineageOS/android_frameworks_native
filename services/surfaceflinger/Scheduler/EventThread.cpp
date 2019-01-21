@@ -19,8 +19,11 @@
 #include <pthread.h>
 #include <sched.h>
 #include <sys/types.h>
+
 #include <chrono>
 #include <cstdint>
+#include <optional>
+#include <type_traits>
 
 #include <android-base/stringprintf.h>
 
@@ -35,18 +38,52 @@
 #include "EventThread.h"
 
 using namespace std::chrono_literals;
-using android::base::StringAppendF;
-
-// ---------------------------------------------------------------------------
 
 namespace android {
 
-// ---------------------------------------------------------------------------
+using base::StringAppendF;
+using base::StringPrintf;
+
+namespace {
+
+auto vsyncPeriod(VSyncRequest request) {
+    return static_cast<std::underlying_type_t<VSyncRequest>>(request);
+}
+
+std::string toString(VSyncRequest request) {
+    switch (request) {
+        case VSyncRequest::None:
+            return "VSyncRequest::None";
+        case VSyncRequest::Single:
+            return "VSyncRequest::Single";
+        default:
+            return StringPrintf("VSyncRequest::Periodic{period=%d}", vsyncPeriod(request));
+    }
+}
+
+std::string toString(const EventThreadConnection& connection) {
+    return StringPrintf("Connection{%p, %s}", &connection,
+                        toString(connection.vsyncRequest).c_str());
+}
+
+std::string toString(const DisplayEventReceiver::Event& event) {
+    switch (event.header.type) {
+        case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
+            return StringPrintf("Hotplug{displayId=%u, %s}", event.header.id,
+                                event.hotplug.connected ? "connected" : "disconnected");
+        case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
+            return StringPrintf("VSync{displayId=%u, count=%u}", event.header.id,
+                                event.vsync.count);
+        default:
+            return "Event{}";
+    }
+}
+
+} // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread,
                                              ResyncCallback resyncCallback)
       : resyncCallback(std::move(resyncCallback)),
-        count(-1),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
 
@@ -65,8 +102,8 @@ status_t EventThreadConnection::stealReceiveChannel(gui::BitTube* outChannel) {
     return NO_ERROR;
 }
 
-status_t EventThreadConnection::setVsyncRate(uint32_t count) {
-    mEventThread->setVsyncRate(count, this);
+status_t EventThreadConnection::setVsyncRate(uint32_t rate) {
+    mEventThread->setVsyncRate(rate, this);
     return NO_ERROR;
 }
 
@@ -107,7 +144,8 @@ EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSr
                          InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
       : mVSyncSource(src),
         mVSyncSourceUnique(std::move(uniqueSrc)),
-        mInterceptVSyncsCallback(interceptVSyncsCallback) {
+        mInterceptVSyncsCallback(interceptVSyncsCallback),
+        mThreadName(threadName) {
     if (src == nullptr) {
         mVSyncSource = mVSyncSourceUnique.get();
     }
@@ -118,7 +156,10 @@ EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSr
         event.vsync.count = 0;
     }
 
-    mThread = std::thread(&EventThread::threadMain, this);
+    mThread = std::thread([this]() NO_THREAD_SAFETY_ANALYSIS {
+        std::unique_lock<std::mutex> lock(mMutex);
+        threadMain(lock);
+    });
 
     pthread_setname_np(mThread.native_handle(), threadName);
 
@@ -178,14 +219,17 @@ void EventThread::removeDisplayEventConnectionLocked(const wp<EventThreadConnect
     }
 }
 
-void EventThread::setVsyncRate(uint32_t count, const sp<EventThreadConnection>& connection) {
-    if (int32_t(count) >= 0) { // server must protect against bad params
-        std::lock_guard<std::mutex> lock(mMutex);
-        const int32_t new_count = (count == 0) ? -1 : count;
-        if (connection->count != new_count) {
-            connection->count = new_count;
-            mCondition.notify_all();
-        }
+void EventThread::setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) {
+    if (static_cast<std::underlying_type_t<VSyncRequest>>(rate) < 0) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    const auto request = rate == 0 ? VSyncRequest::None : static_cast<VSyncRequest>(rate);
+    if (connection->vsyncRequest != request) {
+        connection->vsyncRequest = request;
+        mCondition.notify_all();
     }
 }
 
@@ -201,8 +245,8 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, 
 
     std::lock_guard<std::mutex> lock(mMutex);
 
-    if (connection->count < 0) {
-        connection->count = 0;
+    if (connection->vsyncRequest == VSyncRequest::None) {
+        connection->vsyncRequest = VSyncRequest::Single;
         mCondition.notify_all();
     }
 }
@@ -243,122 +287,66 @@ void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
     event.header.timestamp = systemTime();
     event.hotplug.connected = connected;
 
-    mPendingEvents.push(event);
+    mPendingEvents.push_back(event);
     mCondition.notify_all();
 }
 
-void EventThread::threadMain() NO_THREAD_SAFETY_ANALYSIS {
-    std::unique_lock<std::mutex> lock(mMutex);
+void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
+    DisplayEventConsumers consumers;
+
     while (mKeepRunning) {
-        DisplayEventReceiver::Event event;
-        std::vector<sp<EventThreadConnection>> signalConnections;
-        signalConnections = waitForEventLocked(&lock, &event);
+        std::optional<DisplayEventReceiver::Event> event;
 
-        // dispatch events to listeners...
-        for (const sp<EventThreadConnection>& conn : signalConnections) {
-            // now see if we still need to report this event
-            status_t err = conn->postEvent(event);
-            if (err == -EAGAIN || err == -EWOULDBLOCK) {
-                // The destination doesn't accept events anymore, it's probably
-                // full. For now, we just drop the events on the floor.
-                // FIXME: Note that some events cannot be dropped and would have
-                // to be re-sent later.
-                // Right-now we don't have the ability to do this.
-                ALOGW("EventThread: dropping event (%08x) for connection %p", event.header.type,
-                      conn.get());
-            } else if (err < 0) {
-                // handle any other error on the pipe as fatal. the only
-                // reasonable thing to do is to clean-up this connection.
-                // The most common error we'll get here is -EPIPE.
-                removeDisplayEventConnectionLocked(conn);
-            }
-        }
-    }
-}
+        // Determine next event to dispatch.
+        if (!mPendingEvents.empty()) {
+            event = mPendingEvents.front();
+            mPendingEvents.pop_front();
+        } else {
+            for (auto& vsyncEvent : mVSyncEvent) {
+                if (vsyncEvent.header.timestamp) {
+                    event = vsyncEvent;
+                    vsyncEvent.header.timestamp = 0;
 
-// This will return when (1) a vsync event has been received, and (2) there was
-// at least one connection interested in receiving it when we started waiting.
-std::vector<sp<EventThreadConnection>> EventThread::waitForEventLocked(
-        std::unique_lock<std::mutex>* lock, DisplayEventReceiver::Event* outEvent) {
-    std::vector<sp<EventThreadConnection>> signalConnections;
-
-    while (signalConnections.empty() && mKeepRunning) {
-        bool eventPending = false;
-        bool waitForVSync = false;
-
-        size_t vsyncCount = 0;
-        nsecs_t timestamp = 0;
-        for (auto& event : mVSyncEvent) {
-            timestamp = event.header.timestamp;
-            if (timestamp) {
-                // we have a vsync event to dispatch
-                if (mInterceptVSyncsCallback) {
-                    mInterceptVSyncsCallback(timestamp);
+                    if (mInterceptVSyncsCallback) {
+                        mInterceptVSyncsCallback(event->header.timestamp);
+                    }
+                    break;
                 }
-                *outEvent = event;
-                event.header.timestamp = 0;
-                vsyncCount = event.vsync.count;
-                break;
             }
         }
 
-        if (!timestamp) {
-            // no vsync event, see if there are some other event
-            eventPending = !mPendingEvents.empty();
-            if (eventPending) {
-                // we have some other event to dispatch
-                *outEvent = mPendingEvents.front();
-                mPendingEvents.pop();
-            }
-        }
+        bool vsyncRequested = false;
 
-        // find out connections waiting for events
+        // Find connections that should consume this event.
         auto it = mDisplayEventConnections.begin();
         while (it != mDisplayEventConnections.end()) {
-            sp<EventThreadConnection> connection(it->promote());
-            if (connection != nullptr) {
-                bool added = false;
-                if (connection->count >= 0) {
-                    // we need vsync events because at least
-                    // one connection is waiting for it
-                    waitForVSync = true;
-                    if (timestamp) {
-                        // we consume the event only if it's time
-                        // (ie: we received a vsync event)
-                        if (connection->count == 0) {
-                            // fired this time around
-                            connection->count = -1;
-                            signalConnections.push_back(connection);
-                            added = true;
-                        } else if (connection->count == 1 ||
-                                   (vsyncCount % connection->count) == 0) {
-                            // continuous event, and time to report it
-                            signalConnections.push_back(connection);
-                            added = true;
-                        }
-                    }
+            if (const auto connection = it->promote()) {
+                vsyncRequested |= connection->vsyncRequest != VSyncRequest::None;
+
+                if (event && shouldConsumeEvent(*event, connection)) {
+                    consumers.push_back(connection);
                 }
 
-                if (eventPending && !timestamp && !added) {
-                    // we don't have a vsync event to process
-                    // (timestamp==0), but we have some pending
-                    // messages.
-                    signalConnections.push_back(connection);
-                }
                 ++it;
             } else {
-                // we couldn't promote this reference, the connection has
-                // died, so clean-up!
                 it = mDisplayEventConnections.erase(it);
             }
         }
 
+        if (!consumers.empty()) {
+            dispatchEvent(*event, consumers);
+            consumers.clear();
+        }
+
+        const bool vsyncPending =
+                event && event->header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
+
         // Here we figure out if we need to enable or disable vsyncs
-        if (timestamp && !waitForVSync) {
+        if (vsyncPending && !vsyncRequested) {
             // we received a VSYNC but we have no clients
             // don't report it, and disable VSYNC events
             disableVSyncLocked();
-        } else if (!timestamp && waitForVSync) {
+        } else if (!vsyncPending && vsyncRequested) {
             // we have at least one client, so we want vsync enabled
             // (TODO: this function is called right after we finish
             // notifying clients of a vsync, so this call will be made
@@ -368,48 +356,72 @@ std::vector<sp<EventThreadConnection>> EventThread::waitForEventLocked(
             enableVSyncLocked();
         }
 
-        // note: !timestamp implies signalConnections.isEmpty(), because we
-        // don't populate signalConnections if there's no vsync pending
-        if (!timestamp && !eventPending) {
-            // wait for something to happen
-            if (waitForVSync) {
-                // This is where we spend most of our time, waiting
-                // for vsync events and new client registrations.
-                //
-                // If the screen is off, we can't use h/w vsync, so we
-                // use a 16ms timeout instead.  It doesn't need to be
-                // precise, we just need to keep feeding our clients.
-                //
-                // We don't want to stall if there's a driver bug, so we
-                // use a (long) timeout when waiting for h/w vsync, and
-                // generate fake events when necessary.
-                bool softwareSync = mUseSoftwareVSync;
-                auto timeout = softwareSync ? 16ms : 1000ms;
-                if (mCondition.wait_for(*lock, timeout) == std::cv_status::timeout) {
-                    if (!softwareSync) {
-                        ALOGW("Timed out waiting for hw vsync; faking it");
-                    }
-                    // FIXME: how do we decide which display id the fake
-                    // vsync came from ?
-                    mVSyncEvent[0].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
-                    mVSyncEvent[0].header.id = 0;
-                    mVSyncEvent[0].header.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
-                    mVSyncEvent[0].vsync.count++;
-                }
-            } else {
-                // Nobody is interested in vsync, so we just want to sleep.
-                // h/w vsync should be disabled, so this will wait until we
-                // get a new connection, or an existing connection becomes
-                // interested in receiving vsync again.
-                mCondition.wait(*lock);
+        if (event) {
+            continue;
+        }
+
+        // Wait for event or client registration/request.
+        if (vsyncRequested) {
+            // Generate a fake VSYNC after a long timeout in case the driver stalls. When the
+            // display is off, keep feeding clients at 60 Hz.
+            const bool softwareSync = mUseSoftwareVSync;
+            const auto timeout = softwareSync ? 16ms : 1000ms;
+            if (mCondition.wait_for(lock, timeout) == std::cv_status::timeout) {
+                ALOGW_IF(!softwareSync, "Faking VSYNC due to driver stall");
+
+                mVSyncEvent[0].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
+                mVSyncEvent[0].header.id = 0;
+                mVSyncEvent[0].header.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
+                mVSyncEvent[0].vsync.count++;
             }
+        } else {
+            mCondition.wait(lock);
         }
     }
+}
 
-    // here we're guaranteed to have a timestamp and some connections to signal
-    // (The connections might have dropped out of mDisplayEventConnections
-    // while we were asleep, but we'll still have strong references to them.)
-    return signalConnections;
+bool EventThread::shouldConsumeEvent(const DisplayEventReceiver::Event& event,
+                                     const sp<EventThreadConnection>& connection) const {
+    switch (event.header.type) {
+        case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
+            return true;
+
+        case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
+            switch (connection->vsyncRequest) {
+                case VSyncRequest::None:
+                    return false;
+                case VSyncRequest::Single:
+                    connection->vsyncRequest = VSyncRequest::None;
+                    return true;
+                case VSyncRequest::Periodic:
+                    return true;
+                default:
+                    return event.vsync.count % vsyncPeriod(connection->vsyncRequest) == 0;
+            }
+
+        default:
+            return false;
+    }
+}
+
+void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
+                                const DisplayEventConsumers& consumers) {
+    for (const auto& consumer : consumers) {
+        switch (consumer->postEvent(event)) {
+            case NO_ERROR:
+                break;
+
+            case -EAGAIN:
+                // TODO: Try again if pipe is full.
+                ALOGW("Failed dispatching %s for %s", toString(event).c_str(),
+                      toString(*consumer).c_str());
+                break;
+
+            default:
+                // Treat EPIPE and other errors as fatal.
+                removeDisplayEventConnectionLocked(consumer);
+        }
+    }
 }
 
 void EventThread::enableVSyncLocked() {
@@ -434,16 +446,22 @@ void EventThread::disableVSyncLocked() {
 
 void EventThread::dump(std::string& result) const {
     std::lock_guard<std::mutex> lock(mMutex);
-    StringAppendF(&result, "VSYNC state: %s\n", mDebugVsyncEnabled ? "enabled" : "disabled");
-    StringAppendF(&result, "  soft-vsync: %s\n", mUseSoftwareVSync ? "enabled" : "disabled");
-    StringAppendF(&result, "  numListeners=%zu,\n  events-delivered: %u\n",
-                  mDisplayEventConnections.size(), mVSyncEvent[0].vsync.count);
-    for (const wp<EventThreadConnection>& weak : mDisplayEventConnections) {
-        sp<EventThreadConnection> connection = weak.promote();
-        StringAppendF(&result, "    %p: count=%d\n", connection.get(),
-                      connection != nullptr ? connection->count : 0);
+
+    StringAppendF(&result, "%s: VSYNC %s\n", mThreadName, mDebugVsyncEnabled ? "on" : "off");
+    StringAppendF(&result, "  software VSYNC: %s\n", mUseSoftwareVSync ? "on" : "off");
+    StringAppendF(&result, "  VSYNC count: %u\n", mVSyncEvent[0].vsync.count);
+
+    StringAppendF(&result, "  pending events (count=%zu):\n", mPendingEvents.size());
+    for (const auto& event : mPendingEvents) {
+        StringAppendF(&result, "    %s\n", toString(event).c_str());
     }
-    StringAppendF(&result, "  other-events-pending: %zu\n", mPendingEvents.size());
+
+    StringAppendF(&result, "  connections (count=%zu):\n", mDisplayEventConnections.size());
+    for (const auto& ptr : mDisplayEventConnections) {
+        if (const auto connection = ptr.promote()) {
+            StringAppendF(&result, "    %s\n", toString(*connection).c_str());
+        }
+    }
 }
 
 } // namespace impl
