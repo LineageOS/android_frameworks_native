@@ -412,6 +412,27 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsExistingSnapshot) {
   ASSERT_EQ(-1, stat((rollback_de_dir + "/com.foo/file1").c_str(), &sb));
 }
 
+TEST_F(ServiceTest, SnapshotAppData_WrongVolumeUuid) {
+  // Setup app data to make sure that fails due to wrong volumeUuid being
+  // passed, not because of some other reason.
+  auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
+  auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir, 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir, 700));
+
+  auto deleter = [&rollback_ce_dir, &rollback_de_dir]() {
+      delete_dir_contents(rollback_ce_dir, true);
+      delete_dir_contents(rollback_de_dir, true);
+      rmdir(rollback_ce_dir.c_str());
+      rmdir(rollback_de_dir.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  ASSERT_FALSE(service->snapshotAppData(std::make_unique<std::string>("FOO"),
+          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+}
+
 TEST_F(ServiceTest, RestoreAppDataSnapshot) {
   auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
   auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
@@ -465,6 +486,36 @@ TEST_F(ServiceTest, RestoreAppDataSnapshot) {
   ASSERT_EQ("DE_RESTORE_CONTENT", de_content);
 }
 
+
+TEST_F(ServiceTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
+  // Setup rollback data to make sure that fails due to wrong volumeUuid being
+  // passed, not because of some other reason.
+  auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
+  auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir, 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir, 700));
+
+  auto fake_package_ce_path = create_data_user_ce_package_path("TEST", 0, "com.foo");
+  auto fake_package_de_path = create_data_user_de_package_path("TEST", 0, "com.foo");
+
+  ASSERT_TRUE(mkdirs(fake_package_ce_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_path, 700));
+
+  auto deleter = [&rollback_ce_dir, &rollback_de_dir,
+          &fake_package_ce_path, &fake_package_de_path]() {
+      delete_dir_contents(rollback_ce_dir, true);
+      delete_dir_contents(rollback_de_dir, true);
+      delete_dir_contents(fake_package_ce_path, true);
+      delete_dir_contents(fake_package_de_path, true);
+      rmdir(rollback_ce_dir.c_str());
+      rmdir(rollback_de_dir.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  ASSERT_FALSE(service->restoreAppDataSnapshot(std::make_unique<std::string>("BAR"),
+          "com.foo", 10000, -1, "", 0, FLAG_STORAGE_DE).isOk());
+}
 
 }  // namespace installd
 }  // namespace android
