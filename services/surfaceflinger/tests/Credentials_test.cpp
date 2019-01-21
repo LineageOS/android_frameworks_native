@@ -207,6 +207,15 @@ TEST_F(CredentialsTest, GetDisplayColorModesTest) {
     ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
 }
 
+TEST_F(CredentialsTest, GetDisplayNativePrimariesTest) {
+    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    std::function<status_t()> condition = [=]() {
+        ui::DisplayPrimaries primaries;
+        return SurfaceComposerClient::getDisplayNativePrimaries(display, primaries);
+    };
+    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
+}
+
 TEST_F(CredentialsTest, SetActiveConfigTest) {
     sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
     std::function<status_t()> condition = [=]() {

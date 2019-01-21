@@ -27,6 +27,7 @@
 
 #include <binder/IInterface.h>
 
+#include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
@@ -161,6 +162,8 @@ public:
 
     virtual status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes) = 0;
+    virtual status_t getDisplayNativePrimaries(const sp<IBinder>& display,
+            ui::DisplayPrimaries& primaries) = 0;
     virtual ui::ColorMode getActiveColorMode(const sp<IBinder>& display) = 0;
     virtual status_t setActiveColorMode(const sp<IBinder>& display,
             ui::ColorMode colorMode) = 0;
@@ -373,6 +376,7 @@ public:
         CACHE_BUFFER,
         UNCACHE_BUFFER,
         IS_WIDE_COLOR_DISPLAY,
+        GET_DISPLAY_NATIVE_PRIMARIES,
         // Always append new enum to the end.
     };
 

@@ -30,6 +30,7 @@
 #include <utils/SortedVector.h>
 #include <utils/threads.h>
 
+#include <ui/ConfigStoreTypes.h>
 #include <ui/DisplayedFrameStats.h>
 #include <ui/FrameStats.h>
 #include <ui/GraphicTypes.h>
@@ -113,6 +114,10 @@ public:
     // Gets the list of supported color modes for the given display
     static status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes);
+
+    // Get the coordinates of the display's native color primaries
+    static status_t getDisplayNativePrimaries(const sp<IBinder>& display,
+            ui::DisplayPrimaries& outPrimaries);
 
     // Gets the active color mode for the given display
     static ui::ColorMode getActiveColorMode(const sp<IBinder>& display);

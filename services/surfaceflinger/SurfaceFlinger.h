@@ -438,6 +438,8 @@ private:
     int getActiveConfig(const sp<IBinder>& displayToken) override;
     status_t getDisplayColorModes(const sp<IBinder>& displayToken,
                                   Vector<ui::ColorMode>* configs) override;
+    status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
+                                       ui::DisplayPrimaries &primaries);
     ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
@@ -662,6 +664,10 @@ private:
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
+
+    // Initialize structures containing information about the internal
+    // display's native color coordinates using default data
+    void initDefaultDisplayNativePrimaries();
 
     /* ------------------------------------------------------------------------
      * H/W composer
@@ -1083,6 +1089,8 @@ private:
     InputWindowCommands mInputWindowCommands;
 
     BufferStateLayerCache mBufferStateLayerCache;
+
+    ui::DisplayPrimaries mInternalDisplayPrimaries;
 };
 }; // namespace android
 

@@ -1297,6 +1297,11 @@ status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,
     return ComposerService::getComposerService()->getDisplayColorModes(display, outColorModes);
 }
 
+status_t SurfaceComposerClient::getDisplayNativePrimaries(const sp<IBinder>& display,
+        ui::DisplayPrimaries& outPrimaries) {
+    return ComposerService::getComposerService()->getDisplayNativePrimaries(display, outPrimaries);
+}
+
 ColorMode SurfaceComposerClient::getActiveColorMode(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->getActiveColorMode(display);
 }
