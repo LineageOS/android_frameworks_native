@@ -49,7 +49,7 @@ adb shell mkdir /data/nativetest64
 Then run:
 
 ```
-mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest64/dumpstate_test* /data/nativetest64 && adb shell /data/nativetest64/dumpstate_test/dumpstate_test
+mmm -j frameworks/native/cmds/dumpstate/ && adb push ${OUT}/data/nativetest64/dumpstate_* /data/nativetest64 && adb shell /data/nativetest64/dumpstate_test/dumpstate_test
 ```
 
 And to run just one test (for example, `DumpstateTest.RunCommandNoArgs`):
