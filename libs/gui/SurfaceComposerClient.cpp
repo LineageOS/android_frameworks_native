@@ -132,26 +132,76 @@ void TransactionCompletedListener::startListeningLocked() {
     mListening = true;
 }
 
-CallbackId TransactionCompletedListener::addCallback(const TransactionCompletedCallback& callback) {
+CallbackId TransactionCompletedListener::addCallbackFunction(
+        const TransactionCompletedCallback& callbackFunction,
+        const std::unordered_set<sp<SurfaceControl>, SurfaceComposerClient::SCHash>&
+                surfaceControls) {
     std::lock_guard<std::mutex> lock(mMutex);
     startListeningLocked();
 
     CallbackId callbackId = getNextIdLocked();
-    mCallbacks.emplace(callbackId, callback);
+    mCallbacks[callbackId].callbackFunction = callbackFunction;
+
+    auto& callbackSurfaceControls = mCallbacks[callbackId].surfaceControls;
+
+    for (const auto& surfaceControl : surfaceControls) {
+        callbackSurfaceControls[surfaceControl->getHandle()] = surfaceControl;
+    }
+
     return callbackId;
+}
+
+void TransactionCompletedListener::addSurfaceControlToCallbacks(
+        const sp<SurfaceControl>& surfaceControl,
+        const std::unordered_set<CallbackId>& callbackIds) {
+    std::lock_guard<std::mutex> lock(mMutex);
+
+    for (auto callbackId : callbackIds) {
+        mCallbacks[callbackId].surfaceControls.emplace(std::piecewise_construct,
+                                                       std::forward_as_tuple(
+                                                               surfaceControl->getHandle()),
+                                                       std::forward_as_tuple(surfaceControl));
+    }
 }
 
 void TransactionCompletedListener::onTransactionCompleted(ListenerStats listenerStats) {
     std::lock_guard lock(mMutex);
 
+    /* This listener knows all the sp<IBinder> to sp<SurfaceControl> for all its registered
+     * callbackIds, except for when Transactions are merged together. This probably cannot be
+     * solved before this point because the Transactions could be merged together and applied in a
+     * different process.
+     *
+     * Fortunately, we get all the callbacks for this listener for the same frame together at the
+     * same time. This means if any Transactions were merged together, we will get their callbacks
+     * at the same time. We can combine all the sp<IBinder> to sp<SurfaceControl> maps for all the
+     * callbackIds to generate one super map that contains all the sp<IBinder> to sp<SurfaceControl>
+     * that could possibly exist for the callbacks.
+     */
+    std::unordered_map<sp<IBinder>, sp<SurfaceControl>, IBinderHash> surfaceControls;
     for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
         for (auto callbackId : callbackIds) {
-            const auto& callback = mCallbacks[callbackId];
-            if (!callback) {
+            auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
+            surfaceControls.insert(callbackSurfaceControls.begin(), callbackSurfaceControls.end());
+        }
+    }
+
+    for (const auto& [callbackIds, transactionStats] : listenerStats.transactionStats) {
+        for (auto callbackId : callbackIds) {
+            auto& [callbackFunction, callbackSurfaceControls] = mCallbacks[callbackId];
+            if (!callbackFunction) {
                 ALOGE("cannot call null callback function, skipping");
                 continue;
             }
-            callback(transactionStats);
+            std::vector<SurfaceControlStats> surfaceControlStats;
+            for (const auto& surfaceStats : transactionStats.surfaceStats) {
+                surfaceControlStats.emplace_back(surfaceControls[surfaceStats.surfaceControl],
+                                                 surfaceStats.acquireTime,
+                                                 surfaceStats.previousReleaseFence);
+            }
+
+            callbackFunction(transactionStats.latchTime, transactionStats.presentFence,
+                             surfaceControlStats);
             mCallbacks.erase(callbackId);
         }
     }
@@ -329,7 +379,11 @@ layer_state_t* SurfaceComposerClient::Transaction::getLayerState(const sp<Surfac
 
 void SurfaceComposerClient::Transaction::registerSurfaceControlForCallback(
         const sp<SurfaceControl>& sc) {
-    mListenerCallbacks[TransactionCompletedListener::getIInstance()].surfaceControls.insert(sc);
+    auto& callbackInfo = mListenerCallbacks[TransactionCompletedListener::getIInstance()];
+    callbackInfo.surfaceControls.insert(sc);
+
+    TransactionCompletedListener::getInstance()
+            ->addSurfaceControlToCallbacks(sc, callbackInfo.callbackIds);
 }
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setPosition(
@@ -770,9 +824,12 @@ SurfaceComposerClient::Transaction::addTransactionCompletedCallback(
         TransactionCompletedCallbackTakesContext callback, void* callbackContext) {
     auto listener = TransactionCompletedListener::getInstance();
 
-    auto callbackWithContext = std::bind(callback, callbackContext, std::placeholders::_1);
+    auto callbackWithContext = std::bind(callback, callbackContext, std::placeholders::_1,
+                                         std::placeholders::_2, std::placeholders::_3);
+    const auto& surfaceControls =
+            mListenerCallbacks[TransactionCompletedListener::getIInstance()].surfaceControls;
 
-    CallbackId callbackId = listener->addCallback(callbackWithContext);
+    CallbackId callbackId = listener->addCallbackFunction(callbackWithContext, surfaceControls);
 
     mListenerCallbacks[TransactionCompletedListener::getIInstance()].callbackIds.emplace(
             callbackId);
