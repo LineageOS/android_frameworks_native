@@ -12,9 +12,9 @@
 #include <binder/IServiceManager.h>
 #include <binder/ProcessState.h>
 #include <cutils/properties.h>
-#include <cutils/sched_policy.h>
 #include <log/log.h>
 #include <private/dvr/display_client.h>
+#include <processgroup/sched_policy.h>
 #include <sys/prctl.h>
 #include <sys/resource.h>
 
