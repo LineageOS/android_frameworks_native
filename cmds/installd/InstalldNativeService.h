@@ -60,6 +60,12 @@ public:
 
     binder::Status fixupAppData(const std::unique_ptr<std::string>& uuid, int32_t flags);
 
+    binder::Status snapshotAppData(const std::unique_ptr<std::string>& volumeUuid,
+            const std::string& packageName, const int32_t user, int32_t storageFlags);
+    binder::Status restoreAppDataSnapshot(const std::unique_ptr<std::string>& volumeUuid,
+            const std::string& packageName, const int32_t appId, const int64_t ceDataInode,
+            const std::string& seInfo, const int32_t user, int32_t storageFlags);
+
     binder::Status getAppSize(const std::unique_ptr<std::string>& uuid,
             const std::vector<std::string>& packageNames, int32_t userId, int32_t flags,
             int32_t appId, const std::vector<int64_t>& ceDataInodes,
