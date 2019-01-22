@@ -144,6 +144,9 @@ binder::Status DumpstateService::startBugreport(int32_t /* calling_uid */,
 }
 
 status_t DumpstateService::dump(int fd, const Vector<String16>&) {
+    std::string destination = ds_.options_->bugreport_fd.get() != -1
+                                  ? StringPrintf("[fd:%d]", ds_.options_->bugreport_fd.get())
+                                  : ds_.bugreport_internal_dir_.c_str();
     dprintf(fd, "id: %d\n", ds_.id_);
     dprintf(fd, "pid: %d\n", ds_.pid_);
     dprintf(fd, "update_progress: %s\n", ds_.options_->do_progress_updates ? "true" : "false");
@@ -154,8 +157,7 @@ status_t DumpstateService::dump(int fd, const Vector<String16>&) {
     dprintf(fd, "args: %s\n", ds_.options_->args.c_str());
     dprintf(fd, "extra_options: %s\n", ds_.options_->extra_options.c_str());
     dprintf(fd, "version: %s\n", ds_.version_.c_str());
-    dprintf(fd, "bugreport_dir: %s\n", ds_.bugreport_dir_.c_str());
-    dprintf(fd, "bugreport_internal_dir_: %s\n", ds_.bugreport_internal_dir_.c_str());
+    dprintf(fd, "bugreport_dir: %s\n", destination.c_str());
     dprintf(fd, "screenshot_path: %s\n", ds_.screenshot_path_.c_str());
     dprintf(fd, "log_path: %s\n", ds_.log_path_.c_str());
     dprintf(fd, "tmp_path: %s\n", ds_.tmp_path_.c_str());
