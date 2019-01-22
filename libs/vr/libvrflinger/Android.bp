@@ -47,6 +47,7 @@ sharedLibraries = [
     "liblog",
     "libhardware",
     "libnativewindow",
+    "libprocessgroup",
     "libutils",
     "libEGL",
     "libGLESv1_CM",
