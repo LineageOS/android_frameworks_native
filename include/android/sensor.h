@@ -495,6 +495,7 @@ struct ASensorEventQueue;
  * - ASensorEventQueue_hasEvents()
  * - ASensorEventQueue_getEvents()
  * - ASensorEventQueue_setEventRate()
+ * - ASensorEventQueue_requestAdditionalInfoEvents()
  */
 typedef struct ASensorEventQueue ASensorEventQueue;
 
@@ -779,6 +780,29 @@ int ASensorEventQueue_hasEvents(ASensorEventQueue* queue);
  */
 ssize_t ASensorEventQueue_getEvents(ASensorEventQueue* queue, ASensorEvent* events, size_t count);
 
+#if __ANDROID_API__ >= __ANDROID_API_Q__
+/**
+ * Request that {@link ASENSOR_TYPE_ADDITIONAL_INFO} events to be delivered on
+ * the given {@link ASensorEventQueue}.
+ *
+ * Sensor data events are always delivered to the {@ASensorEventQueue}.
+ *
+ * The {@link ASENSOR_TYPE_ADDITIONAL_INFO} events will be returned through
+ * {@link ASensorEventQueue_getEvents}. The client is responsible for checking
+ * {@link ASensorEvent#type} to determine the event type prior to handling of
+ * the event.
+ *
+ * The client must be tolerant of any value for
+ * {@link AAdditionalInfoEvent#type}, as new values may be defined in the future
+ * and may delivered to the client.
+ *
+ * \param queue {@link ASensorEventQueue} to configure
+ * \param enable true to request {@link ASENSOR_TYPE_ADDITIONAL_INFO} events,
+ *        false to stop receiving events
+ * \return 0 on success or a negative error code on failure
+ */
+int ASensorEventQueue_requestAdditionalInfoEvents(ASensorEventQueue* queue, bool enable);
+#endif /* __ANDROID_API__ >= __ANDRDOID_API_Q__ */
 
 /*****************************************************************************/
 
