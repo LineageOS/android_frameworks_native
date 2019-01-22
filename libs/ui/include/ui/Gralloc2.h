@@ -53,7 +53,8 @@ public:
                           uint32_t* outNumInts) const override;
 
     status_t lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                  int acquireFence, void** outData) const override;
+                  int acquireFence, void** outData, int32_t* outBytesPerPixel,
+                  int32_t* outBytesPerStride) const override;
 
     status_t lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
                   int acquireFence, android_ycbcr* ycbcr) const override;

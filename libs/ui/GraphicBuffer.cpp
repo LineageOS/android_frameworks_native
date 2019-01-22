@@ -252,7 +252,10 @@ status_t GraphicBuffer::lock(uint32_t inUsage, const Rect& rect, void** vaddr)
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lock(handle, inUsage, rect, vaddr);
+    int32_t bytesPerPixel, bytesPerStride;
+
+    status_t res =
+            getBufferMapper().lock(handle, inUsage, rect, vaddr, &bytesPerPixel, &bytesPerStride);
     return res;
 }
 
@@ -306,8 +309,10 @@ status_t GraphicBuffer::lockAsync(uint64_t inProducerUsage,
                 width, height);
         return BAD_VALUE;
     }
-    status_t res = getBufferMapper().lockAsync(handle, inProducerUsage,
-            inConsumerUsage, rect, vaddr, fenceFd);
+
+    int32_t bytesPerPixel, bytesPerStride;
+    status_t res = getBufferMapper().lockAsync(handle, inProducerUsage, inConsumerUsage, rect,
+                                               vaddr, fenceFd, &bytesPerPixel, &bytesPerStride);
     return res;
 }
 

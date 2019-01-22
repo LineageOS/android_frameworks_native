@@ -102,10 +102,10 @@ status_t GraphicBufferMapper::freeBuffer(buffer_handle_t handle)
     return NO_ERROR;
 }
 
-status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage,
-        const Rect& bounds, void** vaddr)
-{
-    return lockAsync(handle, usage, bounds, vaddr, -1);
+status_t GraphicBufferMapper::lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
+                                   void** vaddr, int32_t* outBytesPerPixel,
+                                   int32_t* outBytesPerStride) {
+    return lockAsync(handle, usage, bounds, vaddr, -1, outBytesPerPixel, outBytesPerStride);
 }
 
 status_t GraphicBufferMapper::lockYCbCr(buffer_handle_t handle, uint32_t usage,
@@ -125,21 +125,23 @@ status_t GraphicBufferMapper::unlock(buffer_handle_t handle)
     return error;
 }
 
-status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
-        uint32_t usage, const Rect& bounds, void** vaddr, int fenceFd)
-{
-    return lockAsync(handle, usage, usage, bounds, vaddr, fenceFd);
+status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint32_t usage, const Rect& bounds,
+                                        void** vaddr, int fenceFd, int32_t* outBytesPerPixel,
+                                        int32_t* outBytesPerStride) {
+    return lockAsync(handle, usage, usage, bounds, vaddr, fenceFd, outBytesPerPixel,
+                     outBytesPerStride);
 }
 
-status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle,
-        uint64_t producerUsage, uint64_t consumerUsage, const Rect& bounds,
-        void** vaddr, int fenceFd)
-{
+status_t GraphicBufferMapper::lockAsync(buffer_handle_t handle, uint64_t producerUsage,
+                                        uint64_t consumerUsage, const Rect& bounds, void** vaddr,
+                                        int fenceFd, int32_t* outBytesPerPixel,
+                                        int32_t* outBytesPerStride) {
     ATRACE_CALL();
 
     const uint64_t usage = static_cast<uint64_t>(
             android_convertGralloc1To0Usage(producerUsage, consumerUsage));
-    return mMapper->lock(handle, usage, bounds, fenceFd, vaddr);
+    return mMapper->lock(handle, usage, bounds, fenceFd, vaddr, outBytesPerPixel,
+                         outBytesPerStride);
 }
 
 status_t GraphicBufferMapper::lockAsyncYCbCr(buffer_handle_t handle,

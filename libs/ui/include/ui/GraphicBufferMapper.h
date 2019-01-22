@@ -56,20 +56,21 @@ public:
     void getTransportSize(buffer_handle_t handle,
             uint32_t* outTransportNumFds, uint32_t* outTransportNumInts);
 
-    status_t lock(buffer_handle_t handle,
-            uint32_t usage, const Rect& bounds, void** vaddr);
+    status_t lock(buffer_handle_t handle, uint32_t usage, const Rect& bounds, void** vaddr,
+                  int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
 
     status_t lockYCbCr(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr);
 
     status_t unlock(buffer_handle_t handle);
 
-    status_t lockAsync(buffer_handle_t handle,
-            uint32_t usage, const Rect& bounds, void** vaddr, int fenceFd);
+    status_t lockAsync(buffer_handle_t handle, uint32_t usage, const Rect& bounds, void** vaddr,
+                       int fenceFd, int32_t* outBytesPerPixel = nullptr,
+                       int32_t* outBytesPerStride = nullptr);
 
-    status_t lockAsync(buffer_handle_t handle,
-            uint64_t producerUsage, uint64_t consumerUsage, const Rect& bounds,
-            void** vaddr, int fenceFd);
+    status_t lockAsync(buffer_handle_t handle, uint64_t producerUsage, uint64_t consumerUsage,
+                       const Rect& bounds, void** vaddr, int fenceFd,
+                       int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
 
     status_t lockAsyncYCbCr(buffer_handle_t handle,
             uint32_t usage, const Rect& bounds, android_ycbcr *ycbcr,
