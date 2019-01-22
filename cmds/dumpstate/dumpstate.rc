@@ -17,3 +17,9 @@ service dumpstatez /system/bin/dumpstate -S -d -z \
     class main
     disabled
     oneshot
+
+# bugreportd starts dumpstate binder service and makes it wait for a listener to connect.
+service bugreportd /system/bin/dumpstate -w
+    class main
+    disabled
+    oneshot
