@@ -3961,8 +3961,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setSidebandStream(s.sidebandStream)) flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eInputInfoChanged) {
-        layer->setInputInfo(s.inputInfo);
-        flags |= eTraversalNeeded;
+        if (callingThreadHasUnscopedSurfaceFlingerAccess()) {
+            layer->setInputInfo(s.inputInfo);
+            flags |= eTraversalNeeded;
+        } else {
+            ALOGE("Attempt to update InputWindowInfo without permission ACCESS_SURFACE_FLINGER");
+        }
     }
     std::vector<sp<CallbackHandle>> callbackHandles;
     if ((what & layer_state_t::eListenerCallbacksChanged) && (!s.listenerCallbacks.empty())) {
