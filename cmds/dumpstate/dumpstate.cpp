@@ -1654,6 +1654,7 @@ static void ShowUsage() {
             "progress (requires -o and -B)\n"
             "  -R: take bugreport in remote mode (requires -o, -z, -d and -B, "
             "shouldn't be used with -P)\n"
+            "  -w: start binder service and make it wait for a call to startBugreport\n"
             "  -v: prints the dumpstate header and exit\n");
 }
 
@@ -2112,7 +2113,7 @@ void Dumpstate::DumpOptions::Initialize(BugreportMode bugreport_mode,
 Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) {
     RunStatus status = RunStatus::OK;
     int c;
-    while ((c = getopt(argc, argv, "dho:svqzpPBRSV:")) != -1) {
+    while ((c = getopt(argc, argv, "dho:svqzpPBRSV:w")) != -1) {
         switch (c) {
             // clang-format off
             case 'd': do_add_date = true;            break;
@@ -2129,6 +2130,9 @@ Dumpstate::RunStatus Dumpstate::DumpOptions::Initialize(int argc, char* argv[]) 
             case 'R': is_remote_mode = true;         break;
             case 'B': do_broadcast = true;           break;
             case 'V':                                break;  // compatibility no-op
+            case 'w':
+                // This was already processed
+                break;
             case 'h':
                 status = RunStatus::HELP;
                 break;
