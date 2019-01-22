@@ -79,6 +79,20 @@ std::string toString(const DisplayEventReceiver::Event& event) {
     }
 }
 
+DisplayEventReceiver::Event makeHotplug(uint32_t displayId, nsecs_t timestamp, bool connected) {
+    DisplayEventReceiver::Event event;
+    event.header = {DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG, displayId, timestamp};
+    event.hotplug.connected = connected;
+    return event;
+}
+
+DisplayEventReceiver::Event makeVSync(uint32_t displayId, nsecs_t timestamp, uint32_t count) {
+    DisplayEventReceiver::Event event;
+    event.header = {DisplayEventReceiver::DISPLAY_EVENT_VSYNC, displayId, timestamp};
+    event.vsync.count = count;
+    return event;
+}
+
 } // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread,
@@ -148,12 +162,6 @@ EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSr
         mThreadName(threadName) {
     if (src == nullptr) {
         mVSyncSource = mVSyncSourceUnique.get();
-    }
-    for (auto& event : mVSyncEvent) {
-        event.header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
-        event.header.id = 0;
-        event.header.timestamp = 0;
-        event.vsync.count = 0;
     }
 
     mThread = std::thread([this]() NO_THREAD_SAFETY_ANALYSIS {
@@ -253,41 +261,32 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, 
 
 void EventThread::onScreenReleased() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mUseSoftwareVSync) {
-        // disable reliance on h/w vsync
-        mUseSoftwareVSync = true;
+    if (!mVSyncState.synthetic) {
+        mVSyncState.synthetic = true;
         mCondition.notify_all();
     }
 }
 
 void EventThread::onScreenAcquired() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (mUseSoftwareVSync) {
-        // resume use of h/w vsync
-        mUseSoftwareVSync = false;
+    if (mVSyncState.synthetic) {
+        mVSyncState.synthetic = false;
         mCondition.notify_all();
     }
 }
 
 void EventThread::onVSyncEvent(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lock(mMutex);
-    mVSyncEvent[0].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
-    mVSyncEvent[0].header.id = 0;
-    mVSyncEvent[0].header.timestamp = timestamp;
-    mVSyncEvent[0].vsync.count++;
+
+    mPendingEvents.push_back(makeVSync(mVSyncState.displayId, timestamp, ++mVSyncState.count));
     mCondition.notify_all();
 }
 
 void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    DisplayEventReceiver::Event event;
-    event.header.type = DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG;
-    event.header.id = displayType == DisplayType::Primary ? 0 : 1;
-    event.header.timestamp = systemTime();
-    event.hotplug.connected = connected;
-
-    mPendingEvents.push_back(event);
+    const uint32_t displayId = displayType == DisplayType::Primary ? 0 : 1;
+    mPendingEvents.push_back(makeHotplug(displayId, systemTime(), connected));
     mCondition.notify_all();
 }
 
@@ -301,18 +300,13 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
         if (!mPendingEvents.empty()) {
             event = mPendingEvents.front();
             mPendingEvents.pop_front();
-        } else {
-            for (auto& vsyncEvent : mVSyncEvent) {
-                if (vsyncEvent.header.timestamp) {
-                    event = vsyncEvent;
-                    vsyncEvent.header.timestamp = 0;
+        }
 
-                    if (mInterceptVSyncsCallback) {
-                        mInterceptVSyncsCallback(event->header.timestamp);
-                    }
-                    break;
-                }
-            }
+        const bool vsyncPending =
+                event && event->header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
+
+        if (mInterceptVSyncsCallback && vsyncPending) {
+            mInterceptVSyncsCallback(event->header.timestamp);
         }
 
         bool vsyncRequested = false;
@@ -338,9 +332,6 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             consumers.clear();
         }
 
-        const bool vsyncPending =
-                event && event->header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
-
         // Here we figure out if we need to enable or disable vsyncs
         if (vsyncPending && !vsyncRequested) {
             // we received a VSYNC but we have no clients
@@ -364,15 +355,13 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
         if (vsyncRequested) {
             // Generate a fake VSYNC after a long timeout in case the driver stalls. When the
             // display is off, keep feeding clients at 60 Hz.
-            const bool softwareSync = mUseSoftwareVSync;
-            const auto timeout = softwareSync ? 16ms : 1000ms;
+            const auto timeout = mVSyncState.synthetic ? 16ms : 1000ms;
             if (mCondition.wait_for(lock, timeout) == std::cv_status::timeout) {
-                ALOGW_IF(!softwareSync, "Faking VSYNC due to driver stall");
+                ALOGW_IF(!mVSyncState.synthetic, "Faking VSYNC due to driver stall");
 
-                mVSyncEvent[0].header.type = DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
-                mVSyncEvent[0].header.id = 0;
-                mVSyncEvent[0].header.timestamp = systemTime(SYSTEM_TIME_MONOTONIC);
-                mVSyncEvent[0].vsync.count++;
+                mPendingEvents.push_back(makeVSync(mVSyncState.displayId,
+                                                   systemTime(SYSTEM_TIME_MONOTONIC),
+                                                   ++mVSyncState.count));
             }
         } else {
             mCondition.wait(lock);
@@ -425,8 +414,7 @@ void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
 }
 
 void EventThread::enableVSyncLocked() {
-    if (!mUseSoftwareVSync) {
-        // never enable h/w VSYNC when screen is off
+    if (!mVSyncState.synthetic) {
         if (!mVsyncEnabled) {
             mVsyncEnabled = true;
             mVSyncSource->setCallback(this);
@@ -448,8 +436,8 @@ void EventThread::dump(std::string& result) const {
     std::lock_guard<std::mutex> lock(mMutex);
 
     StringAppendF(&result, "%s: VSYNC %s\n", mThreadName, mDebugVsyncEnabled ? "on" : "off");
-    StringAppendF(&result, "  software VSYNC: %s\n", mUseSoftwareVSync ? "on" : "off");
-    StringAppendF(&result, "  VSYNC count: %u\n", mVSyncEvent[0].vsync.count);
+    StringAppendF(&result, "  VSyncState{displayId=%u, count=%u%s}\n", mVSyncState.displayId,
+                  mVSyncState.count, mVSyncState.synthetic ? ", synthetic" : "");
 
     StringAppendF(&result, "  pending events (count=%zu):\n", mPendingEvents.size());
     for (const auto& event : mPendingEvents) {

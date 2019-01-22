@@ -18,7 +18,6 @@
 
 #include <sys/types.h>
 
-#include <array>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
@@ -199,8 +198,20 @@ private:
 
     std::vector<wp<EventThreadConnection>> mDisplayEventConnections GUARDED_BY(mMutex);
     std::deque<DisplayEventReceiver::Event> mPendingEvents GUARDED_BY(mMutex);
-    std::array<DisplayEventReceiver::Event, 2> mVSyncEvent GUARDED_BY(mMutex);
-    bool mUseSoftwareVSync GUARDED_BY(mMutex) = false;
+
+    // VSYNC state of connected display.
+    struct VSyncState {
+        uint32_t displayId = 0;
+
+        // Number of VSYNC events since display was connected.
+        uint32_t count = 0;
+
+        // True if VSYNC should be faked, e.g. when display is off.
+        bool synthetic = false;
+    };
+
+    VSyncState mVSyncState GUARDED_BY(mMutex);
+
     bool mVsyncEnabled GUARDED_BY(mMutex) = false;
     bool mKeepRunning GUARDED_BY(mMutex) = true;
 
