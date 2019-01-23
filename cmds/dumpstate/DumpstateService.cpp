@@ -44,7 +44,7 @@ static binder::Status error(uint32_t code, const std::string& msg) {
 static void* callAndNotify(void* data) {
     Dumpstate& ds = *static_cast<Dumpstate*>(data);
     ds.Run();
-    MYLOGE("Finished Run()\n");
+    MYLOGD("Finished Run()\n");
     return nullptr;
 }
 
@@ -104,9 +104,6 @@ binder::Status DumpstateService::startBugreport(int32_t /* calling_uid */,
                                                 const android::base::unique_fd& screenshot_fd,
                                                 int bugreport_mode,
                                                 const sp<IDumpstateListener>& listener) {
-    // TODO(b/111441001):
-    // 1. check DUMP permission (again)?
-    // 2. check if primary user? If non primary user the consent service will reject anyway.
     MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
 
     if (bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_FULL &&
@@ -140,6 +137,14 @@ binder::Status DumpstateService::startBugreport(int32_t /* calling_uid */,
     if (err != 0) {
         return error(err, "Could not create a background thread.");
     }
+    return binder::Status::ok();
+}
+
+binder::Status DumpstateService::cancelBugreport() {
+    // This is a no-op since the cancellation is done from java side via setting sys properties.
+    // See BugreportManagerServiceImpl.
+    // TODO(b/111441001): maybe make native and java sides use different binder interface
+    // to avoid these annoyances.
     return binder::Status::ok();
 }
 
