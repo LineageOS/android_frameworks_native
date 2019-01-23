@@ -227,7 +227,14 @@ void Gralloc2Mapper::getTransportSize(buffer_handle_t bufferHandle, uint32_t* ou
 }
 
 status_t Gralloc2Mapper::lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                              int acquireFence, void** outData) const {
+                              int acquireFence, void** outData, int32_t* outBytesPerPixel,
+                              int32_t* outBytesPerStride) const {
+    if (outBytesPerPixel) {
+        *outBytesPerPixel = -1;
+    }
+    if (outBytesPerStride) {
+        *outBytesPerStride = -1;
+    }
     auto buffer = const_cast<native_handle_t*>(bufferHandle);
 
     IMapper::Rect accessRegion = sGralloc2Rect(bounds);
