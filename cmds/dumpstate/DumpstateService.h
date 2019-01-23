@@ -47,6 +47,9 @@ class DumpstateService : public BinderService<DumpstateService>, public BnDumpst
                                   const android::base::unique_fd& screenshot_fd, int bugreport_mode,
                                   const sp<IDumpstateListener>& listener) override;
 
+    // No-op
+    binder::Status cancelBugreport();
+
   private:
     Dumpstate& ds_;
     std::mutex lock_;
