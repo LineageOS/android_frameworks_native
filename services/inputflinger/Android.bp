@@ -76,7 +76,8 @@ cc_library_shared {
         "libutils",
         "libui",
         "libhardware_legacy",
-        "libutils"
+        "libstatslog",
+        "libutils",
     ],
 
     header_libs: [
