@@ -79,4 +79,9 @@ interface IDumpstate {
     void startBugreport(int callingUid, @utf8InCpp String callingPackage,
                         FileDescriptor bugreportFd, FileDescriptor screenshotFd,
                         int bugreportMode, IDumpstateListener listener);
+
+    /*
+     * Cancels the bugreport currently in progress.
+     */
+    void cancelBugreport();
 }

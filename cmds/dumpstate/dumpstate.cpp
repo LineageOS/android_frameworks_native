@@ -2216,9 +2216,7 @@ Dumpstate::RunStatus Dumpstate::Run() {
     if (listener_ != nullptr) {
         switch (status) {
             case Dumpstate::RunStatus::OK:
-                // TODO(b/111441001): duration argument does not make sense. Remove.
-                listener_->onFinished(0 /* duration */, options_->notification_title,
-                                      options_->notification_description);
+                listener_->onFinished();
                 break;
             case Dumpstate::RunStatus::HELP:
                 break;
