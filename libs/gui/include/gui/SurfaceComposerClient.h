@@ -156,6 +156,8 @@ public:
     // ------------------------------------------------------------------------
     // surface creation / destruction
 
+    static sp<SurfaceComposerClient> getDefault();
+
     //! Create a surface
     sp<SurfaceControl> createSurface(
             const String8& name,// name of the surface
@@ -375,6 +377,9 @@ public:
         // Set a color transform matrix on the given layer on the built-in display.
         Transaction& setColorTransform(const sp<SurfaceControl>& sc, const mat3& matrix,
                                        const vec3& translation);
+
+        Transaction& setGeometry(const sp<SurfaceControl>& sc,
+                const Rect& source, const Rect& dst, int transform);
 
         status_t setDisplaySurface(const sp<IBinder>& token,
                 const sp<IGraphicBufferProducer>& bufferProducer);
