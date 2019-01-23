@@ -60,6 +60,7 @@
 #include "installd_deps.h"
 #include "otapreopt_utils.h"
 #include "utils.h"
+#include "view_compiler.h"
 
 #include "CacheTracker.h"
 #include "MatchExtensionGen.h"
@@ -1829,6 +1830,17 @@ binder::Status InstalldNativeService::dexopt(const std::string& apkPath, int32_t
             oat_dir, dexFlags, compiler_filter, volume_uuid, class_loader_context, se_info,
             downgrade, targetSdkVersion, profile_name, dm_path, compilation_reason, &error_msg);
     return res ? error(res, error_msg) : ok();
+}
+
+binder::Status InstalldNativeService::compileLayouts(const std::string& apkPath,
+                                                     const std::string& packageName,
+                                                     const std ::string& outDexFile, int uid,
+                                                     bool* _aidl_return) {
+    const char* apk_path = apkPath.c_str();
+    const char* package_name = packageName.c_str();
+    const char* out_dex_file = outDexFile.c_str();
+    *_aidl_return = android::installd::view_compiler(apk_path, package_name, out_dex_file, uid);
+    return *_aidl_return ? ok() : error("viewcompiler failed");
 }
 
 binder::Status InstalldNativeService::markBootComplete(const std::string& instructionSet) {
