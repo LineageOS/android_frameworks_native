@@ -173,7 +173,6 @@ TEST_F(DumpOptionsTest, InitializeNone) {
 
     EXPECT_FALSE(options_.do_add_date);
     EXPECT_FALSE(options_.do_zip_file);
-    EXPECT_EQ("", options_.use_outfile);
     EXPECT_FALSE(options_.use_socket);
     EXPECT_FALSE(options_.use_control_socket);
     EXPECT_FALSE(options_.show_header_only);
@@ -191,7 +190,6 @@ TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
         const_cast<char*>("-S"),
         const_cast<char*>("-d"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -201,7 +199,6 @@ TEST_F(DumpOptionsTest, InitializeAdbBugreport) {
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.use_control_socket);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -228,7 +225,6 @@ TEST_F(DumpOptionsTest, InitializeAdbShellBugreport) {
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
-    EXPECT_EQ("", options_.use_outfile);
     EXPECT_FALSE(options_.do_add_date);
     EXPECT_FALSE(options_.do_zip_file);
     EXPECT_FALSE(options_.use_control_socket);
@@ -247,7 +243,6 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
     property_set("dumpstate.options", "bugreportfull");
@@ -259,7 +254,6 @@ TEST_F(DumpOptionsTest, InitializeFullBugReport) {
     EXPECT_TRUE(options_.do_fb);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_broadcast);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -279,7 +273,6 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -294,7 +287,6 @@ TEST_F(DumpOptionsTest, InitializeInteractiveBugReport) {
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_start_service);
     EXPECT_FALSE(options_.do_fb);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -312,7 +304,6 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -327,7 +318,6 @@ TEST_F(DumpOptionsTest, InitializeRemoteBugReport) {
     EXPECT_TRUE(options_.is_remote_mode);
     EXPECT_FALSE(options_.do_vibrate);
     EXPECT_FALSE(options_.do_fb);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_FALSE(options_.use_control_socket);
@@ -344,7 +334,6 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -359,7 +348,6 @@ TEST_F(DumpOptionsTest, InitializeWearBugReport) {
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_progress_updates);
     EXPECT_TRUE(options_.do_start_service);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -377,7 +365,6 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -391,7 +378,6 @@ TEST_F(DumpOptionsTest, InitializeTelephonyBugReport) {
     EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.telephony_only);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -410,7 +396,6 @@ TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -424,7 +409,6 @@ TEST_F(DumpOptionsTest, InitializeWifiBugReport) {
     EXPECT_TRUE(options_.do_broadcast);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.wifi_only);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -444,7 +428,6 @@ TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
         const_cast<char*>("-p"),
         const_cast<char*>("-B"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
     };
     // clang-format on
 
@@ -457,7 +440,6 @@ TEST_F(DumpOptionsTest, InitializeDefaultBugReport) {
     EXPECT_TRUE(options_.do_fb);
     EXPECT_TRUE(options_.do_zip_file);
     EXPECT_TRUE(options_.do_broadcast);
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
 
     // Other options retain default values
     EXPECT_TRUE(options_.do_vibrate);
@@ -475,7 +457,6 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
         const_cast<char*>("dumpstate"),
         const_cast<char*>("-d"),
         const_cast<char*>("-z"),
-        const_cast<char*>("-o abc"),
         const_cast<char*>("-s"),
         const_cast<char*>("-S"),
 
@@ -488,7 +469,6 @@ TEST_F(DumpOptionsTest, InitializePartial1) {
     EXPECT_TRUE(options_.do_add_date);
     EXPECT_TRUE(options_.do_zip_file);
     // TODO: Maybe we should trim the filename
-    EXPECT_EQ(" abc", std::string(options_.use_outfile));
     EXPECT_TRUE(options_.use_socket);
     EXPECT_TRUE(options_.use_control_socket);
 
@@ -527,7 +507,6 @@ TEST_F(DumpOptionsTest, InitializePartial2) {
     // Other options retain default values
     EXPECT_FALSE(options_.do_add_date);
     EXPECT_FALSE(options_.do_zip_file);
-    EXPECT_EQ("", options_.use_outfile);
     EXPECT_FALSE(options_.use_socket);
     EXPECT_FALSE(options_.use_control_socket);
 }
@@ -562,15 +541,21 @@ TEST_F(DumpOptionsTest, InitializeUnknown) {
 
 TEST_F(DumpOptionsTest, ValidateOptionsNeedOutfile1) {
     options_.do_zip_file = true;
+    // Writing to socket = !writing to file.
+    options_.use_socket = true;
     EXPECT_FALSE(options_.ValidateOptions());
-    options_.use_outfile = "a/b/c";
+
+    options_.use_socket = false;
     EXPECT_TRUE(options_.ValidateOptions());
 }
 
 TEST_F(DumpOptionsTest, ValidateOptionsNeedOutfile2) {
     options_.do_broadcast = true;
+    // Writing to socket = !writing to file.
+    options_.use_socket = true;
     EXPECT_FALSE(options_.ValidateOptions());
-    options_.use_outfile = "a/b/c";
+
+    options_.use_socket = false;
     EXPECT_TRUE(options_.ValidateOptions());
 }
 
@@ -579,13 +564,11 @@ TEST_F(DumpOptionsTest, ValidateOptionsNeedZipfile) {
     EXPECT_FALSE(options_.ValidateOptions());
 
     options_.do_zip_file = true;
-    options_.use_outfile = "a/b/c";  // do_zip_file needs outfile
     EXPECT_TRUE(options_.ValidateOptions());
 }
 
 TEST_F(DumpOptionsTest, ValidateOptionsUpdateProgressNeedsBroadcast) {
     options_.do_progress_updates = true;
-    options_.use_outfile = "a/b/c";  // do_progress_updates needs outfile
     EXPECT_FALSE(options_.ValidateOptions());
 
     options_.do_broadcast = true;
@@ -599,7 +582,6 @@ TEST_F(DumpOptionsTest, ValidateOptionsRemoteMode) {
     options_.do_broadcast = true;
     options_.do_zip_file = true;
     options_.do_add_date = true;
-    options_.use_outfile = "a/b/c";  // do_broadcast needs outfile
     EXPECT_TRUE(options_.ValidateOptions());
 }
 

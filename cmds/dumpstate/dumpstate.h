@@ -331,6 +331,7 @@ class Dumpstate {
         bool do_add_date = false;
         bool do_zip_file = false;
         bool do_vibrate = true;
+        // Writes bugreport content to a socket; only flatfile format is supported.
         bool use_socket = false;
         bool use_control_socket = false;
         bool do_fb = false;
@@ -342,13 +343,11 @@ class Dumpstate {
         bool wifi_only = false;
         // Whether progress updates should be published.
         bool do_progress_updates = false;
-        // File descriptor to output zip file. Takes precedence over use_outfile.
+        // File descriptor to output zip file.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
         // TODO(b/111441001): Use this fd.
         android::base::unique_fd screenshot_fd;
-        // Partial path to output file.
-        std::string use_outfile;
         // TODO: rename to MODE.
         // Extra options passed as system property.
         std::string extra_options;
@@ -367,6 +366,13 @@ class Dumpstate {
 
         /* Returns true if the options set so far are consistent. */
         bool ValidateOptions() const;
+
+        /* Returns if options specified require writing bugreport to a file */
+        bool OutputToFile() const {
+            // If we are not writing to socket, we will write to a file. If bugreport_fd is
+            // specified, it is preferred. If not bugreport is written to /bugreports.
+            return !use_socket;
+        }
     };
 
     // TODO: initialize fields on constructor
@@ -423,13 +429,6 @@ class Dumpstate {
     // TODO: If temporary this should be removed at the end.
     // Full path of the temporary file containing the screenshot (when requested).
     std::string screenshot_path_;
-
-    // TODO(b/111441001): remove when obsolete.
-    // Full path of the final zip file inside the caller-specified directory, if available.
-    std::string final_path_;
-
-    // The caller-specified directory, if available.
-    std::string bugreport_dir_;
 
     // Pointer to the zipped file.
     std::unique_ptr<FILE, int (*)(FILE*)> zip_file{nullptr, fclose};
