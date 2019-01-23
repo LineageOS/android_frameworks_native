@@ -26,6 +26,11 @@ namespace scheduler {
 // about layers.
 static constexpr size_t ARRAY_SIZE = 30;
 
+// This number is used to have a place holder for when the screen is not NORMAL/ON. Currently
+// the config is not visible to SF, and is completely maintained by HWC. However, we would
+// still like to keep track of time when the device is in this config.
+static constexpr int SCREEN_OFF_CONFIG_ID = -1;
+
 // Calculates the statistical mean (average) in the data structure (array, vector). The
 // function does not modify the contents of the array.
 template <typename T>
