@@ -88,6 +88,7 @@ public:
     EGLConfig getEGLConfig() const { return mEGLConfig; }
 
 protected:
+    Framebuffer* getFramebufferForDrawing() override;
     void dump(std::string& result) override;
     void setViewportAndProjection(size_t vpw, size_t vph, Rect sourceCrop,
                                   ui::Transform::orientation_flags rotation) override;
@@ -190,6 +191,8 @@ private:
     // as it has better system utilization at the potential expense of a
     // more complicated interface.
     std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache;
+
+    std::unique_ptr<Framebuffer> mDrawingBuffer;
 
     class FlushTracer {
     public:

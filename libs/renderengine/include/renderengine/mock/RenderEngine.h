@@ -36,6 +36,7 @@ public:
 
     MOCK_METHOD0(createFramebuffer, std::unique_ptr<renderengine::Framebuffer>());
     MOCK_METHOD0(createImage, std::unique_ptr<renderengine::Image>());
+    MOCK_METHOD0(getFramebufferForDrawing, Framebuffer*());
     MOCK_CONST_METHOD0(primeCache, void());
     MOCK_METHOD1(dump, void(std::string&));
     MOCK_CONST_METHOD0(useNativeFenceSync, bool());
