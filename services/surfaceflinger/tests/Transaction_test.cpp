@@ -1330,6 +1330,92 @@ TEST_P(LayerRenderTypeTransactionTest, SetTransparentRegionHintOutOfBounds_Buffe
     getScreenCapture()->expectColor(Rect(16, 16, 48, 48), Color::RED);
 }
 
+TEST_P(LayerRenderTypeTransactionTest, SetColorAlpha_Color_NoEffect) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 0, 0, ISurfaceComposerClient::eFXSurfaceColor));
+
+    half3 color;
+    color.r = 1.0f;
+    color.g = 0.0f;
+    color.b = 0.0f;
+    Transaction()
+            .setCrop_legacy(layer, Rect(0, 0, 32, 32))
+            .setAlpha(layer, 1.0f)
+            .setColor(layer, color)
+            .setColorAlpha(layer, 0.5f)
+            .apply();
+
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorAlpha_BufferQueue_NoEffect) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction().setAlpha(layer, 1.0f).setColorAlpha(layer, 0.5f).apply();
+
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorAlpha_BufferState_ColorLayer) {
+    sp<SurfaceControl> bgLayer;
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(bgLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bgLayer, Color::RED, 32, 32));
+
+    // create color layer
+    half3 color;
+    color.r = 0.0f;
+    color.g = 1.0f;
+    color.b = 0.0f;
+    Transaction().setFrame(layer, Rect(0, 0, 32, 32)).setColor(layer, color).apply();
+
+    {
+        SCOPED_TRACE("before alpha");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    // apply alpha
+    Transaction().setAlpha(layer, 0.0f).apply();
+    {
+        SCOPED_TRACE("set alpha");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorAlpha_BufferState_NoColorLayer) {
+    sp<SurfaceControl> bgLayer;
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(bgLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bgLayer, Color::RED, 32, 32));
+
+    {
+        SCOPED_TRACE("before alpha");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    // setting alpha without creating color layer should have no effect
+    Transaction().setFrame(layer, Rect(0, 0, 32, 32)).setAlpha(layer, 0.5f).apply();
+    {
+        SCOPED_TRACE("alpha");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+}
+
 void LayerRenderTypeTransactionTest::setAlphaBasicHelper(uint32_t layerType) {
     sp<SurfaceControl> layer1;
     sp<SurfaceControl> layer2;
@@ -1478,6 +1564,77 @@ TEST_P(LayerRenderTypeTransactionTest, SetColorBasic) {
     {
         SCOPED_TRACE("new color");
         getScreenCapture()->expectColor(Rect(0, 0, 32, 32), expected, tolerance);
+    }
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetBackgroundColor_BufferState_NoPriorColor) {
+    sp<SurfaceControl> bufferQueueLayer;
+    sp<SurfaceControl> bufferStateLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferQueueLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            bufferStateLayer =
+                    createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferQueueLayer, Color::RED, 32, 32));
+
+    {
+        SCOPED_TRACE("default color");
+        screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    }
+
+    half3 color;
+    color.r = 0.0f;
+    color.g = 1.0f;
+    color.b = 0.0f;
+    Transaction()
+            .setFrame(bufferStateLayer, Rect(0, 0, 32, 32))
+            .setLayer(bufferStateLayer, mLayerZBase + 1)
+            .setColor(bufferStateLayer, color)
+            .apply();
+
+    {
+        SCOPED_TRACE("set color");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetBackgroundColor_BufferState_PriorColor) {
+    sp<SurfaceControl> bufferQueueLayer;
+    sp<SurfaceControl> bufferStateLayer;
+    ASSERT_NO_FATAL_FAILURE(bufferQueueLayer = createLayer("test bg", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(
+            bufferStateLayer =
+                    createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(bufferQueueLayer, Color::RED, 32, 32));
+
+    half3 color;
+    color.r = 0.0f;
+    color.g = 1.0f;
+    color.b = 0.0f;
+    Transaction()
+            .setFrame(bufferStateLayer, Rect(0, 0, 32, 32))
+            .setLayer(bufferStateLayer, mLayerZBase + 1)
+            .setColor(bufferStateLayer, color)
+            .apply();
+    {
+        SCOPED_TRACE("default color");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::GREEN);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    color.r = 0.0f;
+    color.g = 0.0f;
+    color.b = 1.0f;
+    Transaction().setColor(bufferStateLayer, color).apply();
+    {
+        SCOPED_TRACE("new color");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLUE);
+        shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
     }
 }
 
@@ -2332,6 +2489,71 @@ TEST_P(LayerRenderTypeTransactionTest, SetFenceNull_BufferState) {
     auto shot = getScreenCapture();
     shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
     shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorDataspace_ColorLayer_NoEffect) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 0, 0, ISurfaceComposerClient::eFXSurfaceColor));
+    half3 color;
+    color.r = 1.0f;
+    color.g = 0.0f;
+    color.b = 0.0f;
+    Transaction()
+            .setCrop_legacy(layer, Rect(0, 0, 32, 32))
+            .setColor(layer, color)
+            .setDataspace(layer, ui::Dataspace::UNKNOWN)
+            .setColorDataspace(layer, ui::Dataspace::BT2020_ITU)
+            .apply();
+
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorDataspace_BufferQueue_NoEffect) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction()
+            .setDataspace(layer, ui::Dataspace::UNKNOWN)
+            .setColorDataspace(layer, ui::Dataspace::BT2020_ITU)
+            .apply();
+
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorDataspace_BufferState_ColorLayer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+
+    half3 color;
+    color.r = 1.0f;
+    color.g = 0.0f;
+    color.b = 0.0f;
+    Transaction()
+            .setFrame(layer, Rect(0, 0, 32, 32))
+            .setColor(layer, color)
+            .setColorDataspace(layer, ui::Dataspace::BT2020_ITU)
+            .apply();
+    auto shot = screenshot();
+    shot->expectColor(Rect(0, 0, 32, 32), Color::RED);
+    shot->expectBorder(Rect(0, 0, 32, 32), Color::BLACK);
+}
+
+TEST_P(LayerRenderTypeTransactionTest, SetColorDataspace_BufferState_NoColorLayer) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(
+            layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
+    ASSERT_NO_FATAL_FAILURE(fillBufferStateLayerColor(layer, Color::RED, 32, 32));
+
+    Transaction()
+            .setFrame(layer, Rect(0, 0, 32, 32))
+            .setDataspace(layer, ui::Dataspace::UNKNOWN)
+            .setColorDataspace(layer, ui::Dataspace::DCI_P3)
+            .apply();
+
+    screenshot()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetDataspaceBasic_BufferState) {

@@ -82,6 +82,9 @@ public:
     }
     bool setCrop_legacy(const Rect& /*crop*/, bool /*immediate*/) override { return false; }
     bool setOverrideScalingMode(int32_t /*overrideScalingMode*/) override { return false; }
+    bool setColor(const half3& color) override;
+    bool setColorAlpha(float alpha) override;
+    bool setColorDataspace(ui::Dataspace dataspace) override;
     void deferTransactionUntil_legacy(const sp<IBinder>& /*barrierHandle*/,
                                       uint64_t /*frameNumber*/) override {}
     void deferTransactionUntil_legacy(const sp<Layer>& /*barrierLayer*/,
