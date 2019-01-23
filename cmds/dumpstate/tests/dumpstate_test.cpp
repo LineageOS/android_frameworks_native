@@ -61,8 +61,7 @@ class DumpstateListenerMock : public IDumpstateListener {
   public:
     MOCK_METHOD1(onProgress, binder::Status(int32_t progress));
     MOCK_METHOD1(onError, binder::Status(int32_t error_code));
-    MOCK_METHOD3(onFinished, binder::Status(int64_t duration_ms, const ::std::string& title,
-                                            const ::std::string& description));
+    MOCK_METHOD0(onFinished, binder::Status());
     MOCK_METHOD1(onProgressUpdated, binder::Status(int32_t progress));
     MOCK_METHOD1(onMaxProgressUpdated, binder::Status(int32_t max_progress));
     MOCK_METHOD4(onSectionComplete, binder::Status(const ::std::string& name, int32_t status,

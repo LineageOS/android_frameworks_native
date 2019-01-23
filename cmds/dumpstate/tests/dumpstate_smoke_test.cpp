@@ -61,9 +61,8 @@ class DumpstateListener : public IDumpstateListener {
         dprintf(outFd_, "\rError %d", error_code);
         return binder::Status::ok();
     }
-    binder::Status onFinished(int64_t duration_ms, const ::std::string&,
-                              const ::std::string&) override {
-        dprintf(outFd_, "\rFinished in %lld", (long long) duration_ms);
+    binder::Status onFinished() override {
+        dprintf(outFd_, "\rFinished");
         return binder::Status::ok();
     }
     binder::Status onProgressUpdated(int32_t progress) override {
