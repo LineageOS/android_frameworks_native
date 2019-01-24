@@ -28,6 +28,7 @@
 #include <functional>
 #include <mutex>
 #include <optional>
+#include <unordered_map>
 
 #include <cutils/properties.h>
 #include <log/log.h>
@@ -4363,8 +4364,8 @@ void SurfaceFlinger::setPowerMode(const sp<IBinder>& displayToken, int mode) {
 
 // ---------------------------------------------------------------------------
 
-status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asProto)
-        NO_THREAD_SAFETY_ANALYSIS {
+status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
+                                bool asProto) NO_THREAD_SAFETY_ANALYSIS {
     std::string result;
 
     IPCThreadState* ipc = IPCThreadState::self();
@@ -4388,114 +4389,36 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
                           strerror(-err), err);
         }
 
-        bool dumpAll = true;
-        size_t index = 0;
-        size_t numArgs = args.size();
+        using namespace std::string_literals;
 
-        if (numArgs) {
-            if ((index < numArgs) &&
-                    (args[index] == String16("--list"))) {
-                index++;
-                listLayersLocked(args, index, result);
-                dumpAll = false;
-            }
+        static const std::unordered_map<std::string, Dumper> dumpers = {
+                {"--clear-layer-stats"s, dumper([this](std::string&) { mLayerStats.clear(); })},
+                {"--disable-layer-stats"s, dumper([this](std::string&) { mLayerStats.disable(); })},
+                {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
+                {"--dispsync"s, dumper([this](std::string& s) { mPrimaryDispSync->dump(s); })},
+                {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
+                {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
+                {"--frame-composition"s, dumper(&SurfaceFlinger::dumpFrameCompositionInfo)},
+                {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
+                {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
+                {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
+                {"--list"s, dumper(&SurfaceFlinger::listLayersLocked)},
+                {"--static-screen"s, dumper(&SurfaceFlinger::dumpStaticScreenStats)},
+                {"--timestats"s, protoDumper(&SurfaceFlinger::dumpTimeStats)},
+                {"--vsync"s, dumper(&SurfaceFlinger::dumpVSync)},
+                {"--wide-color"s, dumper(&SurfaceFlinger::dumpWideColorInfo)},
+        };
 
-            if ((index < numArgs) &&
-                    (args[index] == String16("--latency"))) {
-                index++;
-                dumpStatsLocked(args, index, result);
-                dumpAll = false;
-            }
+        const auto flag = args.empty() ? ""s : std::string(String8(args[0]));
 
-            if ((index < numArgs) &&
-                    (args[index] == String16("--latency-clear"))) {
-                index++;
-                clearStatsLocked(args, index, result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                    (args[index] == String16("--dispsync"))) {
-                index++;
-                mPrimaryDispSync->dump(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                    (args[index] == String16("--static-screen"))) {
-                index++;
-                dumpStaticScreenStats(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                    (args[index] == String16("--frame-events"))) {
-                index++;
-                dumpFrameEventsLocked(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) && (args[index] == String16("--wide-color"))) {
-                index++;
-                dumpWideColorInfo(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                (args[index] == String16("--enable-layer-stats"))) {
-                index++;
-                mLayerStats.enable();
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                (args[index] == String16("--disable-layer-stats"))) {
-                index++;
-                mLayerStats.disable();
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                (args[index] == String16("--clear-layer-stats"))) {
-                index++;
-                mLayerStats.clear();
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                (args[index] == String16("--dump-layer-stats"))) {
-                index++;
-                mLayerStats.dump(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                    (args[index] == String16("--frame-composition"))) {
-                index++;
-                dumpFrameCompositionInfo(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) &&
-                (args[index] == String16("--display-identification"))) {
-                index++;
-                dumpDisplayIdentificationData(result);
-                dumpAll = false;
-            }
-
-            if ((index < numArgs) && (args[index] == String16("--timestats"))) {
-                index++;
-                mTimeStats->parseArgs(asProto, args, index, result);
-                dumpAll = false;
-            }
-        }
-
-        if (dumpAll) {
+        if (const auto it = dumpers.find(flag); it != dumpers.end()) {
+            (it->second)(args, asProto, result);
+        } else {
             if (asProto) {
                 LayersProto layersProto = dumpProtoInfo(LayerVector::StateSet::Current);
                 result.append(layersProto.SerializeAsString().c_str(), layersProto.ByteSize());
             } else {
-                dumpAllLocked(args, index, result);
+                dumpAllLocked(args, result);
             }
         }
 
@@ -4507,48 +4430,38 @@ status_t SurfaceFlinger::doDump(int fd, const Vector<String16>& args, bool asPro
     return NO_ERROR;
 }
 
-void SurfaceFlinger::listLayersLocked(const Vector<String16>& /* args */, size_t& /* index */,
-                                      std::string& result) const {
+void SurfaceFlinger::listLayersLocked(std::string& result) const {
     mCurrentState.traverseInZOrder(
             [&](Layer* layer) { StringAppendF(&result, "%s\n", layer->getName().string()); });
 }
 
-void SurfaceFlinger::dumpStatsLocked(const Vector<String16>& args, size_t& index,
-                                     std::string& result) const {
-    String8 name;
-    if (index < args.size()) {
-        name = String8(args[index]);
-        index++;
-    }
-
+void SurfaceFlinger::dumpStatsLocked(const DumpArgs& args, std::string& result) const {
     StringAppendF(&result, "%" PRId64 "\n", getVsyncPeriod());
 
-    if (name.isEmpty()) {
-        mAnimFrameTracker.dumpStats(result);
-    } else {
+    if (args.size() > 1) {
+        const auto name = String8(args[1]);
         mCurrentState.traverseInZOrder([&](Layer* layer) {
             if (name == layer->getName()) {
                 layer->dumpFrameStats(result);
             }
         });
+    } else {
+        mAnimFrameTracker.dumpStats(result);
     }
 }
 
-void SurfaceFlinger::clearStatsLocked(const Vector<String16>& args, size_t& index,
-                                      std::string& /* result */) {
-    String8 name;
-    if (index < args.size()) {
-        name = String8(args[index]);
-        index++;
-    }
-
+void SurfaceFlinger::clearStatsLocked(const DumpArgs& args, std::string&) {
     mCurrentState.traverseInZOrder([&](Layer* layer) {
-        if (name.isEmpty() || (name == layer->getName())) {
+        if (args.size() < 2 || String8(args[1]) == layer->getName()) {
             layer->clearFrameStats();
         }
     });
 
     mAnimFrameTracker.clearStats();
+}
+
+void SurfaceFlinger::dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const {
+    mTimeStats->parseArgs(asProto, args, result);
 }
 
 // This should only be called from the main thread.  Otherwise it would need
@@ -4574,6 +4487,26 @@ void SurfaceFlinger::appendSfConfigString(std::string& result) const {
     StringAppendF(&result, " NUM_FRAMEBUFFER_SURFACE_BUFFERS=%" PRId64,
                   maxFrameBufferAcquiredBuffers);
     result.append("]");
+}
+
+void SurfaceFlinger::dumpVSync(std::string& result) const {
+    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
+    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
+    StringAppendF(&result,
+                  "         app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
+                  "   early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
+                  "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
+                  "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
+                  vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset, sfEarlyOffset,
+                  appEarlyGlOffset, sfEarlyGlOffset, dispSyncPresentTimeOffset, getVsyncPeriod());
+
+    StringAppendF(&result, "Scheduler: %s\n\n", mUseScheduler ? "enabled" : "disabled");
+
+    if (mUseScheduler) {
+        mScheduler->dump(mAppConnectionHandle, result);
+    } else {
+        mEventThread->dump(result);
+    }
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
@@ -4779,15 +4712,8 @@ LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& disp
     return layersProto;
 }
 
-void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
-                                   std::string& result) const {
-    bool colorize = false;
-    if (index < args.size()
-            && (args[index] == String16("--color"))) {
-        colorize = true;
-        index++;
-    }
-
+void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) const {
+    const bool colorize = !args.empty() && args[0] == String16("--color");
     Colorizer colorizer(colorize);
 
     // figure out if we're stuck somewhere
@@ -4817,27 +4743,14 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("Sync configuration: ");
     colorizer.reset(result);
     result.append(SyncFeatures::getInstance().toString());
-    result.append("\n");
+    result.append("\n\n");
 
     colorizer.bold(result);
-    result.append("DispSync configuration:\n");
+    result.append("VSYNC configuration:\n");
     colorizer.reset(result);
-
-    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
-    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
-    StringAppendF(&result,
-                  "app phase %" PRId64 " ns, "
-                  "sf phase %" PRId64 " ns, "
-                  "early app phase %" PRId64 " ns, "
-                  "early sf phase %" PRId64 " ns, "
-                  "early app gl phase %" PRId64 " ns, "
-                  "early sf gl phase %" PRId64 " ns, "
-                  "present offset %" PRId64 " ns (refresh %" PRId64 " ns)\n",
-                  vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset, sfEarlyOffset,
-                  appEarlyGlOffset, sfEarlyGlOffset, dispSyncPresentTimeOffset, getVsyncPeriod());
-
-    // Dump static screen stats
+    dumpVSync(result);
     result.append("\n");
+
     dumpStaticScreenStats(result);
     result.append("\n");
 
@@ -4910,17 +4823,6 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     }
 
     StringAppendF(&result, "  transaction time: %f us\n", inTransactionDuration / 1000.0);
-
-    StringAppendF(&result, "  use Scheduler: %s\n", mUseScheduler ? "true" : "false");
-    /*
-     * VSYNC state
-     */
-    if (mUseScheduler) {
-        mScheduler->dump(mAppConnectionHandle, result);
-    } else {
-        mEventThread->dump(result);
-    }
-    result.append("\n");
 
     /*
      * Tracing state

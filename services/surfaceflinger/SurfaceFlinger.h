@@ -69,6 +69,7 @@
 
 #include <atomic>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -76,6 +77,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <unordered_map>
 #include <utility>
 
@@ -787,19 +789,9 @@ private:
         };
     }
 
-    /* ------------------------------------------------------------------------
-     * Debugging & dumpsys
+    /*
+     * Display identification
      */
-public:
-    status_t dumpCritical(int fd, const Vector<String16>& /*args*/, bool asProto) {
-        return doDump(fd, Vector<String16>(), asProto);
-    }
-
-    status_t dumpAll(int fd, const Vector<String16>& args, bool asProto) {
-        return doDump(fd, args, asProto);
-    }
-
-private:
     sp<IBinder> getPhysicalDisplayToken(DisplayId displayId) const {
         const auto it = mPhysicalDisplayTokens.find(displayId);
         return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
@@ -831,17 +823,48 @@ private:
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
-    void listLayersLocked(const Vector<String16>& args, size_t& index, std::string& result) const;
-    void dumpStatsLocked(const Vector<String16>& args, size_t& index, std::string& result) const
-            REQUIRES(mStateLock);
-    void clearStatsLocked(const Vector<String16>& args, size_t& index, std::string& result);
-    void dumpAllLocked(const Vector<String16>& args, size_t& index, std::string& result) const
-            REQUIRES(mStateLock);
+    /*
+     * Debugging & dumpsys
+     */
     bool startDdmConnection();
-    void appendSfConfigString(std::string& result) const;
 
+    using DumpArgs = Vector<String16>;
+    using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
+
+    template <typename F, std::enable_if_t<!std::is_member_function_pointer_v<F>>* = nullptr>
+    static Dumper dumper(F&& dump) {
+        using namespace std::placeholders;
+        return std::bind(std::forward<F>(dump), _3);
+    }
+
+    template <typename F, std::enable_if_t<std::is_member_function_pointer_v<F>>* = nullptr>
+    Dumper dumper(F dump) {
+        using namespace std::placeholders;
+        return std::bind(dump, this, _3);
+    }
+
+    template <typename F>
+    Dumper argsDumper(F dump) {
+        using namespace std::placeholders;
+        return std::bind(dump, this, _1, _3);
+    }
+
+    template <typename F>
+    Dumper protoDumper(F dump) {
+        using namespace std::placeholders;
+        return std::bind(dump, this, _1, _2, _3);
+    }
+
+    void dumpAllLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
+
+    void appendSfConfigString(std::string& result) const;
+    void listLayersLocked(std::string& result) const;
+    void dumpStatsLocked(const DumpArgs& args, std::string& result) const REQUIRES(mStateLock);
+    void clearStatsLocked(const DumpArgs& args, std::string& result);
+    void dumpTimeStats(const DumpArgs& args, bool asProto, std::string& result) const;
     void logFrameStats();
 
+    void dumpVSync(std::string& result) const REQUIRES(mStateLock);
     void dumpStaticScreenStats(std::string& result) const;
     // Not const because each Layer needs to query Fences and cache timestamps.
     void dumpFrameEventsLocked(std::string& result);
@@ -858,7 +881,16 @@ private:
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
     }
-    status_t doDump(int fd, const Vector<String16>& args, bool asProto);
+
+    status_t doDump(int fd, const DumpArgs& args, bool asProto);
+
+    status_t dumpCritical(int fd, const DumpArgs&, bool asProto) override {
+        return doDump(fd, DumpArgs(), asProto);
+    }
+
+    status_t dumpAll(int fd, const DumpArgs& args, bool asProto) override {
+        return doDump(fd, args, asProto);
+    }
 
     /* ------------------------------------------------------------------------
      * VrFlinger

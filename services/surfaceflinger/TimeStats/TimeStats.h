@@ -77,7 +77,7 @@ public:
     TimeStats() = default;
     ~TimeStats() = default;
 
-    void parseArgs(bool asProto, const Vector<String16>& args, size_t& index, std::string& result);
+    void parseArgs(bool asProto, const Vector<String16>& args, std::string& result);
     bool isEnabled();
 
     void incrementTotalFrames();

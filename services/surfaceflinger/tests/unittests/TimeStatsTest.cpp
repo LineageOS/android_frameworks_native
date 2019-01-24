@@ -131,7 +131,6 @@ public:
 };
 
 std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
-    size_t index = 0;
     std::string result;
     Vector<String16> args;
 
@@ -162,7 +161,7 @@ std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
             ALOGD("Invalid control command");
     }
 
-    EXPECT_NO_FATAL_FAILURE(mTimeStats->parseArgs(useProto, args, index, result));
+    EXPECT_NO_FATAL_FAILURE(mTimeStats->parseArgs(useProto, args, result));
     return result;
 }
 
