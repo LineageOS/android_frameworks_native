@@ -4342,7 +4342,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
-        if (mUseScheduler) {
+        if (mUseScheduler && mRefreshRateStats) {
             // Update refresh rate stats.
             mRefreshRateStats->setPowerMode(mode);
         }

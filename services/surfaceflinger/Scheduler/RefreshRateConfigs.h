@@ -19,8 +19,10 @@
 #include <algorithm>
 #include <numeric>
 
-#include "Scheduler/SchedulerUtils.h"
 #include "android-base/stringprintf.h"
+
+#include "DisplayHardware/HWComposer.h"
+#include "Scheduler/SchedulerUtils.h"
 
 namespace android {
 namespace scheduler {
@@ -51,57 +53,58 @@ public:
     // baking them in.
     explicit RefreshRateConfigs(
             const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
-        // This is the rate that HWC encapsulates right now when the screen is off.
-        RefreshRate rate;
-        rate.type = RefreshRateType::POWER_SAVING;
-        rate.configId = SCREEN_OFF_CONFIG_ID;
-        rate.name = "ScreenOff";
-        mRefreshRates.push_back(rate);
-
-        if (configs.size() < 1) {
-            return;
-        }
-
-        std::vector<std::pair<int, nsecs_t>> configIdToVsyncPeriod;
-        for (int i = 0; i < configs.size(); ++i) {
-            configIdToVsyncPeriod.push_back(std::make_pair(i, configs.at(i)->getVsyncPeriod()));
-        }
-        std::sort(configIdToVsyncPeriod.begin(), configIdToVsyncPeriod.end(),
-                  [](const std::pair<int, nsecs_t>& a, const std::pair<int, nsecs_t>& b) {
-                      return a.second > b.second;
-                  });
-
-        nsecs_t vsyncPeriod = configIdToVsyncPeriod.at(0).second;
-        if (vsyncPeriod != 0) {
-            const float fps = std::chrono::nanoseconds(1).count() / vsyncPeriod;
-            rate.type = RefreshRateType::DEFAULT;
-            rate.configId = configIdToVsyncPeriod.at(0).first;
-            rate.name = base::StringPrintf("%2.ffps", fps);
-            mRefreshRates.push_back(rate);
-        }
-        if (configs.size() < 2) {
-            return;
-        }
-
-        vsyncPeriod = configIdToVsyncPeriod.at(1).second;
-        if (vsyncPeriod != 0) {
-            const float fps = std::chrono::nanoseconds(1).count() / vsyncPeriod;
-            rate.type = RefreshRateType::PERFORMANCE;
-            rate.configId = configIdToVsyncPeriod.at(1).first;
-            rate.name = base::StringPrintf("%2.ffps", fps);
-            mRefreshRates.push_back(rate);
-        }
-
-        for (auto refreshRate : mRefreshRates) {
-            ALOGV("type: %d, id: %d, name: %s", refreshRate.type, refreshRate.configId,
-                  refreshRate.name.c_str());
-        }
+        init(configs);
     }
     ~RefreshRateConfigs() = default;
 
     const std::vector<RefreshRate>& getRefreshRates() { return mRefreshRates; }
 
 private:
+    void init(const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs) {
+        // This is the rate that HWC encapsulates right now when the device is in DOZE mode.
+        mRefreshRates.push_back(
+                RefreshRate{RefreshRateType::POWER_SAVING, SCREEN_OFF_CONFIG_ID, "ScreenOff"});
+
+        if (configs.size() < 1) {
+            ALOGE("Device does not have valid configs. Config size is 0.");
+            return;
+        }
+
+        // Create a map between config index and vsync period. This is all the info we need
+        // from the configs.
+        std::vector<std::pair<int, nsecs_t>> configIdToVsyncPeriod;
+        for (int i = 0; i < configs.size(); ++i) {
+            configIdToVsyncPeriod.emplace_back(i, configs.at(i)->getVsyncPeriod());
+        }
+
+        std::sort(configIdToVsyncPeriod.begin(), configIdToVsyncPeriod.end(),
+                  [](const std::pair<int, nsecs_t>& a, const std::pair<int, nsecs_t>& b) {
+                      return a.second > b.second;
+                  });
+
+        // When the configs are ordered by the resync rate. We assume that the first one is DEFAULT.
+        nsecs_t vsyncPeriod = configIdToVsyncPeriod[0].second;
+        if (vsyncPeriod != 0) {
+            const float fps = 1e9 / vsyncPeriod;
+            mRefreshRates.push_back(RefreshRate{RefreshRateType::DEFAULT,
+                                                configIdToVsyncPeriod[0].first,
+                                                base::StringPrintf("%2.ffps", fps)});
+        }
+        if (configs.size() < 2) {
+            return;
+        }
+
+        // When the configs are ordered by the resync rate. We assume that the second one is
+        // PERFORMANCE, eg. the higher rate.
+        vsyncPeriod = configIdToVsyncPeriod[1].second;
+        if (vsyncPeriod != 0) {
+            const float fps = 1e9 / vsyncPeriod;
+            mRefreshRates.push_back(RefreshRate{RefreshRateType::PERFORMANCE,
+                                                configIdToVsyncPeriod[1].first,
+                                                base::StringPrintf("%2.ffps", fps)});
+        }
+    }
+
     std::vector<RefreshRate> mRefreshRates;
 };
 
