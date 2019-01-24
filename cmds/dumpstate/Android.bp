@@ -99,8 +99,9 @@ cc_defaults {
         "utils.cpp",
     ],
     static_libs: [
+        "libincidentcompanion",
         "libdumpsys",
-        "libserviceutils"
+        "libserviceutils",
     ],
 }
 
