@@ -51,6 +51,7 @@
 #include <android-base/unique_fd.h>
 #include <android/hardware/dumpstate/1.0/IDumpstateDevice.h>
 #include <android/hidl/manager/1.0/IServiceManager.h>
+#include <android/os/IIncidentCompanion.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
 #include <dumpsys.h>
@@ -83,15 +84,19 @@ using android::TIMED_OUT;
 using android::UNKNOWN_ERROR;
 using android::Vector;
 using android::base::StringPrintf;
+using android::os::IDumpstateListener;
 using android::os::dumpstate::CommandOptions;
 using android::os::dumpstate::DumpFileToFd;
 using android::os::dumpstate::DumpstateSectionReporter;
 using android::os::dumpstate::GetPidByName;
 using android::os::dumpstate::PropertiesHelper;
 
+typedef Dumpstate::ConsentCallback::ConsentResult UserConsentResult;
+
 /* read before root is shed */
 static char cmdline_buf[16384] = "(unknown)";
 static const char *dump_traces_path = nullptr;
+static const uint64_t USER_CONSENT_TIMEOUT_MS = 30 * 1000;
 
 // TODO: variables and functions below should be part of dumpstate object
 
@@ -165,6 +170,13 @@ static bool CopyFileToFd(const std::string& input_file, int out_fd) {
     return false;
 }
 
+static bool UnlinkAndLogOnError(const std::string& file) {
+    if (unlink(file.c_str()) != -1) {
+        MYLOGE("Failed to remove file (%s): %s\n", file.c_str(), strerror(errno));
+        return false;
+    }
+    return true;
+}
 
 }  // namespace
 }  // namespace os
@@ -655,6 +667,32 @@ static unsigned long logcat_timeout(const std::vector<std::string>& buffers) {
         timeout_ms += 10 * (property_size + worst_write_perf) / worst_write_perf;
     }
     return timeout_ms > MINIMUM_LOGCAT_TIMEOUT_MS ? timeout_ms : MINIMUM_LOGCAT_TIMEOUT_MS;
+}
+
+Dumpstate::ConsentCallback::ConsentCallback() : result_(UNAVAILABLE), start_time_(Nanotime()) {
+}
+
+android::binder::Status Dumpstate::ConsentCallback::onReportApproved() {
+    std::lock_guard<std::mutex> lock(lock_);
+    result_ = APPROVED;
+    MYLOGD("User approved consent to share bugreport\n");
+    return android::binder::Status::ok();
+}
+
+android::binder::Status Dumpstate::ConsentCallback::onReportDenied() {
+    std::lock_guard<std::mutex> lock(lock_);
+    result_ = DENIED;
+    MYLOGW("User denied consent to share bugreport\n");
+    return android::binder::Status::ok();
+}
+
+UserConsentResult Dumpstate::ConsentCallback::getResult() {
+    std::lock_guard<std::mutex> lock(lock_);
+    return result_;
+}
+
+uint64_t Dumpstate::ConsentCallback::getElapsedTimeMs() const {
+    return Nanotime() - start_time_;
 }
 
 void Dumpstate::PrintHeader() const {
@@ -1892,14 +1930,6 @@ static void FinalizeFile() {
                     ds.path_ = new_path;
                 }
             }
-            // The zip file lives in an internal directory. Copy it over to output.
-            if (ds.options_->bugreport_fd.get() != -1) {
-                bool copy_succeeded =
-                    android::os::CopyFileToFd(ds.path_, ds.options_->bugreport_fd.get());
-                if (!copy_succeeded && remove(ds.path_.c_str())) {
-                    MYLOGE("remove(%s): %s", ds.path_.c_str(), strerror(errno));
-                }
-            }  // else - the file just remains in the internal directory.
         }
     }
     if (do_text_file) {
@@ -2192,8 +2222,8 @@ void Dumpstate::SetOptions(std::unique_ptr<DumpOptions> options) {
     options_ = std::move(options);
 }
 
-Dumpstate::RunStatus Dumpstate::Run() {
-    Dumpstate::RunStatus status = RunInternal();
+Dumpstate::RunStatus Dumpstate::Run(int32_t calling_uid, const std::string& calling_package) {
+    Dumpstate::RunStatus status = RunInternal(calling_uid, calling_package);
     if (listener_ != nullptr) {
         switch (status) {
             case Dumpstate::RunStatus::OK:
@@ -2202,10 +2232,16 @@ Dumpstate::RunStatus Dumpstate::Run() {
             case Dumpstate::RunStatus::HELP:
                 break;
             case Dumpstate::RunStatus::INVALID_INPUT:
-                listener_->onError(android::os::IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
+                listener_->onError(IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
                 break;
             case Dumpstate::RunStatus::ERROR:
-                listener_->onError(android::os::IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
+                listener_->onError(IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
+                break;
+            case Dumpstate::RunStatus::USER_CONSENT_DENIED:
+                listener_->onError(IDumpstateListener::BUGREPORT_ERROR_USER_DENIED_CONSENT);
+                break;
+            case Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT:
+                listener_->onError(IDumpstateListener::BUGREPORT_ERROR_USER_CONSENT_TIMED_OUT);
                 break;
         }
     }
@@ -2233,7 +2269,8 @@ Dumpstate::RunStatus Dumpstate::Run() {
  * Bugreports are first generated in a local directory and later copied to the caller's fd if
  * supplied.
  */
-Dumpstate::RunStatus Dumpstate::RunInternal() {
+Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
+                                            const std::string& calling_package) {
     LogDumpOptions(*options_);
     if (!options_->ValidateOptions()) {
         MYLOGE("Invalid options specified\n");
@@ -2269,6 +2306,12 @@ Dumpstate::RunStatus Dumpstate::RunInternal() {
     if (options_->show_header_only) {
         PrintHeader();
         return RunStatus::OK;
+    }
+
+    if (options_->bugreport_fd.get() != -1) {
+        // If the output needs to be copied over to the caller's fd, get user consent.
+        android::String16 package(calling_package.c_str());
+        CheckUserConsent(calling_uid, package);
     }
 
     // Redirect output if needed
@@ -2422,9 +2465,22 @@ Dumpstate::RunStatus Dumpstate::RunInternal() {
         TEMP_FAILURE_RETRY(dup2(dup_stdout_fd, fileno(stdout)));
     }
 
-    /* rename or zip the (now complete) .tmp file to its final location */
+    // Rename, and/or zip the (now complete) .tmp file within the internal directory.
     if (options_->OutputToFile()) {
         FinalizeFile();
+    }
+
+    // Share the final file with the caller if the user has consented.
+    Dumpstate::RunStatus status = Dumpstate::RunStatus::OK;
+    if (options_->bugreport_fd.get() != -1) {
+        status = CopyBugreportIfUserConsented();
+        if (status != Dumpstate::RunStatus::OK &&
+            status != Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT) {
+            // Do an early return if there were errors. We make an exception for consent
+            // timing out because it's possible the user got distracted. In this case the
+            // bugreport is not shared but made available for manual retrieval.
+            return status;
+        }
     }
 
     /* vibrate a few but shortly times to let user know it's finished */
@@ -2458,7 +2514,73 @@ Dumpstate::RunStatus Dumpstate::RunInternal() {
     tombstone_data_.clear();
     anr_data_.clear();
 
-    return RunStatus::OK;
+    return (consent_callback_ != nullptr &&
+            consent_callback_->getResult() == UserConsentResult::UNAVAILABLE)
+               ? USER_CONSENT_TIMED_OUT
+               : RunStatus::OK;
+}
+
+void Dumpstate::CheckUserConsent(int32_t calling_uid, const android::String16& calling_package) {
+    consent_callback_ = new ConsentCallback();
+    const String16 incidentcompanion("incidentcompanion");
+    sp<android::IBinder> ics(defaultServiceManager()->getService(incidentcompanion));
+    if (ics != nullptr) {
+        MYLOGD("Checking user consent via incidentcompanion service\n");
+        android::interface_cast<android::os::IIncidentCompanion>(ics)->authorizeReport(
+            calling_uid, calling_package, 0x1 /* FLAG_CONFIRMATION_DIALOG */,
+            consent_callback_.get());
+    } else {
+        MYLOGD("Unable to check user consent; incidentcompanion service unavailable\n");
+    }
+}
+
+void Dumpstate::CleanupFiles() {
+    android::os::UnlinkAndLogOnError(tmp_path_);
+    android::os::UnlinkAndLogOnError(screenshot_path_);
+    android::os::UnlinkAndLogOnError(path_);
+}
+
+Dumpstate::RunStatus Dumpstate::HandleUserConsentDenied() {
+    MYLOGD("User denied consent; deleting files and returning\n");
+    CleanupFiles();
+    return USER_CONSENT_DENIED;
+}
+
+Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented() {
+    // If the caller has asked to copy the bugreport over to their directory, we need explicit
+    // user consent.
+    UserConsentResult consent_result = consent_callback_->getResult();
+    if (consent_result == UserConsentResult::UNAVAILABLE) {
+        // User has not responded yet.
+        uint64_t elapsed_ms = consent_callback_->getElapsedTimeMs();
+        if (elapsed_ms < USER_CONSENT_TIMEOUT_MS) {
+            uint delay_seconds = (USER_CONSENT_TIMEOUT_MS - elapsed_ms) / 1000;
+            MYLOGD("Did not receive user consent yet; going to wait for %d seconds", delay_seconds);
+            sleep(delay_seconds);
+        }
+        consent_result = consent_callback_->getResult();
+    }
+    if (consent_result == UserConsentResult::DENIED) {
+        // User has explicitly denied sharing with the app. To be safe delete the
+        // internal bugreport & tmp files.
+        return HandleUserConsentDenied();
+    }
+    if (consent_result == UserConsentResult::APPROVED) {
+        bool copy_succeeded = android::os::CopyFileToFd(ds.path_, ds.options_->bugreport_fd.get());
+        if (copy_succeeded && remove(ds.path_.c_str())) {
+            MYLOGE("remove(%s): %s", ds.path_.c_str(), strerror(errno));
+        }
+        return copy_succeeded ? Dumpstate::RunStatus::OK : Dumpstate::RunStatus::ERROR;
+    } else if (consent_result == UserConsentResult::UNAVAILABLE) {
+        // consent_result is still UNAVAILABLE. The user has likely not responded yet.
+        // Since we do not have user consent to share the bugreport it does not get
+        // copied over to the calling app but remains in the internal directory from
+        // where the user can manually pull it.
+        return Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT;
+    }
+    // Unknown result; must be a programming error.
+    MYLOGE("Unknown user consent result:%d\n", consent_result);
+    return Dumpstate::RunStatus::ERROR;
 }
 
 /* Main entry point for dumpstate binary. */
@@ -2467,7 +2589,14 @@ int run_main(int argc, char* argv[]) {
     Dumpstate::RunStatus status = options->Initialize(argc, argv);
     if (status == Dumpstate::RunStatus::OK) {
         ds.SetOptions(std::move(options));
-        status = ds.Run();
+        // When directly running dumpstate binary, the output is not expected to be written
+        // to any external file descriptor.
+        assert(ds.options_->bugreport_fd.get() == -1);
+
+        // calling_uid and calling_package are for user consent to share the bugreport with
+        // an app; they are irrelvant here because bugreport is only written to a local
+        // directory, and not shared.
+        status = ds.Run(-1 /* calling_uid */, "" /* calling_package */);
     }
 
     switch (status) {
@@ -2481,9 +2610,10 @@ int run_main(int argc, char* argv[]) {
             ShowUsage();
             exit(1);
         case Dumpstate::RunStatus::ERROR:
-            exit(2);
-        default:
-            fprintf(stderr, "Unknown status: %d\n", status);
+            FALLTHROUGH_INTENDED;
+        case Dumpstate::RunStatus::USER_CONSENT_DENIED:
+            FALLTHROUGH_INTENDED;
+        case Dumpstate::RunStatus::USER_CONSENT_TIMED_OUT:
             exit(2);
     }
 }

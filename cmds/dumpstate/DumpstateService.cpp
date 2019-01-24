@@ -31,6 +31,13 @@ namespace os {
 
 namespace {
 
+struct DumpstateInfo {
+  public:
+    Dumpstate* ds = nullptr;
+    int32_t calling_uid = -1;
+    std::string calling_package;
+};
+
 static binder::Status exception(uint32_t code, const std::string& msg) {
     MYLOGE("%s (%d) ", msg.c_str(), code);
     return binder::Status::fromExceptionCode(code, String8(msg.c_str()));
@@ -42,14 +49,15 @@ static binder::Status error(uint32_t code, const std::string& msg) {
 }
 
 static void* callAndNotify(void* data) {
-    Dumpstate& ds = *static_cast<Dumpstate*>(data);
-    ds.Run();
+    DumpstateInfo& ds_info = *static_cast<DumpstateInfo*>(data);
+    ds_info.ds->Run(ds_info.calling_uid, ds_info.calling_package);
     MYLOGD("Finished Run()\n");
     return nullptr;
 }
 
 class DumpstateToken : public BnDumpstateToken {};
-}
+
+}  // namespace
 
 DumpstateService::DumpstateService() : ds_(Dumpstate::GetInstance()) {
 }
@@ -98,8 +106,8 @@ binder::Status DumpstateService::setListener(const std::string& name,
 }
 
 // TODO(b/111441001): Hook up to consent service & copy final br only if user approves.
-binder::Status DumpstateService::startBugreport(int32_t /* calling_uid */,
-                                                const std::string& /* calling_package */,
+binder::Status DumpstateService::startBugreport(int32_t calling_uid,
+                                                const std::string& calling_package,
                                                 const android::base::unique_fd& bugreport_fd,
                                                 const android::base::unique_fd& screenshot_fd,
                                                 int bugreport_mode,
@@ -131,6 +139,11 @@ binder::Status DumpstateService::startBugreport(int32_t /* calling_uid */,
     if (listener != nullptr) {
         ds_.listener_ = listener;
     }
+
+    DumpstateInfo ds_info;
+    ds_info.ds = &ds_;
+    ds_info.calling_uid = calling_uid;
+    ds_info.calling_package = calling_package;
 
     pthread_t thread;
     status_t err = pthread_create(&thread, nullptr, callAndNotify, &ds_);
