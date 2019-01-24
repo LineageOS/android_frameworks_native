@@ -38,6 +38,9 @@ interface IDumpstateListener {
     /* User denied consent to share the bugreport with the specified app */
     const int BUGREPORT_ERROR_USER_DENIED_CONSENT = 3;
 
+    /* The request to get user consent timed out */
+    const int BUGREPORT_ERROR_USER_CONSENT_TIMED_OUT = 4;
+
     /**
      * Called on an error condition with one of the error codes listed above.
      */
