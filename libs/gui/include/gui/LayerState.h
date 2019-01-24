@@ -85,8 +85,8 @@ struct layer_state_t {
         eCornerRadiusChanged = 0x80000000,
         eFrameChanged = 0x1'00000000,
         eCachedBufferChanged = 0x2'00000000,
-        eColorAlphaChanged = 0x3'00000000,
-        eColorDataspaceChanged = 0x4'00000000,
+        eColorAlphaChanged = 0x4'00000000,
+        eColorDataspaceChanged = 0x8'00000000,
     };
 
     layer_state_t()
