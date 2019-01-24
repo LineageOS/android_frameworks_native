@@ -2377,7 +2377,7 @@ binder::Status InstalldNativeService::rmPackageDir(const std::string& packageDir
     if (validate_apk_path(packageDir.c_str())) {
         return error("Invalid path " + packageDir);
     }
-    if (delete_dir_contents_and_dir(packageDir) != 0) {
+    if (rm_package_dir(packageDir) != 0) {
         return error("Failed to delete " + packageDir);
     }
     return ok();

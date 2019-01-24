@@ -18,6 +18,7 @@ cc_defaults {
         "dexopt.cpp",
         "globals.cpp",
         "utils.cpp",
+        "utils_default.cpp",
         "view_compiler.cpp",
         ":installd_aidl",
     ],
@@ -191,6 +192,7 @@ cc_binary {
         "globals.cpp",
         "otapreopt.cpp",
         "utils.cpp",
+        "utils_default.cpp",
         "view_compiler.cpp",
     ],
 
