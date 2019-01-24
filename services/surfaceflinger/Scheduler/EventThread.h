@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -198,7 +199,9 @@ private:
 
     // VSYNC state of connected display.
     struct VSyncState {
-        uint32_t displayId = 0;
+        explicit VSyncState(uint32_t displayId) : displayId(displayId) {}
+
+        const uint32_t displayId;
 
         // Number of VSYNC events since display was connected.
         uint32_t count = 0;
@@ -207,7 +210,9 @@ private:
         bool synthetic = false;
     };
 
-    VSyncState mVSyncState GUARDED_BY(mMutex);
+    // TODO(b/74619554): Create per-display threads waiting on respective VSYNC signals,
+    // and support headless mode by injecting a fake display with synthetic VSYNC.
+    std::optional<VSyncState> mVSyncState GUARDED_BY(mMutex);
 
     // State machine for event loop.
     enum class State {

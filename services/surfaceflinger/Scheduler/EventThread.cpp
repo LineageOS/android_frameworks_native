@@ -264,24 +264,29 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, 
 
 void EventThread::onScreenReleased() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mVSyncState.synthetic) {
-        mVSyncState.synthetic = true;
-        mCondition.notify_all();
+    if (!mVSyncState || mVSyncState->synthetic) {
+        return;
     }
+
+    mVSyncState->synthetic = true;
+    mCondition.notify_all();
 }
 
 void EventThread::onScreenAcquired() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (mVSyncState.synthetic) {
-        mVSyncState.synthetic = false;
-        mCondition.notify_all();
+    if (!mVSyncState || !mVSyncState->synthetic) {
+        return;
     }
+
+    mVSyncState->synthetic = false;
+    mCondition.notify_all();
 }
 
 void EventThread::onVSyncEvent(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    mPendingEvents.push_back(makeVSync(mVSyncState.displayId, timestamp, ++mVSyncState.count));
+    LOG_FATAL_IF(!mVSyncState);
+    mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count));
     mCondition.notify_all();
 }
 
@@ -304,9 +309,21 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             event = mPendingEvents.front();
             mPendingEvents.pop_front();
 
-            if (mInterceptVSyncsCallback &&
-                event->header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC) {
-                mInterceptVSyncsCallback(event->header.timestamp);
+            switch (event->header.type) {
+                case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
+                    if (event->hotplug.connected && !mVSyncState) {
+                        mVSyncState.emplace(event->header.id);
+                    } else if (!event->hotplug.connected && mVSyncState &&
+                               mVSyncState->displayId == event->header.id) {
+                        mVSyncState.reset();
+                    }
+                    break;
+
+                case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
+                    if (mInterceptVSyncsCallback) {
+                        mInterceptVSyncsCallback(event->header.timestamp);
+                    }
+                    break;
             }
         }
 
@@ -334,9 +351,10 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
         }
 
         State nextState;
-        if (vsyncRequested) {
-            nextState = mVSyncState.synthetic ? State::SyntheticVSync : State::VSync;
+        if (mVSyncState && vsyncRequested) {
+            nextState = mVSyncState->synthetic ? State::SyntheticVSync : State::VSync;
         } else {
+            ALOGW_IF(!mVSyncState, "Ignoring VSYNC request while display is disconnected");
             nextState = State::Idle;
         }
 
@@ -364,9 +382,10 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             if (mCondition.wait_for(lock, timeout) == std::cv_status::timeout) {
                 ALOGW_IF(mState == State::VSync, "Faking VSYNC due to driver stall");
 
-                mPendingEvents.push_back(makeVSync(mVSyncState.displayId,
+                LOG_FATAL_IF(!mVSyncState);
+                mPendingEvents.push_back(makeVSync(mVSyncState->displayId,
                                                    systemTime(SYSTEM_TIME_MONOTONIC),
-                                                   ++mVSyncState.count));
+                                                   ++mVSyncState->count));
             }
         }
     }
@@ -419,9 +438,13 @@ void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
 void EventThread::dump(std::string& result) const {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    StringAppendF(&result, "%s: state=%s", mThreadName, toCString(mState));
-    StringAppendF(&result, " VSyncState{displayId=%u, count=%u%s}\n", mVSyncState.displayId,
-                  mVSyncState.count, mVSyncState.synthetic ? ", synthetic" : "");
+    StringAppendF(&result, "%s: state=%s VSyncState=", mThreadName, toCString(mState));
+    if (mVSyncState) {
+        StringAppendF(&result, "{displayId=%u, count=%u%s}\n", mVSyncState->displayId,
+                      mVSyncState->count, mVSyncState->synthetic ? ", synthetic" : "");
+    } else {
+        StringAppendF(&result, "none\n");
+    }
 
     StringAppendF(&result, "  pending events (count=%zu):\n", mPendingEvents.size());
     for (const auto& event : mPendingEvents) {
