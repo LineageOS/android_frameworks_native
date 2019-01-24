@@ -34,12 +34,11 @@ struct OutputCompositionState {
     // If false, this output is not considered secure
     bool isSecure{false};
 
-    // If true, only layer stacks with a matching layerStack value will be
-    // displayed. If false, all layer stacks will be displayed.
-    bool singleLayerStack{true};
+    // If true, this output displays layers that are internal-only
+    bool layerStackInternal{false};
 
     // The layer stack to display on this display
-    uint32_t singleLayerStackId{~0u};
+    uint32_t layerStackId{~0u};
 
     // The physical space screen bounds
     Rect bounds;

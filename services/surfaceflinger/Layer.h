@@ -213,6 +213,7 @@ public:
     virtual ~Layer();
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
+    bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
 
     // ------------------------------------------------------------------------
     // Geometry setting functions.
@@ -332,6 +333,9 @@ public:
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
 
+    // Deprecated, please use compositionengine::Output::belongsInOutput()
+    // instead.
+    // TODO(lpique): Move the remaining callers (screencap) to the new function.
     bool belongsToDisplay(uint32_t layerStack, bool isPrimaryDisplay) const {
         return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
     }

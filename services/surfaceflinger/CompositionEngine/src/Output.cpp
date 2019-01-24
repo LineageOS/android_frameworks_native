@@ -75,9 +75,9 @@ void Output::setBounds(const ui::Size& size) {
     dirtyEntireOutput();
 }
 
-void Output::setLayerStackFilter(bool singleLayerStack, uint32_t singleLayerStackId) {
-    mState.singleLayerStack = singleLayerStack;
-    mState.singleLayerStackId = singleLayerStackId;
+void Output::setLayerStackFilter(uint32_t layerStackId, bool isInternal) {
+    mState.layerStackId = layerStackId;
+    mState.layerStackInternal = isInternal;
 
     dirtyEntireOutput();
 }
@@ -175,8 +175,10 @@ Region Output::getPhysicalSpaceDirtyRegion(bool repaintEverything) const {
     return dirty;
 }
 
-bool Output::belongsInOutput(uint32_t layerStackId) const {
-    return !mState.singleLayerStack || (layerStackId == mState.singleLayerStackId);
+bool Output::belongsInOutput(uint32_t layerStackId, bool internalOnly) const {
+    // The layerStackId's must match, and also the layer must not be internal
+    // only when not on an internal output.
+    return (layerStackId == mState.layerStackId) && (!internalOnly || mState.layerStackInternal);
 }
 
 void Output::dirtyEntireOutput() {
