@@ -109,6 +109,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.cornerRadius = 0.0f;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
+    mCurrentState.colorDataspace = ui::Dataspace::UNKNOWN;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;

@@ -97,6 +97,9 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeStrongBinder(cachedBuffer.token);
     output.writeInt32(cachedBuffer.bufferId);
 
+    output.writeFloat(colorAlpha);
+    output.writeUint32(static_cast<uint32_t>(colorDataspace));
+
     return NO_ERROR;
 }
 
@@ -169,6 +172,9 @@ status_t layer_state_t::read(const Parcel& input)
 
     cachedBuffer.token = input.readStrongBinder();
     cachedBuffer.bufferId = input.readInt32();
+
+    colorAlpha = input.readFloat();
+    colorDataspace = static_cast<ui::Dataspace>(input.readUint32());
 
     return NO_ERROR;
 }
@@ -381,6 +387,14 @@ void layer_state_t::merge(const layer_state_t& other) {
     if (other.what & eCachedBufferChanged) {
         what |= eCachedBufferChanged;
         cachedBuffer = other.cachedBuffer;
+    }
+    if (other.what & eColorAlphaChanged) {
+        what |= eColorAlphaChanged;
+        colorAlpha = other.colorAlpha;
+    }
+    if (other.what & eColorDataspaceChanged) {
+        what |= eColorDataspaceChanged;
+        colorDataspace = other.colorDataspace;
     }
     if ((other.what & what) != other.what) {
         ALOGE("Unmerged SurfaceComposer Transaction properties. LayerState::merge needs updating? "

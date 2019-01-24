@@ -3833,6 +3833,12 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         if (layer->setColor(s.color))
             flags |= eTraversalNeeded;
     }
+    if (what & layer_state_t::eColorAlphaChanged) {
+        if (layer->setColorAlpha(s.colorAlpha)) flags |= eTraversalNeeded;
+    }
+    if (what & layer_state_t::eColorDataspaceChanged) {
+        if (layer->setColorDataspace(s.colorDataspace)) flags |= eTraversalNeeded;
+    }
     if (what & layer_state_t::eColorTransformChanged) {
         if (layer->setColorTransform(s.colorTransform)) {
             flags |= eTraversalNeeded;
