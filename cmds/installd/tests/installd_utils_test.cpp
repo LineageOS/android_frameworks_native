@@ -544,5 +544,35 @@ TEST_F(UtilsTest, MatchExtension_Invalid) {
     EXPECT_EQ(0, MatchExtension("docx"));
 }
 
+TEST_F(UtilsTest, TestRollbackPaths) {
+    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo"));
+    EXPECT_EQ("/data/misc_ce/10/rollback/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 10, "com.foo"));
+
+    EXPECT_EQ("/data/misc_de/0/rollback/com.foo",
+            create_data_misc_de_rollback_package_path(nullptr, 0, "com.foo"));
+    EXPECT_EQ("/data/misc_de/10/rollback/com.foo",
+            create_data_misc_de_rollback_package_path(nullptr, 10, "com.foo"));
+
+    EXPECT_EQ("/data/misc_ce/0/rollback",
+            create_data_misc_ce_rollback_path(nullptr, 0));
+    EXPECT_EQ("/data/misc_ce/10/rollback",
+            create_data_misc_ce_rollback_path(nullptr, 10));
+
+    EXPECT_EQ("/data/misc_de/0/rollback",
+            create_data_misc_de_rollback_path(nullptr, 0));
+    EXPECT_EQ("/data/misc_de/10/rollback",
+            create_data_misc_de_rollback_path(nullptr, 10));
+
+    // These last couple of cases are never exercised in production because we
+    // only snapshot apps in the primary data partition. Exercise them here for
+    // the sake of completeness.
+    EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/misc_ce/0/rollback/com.example",
+            create_data_misc_ce_rollback_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, "com.example"));
+    EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/misc_de/0/rollback/com.example",
+            create_data_misc_de_rollback_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, "com.example"));
+}
+
 }  // namespace installd
 }  // namespace android
