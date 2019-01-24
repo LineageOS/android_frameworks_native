@@ -176,9 +176,6 @@ private:
     void removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection)
             REQUIRES(mMutex);
 
-    void enableVSyncLocked() REQUIRES(mMutex);
-    void disableVSyncLocked() REQUIRES(mMutex);
-
     // Implements VSyncSource::Callback
     void onVSyncEvent(nsecs_t timestamp) override;
 
@@ -212,11 +209,17 @@ private:
 
     VSyncState mVSyncState GUARDED_BY(mMutex);
 
-    bool mVsyncEnabled GUARDED_BY(mMutex) = false;
-    bool mKeepRunning GUARDED_BY(mMutex) = true;
+    // State machine for event loop.
+    enum class State {
+        Idle,
+        Quit,
+        SyntheticVSync,
+        VSync,
+    };
 
-    // for debugging
-    bool mDebugVsyncEnabled GUARDED_BY(mMutex) = false;
+    State mState GUARDED_BY(mMutex) = State::Idle;
+
+    static const char* toCString(State);
 
     // Callback that resets the idle timer when the next vsync is received.
     ResetIdleTimerCallback mResetIdleTimer;
