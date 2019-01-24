@@ -118,6 +118,8 @@ public:
     void setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expiredTimerCallback);
     // Callback that gets invoked once the idle timer is reset.
     void setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback);
+    // Returns relevant information about Scheduler for dumpsys purposes.
+    std::string doDump();
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(

@@ -59,6 +59,7 @@
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
 #include "SurfaceFlingerFactory.h"
@@ -1037,11 +1038,16 @@ private:
     SurfaceFlingerBE mBE;
     std::unique_ptr<compositionengine::CompositionEngine> mCompositionEngine;
 
+    /* ------------------------------------------------------------------------
+     * Scheduler
+     */
     bool mUseScheduler = false;
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
+    std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
 
+    /* ------------------------------------------------------------------------ */
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowCommands mInputWindowCommands;

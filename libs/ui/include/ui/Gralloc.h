@@ -56,7 +56,8 @@ public:
     // The ownership of acquireFence is always transferred to the callee, even
     // on errors.
     virtual status_t lock(buffer_handle_t bufferHandle, uint64_t usage, const Rect& bounds,
-                          int acquireFence, void** outData) const = 0;
+                          int acquireFence, void** outData, int32_t* outBytesPerPixel,
+                          int32_t* outBytesPerStride) const = 0;
 
     // The ownership of acquireFence is always transferred to the callee, even
     // on errors.

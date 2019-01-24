@@ -30,6 +30,7 @@
 #include <GLES2/gl2.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/private/Description.h>
+#include <unordered_map>
 
 #define EGL_NO_CONFIG ((EGLConfig)0)
 
@@ -133,7 +134,10 @@ private:
     // Defines the viewport, and sets the projection matrix to the projection
     // defined by the clip.
     void setViewportAndProjection(Rect viewport, Rect clip);
-    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence);
+    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence,
+                                       bool readCache, bool persistCache);
+    // Evicts stale images from the buffer cache.
+    void evictImages(const std::vector<LayerSettings>& layers);
     // Computes the cropping window for the layer and sets up cropping
     // coordinates for the mesh.
     FloatRect setupLayerCropping(const LayerSettings& layer, Mesh& mesh);
@@ -178,6 +182,9 @@ private:
     // Whether device supports color management, currently color management
     // supports sRGB, DisplayP3 color spaces.
     const bool mUseColorManagement = false;
+
+    // Cache of GL images that we'll store per GraphicBuffer ID
+    std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache;
 
     class FlushTracer {
     public:
