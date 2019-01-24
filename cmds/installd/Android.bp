@@ -31,7 +31,6 @@ cc_defaults {
         "libcutils",
         "liblog",
         "liblogwrap",
-        "libprocessgroup",
         "libselinux",
         "libutils",
     ],
@@ -170,7 +169,6 @@ cc_library_static {
         "libbase",
         "libcutils",
         "liblog",
-        "libprocessgroup",
         "libutils",
     ],
 }
@@ -208,7 +206,6 @@ cc_binary {
         "libcutils",
         "liblog",
         "liblogwrap",
-        "libprocessgroup",
         "libselinux",
         "libutils",
     ],
