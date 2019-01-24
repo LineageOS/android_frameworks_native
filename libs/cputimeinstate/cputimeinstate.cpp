@@ -45,14 +45,14 @@ using android::base::unique_fd;
 namespace android {
 namespace bpf {
 
-typedef struct {
+struct time_key_t {
     uint32_t uid;
     uint32_t freq;
-} time_key_t;
+};
 
-typedef struct {
+struct val_t {
     uint64_t ar[100];
-} val_t;
+};
 
 static std::mutex gInitializedMutex;
 static bool gInitialized = false;
@@ -65,19 +65,13 @@ static unique_fd gMapFd;
 static bool readNumbersFromFile(const std::string &path, std::vector<uint32_t> *out) {
     std::string data;
 
-    if (!android::base::ReadFileToString(path, &data)) {
-        ALOGD("Failed to read file %s", path.c_str());
-        return false;
-    }
+    if (!android::base::ReadFileToString(path, &data)) return false;
 
     auto strings = android::base::Split(data, " \n");
     for (const auto &s : strings) {
         if (s.empty()) continue;
         uint32_t n;
-        if (!android::base::ParseUint(s, &n)) {
-            ALOGD("Failed to parse file %s", path.c_str());
-            return false;
-        }
+        if (!android::base::ParseUint(s, &n)) return false;
         out->emplace_back(n);
     }
     return true;
@@ -141,16 +135,8 @@ static bool attachTracepointProgram(const std::string &eventType, const std::str
     std::string path = StringPrintf(BPF_FS_PATH "prog_time_in_state_tracepoint_%s_%s",
                                     eventType.c_str(), eventName.c_str());
     int prog_fd = bpf_obj_get(path.c_str());
-    if (prog_fd < 0) {
-        ALOGD("bpf_obj_get() failed for program %s", path.c_str());
-        return false;
-    }
-    if (bpf_attach_tracepoint(prog_fd, eventType.c_str(), eventName.c_str()) < 0) {
-        ALOGD("Failed to attach bpf program to tracepoint %s/%s", eventType.c_str(),
-              eventName.c_str());
-        return false;
-    }
-    return true;
+    if (prog_fd < 0) return false;
+    return bpf_attach_tracepoint(prog_fd, eventType.c_str(), eventName.c_str()) >= 0;
 }
 
 // Start tracking and aggregating data to be reported by getUidCpuFreqTimes and getUidsCpuFreqTimes.
@@ -224,20 +210,16 @@ bool getUidsCpuFreqTimes(
     auto fn = [freqTimeMap, &policyFreqIdxs](const time_key_t &key, const val_t &val,
                                              const BpfMap<time_key_t, val_t> &) {
         if (freqTimeMap->find(key.uid) == freqTimeMap->end()) {
-            std::vector<std::vector<uint64_t>> v;
+            (*freqTimeMap)[key.uid].resize(gNPolicies);
             for (uint32_t i = 0; i < gNPolicies; ++i) {
-                std::vector<uint64_t> v2(gPolicyFreqs[i].size(), 0);
-                v.emplace_back(v2);
+                (*freqTimeMap)[key.uid][i].resize(gPolicyFreqs[i].size(), 0);
             }
-            (*freqTimeMap)[key.uid] = v;
         }
 
         for (size_t policy = 0; policy < gNPolicies; ++policy) {
             for (const auto &cpu : gPolicyCpus[policy]) {
-                uint32_t cpuTime = val.ar[cpu];
-                if (cpuTime == 0) continue;
                 auto freqIdx = policyFreqIdxs[policy][key.freq];
-                (*freqTimeMap)[key.uid][policy][freqIdx] += cpuTime;
+                (*freqTimeMap)[key.uid][policy][freqIdx] += val.ar[cpu];
             }
         }
         return android::netdutils::status::ok;
