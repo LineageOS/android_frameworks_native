@@ -2226,7 +2226,8 @@ void SurfaceFlinger::rebuildLayerStacks() {
                 mDrawingState.traverseInZOrder([&](Layer* layer) {
                     bool hwcLayerDestroyed = false;
                     const auto displayId = displayDevice->getId();
-                    if (display->belongsInOutput(layer->getLayerStack())) {
+                    if (display->belongsInOutput(layer->getLayerStack(),
+                                                 layer->getPrimaryDisplayOnly())) {
                         Region drawRegion(tr.transform(
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
@@ -2879,7 +2880,9 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 // if not, pick the only display it's on.
                 hintDisplay = nullptr;
                 for (const auto& [token, display] : mDisplays) {
-                    if (display->getCompositionDisplay()->belongsInOutput(layer->getLayerStack())) {
+                    if (display->getCompositionDisplay()
+                                ->belongsInOutput(layer->getLayerStack(),
+                                                  layer->getPrimaryDisplayOnly())) {
                         if (hintDisplay) {
                             hintDisplay = nullptr;
                             break;
@@ -3063,7 +3066,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         const Layer::State& s(layer->getDrawingState());
 
         // only consider the layers on the given layer stack
-        if (!display->belongsInOutput(layer->getLayerStack())) {
+        if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
             return;
         }
 
@@ -3189,7 +3192,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
 void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty) {
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
-        if (display->belongsInOutput(layer->getLayerStack())) {
+        if (display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
             display->editState().dirtyRegion.orSelf(dirty);
         }
     }

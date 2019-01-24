@@ -153,10 +153,10 @@ TEST_F(OutputTest, setLayerStackFilterSetsFilterAndDirtiesEntireOutput) {
     mOutput.editState().bounds = displaySize;
 
     const uint32_t layerStack = 123u;
-    mOutput.setLayerStackFilter(true, layerStack);
+    mOutput.setLayerStackFilter(layerStack, true);
 
-    EXPECT_TRUE(mOutput.getState().singleLayerStack);
-    EXPECT_EQ(layerStack, mOutput.getState().singleLayerStackId);
+    EXPECT_TRUE(mOutput.getState().layerStackInternal);
+    EXPECT_EQ(layerStack, mOutput.getState().layerStackId);
 
     EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(displaySize)));
 }
@@ -258,6 +258,33 @@ TEST_F(OutputTest, getPhysicalSpaceDirtyRegionWithRepaintEverythingFalse) {
         // The dirtyRegion should be rotated and clipped to the display bounds.
         EXPECT_THAT(result, RegionEq(Region(Rect(100, 50))));
     }
+}
+
+/* ------------------------------------------------------------------------
+ * Output::belongsInOutput()
+ */
+
+TEST_F(OutputTest, belongsInOutputFiltersAsExpected) {
+    const uint32_t layerStack1 = 123u;
+    const uint32_t layerStack2 = 456u;
+
+    // If the output accepts layerStack1 and internal-only layers....
+    mOutput.setLayerStackFilter(layerStack1, true);
+
+    // Any layer with layerStack1 belongs to it, internal-only or not.
+    EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, false));
+    EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, true));
+    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, true));
+    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, false));
+
+    // If the output accepts layerStack21 but not internal-only layers...
+    mOutput.setLayerStackFilter(layerStack1, false);
+
+    // Only non-internal layers with layerStack1 belong to it.
+    EXPECT_TRUE(mOutput.belongsInOutput(layerStack1, false));
+    EXPECT_FALSE(mOutput.belongsInOutput(layerStack1, true));
+    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, true));
+    EXPECT_FALSE(mOutput.belongsInOutput(layerStack2, false));
 }
 
 } // namespace
