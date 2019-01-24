@@ -43,7 +43,6 @@
 #include <log/log.h>               // TODO: Move everything to base/logging.
 #include <openssl/sha.h>
 #include <private/android_filesystem_config.h>
-#include <processgroup/sched_policy.h>
 #include <selinux/android.h>
 #include <system/thread_defs.h>
 
