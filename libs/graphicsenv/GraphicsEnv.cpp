@@ -262,7 +262,7 @@ bool GraphicsEnv::shouldUseAngle(std::string appName) {
 bool GraphicsEnv::shouldUseAngle() {
     // Make sure we are init'ed
     if (mAngleAppName.empty()) {
-        ALOGE("App name is empty. setAngleInfo() must be called first to enable ANGLE.");
+        ALOGV("App name is empty. setAngleInfo() has not been called to enable ANGLE.");
         return false;
     }
 
