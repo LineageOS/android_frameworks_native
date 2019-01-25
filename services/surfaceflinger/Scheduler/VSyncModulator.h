@@ -18,9 +18,10 @@
 
 #include <utils/Errors.h>
 
+#include <cinttypes>
 #include <mutex>
 
-using namespace android::surfaceflinger;
+#include "Scheduler.h"
 
 namespace android {
 

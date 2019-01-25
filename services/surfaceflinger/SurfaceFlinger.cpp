@@ -197,8 +197,6 @@ const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
 // ---------------------------------------------------------------------------
-int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
-int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
 uint64_t SurfaceFlinger::maxVirtualDisplaySize;
@@ -259,6 +257,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mLayersRemoved(false),
         mLayersAdded(false),
         mBootTime(systemTime()),
+        mPhaseOffsets{getFactory().createPhaseOffsets()},
         mVisibleRegionsDirty(false),
         mGeometryInvalid(false),
         mAnimCompositionPending(false),
@@ -283,10 +282,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
 SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
       : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
-
-    vsyncPhaseOffsetNs = vsync_event_phase_offset_ns(1000000);
-
-    sfVsyncPhaseOffsetNs = vsync_sf_event_phase_offset_ns(1000000);
 
     hasSyncFramework = running_without_sync_framework(true);
 
@@ -376,29 +371,11 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
-    property_get("debug.sf.early_phase_offset_ns", value, "-1");
-    const int earlySfOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_gl_phase_offset_ns", value, "-1");
-    const int earlyGlSfOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_app_phase_offset_ns", value, "-1");
-    const int earlyAppOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_gl_app_phase_offset_ns", value, "-1");
-    const int earlyGlAppOffsetNs = atoi(value);
-
     property_get("debug.sf.use_scheduler", value, "0");
     mUseScheduler = atoi(value);
 
-    const VSyncModulator::Offsets earlyOffsets =
-            {earlySfOffsetNs != -1 ? earlySfOffsetNs : sfVsyncPhaseOffsetNs,
-            earlyAppOffsetNs != -1 ? earlyAppOffsetNs : vsyncPhaseOffsetNs};
-    const VSyncModulator::Offsets earlyGlOffsets =
-            {earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs : sfVsyncPhaseOffsetNs,
-            earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs : vsyncPhaseOffsetNs};
-    mVsyncModulator.setPhaseOffsets(earlyOffsets, earlyGlOffsets,
-            {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs});
+    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+    mVsyncModulator.setPhaseOffsets(early, gl, late);
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -605,7 +582,7 @@ void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
-    ALOGI("Phase offest NS: %" PRId64 "", vsyncPhaseOffsetNs);
+    ALOGI("Phase offset NS: %" PRId64 "", mPhaseOffsets->getCurrentAppOffset());
 
     Mutex::Autolock _l(mStateLock);
 
@@ -616,13 +593,17 @@ void SurfaceFlinger::init() {
         mScheduler = getFactory().createScheduler([this](bool enabled) {
             setVsyncEnabled(EventThread::DisplayType::Primary, enabled);
         });
+        // TODO(b/113612090): Currently we assume that if scheduler is turned on, then the refresh
+        // rate is 90. Once b/122905403 is completed, this should be updated accordingly.
+        mPhaseOffsets->setRefreshRateType(
+                scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
 
         mAppConnectionHandle =
-                mScheduler->createConnection("appConnection", SurfaceFlinger::vsyncPhaseOffsetNs,
+                mScheduler->createConnection("appConnection", mPhaseOffsets->getCurrentAppOffset(),
                                              resyncCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
-                mScheduler->createConnection("sfConnection", SurfaceFlinger::sfVsyncPhaseOffsetNs,
+                mScheduler->createConnection("sfConnection", mPhaseOffsets->getCurrentSfOffset(),
                                              resyncCallback, [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
@@ -633,14 +614,14 @@ void SurfaceFlinger::init() {
     } else {
         mEventThreadSource =
                 std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
-                                                 SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
+                                                 mPhaseOffsets->getCurrentAppOffset(), true, "app");
         mEventThread =
                 std::make_unique<impl::EventThread>(mEventThreadSource.get(),
                                                     impl::EventThread::InterceptVSyncsCallback(),
                                                     "appEventThread");
         mSfEventThreadSource =
                 std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
-                                                 SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
+                                                 mPhaseOffsets->getCurrentSfOffset(), true, "sf");
 
         mSFEventThread =
                 std::make_unique<impl::EventThread>(mSfEventThreadSource.get(),
@@ -721,8 +702,20 @@ void SurfaceFlinger::init() {
     }
 
     if (mUseScheduler) {
-        mScheduler->setExpiredIdleTimerCallback([this]() { setRefreshRateTo(60.f /* fps */); });
-        mScheduler->setResetIdleTimerCallback([this]() { setRefreshRateTo(90.f /* fps */); });
+        mScheduler->setExpiredIdleTimerCallback([this]() {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
+            const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+            mVsyncModulator.setPhaseOffsets(early, gl, late);
+            setRefreshRateTo(60.f /* fps */);
+        });
+        mScheduler->setResetIdleTimerCallback([this]() {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
+            const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+            mVsyncModulator.setPhaseOffsets(early, gl, late);
+            setRefreshRateTo(90.f /* fps */);
+        });
         mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(
                 getHwComposer().getConfigs(*display->getId()));
     }
@@ -877,7 +870,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
-        info.appVsyncOffset = vsyncPhaseOffsetNs;
+        info.appVsyncOffset = mPhaseOffsets->getCurrentAppOffset();
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
@@ -891,8 +884,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         //
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
-        info.presentationDeadline = hwConfig->getVsyncPeriod() -
-                sfVsyncPhaseOffsetNs + 1000000;
+        info.presentationDeadline =
+                hwConfig->getVsyncPeriod() - mPhaseOffsets->getCurrentSfOffset() + 1000000;
 
         // All non-virtual displays are currently considered secure.
         info.secure = true;
@@ -1930,11 +1923,11 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                                 nsecs_t compositeToPresentLatency) {
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
-    nsecs_t idealLatency = (sfVsyncPhaseOffsetNs > 0)
-            ? (stats.vsyncPeriod - (sfVsyncPhaseOffsetNs % stats.vsyncPeriod))
-            : ((-sfVsyncPhaseOffsetNs) % stats.vsyncPeriod);
+    nsecs_t idealLatency = (mPhaseOffsets->getCurrentSfOffset() > 0)
+            ? (stats.vsyncPeriod - (mPhaseOffsets->getCurrentSfOffset() % stats.vsyncPeriod))
+            : ((-mPhaseOffsets->getCurrentSfOffset()) % stats.vsyncPeriod);
 
-    // Just in case sfVsyncPhaseOffsetNs == -vsyncInterval.
+    // Just in case mPhaseOffsets->getCurrentSfOffset() == -vsyncInterval.
     if (idealLatency <= 0) {
         idealLatency = stats.vsyncPeriod;
     }
@@ -1943,7 +1936,7 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     // composition and present times, which often have >1ms of jitter.
     // Reducing jitter is important if an app attempts to extrapolate
     // something (such as user input) to an accurate diasplay time.
-    // Snapping also allows an app to precisely calculate sfVsyncPhaseOffsetNs
+    // Snapping also allows an app to precisely calculate mPhaseOffsets->getCurrentSfOffset()
     // with (presentLatency % interval).
     nsecs_t bias = stats.vsyncPeriod / 2;
     int64_t extraVsyncs = (compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod;
@@ -4482,15 +4475,10 @@ void SurfaceFlinger::appendSfConfigString(std::string& result) const {
 }
 
 void SurfaceFlinger::dumpVSync(std::string& result) const {
-    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
-    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
+    mPhaseOffsets->dump(result);
     StringAppendF(&result,
-                  "         app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
-                  "   early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
-                  "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
                   "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
-                  vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset, sfEarlyOffset,
-                  appEarlyGlOffset, sfEarlyGlOffset, dispSyncPresentTimeOffset, getVsyncPeriod());
+                  dispSyncPresentTimeOffset, getVsyncPeriod());
 
     StringAppendF(&result, "Scheduler: %s\n\n", mUseScheduler ? "enabled" : "disabled");
 
