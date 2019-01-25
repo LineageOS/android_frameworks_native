@@ -17,6 +17,7 @@
 #include <fcntl.h>
 #include <linux/unistd.h>
 #include <sys/mount.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 
 #include <sstream>
@@ -24,6 +25,9 @@
 #include <android-base/logging.h>
 #include <android-base/macros.h>
 #include <android-base/stringprintf.h>
+#include <selinux/android.h>
+
+#include <apexd.h>
 
 #include "installd_constants.h"
 #include "otapreopt_utils.h"
@@ -138,6 +142,33 @@ static int otapreopt_chroot(const int argc, char **arg) {
       UNUSED(product_result);
     }
 
+    // Setup APEX mount point and its security context.
+    static constexpr const char* kPostinstallApexDir = "/postinstall/apex";
+    // The following logic is similar to the one in system/core/rootdir/init.rc:
+    //
+    //   mount tmpfs tmpfs /apex nodev noexec nosuid
+    //   chmod 0755 /apex
+    //   chown root root /apex
+    //   restorecon /apex
+    //
+    if (mount("tmpfs", kPostinstallApexDir, "tmpfs", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr)
+        != 0) {
+        PLOG(ERROR) << "Failed to mount tmpfs in " << kPostinstallApexDir;
+        exit(209);
+    }
+    if (chmod(kPostinstallApexDir, 0755) != 0) {
+        PLOG(ERROR) << "Failed to chmod " << kPostinstallApexDir << " to 0755";
+        exit(210);
+    }
+    if (chown(kPostinstallApexDir, 0, 0) != 0) {
+        PLOG(ERROR) << "Failed to chown " << kPostinstallApexDir << " to root:root";
+        exit(211);
+    }
+    if (selinux_android_restorecon(kPostinstallApexDir, 0) < 0) {
+        PLOG(ERROR) << "Failed to restorecon " << kPostinstallApexDir;
+        exit(212);
+    }
+
     // Chdir into /postinstall.
     if (chdir("/postinstall") != 0) {
         PLOG(ERROR) << "Unable to chdir into /postinstall.";
@@ -155,22 +186,52 @@ static int otapreopt_chroot(const int argc, char **arg) {
         exit(205);
     }
 
+    // Try to mount APEX packages in "/apex" in the chroot dir. We need at least
+    // the Android Runtime APEX, as it is required by otapreopt to run dex2oat.
+    // The logic here is (partially) copied and adapted from
+    // system/apex/apexd/apexd_main.cpp.
+    //
+    // Only scan the APEX directory under /system (within the chroot dir).
+    // Note that this leaves around the loop devices created and used by
+    // libapexd's code, but this is fine, as we expect to reboot soon after.
+    apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
+    // Collect activated packages.
+    std::vector<apex::ApexFile> active_packages = apex::getActivePackages();
+
     // Now go on and run otapreopt.
 
-    // Incoming:  cmd + status-fd + target-slot + cmd... + null      | Incoming | = argc + 1
-    // Outgoing:  cmd             + target-slot + cmd... + null      | Outgoing | = argc
-    const char** argv = new const char*[argc];
-
-    argv[0] = "/system/bin/otapreopt";
+    // Incoming:  cmd + status-fd + target-slot + cmd...      | Incoming | = argc
+    // Outgoing:  cmd             + target-slot + cmd...      | Outgoing | = argc - 1
+    std::vector<std::string> cmd;
+    cmd.reserve(argc);
+    cmd.push_back("/system/bin/otapreopt");
 
     // The first parameter is the status file descriptor, skip.
-    for (size_t i = 2; i <= static_cast<size_t>(argc); ++i) {
-        argv[i - 1] = arg[i];
+    for (size_t i = 2; i < static_cast<size_t>(argc); ++i) {
+        cmd.push_back(arg[i]);
     }
 
-    execv(argv[0], static_cast<char * const *>(const_cast<char**>(argv)));
-    PLOG(ERROR) << "execv(OTAPREOPT) failed.";
-    exit(99);
+    // Fork and execute otapreopt in its own process.
+    std::string error_msg;
+    bool exec_result = Exec(cmd, &error_msg);
+    if (!exec_result) {
+        LOG(ERROR) << "Running otapreopt failed: " << error_msg;
+    }
+
+    // Tear down the work down by the apexd logic above (i.e. deactivate packages).
+    for (const apex::ApexFile& apex_file : active_packages) {
+        const std::string& package_path = apex_file.GetPath();
+        apex::Status status = apex::deactivatePackage(package_path);
+        if (!status.Ok()) {
+            LOG(ERROR) << "Failed to deactivate " << package_path << ": " << status.ErrorMessage();
+        }
+    }
+
+    if (!exec_result) {
+        exit(213);
+    }
+
+    return 0;
 }
 
 }  // namespace installd
