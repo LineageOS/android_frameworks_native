@@ -103,6 +103,11 @@ std::string TimeStatsHelper::TimeStatsGlobal::toString(std::optional<uint32_t> m
     StringAppendF(&result, "missedFrames = %d\n", missedFrames);
     StringAppendF(&result, "clientCompositionFrames = %d\n", clientCompositionFrames);
     StringAppendF(&result, "displayOnTime = %" PRId64 " ms\n", displayOnTime);
+    StringAppendF(&result, "displayConfigStats is as below:\n");
+    for (const auto& [fps, duration] : refreshRateStats) {
+        StringAppendF(&result, "%dfps=%ldms ", fps, ns2ms(duration));
+    }
+    result.back() = '\n';
     StringAppendF(&result, "totalP2PTime = %" PRId64 " ms\n", presentToPresent.totalTime());
     StringAppendF(&result, "presentToPresent histogram is as below:\n");
     result.append(presentToPresent.toString());
@@ -141,6 +146,13 @@ SFTimeStatsGlobalProto TimeStatsHelper::TimeStatsGlobal::toProto(
     globalProto.set_missed_frames(missedFrames);
     globalProto.set_client_composition_frames(clientCompositionFrames);
     globalProto.set_display_on_time(displayOnTime);
+    for (const auto& ele : refreshRateStats) {
+        SFTimeStatsDisplayConfigBucketProto* configBucketProto =
+                globalProto.add_display_config_stats();
+        SFTimeStatsDisplayConfigProto* configProto = configBucketProto->mutable_config();
+        configProto->set_fps(ele.first);
+        configBucketProto->set_duration_millis(ns2ms(ele.second));
+    }
     for (const auto& histEle : presentToPresent.hist) {
         SFTimeStatsHistogramBucketProto* histProto = globalProto.add_present_to_present();
         histProto->set_time_millis(histEle.first);

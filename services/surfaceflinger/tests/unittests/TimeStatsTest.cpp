@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "LibSurfaceFlingerUnittests"
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <log/log.h>
@@ -24,6 +25,7 @@
 #include <utils/Vector.h>
 
 #include <random>
+#include <unordered_set>
 
 #include "TimeStats/TimeStats.h"
 
@@ -34,6 +36,10 @@ using namespace google::protobuf;
 
 namespace android {
 namespace {
+
+using testing::Contains;
+using testing::SizeIs;
+using testing::UnorderedElementsAre;
 
 // clang-format off
 #define FMT_PROTO          true
@@ -127,7 +133,7 @@ public:
     }
 
     std::mt19937 mRandomEngine = std::mt19937(std::random_device()());
-    std::unique_ptr<TimeStats> mTimeStats = std::make_unique<TimeStats>();
+    std::unique_ptr<TimeStats> mTimeStats = std::make_unique<impl::TimeStats>();
 };
 
 std::string TimeStatsTest::inputCommand(InputCommand cmd, bool useProto) {
@@ -371,6 +377,63 @@ TEST_F(TimeStatsTest, canInsertUnorderedLayerTimeStats) {
     }
 }
 
+TEST_F(TimeStatsTest, recordRefreshRateNewConfigs) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    uint32_t fpsOne = 30;
+    uint32_t fpsTwo = 90;
+    uint64_t millisOne = 5000;
+    uint64_t millisTwo = 7000;
+
+    mTimeStats->recordRefreshRate(fpsOne, ms2ns(millisOne));
+    mTimeStats->recordRefreshRate(fpsTwo, ms2ns(millisTwo));
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+
+    SFTimeStatsDisplayConfigBucketProto expectedBucketOne;
+    SFTimeStatsDisplayConfigProto* expectedConfigOne = expectedBucketOne.mutable_config();
+    expectedConfigOne->set_fps(fpsOne);
+    expectedBucketOne.set_duration_millis(millisOne);
+
+    SFTimeStatsDisplayConfigBucketProto expectedBucketTwo;
+    SFTimeStatsDisplayConfigProto* expectedConfigTwo = expectedBucketTwo.mutable_config();
+    expectedConfigTwo->set_fps(fpsTwo);
+    expectedBucketTwo.set_duration_millis(millisTwo);
+
+    EXPECT_THAT(globalProto.display_config_stats(), SizeIs(2));
+
+    std::unordered_set<uint32_t> seen_fps;
+    for (const auto& bucket : globalProto.display_config_stats()) {
+        seen_fps.emplace(bucket.config().fps());
+        if (fpsOne == bucket.config().fps()) {
+            EXPECT_EQ(millisOne, bucket.duration_millis());
+        } else if (fpsTwo == bucket.config().fps()) {
+            EXPECT_EQ(millisTwo, bucket.duration_millis());
+        } else {
+            FAIL() << "Unknown fps: " << bucket.config().fps();
+        }
+    }
+    EXPECT_THAT(seen_fps, UnorderedElementsAre(fpsOne, fpsTwo));
+}
+
+TEST_F(TimeStatsTest, recordRefreshRateUpdatesConfig) {
+    EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
+
+    uint32_t fps = 30;
+    uint64_t millisOne = 5000;
+    uint64_t millisTwo = 7000;
+
+    mTimeStats->recordRefreshRate(fps, ms2ns(millisOne));
+    mTimeStats->recordRefreshRate(fps, ms2ns(millisTwo));
+
+    SFTimeStatsGlobalProto globalProto;
+    ASSERT_TRUE(globalProto.ParseFromString(inputCommand(InputCommand::DUMP_ALL, FMT_PROTO)));
+    EXPECT_THAT(globalProto.display_config_stats(), SizeIs(1));
+    EXPECT_EQ(fps, globalProto.display_config_stats().Get(0).config().fps());
+    EXPECT_EQ(millisOne + millisTwo, globalProto.display_config_stats().Get(0).duration_millis());
+}
+
 TEST_F(TimeStatsTest, canRemoveTimeRecord) {
     EXPECT_TRUE(inputCommand(InputCommand::ENABLE, FMT_STRING).empty());
 
@@ -394,7 +457,7 @@ TEST_F(TimeStatsTest, canRecoverFromIncompleteTimeRecordError) {
     uint64_t frameNumber = 1;
     nsecs_t ts = 1000000;
     insertTimeRecord(INCOMPLETE_SEQUENCE, LAYER_ID_0, 1, 1000000);
-    for (size_t i = 0; i < TimeStats::MAX_NUM_TIME_RECORDS + 2; i++) {
+    for (size_t i = 0; i < impl::TimeStats::MAX_NUM_TIME_RECORDS + 2; i++) {
         frameNumber++;
         ts += 1000000;
         insertTimeRecord(NORMAL_SEQUENCE, LAYER_ID_0, frameNumber, ts);

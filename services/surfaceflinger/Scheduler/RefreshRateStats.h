@@ -20,6 +20,7 @@
 
 #include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/SchedulerUtils.h"
+#include "TimeStats/TimeStats.h"
 
 #include "android-base/stringprintf.h"
 #include "utils/Timers.h"
@@ -41,8 +42,10 @@ class RefreshRateStats {
 
 public:
     explicit RefreshRateStats(
-            const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs)
+            const std::vector<std::shared_ptr<const HWC2::Display::Config>>& configs,
+            const std::shared_ptr<TimeStats>& timeStats)
           : mRefreshRateConfigs(std::make_unique<RefreshRateConfigs>(configs)),
+            mTimeStats(timeStats),
             mPreviousRecordedTime(systemTime()) {}
     ~RefreshRateStats() = default;
 
@@ -116,10 +119,16 @@ private:
     // this method was called.
     void flushTimeForMode(int mode) {
         nsecs_t currentTime = systemTime();
-        int64_t timeElapsedMs = ns2ms(currentTime - mPreviousRecordedTime);
+        nsecs_t timeElapsed = currentTime - mPreviousRecordedTime;
+        int64_t timeElapsedMs = ns2ms(timeElapsed);
         mPreviousRecordedTime = currentTime;
 
         mConfigModesTotalTime[mode] += timeElapsedMs;
+        for (const auto& config : mRefreshRateConfigs->getRefreshRates()) {
+            if (config.configId == mode) {
+                mTimeStats->recordRefreshRate(config.fps, timeElapsed);
+            }
+        }
     }
 
     // Formats the time in milliseconds into easy to read format.
@@ -135,6 +144,9 @@ private:
 
     // Keeps information about refresh rate configs that device has.
     std::unique_ptr<RefreshRateConfigs> mRefreshRateConfigs;
+
+    // Aggregate refresh rate statistics for telemetry.
+    std::shared_ptr<TimeStats> mTimeStats;
 
     int64_t mCurrentConfigMode = 0;
     int32_t mCurrentPowerMode = HWC_POWER_MODE_OFF;

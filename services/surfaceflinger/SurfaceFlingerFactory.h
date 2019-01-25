@@ -93,7 +93,7 @@ public:
     virtual sp<ColorLayer> createColorLayer(const LayerCreationArgs& args) = 0;
     virtual sp<ContainerLayer> createContainerLayer(const LayerCreationArgs& args) = 0;
 
-    virtual std::unique_ptr<TimeStats> createTimeStats() = 0;
+    virtual std::shared_ptr<TimeStats> createTimeStats() = 0;
 
 protected:
     ~Factory() = default;
