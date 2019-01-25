@@ -32,6 +32,16 @@ static constexpr int DEX2OAT_FROM_SCRATCH        = 1;
 static constexpr int DEX2OAT_FOR_BOOT_IMAGE      = 2;
 static constexpr int DEX2OAT_FOR_FILTER          = 3;
 
+#define ANDROID_RUNTIME_APEX_BIN "/apex/com.android.runtime/bin"
+// Location of binaries in the Android Runtime APEX.
+static constexpr const char* kDex2oatPath = ANDROID_RUNTIME_APEX_BIN "/dex2oat";
+static constexpr const char* kDex2oatDebugPath = ANDROID_RUNTIME_APEX_BIN "/dex2oatd";
+static constexpr const char* kProfmanPath = ANDROID_RUNTIME_APEX_BIN "/profmand";
+static constexpr const char* kProfmanDebugPath = ANDROID_RUNTIME_APEX_BIN "/profmand";
+static constexpr const char* kDexoptanalyzerPath = ANDROID_RUNTIME_APEX_BIN "/dexoptanalyzer";
+static constexpr const char* kDexoptanalyzerDebugPath = ANDROID_RUNTIME_APEX_BIN "/dexoptanalyzerd";
+#undef ANDROID_RUNTIME_APEX_BIN
+
 // Clear the reference profile identified by the given profile name.
 bool clear_primary_reference_profile(const std::string& pkgname, const std::string& profile_name);
 // Clear the current profile identified by the given profile name (for single user).
