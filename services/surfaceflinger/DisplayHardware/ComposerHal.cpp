@@ -260,20 +260,17 @@ Error Composer::createVirtualDisplay(uint32_t width, uint32_t height,
     const uint32_t bufferSlotCount = 1;
     Error error = kDefaultError;
     if (mClient_2_2) {
-        mClient_2_2->createVirtualDisplay_2_2(width, height,
-                                              static_cast<types::V1_1::PixelFormat>(*format),
-                                              bufferSlotCount,
-                                              [&](const auto& tmpError, const auto& tmpDisplay,
-                                                  const auto& tmpFormat) {
-                                                  error = tmpError;
-                                                  if (error != Error::NONE) {
-                                                      return;
-                                                  }
+        mClient_2_2->createVirtualDisplay_2_2(width, height, *format, bufferSlotCount,
+                [&](const auto& tmpError, const auto& tmpDisplay,
+                    const auto& tmpFormat) {
+                    error = tmpError;
+                    if (error != Error::NONE) {
+                        return;
+                    }
 
-                                                  *outDisplay = tmpDisplay;
-                                                  *format = static_cast<types::V1_2::PixelFormat>(
-                                                          tmpFormat);
-                                              });
+                    *outDisplay = tmpDisplay;
+                    *format = tmpFormat;
+                });
     } else {
         mClient->createVirtualDisplay(width, height,
                 static_cast<types::V1_0::PixelFormat>(*format), bufferSlotCount,
