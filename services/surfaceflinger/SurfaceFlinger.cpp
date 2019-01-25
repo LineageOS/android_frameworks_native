@@ -3980,14 +3980,27 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
 
     String8 uniqueName = getUniqueLayerName(name);
 
+    bool primaryDisplayOnly = false;
+
+    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
+    // TODO b/64227542
+    if (metadata.has(METADATA_WINDOW_TYPE)) {
+        int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+        if (windowType == 441731) {
+            metadata.setInt32(METADATA_WINDOW_TYPE, 2024); // TYPE_NAVIGATION_BAR_PANEL
+            primaryDisplayOnly = true;
+        }
+    }
+
     switch (flags & ISurfaceComposerClient::eFXSurfaceMask) {
         case ISurfaceComposerClient::eFXSurfaceBufferQueue:
-            result = createBufferQueueLayer(client, uniqueName, w, h, flags, format, handle, gbp,
-                                            &layer);
+            result = createBufferQueueLayer(client, uniqueName, w, h, flags, std::move(metadata),
+                                            format, handle, gbp, &layer);
 
             break;
         case ISurfaceComposerClient::eFXSurfaceBufferState:
-            result = createBufferStateLayer(client, uniqueName, w, h, flags, handle, &layer);
+            result = createBufferStateLayer(client, uniqueName, w, h, flags, std::move(metadata),
+                                            handle, &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceColor:
             // check if buffer size is set for color layer.
@@ -3997,9 +4010,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                 return BAD_VALUE;
             }
 
-            result = createColorLayer(client,
-                    uniqueName, w, h, flags,
-                    handle, &layer);
+            result = createColorLayer(client, uniqueName, w, h, flags, std::move(metadata), handle,
+                                      &layer);
             break;
         case ISurfaceComposerClient::eFXSurfaceContainer:
             // check if buffer size is set for container layer.
@@ -4008,9 +4020,8 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
                       int(w), int(h));
                 return BAD_VALUE;
             }
-            result = createContainerLayer(client,
-                    uniqueName, w, h, flags,
-                    handle, &layer);
+            result = createContainerLayer(client, uniqueName, w, h, flags, std::move(metadata),
+                                          handle, &layer);
             break;
         default:
             result = BAD_VALUE;
@@ -4021,17 +4032,9 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
         return result;
     }
 
-    // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
-    // TODO b/64227542
-    if (metadata.has(METADATA_WINDOW_TYPE)) {
-        int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
-        if (windowType == 441731) {
-            metadata.setInt32(METADATA_WINDOW_TYPE, 2024); // TYPE_NAVIGATION_BAR_PANEL
-            layer->setPrimaryDisplayOnly();
-        }
+    if (primaryDisplayOnly) {
+        layer->setPrimaryDisplayOnly();
     }
-
-    layer->setMetadata(metadata);
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
     result = addClientLayer(client, *handle, *gbp, layer, *parent,
@@ -4075,7 +4078,8 @@ String8 SurfaceFlinger::getUniqueLayerName(const String8& name)
 
 status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
-                                                PixelFormat& format, sp<IBinder>* handle,
+                                                LayerMetadata metadata, PixelFormat& format,
+                                                sp<IBinder>* handle,
                                                 sp<IGraphicBufferProducer>* gbp,
                                                 sp<Layer>* outLayer) {
     // initialize the surfaces
@@ -4089,8 +4093,8 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
         break;
     }
 
-    sp<BufferQueueLayer> layer =
-            getFactory().createBufferQueueLayer(LayerCreationArgs(this, client, name, w, h, flags));
+    sp<BufferQueueLayer> layer = getFactory().createBufferQueueLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     status_t err = layer->setDefaultBufferProperties(w, h, format);
     if (err == NO_ERROR) {
         *handle = layer->getHandle();
@@ -4104,30 +4108,31 @@ status_t SurfaceFlinger::createBufferQueueLayer(const sp<Client>& client, const 
 
 status_t SurfaceFlinger::createBufferStateLayer(const sp<Client>& client, const String8& name,
                                                 uint32_t w, uint32_t h, uint32_t flags,
-                                                sp<IBinder>* handle, sp<Layer>* outLayer) {
-    sp<BufferStateLayer> layer =
-            getFactory().createBufferStateLayer(LayerCreationArgs(this, client, name, w, h, flags));
+                                                LayerMetadata metadata, sp<IBinder>* handle,
+                                                sp<Layer>* outLayer) {
+    sp<BufferStateLayer> layer = getFactory().createBufferStateLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     *handle = layer->getHandle();
     *outLayer = layer;
 
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createColorLayer(const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
-        sp<IBinder>* handle, sp<Layer>* outLayer)
-{
-    *outLayer = getFactory().createColorLayer(LayerCreationArgs(this, client, name, w, h, flags));
+status_t SurfaceFlinger::createColorLayer(const sp<Client>& client, const String8& name, uint32_t w,
+                                          uint32_t h, uint32_t flags, LayerMetadata metadata,
+                                          sp<IBinder>* handle, sp<Layer>* outLayer) {
+    *outLayer = getFactory().createColorLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client,
-        const String8& name, uint32_t w, uint32_t h, uint32_t flags,
-        sp<IBinder>* handle, sp<Layer>* outLayer)
-{
-    *outLayer =
-            getFactory().createContainerLayer(LayerCreationArgs(this, client, name, w, h, flags));
+status_t SurfaceFlinger::createContainerLayer(const sp<Client>& client, const String8& name,
+                                              uint32_t w, uint32_t h, uint32_t flags,
+                                              LayerMetadata metadata, sp<IBinder>* handle,
+                                              sp<Layer>* outLayer) {
+    *outLayer = getFactory().createContainerLayer(
+            LayerCreationArgs(this, client, name, w, h, flags, std::move(metadata)));
     *handle = (*outLayer)->getHandle();
     return NO_ERROR;
 }
@@ -5337,7 +5342,8 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 Rect bounds = getBounds();
                 screenshotParentLayer = mFlinger->getFactory().createContainerLayer(
                         LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
-                                          bounds.getWidth(), bounds.getHeight(), 0));
+                                          bounds.getWidth(), bounds.getHeight(), 0,
+                                          LayerMetadata()));
 
                 ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
                 drawLayers();

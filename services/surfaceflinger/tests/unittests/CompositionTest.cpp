@@ -22,6 +22,7 @@
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 #include <gui/IProducerListener.h>
+#include <gui/LayerMetadata.h>
 #include <log/log.h>
 #include <renderengine/mock/Framebuffer.h>
 #include <renderengine/mock/Image.h>
@@ -806,7 +807,7 @@ struct ColorLayerVariant : public BaseLayerVariant<LayerProperties> {
             return new ColorLayer(LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(),
                                                     String8("test-layer"), LayerProperties::WIDTH,
                                                     LayerProperties::HEIGHT,
-                                                    LayerProperties::LAYER_FLAGS));
+                                                    LayerProperties::LAYER_FLAGS, LayerMetadata()));
         });
 
         auto& layerDrawingState = test->mFlinger.mutableLayerDrawingState(layer);
@@ -847,7 +848,7 @@ struct BufferLayerVariant : public BaseLayerVariant<LayerProperties> {
                             LayerCreationArgs(test->mFlinger.mFlinger.get(), sp<Client>(),
                                               String8("test-layer"), LayerProperties::WIDTH,
                                               LayerProperties::HEIGHT,
-                                              LayerProperties::LAYER_FLAGS));
+                                              LayerProperties::LAYER_FLAGS, LayerMetadata()));
                 });
 
         LayerProperties::setupLayerState(test, layer);
