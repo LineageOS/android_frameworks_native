@@ -138,10 +138,23 @@ cc_binary {
     ],
     clang: true,
 
-    srcs: ["otapreopt_chroot.cpp"],
+    srcs: [
+        "otapreopt_chroot.cpp",
+        "otapreopt_utils.cpp",
+    ],
     shared_libs: [
         "libbase",
         "liblog",
+        "libprotobuf-cpp-full",
+        "libselinux",
+        "libziparchive",
+    ],
+    static_libs: [
+        "libapex",
+        "libapexd",
+        "lib_apex_manifest_proto",
+        "libavb",
+        "libdm",
     ],
 }
 
@@ -190,6 +203,7 @@ cc_binary {
         "dexopt.cpp",
         "globals.cpp",
         "otapreopt.cpp",
+        "otapreopt_utils.cpp",
         "utils.cpp",
         "view_compiler.cpp",
     ],
