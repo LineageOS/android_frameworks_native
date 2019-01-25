@@ -3968,6 +3968,9 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             ALOGE("Attempt to update InputWindowInfo without permission ACCESS_SURFACE_FLINGER");
         }
     }
+    if (what & layer_state_t::eMetadataChanged) {
+        if (layer->setMetadata(s.metadata)) flags |= eTraversalNeeded;
+    }
     std::vector<sp<CallbackHandle>> callbackHandles;
     if ((what & layer_state_t::eListenerCallbacksChanged) && (!s.listenerCallbacks.empty())) {
         mTransactionCompletedThread.run();
@@ -3996,13 +3999,10 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
     return flags;
 }
 
-status_t SurfaceFlinger::createLayer(
-        const String8& name,
-        const sp<Client>& client,
-        uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
-        sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent)
-{
+status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& client, uint32_t w,
+                                     uint32_t h, PixelFormat format, uint32_t flags,
+                                     LayerMetadata metadata, sp<IBinder>* handle,
+                                     sp<IGraphicBufferProducer>* gbp, sp<Layer>* parent) {
     if (int32_t(w|h) < 0) {
         ALOGE("createLayer() failed, w or h is negative (w=%d, h=%d)",
                 int(w), int(h));
@@ -4058,12 +4058,15 @@ status_t SurfaceFlinger::createLayer(
 
     // window type is WINDOW_TYPE_DONT_SCREENSHOT from SurfaceControl.java
     // TODO b/64227542
-    if (windowType == 441731) {
-        windowType = 2024; // TYPE_NAVIGATION_BAR_PANEL
-        layer->setPrimaryDisplayOnly();
+    if (metadata.has(METADATA_WINDOW_TYPE)) {
+        int32_t windowType = metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+        if (windowType == 441731) {
+            metadata.setInt32(METADATA_WINDOW_TYPE, 2024); // TYPE_NAVIGATION_BAR_PANEL
+            layer->setPrimaryDisplayOnly();
+        }
     }
 
-    layer->setInfo(windowType, ownerUid);
+    layer->setMetadata(std::move(metadata));
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
     result = addClientLayer(client, *handle, *gbp, layer, *parent,

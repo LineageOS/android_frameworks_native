@@ -94,8 +94,6 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.layerStack = 0;
     mCurrentState.sequence = 0;
     mCurrentState.requested_legacy = mCurrentState.active_legacy;
-    mCurrentState.appId = 0;
-    mCurrentState.type = 0;
     mCurrentState.active.w = UINT32_MAX;
     mCurrentState.active.h = UINT32_MAX;
     mCurrentState.active.transform.set(0, 0);
@@ -595,14 +593,16 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
              to_string(error).c_str(), static_cast<int32_t>(error));
     getBE().compositionInfo.hwc.z = z;
 
-    int type = s.type;
-    int appId = s.appId;
+    int type = s.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+    int appId = s.metadata.getInt32(METADATA_OWNER_UID, 0);
     sp<Layer> parent = mDrawingParent.promote();
     if (parent.get()) {
         auto& parentState = parent->getDrawingState();
-        if (parentState.type >= 0 || parentState.appId >= 0) {
-            type = parentState.type;
-            appId = parentState.appId;
+        const int parentType = parentState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+        const int parentAppId = parentState.metadata.getInt32(METADATA_OWNER_UID, 0);
+        if (parentType >= 0 || parentAppId >= 0) {
+            type = parentType;
+            appId = parentAppId;
         }
     }
 
@@ -1311,11 +1311,14 @@ bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     return true;
 }
 
-void Layer::setInfo(int32_t type, int32_t appId) {
-    mCurrentState.appId = appId;
-    mCurrentState.type = type;
+bool Layer::setMetadata(LayerMetadata data) {
+    bool changed = data.mMap != mCurrentState.metadata.mMap;
+    if (!changed) return false;
+    mCurrentState.metadata = std::move(data);
+    mCurrentState.sequence++;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+    return true;
 }
 
 bool Layer::setLayerStack(uint32_t layerStack) {
@@ -2083,8 +2086,6 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
     layerInfo->set_refresh_pending(isBufferLatched());
-    layerInfo->set_window_type(state.type);
-    layerInfo->set_app_id(state.appId);
     layerInfo->set_curr_frame(mCurrentFrameNumber);
     layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
@@ -2095,6 +2096,11 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
             barrierLayerProto->set_id(barrierLayer->sequence);
             barrierLayerProto->set_frame_number(pendingState.frameNumber_legacy);
         }
+    }
+
+    auto protoMap = layerInfo->mutable_metadata();
+    for (const auto& entry : state.metadata.mMap) {
+        (*protoMap)[entry.first] = std::string(entry.second.cbegin(), entry.second.cend());
     }
 }
 

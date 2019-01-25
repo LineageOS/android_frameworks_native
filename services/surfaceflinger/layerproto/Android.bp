@@ -1,6 +1,5 @@
 cc_library_shared {
     name: "liblayers_proto",
-    vendor_available: true,
     export_include_dirs: ["include"],
 
     srcs: [
@@ -11,6 +10,7 @@ cc_library_shared {
 
     shared_libs: [
         "android.hardware.graphics.common@1.1",
+        "libgui",
         "libui",
         "libprotobuf-cpp-lite",
         "libbase",

@@ -167,8 +167,7 @@ public:
         Region activeTransparentRegion_legacy;
         Region requestedTransparentRegion_legacy;
 
-        int32_t appId;
-        int32_t type;
+        LayerMetadata metadata;
 
         // If non-null, a Surface this Surface's Z-order is interpreted relative to.
         wp<Layer> zOrderRelativeOf;
@@ -284,7 +283,7 @@ public:
                                               uint64_t frameNumber);
     virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
-    virtual void setInfo(int32_t type, int32_t appId);
+    virtual bool setMetadata(LayerMetadata data);
     virtual bool reparentChildren(const sp<IBinder>& layer);
     virtual void setChildrenDrawingParent(const sp<Layer>& layer);
     virtual bool reparent(const sp<IBinder>& newParentHandle);

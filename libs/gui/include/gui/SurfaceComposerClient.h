@@ -159,39 +159,33 @@ public:
     static sp<SurfaceComposerClient> getDefault();
 
     //! Create a surface
-    sp<SurfaceControl> createSurface(
-            const String8& name,// name of the surface
-            uint32_t w,         // width in pixel
-            uint32_t h,         // height in pixel
-            PixelFormat format, // pixel-format desired
-            uint32_t flags = 0, // usage flags
-            SurfaceControl* parent = nullptr, // parent
-            int32_t windowType = -1, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
-            int32_t ownerUid = -1 // UID of the task
+    sp<SurfaceControl> createSurface(const String8& name,              // name of the surface
+                                     uint32_t w,                       // width in pixel
+                                     uint32_t h,                       // height in pixel
+                                     PixelFormat format,               // pixel-format desired
+                                     uint32_t flags = 0,               // usage flags
+                                     SurfaceControl* parent = nullptr, // parent
+                                     LayerMetadata metadata = LayerMetadata() // metadata
     );
 
-    status_t createSurfaceChecked(
-            const String8& name, // name of the surface
-            uint32_t w,          // width in pixel
-            uint32_t h,          // height in pixel
-            PixelFormat format,  // pixel-format desired
-            sp<SurfaceControl>* outSurface,
-            uint32_t flags = 0,               // usage flags
-            SurfaceControl* parent = nullptr, // parent
-            int32_t windowType = -1, // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
-            int32_t ownerUid = -1    // UID of the task
+    status_t createSurfaceChecked(const String8& name, // name of the surface
+                                  uint32_t w,          // width in pixel
+                                  uint32_t h,          // height in pixel
+                                  PixelFormat format,  // pixel-format desired
+                                  sp<SurfaceControl>* outSurface,
+                                  uint32_t flags = 0,                      // usage flags
+                                  SurfaceControl* parent = nullptr,        // parent
+                                  LayerMetadata metadata = LayerMetadata() // metadata
     );
 
     //! Create a surface
-    sp<SurfaceControl> createWithSurfaceParent(
-            const String8& name,       // name of the surface
-            uint32_t w,                // width in pixel
-            uint32_t h,                // height in pixel
-            PixelFormat format,        // pixel-format desired
-            uint32_t flags = 0,        // usage flags
-            Surface* parent = nullptr, // parent
-            int32_t windowType = -1,   // from WindowManager.java (STATUS_BAR, INPUT_METHOD, etc.)
-            int32_t ownerUid = -1      // UID of the task
+    sp<SurfaceControl> createWithSurfaceParent(const String8& name,       // name of the surface
+                                               uint32_t w,                // width in pixel
+                                               uint32_t h,                // height in pixel
+                                               PixelFormat format,        // pixel-format desired
+                                               uint32_t flags = 0,        // usage flags
+                                               Surface* parent = nullptr, // parent
+                                               LayerMetadata metadata = LayerMetadata() // metadata
     );
 
     //! Create a virtual display
@@ -302,6 +296,8 @@ public:
         Transaction& setCrop_legacy(const sp<SurfaceControl>& sc, const Rect& crop);
         Transaction& setCornerRadius(const sp<SurfaceControl>& sc, float cornerRadius);
         Transaction& setLayerStack(const sp<SurfaceControl>& sc, uint32_t layerStack);
+        Transaction& setMetadata(const sp<SurfaceControl>& sc, uint32_t key,
+                                 std::vector<uint8_t> data);
         // Defers applying any changes made in this transaction until the Layer
         // identified by handle reaches the given frameNumber. If the Layer identified
         // by handle is removed, then we will apply this transaction regardless of

@@ -42,6 +42,7 @@ cc_test {
         "EventThreadTest.cpp",
         "IdleTimerTest.cpp",
         "LayerHistoryTest.cpp",
+        "LayerMetadataTest.cpp",
         "SchedulerTest.cpp",
         "SchedulerUtilsTest.cpp",
         "RefreshRateStatsTest.cpp",

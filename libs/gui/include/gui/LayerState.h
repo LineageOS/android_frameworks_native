@@ -30,6 +30,7 @@
 #include <input/InputWindow.h>
 #endif
 
+#include <gui/LayerMetadata.h>
 #include <math/vec3.h>
 #include <ui/GraphicTypes.h>
 #include <ui/Rect.h>
@@ -87,6 +88,7 @@ struct layer_state_t {
         eCachedBufferChanged = 0x2'00000000,
         eColorAlphaChanged = 0x4'00000000,
         eColorDataspaceChanged = 0x8'00000000,
+        eMetadataChanged = 0x10'00000000,
     };
 
     layer_state_t()
@@ -187,6 +189,8 @@ struct layer_state_t {
 
     float colorAlpha;
     ui::Dataspace colorDataspace;
+
+    LayerMetadata metadata;
 };
 
 struct ComposerState {
