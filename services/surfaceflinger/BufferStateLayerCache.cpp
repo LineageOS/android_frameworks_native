@@ -19,81 +19,84 @@
 #define LOG_TAG "BufferStateLayerCache"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <cinttypes>
+
 #include "BufferStateLayerCache.h"
 
-#define MAX_CACHE_SIZE 64
+#define VALID_CACHE_ID(id) ((id) >= 0 || (id) < (BUFFER_CACHE_MAX_SIZE))
 
 namespace android {
 
-int32_t BufferStateLayerCache::add(const sp<IBinder>& processToken,
-                                   const sp<GraphicBuffer>& buffer) {
-    std::lock_guard lock(mMutex);
+ANDROID_SINGLETON_STATIC_INSTANCE(BufferStateLayerCache);
 
-    auto& processCache = getProccessCache(processToken);
+BufferStateLayerCache::BufferStateLayerCache() : mDeathRecipient(new CacheDeathRecipient) {}
 
-    int32_t slot = findSlot(processCache);
-    if (slot < 0) {
-        return slot;
+void BufferStateLayerCache::add(sp<IBinder> processToken, int32_t id,
+                                const sp<GraphicBuffer>& buffer) {
+    if (!VALID_CACHE_ID(id)) {
+        ALOGE("failed to cache buffer: invalid buffer id");
+        return;
     }
 
-    processCache[slot] = buffer;
+    if (!processToken) {
+        ALOGE("failed to cache buffer: invalid process token");
+        return;
+    }
 
-    return slot;
-}
-
-void BufferStateLayerCache::release(const sp<IBinder>& processToken, int32_t id) {
-    if (id < 0) {
-        ALOGE("invalid buffer id");
+    if (!buffer) {
+        ALOGE("failed to cache buffer: invalid buffer");
         return;
     }
 
     std::lock_guard lock(mMutex);
-    auto& processCache = getProccessCache(processToken);
 
-    if (id >= processCache.size()) {
-        ALOGE("invalid buffer id");
-        return;
-    }
-    processCache[id] = nullptr;
-}
-
-sp<GraphicBuffer> BufferStateLayerCache::get(const sp<IBinder>& processToken, int32_t id) {
-    if (id < 0) {
-        ALOGE("invalid buffer id");
-        return nullptr;
-    }
-
-    std::lock_guard lock(mMutex);
-    auto& processCache = getProccessCache(processToken);
-
-    if (id >= processCache.size()) {
-        ALOGE("invalid buffer id");
-        return nullptr;
-    }
-    return processCache[id];
-}
-
-std::vector<sp<GraphicBuffer>>& BufferStateLayerCache::getProccessCache(
-        const sp<IBinder>& processToken) {
-    return mBuffers[processToken];
-}
-
-int32_t BufferStateLayerCache::findSlot(std::vector<sp<GraphicBuffer>>& processCache) {
-    int32_t slot = 0;
-
-    for (const sp<GraphicBuffer> buffer : processCache) {
-        if (!buffer) {
-            return slot;
+    // If this is a new process token, set a death recipient. If the client process dies, we will
+    // get a callback through binderDied.
+    if (mBuffers.find(processToken) == mBuffers.end()) {
+        status_t err = processToken->linkToDeath(mDeathRecipient);
+        if (err != NO_ERROR) {
+            ALOGE("failed to cache buffer: could not link to death");
+            return;
         }
-        slot++;
     }
 
-    if (processCache.size() < MAX_CACHE_SIZE) {
-        processCache.push_back(nullptr);
-        return slot;
+    auto& processBuffers = mBuffers[processToken];
+    processBuffers[id] = buffer;
+}
+
+sp<GraphicBuffer> BufferStateLayerCache::get(sp<IBinder> processToken, int32_t id) {
+    if (!VALID_CACHE_ID(id)) {
+        ALOGE("failed to get buffer: invalid buffer id");
+        return nullptr;
     }
 
-    return -1;
+    if (!processToken) {
+        ALOGE("failed to cache buffer: invalid process token");
+        return nullptr;
+    }
+
+    std::lock_guard lock(mMutex);
+    auto itr = mBuffers.find(processToken);
+    if (itr == mBuffers.end()) {
+        ALOGE("failed to get buffer: process token not found");
+        return nullptr;
+    }
+
+    if (id >= itr->second.size()) {
+        ALOGE("failed to get buffer: id outside the bounds of the cache");
+        return nullptr;
+    }
+
+    return itr->second[id];
+}
+
+void BufferStateLayerCache::removeProcess(const wp<IBinder>& processToken) {
+    std::lock_guard lock(mMutex);
+    mBuffers.erase(processToken);
+}
+
+void BufferStateLayerCache::CacheDeathRecipient::binderDied(const wp<IBinder>& who) {
+    BufferStateLayerCache::getInstance().removeProcess(who);
 }
 
 }; // namespace android

@@ -152,12 +152,6 @@ public:
     static void doDropReferenceTransaction(const sp<IBinder>& handle,
             const sp<ISurfaceComposerClient>& client);
 
-    // Caches a buffer with the ISurfaceComposer so the buffer does not need to be resent across
-    // processes
-    static status_t cacheBuffer(const sp<GraphicBuffer>& buffer, int32_t* outBufferId);
-    // Uncaches a buffer set by cacheBuffer
-    static status_t uncacheBuffer(int32_t bufferId);
-
     // Queries whether a given display is wide color display.
     static status_t isWideColorDisplay(const sp<IBinder>& display, bool* outIsWideColorDisplay);
 
