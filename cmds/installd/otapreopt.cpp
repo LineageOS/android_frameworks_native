@@ -438,7 +438,7 @@ private:
                           const char* isa) const {
         // This needs to be kept in sync with ART, see art/runtime/gc/space/image_space.cc.
         std::vector<std::string> cmd;
-        cmd.push_back("/apex/com.android.runtime/bin/dex2oat");
+        cmd.push_back(kDex2oatPath);
         cmd.push_back(StringPrintf("--image=%s", art_path.c_str()));
         for (const std::string& boot_part : Split(boot_cp, ":")) {
             cmd.push_back(StringPrintf("--dex-file=%s", boot_part.c_str()));
