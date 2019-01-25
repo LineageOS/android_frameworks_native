@@ -227,3 +227,23 @@ cc_binary {
         "libutils",
     ],
 }
+
+// OTA slot script
+cc_prebuilt_binary {
+    name: "otapreopt_slot",
+    srcs: ["otapreopt_slot.sh"],
+    init_rc: ["otapreopt.rc"],
+}
+
+// OTA postinstall script
+cc_prebuilt_binary {
+    name: "otapreopt_script",
+    srcs: ["otapreopt_script.sh"],
+    // Let this depend on otapreopt, the chroot tool and the slot script,
+    // so we just have to mention one in a configuration.
+    required: [
+        "otapreopt",
+        "otapreopt_chroot",
+        "otapreopt_slot",
+    ],
+}

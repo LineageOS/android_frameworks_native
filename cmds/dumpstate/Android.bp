@@ -159,3 +159,22 @@ cc_test {
     ],
     static_libs: ["libgmock"],
 }
+
+
+// =======================#
+// dumpstate_test_fixture #
+// =======================#
+cc_test {
+
+    name: "dumpstate_test_fixture",
+    test_suites: ["device-tests"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-missing-field-initializers",
+        "-Wno-unused-variable",
+        "-Wunused-parameter",
+    ],
+    srcs: ["tests/dumpstate_test_fixture.cpp"],
+    data: ["tests/testdata/**/*"],
+}
