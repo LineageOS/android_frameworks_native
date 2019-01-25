@@ -206,7 +206,7 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
     stream << std::right;
     stream << std::setw(6) << "Id";
     stream << " ";
-    stream << std::setw(9) << "Clients";
+    stream << std::setw(9) << "#Clients";
     stream << " ";
     stream << std::setw(14) << "Geometry";
     stream << " ";
@@ -232,7 +232,7 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
         stream << std::right;
         stream << std::setw(6) << /*Id=*/node->id();
         stream << " ";
-        stream << std::setw(9) << /*Clients=*/clientCount;
+        stream << std::setw(9) << /*#Clients=*/clientCount;
         stream << " ";
         if (desc.format == HAL_PIXEL_FORMAT_BLOB) {
             std::string size = std::to_string(desc.width) + " B";
@@ -282,14 +282,14 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
     stream << std::right;
     stream << std::setw(8) << "Buffer Id";
     stream << " ";
-    stream << std::setw(6) << "Tokens";
+    stream << std::setw(7) << "#Tokens";
     stream << std::endl;
 
     for (auto iter = tokenCount.begin(); iter != tokenCount.end(); ++iter) {
         stream << std::right;
         stream << std::setw(8) << /*Buffer Id=*/iter->first;
         stream << " ";
-        stream << std::setw(6) << /*Tokens=*/iter->second;
+        stream << std::setw(7) << /*#Tokens=*/iter->second;
         stream << std::endl;
     }
 
