@@ -18,6 +18,8 @@
 #define OTAPREOPT_UTILS_H_
 
 #include <regex>
+#include <string>
+#include <vector>
 
 namespace android {
 namespace installd {
@@ -27,6 +29,9 @@ static inline bool ValidateTargetSlotSuffix(const std::string& input) {
     std::smatch slot_suffix_match;
     return std::regex_match(input, slot_suffix_match, slot_suffix_regex);
 }
+
+// Wrapper on fork/execv to run a command in a subprocess.
+bool Exec(const std::vector<std::string>& arg_vector, std::string* error_msg);
 
 }  // namespace installd
 }  // namespace android
