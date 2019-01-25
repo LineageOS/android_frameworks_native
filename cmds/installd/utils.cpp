@@ -70,6 +70,35 @@ static void check_package_name(const char* package_name) {
     CHECK(is_valid_package_name(package_name));
 }
 
+static std::string resolve_ce_path_by_inode_or_fallback(const std::string& root_path,
+        ino_t ce_data_inode, const std::string& fallback) {
+    if (ce_data_inode != 0) {
+        DIR* dir = opendir(root_path.c_str());
+        if (dir == nullptr) {
+            PLOG(ERROR) << "Failed to opendir " << root_path;
+            return fallback;
+        }
+
+        struct dirent* ent;
+        while ((ent = readdir(dir))) {
+            if (ent->d_ino == ce_data_inode) {
+                auto resolved = StringPrintf("%s/%s", root_path.c_str(), ent->d_name);
+                if (resolved != fallback) {
+                    LOG(DEBUG) << "Resolved path " << resolved << " for inode " << ce_data_inode
+                            << " instead of " << fallback;
+                }
+                closedir(dir);
+                return resolved;
+            }
+        }
+        LOG(WARNING) << "Failed to resolve inode " << ce_data_inode << "; using " << fallback;
+        closedir(dir);
+        return fallback;
+    } else {
+        return fallback;
+    }
+}
+
 /**
  * Create the path name where package app contents should be stored for
  * the given volume UUID and package name.  An empty UUID is assumed to
@@ -113,34 +142,8 @@ std::string create_data_user_ce_package_path(const char* volume_uuid, userid_t u
     // For testing purposes, rely on the inode when defined; this could be
     // optimized to use access() in the future.
     auto fallback = create_data_user_ce_package_path(volume_uuid, user, package_name);
-    if (ce_data_inode != 0) {
-        auto user_path = create_data_user_ce_path(volume_uuid, user);
-        DIR* dir = opendir(user_path.c_str());
-        if (dir == nullptr) {
-            PLOG(ERROR) << "Failed to opendir " << user_path;
-            return fallback;
-        }
-
-        struct dirent* ent;
-        while ((ent = readdir(dir))) {
-            if (ent->d_ino == ce_data_inode) {
-                auto resolved = StringPrintf("%s/%s", user_path.c_str(), ent->d_name);
-#if DEBUG_XATTRS
-                if (resolved != fallback) {
-                    LOG(DEBUG) << "Resolved path " << resolved << " for inode " << ce_data_inode
-                            << " instead of " << fallback;
-                }
-#endif
-                closedir(dir);
-                return resolved;
-            }
-        }
-        LOG(WARNING) << "Failed to resolve inode " << ce_data_inode << "; using " << fallback;
-        closedir(dir);
-        return fallback;
-    } else {
-        return fallback;
-    }
+    auto user_path = create_data_user_ce_path(volume_uuid, user);
+    return resolve_ce_path_by_inode_or_fallback(user_path, ce_data_inode, fallback);
 }
 
 std::string create_data_user_de_package_path(const char* volume_uuid,
@@ -207,6 +210,13 @@ std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
         userid_t user, const char* package_name) {
     return StringPrintf("%s/%s",
            create_data_misc_ce_rollback_path(volume_uuid, user).c_str(), package_name);
+}
+
+std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
+        userid_t user, const char* package_name, ino_t ce_rollback_inode) {
+    auto fallback = create_data_misc_ce_rollback_package_path(volume_uuid, user, package_name);
+    auto user_path = create_data_misc_ce_rollback_path(volume_uuid, user);
+    return resolve_ce_path_by_inode_or_fallback(user_path, ce_rollback_inode, fallback);
 }
 
 std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
