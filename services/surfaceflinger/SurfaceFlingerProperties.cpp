@@ -15,8 +15,8 @@ namespace android {
 namespace sysprop {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
-using ::android::hardware::graphics::common::V1_1::PixelFormat;
 using ::android::hardware::graphics::common::V1_2::Dataspace;
+using ::android::hardware::graphics::common::V1_2::PixelFormat;
 
 int64_t vsync_event_phase_offset_ns(int64_t defaultValue) {
     auto temp = SurfaceFlingerProperties::vsync_event_phase_offset_ns();
