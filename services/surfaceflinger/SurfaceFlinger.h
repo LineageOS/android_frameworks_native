@@ -313,7 +313,7 @@ public:
     compositionengine::CompositionEngine& getCompositionEngine() const;
 
     // returns the default Display
-    sp<const DisplayDevice> getDefaultDisplayDevice() const {
+    sp<const DisplayDevice> getDefaultDisplayDevice() {
         Mutex::Autolock _l(mStateLock);
         return getDefaultDisplayDeviceLocked();
     }
@@ -327,7 +327,7 @@ public:
 
     // enable/disable h/w composer event
     // TODO: this should be made accessible only to EventThread
-    void setVsyncEnabled(EventThread::DisplayType displayType, bool enabled);
+    void setPrimaryVsyncEnabled(bool enabled);
 
     // called on the main thread by MessageQueue when an internal message
     // is received
@@ -414,7 +414,8 @@ private:
     sp<ISurfaceComposerClient> createConnection() override;
     sp<IBinder> createDisplay(const String8& displayName, bool secure) override;
     void destroyDisplay(const sp<IBinder>& displayToken) override;
-    sp<IBinder> getBuiltInDisplay(int32_t id) override;
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override;
+    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const override;
     void setTransactionState(const Vector<ComposerState>& state,
                              const Vector<DisplayState>& displays, uint32_t flags,
                              const sp<IBinder>& applyToken,
@@ -657,7 +658,7 @@ private:
     }
 
     sp<DisplayDevice> getDefaultDisplayDeviceLocked() {
-        if (const auto token = getInternalDisplayToken()) {
+        if (const auto token = getInternalDisplayTokenLocked()) {
             return getDisplayDeviceLocked(token);
         }
         return nullptr;
@@ -761,7 +762,7 @@ private:
     void processDisplayChangesLocked();
     void processDisplayHotplugEventsLocked();
 
-    void dispatchDisplayHotplugEvent(EventThread::DisplayType displayType, bool connected);
+    void dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
     /* ------------------------------------------------------------------------
      * VSync
@@ -801,12 +802,12 @@ private:
     /*
      * Display identification
      */
-    sp<IBinder> getPhysicalDisplayToken(DisplayId displayId) const {
+    sp<IBinder> getPhysicalDisplayTokenLocked(DisplayId displayId) const {
         const auto it = mPhysicalDisplayTokens.find(displayId);
         return it != mPhysicalDisplayTokens.end() ? it->second : nullptr;
     }
 
-    std::optional<DisplayId> getPhysicalDisplayId(const sp<IBinder>& displayToken) const {
+    std::optional<DisplayId> getPhysicalDisplayIdLocked(const sp<IBinder>& displayToken) const {
         for (const auto& [id, token] : mPhysicalDisplayTokens) {
             if (token == displayToken) {
                 return id;
@@ -816,19 +817,13 @@ private:
     }
 
     // TODO(b/74619554): Remove special cases for primary display.
-    sp<IBinder> getInternalDisplayToken() const {
-        const auto displayId = getInternalDisplayId();
-        return displayId ? getPhysicalDisplayToken(*displayId) : nullptr;
+    sp<IBinder> getInternalDisplayTokenLocked() const {
+        const auto displayId = getInternalDisplayIdLocked();
+        return displayId ? getPhysicalDisplayTokenLocked(*displayId) : nullptr;
     }
 
-    std::optional<DisplayId> getInternalDisplayId() const {
+    std::optional<DisplayId> getInternalDisplayIdLocked() const {
         const auto hwcDisplayId = getHwComposer().getInternalHwcDisplayId();
-        return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
-    }
-
-    // TODO(b/74619554): Remove special cases for external display.
-    std::optional<DisplayId> getExternalDisplayId() const {
-        const auto hwcDisplayId = getHwComposer().getExternalHwcDisplayId();
         return hwcDisplayId ? getHwComposer().toPhysicalDisplayId(*hwcDisplayId) : std::nullopt;
     }
 
@@ -951,7 +946,6 @@ private:
     std::unique_ptr<VSyncSource> mSfEventThreadSource;
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
-    std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
 
     // Calculates correct offsets.
     VSyncModulator mVsyncModulator;
@@ -985,6 +979,7 @@ private:
     // this may only be written from the main thread with mStateLock held
     // it may be read from other threads with mStateLock held
     std::map<wp<IBinder>, sp<DisplayDevice>> mDisplays;
+    std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
 
     // don't use a lock for these, we don't care
     int mDebugRegion;

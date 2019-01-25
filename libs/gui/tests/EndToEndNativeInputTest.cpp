@@ -233,9 +233,11 @@ public:
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
+        const auto display = mComposerClient->getInternalDisplayToken();
+        ASSERT_FALSE(display == nullptr);
+
         DisplayInfo info;
-        auto display = mComposerClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
-        SurfaceComposerClient::getDisplayInfo(display, &info);
+        ASSERT_EQ(NO_ERROR, mComposerClient->getDisplayInfo(display, &info));
 
         // After a new buffer is queued, SurfaceFlinger is notified and will
         // latch the new buffer on next vsync.  Let's heuristically wait for 3

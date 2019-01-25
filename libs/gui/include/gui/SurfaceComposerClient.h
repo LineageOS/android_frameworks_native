@@ -202,9 +202,13 @@ public:
     //! Destroy a virtual display
     static void destroyDisplay(const sp<IBinder>& display);
 
-    //! Get the token for the existing default displays.
-    //! Possible values for id are eDisplayIdMain and eDisplayIdHdmi.
-    static sp<IBinder> getBuiltInDisplay(int32_t id);
+    //! Get stable IDs for connected physical displays
+    static std::vector<PhysicalDisplayId> getPhysicalDisplayIds();
+    static std::optional<PhysicalDisplayId> getInternalDisplayId();
+
+    //! Get token for a physical display given its stable ID
+    static sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId);
+    static sp<IBinder> getInternalDisplayToken();
 
     static status_t enableVSyncInjections(bool enable);
 

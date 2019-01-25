@@ -32,7 +32,7 @@ protected:
     void SetUp() {
         mComposerClient = new SurfaceComposerClient;
         ASSERT_EQ(OK, mComposerClient->initCheck());
-        mDisplayToken = mComposerClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
+        mDisplayToken = mComposerClient->getInternalDisplayToken();
         ASSERT_TRUE(mDisplayToken);
     }
 

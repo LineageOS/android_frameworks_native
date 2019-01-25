@@ -131,8 +131,10 @@ TEST_F(SurfaceTest, ScreenshotsOfProtectedBuffersSucceed) {
 
     // Verify the screenshot works with no protected buffers.
     sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-    sp<IBinder> display(sf->getBuiltInDisplay(
-            ISurfaceComposer::eDisplayIdMain));
+
+    const sp<IBinder> display = sf->getInternalDisplayToken();
+    ASSERT_FALSE(display == nullptr);
+
     sp<GraphicBuffer> outBuffer;
     ASSERT_EQ(NO_ERROR,
               sf->captureScreen(display, &outBuffer, ui::Dataspace::V0_SRGB,
@@ -552,7 +554,8 @@ public:
     sp<IBinder> createDisplay(const String8& /*displayName*/,
             bool /*secure*/) override { return nullptr; }
     void destroyDisplay(const sp<IBinder>& /*display */) override {}
-    sp<IBinder> getBuiltInDisplay(int32_t /*id*/) override { return nullptr; }
+    std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const override { return {}; }
+    sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId) const override { return nullptr; }
     void setTransactionState(const Vector<ComposerState>& /*state*/,
                              const Vector<DisplayState>& /*displays*/, uint32_t /*flags*/,
                              const sp<IBinder>& /*applyToken*/,

@@ -19,8 +19,8 @@
 #include <cstdint>
 #include <memory>
 
-#include <gui/ISurfaceComposer.h>
 #include <ui/DisplayStatInfo.h>
+#include <ui/GraphicTypes.h>
 
 #include "DispSync.h"
 #include "EventControlThread.h"
@@ -85,7 +85,7 @@ public:
     sp<EventThreadConnection> getEventConnection(const sp<ConnectionHandle>& handle);
 
     // Should be called when receiving a hotplug event.
-    void hotplugReceived(const sp<ConnectionHandle>& handle, EventThread::DisplayType displayType,
+    void hotplugReceived(const sp<ConnectionHandle>& handle, PhysicalDisplayId displayId,
                          bool connected);
 
     // Should be called after the screen is turned on.

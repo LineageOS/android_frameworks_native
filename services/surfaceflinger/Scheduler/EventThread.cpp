@@ -69,24 +69,28 @@ std::string toString(const EventThreadConnection& connection) {
 std::string toString(const DisplayEventReceiver::Event& event) {
     switch (event.header.type) {
         case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
-            return StringPrintf("Hotplug{displayId=%u, %s}", event.header.id,
+            return StringPrintf("Hotplug{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", %s}",
+                                event.header.displayId,
                                 event.hotplug.connected ? "connected" : "disconnected");
         case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
-            return StringPrintf("VSync{displayId=%u, count=%u}", event.header.id,
-                                event.vsync.count);
+            return StringPrintf("VSync{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
+                                ", count=%u}",
+                                event.header.displayId, event.vsync.count);
         default:
             return "Event{}";
     }
 }
 
-DisplayEventReceiver::Event makeHotplug(uint32_t displayId, nsecs_t timestamp, bool connected) {
+DisplayEventReceiver::Event makeHotplug(PhysicalDisplayId displayId, nsecs_t timestamp,
+                                        bool connected) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG, displayId, timestamp};
     event.hotplug.connected = connected;
     return event;
 }
 
-DisplayEventReceiver::Event makeVSync(uint32_t displayId, nsecs_t timestamp, uint32_t count) {
+DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t timestamp,
+                                      uint32_t count) {
     DisplayEventReceiver::Event event;
     event.header = {DisplayEventReceiver::DISPLAY_EVENT_VSYNC, displayId, timestamp};
     event.vsync.count = count;
@@ -290,10 +294,9 @@ void EventThread::onVSyncEvent(nsecs_t timestamp) {
     mCondition.notify_all();
 }
 
-void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
+void EventThread::onHotplugReceived(PhysicalDisplayId displayId, bool connected) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    const uint32_t displayId = displayType == DisplayType::Primary ? 0 : 1;
     mPendingEvents.push_back(makeHotplug(displayId, systemTime(), connected));
     mCondition.notify_all();
 }
@@ -312,9 +315,9 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             switch (event->header.type) {
                 case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
                     if (event->hotplug.connected && !mVSyncState) {
-                        mVSyncState.emplace(event->header.id);
+                        mVSyncState.emplace(event->header.displayId);
                     } else if (!event->hotplug.connected && mVSyncState &&
-                               mVSyncState->displayId == event->header.id) {
+                               mVSyncState->displayId == event->header.displayId) {
                         mVSyncState.reset();
                     }
                     break;
@@ -440,8 +443,9 @@ void EventThread::dump(std::string& result) const {
 
     StringAppendF(&result, "%s: state=%s VSyncState=", mThreadName, toCString(mState));
     if (mVSyncState) {
-        StringAppendF(&result, "{displayId=%u, count=%u%s}\n", mVSyncState->displayId,
-                      mVSyncState->count, mVSyncState->synthetic ? ", synthetic" : "");
+        StringAppendF(&result, "{displayId=%" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT ", count=%u%s}\n",
+                      mVSyncState->displayId, mVSyncState->count,
+                      mVSyncState->synthetic ? ", synthetic" : "");
     } else {
         StringAppendF(&result, "none\n");
     }

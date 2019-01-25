@@ -34,8 +34,12 @@ WindowSurface::WindowSurface() {
     }
 
     // Get main display parameters.
-    sp<IBinder> mainDpy = SurfaceComposerClient::getBuiltInDisplay(
-            ISurfaceComposer::eDisplayIdMain);
+    const auto mainDpy = SurfaceComposerClient::getInternalDisplayToken();
+    if (mainDpy == nullptr) {
+        fprintf(stderr, "ERROR: no display\n");
+        return;
+    }
+
     DisplayInfo mainDpyInfo;
     err = SurfaceComposerClient::getDisplayInfo(mainDpy, &mainDpyInfo);
     if (err != NO_ERROR) {

@@ -34,6 +34,7 @@
 #include <ui/GraphicTypes.h>
 #include <ui/PixelFormat.h>
 
+#include <optional>
 #include <vector>
 
 namespace android {
@@ -71,11 +72,6 @@ public:
         eEarlyWakeup = 0x04
     };
 
-    enum {
-        eDisplayIdMain = 0,
-        eDisplayIdHdmi = 1
-    };
-
     enum Rotation {
         eRotateNone = 0,
         eRotate90   = 1,
@@ -88,7 +84,7 @@ public:
         eVsyncSourceSurfaceFlinger = 1
     };
 
-    /* 
+    /*
      * Create a connection with SurfaceFlinger.
      */
     virtual sp<ISurfaceComposerClient> createConnection() = 0;
@@ -108,10 +104,26 @@ public:
      */
     virtual void destroyDisplay(const sp<IBinder>& display) = 0;
 
-    /* get the token for the existing default displays. possible values
-     * for id are eDisplayIdMain and eDisplayIdHdmi.
+    /* get stable IDs for connected physical displays.
      */
-    virtual sp<IBinder> getBuiltInDisplay(int32_t id) = 0;
+    virtual std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const = 0;
+
+    // TODO(b/74619554): Remove this stopgap once the framework is display-agnostic.
+    std::optional<PhysicalDisplayId> getInternalDisplayId() const {
+        const auto displayIds = getPhysicalDisplayIds();
+        return displayIds.empty() ? std::nullopt : std::make_optional(displayIds.front());
+    }
+
+    /* get token for a physical display given its stable ID obtained via getPhysicalDisplayIds or a
+     * DisplayEventReceiver hotplug event.
+     */
+    virtual sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const = 0;
+
+    // TODO(b/74619554): Remove this stopgap once the framework is display-agnostic.
+    sp<IBinder> getInternalDisplayToken() const {
+        const auto displayId = getInternalDisplayId();
+        return displayId ? getPhysicalDisplayToken(*displayId) : nullptr;
+    }
 
     /* open/close transactions. requires ACCESS_SURFACE_FLINGER permission */
     virtual void setTransactionState(const Vector<ComposerState>& state,
@@ -346,7 +358,7 @@ public:
         CREATE_DISPLAY_EVENT_CONNECTION,
         CREATE_DISPLAY,
         DESTROY_DISPLAY,
-        GET_BUILT_IN_DISPLAY,
+        GET_PHYSICAL_DISPLAY_TOKEN,
         SET_TRANSACTION_STATE,
         AUTHENTICATE_SURFACE,
         GET_SUPPORTED_FRAME_TIMESTAMPS,
@@ -377,6 +389,7 @@ public:
         UNCACHE_BUFFER,
         IS_WIDE_COLOR_DISPLAY,
         GET_DISPLAY_NATIVE_PRIMARIES,
+        GET_PHYSICAL_DISPLAY_IDS,
         // Always append new enum to the end.
     };
 
