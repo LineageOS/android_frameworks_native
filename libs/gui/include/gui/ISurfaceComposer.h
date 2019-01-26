@@ -321,6 +321,13 @@ public:
                                  int32_t* outBufferId) = 0;
 
     virtual status_t uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) = 0;
+
+    /*
+     * Queries whether the given display is a wide color display.
+     * Requires the ACCESS_SURFACE_FLINGER permission.
+     */
+    virtual status_t isWideColorDisplay(const sp<IBinder>& token,
+                                        bool* outIsWideColorDisplay) const = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -365,6 +372,8 @@ public:
         GET_PROTECTED_CONTENT_SUPPORT,
         CACHE_BUFFER,
         UNCACHE_BUFFER,
+        IS_WIDE_COLOR_DISPLAY,
+        // Always append new enum to the end.
     };
 
     virtual status_t onTransact(uint32_t code, const Parcel& data,

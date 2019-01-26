@@ -1363,6 +1363,12 @@ status_t SurfaceComposerClient::getDisplayedContentSample(const sp<IBinder>& dis
                                                                             timestamp, outStats);
 }
 
+status_t SurfaceComposerClient::isWideColorDisplay(const sp<IBinder>& display,
+                                                   bool* outIsWideColorDisplay) {
+    return ComposerService::getComposerService()->isWideColorDisplay(display,
+                                                                     outIsWideColorDisplay);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,

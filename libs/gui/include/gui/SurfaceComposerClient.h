@@ -153,6 +153,9 @@ public:
     // Uncaches a buffer set by cacheBuffer
     static status_t uncacheBuffer(int32_t bufferId);
 
+    // Queries whether a given display is wide color display.
+    static status_t isWideColorDisplay(const sp<IBinder>& display, bool* outIsWideColorDisplay);
+
     // ------------------------------------------------------------------------
     // surface creation / destruction
 

@@ -1143,6 +1143,20 @@ status_t SurfaceFlinger::uncacheBuffer(const sp<IBinder>& token, int32_t bufferI
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
+                                            bool* outIsWideColorDisplay) const {
+    if (!displayToken || !outIsWideColorDisplay) {
+        return BAD_VALUE;
+    }
+    Mutex::Autolock _l(mStateLock);
+    const auto display = getDisplayDeviceLocked(displayToken);
+    if (!display) {
+        return BAD_VALUE;
+    }
+    *outIsWideColorDisplay = display->hasWideColorGamut();
+    return NO_ERROR;
+}
+
 status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
     postMessageSync(new LambdaMessage([&] {
         Mutex::Autolock _l(mStateLock);
@@ -4985,7 +4999,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
         case CACHE_BUFFER:
-        case UNCACHE_BUFFER: {
+        case UNCACHE_BUFFER:
+        case IS_WIDE_COLOR_DISPLAY: {
             return OK;
         }
         case CAPTURE_LAYERS:

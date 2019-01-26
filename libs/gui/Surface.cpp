@@ -39,9 +39,6 @@
 #include <gui/ISurfaceComposer.h>
 #include <private/gui/ComposerService.h>
 
-#include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
-#include <configstore/Utils.h>
-
 namespace android {
 
 using ui::ColorMode;
@@ -321,41 +318,14 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
     return NO_ERROR;
 }
 
-using namespace android::hardware::configstore;
-using namespace android::hardware::configstore::V1_0;
-
 status_t Surface::getWideColorSupport(bool* supported) {
     ATRACE_CALL();
 
     sp<IBinder> display(
         composerService()->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
-    Vector<ColorMode> colorModes;
-    status_t err =
-        composerService()->getDisplayColorModes(display, &colorModes);
-
-    if (err)
-        return err;
-
-    bool wideColorBoardConfig =
-        getBool<ISurfaceFlingerConfigs,
-                &ISurfaceFlingerConfigs::hasWideColorDisplay>(false);
-
     *supported = false;
-    for (ColorMode colorMode : colorModes) {
-        switch (colorMode) {
-            case ColorMode::DISPLAY_P3:
-            case ColorMode::ADOBE_RGB:
-            case ColorMode::DCI_P3:
-                if (wideColorBoardConfig) {
-                    *supported = true;
-                }
-                break;
-            default:
-                break;
-        }
-    }
-
-    return NO_ERROR;
+    status_t error = composerService()->isWideColorDisplay(display, supported);
+    return error;
 }
 
 status_t Surface::getHdrSupport(bool* supported) {

@@ -142,8 +142,6 @@ cc_library_shared {
         "libhidltransport",
         "android.hidl.token@1.0-utils",
         "android.hardware.graphics.bufferqueue@1.0",
-        "android.hardware.configstore@1.0",
-        "android.hardware.configstore-utils",
     ],
 
     // bufferhub is not used when building libgui for vendors

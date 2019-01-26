@@ -731,6 +731,26 @@ public:
 
         return remote()->transact(BnSurfaceComposer::UNCACHE_BUFFER, data, &reply);
     }
+
+    virtual status_t isWideColorDisplay(const sp<IBinder>& token,
+                                        bool* outIsWideColorDisplay) const {
+        Parcel data, reply;
+        status_t error = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (error != NO_ERROR) {
+            return error;
+        }
+        error = data.writeStrongBinder(token);
+        if (error != NO_ERROR) {
+            return error;
+        }
+
+        error = remote()->transact(BnSurfaceComposer::IS_WIDE_COLOR_DISPLAY, data, &reply);
+        if (error != NO_ERROR) {
+            return error;
+        }
+        error = reply.readBool(outIsWideColorDisplay);
+        return error;
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1167,6 +1187,7 @@ status_t BnSurfaceComposer::onTransact(
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             bool result;
             status_t error = getProtectedContentSupport(&result);
+            reply->writeInt32(error);
             if (error == NO_ERROR) {
                 reply->writeBool(result);
             }
@@ -1213,6 +1234,20 @@ status_t BnSurfaceComposer::onTransact(
             }
 
             return uncacheBuffer(token, bufferId);
+        }
+        case IS_WIDE_COLOR_DISPLAY: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> display = nullptr;
+            status_t error = data.readStrongBinder(&display);
+            if (error != NO_ERROR) {
+                return error;
+            }
+            bool result;
+            error = isWideColorDisplay(display, &result);
+            if (error == NO_ERROR) {
+                reply->writeBool(result);
+            }
+            return error;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
