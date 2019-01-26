@@ -62,17 +62,6 @@ TEST_F(LayerMetadataTest, testLayerMetadata) {
     metadata.mMap[2] = std::vector<uint8_t>{'a', 'b'};
     ASSERT_EQ(0, metadata.getInt32(2, 0));
 
-    LayerMetadata second;
-    std::vector<uint8_t> someData{'c', 'd', '\0'};
-    second.mMap[2] = someData;
-    second.setInt32(6, 5);
-    metadata.merge(second);
-
-    ASSERT_EQ(3, metadata.mMap.size());
-    ASSERT_EQ(someData, second.mMap[2]);
-    ASSERT_EQ(5, metadata.getInt32(6, 0));
-    ASSERT_EQ(2, metadata.getInt32(4, 0));
-
     Parcel p;
     metadata.writeToParcel(&p);
     LayerMetadata reconstructed;
@@ -80,6 +69,40 @@ TEST_F(LayerMetadataTest, testLayerMetadata) {
     p.setDataPosition(0);
     reconstructed.readFromParcel(&p);
     ASSERT_EQ(metadata.mMap, reconstructed.mMap);
+}
+
+TEST_F(LayerMetadataTest, merge) {
+    LayerMetadata metadata;
+    metadata.setInt32(4, 2);
+    metadata.mMap[2] = std::vector<uint8_t>{'a', 'b'};
+
+    LayerMetadata second;
+    std::vector<uint8_t> someData{'c', 'd', '\0'};
+    second.mMap[2] = someData;
+    second.setInt32(6, 5);
+    second.mMap[4].clear(); // will not delete if eraseEmpty is false
+    bool changed = metadata.merge(second);
+
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(3, metadata.mMap.size());
+    ASSERT_EQ(someData, second.mMap[2]);
+    ASSERT_EQ(5, metadata.getInt32(6, 0));
+    ASSERT_TRUE(metadata.mMap.at(4).empty());
+
+    LayerMetadata withErase;
+    withErase.mMap[6].clear();
+    changed = metadata.merge(withErase, true /* eraseEmpty */);
+    ASSERT_TRUE(changed);
+    ASSERT_EQ(2, metadata.mMap.size());
+    ASSERT_EQ(someData, second.mMap[2]);
+    ASSERT_EQ(true, metadata.has(4));
+
+    // test for change detection
+    LayerMetadata third;
+    third.mMap[2] = someData;
+    third.mMap[5].clear();
+    changed = metadata.merge(third);
+    ASSERT_FALSE(changed);
 }
 
 } // namespace

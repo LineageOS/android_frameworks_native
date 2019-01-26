@@ -1334,10 +1334,8 @@ bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     return true;
 }
 
-bool Layer::setMetadata(LayerMetadata data) {
-    bool changed = data.mMap != mCurrentState.metadata.mMap;
-    if (!changed) return false;
-    mCurrentState.metadata = std::move(data);
+bool Layer::setMetadata(const LayerMetadata& data) {
+    if (!mCurrentState.metadata.merge(data, true /* eraseEmpty */)) return false;
     mCurrentState.sequence++;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
