@@ -32,19 +32,12 @@
 
 namespace android {
 
-void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, size_t& index,
-                          std::string& result) {
+void TimeStats::parseArgs(bool asProto, const Vector<String16>& args, std::string& result) {
     ATRACE_CALL();
 
-    if (args.size() > index + 10) {
-        ALOGD("Invalid args count");
-        return;
-    }
-
     std::unordered_map<std::string, int32_t> argsMap;
-    while (index < args.size()) {
+    for (size_t index = 0; index < args.size(); ++index) {
         argsMap[std::string(String8(args[index]).c_str())] = index;
-        ++index;
     }
 
     if (argsMap.count("-disable")) {

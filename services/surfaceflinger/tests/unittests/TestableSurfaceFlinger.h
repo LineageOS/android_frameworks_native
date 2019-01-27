@@ -335,11 +335,11 @@ public:
         void setExpensiveRenderingExpected(hwc2_display_t, bool) override {}
     };
 
-    struct HWC2Display : public HWC2::Display {
+    struct HWC2Display : public HWC2::impl::Display {
         HWC2Display(Hwc2::Composer& composer, Hwc2::PowerAdvisor& advisor,
                     const std::unordered_set<HWC2::Capability>& capabilities, hwc2_display_t id,
                     HWC2::DisplayType type)
-              : HWC2::Display(composer, advisor, capabilities, id, type) {}
+              : HWC2::impl::Display(composer, advisor, capabilities, id, type) {}
         ~HWC2Display() {
             // Prevents a call to disable vsyncs.
             mType = HWC2::DisplayType::Invalid;

@@ -41,6 +41,14 @@ BufferClient* BufferClient::create(BufferHubService* service,
 }
 
 BufferClient::~BufferClient() {
+    {
+        std::lock_guard<std::mutex> lock(mClosedMutex);
+        if (!mClosed) {
+            ALOGW("%s: client of buffer #%d destroyed without close. Closing it now.", __FUNCTION__,
+                  mBufferNode->id());
+        }
+    }
+
     close();
 }
 

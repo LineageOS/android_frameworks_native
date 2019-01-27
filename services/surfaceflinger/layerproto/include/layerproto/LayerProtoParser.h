@@ -17,6 +17,7 @@
 
 #include <layerproto/LayerProtoHeader.h>
 
+#include <gui/LayerMetadata.h>
 #include <math/vec4.h>
 
 #include <memory>
@@ -110,11 +111,10 @@ public:
         LayerProtoParser::Rect hwcFrame;
         LayerProtoParser::FloatRect hwcCrop;
         int32_t hwcTransform;
-        int32_t windowType;
-        int32_t appId;
         int32_t hwcCompositionType;
         bool isProtected;
         float cornerRadius;
+        LayerMetadata metadata;
 
         std::string to_string() const;
     };

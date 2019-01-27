@@ -143,8 +143,8 @@ Error Device::createVirtualDisplay(uint32_t width, uint32_t height,
         return error;
     }
 
-    auto display = std::make_unique<Display>(
-            *mComposer.get(), mPowerAdvisor, mCapabilities, displayId, DisplayType::Virtual);
+    auto display = std::make_unique<impl::Display>(*mComposer.get(), mPowerAdvisor, mCapabilities,
+                                                   displayId, DisplayType::Virtual);
     display->setConnected(true);
     *outDisplay = display.get();
     mDisplays.emplace(displayId, std::move(display));
@@ -182,8 +182,8 @@ void Device::onHotplug(hwc2_display_t displayId, Connection connection) {
             return;
         }
 
-        auto newDisplay = std::make_unique<Display>(
-                *mComposer.get(), mPowerAdvisor, mCapabilities, displayId, displayType);
+        auto newDisplay = std::make_unique<impl::Display>(*mComposer.get(), mPowerAdvisor,
+                                                          mCapabilities, displayId, displayType);
         newDisplay->setConnected(true);
         mDisplays.emplace(displayId, std::move(newDisplay));
     } else if (connection == Connection::Disconnected) {
@@ -224,7 +224,36 @@ Error Device::flushCommands()
 }
 
 // Display methods
+Display::~Display() = default;
 
+Display::Config::Config(Display& display, hwc2_config_t id)
+      : mDisplay(display),
+        mId(id),
+        mWidth(-1),
+        mHeight(-1),
+        mVsyncPeriod(-1),
+        mDpiX(-1),
+        mDpiY(-1) {}
+
+Display::Config::Builder::Builder(Display& display, hwc2_config_t id)
+      : mConfig(new Config(display, id)) {}
+
+float Display::Config::Builder::getDefaultDensity() {
+    // Default density is based on TVs: 1080p displays get XHIGH density, lower-
+    // resolution displays get TV density. Maybe eventually we'll need to update
+    // it for 4k displays, though hopefully those will just report accurate DPI
+    // information to begin with. This is also used for virtual displays and
+    // older HWC implementations, so be careful about orientation.
+
+    auto longDimension = std::max(mConfig->mWidth, mConfig->mHeight);
+    if (longDimension >= 1080) {
+        return ACONFIGURATION_DENSITY_XHIGH;
+    } else {
+        return ACONFIGURATION_DENSITY_TV;
+    }
+}
+
+namespace impl {
 Display::Display(android::Hwc2::Composer& composer, android::Hwc2::PowerAdvisor& advisor,
                  const std::unordered_set<Capability>& capabilities, hwc2_display_t id,
                  DisplayType type)
@@ -272,35 +301,7 @@ Display::~Display() {
     }
 }
 
-Display::Config::Config(Display& display, hwc2_config_t id)
-  : mDisplay(display),
-    mId(id),
-    mWidth(-1),
-    mHeight(-1),
-    mVsyncPeriod(-1),
-    mDpiX(-1),
-    mDpiY(-1) {}
-
-Display::Config::Builder::Builder(Display& display, hwc2_config_t id)
-  : mConfig(new Config(display, id)) {}
-
-float Display::Config::Builder::getDefaultDensity() {
-    // Default density is based on TVs: 1080p displays get XHIGH density, lower-
-    // resolution displays get TV density. Maybe eventually we'll need to update
-    // it for 4k displays, though hopefully those will just report accurate DPI
-    // information to begin with. This is also used for virtual displays and
-    // older HWC implementations, so be careful about orientation.
-
-    auto longDimension = std::max(mConfig->mWidth, mConfig->mHeight);
-    if (longDimension >= 1080) {
-        return ACONFIGURATION_DENSITY_XHIGH;
-    } else {
-        return ACONFIGURATION_DENSITY_TV;
-    }
-}
-
 // Required by HWC2 display
-
 Error Display::acceptChanges()
 {
     auto intError = mComposer.acceptDisplayChanges(mId);
@@ -794,6 +795,7 @@ Layer* Display::getLayerById(hwc2_layer_t id) const
 
     return mLayers.at(id).get();
 }
+} // namespace impl
 
 // Layer methods
 

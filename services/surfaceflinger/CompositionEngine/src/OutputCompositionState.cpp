@@ -22,11 +22,9 @@ namespace android::compositionengine::impl {
 void OutputCompositionState::dump(std::string& out) const {
     dumpVal(out, "isEnabled", isEnabled);
     dumpVal(out, "isSecure", isSecure);
-    if (singleLayerStack) {
-        out.append("layerStack=<any>");
-    } else {
-        dumpVal(out, "layerStack", singleLayerStackId);
-    }
+
+    dumpVal(out, "layerStack", layerStackId);
+    dumpVal(out, "layerStackInternal", layerStackInternal);
 
     out.append("\n   ");
 

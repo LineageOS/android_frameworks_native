@@ -215,10 +215,6 @@ static bool validateMotionEvent(int32_t action, int32_t actionButton, size_t poi
     return true;
 }
 
-static bool isMainDisplay(int32_t displayId) {
-    return displayId == ADISPLAY_ID_DEFAULT || displayId == ADISPLAY_ID_NONE;
-}
-
 static void dumpRegion(std::string& dump, const Region& region) {
     if (region.isEmpty()) {
         dump += "<empty>";
@@ -2722,8 +2718,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
 }
 
 bool InputDispatcher::shouldSendMotionToInputFilterLocked(const NotifyMotionArgs* args) {
-    // TODO: support sending secondary display events to input filter
-    return mInputFilterEnabled && isMainDisplay(args->displayId);
+    return mInputFilterEnabled;
 }
 
 void InputDispatcher::notifySwitch(const NotifySwitchArgs* args) {

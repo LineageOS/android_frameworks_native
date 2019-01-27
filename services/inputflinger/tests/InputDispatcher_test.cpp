@@ -48,9 +48,51 @@ protected:
 
 public:
     FakeInputDispatcherPolicy() {
+        mInputEventFiltered = false;
+        mTime = -1;
+        mAction = -1;
+        mDisplayId = -1;
+    }
+
+    void assertFilterInputEventWasCalledWithExpectedArgs(const NotifyMotionArgs* args) {
+        ASSERT_TRUE(mInputEventFiltered)
+                << "Expected filterInputEvent() to have been called.";
+
+        ASSERT_EQ(mTime, args->eventTime)
+                << "Expected time of filtered event was not matched";
+        ASSERT_EQ(mAction, args->action)
+                << "Expected action of filtered event was not matched";
+        ASSERT_EQ(mDisplayId, args->displayId)
+                << "Expected displayId of filtered event was not matched";
+
+        reset();
+    }
+
+    void assertFilterInputEventWasCalledWithExpectedArgs(const NotifyKeyArgs* args) {
+        ASSERT_TRUE(mInputEventFiltered)
+                << "Expected filterInputEvent() to have been called.";
+
+        ASSERT_EQ(mTime, args->eventTime)
+                << "Expected time of filtered event was not matched";
+        ASSERT_EQ(mAction, args->action)
+                << "Expected action of filtered event was not matched";
+        ASSERT_EQ(mDisplayId, args->displayId)
+                << "Expected displayId of filtered event was not matched";
+
+        reset();
+    }
+
+    void assertFilterInputEventWasNotCalled() {
+        ASSERT_FALSE(mInputEventFiltered)
+                << "Expected filterInputEvent() to not have been called.";
     }
 
 private:
+    bool mInputEventFiltered;
+    nsecs_t mTime;
+    int32_t mAction;
+    int32_t mDisplayId;
+
     virtual void notifyConfigurationChanged(nsecs_t) {
     }
 
@@ -70,7 +112,26 @@ private:
         *outConfig = mConfig;
     }
 
-    virtual bool filterInputEvent(const InputEvent*, uint32_t) {
+    virtual bool filterInputEvent(const InputEvent* inputEvent, uint32_t policyFlags) {
+        switch (inputEvent->getType()) {
+            case AINPUT_EVENT_TYPE_KEY: {
+                const KeyEvent* keyEvent = static_cast<const KeyEvent*>(inputEvent);
+                mTime = keyEvent->getEventTime();
+                mAction = keyEvent->getAction();
+                mDisplayId = keyEvent->getDisplayId();
+                break;
+            }
+
+            case AINPUT_EVENT_TYPE_MOTION: {
+                const MotionEvent* motionEvent = static_cast<const MotionEvent*>(inputEvent);
+                mTime = motionEvent->getEventTime();
+                mAction = motionEvent->getAction();
+                mDisplayId = motionEvent->getDisplayId();
+                break;
+            }
+        }
+
+        mInputEventFiltered = true;
         return true;
     }
 
@@ -98,6 +159,13 @@ private:
 
     virtual bool checkInjectEventsPermissionNonReentrant(int32_t, int32_t) {
         return false;
+    }
+
+    void reset() {
+        mInputEventFiltered = false;
+        mTime = -1;
+        mAction = -1;
+        mDisplayId = -1;
     }
 };
 
@@ -404,16 +472,6 @@ public:
     void setFocus() {
         mFocused = true;
     }
-
-    void assertNoEvents() {
-        uint32_t consumeSeq;
-        InputEvent* event;
-        status_t status = mConsumer->consume(&mEventFactory, false /*consumeBatches*/, -1,
-            &consumeSeq, &event);
-        ASSERT_NE(OK, status)
-                << mName.c_str()
-                << ": should not have received any events, so consume(..) should not return OK.";
-    }
 protected:
     virtual bool handled() {
         return true;
@@ -467,6 +525,40 @@ static int32_t injectMotionDown(const sp<InputDispatcher>& dispatcher, int32_t s
             &event,
             INJECTOR_PID, INJECTOR_UID, INPUT_EVENT_INJECTION_SYNC_WAIT_FOR_RESULT,
             INJECT_EVENT_TIMEOUT, POLICY_FLAG_FILTERED | POLICY_FLAG_PASS_TO_USER);
+}
+
+static NotifyKeyArgs generateKeyArgs(int32_t action, int32_t displayId = ADISPLAY_ID_NONE) {
+    nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    // Define a valid key event.
+    NotifyKeyArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, AINPUT_SOURCE_KEYBOARD,
+            displayId, POLICY_FLAG_PASS_TO_USER, action, /* flags */ 0,
+            AKEYCODE_A, KEY_A, AMETA_NONE, currentTime);
+
+    return args;
+}
+
+static NotifyMotionArgs generateMotionArgs(int32_t action, int32_t source, int32_t displayId) {
+    PointerProperties pointerProperties[1];
+    PointerCoords pointerCoords[1];
+
+    pointerProperties[0].clear();
+    pointerProperties[0].id = 0;
+    pointerProperties[0].toolType = AMOTION_EVENT_TOOL_TYPE_FINGER;
+
+    pointerCoords[0].clear();
+    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_X, 100);
+    pointerCoords[0].setAxisValue(AMOTION_EVENT_AXIS_Y, 200);
+
+    nsecs_t currentTime = systemTime(SYSTEM_TIME_MONOTONIC);
+    // Define a valid motion event.
+    NotifyMotionArgs args(/* sequenceNum */ 0, currentTime, DEVICE_ID, source, displayId,
+            POLICY_FLAG_PASS_TO_USER, action, /* actionButton */ 0, /* flags */ 0,
+            AMETA_NONE, /* buttonState */ 0, MotionClassification::NONE,
+            AMOTION_EVENT_EDGE_FLAG_NONE, /* deviceTimestamp */ 0, 1, pointerProperties,
+            pointerCoords, /* xPrecision */ 0, /* yPrecision */ 0, currentTime,
+            /* videoFrames */ {});
+
+    return args;
 }
 
 TEST_F(InputDispatcherTest, SetInputWindow_SingleWindowTouch) {
@@ -738,6 +830,78 @@ TEST_F(InputDispatcherFocusOnTwoDisplaysTest, MonitorKeyEvent_MultiDisplay) {
     monitorInPrimary->assertNoEvents();
     windowInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
     monitorInSecondary->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
+}
+
+class InputFilterTest : public InputDispatcherTest {
+protected:
+    static constexpr int32_t SECOND_DISPLAY_ID = 1;
+
+    void testNotifyMotion(int32_t displayId, bool expectToBeFiltered) {
+        NotifyMotionArgs motionArgs;
+
+        motionArgs = generateMotionArgs(
+                AMOTION_EVENT_ACTION_DOWN, AINPUT_SOURCE_TOUCHSCREEN, displayId);
+        mDispatcher->notifyMotion(&motionArgs);
+        motionArgs = generateMotionArgs(
+                AMOTION_EVENT_ACTION_UP, AINPUT_SOURCE_TOUCHSCREEN, displayId);
+        mDispatcher->notifyMotion(&motionArgs);
+
+        if (expectToBeFiltered) {
+            mFakePolicy->assertFilterInputEventWasCalledWithExpectedArgs(&motionArgs);
+        } else {
+            mFakePolicy->assertFilterInputEventWasNotCalled();
+        }
+    }
+
+    void testNotifyKey(bool expectToBeFiltered) {
+        NotifyKeyArgs keyArgs;
+
+        keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_DOWN);
+        mDispatcher->notifyKey(&keyArgs);
+        keyArgs = generateKeyArgs(AKEY_EVENT_ACTION_UP);
+        mDispatcher->notifyKey(&keyArgs);
+
+        if (expectToBeFiltered) {
+            mFakePolicy->assertFilterInputEventWasCalledWithExpectedArgs(&keyArgs);
+        } else {
+            mFakePolicy->assertFilterInputEventWasNotCalled();
+        }
+    }
+};
+
+// Test InputFilter for MotionEvent
+TEST_F(InputFilterTest, MotionEvent_InputFilter) {
+    // Since the InputFilter is disabled by default, check if touch events aren't filtered.
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ false);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ false);
+
+    // Enable InputFilter
+    mDispatcher->setInputFilterEnabled(true);
+    // Test touch on both primary and second display, and check if both events are filtered.
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ true);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ true);
+
+    // Disable InputFilter
+    mDispatcher->setInputFilterEnabled(false);
+    // Test touch on both primary and second display, and check if both events aren't filtered.
+    testNotifyMotion(ADISPLAY_ID_DEFAULT, /*expectToBeFiltered*/ false);
+    testNotifyMotion(SECOND_DISPLAY_ID, /*expectToBeFiltered*/ false);
+}
+
+// Test InputFilter for KeyEvent
+TEST_F(InputFilterTest, KeyEvent_InputFilter) {
+    // Since the InputFilter is disabled by default, check if key event aren't filtered.
+    testNotifyKey(/*expectToBeFiltered*/ false);
+
+    // Enable InputFilter
+    mDispatcher->setInputFilterEnabled(true);
+    // Send a key event, and check if it is filtered.
+    testNotifyKey(/*expectToBeFiltered*/ true);
+
+    // Disable InputFilter
+    mDispatcher->setInputFilterEnabled(false);
+    // Send a key event, and check if it isn't filtered.
+    testNotifyKey(/*expectToBeFiltered*/ false);
 }
 
 } // namespace android

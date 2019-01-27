@@ -58,6 +58,7 @@ cc_defaults {
         "libinput",
         "libutils",
         "libutilscallstack",
+        "libSurfaceFlingerProperties",
     ],
     static_libs: [
         "libcompositionengine",
@@ -221,7 +222,10 @@ cc_binary {
     defaults: ["libsurfaceflinger_binary"],
     init_rc: ["surfaceflinger.rc"],
     srcs: [":surfaceflinger_binary_sources"],
-    shared_libs: ["libsurfaceflinger"],
+    shared_libs: [
+        "libsurfaceflinger",
+        "libSurfaceFlingerProperties",
+    ],
 }
 
 cc_library_shared {
@@ -247,3 +251,26 @@ subdirs = [
     "TimeStats/timestatsproto",
     "tests",
 ]
+
+cc_library_shared {
+    name: "libSurfaceFlingerProperties",
+    srcs: [
+        "SurfaceFlingerProperties.cpp",
+        "sysprop/*.sysprop",
+    ],
+    shared_libs: [
+        "android.hardware.configstore-utils",
+        "android.hardware.configstore@1.0",
+        "android.hardware.configstore@1.1",
+        "android.hardware.configstore@1.2",
+        "libhidlbase",
+        "libhidltransport",
+        "libhwbinder",
+        "libutils",
+    ],
+    export_shared_lib_headers: [
+        "libhidlbase",
+        "libhidltransport",
+        "libhwbinder",
+    ],
+}

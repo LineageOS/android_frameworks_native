@@ -52,11 +52,9 @@ public:
     // Sets the bounds to use
     virtual void setBounds(const ui::Size&) = 0;
 
-    // Sets the layer stack filter for this output. If singleLayerStack is true,
-    // this output displays just the single layer stack specified by
-    // singleLayerStackId. Otherwise all layer stacks will be visible on this
-    // output.
-    virtual void setLayerStackFilter(bool singleLayerStack, uint32_t singleLayerStackId) = 0;
+    // Sets the layer stack filtering settings for this output. See
+    // belongsInOutput for full details.
+    virtual void setLayerStackFilter(uint32_t layerStackId, bool isInternal) = 0;
 
     // Sets the color transform matrix to use
     virtual void setColorTransform(const mat4&) = 0;
@@ -96,8 +94,14 @@ public:
     // logical (aka layer stack) space.
     virtual Region getPhysicalSpaceDirtyRegion(bool repaintEverything) const = 0;
 
-    // Tests whether a given layerStackId belongs in this output
-    virtual bool belongsInOutput(uint32_t layerStackId) const = 0;
+    // Tests whether a given layerStackId belongs in this output.
+    // A layer belongs to the output if its layerStackId matches the of the output layerStackId,
+    // unless the layer should display on the primary output only and this is not the primary output
+
+    // A layer belongs to the output if its layerStackId matches. Additionally
+    // if the layer should only show in the internal (primary) display only and
+    // this output allows that.
+    virtual bool belongsInOutput(uint32_t layerStackId, bool internalOnly) const = 0;
 
 protected:
     ~Output() = default;

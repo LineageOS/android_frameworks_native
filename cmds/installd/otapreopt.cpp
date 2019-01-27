@@ -26,7 +26,6 @@
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <sys/stat.h>
-#include <sys/wait.h>
 
 #include <android-base/logging.h>
 #include <android-base/macros.h>
@@ -58,7 +57,6 @@
 #define REPLY_MAX     256   /* largest reply allowed */
 
 using android::base::EndsWith;
-using android::base::Join;
 using android::base::Split;
 using android::base::StartsWith;
 using android::base::StringPrintf;
@@ -440,7 +438,7 @@ private:
                           const char* isa) const {
         // This needs to be kept in sync with ART, see art/runtime/gc/space/image_space.cc.
         std::vector<std::string> cmd;
-        cmd.push_back("/system/bin/dex2oat");
+        cmd.push_back(kDex2oatPath);
         cmd.push_back(StringPrintf("--image=%s", art_path.c_str()));
         for (const std::string& boot_part : Split(boot_cp, ":")) {
             cmd.push_back(StringPrintf("--dex-file=%s", boot_part.c_str()));
@@ -618,61 +616,6 @@ private:
     ////////////////////////////////////
     // Helpers, mostly taken from ART //
     ////////////////////////////////////
-
-    // Wrapper on fork/execv to run a command in a subprocess.
-    static bool Exec(const std::vector<std::string>& arg_vector, std::string* error_msg) {
-        const std::string command_line = Join(arg_vector, ' ');
-
-        CHECK_GE(arg_vector.size(), 1U) << command_line;
-
-        // Convert the args to char pointers.
-        const char* program = arg_vector[0].c_str();
-        std::vector<char*> args;
-        for (size_t i = 0; i < arg_vector.size(); ++i) {
-            const std::string& arg = arg_vector[i];
-            char* arg_str = const_cast<char*>(arg.c_str());
-            CHECK(arg_str != nullptr) << i;
-            args.push_back(arg_str);
-        }
-        args.push_back(nullptr);
-
-        // Fork and exec.
-        pid_t pid = fork();
-        if (pid == 0) {
-            // No allocation allowed between fork and exec.
-
-            // Change process groups, so we don't get reaped by ProcessManager.
-            setpgid(0, 0);
-
-            execv(program, &args[0]);
-
-            PLOG(ERROR) << "Failed to execv(" << command_line << ")";
-            // _exit to avoid atexit handlers in child.
-            _exit(1);
-        } else {
-            if (pid == -1) {
-                *error_msg = StringPrintf("Failed to execv(%s) because fork failed: %s",
-                        command_line.c_str(), strerror(errno));
-                return false;
-            }
-
-            // wait for subprocess to finish
-            int status;
-            pid_t got_pid = TEMP_FAILURE_RETRY(waitpid(pid, &status, 0));
-            if (got_pid != pid) {
-                *error_msg = StringPrintf("Failed after fork for execv(%s) because waitpid failed: "
-                        "wanted %d, got %d: %s",
-                        command_line.c_str(), pid, got_pid, strerror(errno));
-                return false;
-            }
-            if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-                *error_msg = StringPrintf("Failed execv(%s) because non-0 exit status",
-                        command_line.c_str());
-                return false;
-            }
-        }
-        return true;
-    }
 
     // Choose a random relocation offset. Taken from art/runtime/gc/image_space.cc.
     static int32_t ChooseRelocationOffsetDelta(int32_t min_delta, int32_t max_delta) {

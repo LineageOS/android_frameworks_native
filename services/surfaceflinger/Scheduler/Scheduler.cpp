@@ -28,7 +28,6 @@
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
-
 #include <cutils/properties.h>
 #include <gui/ISurfaceComposer.h>
 #include <ui/DisplayStatInfo.h>
@@ -42,11 +41,13 @@
 #include "IdleTimer.h"
 #include "InjectVSyncSource.h"
 #include "SchedulerUtils.h"
+#include "SurfaceFlingerProperties.h"
 
 namespace android {
 
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using namespace android::sysprop;
 
 #define RETURN_VALUE_IF_INVALID(value) \
     if (handle == nullptr || mConnections.count(handle->id) == 0) return value
@@ -56,11 +57,8 @@ using namespace android::hardware::configstore::V1_0;
 std::atomic<int64_t> Scheduler::sNextId = 0;
 
 Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
-      : mHasSyncFramework(
-                getBool<ISurfaceFlingerConfigs, &ISurfaceFlingerConfigs::hasSyncFramework>(true)),
-        mDispSyncPresentTimeOffset(
-                getInt64<ISurfaceFlingerConfigs,
-                         &ISurfaceFlingerConfigs::presentTimeOffsetFromVSyncNs>(0)),
+      : mHasSyncFramework(running_without_sync_framework(true)),
+        mDispSyncPresentTimeOffset(present_time_offset_from_vsync_ns(0)),
         mPrimaryHWVsyncEnabled(false),
         mHWVsyncAvailable(false) {
     // Note: We create a local temporary with the real DispSync implementation

@@ -51,18 +51,16 @@ public:
 
 private:
     // ISurfaceComposerClient interface
-    virtual status_t createSurface(
-            const String8& name,
-            uint32_t w, uint32_t h,PixelFormat format, uint32_t flags,
-            const sp<IBinder>& parent, int32_t windowType, int32_t ownerUid,
-            sp<IBinder>* handle,
-            sp<IGraphicBufferProducer>* gbp);
+    virtual status_t createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
+                                   uint32_t flags, const sp<IBinder>& parent,
+                                   LayerMetadata metadata, sp<IBinder>* handle,
+                                   sp<IGraphicBufferProducer>* gbp);
 
     virtual status_t createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
                                              PixelFormat format, uint32_t flags,
                                              const sp<IGraphicBufferProducer>& parent,
-                                             int32_t windowType, int32_t ownerUid,
-                                             sp<IBinder>* handle, sp<IGraphicBufferProducer>* gbp);
+                                             LayerMetadata metadata, sp<IBinder>* handle,
+                                             sp<IGraphicBufferProducer>* gbp);
 
     virtual status_t clearLayerFrameStats(const sp<IBinder>& handle) const;
 

@@ -19,6 +19,7 @@
 namespace android {
 
 using Transaction = SurfaceComposerClient::Transaction;
+using ui::ColorMode;
 
 namespace {
 const String8 DISPLAY_NAME("Credentials Display Test");
@@ -312,4 +313,36 @@ TEST_F(CredentialsTest, GetLayerDebugInfo) {
     seteuid(AID_BIN);
     ASSERT_EQ(PERMISSION_DENIED, sf->getLayerDebugInfo(&outLayers));
 }
+
+TEST_F(CredentialsTest, IsWideColorDisplayBasicCorrectness) {
+    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    bool result = false;
+    status_t error = SurfaceComposerClient::isWideColorDisplay(display, &result);
+    ASSERT_EQ(NO_ERROR, error);
+    bool hasWideColorMode = false;
+    Vector<ColorMode> colorModes;
+    SurfaceComposerClient::getDisplayColorModes(display, &colorModes);
+    for (ColorMode colorMode : colorModes) {
+        switch (colorMode) {
+            case ColorMode::DISPLAY_P3:
+            case ColorMode::ADOBE_RGB:
+            case ColorMode::DCI_P3:
+                hasWideColorMode = true;
+                break;
+            default:
+                break;
+        }
+    }
+    ASSERT_EQ(hasWideColorMode, result);
+}
+
+TEST_F(CredentialsTest, IsWideColorDisplayWithPrivileges) {
+    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    std::function<status_t()> condition = [=]() {
+        bool result = false;
+        return SurfaceComposerClient::isWideColorDisplay(display, &result);
+    };
+    ASSERT_NO_FATAL_FAILURE(checkWithPrivileges<status_t>(condition, NO_ERROR, NO_ERROR));
+}
+
 } // namespace android

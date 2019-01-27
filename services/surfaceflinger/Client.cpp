@@ -73,14 +73,10 @@ sp<Layer> Client::getLayerUser(const sp<IBinder>& handle) const
     return lbc;
 }
 
-
-status_t Client::createSurface(
-        const String8& name,
-        uint32_t w, uint32_t h, PixelFormat format, uint32_t flags,
-        const sp<IBinder>& parentHandle, int32_t windowType, int32_t ownerUid,
-        sp<IBinder>* handle,
-        sp<IGraphicBufferProducer>* gbp)
-{
+status_t Client::createSurface(const String8& name, uint32_t w, uint32_t h, PixelFormat format,
+                               uint32_t flags, const sp<IBinder>& parentHandle,
+                               LayerMetadata metadata, sp<IBinder>* handle,
+                               sp<IGraphicBufferProducer>* gbp) {
     sp<Layer> parent = nullptr;
     if (parentHandle != nullptr) {
         auto layerHandle = reinterpret_cast<Layer::Handle*>(parentHandle.get());
@@ -91,14 +87,14 @@ status_t Client::createSurface(
     }
 
     // We rely on createLayer to check permissions.
-    return mFlinger->createLayer(name, this, w, h, format, flags, windowType,
-                                 ownerUid, handle, gbp, &parent);
+    return mFlinger->createLayer(name, this, w, h, format, flags, std::move(metadata), handle, gbp,
+                                 &parent);
 }
 
 status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32_t h,
                                          PixelFormat format, uint32_t flags,
                                          const sp<IGraphicBufferProducer>& parent,
-                                         int32_t windowType, int32_t ownerUid, sp<IBinder>* handle,
+                                         LayerMetadata metadata, sp<IBinder>* handle,
                                          sp<IGraphicBufferProducer>* gbp) {
     if (mFlinger->authenticateSurfaceTexture(parent) == false) {
         return BAD_VALUE;
@@ -111,8 +107,7 @@ status_t Client::createWithSurfaceParent(const String8& name, uint32_t w, uint32
 
     sp<IBinder> parentHandle = layer->getHandle();
 
-    return createSurface(name, w, h, format, flags, parentHandle, windowType, ownerUid, handle,
-                         gbp);
+    return createSurface(name, w, h, format, flags, parentHandle, std::move(metadata), handle, gbp);
 }
 
 status_t Client::clearLayerFrameStats(const sp<IBinder>& handle) const {

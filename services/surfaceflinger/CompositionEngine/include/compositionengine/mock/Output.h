@@ -35,7 +35,7 @@ public:
     MOCK_METHOD6(setProjection,
                  void(const ui::Transform&, int32_t, const Rect&, const Rect&, const Rect&, bool));
     MOCK_METHOD1(setBounds, void(const ui::Size&));
-    MOCK_METHOD2(setLayerStackFilter, void(bool, uint32_t));
+    MOCK_METHOD2(setLayerStackFilter, void(uint32_t, bool));
 
     MOCK_METHOD1(setColorTransform, void(const mat4&));
     MOCK_METHOD3(setColorMode, void(ui::ColorMode, ui::Dataspace, ui::RenderIntent));
@@ -54,7 +54,7 @@ public:
     MOCK_METHOD0(editState, OutputCompositionState&());
 
     MOCK_CONST_METHOD1(getPhysicalSpaceDirtyRegion, Region(bool));
-    MOCK_CONST_METHOD1(belongsInOutput, bool(uint32_t));
+    MOCK_CONST_METHOD2(belongsInOutput, bool(uint32_t, bool));
 };
 
 } // namespace android::compositionengine::mock

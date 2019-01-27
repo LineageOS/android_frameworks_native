@@ -241,6 +241,17 @@ void ASurfaceTransaction_setBuffer(ASurfaceTransaction* transaction,
                                    int acquire_fence_fd = -1) __INTRODUCED_IN(29);
 
 /**
+ * Updates the color for |surface_control|.  This will make the background color for the
+ * ASurfaceControl visible in transparent regions of the surface.  Colors |r|, |g|,
+ * and |b| must be within the range that is valid for |dataspace|.  |dataspace| and |alpha|
+ * will be the dataspace and alpha set for the background color layer.
+ */
+void ASurfaceTransaction_setColor(ASurfaceTransaction* transaction,
+                                  ASurfaceControl* surface_control, float r, float g, float b,
+                                  float alpha, ADataSpace dataspace)
+                                  __INTRODUCED_IN(29);
+
+/**
  * |source| the sub-rect within the buffer's content to be rendered inside the surface's area
  * The surface's source rect is clipped by the bounds of its current buffer. The source rect's width
  * and height must be > 0.

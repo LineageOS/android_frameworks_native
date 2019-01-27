@@ -166,7 +166,7 @@ ui::Dataspace DisplayDevice::getCompositionDataSpace() const {
 // ----------------------------------------------------------------------------
 
 void DisplayDevice::setLayerStack(uint32_t stack) {
-    mCompositionDisplay->setLayerStackFilter(!isPrimary(), stack);
+    mCompositionDisplay->setLayerStackFilter(stack, isPrimary());
 }
 
 // ----------------------------------------------------------------------------
@@ -330,7 +330,7 @@ bool DisplayDevice::needsFiltering() const {
 }
 
 uint32_t DisplayDevice::getLayerStack() const {
-    return mCompositionDisplay->getState().singleLayerStackId;
+    return mCompositionDisplay->getState().layerStackId;
 }
 
 const ui::Transform& DisplayDevice::getTransform() const {

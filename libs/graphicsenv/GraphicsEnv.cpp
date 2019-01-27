@@ -262,7 +262,7 @@ bool GraphicsEnv::shouldUseAngle(std::string appName) {
 bool GraphicsEnv::shouldUseAngle() {
     // Make sure we are init'ed
     if (mAngleAppName.empty()) {
-        ALOGE("App name is empty. setAngleInfo() must be called first to enable ANGLE.");
+        ALOGV("App name is empty. setAngleInfo() has not been called to enable ANGLE.");
         return false;
     }
 
@@ -284,16 +284,7 @@ void GraphicsEnv::updateUseAngle() {
     } else {
         // The "Developer Options" value wasn't set to force the use of ANGLE.  Need to temporarily
         // load ANGLE and call the updatable opt-in/out logic:
-
-        // Check if ANGLE is enabled. Workaround for several bugs:
-        // b/119305693 b/119322355 b/119305887
-        // Something is not working correctly in the feature library
-        char prop[PROPERTY_VALUE_MAX];
-        property_get("debug.angle.enable", prop, "0");
-        void* featureSo = nullptr;
-        if (atoi(prop)) {
-            featureSo = loadLibrary("feature_support");
-        }
+        void* featureSo = loadLibrary("feature_support");
         if (featureSo) {
             ALOGV("loaded ANGLE's opt-in/out logic from namespace");
             mUseAngle = checkAngleRules(featureSo);

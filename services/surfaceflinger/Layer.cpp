@@ -94,8 +94,6 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.layerStack = 0;
     mCurrentState.sequence = 0;
     mCurrentState.requested_legacy = mCurrentState.active_legacy;
-    mCurrentState.appId = 0;
-    mCurrentState.type = 0;
     mCurrentState.active.w = UINT32_MAX;
     mCurrentState.active.h = UINT32_MAX;
     mCurrentState.active.transform.set(0, 0);
@@ -109,6 +107,7 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.cornerRadius = 0.0f;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
+    mCurrentState.colorDataspace = ui::Dataspace::UNKNOWN;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -380,7 +379,7 @@ Rect Layer::getCroppedBufferSize(const State& s) const {
     return size;
 }
 
-Rect Layer::computeInitialCrop(const Rect& windowBounds) const {
+Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     // the crop is the area of the window that gets cropped, but not
     // scaled in any ways.
     const State& s(getDrawingState());
@@ -391,17 +390,12 @@ Rect Layer::computeInitialCrop(const Rect& windowBounds) const {
     // pixels in the buffer.
 
     FloatRect activeCropFloat = computeBounds();
-
-    // If we have valid window boundaries then we need to crop to the window
-    // boundaries in layer space.
-    if (windowBounds.isValid()) {
-        const ui::Transform t = getTransform();
-        // Transform to screen space.
-        activeCropFloat = t.transform(activeCropFloat);
-        activeCropFloat = activeCropFloat.intersect(windowBounds.toFloatRect());
-        // Back to layer space to work with the content crop.
-        activeCropFloat = t.inverse().transform(activeCropFloat);
-    }
+    ui::Transform t = getTransform();
+    // Transform to screen space.
+    activeCropFloat = t.transform(activeCropFloat);
+    activeCropFloat = activeCropFloat.intersect(display->getViewport().toFloatRect());
+    // Back to layer space to work with the content crop.
+    activeCropFloat = t.inverse().transform(activeCropFloat);
     // This needs to be here as transform.transform(Rect) computes the
     // transformed rect and then takes the bounding box of the result before
     // returning. This means
@@ -431,7 +425,7 @@ void Layer::setupRoundedCornersCropCoordinates(Rect win,
     cropCoords[3] = vec2(win.right, win.top);
 }
 
-FloatRect Layer::computeCrop(const Rect& windowBounds) const {
+FloatRect Layer::computeCrop(const sp<const DisplayDevice>& display) const {
     // the content crop is the area of the content that gets scaled to the
     // layer's size. This is in buffer space.
     FloatRect crop = getContentCrop().toFloatRect();
@@ -439,7 +433,7 @@ FloatRect Layer::computeCrop(const Rect& windowBounds) const {
     // In addition there is a WM-specified crop we pull from our drawing state.
     const State& s(getDrawingState());
 
-    Rect activeCrop = computeInitialCrop(windowBounds);
+    Rect activeCrop = computeInitialCrop(display);
     Rect bufferSize = getBufferSize(s);
 
     // Transform the window crop to match the buffer coordinate system,
@@ -599,14 +593,16 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
              to_string(error).c_str(), static_cast<int32_t>(error));
     getBE().compositionInfo.hwc.z = z;
 
-    int type = s.type;
-    int appId = s.appId;
+    int type = s.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+    int appId = s.metadata.getInt32(METADATA_OWNER_UID, 0);
     sp<Layer> parent = mDrawingParent.promote();
     if (parent.get()) {
         auto& parentState = parent->getDrawingState();
-        if (parentState.type >= 0 || parentState.appId >= 0) {
-            type = parentState.type;
-            appId = parentState.appId;
+        const int parentType = parentState.metadata.getInt32(METADATA_WINDOW_TYPE, 0);
+        const int parentAppId = parentState.metadata.getInt32(METADATA_OWNER_UID, 0);
+        if (parentType >= 0 || parentAppId >= 0) {
+            type = parentType;
+            appId = parentAppId;
         }
     }
 
@@ -1315,11 +1311,14 @@ bool Layer::setOverrideScalingMode(int32_t scalingMode) {
     return true;
 }
 
-void Layer::setInfo(int32_t type, int32_t appId) {
-    mCurrentState.appId = appId;
-    mCurrentState.type = type;
+bool Layer::setMetadata(LayerMetadata data) {
+    bool changed = data.mMap != mCurrentState.metadata.mMap;
+    if (!changed) return false;
+    mCurrentState.metadata = std::move(data);
+    mCurrentState.sequence++;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+    return true;
 }
 
 bool Layer::setLayerStack(uint32_t layerStack) {
@@ -2087,8 +2086,6 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     layerInfo->set_queued_frames(getQueuedFrameCount());
     layerInfo->set_refresh_pending(isBufferLatched());
-    layerInfo->set_window_type(state.type);
-    layerInfo->set_app_id(state.appId);
     layerInfo->set_curr_frame(mCurrentFrameNumber);
     layerInfo->set_effective_scaling_mode(getEffectiveScalingMode());
 
@@ -2099,6 +2096,11 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
             barrierLayerProto->set_id(barrierLayer->sequence);
             barrierLayerProto->set_frame_number(pendingState.frameNumber_legacy);
         }
+    }
+
+    auto protoMap = layerInfo->mutable_metadata();
+    for (const auto& entry : state.metadata.mMap) {
+        (*protoMap)[entry.first] = std::string(entry.second.cbegin(), entry.second.cend());
     }
 }
 

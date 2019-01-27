@@ -167,8 +167,7 @@ public:
         Region activeTransparentRegion_legacy;
         Region requestedTransparentRegion_legacy;
 
-        int32_t appId;
-        int32_t type;
+        LayerMetadata metadata;
 
         // If non-null, a Surface this Surface's Z-order is interpreted relative to.
         wp<Layer> zOrderRelativeOf;
@@ -202,6 +201,8 @@ public:
         mat4 colorTransform;
         bool hasColorTransform;
 
+        ui::Dataspace colorDataspace; // The dataspace of the background color layer
+
         // The deque of callback handles for this frame. The back of the deque contains the most
         // recent callback handle.
         std::deque<sp<CallbackHandle>> callbackHandles;
@@ -211,6 +212,7 @@ public:
     virtual ~Layer();
 
     void setPrimaryDisplayOnly() { mPrimaryDisplayOnly = true; }
+    bool getPrimaryDisplayOnly() const { return mPrimaryDisplayOnly; }
 
     // ------------------------------------------------------------------------
     // Geometry setting functions.
@@ -281,7 +283,7 @@ public:
                                               uint64_t frameNumber);
     virtual void deferTransactionUntil_legacy(const sp<Layer>& barrierLayer, uint64_t frameNumber);
     virtual bool setOverrideScalingMode(int32_t overrideScalingMode);
-    virtual void setInfo(int32_t type, int32_t appId);
+    virtual bool setMetadata(LayerMetadata data);
     virtual bool reparentChildren(const sp<IBinder>& layer);
     virtual void setChildrenDrawingParent(const sp<Layer>& layer);
     virtual bool reparent(const sp<IBinder>& newParentHandle);
@@ -308,6 +310,8 @@ public:
             const std::vector<sp<CallbackHandle>>& /*handles*/) {
         return false;
     };
+    virtual bool setColorAlpha(float /*alpha*/) { return false; };
+    virtual bool setColorDataspace(ui::Dataspace /*dataspace*/) { return false; };
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 
@@ -328,6 +332,9 @@ public:
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags);
 
+    // Deprecated, please use compositionengine::Output::belongsInOutput()
+    // instead.
+    // TODO(lpique): Move the remaining callers (screencap) to the new function.
     bool belongsToDisplay(uint32_t layerStack, bool isPrimaryDisplay) const {
         return getLayerStack() == layerStack && (!mPrimaryDisplayOnly || isPrimaryDisplay);
     }
@@ -671,22 +678,12 @@ protected:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    // Computes the crop applied to this layer. windowBounds is the boundary of
-    // layer-stack space, so the cropping rectangle will be clipped to those
-    // bounds in that space. The crop rectangle is returned in buffer space. If
-    // windowBounds is invalid, then it is ignored.
-    virtual FloatRect computeCrop(const Rect& windowBounds) const;
-
-    // See the above method, but pulls the window boundaries from the display.
-    FloatRect computeCrop(const sp<const DisplayDevice>& display) const {
-        return computeCrop(display->getViewport());
-    }
+    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
     // Compute the initial crop as specified by parent layers and the
     // SurfaceControl for this layer. Does not include buffer crop from the
     // IGraphicBufferProducer client, as that should not affect child clipping.
     // Returns in screen space.
-    Rect computeInitialCrop(const Rect& windowBounds) const;
-
+    Rect computeInitialCrop(const sp<const DisplayDevice>& display) const;
     /**
      * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
      * crop coordinates, transforming them into layer space.
