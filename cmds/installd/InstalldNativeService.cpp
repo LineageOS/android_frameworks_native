@@ -808,11 +808,6 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
 // TODO(narayan): For snapshotAppData as well as restoreAppDataSnapshot, we
 // should validate that volumeUuid is either nullptr or TEST, we won't support
 // anything else.
-//
-// TODO(narayan): We need to be clearer about the expected behaviour for the
-// case where a snapshot already exists. We either need to clear the contents
-// of the snapshot directory before we make a copy, or we need to ensure that
-// the caller always clears it before requesting a snapshot.
 binder::Status InstalldNativeService::snapshotAppData(
         const std::unique_ptr<std::string>& volumeUuid,
         const std::string& packageName, int32_t user, int32_t storageFlags) {
@@ -857,6 +852,12 @@ binder::Status InstalldNativeService::snapshotAppData(
         auto from = create_data_user_de_package_path(volume_uuid, user, package_name);
         auto to = create_data_misc_de_rollback_path(volume_uuid, user);
 
+        int rd = delete_dir_contents(to, true /* ignore_if_missing */);
+        if (rd != 0) {
+            res = error(rd, "Failed clearing existing snapshot " + to);
+            return res;
+        }
+
         int rc = copy_directory_recursive(from.c_str(), to.c_str());
         if (rc != 0) {
             res = error(rc, "Failed copying " + from + " to " + to);
@@ -868,6 +869,13 @@ binder::Status InstalldNativeService::snapshotAppData(
     if (storageFlags & FLAG_STORAGE_CE) {
         auto from = create_data_user_ce_package_path(volume_uuid, user, package_name);
         auto to = create_data_misc_ce_rollback_path(volume_uuid, user);
+
+        int rd = delete_dir_contents(to, true /* ignore_if_missing */);
+        if (rd != 0) {
+            res = error(rd, "Failed clearing existing snapshot " + to);
+            return res;
+        }
+
         int rc = copy_directory_recursive(from.c_str(), to.c_str());
         if (rc != 0) {
             res = error(rc, "Failed copying " + from + " to " + to);
