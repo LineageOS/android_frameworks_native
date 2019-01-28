@@ -65,9 +65,9 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
     std::lock_guard<std::mutex> lock(mClientSetMutex);
     mClientSet.emplace(client);
 
-    hidl_handle bufferInfo =
-            buildBufferInfo(node->id(), node->AddNewActiveClientsBitToMask(),
-                            node->user_metadata_size(), node->metadata().ashmem_fd());
+    hidl_handle bufferInfo = buildBufferInfo(node->id(), node->AddNewActiveClientsBitToMask(),
+                                             node->user_metadata_size(), node->eventFd().get(),
+                                             node->metadata().ashmem_fd());
     BufferTraits bufferTraits = {/*bufferDesc=*/description,
                                  /*bufferHandle=*/hidl_handle(node->buffer_handle()),
                                  /*bufferInfo=*/bufferInfo};
@@ -156,7 +156,7 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
 
     hidl_handle bufferInfo =
             buildBufferInfo(node->id(), clientStateMask, node->user_metadata_size(),
-                            node->metadata().ashmem_fd());
+                            node->eventFd().get(), node->metadata().ashmem_fd());
     BufferTraits bufferTraits = {/*bufferDesc=*/bufferDesc,
                                  /*bufferHandle=*/hidl_handle(node->buffer_handle()),
                                  /*bufferInfo=*/bufferInfo};
@@ -345,16 +345,18 @@ void BufferHubService::onClientClosed(const BufferClient* client) {
 // Implementation of this function should be consistent with the definition of bufferInfo handle in
 // ui/BufferHubDefs.h.
 hidl_handle BufferHubService::buildBufferInfo(int bufferId, uint32_t clientBitMask,
-                                              uint32_t userMetadataSize, const int metadataFd) {
+                                              uint32_t userMetadataSize, const int eventFd,
+                                              const int metadataFd) {
     native_handle_t* infoHandle = native_handle_create(BufferHubDefs::kBufferInfoNumFds,
                                                        BufferHubDefs::kBufferInfoNumInts);
 
     infoHandle->data[0] = dup(metadataFd);
-    infoHandle->data[1] = bufferId;
+    infoHandle->data[1] = dup(eventFd);
+    infoHandle->data[2] = bufferId;
     // Use memcpy to convert to int without missing digit.
     // TOOD(b/121345852): use bit_cast to unpack bufferInfo when C++20 becomes available.
-    memcpy(&infoHandle->data[2], &clientBitMask, sizeof(clientBitMask));
-    memcpy(&infoHandle->data[3], &userMetadataSize, sizeof(userMetadataSize));
+    memcpy(&infoHandle->data[3], &clientBitMask, sizeof(clientBitMask));
+    memcpy(&infoHandle->data[4], &userMetadataSize, sizeof(userMetadataSize));
 
     hidl_handle bufferInfo;
     bufferInfo.setTo(infoHandle, /*shouldOwn=*/true);
