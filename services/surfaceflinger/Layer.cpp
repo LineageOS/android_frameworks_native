@@ -1623,19 +1623,26 @@ bool Layer::reparent(const sp<IBinder>& newParentHandle) {
         return false;
     }
 
+    sp<Layer> newParent;
+    if (newParentHandle != nullptr) {
+        auto handle = static_cast<Handle*>(newParentHandle.get());
+        newParent = handle->owner.promote();
+        if (newParent == nullptr) {
+            ALOGE("Unable to promote Layer handle");
+            return false;
+        }
+        if (newParent == this) {
+            ALOGE("Invalid attempt to reparent Layer (%s) to itself", getName().c_str());
+            return false;
+        }
+    }
+
     sp<Layer> parent = getParent();
     if (parent != nullptr) {
         parent->removeChild(this);
     }
 
     if (newParentHandle != nullptr) {
-        auto handle = static_cast<Handle*>(newParentHandle.get());
-        sp<Layer> newParent = handle->owner.promote();
-        if (newParent == nullptr) {
-            ALOGE("Unable to promote Layer handle");
-            return false;
-        }
-
         newParent->addChild(this);
         if (!newParent->isRemovedFromCurrentState()) {
             addToCurrentState();
