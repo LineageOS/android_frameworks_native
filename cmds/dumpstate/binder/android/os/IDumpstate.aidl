@@ -18,7 +18,6 @@ package android.os;
 
 import android.os.IDumpstateListener;
 import android.os.IDumpstateToken;
-import android.os.DumpstateOptions;
 
 /**
   * Binder interface for the currently running dumpstate process.
