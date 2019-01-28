@@ -687,13 +687,13 @@ public:
     virtual status_t getProtectedContentSupport(bool* outSupported) const {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::GET_PROTECTED_CONTENT_SUPPORT, data, &reply);
-        bool result;
-        status_t err = reply.readBool(&result);
-        if (err == NO_ERROR) {
-            *outSupported = result;
+        status_t error =
+                remote()->transact(BnSurfaceComposer::GET_PROTECTED_CONTENT_SUPPORT, data, &reply);
+        if (error != NO_ERROR) {
+            return error;
         }
-        return err;
+        error = reply.readBool(outSupported);
+        return error;
     }
 
     virtual status_t cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
@@ -1187,7 +1187,6 @@ status_t BnSurfaceComposer::onTransact(
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
             bool result;
             status_t error = getProtectedContentSupport(&result);
-            reply->writeInt32(error);
             if (error == NO_ERROR) {
                 reply->writeBool(result);
             }
