@@ -16,6 +16,7 @@
 
 #define LOG_TAG "BufferHubBufferTest"
 
+#include <errno.h>
 #include <sys/epoll.h>
 
 #include <android/hardware_buffer.h>
@@ -166,14 +167,16 @@ TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
 
     // The event fd should behave like duped event fds.
     const BufferHubEventFd& eventFd1 = b1->eventFd();
+    ASSERT_GE(eventFd1.get(), 0);
     const BufferHubEventFd& eventFd2 = b2->eventFd();
+    ASSERT_GE(eventFd2.get(), 0);
 
     base::unique_fd epollFd(epoll_create(64));
     ASSERT_GE(epollFd.get(), 0);
 
     // Add eventFd1 to epoll set, and signal eventFd2.
     epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
-    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd1.get(), &e), 0);
+    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd1.get(), &e), 0) << strerror(errno);
 
     std::array<epoll_event, 1> events;
     EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
