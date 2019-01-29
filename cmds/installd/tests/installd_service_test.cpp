@@ -433,6 +433,61 @@ TEST_F(ServiceTest, SnapshotAppData_WrongVolumeUuid) {
           "com.foo", 0, FLAG_STORAGE_DE).isOk());
 }
 
+TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsCache) {
+  auto fake_package_ce_path = create_data_user_ce_package_path("TEST", 0, "com.foo");
+  auto fake_package_de_path = create_data_user_de_package_path("TEST", 0, "com.foo");
+  auto fake_package_ce_cache_path = read_path_inode(fake_package_ce_path,
+      "cache", kXattrInodeCache);
+  auto fake_package_ce_code_cache_path = read_path_inode(fake_package_ce_path,
+      "code_cache", kXattrInodeCache);
+  auto fake_package_de_cache_path = fake_package_de_path + "/cache";
+  auto fake_package_de_code_cache_path = fake_package_de_path + "/code_cache";
+
+  ASSERT_TRUE(mkdirs(fake_package_ce_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_ce_cache_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_ce_code_cache_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_cache_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_code_cache_path, 700));
+
+  auto deleter = [&fake_package_ce_path, &fake_package_de_path,
+          &fake_package_ce_cache_path, &fake_package_ce_code_cache_path,
+          &fake_package_de_cache_path, &fake_package_de_code_cache_path]() {
+      delete_dir_contents(fake_package_ce_path, true);
+      delete_dir_contents(fake_package_de_path, true);
+      delete_dir_contents(fake_package_ce_cache_path, true);
+      delete_dir_contents(fake_package_ce_code_cache_path, true);
+      delete_dir_contents(fake_package_de_cache_path, true);
+      delete_dir_contents(fake_package_de_code_cache_path, true);
+      rmdir(fake_package_ce_cache_path.c_str());
+      rmdir(fake_package_ce_code_cache_path.c_str());
+      rmdir(fake_package_de_cache_path.c_str());
+      rmdir(fake_package_de_code_cache_path.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_CE", fake_package_ce_cache_path + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_CE", fake_package_ce_code_cache_path + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_DE", fake_package_de_cache_path + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_DE", fake_package_de_code_cache_path + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_CE | FLAG_STORAGE_DE).isOk());
+  // The snapshot call must clear cache.
+  struct stat sb;
+  ASSERT_EQ(-1, stat((fake_package_ce_cache_path + "/file1").c_str(), &sb));
+  ASSERT_EQ(-1, stat((fake_package_ce_code_cache_path + "/file1").c_str(), &sb));
+  ASSERT_EQ(-1, stat((fake_package_de_cache_path + "/file1").c_str(), &sb));
+  ASSERT_EQ(-1, stat((fake_package_de_code_cache_path + "/file1").c_str(), &sb));
+}
+
 TEST_F(ServiceTest, RestoreAppDataSnapshot) {
   auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
   auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
