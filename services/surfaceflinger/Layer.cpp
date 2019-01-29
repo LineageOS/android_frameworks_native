@@ -1067,6 +1067,11 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         mNeedsFiltering = (!getActiveTransform(c).preserveRects() || type >= ui::Transform::SCALE);
     }
 
+    if (mChildrenChanged) {
+        flags |= eVisibleRegion;
+        mChildrenChanged = false;
+    }
+
     // If the layer is hidden, signal and clear out all local sync points so
     // that transactions for layers depending on this layer's frames becoming
     // visible are not blocked
@@ -1571,13 +1576,16 @@ size_t Layer::getChildrenCount() const {
 }
 
 void Layer::addChild(const sp<Layer>& layer) {
+    mChildrenChanged = true;
+
     mCurrentChildren.add(layer);
     layer->setParent(this);
 }
 
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
-    layer->setParent(nullptr);
+    mChildrenChanged = true;
 
+    layer->setParent(nullptr);
     return mCurrentChildren.remove(layer);
 }
 
