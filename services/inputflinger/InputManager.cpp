@@ -34,7 +34,8 @@ InputManager::InputManager(
         const sp<InputReaderPolicyInterface>& readerPolicy,
         const sp<InputDispatcherPolicyInterface>& dispatcherPolicy) {
     mDispatcher = new InputDispatcher(dispatcherPolicy);
-    mReader = createInputReader(readerPolicy, mDispatcher);
+    mClassifier = new InputClassifier(mDispatcher);
+    mReader = createInputReader(readerPolicy, mClassifier);
     initialize();
 }
 

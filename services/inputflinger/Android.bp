@@ -16,21 +16,25 @@ cc_library_shared {
     name: "libinputflinger",
 
     srcs: [
+        "InputClassifier.cpp",
         "InputDispatcher.cpp",
         "InputManager.cpp",
     ],
 
     shared_libs: [
+        "android.hardware.input.classifier@1.0",
         "libinputflinger_base",
         "libinputreporter",
         "libinputreader",
         "libbase",
         "libbinder",
         "libcutils",
+        "libhidlbase",
         "libinput",
         "liblog",
         "libutils",
         "libui",
+        "server_configurable_flags",
     ],
 
     cflags: [
@@ -38,7 +42,9 @@ cc_library_shared {
         "-Wextra",
         "-Werror",
         "-Wno-unused-parameter",
-        // TODO: Move inputflinger to its own process and mark it hidden
+        // TODO(b/123097103): annotate InputDispatcher and uncomment the following line
+        //"-Wthread-safety",
+        // TODO(b/23084678): Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
     ],
 

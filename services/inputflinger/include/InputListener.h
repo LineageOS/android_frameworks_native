@@ -49,6 +49,8 @@ struct NotifyConfigurationChangedArgs : public NotifyArgs {
 
     inline NotifyConfigurationChangedArgs() { }
 
+    bool operator==(const NotifyConfigurationChangedArgs& rhs) const;
+
     NotifyConfigurationChangedArgs(uint32_t sequenceNum, nsecs_t eventTime);
 
     NotifyConfigurationChangedArgs(const NotifyConfigurationChangedArgs& other);
@@ -78,6 +80,8 @@ struct NotifyKeyArgs : public NotifyArgs {
     NotifyKeyArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId, uint32_t source,
             int32_t displayId, uint32_t policyFlags, int32_t action, int32_t flags, int32_t keyCode,
             int32_t scanCode, int32_t metaState, nsecs_t downTime);
+
+    bool operator==(const NotifyKeyArgs& rhs) const;
 
     NotifyKeyArgs(const NotifyKeyArgs& other);
 
@@ -134,6 +138,8 @@ struct NotifyMotionArgs : public NotifyArgs {
 
     virtual ~NotifyMotionArgs() { }
 
+    bool operator==(const NotifyMotionArgs& rhs) const;
+
     virtual void notify(const sp<InputListenerInterface>& listener) const;
 };
 
@@ -152,6 +158,8 @@ struct NotifySwitchArgs : public NotifyArgs {
 
     NotifySwitchArgs(const NotifySwitchArgs& other);
 
+    bool operator==(const NotifySwitchArgs rhs) const;
+
     virtual ~NotifySwitchArgs() { }
 
     virtual void notify(const sp<InputListenerInterface>& listener) const;
@@ -169,6 +177,8 @@ struct NotifyDeviceResetArgs : public NotifyArgs {
     NotifyDeviceResetArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId);
 
     NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other);
+
+    bool operator==(const NotifyDeviceResetArgs& rhs) const;
 
     virtual ~NotifyDeviceResetArgs() { }
 
