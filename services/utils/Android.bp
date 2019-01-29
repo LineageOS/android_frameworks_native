@@ -18,6 +18,8 @@
 cc_library_static {
     name: "libserviceutils",
 
+    vendor_available: true,
+
     cflags: [
         "-Wall",
         "-Werror",
@@ -27,8 +29,13 @@ cc_library_static {
         "PriorityDumper.cpp",
     ],
 
-    clang: true,
+    header_libs: [
+        "libutils_headers",
+    ],
+
+    export_header_lib_headers: [
+        "libutils_headers",
+    ],
+
     export_include_dirs: ["include"],
 }
-
-subdirs = ["tests"]
