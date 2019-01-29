@@ -2671,7 +2671,7 @@ void InputDispatcher::notifyMotion(const NotifyMotionArgs* args) {
     policyFlags |= POLICY_FLAG_TRUSTED;
 
     android::base::Timer t;
-    mPolicy->interceptMotionBeforeQueueing(args->eventTime, /*byref*/ policyFlags);
+    mPolicy->interceptMotionBeforeQueueing(args->displayId, args->eventTime, /*byref*/ policyFlags);
     if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
         ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
                 std::to_string(t.duration().count()).c_str());
@@ -2819,6 +2819,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         size_t pointerCount = motionEvent->getPointerCount();
         const PointerProperties* pointerProperties = motionEvent->getPointerProperties();
         int32_t actionButton = motionEvent->getActionButton();
+        int32_t displayId = motionEvent->getDisplayId();
         if (! validateMotionEvent(action, actionButton, pointerCount, pointerProperties)) {
             return INPUT_EVENT_INJECTION_FAILED;
         }
@@ -2826,7 +2827,7 @@ int32_t InputDispatcher::injectInputEvent(const InputEvent* event,
         if (!(policyFlags & POLICY_FLAG_FILTERED)) {
             nsecs_t eventTime = motionEvent->getEventTime();
             android::base::Timer t;
-            mPolicy->interceptMotionBeforeQueueing(eventTime, /*byref*/ policyFlags);
+            mPolicy->interceptMotionBeforeQueueing(displayId, eventTime, /*byref*/ policyFlags);
             if (t.duration() > SLOW_INTERCEPTION_THRESHOLD) {
                 ALOGW("Excessive delay in interceptMotionBeforeQueueing; took %s ms",
                         std::to_string(t.duration().count()).c_str());
