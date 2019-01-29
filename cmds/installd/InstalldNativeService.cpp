@@ -77,6 +77,9 @@ using std::endl;
 namespace android {
 namespace installd {
 
+// An uuid used in unit tests.
+static constexpr const char* kTestUuid = "TEST";
+
 static constexpr const char* kCpPath = "/system/bin/cp";
 static constexpr const char* kXattrDefault = "user.default";
 
@@ -804,20 +807,20 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
 // TODO(narayan): We should pass through the ceDataInode so that we can call
 // clearAppData(FLAG_CLEAR_CACHE_ONLY | FLAG_CLEAR_CODE_CACHE before we commence
 // the copy.
-//
-// TODO(narayan): For snapshotAppData as well as restoreAppDataSnapshot, we
-// should validate that volumeUuid is either nullptr or TEST, we won't support
-// anything else.
 binder::Status InstalldNativeService::snapshotAppData(
         const std::unique_ptr<std::string>& volumeUuid,
         const std::string& packageName, int32_t user, int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
+
+    if (volume_uuid && strcmp(volume_uuid, kTestUuid)) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("volumeUuid must be null or \"%s\", got: %s", kTestUuid, volume_uuid));
+    }
 
     binder::Status res = ok();
     bool clear_ce_on_exit = false;
@@ -892,12 +895,16 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
         const int32_t appId, const int64_t ceDataInode, const std::string& seInfo,
         const int32_t user, int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
-    CHECK_ARGUMENT_UUID(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
+
+    if (volume_uuid && strcmp(volume_uuid, kTestUuid)) {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("volumeUuid must be null or \"%s\", got: %s", kTestUuid, volume_uuid));
+    }
 
     auto from_ce = create_data_misc_ce_rollback_package_path(volume_uuid,
             user, package_name);
