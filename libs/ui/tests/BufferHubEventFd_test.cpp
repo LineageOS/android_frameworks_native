@@ -91,22 +91,21 @@ TEST_F(BufferHubEventFdTest, EventFd_testDupEventFd) {
     // Technically, the dupliated eventFd and the original eventFd are pointing
     // to the same kernel object. This test signals the duplicated eventFd but epolls the origianl
     // eventFd.
-    base::unique_fd dupedEventFd(dup(eventFd.get()));
+    BufferHubEventFd dupedEventFd(dup(eventFd.get()));
     ASSERT_GE(dupedEventFd.get(), 0);
 
     std::array<epoll_event, 1> events;
     EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
 
-    eventfd_write(dupedEventFd.get(), 1);
+    dupedEventFd.signal();
     EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
 
     // The epoll fd is edge triggered, so it only responds to the eventFd once.
     EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
 
-    eventfd_write(dupedEventFd.get(), 1);
+    dupedEventFd.signal();
 
-    eventfd_t value;
-    eventfd_read(dupedEventFd.get(), &value);
+    dupedEventFd.clear();
     EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
 }
 

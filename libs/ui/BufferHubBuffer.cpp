@@ -167,18 +167,25 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
         return -EINVAL;
     }
 
-    int bufferId = bufferTraits.bufferInfo->data[1];
+    int bufferId = bufferTraits.bufferInfo->data[2];
     if (bufferId < 0) {
         ALOGE("%s: Received an invalid (negative) id!", __FUNCTION__);
         return -EINVAL;
     }
 
     uint32_t clientBitMask;
-    memcpy(&clientBitMask, &bufferTraits.bufferInfo->data[2], sizeof(clientBitMask));
+    memcpy(&clientBitMask, &bufferTraits.bufferInfo->data[3], sizeof(clientBitMask));
     if (clientBitMask == 0U) {
         ALOGE("%s: Received a invalid client state mask!", __FUNCTION__);
         return -EINVAL;
     }
+
+    const int eventFd = bufferTraits.bufferInfo->data[1];
+    if (eventFd < 0) {
+        ALOGE("%s: Received a invalid event fd!", __FUNCTION__);
+        return -EINVAL;
+    }
+    mEventFd = BufferHubEventFd(eventFd);
 
     // Import the metadata. Dup since hidl_handle owns the fd
     unique_fd ashmemFd(fcntl(bufferTraits.bufferInfo->data[0], F_DUPFD_CLOEXEC, 0));
@@ -190,7 +197,7 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
     }
 
     uint32_t userMetadataSize;
-    memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[3], sizeof(userMetadataSize));
+    memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[4], sizeof(userMetadataSize));
     if (mMetadata.user_metadata_size() != userMetadataSize) {
         ALOGE("%s: user metadata size not match: expected %u, actual %zu.", __FUNCTION__,
               userMetadataSize, mMetadata.user_metadata_size());
@@ -314,9 +321,8 @@ int BufferHubBuffer::Release() {
 }
 
 bool BufferHubBuffer::IsValid() const {
-    // TODO(b/68770788): check eventFd once implemented
     return mBufferHandle.getNativeHandle() != nullptr && mId >= 0 && mClientStateMask != 0U &&
-            mMetadata.IsValid() && mBufferClient != nullptr;
+            mEventFd.get() >= 0 && mMetadata.IsValid() && mBufferClient != nullptr;
 }
 
 native_handle_t* BufferHubBuffer::Duplicate() {

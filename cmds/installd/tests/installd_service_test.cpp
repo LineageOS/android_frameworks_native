@@ -363,6 +363,55 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_AppDataAbsent) {
   ASSERT_EQ(-1, stat((rollback_de_dir + "/com.foo").c_str(), &sb));
 }
 
+TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsExistingSnapshot) {
+  auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
+  auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir, 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir, 700));
+
+  auto fake_package_ce_path = create_data_user_ce_package_path("TEST", 0, "com.foo");
+  auto fake_package_de_path = create_data_user_de_package_path("TEST", 0, "com.foo");
+
+  ASSERT_TRUE(mkdirs(fake_package_ce_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_path, 700));
+
+  auto deleter = [&rollback_ce_dir, &rollback_de_dir,
+          &fake_package_ce_path, &fake_package_de_path]() {
+      delete_dir_contents(rollback_ce_dir, true);
+      delete_dir_contents(rollback_de_dir, true);
+      delete_dir_contents(fake_package_ce_path, true);
+      delete_dir_contents(fake_package_de_path, true);
+      rmdir(rollback_ce_dir.c_str());
+      rmdir(rollback_de_dir.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  // Simulate presence of an existing snapshot
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_CE", rollback_ce_dir + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_DE", rollback_de_dir + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  // Create app data.
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_2_CE", fake_package_ce_path + "/file2",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_2_DE", fake_package_de_path + "/file2",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+
+  // Previous snapshot (with data for file1) must be cleared.
+  struct stat sb;
+  ASSERT_EQ(-1, stat((rollback_ce_dir + "/com.foo/file1").c_str(), &sb));
+  ASSERT_EQ(-1, stat((rollback_de_dir + "/com.foo/file1").c_str(), &sb));
+}
+
 TEST_F(ServiceTest, RestoreAppDataSnapshot) {
   auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
   auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);

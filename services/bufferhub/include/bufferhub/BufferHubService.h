@@ -59,7 +59,7 @@ public:
 private:
     // Helper function to build BufferTraits.bufferInfo handle
     hidl_handle buildBufferInfo(int bufferId, uint32_t clientBitMask, uint32_t userMetadataSize,
-                                const int metadataFd);
+                                const int eventFd, const int metadataFd);
 
     // Helper function to remove all the token belongs to a specific client.
     void removeTokenByClient(const BufferClient* client);

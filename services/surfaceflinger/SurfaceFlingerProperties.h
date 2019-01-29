@@ -46,13 +46,13 @@ int64_t default_composition_dataspace(
         android::hardware::graphics::common::V1_2::Dataspace defaultValue);
 
 int32_t default_composition_pixel_format(
-        android::hardware::graphics::common::V1_1::PixelFormat defaultValue);
+        android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
 
 int64_t wcg_composition_dataspace(
         android::hardware::graphics::common::V1_2::Dataspace defaultValue);
 
 int32_t wcg_composition_pixel_format(
-        android::hardware::graphics::common::V1_1::PixelFormat defaultValue);
+        android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
 } // namespace sysprop
 } // namespace android
 #endif // SURFACEFLINGERPROPERTIES_H_

@@ -16,6 +16,8 @@
 
 #define LOG_TAG "BufferHubBufferTest"
 
+#include <sys/epoll.h>
+
 #include <android/hardware_buffer.h>
 #include <cutils/native_handle.h>
 #include <gmock/gmock.h>
@@ -23,6 +25,7 @@
 #include <hidl/ServiceManagement.h>
 #include <hwbinder/IPCThreadState.h>
 #include <ui/BufferHubBuffer.h>
+#include <ui/BufferHubEventFd.h>
 
 namespace android {
 
@@ -160,6 +163,30 @@ TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
     // Both buffer instances should be in released state currently.
     EXPECT_TRUE(IsBufferReleased(b1->buffer_state()));
     EXPECT_TRUE(IsBufferReleased(b2->buffer_state()));
+
+    // The event fd should behave like duped event fds.
+    const BufferHubEventFd& eventFd1 = b1->eventFd();
+    const BufferHubEventFd& eventFd2 = b2->eventFd();
+
+    base::unique_fd epollFd(epoll_create(64));
+    ASSERT_GE(epollFd.get(), 0);
+
+    // Add eventFd1 to epoll set, and signal eventFd2.
+    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
+    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd1.get(), &e), 0);
+
+    std::array<epoll_event, 1> events;
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+
+    eventFd2.signal();
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+
+    // The epoll fd is edge triggered, so it only responds to the eventFd once.
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+
+    eventFd2.signal();
+    eventFd2.clear();
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
 }
 
 TEST_F(BufferHubBufferTest, ImportFreedBuffer) {

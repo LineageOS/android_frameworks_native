@@ -4,6 +4,7 @@
 #include <android/hardware_buffer.h>
 #include <bufferhub/BufferHubIdGenerator.h>
 #include <cutils/native_handle.h>
+#include <ui/BufferHubEventFd.h>
 #include <ui/BufferHubMetadata.h>
 
 namespace android {
@@ -30,6 +31,9 @@ public:
     // Accessors of the buffer description and handle
     const native_handle_t* buffer_handle() const { return buffer_handle_; }
     const AHardwareBuffer_Desc& buffer_desc() const { return buffer_desc_; }
+
+    // Accessor of event fd.
+    const BufferHubEventFd& eventFd() const { return mEventFd; }
 
     // Accessors of metadata.
     const BufferHubMetadata& metadata() const { return metadata_; }
@@ -59,6 +63,9 @@ private:
     // Gralloc buffer handles.
     native_handle_t* buffer_handle_;
     AHardwareBuffer_Desc buffer_desc_;
+
+    // Eventfd used for signalling buffer events among the clients of the buffer.
+    BufferHubEventFd mEventFd;
 
     // Metadata in shared memory.
     BufferHubMetadata metadata_;
