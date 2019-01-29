@@ -63,6 +63,8 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
 
 SurfaceControl::~SurfaceControl()
 {
+    // Avoid reparenting the server-side surface to null if we are not the owner of it,
+    // meaning that we retrieved it from another process.
     if (mClient != nullptr && mHandle != nullptr && mOwned) {
         SurfaceComposerClient::doDropReferenceTransaction(mHandle, mClient->getClient());
     }
@@ -74,9 +76,7 @@ SurfaceControl::~SurfaceControl()
 
 void SurfaceControl::destroy()
 {
-    // Avoid destroying the server-side surface if we are not the owner of it, meaning that we
-    // retrieved it from another process.
-    if (isValid() && mOwned) {
+    if (isValid()) {
         SurfaceComposerClient::Transaction().reparent(this, nullptr).apply();
     }
     // clear all references and trigger an IPC now, to make sure things
