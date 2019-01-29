@@ -93,7 +93,7 @@ protected:
  * NotifyMotionArgs::videoFrames field to drive the classification decisions.
  * The HAL is called from a separate thread.
  */
-class MotionClassifier : public MotionClassifierInterface {
+class MotionClassifier final : public MotionClassifierInterface {
 public:
     MotionClassifier(sp<android::hardware::input::classifier::V1_0::IInputClassifier> service);
     ~MotionClassifier();
