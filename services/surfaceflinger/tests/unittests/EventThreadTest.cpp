@@ -104,6 +104,10 @@ EventThreadTest::EventThreadTest() {
 
     createThread();
     mConnection = createConnection(mConnectionEventCallRecorder);
+
+    // A display must be connected for VSYNC events to be delivered.
+    mThread->onHotplugReceived(EventThread::DisplayType::Primary, true);
+    expectHotplugEventReceivedByConnection(EventThread::DisplayType::Primary, true);
 }
 
 EventThreadTest::~EventThreadTest() {
@@ -203,6 +207,23 @@ TEST_F(EventThreadTest, canCreateAndDestroyThreadWithNoEventsSent) {
     EXPECT_FALSE(mVSyncSetCallbackCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mVSyncSetPhaseOffsetCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mResyncCallRecorder.waitForCall(0us).has_value());
+    EXPECT_FALSE(mInterceptVSyncCallRecorder.waitForCall(0us).has_value());
+    EXPECT_FALSE(mConnectionEventCallRecorder.waitForCall(0us).has_value());
+}
+
+TEST_F(EventThreadTest, vsyncRequestIsIgnoredIfDisplayIsDisconnected) {
+    mThread->onHotplugReceived(EventThread::DisplayType::Primary, false);
+    expectHotplugEventReceivedByConnection(EventThread::DisplayType::Primary, false);
+
+    // Signal that we want the next vsync event to be posted to the connection.
+    mThread->requestNextVsync(mConnection, false);
+
+    // EventThread should not enable vsync callbacks.
+    EXPECT_FALSE(mVSyncSetEnabledCallRecorder.waitForUnexpectedCall().has_value());
+
+    // Use the received callback to signal a vsync event.
+    // The event should not be received by the interceptor nor the connection.
+    mCallback->onVSyncEvent(123);
     EXPECT_FALSE(mInterceptVSyncCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mConnectionEventCallRecorder.waitForCall(0us).has_value());
 }

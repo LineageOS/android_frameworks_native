@@ -2564,6 +2564,17 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     mPendingHotplugEvents.clear();
 }
 
+void SurfaceFlinger::dispatchDisplayHotplugEvent(EventThread::DisplayType displayType,
+                                                 bool connected) {
+    if (mUseScheduler) {
+        mScheduler->hotplugReceived(mAppConnectionHandle, displayType, connected);
+        mScheduler->hotplugReceived(mSfConnectionHandle, displayType, connected);
+    } else {
+        mEventThread->onHotplugReceived(displayType, connected);
+        mSFEventThread->onHotplugReceived(displayType, connected);
+    }
+}
+
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
         const wp<IBinder>& displayToken, const std::optional<DisplayId>& displayId,
         const DisplayDeviceState& state, const sp<compositionengine::DisplaySurface>& dispSurface,
@@ -2668,19 +2679,9 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                     display->disconnect();
                 }
                 if (internalDisplayId && internalDisplayId == draw[i].displayId) {
-                    if (mUseScheduler) {
-                        mScheduler->hotplugReceived(mAppConnectionHandle,
-                                                    EventThread::DisplayType::Primary, false);
-                    } else {
-                        mEventThread->onHotplugReceived(EventThread::DisplayType::Primary, false);
-                    }
+                    dispatchDisplayHotplugEvent(EventThread::DisplayType::Primary, false);
                 } else if (externalDisplayId && externalDisplayId == draw[i].displayId) {
-                    if (mUseScheduler) {
-                        mScheduler->hotplugReceived(mAppConnectionHandle,
-                                                    EventThread::DisplayType::External, false);
-                    } else {
-                        mEventThread->onHotplugReceived(EventThread::DisplayType::External, false);
-                    }
+                    dispatchDisplayHotplugEvent(EventThread::DisplayType::External, false);
                 }
                 mDisplays.erase(draw.keyAt(i));
             } else {
@@ -2786,23 +2787,9 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                         LOG_ALWAYS_FATAL_IF(!displayId);
 
                         if (displayId == getInternalDisplayId()) {
-                            if (mUseScheduler) {
-                                mScheduler->hotplugReceived(mAppConnectionHandle,
-                                                            EventThread::DisplayType::Primary,
-                                                            true);
-                            } else {
-                                mEventThread->onHotplugReceived(EventThread::DisplayType::Primary,
-                                                                true);
-                            }
+                            dispatchDisplayHotplugEvent(EventThread::DisplayType::Primary, true);
                         } else if (displayId == getExternalDisplayId()) {
-                            if (mUseScheduler) {
-                                mScheduler->hotplugReceived(mAppConnectionHandle,
-                                                            EventThread::DisplayType::External,
-                                                            true);
-                            } else {
-                                mEventThread->onHotplugReceived(EventThread::DisplayType::External,
-                                                                true);
-                            }
+                            dispatchDisplayHotplugEvent(EventThread::DisplayType::External, true);
                         }
                     }
                 }

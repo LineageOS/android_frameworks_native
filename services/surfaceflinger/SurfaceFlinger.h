@@ -294,10 +294,6 @@ public:
     // starts SurfaceFlinger main loop in the current thread
     void run() ANDROID_API;
 
-    enum {
-        EVENT_VSYNC = HWC_EVENT_VSYNC
-    };
-
     // post an asynchronous message to the main thread
     status_t postMessageAsync(const sp<MessageBase>& msg, nsecs_t reltime = 0, uint32_t flags = 0);
 
@@ -753,6 +749,8 @@ private:
             const sp<IGraphicBufferProducer>& producer);
     void processDisplayChangesLocked();
     void processDisplayHotplugEventsLocked();
+
+    void dispatchDisplayHotplugEvent(EventThread::DisplayType displayType, bool connected);
 
     /* ------------------------------------------------------------------------
      * VSync
