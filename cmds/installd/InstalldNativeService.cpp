@@ -766,9 +766,6 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
     return android_fork_execvp(ARRAY_SIZE(argv), argv, nullptr, false, true);
 }
 
-// TODO(narayan): We should pass through the ceDataInode so that we can call
-// clearAppData(FLAG_CLEAR_CACHE_ONLY | FLAG_CLEAR_CODE_CACHE before we commence
-// the copy.
 binder::Status InstalldNativeService::snapshotAppData(
         const std::unique_ptr<std::string>& volumeUuid,
         const std::string& packageName, int32_t user, int32_t storageFlags) {
@@ -811,6 +808,24 @@ binder::Status InstalldNativeService::snapshotAppData(
     if (access(from_ce.c_str(), F_OK) != 0) {
         LOG(INFO) << "Missing source " << from_ce;
         return ok();
+    }
+
+    // ce_data_inode is not needed when FLAG_CLEAR_CACHE_ONLY is set.
+    binder::Status clear_cache_result = clearAppData(volumeUuid, packageName, user,
+            storageFlags | FLAG_CLEAR_CACHE_ONLY, 0);
+    if (!clear_cache_result.isOk()) {
+        // It should be fine to continue snapshot if we for some reason failed
+        // to clear cache.
+        LOG(WARNING) << "Failed to clear cache of app " << packageName;
+    }
+
+    // ce_data_inode is not needed when FLAG_CLEAR_CODE_CACHE_ONLY is set.
+    binder::Status clear_code_cache_result = clearAppData(volumeUuid, packageName, user,
+            storageFlags | FLAG_CLEAR_CODE_CACHE_ONLY, 0);
+    if (!clear_code_cache_result.isOk()) {
+        // It should be fine to continue snapshot if we for some reason failed
+        // to clear code_cache.
+        LOG(WARNING) << "Failed to clear code_cache of app " << packageName;
     }
 
     if (storageFlags & FLAG_STORAGE_DE) {
