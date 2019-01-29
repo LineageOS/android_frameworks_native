@@ -205,7 +205,6 @@ public:
         // and the buffer state layer's children.  Z order will be set to
         // INT_MIN
         sp<Layer> bgColorLayer;
-        ui::Dataspace colorDataspace; // The dataspace of the background color layer
 
         // The deque of callback handles for this frame. The back of the deque contains the most
         // recent callback handle.
@@ -271,7 +270,7 @@ public:
     virtual bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
     virtual bool setAlpha(float alpha);
-    virtual bool setColor(const half3& color);
+    virtual bool setColor(const half3& /*color*/) { return false; };
 
     // Set rounded corner radius for this layer and its children.
     //
@@ -314,8 +313,7 @@ public:
             const std::vector<sp<CallbackHandle>>& /*handles*/) {
         return false;
     };
-    virtual bool setColorAlpha(float /*alpha*/) { return false; };
-    virtual bool setColorDataspace(ui::Dataspace /*dataspace*/) { return false; };
+    virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 

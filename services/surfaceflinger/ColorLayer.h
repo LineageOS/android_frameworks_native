@@ -31,6 +31,8 @@ public:
     virtual const char* getTypeId() const { return "ColorLayer"; }
     bool isVisible() const override;
 
+    bool setColor(const half3& color) override;
+
     void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
                          int32_t supportedPerFrameMetadata) override;
 

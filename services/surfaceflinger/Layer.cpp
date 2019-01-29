@@ -46,6 +46,7 @@
 #include <gui/Surface.h>
 
 #include "BufferLayer.h"
+#include "ColorLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
@@ -107,7 +108,6 @@ Layer::Layer(const LayerCreationArgs& args)
     mCurrentState.cornerRadius = 0.0f;
     mCurrentState.api = -1;
     mCurrentState.hasColorTransform = false;
-    mCurrentState.colorDataspace = ui::Dataspace::UNKNOWN;
 
     // drawing state & current state are identical
     mDrawingState = mCurrentState;
@@ -1272,17 +1272,35 @@ bool Layer::setAlpha(float alpha) {
     return true;
 }
 
-bool Layer::setColor(const half3& color) {
-    if (color.r == mCurrentState.color.r && color.g == mCurrentState.color.g &&
-        color.b == mCurrentState.color.b)
+bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace) {
+    if (!mCurrentState.bgColorLayer && alpha == 0) {
         return false;
+    } else if (!mCurrentState.bgColorLayer && alpha != 0) {
+        // create background color layer if one does not yet exist
+        uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
+        const String8& name = mName + "BackgroundColorLayer";
+        mCurrentState.bgColorLayer =
+                new ColorLayer(LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags));
 
-    mCurrentState.sequence++;
-    mCurrentState.color.r = color.r;
-    mCurrentState.color.g = color.g;
-    mCurrentState.color.b = color.b;
-    mCurrentState.modified = true;
-    setTransactionFlags(eTransactionNeeded);
+        // add to child list
+        addChild(mCurrentState.bgColorLayer);
+        mFlinger->mLayersAdded = true;
+        // set up SF to handle added color layer
+        if (isRemovedFromCurrentState()) {
+            mCurrentState.bgColorLayer->onRemovedFromCurrentState();
+        }
+        mFlinger->setTransactionFlags(eTransactionNeeded);
+    } else if (mCurrentState.bgColorLayer && alpha == 0) {
+        mCurrentState.bgColorLayer->reparent(nullptr);
+        mCurrentState.bgColorLayer = nullptr;
+        return true;
+    }
+
+    mCurrentState.bgColorLayer->setColor(color);
+    mCurrentState.bgColorLayer->setLayer(std::numeric_limits<int32_t>::min());
+    mCurrentState.bgColorLayer->setAlpha(alpha);
+    mCurrentState.bgColorLayer->setDataspace(dataspace);
+
     return true;
 }
 

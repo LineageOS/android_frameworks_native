@@ -52,6 +52,21 @@ bool ColorLayer::isVisible() const {
     return !isHiddenByPolicy() && getAlpha() > 0.0f;
 }
 
+bool ColorLayer::setColor(const half3& color) {
+    if (mCurrentState.color.r == color.r && mCurrentState.color.g == color.g &&
+        mCurrentState.color.b == color.b) {
+        return false;
+    }
+
+    mCurrentState.sequence++;
+    mCurrentState.color.r = color.r;
+    mCurrentState.color.g = color.g;
+    mCurrentState.color.b = color.b;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
 void ColorLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
                                  const Rect& viewport, int32_t /* supportedPerFrameMetadata */) {
     RETURN_IF_NO_HWC_LAYER(displayId);
