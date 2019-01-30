@@ -2475,6 +2475,13 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
             // bugreport is not shared but made available for manual retrieval.
             return status;
         }
+        if (options_->screenshot_fd.get() != -1) {
+            bool copy_succeeded = android::os::CopyFileToFd(screenshot_path_,
+                                                            options_->screenshot_fd.get());
+            if (copy_succeeded) {
+                android::os::UnlinkAndLogOnError(screenshot_path_);
+            }
+        }
     }
 
     /* vibrate a few but shortly times to let user know it's finished */
@@ -2560,9 +2567,9 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented() {
         return HandleUserConsentDenied();
     }
     if (consent_result == UserConsentResult::APPROVED) {
-        bool copy_succeeded = android::os::CopyFileToFd(ds.path_, ds.options_->bugreport_fd.get());
-        if (copy_succeeded && remove(ds.path_.c_str())) {
-            MYLOGE("remove(%s): %s", ds.path_.c_str(), strerror(errno));
+        bool copy_succeeded = android::os::CopyFileToFd(path_, options_->bugreport_fd.get());
+        if (copy_succeeded) {
+            android::os::UnlinkAndLogOnError(path_);
         }
         return copy_succeeded ? Dumpstate::RunStatus::OK : Dumpstate::RunStatus::ERROR;
     } else if (consent_result == UserConsentResult::UNAVAILABLE) {
