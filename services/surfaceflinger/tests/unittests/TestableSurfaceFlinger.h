@@ -290,6 +290,7 @@ public:
     auto& mutableEventControlThread() { return mFlinger->mEventControlThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
     auto& mutableEventThread() { return mFlinger->mEventThread; }
+    auto& mutableSFEventThread() { return mFlinger->mSFEventThread; }
     auto& mutableGeometryInvalid() { return mFlinger->mGeometryInvalid; }
     auto& mutableHWVsyncAvailable() { return mFlinger->mHWVsyncAvailable; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
@@ -317,6 +318,7 @@ public:
         mutableEventControlThread().reset();
         mutableEventQueue().reset();
         mutableEventThread().reset();
+        mutableSFEventThread().reset();
         mutableInterceptor().reset();
         mutablePrimaryDispSync().reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());

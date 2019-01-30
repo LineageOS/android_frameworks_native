@@ -35,6 +35,14 @@ public:
             mWidth(width), mHeight(height), mData(std::move(data)), mTimestamp(timestamp) {
     }
 
+    bool operator==(const TouchVideoFrame& rhs) const {
+        return mWidth == rhs.mWidth
+                && mHeight == rhs.mHeight
+                && mData == rhs.mData
+                && mTimestamp.tv_sec == rhs.mTimestamp.tv_sec
+                && mTimestamp.tv_usec == rhs.mTimestamp.tv_usec;
+    }
+
     /**
      * Width of the frame
      */

@@ -472,6 +472,11 @@ public:
     void setFocus() {
         mFocused = true;
     }
+
+    void releaseChannel() {
+        InputWindowHandle::releaseChannel();
+        mDispatcher->unregisterInputChannel(mServerChannel);
+    }
 protected:
     virtual bool handled() {
         return true;
@@ -659,24 +664,25 @@ TEST_F(InputDispatcherTest, SetInputWindow_InputWindowInfo) {
     sp<FakeWindowHandle> windowSecond = new FakeWindowHandle(application, mDispatcher, "Second",
             ADISPLAY_ID_DEFAULT);
 
-    windowTop->setFocus();
+    // Set focused application.
+    mDispatcher->setFocusedApplication(ADISPLAY_ID_DEFAULT, application);
 
+    windowTop->setFocus();
+    windowSecond->setFocus();
     Vector<sp<InputWindowHandle>> inputWindowHandles;
     inputWindowHandles.add(windowTop);
     inputWindowHandles.add(windowSecond);
-
-    mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
-
     // Release channel for window is no longer valid.
     windowTop->releaseChannel();
+    mDispatcher->setInputWindows(inputWindowHandles, ADISPLAY_ID_DEFAULT);
 
-    // Test inject a motion down, should timeout because of no target channel.
-    ASSERT_EQ(INPUT_EVENT_INJECTION_TIMED_OUT, injectKeyDown(mDispatcher))
-            << "Inject key event should return INPUT_EVENT_INJECTION_TIMED_OUT";
+    // Test inject a key down, should dispatch to a valid window.
+    ASSERT_EQ(INPUT_EVENT_INJECTION_SUCCEEDED, injectKeyDown(mDispatcher))
+            << "Inject key event should return INPUT_EVENT_INJECTION_SUCCEEDED";
 
     // Top window is invalid, so it should not receive any input event.
     windowTop->assertNoEvents();
-    windowSecond->assertNoEvents();
+    windowSecond->consumeEvent(AINPUT_EVENT_TYPE_KEY, ADISPLAY_ID_NONE);
 }
 
 /* Test InputDispatcher for MultiDisplay */

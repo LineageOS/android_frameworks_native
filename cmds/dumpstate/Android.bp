@@ -57,7 +57,6 @@ cc_library_shared {
         export_aidl_headers: true,
     },
     srcs: [
-        "binder/android/os/DumpstateOptions.cpp",
         ":dumpstate_aidl",
     ],
     export_include_dirs: ["binder"],
@@ -68,7 +67,6 @@ filegroup {
     srcs: [
         "binder/android/os/IDumpstateListener.aidl",
         "binder/android/os/IDumpstateToken.aidl",
-        //"binder/android/os/DumpstateOptions.aidl",
         "binder/android/os/IDumpstate.aidl",
     ],
     path: "binder",
@@ -158,4 +156,23 @@ cc_test {
         "tests/dumpstate_smoke_test.cpp",
     ],
     static_libs: ["libgmock"],
+}
+
+
+// =======================#
+// dumpstate_test_fixture #
+// =======================#
+cc_test {
+
+    name: "dumpstate_test_fixture",
+    test_suites: ["device-tests"],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-missing-field-initializers",
+        "-Wno-unused-variable",
+        "-Wunused-parameter",
+    ],
+    srcs: ["tests/dumpstate_test_fixture.cpp"],
+    data: ["tests/testdata/**/*"],
 }

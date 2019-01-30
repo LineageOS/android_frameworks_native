@@ -180,14 +180,14 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
         return -EINVAL;
     }
 
-    const int eventFd = bufferTraits.bufferInfo->data[1];
+    // Import fds. Dup fds because hidl_handle owns the fds.
+    const int eventFd = fcntl(bufferTraits.bufferInfo->data[1], F_DUPFD_CLOEXEC, 0);
     if (eventFd < 0) {
         ALOGE("%s: Received a invalid event fd!", __FUNCTION__);
         return -EINVAL;
     }
     mEventFd = BufferHubEventFd(eventFd);
 
-    // Import the metadata. Dup since hidl_handle owns the fd
     unique_fd ashmemFd(fcntl(bufferTraits.bufferInfo->data[0], F_DUPFD_CLOEXEC, 0));
     mMetadata = BufferHubMetadata::Import(std::move(ashmemFd));
 

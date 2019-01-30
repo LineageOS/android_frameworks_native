@@ -41,7 +41,7 @@ protected:
               : Scheduler([](bool) {}), mEventThread(std::move(eventThread)) {}
 
         std::unique_ptr<EventThread> makeEventThread(
-                const std::string& /* connectionName */, DispSync* /* dispSync */,
+                const char* /* connectionName */, DispSync* /* dispSync */,
                 nsecs_t /* phaseOffsetNs */,
                 impl::EventThread::InterceptVSyncsCallback /* interceptCallback */) override {
             return std::move(mEventThread);

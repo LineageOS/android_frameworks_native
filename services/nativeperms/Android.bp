@@ -1,4 +1,4 @@
-// Copyright (C) 2017 The Android Open Source Project
+// Copyright 2016 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,31 +11,24 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 //
-// Static library used in testing and executables
-//
-cc_library_static {
-    name: "libserviceutils",
 
-    vendor_available: true,
-
+cc_binary {
+    name: "nativeperms",
+    srcs: [
+        "nativeperms.cpp",
+        "android/os/IPermissionController.aidl",
+    ],
     cflags: [
         "-Wall",
         "-Werror",
     ],
-
-    srcs: [
-        "PriorityDumper.cpp",
+    shared_libs: [
+        "libbinder",
+        "libbrillo",
+        "libbrillo-binder",
+        "libchrome",
+        "libutils",
     ],
-
-    header_libs: [
-        "libutils_headers",
-    ],
-
-    export_header_lib_headers: [
-        "libutils_headers",
-    ],
-
-    export_include_dirs: ["include"],
+    init_rc: ["nativeperms.rc"],
 }

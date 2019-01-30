@@ -151,10 +151,25 @@ static int otapreopt_chroot(const int argc, char **arg) {
     //   chown root root /apex
     //   restorecon /apex
     //
+    // except we perform the `restorecon` step just after mounting the tmpfs
+    // filesystem in /postinstall/apex, so that this directory is correctly
+    // labeled (with type `postinstall_apex_mnt_dir`) and may be manipulated in
+    // following operations (`chmod`, `chown`, etc.) following policies
+    // restricted to `postinstall_apex_mnt_dir`:
+    //
+    //   mount tmpfs tmpfs /postinstall/apex nodev noexec nosuid
+    //   restorecon /postinstall/apex
+    //   chmod 0755 /postinstall/apex
+    //   chown root root /postinstall/apex
+    //
     if (mount("tmpfs", kPostinstallApexDir, "tmpfs", MS_NODEV | MS_NOEXEC | MS_NOSUID, nullptr)
         != 0) {
         PLOG(ERROR) << "Failed to mount tmpfs in " << kPostinstallApexDir;
         exit(209);
+    }
+    if (selinux_android_restorecon(kPostinstallApexDir, 0) < 0) {
+        PLOG(ERROR) << "Failed to restorecon " << kPostinstallApexDir;
+        exit(214);
     }
     if (chmod(kPostinstallApexDir, 0755) != 0) {
         PLOG(ERROR) << "Failed to chmod " << kPostinstallApexDir << " to 0755";
@@ -163,10 +178,6 @@ static int otapreopt_chroot(const int argc, char **arg) {
     if (chown(kPostinstallApexDir, 0, 0) != 0) {
         PLOG(ERROR) << "Failed to chown " << kPostinstallApexDir << " to root:root";
         exit(211);
-    }
-    if (selinux_android_restorecon(kPostinstallApexDir, 0) < 0) {
-        PLOG(ERROR) << "Failed to restorecon " << kPostinstallApexDir;
-        exit(212);
     }
 
     // Chdir into /postinstall.

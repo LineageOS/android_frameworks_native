@@ -84,14 +84,14 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
 Scheduler::~Scheduler() = default;
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
-        const std::string& connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
+        const char* connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const int64_t id = sNextId++;
     ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
 
     std::unique_ptr<EventThread> eventThread =
             makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs,
-                            interceptCallback);
+                            std::move(interceptCallback));
     auto connection = std::make_unique<Connection>(new ConnectionHandle(id),
                                                    eventThread->createEventConnection(
                                                            std::move(resyncCallback)),
@@ -102,14 +102,13 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
 }
 
 std::unique_ptr<EventThread> Scheduler::makeEventThread(
-        const std::string& connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+        const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
-    const std::string sourceName = connectionName + "Source";
     std::unique_ptr<VSyncSource> eventThreadSource =
-            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, sourceName.c_str());
-    const std::string threadName = connectionName + "Thread";
-    return std::make_unique<impl::EventThread>(std::move(eventThreadSource), interceptCallback,
-                                               [this] { resetIdleTimer(); }, threadName.c_str());
+            std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, connectionName);
+    return std::make_unique<impl::EventThread>(std::move(eventThreadSource),
+                                               std::move(interceptCallback),
+                                               [this] { resetIdleTimer(); }, connectionName);
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(

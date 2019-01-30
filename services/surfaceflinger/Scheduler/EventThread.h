@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <deque>
 #include <mutex>
+#include <optional>
 #include <thread>
 #include <vector>
 
@@ -176,9 +177,6 @@ private:
     void removeDisplayEventConnectionLocked(const wp<EventThreadConnection>& connection)
             REQUIRES(mMutex);
 
-    void enableVSyncLocked() REQUIRES(mMutex);
-    void disableVSyncLocked() REQUIRES(mMutex);
-
     // Implements VSyncSource::Callback
     void onVSyncEvent(nsecs_t timestamp) override;
 
@@ -201,7 +199,9 @@ private:
 
     // VSYNC state of connected display.
     struct VSyncState {
-        uint32_t displayId = 0;
+        explicit VSyncState(uint32_t displayId) : displayId(displayId) {}
+
+        const uint32_t displayId;
 
         // Number of VSYNC events since display was connected.
         uint32_t count = 0;
@@ -210,13 +210,21 @@ private:
         bool synthetic = false;
     };
 
-    VSyncState mVSyncState GUARDED_BY(mMutex);
+    // TODO(b/74619554): Create per-display threads waiting on respective VSYNC signals,
+    // and support headless mode by injecting a fake display with synthetic VSYNC.
+    std::optional<VSyncState> mVSyncState GUARDED_BY(mMutex);
 
-    bool mVsyncEnabled GUARDED_BY(mMutex) = false;
-    bool mKeepRunning GUARDED_BY(mMutex) = true;
+    // State machine for event loop.
+    enum class State {
+        Idle,
+        Quit,
+        SyntheticVSync,
+        VSync,
+    };
 
-    // for debugging
-    bool mDebugVsyncEnabled GUARDED_BY(mMutex) = false;
+    State mState GUARDED_BY(mMutex) = State::Idle;
+
+    static const char* toCString(State);
 
     // Callback that resets the idle timer when the next vsync is received.
     ResetIdleTimerCallback mResetIdleTimer;

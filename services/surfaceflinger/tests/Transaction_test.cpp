@@ -2460,6 +2460,23 @@ TEST_F(LayerTransactionTest, SetCachedBufferDelayed_BufferState) {
     ASSERT_EQ(NO_ERROR, mClient->uncacheBuffer(bufferId));
 }
 
+TEST_F(LayerTransactionTest, ReparentToSelf) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+    Transaction().reparent(layer, layer->getHandle()).apply();
+
+    {
+        // We expect the transaction to be silently dropped, but for SurfaceFlinger
+        // to still be functioning.
+        SCOPED_TRACE("after reparent to self");
+        const Rect rect(0, 0, 32, 32);
+        auto shot = screenshot();
+        shot->expectColor(rect, Color::RED);
+        shot->expectBorder(rect, Color::BLACK);
+    }
+}
+
 class ColorTransformHelper {
 public:
     static void DegammaColorSingle(half& s) {

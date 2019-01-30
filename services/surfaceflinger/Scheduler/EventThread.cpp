@@ -163,6 +163,7 @@ EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSr
     if (src == nullptr) {
         mVSyncSource = mVSyncSourceUnique.get();
     }
+    mVSyncSource->setCallback(this);
 
     mThread = std::thread([this]() NO_THREAD_SAFETY_ANALYSIS {
         std::unique_lock<std::mutex> lock(mMutex);
@@ -185,9 +186,11 @@ EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSr
 }
 
 EventThread::~EventThread() {
+    mVSyncSource->setCallback(nullptr);
+
     {
         std::lock_guard<std::mutex> lock(mMutex);
-        mKeepRunning = false;
+        mState = State::Quit;
         mCondition.notify_all();
     }
     mThread.join();
@@ -261,24 +264,29 @@ void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, 
 
 void EventThread::onScreenReleased() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (!mVSyncState.synthetic) {
-        mVSyncState.synthetic = true;
-        mCondition.notify_all();
+    if (!mVSyncState || mVSyncState->synthetic) {
+        return;
     }
+
+    mVSyncState->synthetic = true;
+    mCondition.notify_all();
 }
 
 void EventThread::onScreenAcquired() {
     std::lock_guard<std::mutex> lock(mMutex);
-    if (mVSyncState.synthetic) {
-        mVSyncState.synthetic = false;
-        mCondition.notify_all();
+    if (!mVSyncState || !mVSyncState->synthetic) {
+        return;
     }
+
+    mVSyncState->synthetic = false;
+    mCondition.notify_all();
 }
 
 void EventThread::onVSyncEvent(nsecs_t timestamp) {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    mPendingEvents.push_back(makeVSync(mVSyncState.displayId, timestamp, ++mVSyncState.count));
+    LOG_FATAL_IF(!mVSyncState);
+    mPendingEvents.push_back(makeVSync(mVSyncState->displayId, timestamp, ++mVSyncState->count));
     mCondition.notify_all();
 }
 
@@ -293,20 +301,30 @@ void EventThread::onHotplugReceived(DisplayType displayType, bool connected) {
 void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
     DisplayEventConsumers consumers;
 
-    while (mKeepRunning) {
+    while (mState != State::Quit) {
         std::optional<DisplayEventReceiver::Event> event;
 
         // Determine next event to dispatch.
         if (!mPendingEvents.empty()) {
             event = mPendingEvents.front();
             mPendingEvents.pop_front();
-        }
 
-        const bool vsyncPending =
-                event && event->header.type == DisplayEventReceiver::DISPLAY_EVENT_VSYNC;
+            switch (event->header.type) {
+                case DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG:
+                    if (event->hotplug.connected && !mVSyncState) {
+                        mVSyncState.emplace(event->header.id);
+                    } else if (!event->hotplug.connected && mVSyncState &&
+                               mVSyncState->displayId == event->header.id) {
+                        mVSyncState.reset();
+                    }
+                    break;
 
-        if (mInterceptVSyncsCallback && vsyncPending) {
-            mInterceptVSyncsCallback(event->header.timestamp);
+                case DisplayEventReceiver::DISPLAY_EVENT_VSYNC:
+                    if (mInterceptVSyncsCallback) {
+                        mInterceptVSyncsCallback(event->header.timestamp);
+                    }
+                    break;
+            }
         }
 
         bool vsyncRequested = false;
@@ -332,19 +350,22 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
             consumers.clear();
         }
 
-        // Here we figure out if we need to enable or disable vsyncs
-        if (vsyncPending && !vsyncRequested) {
-            // we received a VSYNC but we have no clients
-            // don't report it, and disable VSYNC events
-            disableVSyncLocked();
-        } else if (!vsyncPending && vsyncRequested) {
-            // we have at least one client, so we want vsync enabled
-            // (TODO: this function is called right after we finish
-            // notifying clients of a vsync, so this call will be made
-            // at the vsync rate, e.g. 60fps.  If we can accurately
-            // track the current state we could avoid making this call
-            // so often.)
-            enableVSyncLocked();
+        State nextState;
+        if (mVSyncState && vsyncRequested) {
+            nextState = mVSyncState->synthetic ? State::SyntheticVSync : State::VSync;
+        } else {
+            ALOGW_IF(!mVSyncState, "Ignoring VSYNC request while display is disconnected");
+            nextState = State::Idle;
+        }
+
+        if (mState != nextState) {
+            if (mState == State::VSync) {
+                mVSyncSource->setVSyncEnabled(false);
+            } else if (nextState == State::VSync) {
+                mVSyncSource->setVSyncEnabled(true);
+            }
+
+            mState = nextState;
         }
 
         if (event) {
@@ -352,19 +373,20 @@ void EventThread::threadMain(std::unique_lock<std::mutex>& lock) {
         }
 
         // Wait for event or client registration/request.
-        if (vsyncRequested) {
+        if (mState == State::Idle) {
+            mCondition.wait(lock);
+        } else {
             // Generate a fake VSYNC after a long timeout in case the driver stalls. When the
             // display is off, keep feeding clients at 60 Hz.
-            const auto timeout = mVSyncState.synthetic ? 16ms : 1000ms;
+            const auto timeout = mState == State::SyntheticVSync ? 16ms : 1000ms;
             if (mCondition.wait_for(lock, timeout) == std::cv_status::timeout) {
-                ALOGW_IF(!mVSyncState.synthetic, "Faking VSYNC due to driver stall");
+                ALOGW_IF(mState == State::VSync, "Faking VSYNC due to driver stall");
 
-                mPendingEvents.push_back(makeVSync(mVSyncState.displayId,
+                LOG_FATAL_IF(!mVSyncState);
+                mPendingEvents.push_back(makeVSync(mVSyncState->displayId,
                                                    systemTime(SYSTEM_TIME_MONOTONIC),
-                                                   ++mVSyncState.count));
+                                                   ++mVSyncState->count));
             }
-        } else {
-            mCondition.wait(lock);
         }
     }
 }
@@ -413,31 +435,16 @@ void EventThread::dispatchEvent(const DisplayEventReceiver::Event& event,
     }
 }
 
-void EventThread::enableVSyncLocked() {
-    if (!mVSyncState.synthetic) {
-        if (!mVsyncEnabled) {
-            mVsyncEnabled = true;
-            mVSyncSource->setCallback(this);
-            mVSyncSource->setVSyncEnabled(true);
-        }
-    }
-    mDebugVsyncEnabled = true;
-}
-
-void EventThread::disableVSyncLocked() {
-    if (mVsyncEnabled) {
-        mVsyncEnabled = false;
-        mVSyncSource->setVSyncEnabled(false);
-        mDebugVsyncEnabled = false;
-    }
-}
-
 void EventThread::dump(std::string& result) const {
     std::lock_guard<std::mutex> lock(mMutex);
 
-    StringAppendF(&result, "%s: VSYNC %s\n", mThreadName, mDebugVsyncEnabled ? "on" : "off");
-    StringAppendF(&result, "  VSyncState{displayId=%u, count=%u%s}\n", mVSyncState.displayId,
-                  mVSyncState.count, mVSyncState.synthetic ? ", synthetic" : "");
+    StringAppendF(&result, "%s: state=%s VSyncState=", mThreadName, toCString(mState));
+    if (mVSyncState) {
+        StringAppendF(&result, "{displayId=%u, count=%u%s}\n", mVSyncState->displayId,
+                      mVSyncState->count, mVSyncState->synthetic ? ", synthetic" : "");
+    } else {
+        StringAppendF(&result, "none\n");
+    }
 
     StringAppendF(&result, "  pending events (count=%zu):\n", mPendingEvents.size());
     for (const auto& event : mPendingEvents) {
@@ -449,6 +456,19 @@ void EventThread::dump(std::string& result) const {
         if (const auto connection = ptr.promote()) {
             StringAppendF(&result, "    %s\n", toString(*connection).c_str());
         }
+    }
+}
+
+const char* EventThread::toCString(State state) {
+    switch (state) {
+        case State::Idle:
+            return "Idle";
+        case State::Quit:
+            return "Quit";
+        case State::SyntheticVSync:
+            return "SyntheticVSync";
+        case State::VSync:
+            return "VSync";
     }
 }
 

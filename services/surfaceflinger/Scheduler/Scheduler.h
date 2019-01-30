@@ -73,7 +73,7 @@ public:
 
     /** Creates an EventThread connection. */
     sp<ConnectionHandle> createConnection(
-            const std::string& connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
+            const char* connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(const sp<ConnectionHandle>& handle,
@@ -123,7 +123,7 @@ public:
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(
-            const std::string& connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
+            const char* connectionName, DispSync* dispSync, int64_t phaseOffsetNs,
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
