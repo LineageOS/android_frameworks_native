@@ -2147,6 +2147,10 @@ bool Layer::isRemovedFromCurrentState() const  {
 InputWindowInfo Layer::fillInputInfo() {
     InputWindowInfo info = mDrawingState.inputInfo;
 
+    if (info.displayId == ADISPLAY_ID_NONE) {
+        info.displayId = mDrawingState.layerStack;
+    }
+
     ui::Transform t = getTransform();
     const float xScale = t.sx();
     const float yScale = t.sy();
@@ -2157,7 +2161,10 @@ InputWindowInfo Layer::fillInputInfo() {
     }
 
     // Transform layer size to screen space and inset it by surface insets.
-    Rect layerBounds = getBufferSize(getDrawingState());
+    // If this is a portal window, set the touchableRegion to the layerBounds.
+    Rect layerBounds = info.portalToDisplayId == ADISPLAY_ID_NONE
+            ? getBufferSize(getDrawingState())
+            : info.touchableRegion.getBounds();
     if (!layerBounds.isValid()) {
         layerBounds = getCroppedBufferSize(getDrawingState());
     }

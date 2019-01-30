@@ -95,6 +95,7 @@ status_t InputWindowInfo::write(Parcel& output) const {
     output.writeInt32(ownerUid);
     output.writeInt32(inputFeatures);
     output.writeInt32(displayId);
+    output.writeInt32(portalToDisplayId);
     applicationInfo.write(output);
     output.write(touchableRegion);
 
@@ -136,6 +137,7 @@ InputWindowInfo InputWindowInfo::read(const Parcel& from) {
     ret.ownerUid = from.readInt32();
     ret.inputFeatures = from.readInt32();
     ret.displayId = from.readInt32();
+    ret.portalToDisplayId = from.readInt32();
     ret.applicationInfo = InputApplicationInfo::read(from);
     from.read(ret.touchableRegion);
 

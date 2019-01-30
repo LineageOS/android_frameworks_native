@@ -921,7 +921,8 @@ private:
     // to transfer focus to a new application.
     EventEntry* mNextUnblockedEvent;
 
-    sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y);
+    sp<InputWindowHandle> findTouchedWindowAtLocked(int32_t displayId, int32_t x, int32_t y,
+            bool addOutsideTargets = false, bool addPortalWindows = false);
 
     // All registered connections mapped by channel file descriptor.
     KeyedVector<int, sp<Connection> > mConnectionsByFd;
@@ -1016,12 +1017,18 @@ private:
         int32_t displayId; // id to the display that currently has a touch, others are rejected
         Vector<TouchedWindow> windows;
 
+        // This collects the portal windows that the touch has gone through. Each portal window
+        // targets a display (embedded display for most cases). With this info, we can add the
+        // monitoring channels of the displays touched.
+        Vector<sp<InputWindowHandle>> portalWindows;
+
         TouchState();
         ~TouchState();
         void reset();
         void copyFrom(const TouchState& other);
         void addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle,
                 int32_t targetFlags, BitSet32 pointerIds);
+        void addPortalWindow(const sp<InputWindowHandle>& windowHandle);
         void removeWindow(const sp<InputWindowHandle>& windowHandle);
         void removeWindowByToken(const sp<IBinder>& token);
         void filterNonAsIsTouchWindows();
@@ -1096,7 +1103,8 @@ private:
 
     void addWindowTargetLocked(const sp<InputWindowHandle>& windowHandle,
             int32_t targetFlags, BitSet32 pointerIds, Vector<InputTarget>& inputTargets);
-    void addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets, int32_t displayId);
+    void addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets, int32_t displayId,
+            float xOffset = 0, float yOffset = 0);
 
     void pokeUserActivityLocked(const EventEntry* eventEntry);
     bool checkInjectionPermission(const sp<InputWindowHandle>& windowHandle,

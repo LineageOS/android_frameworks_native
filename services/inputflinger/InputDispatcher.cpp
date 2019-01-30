@@ -521,7 +521,7 @@ void InputDispatcher::addRecentEventLocked(EventEntry* entry) {
 }
 
 sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t displayId,
-        int32_t x, int32_t y) {
+        int32_t x, int32_t y, bool addOutsideTargets, bool addPortalWindows) {
     // Traverse windows from front to back to find touched window.
     const Vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
     size_t numWindows = windowHandles.size();
@@ -536,9 +536,24 @@ sp<InputWindowHandle> InputDispatcher::findTouchedWindowAtLocked(int32_t display
                     bool isTouchModal = (flags & (InputWindowInfo::FLAG_NOT_FOCUSABLE
                             | InputWindowInfo::FLAG_NOT_TOUCH_MODAL)) == 0;
                     if (isTouchModal || windowInfo->touchableRegionContainsPoint(x, y)) {
+                        int32_t portalToDisplayId = windowInfo->portalToDisplayId;
+                        if (portalToDisplayId != ADISPLAY_ID_NONE
+                                && portalToDisplayId != displayId) {
+                            if (addPortalWindows) {
+                                // For the monitoring channels of the display.
+                                mTempTouchState.addPortalWindow(windowHandle);
+                            }
+                            return findTouchedWindowAtLocked(
+                                    portalToDisplayId, x, y, addOutsideTargets, addPortalWindows);
+                        }
                         // Found window.
                         return windowHandle;
                     }
+                }
+
+                if (addOutsideTargets && (flags & InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH)) {
+                    mTempTouchState.addOrUpdateWindow(
+                            windowHandle, InputTarget::FLAG_DISPATCH_AS_OUTSIDE, BitSet32(0));
                 }
             }
         }
@@ -926,6 +941,22 @@ bool InputDispatcher::dispatchMotionLocked(
     // Add monitor channels from event's or focused display.
     addMonitoringTargetsLocked(inputTargets, getTargetDisplayId(entry));
 
+    if (isPointerEvent) {
+        ssize_t stateIndex = mTouchStatesByDisplay.indexOfKey(entry->displayId);
+        if (stateIndex >= 0) {
+            const TouchState& state = mTouchStatesByDisplay.valueAt(stateIndex);
+            if (!state.portalWindows.isEmpty()) {
+                // The event has gone through these portal windows, so we add monitoring targets of
+                // the corresponding displays as well.
+                for (size_t i = 0; i < state.portalWindows.size(); i++) {
+                    const InputWindowInfo* windowInfo = state.portalWindows.itemAt(i)->getInfo();
+                    addMonitoringTargetsLocked(inputTargets, windowInfo->portalToDisplayId,
+                            -windowInfo->frameLeft, -windowInfo->frameTop);
+                }
+            }
+        }
+    }
+
     // Dispatch the motion.
     if (conflictingPointerActions) {
         CancelationOptions options(CancelationOptions::CANCEL_POINTER_EVENTS,
@@ -1293,37 +1324,8 @@ int32_t InputDispatcher::findTouchedWindowTargetsLocked(nsecs_t currentTime,
                 getAxisValue(AMOTION_EVENT_AXIS_X));
         int32_t y = int32_t(entry->pointerCoords[pointerIndex].
                 getAxisValue(AMOTION_EVENT_AXIS_Y));
-        sp<InputWindowHandle> newTouchedWindowHandle;
-        bool isTouchModal = false;
-
-        // Traverse windows from front to back to find touched window and outside targets.
-        const Vector<sp<InputWindowHandle>> windowHandles = getWindowHandlesLocked(displayId);
-        size_t numWindows = windowHandles.size();
-        for (size_t i = 0; i < numWindows; i++) {
-            sp<InputWindowHandle> windowHandle = windowHandles.itemAt(i);
-            const InputWindowInfo* windowInfo = windowHandle->getInfo();
-            if (windowInfo->displayId != displayId) {
-                continue; // wrong display
-            }
-
-            int32_t flags = windowInfo->layoutParamsFlags;
-            if (windowInfo->visible) {
-                if (! (flags & InputWindowInfo::FLAG_NOT_TOUCHABLE)) {
-                    isTouchModal = (flags & (InputWindowInfo::FLAG_NOT_FOCUSABLE
-                            | InputWindowInfo::FLAG_NOT_TOUCH_MODAL)) == 0;
-                    if (isTouchModal || windowInfo->touchableRegionContainsPoint(x, y)) {
-                        newTouchedWindowHandle = windowHandle;
-                        break; // found touched window, exit window loop
-                    }
-                }
-
-                if (maskedAction == AMOTION_EVENT_ACTION_DOWN
-                        && (flags & InputWindowInfo::FLAG_WATCH_OUTSIDE_TOUCH)) {
-                    mTempTouchState.addOrUpdateWindow(
-                            windowHandle, InputTarget::FLAG_DISPATCH_AS_OUTSIDE, BitSet32(0));
-                }
-            }
-        }
+        sp<InputWindowHandle> newTouchedWindowHandle = findTouchedWindowAtLocked(
+                displayId, x, y, maskedAction == AMOTION_EVENT_ACTION_DOWN, true);
 
         // Figure out whether splitting will be allowed for this window.
         if (newTouchedWindowHandle != nullptr
@@ -1685,7 +1687,7 @@ void InputDispatcher::addWindowTargetLocked(const sp<InputWindowHandle>& windowH
 }
 
 void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTargets,
-        int32_t displayId) {
+        int32_t displayId, float xOffset, float yOffset) {
     std::unordered_map<int32_t, Vector<sp<InputChannel>>>::const_iterator it =
             mMonitoringChannelsByDisplay.find(displayId);
 
@@ -1698,8 +1700,8 @@ void InputDispatcher::addMonitoringTargetsLocked(Vector<InputTarget>& inputTarge
             InputTarget& target = inputTargets.editTop();
             target.inputChannel = monitoringChannels[i];
             target.flags = InputTarget::FLAG_DISPATCH_AS_IS;
-            target.xOffset = 0;
-            target.yOffset = 0;
+            target.xOffset = xOffset;
+            target.yOffset = yOffset;
             target.pointerIds.clear();
             target.globalScaleFactor = 1.0f;
         }
@@ -3102,7 +3104,8 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
             Vector<sp<InputWindowHandle>> newHandles;
             for (size_t i = 0; i < numWindows; i++) {
                 const sp<InputWindowHandle>& handle = inputWindowHandles.itemAt(i);
-                if (!handle->updateInfo() || getInputChannelLocked(handle->getToken()) == nullptr) {
+                if (!handle->updateInfo() || (getInputChannelLocked(handle->getToken()) == nullptr
+                        && handle->getInfo()->portalToDisplayId == ADISPLAY_ID_NONE)) {
                     ALOGE("Window handle %s has no registered input channel",
                             handle->getName().c_str());
                     continue;
@@ -3537,6 +3540,14 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
             } else {
                 dump += INDENT3 "Windows: <none>\n";
             }
+            if (!state.portalWindows.isEmpty()) {
+                dump += INDENT3 "Portal windows:\n";
+                for (size_t i = 0; i < state.portalWindows.size(); i++) {
+                    const sp<InputWindowHandle> portalWindowHandle = state.portalWindows.itemAt(i);
+                    dump += StringPrintf(INDENT4 "%zu: name='%s'\n",
+                            i, portalWindowHandle->getName().c_str());
+                }
+            }
         }
     } else {
         dump += INDENT "TouchStates: <no displays touched>\n";
@@ -3553,11 +3564,12 @@ void InputDispatcher::dumpDispatchStateLocked(std::string& dump) {
                     const InputWindowInfo* windowInfo = windowHandle->getInfo();
 
                     dump += StringPrintf(INDENT3 "%zu: name='%s', displayId=%d, "
-                            "paused=%s, hasFocus=%s, hasWallpaper=%s, "
+                            "portalToDisplayId=%d, paused=%s, hasFocus=%s, hasWallpaper=%s, "
                             "visible=%s, canReceiveKeys=%s, flags=0x%08x, type=0x%08x, layer=%d, "
                             "frame=[%d,%d][%d,%d], globalScale=%f, windowScale=(%f,%f), "
                             "touchableRegion=",
                             i, windowInfo->name.c_str(), windowInfo->displayId,
+                            windowInfo->portalToDisplayId,
                             toString(windowInfo->paused),
                             toString(windowInfo->hasFocus),
                             toString(windowInfo->hasWallpaper),
@@ -4906,6 +4918,7 @@ void InputDispatcher::TouchState::reset() {
     source = 0;
     displayId = ADISPLAY_ID_NONE;
     windows.clear();
+    portalWindows.clear();
 }
 
 void InputDispatcher::TouchState::copyFrom(const TouchState& other) {
@@ -4915,6 +4928,7 @@ void InputDispatcher::TouchState::copyFrom(const TouchState& other) {
     source = other.source;
     displayId = other.displayId;
     windows = other.windows;
+    portalWindows = other.portalWindows;
 }
 
 void InputDispatcher::TouchState::addOrUpdateWindow(const sp<InputWindowHandle>& windowHandle,
@@ -4941,6 +4955,17 @@ void InputDispatcher::TouchState::addOrUpdateWindow(const sp<InputWindowHandle>&
     touchedWindow.windowHandle = windowHandle;
     touchedWindow.targetFlags = targetFlags;
     touchedWindow.pointerIds = pointerIds;
+}
+
+void InputDispatcher::TouchState::addPortalWindow(const sp<InputWindowHandle>& windowHandle) {
+    size_t numWindows = portalWindows.size();
+    for (size_t i = 0; i < numWindows; i++) {
+        sp<InputWindowHandle> portalWindowHandle = portalWindows.itemAt(i);
+        if (portalWindowHandle == windowHandle) {
+            return;
+        }
+    }
+    portalWindows.push_back(windowHandle);
 }
 
 void InputDispatcher::TouchState::removeWindow(const sp<InputWindowHandle>& windowHandle) {
