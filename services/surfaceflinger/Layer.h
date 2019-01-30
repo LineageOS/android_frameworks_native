@@ -45,7 +45,6 @@
 
 #include "Client.h"
 #include "FrameTracker.h"
-#include "LayerBE.h"
 #include "LayerVector.h"
 #include "MonitoredProducer.h"
 #include "SurfaceFlinger.h"
@@ -67,7 +66,6 @@ class DisplayDevice;
 class GraphicBuffer;
 class SurfaceFlinger;
 class LayerDebugInfo;
-class LayerBE;
 
 namespace compositionengine {
 class Layer;
@@ -97,9 +95,6 @@ class Layer : public virtual compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
 
 public:
-    friend class LayerBE;
-    LayerBE& getBE() { return mBE; }
-    LayerBE& getBE() const { return mBE; }
     mutable bool contentDirty{false};
     // regions below are in window-manager space
     Region visibleRegion;
@@ -859,8 +854,6 @@ protected:
 
     wp<Layer> mCurrentParent;
     wp<Layer> mDrawingParent;
-
-    mutable LayerBE mBE;
 
     // Can only be accessed with the SF state lock held.
     bool mLayerDetached{false};

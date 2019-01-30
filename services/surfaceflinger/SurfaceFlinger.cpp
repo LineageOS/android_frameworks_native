@@ -1674,8 +1674,6 @@ void SurfaceFlinger::handleMessageRefresh() {
 
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
-    getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
-
     mLayersWithQueuedFrames.clear();
 }
 
@@ -1788,12 +1786,9 @@ void SurfaceFlinger::calculateWorkingSet() {
     for (const auto& [token, displayDevice] : mDisplays) {
         auto display = displayDevice->getCompositionDisplay();
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-            const auto displayId = display->getId();
             auto& layerState = layer->getCompositionLayer()->editState().frontEnd;
             layerState.compositionType = static_cast<Hwc2::IComposerClient::Composition>(
                     layer->getCompositionType(displayDevice));
-            layer->getBE().compositionInfo.hwc.displayId = *displayId;
-            getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
         }
     }
 }
@@ -2163,17 +2158,6 @@ void SurfaceFlinger::computeLayerBounds() {
 void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
     ALOGV("rebuildLayerStacks");
-
-    // We need to clear these out now as these may be holding on to a
-    // HWC2::Layer reference at the same time as the LayerBE::HWCInfo structure
-    // also holds a reference. When the set of visible layers is recomputed,
-    // some layers may be destroyed if the only thing keeping them alive was
-    // that list of visible layers associated with each display. The layer
-    // destruction code asserts that the HWC2::Layer is properly destroyed, but
-    // that doesn't happen if SurfaceFlingerBE::mCompositionInfo keeps it alive.
-    for (const auto& [token, display] : mDisplays) {
-        getBE().mCompositionInfo[token].clear();
-    }
 
     // rebuild the visible layer list per screen
     if (CC_UNLIKELY(mVisibleRegionsDirty)) {
