@@ -183,10 +183,10 @@ namespace android {
             kOfflineLicenseStateUnknown,
             // Offline license state is usable, the keys may be used for decryption.
             kOfflineLicenseStateUsable,
-            // Offline license state is inactive, the keys have been marked for
+            // Offline license state is released, the keys have been marked for
             // release using getKeyRequest() with kKeyType_Release but the
             // key response has not been received.
-            kOfflineLicenseStateInactive
+            kOfflineLicenseStateReleased
         };
 
         DrmPlugin() {}
