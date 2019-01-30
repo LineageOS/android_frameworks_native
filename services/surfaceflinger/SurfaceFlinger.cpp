@@ -292,8 +292,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mLastTransactionTime(0),
         mForceFullDamage(false),
         mTimeStats(factory.createTimeStats()),
-        mPrimaryHWVsyncEnabled(false),
-        mHWVsyncAvailable(false),
         mRefreshStartTime(0),
         mHasPoweredOff(false),
         mNumLayers(0),
@@ -395,14 +393,8 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
-    property_get("debug.sf.use_scheduler", value, "0");
-    mUseScheduler = atoi(value);
-
-    if (!mUseScheduler) {
-        mPrimaryDispSync =
-                getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
-                                            SurfaceFlinger::dispSyncPresentTimeOffset);
-    }
+    property_get("debug.sf.use_90Hz", value, "0");
+    mUse90Hz = atoi(value);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
@@ -624,52 +616,28 @@ void SurfaceFlinger::init() {
     ALOGI("Phase offset NS: %" PRId64 "", mPhaseOffsets->getCurrentAppOffset());
 
     Mutex::Autolock _l(mStateLock);
-
-    auto resyncCallback = makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
-
     // start the EventThread
-    if (mUseScheduler) {
-        mScheduler = getFactory().createScheduler(
-                [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+    mScheduler =
+            getFactory().createScheduler([this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+    auto resyncCallback =
+            mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
-        // TODO(b/113612090): Currently we assume that if scheduler is turned on, then the refresh
-        // rate is 90. Once b/122905403 is completed, this should be updated accordingly.
+    mAppConnectionHandle =
+            mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
+                                         resyncCallback,
+                                         impl::EventThread::InterceptVSyncsCallback());
+    mSfConnectionHandle = mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
+                                                       resyncCallback, [this](nsecs_t timestamp) {
+                                                           mInterceptor->saveVSyncEvent(timestamp);
+                                                       });
+
+    mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
+    mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
+                                           mSfConnectionHandle.get());
+
+    if (mUse90Hz) {
         mPhaseOffsets->setRefreshRateType(
                 scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
-
-        mAppConnectionHandle =
-                mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
-                                             resyncCallback,
-                                             impl::EventThread::InterceptVSyncsCallback());
-        mSfConnectionHandle =
-                mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
-                                             resyncCallback, [this](nsecs_t timestamp) {
-                                                 mInterceptor->saveVSyncEvent(timestamp);
-                                             });
-
-        mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
-        mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
-                                               mSfConnectionHandle.get());
-    } else {
-        mEventThreadSource =
-                std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
-                                                 mPhaseOffsets->getCurrentAppOffset(), true, "app");
-        mEventThread =
-                std::make_unique<impl::EventThread>(mEventThreadSource.get(),
-                                                    impl::EventThread::InterceptVSyncsCallback(),
-                                                    "appEventThread");
-        mSfEventThreadSource =
-                std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
-                                                 mPhaseOffsets->getCurrentSfOffset(), true, "sf");
-
-        mSFEventThread =
-                std::make_unique<impl::EventThread>(mSfEventThreadSource.get(),
-                                                    [this](nsecs_t timestamp) {
-                                                        mInterceptor->saveVSyncEvent(timestamp);
-                                                    },
-                                                    "sfEventThread");
-        mEventQueue->setEventThread(mSFEventThread.get(), std::move(resyncCallback));
-        mVsyncModulator.setEventThreads(mSFEventThread.get(), mEventThread.get());
     }
 
     // Get a RenderEngine for the given display / config (can't fail)
@@ -719,11 +687,6 @@ void SurfaceFlinger::init() {
         }
     }
 
-    if (!mUseScheduler) {
-        mEventControlThread = getFactory().createEventControlThread(
-                [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
-    }
-
     // initialize our drawing state
     mDrawingState = mCurrentState;
 
@@ -742,21 +705,18 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    if (mUseScheduler) {
-        mScheduler->setExpiredIdleTimerCallback([this] {
-            Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::DEFAULT);
-        });
-        mScheduler->setResetIdleTimerCallback([this] {
-            Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE);
-        });
+    mScheduler->setExpiredIdleTimerCallback([this] {
+        Mutex::Autolock lock(mStateLock);
+        setRefreshRateTo(RefreshRateType::DEFAULT);
+    });
+    mScheduler->setResetIdleTimerCallback([this] {
+        Mutex::Autolock lock(mStateLock);
+        setRefreshRateTo(RefreshRateType::PERFORMANCE);
+    });
 
-        mRefreshRateStats =
-                std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
-                                                                      *display->getId()),
-                                                              mTimeStats);
-    }
+    mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
+                                                                              *display->getId()),
+                                                                      mTimeStats);
 
     ALOGV("Done initializing");
 }
@@ -945,12 +905,7 @@ status_t SurfaceFlinger::getDisplayStats(const sp<IBinder>&, DisplayStatInfo* st
         return BAD_VALUE;
     }
 
-    if (mUseScheduler) {
-        mScheduler->getDisplayStatInfo(stats);
-    } else {
-        stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
-        stats->vsyncPeriod = mPrimaryDispSync->getPeriod();
-    }
+    mScheduler->getDisplayStatInfo(stats);
     return NO_ERROR;
 }
 
@@ -1016,6 +971,7 @@ void SurfaceFlinger::setActiveConfigInHWC() {
     if (!display) {
         return;
     }
+
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
 
@@ -1029,9 +985,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mActiveConfigLock);
-    if (mUseScheduler) {
-        mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
-    }
+    mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
 
     const auto display = getDisplayDeviceLocked(mUpcomingActiveConfig.displayToken);
     display->setActiveConfig(mUpcomingActiveConfig.configId);
@@ -1039,7 +993,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
     mSetActiveConfigState = SetActiveConfigState::NONE;
     ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
 
-    resyncToHardwareVsync(true, getVsyncPeriod());
+    mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
 }
 
@@ -1260,7 +1214,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             return;
         }
 
-        auto resyncCallback = makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
+        auto resyncCallback =
+                mScheduler->makeResyncCallback(std::bind(&SurfaceFlinger::getVsyncPeriod, this));
 
         // TODO(akrulec): Part of the Injector should be refactored, so that it
         // can be passed to Scheduler.
@@ -1276,7 +1231,8 @@ status_t SurfaceFlinger::enableVSyncInjections(bool enable) {
             mEventQueue->setEventThread(mInjectorEventThread.get(), std::move(resyncCallback));
         } else {
             ALOGV("VSync Injections disabled");
-            mEventQueue->setEventThread(mSFEventThread.get(), std::move(resyncCallback));
+            mEventQueue->setEventThread(mScheduler->getEventThread(mSfConnectionHandle),
+                                        std::move(resyncCallback));
         }
 
         mInjectVSyncs = enable;
@@ -1344,23 +1300,15 @@ status_t SurfaceFlinger::removeRegionSamplingListener(
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
         ISurfaceComposer::VsyncSource vsyncSource) {
-    auto resyncCallback = makeResyncCallback([this] {
+    auto resyncCallback = mScheduler->makeResyncCallback([this] {
         Mutex::Autolock lock(mStateLock);
         return getVsyncPeriod();
     });
 
-    if (mUseScheduler) {
-        const auto& handle = vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle
-                                                                       : mAppConnectionHandle;
+    const auto& handle =
+            vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle : mAppConnectionHandle;
 
-        return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback));
-    } else {
-        if (vsyncSource == eVsyncSourceSurfaceFlinger) {
-            return mSFEventThread->createEventConnection(resyncCallback, ResetIdleTimerCallback());
-        } else {
-            return mEventThread->createEventConnection(resyncCallback, ResetIdleTimerCallback());
-        }
-    }
+    return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback));
 }
 
 // ----------------------------------------------------------------------------
@@ -1412,79 +1360,6 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
     return config ? config->getVsyncPeriod() : 0;
 }
 
-void SurfaceFlinger::enableHardwareVsync() {
-    assert(!mUseScheduler);
-    Mutex::Autolock _l(mHWVsyncLock);
-    if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
-        mPrimaryDispSync->beginResync();
-        mEventControlThread->setVsyncEnabled(true);
-        mPrimaryHWVsyncEnabled = true;
-    }
-}
-
-void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
-    Mutex::Autolock _l(mHWVsyncLock);
-    // TODO(b/113612090): This is silly, but necessary evil until we turn on the flag for good.
-    if (mUseScheduler) {
-        if (makeAvailable) {
-            mScheduler->makeHWSyncAvailable(true);
-        } else if (!mScheduler->getHWSyncAvailable()) {
-            // Hardware vsync is not currently available, so abort the resync
-            // attempt for now
-            return;
-        }
-    } else {
-        if (makeAvailable) {
-            mHWVsyncAvailable = true;
-        } else if (!mHWVsyncAvailable) {
-            // Hardware vsync is not currently available, so abort the resync
-            // attempt for now
-            return;
-        }
-    }
-
-    if (period <= 0) {
-        return;
-    }
-
-    if (mUseScheduler) {
-        mScheduler->setVsyncPeriod(period);
-    } else {
-        mPrimaryDispSync->reset();
-        mPrimaryDispSync->setPeriod(period);
-
-        if (!mPrimaryHWVsyncEnabled) {
-            mPrimaryDispSync->beginResync();
-            mEventControlThread->setVsyncEnabled(true);
-            mPrimaryHWVsyncEnabled = true;
-        }
-    }
-}
-
-void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
-    assert(!mUseScheduler);
-    Mutex::Autolock _l(mHWVsyncLock);
-    if (mPrimaryHWVsyncEnabled) {
-        mEventControlThread->setVsyncEnabled(false);
-        mPrimaryDispSync->endResync();
-        mPrimaryHWVsyncEnabled = false;
-    }
-    if (makeUnavailable) {
-        mHWVsyncAvailable = false;
-    }
-}
-
-void SurfaceFlinger::VsyncState::resync(const GetVsyncPeriod& getVsyncPeriod) {
-    static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
-
-    const nsecs_t now = systemTime();
-    const nsecs_t last = lastResyncTime.exchange(now);
-
-    if (now - last > kIgnoreDelay) {
-        flinger.resyncToHardwareVsync(false, getVsyncPeriod());
-    }
-}
-
 void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDisplayId,
                                      int64_t timestamp) {
     ATRACE_NAME("SF onVsync");
@@ -1504,23 +1379,7 @@ void SurfaceFlinger::onVsyncReceived(int32_t sequenceId, hwc2_display_t hwcDispl
         return;
     }
 
-    if (mUseScheduler) {
-        mScheduler->addResyncSample(timestamp);
-    } else {
-        bool needsHwVsync = false;
-        { // Scope for the lock
-            Mutex::Autolock _l(mHWVsyncLock);
-            if (mPrimaryHWVsyncEnabled) {
-                needsHwVsync = mPrimaryDispSync->addResyncSample(timestamp);
-            }
-        }
-
-        if (needsHwVsync) {
-            enableHardwareVsync();
-        } else {
-            disableHardwareVsync(false);
-        }
-    }
+    mScheduler->addResyncSample(timestamp);
 }
 
 void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
@@ -1621,11 +1480,7 @@ void SurfaceFlinger::setPrimaryVsyncEnabled(bool enabled) {
 
 // Note: it is assumed the caller holds |mStateLock| when this is called
 void SurfaceFlinger::resetDisplayState() {
-    if (mUseScheduler) {
-        mScheduler->disableHardwareVsync(true);
-    } else {
-        disableHardwareVsync(true);
-    }
+    mScheduler->disableHardwareVsync(true);
     // Clear the drawing state so that the logic inside of
     // handleTransactionLocked will fire. It will determine the delta between
     // mCurrentState and mDrawingState and re-apply all changes when we make the
@@ -1692,20 +1547,14 @@ void SurfaceFlinger::updateVrFlinger() {
 
     // The present fences returned from vr_hwc are not an accurate
     // representation of vsync times.
-    if (mUseScheduler) {
-        mScheduler->setIgnorePresentFences(getHwComposer().isUsingVrComposer() ||
-                                           !hasSyncFramework);
-    } else {
-        mPrimaryDispSync->setIgnorePresentFences(getHwComposer().isUsingVrComposer() ||
-                                                 !hasSyncFramework);
-    }
+    mScheduler->setIgnorePresentFences(getHwComposer().isUsingVrComposer() || !hasSyncFramework);
 
     // Use phase of 0 since phase is not known.
     // Use latency of 0, which will snap to the ideal latency.
     DisplayStatInfo stats{0 /* vsyncTime */, vsyncPeriod};
     setCompositorTimingSnapped(stats, 0);
 
-    resyncToHardwareVsync(false, vsyncPeriod);
+    mScheduler->resyncToHardwareVsync(false, vsyncPeriod);
 
     mRepaintEverything = true;
     setTransactionFlags(eDisplayTransactionNeeded);
@@ -1719,10 +1568,9 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 break;
             }
 
-            if (mUseScheduler) {
-                // This call is made each time SF wakes up and creates a new frame.
-                mScheduler->incrementFrameCounter();
-            }
+            // This call is made each time SF wakes up and creates a new frame.
+            mScheduler->incrementFrameCounter();
+
             bool frameMissed = !mHadClientComposition && mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
             mFrameMissedCount += frameMissed;
@@ -2173,12 +2021,7 @@ void SurfaceFlinger::postComposition()
 
     DisplayStatInfo stats;
     DEFINE_STACK_GUARD(stats);
-    if (mUseScheduler) {
-        mScheduler->getDisplayStatInfo(&stats);
-    } else {
-        stats.vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
-        stats.vsyncPeriod = mPrimaryDispSync->getPeriod();
-    }
+    mScheduler->getDisplayStatInfo(&stats);
 
     ASSERT_ON_STACK_GUARD();
 
@@ -2211,27 +2054,14 @@ void SurfaceFlinger::postComposition()
 
     if (presentFenceTime->isValid()) {
         ASSERT_ON_STACK_GUARD();
-        if (mUseScheduler) {
-            mScheduler->addPresentFence(presentFenceTime);
-            ASSERT_ON_STACK_GUARD();
-        } else {
-            if (mPrimaryDispSync->addPresentFence(presentFenceTime)) {
-                enableHardwareVsync();
-            } else {
-                disableHardwareVsync(false);
-            }
-            ASSERT_ON_STACK_GUARD();
-        }
+        mScheduler->addPresentFence(presentFenceTime);
+        ASSERT_ON_STACK_GUARD();
     }
 
     if (!hasSyncFramework) {
         if (displayDevice && getHwComposer().isConnected(*displayDevice->getId()) &&
             displayDevice->isPoweredOn()) {
-            if (mUseScheduler) {
-                mScheduler->enableHardwareVsync();
-            } else {
-                enableHardwareVsync();
-            }
+            mScheduler->enableHardwareVsync();
         }
     }
 
@@ -2734,13 +2564,8 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
 }
 
 void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected) {
-    if (mUseScheduler) {
-        mScheduler->hotplugReceived(mAppConnectionHandle, displayId, connected);
-        mScheduler->hotplugReceived(mSfConnectionHandle, displayId, connected);
-    } else {
-        mEventThread->onHotplugReceived(displayId, connected);
-        mSFEventThread->onHotplugReceived(displayId, connected);
-    }
+    mScheduler->hotplugReceived(mAppConnectionHandle, displayId, connected);
+    mScheduler->hotplugReceived(mSfConnectionHandle, displayId, connected);
 }
 
 sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
@@ -3386,11 +3211,7 @@ bool SurfaceFlinger::handlePageFlip()
         if (layer->hasReadyFrame()) {
             frameQueued = true;
             nsecs_t expectedPresentTime;
-            if (mUseScheduler) {
-                expectedPresentTime = mScheduler->expectedPresentTime();
-            } else {
-                expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
-            }
+            expectedPresentTime = mScheduler->expectedPresentTime();
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -3732,12 +3553,7 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
-    nsecs_t expectedPresentTime;
-    if (mUseScheduler) {
-        expectedPresentTime = mScheduler->expectedPresentTime();
-    } else {
-        expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
-    }
+    nsecs_t expectedPresentTime = mScheduler->expectedPresentTime();
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&
@@ -4434,12 +4250,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         // Turn on the display
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && mode != HWC_POWER_MODE_DOZE_SUSPEND) {
-            if (mUseScheduler) {
-                mScheduler->onScreenAcquired(mAppConnectionHandle);
-            } else {
-                mEventThread->onScreenAcquired();
-            }
-            resyncToHardwareVsync(true, getVsyncPeriod());
+            mScheduler->onScreenAcquired(mAppConnectionHandle);
+            mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
 
         mVisibleRegionsDirty = true;
@@ -4459,16 +4271,8 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         }
 
         if (display->isPrimary() && currentMode != HWC_POWER_MODE_DOZE_SUSPEND) {
-            if (mUseScheduler) {
-                mScheduler->disableHardwareVsync(true);
-            } else {
-                disableHardwareVsync(true); // also cancels any in-progress resync
-            }
-            if (mUseScheduler) {
-                mScheduler->onScreenReleased(mAppConnectionHandle);
-            } else {
-                mEventThread->onScreenReleased();
-            }
+            mScheduler->disableHardwareVsync(true);
+            mScheduler->onScreenReleased(mAppConnectionHandle);
         }
 
         getHwComposer().setPowerMode(*displayId, mode);
@@ -4479,26 +4283,14 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
         // Update display while dozing
         getHwComposer().setPowerMode(*displayId, mode);
         if (display->isPrimary() && currentMode == HWC_POWER_MODE_DOZE_SUSPEND) {
-            if (mUseScheduler) {
-                mScheduler->onScreenAcquired(mAppConnectionHandle);
-            } else {
-                mEventThread->onScreenAcquired();
-            }
-            resyncToHardwareVsync(true, getVsyncPeriod());
+            mScheduler->onScreenAcquired(mAppConnectionHandle);
+            mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
         }
     } else if (mode == HWC_POWER_MODE_DOZE_SUSPEND) {
         // Leave display going to doze
         if (display->isPrimary()) {
-            if (mUseScheduler) {
-                mScheduler->disableHardwareVsync(true);
-            } else {
-                disableHardwareVsync(true); // also cancels any in-progress resync
-            }
-            if (mUseScheduler) {
-                mScheduler->onScreenReleased(mAppConnectionHandle);
-            } else {
-                mEventThread->onScreenReleased();
-            }
+            mScheduler->disableHardwareVsync(true);
+            mScheduler->onScreenReleased(mAppConnectionHandle);
         }
         getHwComposer().setPowerMode(*displayId, mode);
     } else {
@@ -4508,7 +4300,7 @@ void SurfaceFlinger::setPowerModeInternal(const sp<DisplayDevice>& display, int 
 
     if (display->isPrimary()) {
         mTimeStats->setPowerMode(mode);
-        if (mUseScheduler && mRefreshRateStats) {
+        if (mRefreshRateStats) {
             // Update refresh rate stats.
             mRefreshRateStats->setPowerMode(mode);
         }
@@ -4565,11 +4357,7 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                 {"--disable-layer-stats"s, dumper([this](std::string&) { mLayerStats.disable(); })},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
                 {"--dispsync"s, dumper([this](std::string& s) {
-                     if (mUseScheduler) {
                          mScheduler->dumpPrimaryDispSync(s);
-                     } else {
-                         mPrimaryDispSync->dump(s);
-                     }
                  })},
                 {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
                 {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
@@ -4669,13 +4457,8 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    StringAppendF(&result, "Scheduler: %s\n\n", mUseScheduler ? "enabled" : "disabled");
-
-    if (mUseScheduler) {
-        mScheduler->dump(mAppConnectionHandle, result);
-    } else {
-        mEventThread->dump(result);
-    }
+    StringAppendF(&result, "Scheduler enabled. 90Hz feature: %s\n\n", mUse90Hz ? "on" : "off");
+    mScheduler->dump(mAppConnectionHandle, result);
 }
 
 void SurfaceFlinger::dumpStaticScreenStats(std::string& result) const {
@@ -5024,11 +4807,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
     /**
      * Scheduler dump state.
      */
-    if (mUseScheduler) {
-        result.append("\nScheduler state:\n");
-        result.append(mScheduler->doDump() + "\n");
-        result.append(mRefreshRateStats->doDump() + "\n");
-    }
+    result.append("\nScheduler state:\n");
+    result.append(mScheduler->doDump() + "\n");
+    result.append(mRefreshRateStats->doDump() + "\n");
 }
 
 const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(DisplayId displayId) {
@@ -5304,7 +5085,7 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             case 1016: {
                 n = data.readInt32();
                 // TODO(b/113612090): Evaluate if this can be removed.
-                mPrimaryDispSync->setRefreshSkipCount(n);
+                mScheduler->setRefreshSkipCount(n);
                 return NO_ERROR;
             }
             case 1017: {
@@ -5314,20 +5095,12 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
             }
             case 1018: { // Modify Choreographer's phase offset
                 n = data.readInt32();
-                if (mUseScheduler) {
-                    mScheduler->setPhaseOffset(mAppConnectionHandle, static_cast<nsecs_t>(n));
-                } else {
-                    mEventThread->setPhaseOffset(static_cast<nsecs_t>(n));
-                }
+                mScheduler->setPhaseOffset(mAppConnectionHandle, static_cast<nsecs_t>(n));
                 return NO_ERROR;
             }
             case 1019: { // Modify SurfaceFlinger's phase offset
                 n = data.readInt32();
-                if (mUseScheduler) {
-                    mScheduler->setPhaseOffset(mSfConnectionHandle, static_cast<nsecs_t>(n));
-                } else {
-                    mSFEventThread->setPhaseOffset(static_cast<nsecs_t>(n));
-                }
+                mScheduler->setPhaseOffset(mSfConnectionHandle, static_cast<nsecs_t>(n));
                 return NO_ERROR;
             }
             case 1020: { // Layer updates interceptor

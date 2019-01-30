@@ -789,36 +789,10 @@ private:
      * VSync
      */
     nsecs_t getVsyncPeriod() const REQUIRES(mStateLock);
-    void enableHardwareVsync();
-    void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
-    void disableHardwareVsync(bool makeUnavailable);
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
     void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType) REQUIRES(mStateLock);
-
-    using GetVsyncPeriod = std::function<nsecs_t()>;
-
-    // Stores per-display state about VSYNC.
-    struct VsyncState {
-        explicit VsyncState(SurfaceFlinger& flinger) : flinger(flinger) {}
-
-        void resync(const GetVsyncPeriod&);
-
-        SurfaceFlinger& flinger;
-        std::atomic<nsecs_t> lastResyncTime = 0;
-    };
-
-    const std::shared_ptr<VsyncState> mPrimaryVsyncState{std::make_shared<VsyncState>(*this)};
-
-    auto makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod) {
-        std::weak_ptr<VsyncState> ptr = mPrimaryVsyncState;
-        return [ptr, getVsyncPeriod = std::move(getVsyncPeriod)]() {
-            if (const auto vsync = ptr.lock()) {
-                vsync->resync(getVsyncPeriod);
-            }
-        };
-    }
 
     /*
      * Display identification
@@ -957,11 +931,7 @@ private:
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
-    std::unique_ptr<EventThread> mEventThread;
-    std::unique_ptr<EventThread> mSFEventThread;
     std::unique_ptr<EventThread> mInjectorEventThread;
-    std::unique_ptr<VSyncSource> mEventThreadSource;
-    std::unique_ptr<VSyncSource> mSfEventThreadSource;
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
@@ -1028,16 +998,11 @@ private:
     // these are thread safe
     mutable std::unique_ptr<MessageQueue> mEventQueue{mFactory.createMessageQueue()};
     FrameTracker mAnimFrameTracker;
-    std::unique_ptr<DispSync> mPrimaryDispSync;
 
     // protected by mDestroyedLayerLock;
     mutable Mutex mDestroyedLayerLock;
     Vector<Layer const *> mDestroyedLayers;
 
-    // protected by mHWVsyncLock
-    Mutex mHWVsyncLock;
-    bool mPrimaryHWVsyncEnabled;
-    bool mHWVsyncAvailable;
     nsecs_t mRefreshStartTime;
 
     std::atomic<bool> mRefreshPending{false};
@@ -1113,7 +1078,7 @@ private:
     /* ------------------------------------------------------------------------
      * Scheduler
      */
-    bool mUseScheduler = false;
+    bool mUse90Hz = false;
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
