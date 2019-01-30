@@ -72,6 +72,9 @@ public:
     void setOutputLayersOrderedByZ(OutputLayers&&) override;
     const OutputLayers& getOutputLayersOrderedByZ() const override;
 
+    void setReleasedLayers(ReleasedLayers&&) override;
+    ReleasedLayers takeReleasedLayers() override;
+
     // Testing
     void setDisplayColorProfileForTest(std::unique_ptr<compositionengine::DisplayColorProfile>);
     void setRenderSurfaceForTest(std::unique_ptr<compositionengine::RenderSurface>);
@@ -93,6 +96,7 @@ private:
     std::unique_ptr<compositionengine::RenderSurface> mRenderSurface;
 
     OutputLayers mOutputLayersOrderedByZ;
+    ReleasedLayers mReleasedLayers;
 };
 
 } // namespace impl

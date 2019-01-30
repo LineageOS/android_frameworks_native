@@ -88,8 +88,6 @@ public:
 
     void                    setVisibleLayersSortedByZ(const Vector< sp<Layer> >& layers);
     const Vector< sp<Layer> >& getVisibleLayersSortedByZ() const;
-    void                    setLayersNeedingFences(const Vector< sp<Layer> >& layers);
-    const Vector< sp<Layer> >& getLayersNeedingFences() const;
 
     void                    setLayerStack(uint32_t stack);
     void                    setDisplaySize(const int newWidth, const int newHeight);
@@ -182,8 +180,6 @@ private:
 
     // list of visible layers on that display
     Vector< sp<Layer> > mVisibleLayersSortedByZ;
-    // list of layers needing fences
-    Vector< sp<Layer> > mLayersNeedingFences;
 
     /*
      * Transaction state
