@@ -70,6 +70,7 @@ class LayerDebugInfo;
 namespace compositionengine {
 class Layer;
 class OutputLayer;
+struct LayerFECompositionState;
 }
 
 namespace impl {
@@ -411,6 +412,11 @@ public:
      */
     virtual bool isFixedSize() const { return true; }
 
+    /*
+     * usesSourceCrop - true if content should use a source crop
+     */
+    virtual bool usesSourceCrop() const { return false; }
+
     // Most layers aren't created from the main thread, and therefore need to
     // grab the SF state lock to access HWC, but ContainerLayer does, so we need
     // to avoid grabbing the lock again to avoid deadlock
@@ -447,13 +453,19 @@ public:
     /*
      * compositionengine::LayerFE overrides
      */
+    void latchCompositionState(compositionengine::LayerFECompositionState&,
+                               bool includeGeometry) const override;
     void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+    const char* getDebugName() const override;
 
+protected:
+    void latchGeometry(compositionengine::LayerFECompositionState& outState) const;
+
+public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     virtual bool isHdrY410() const { return false; }
 
-    void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
     void forceClientComposition(const sp<DisplayDevice>& display);
     bool getForceClientComposition(const sp<DisplayDevice>& display);
     virtual void setPerFrameData(const sp<const DisplayDevice>& display,
@@ -700,12 +712,6 @@ protected:
 
     uint32_t getEffectiveUsage(uint32_t usage) const;
 
-    virtual FloatRect computeCrop(const sp<const DisplayDevice>& display) const;
-    // Compute the initial crop as specified by parent layers and the
-    // SurfaceControl for this layer. Does not include buffer crop from the
-    // IGraphicBufferProducer client, as that should not affect child clipping.
-    // Returns in screen space.
-    Rect computeInitialCrop(const sp<const DisplayDevice>& display) const;
     /**
      * Setup rounded corners coordinates of this layer, taking into account the layer bounds and
      * crop coordinates, transforming them into layer space.

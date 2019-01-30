@@ -1758,24 +1758,30 @@ void SurfaceFlinger::calculateWorkingSet() {
         mGeometryInvalid = false;
         for (const auto& [token, displayDevice] : mDisplays) {
             auto display = displayDevice->getCompositionDisplay();
-            const auto displayId = display->getId();
-            if (!displayId) {
-                continue;
-            }
 
-            const Vector<sp<Layer>>& currentLayers = displayDevice->getVisibleLayersSortedByZ();
-            for (size_t i = 0; i < currentLayers.size(); i++) {
-                const auto& layer = currentLayers[i];
+            uint32_t zOrder = 0;
 
-                if (!layer->hasHwcLayer(displayDevice)) {
-                    layer->forceClientComposition(displayDevice);
-                    continue;
+            for (auto& layer : display->getOutputLayersOrderedByZ()) {
+                auto& compositionState = layer->editState();
+                compositionState.forceClientComposition = false;
+                if (!compositionState.hwc || mDebugDisableHWC || mDebugRegion) {
+                    compositionState.forceClientComposition = true;
                 }
 
-                layer->setGeometry(displayDevice, i);
-                if (mDebugDisableHWC || mDebugRegion) {
-                    layer->forceClientComposition(displayDevice);
-                }
+                // The output Z order is set here based on a simple counter.
+                compositionState.z = zOrder++;
+
+                // Update the display independent composition state. This goes
+                // to the general composition layer state structure.
+                // TODO: Do this once per compositionengine::CompositionLayer.
+                layer->getLayerFE().latchCompositionState(layer->getLayer().editState().frontEnd,
+                                                          true);
+
+                // Recalculate the geometry state of the output layer.
+                layer->updateCompositionState(true);
+
+                // Write the updated geometry state to the HWC
+                layer->writeStateToHWC(true);
             }
         }
     }

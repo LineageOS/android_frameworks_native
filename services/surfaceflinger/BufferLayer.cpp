@@ -105,6 +105,10 @@ bool BufferLayer::isFixedSize() const {
     return getEffectiveScalingMode() != NATIVE_WINDOW_SCALING_MODE_FREEZE;
 }
 
+bool BufferLayer::usesSourceCrop() const {
+    return true;
+}
+
 static constexpr mat4 inverseOrientation(uint32_t transform) {
     const mat4 flipH(-1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1);
     const mat4 flipV(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1);
