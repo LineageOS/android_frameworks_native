@@ -69,7 +69,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
     mEventControlThread = std::make_unique<impl::EventControlThread>(function);
 
     char value[PROPERTY_VALUE_MAX];
-    property_get("debug.sf.set_idle_timer_ms", value, "30");
+    property_get("debug.sf.set_idle_timer_ms", value, "0");
     mSetIdleTimerMs = atoi(value);
 
     if (mSetIdleTimerMs > 0) {
