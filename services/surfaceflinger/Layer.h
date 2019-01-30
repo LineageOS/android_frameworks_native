@@ -440,6 +440,11 @@ protected:
                                     renderengine::LayerSettings& layer) = 0;
 
 public:
+    /*
+     * compositionengine::LayerFE overrides
+     */
+    void onLayerDisplayed(const sp<Fence>& releaseFence) override;
+
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
 
     virtual bool isHdrY410() const { return false; }
@@ -459,11 +464,6 @@ public:
             const sp<const DisplayDevice>& display) const;
     bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
     void updateCursorPosition(const sp<const DisplayDevice>& display);
-
-    /*
-     * called after page-flip
-     */
-    virtual void onLayerDisplayed(const sp<Fence>& releaseFence);
 
     virtual bool shouldPresentNow(nsecs_t /*expectedPresentTime*/) const { return false; }
     virtual void setTransformHint(uint32_t /*orientation*/) const { }
