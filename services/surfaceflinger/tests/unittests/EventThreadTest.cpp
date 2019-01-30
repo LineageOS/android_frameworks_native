@@ -220,12 +220,6 @@ TEST_F(EventThreadTest, vsyncRequestIsIgnoredIfDisplayIsDisconnected) {
 
     // EventThread should not enable vsync callbacks.
     EXPECT_FALSE(mVSyncSetEnabledCallRecorder.waitForUnexpectedCall().has_value());
-
-    // Use the received callback to signal a vsync event.
-    // The event should not be received by the interceptor nor the connection.
-    mCallback->onVSyncEvent(123);
-    EXPECT_FALSE(mInterceptVSyncCallRecorder.waitForCall(0us).has_value());
-    EXPECT_FALSE(mConnectionEventCallRecorder.waitForCall(0us).has_value());
 }
 
 TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
