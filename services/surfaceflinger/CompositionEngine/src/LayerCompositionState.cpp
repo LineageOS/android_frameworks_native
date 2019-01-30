@@ -24,9 +24,10 @@ namespace {
 
 using android::compositionengine::impl::dumpVal;
 
-void dumpVal(std::string& out, const char* name, Hwc2::IComposerClient::Color value) {
+void dumpVal(std::string& out, const char* name, half4 value) {
     using android::base::StringAppendF;
-    StringAppendF(&out, "%s=[%d %d %d] ", name, value.r, value.g, value.b);
+    StringAppendF(&out, "%s=[%f %f %f] ", name, static_cast<float>(value.r),
+                  static_cast<float>(value.g), static_cast<float>(value.b));
 }
 
 void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
@@ -60,8 +61,8 @@ void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
     dumpVal(out, "composition type", toString(state.compositionType), state.compositionType);
 
     out.append("\n      buffer: ");
+    dumpVal(out, "bufferSlot", state.bufferSlot);
     dumpVal(out, "buffer", state.buffer.get());
-    dumpVal(out, "slot", state.bufferSlot);
 
     out.append("\n      ");
     dumpVal(out, "sideband stream", state.sidebandStream.get());
@@ -70,6 +71,7 @@ void dumpFrontEnd(std::string& out, const LayerFECompositionState& state) {
     dumpVal(out, "color", state.color);
 
     out.append("\n      ");
+    dumpVal(out, "isColorspaceAgnostic", state.isColorspaceAgnostic);
     dumpVal(out, "dataspace", toString(state.dataspace), state.dataspace);
     dumpVal(out, "hdr metadata types", state.hdrMetadata.validTypes);
     dumpVal(out, "colorTransform", state.colorTransform);

@@ -16,6 +16,7 @@
 
 #include <compositionengine/impl/OutputLayer.h>
 #include <compositionengine/mock/CompositionEngine.h>
+#include <compositionengine/mock/DisplayColorProfile.h>
 #include <compositionengine/mock/Layer.h>
 #include <compositionengine/mock/LayerFE.h>
 #include <compositionengine/mock/Output.h>
@@ -25,6 +26,7 @@
 #include "MockHWC2.h"
 #include "MockHWComposer.h"
 #include "RectMatcher.h"
+#include "RegionMatcher.h"
 
 namespace android::compositionengine {
 namespace {
@@ -44,6 +46,15 @@ constexpr auto TR_ROT_180 = TR_FLP_H | TR_FLP_V;
 constexpr auto TR_ROT_270 = TR_ROT_90 | TR_ROT_180;
 
 const std::string kOutputName{"Test Output"};
+
+MATCHER_P(ColorEq, expected, "") {
+    *result_listener << "Colors are not equal\n";
+    *result_listener << "expected " << expected.r << " " << expected.g << " " << expected.b << " "
+                     << expected.a << "\n";
+    *result_listener << "actual " << arg.r << " " << arg.g << " " << arg.b << " " << arg.a << "\n";
+
+    return expected.r == arg.r && expected.g == arg.g && expected.b == arg.b && expected.a == arg.a;
+}
 
 class OutputLayerTest : public testing::Test {
 public:
@@ -429,6 +440,9 @@ public:
     OutputLayerUpdateCompositionStateTest() {
         EXPECT_CALL(*mLayer, getState()).WillRepeatedly(ReturnRef(mLayerState));
         EXPECT_CALL(mOutput, getState()).WillRepeatedly(ReturnRef(mOutputState));
+        EXPECT_CALL(mOutput, getDisplayColorProfile())
+                .WillRepeatedly(Return(&mDisplayColorProfile));
+        EXPECT_CALL(mDisplayColorProfile, isDataspaceSupported(_)).WillRepeatedly(Return(true));
     }
 
     ~OutputLayerUpdateCompositionStateTest() = default;
@@ -453,6 +467,7 @@ public:
 
     using OutputLayer = OutputLayerPartialMockForUpdateCompositionState;
     StrictMock<OutputLayer> mOutputLayer{mOutput, mLayer, mLayerFE};
+    StrictMock<mock::DisplayColorProfile> mDisplayColorProfile;
 };
 
 TEST_F(OutputLayerUpdateCompositionStateTest, setsStateNormally) {
@@ -498,10 +513,48 @@ TEST_F(OutputLayerUpdateCompositionStateTest,
     EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
 
+TEST_F(OutputLayerUpdateCompositionStateTest, setsOutputLayerColorspaceCorrectly) {
+    mLayerState.frontEnd.dataspace = ui::Dataspace::DISPLAY_P3;
+    mOutputState.targetDataspace = ui::Dataspace::V0_SCRGB;
+
+    // If the layer is not colorspace agnostic, the output layer dataspace
+    // should use the layers requested colorspace.
+    mLayerState.frontEnd.isColorspaceAgnostic = false;
+
+    mOutputLayer.updateCompositionState(false);
+
+    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutputLayer.getState().dataspace);
+
+    // If the layer is colorspace agnostic, the output layer dataspace
+    // should use the colorspace chosen for the whole output.
+    mLayerState.frontEnd.isColorspaceAgnostic = true;
+
+    mOutputLayer.updateCompositionState(false);
+
+    EXPECT_EQ(ui::Dataspace::V0_SCRGB, mOutputLayer.getState().dataspace);
+}
+
 TEST_F(OutputLayerUpdateCompositionStateTest, doesNotRecomputeGeometryIfNotRequested) {
     mOutputLayer.updateCompositionState(false);
 
     EXPECT_EQ(false, mOutputLayer.getState().forceClientComposition);
+}
+
+TEST_F(OutputLayerUpdateCompositionStateTest, clientCompositionForcedFromFrontEndFlagAtAnyTime) {
+    mLayerState.frontEnd.forceClientComposition = true;
+
+    mOutputLayer.updateCompositionState(false);
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
+}
+
+TEST_F(OutputLayerUpdateCompositionStateTest,
+       clientCompositionForcedFromUnsupportedDataspaceAtAnyTime) {
+    EXPECT_CALL(mDisplayColorProfile, isDataspaceSupported(_)).WillRepeatedly(Return(false));
+
+    mOutputLayer.updateCompositionState(false);
+
+    EXPECT_EQ(true, mOutputLayer.getState().forceClientComposition);
 }
 
 /*
@@ -518,8 +571,19 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
     static constexpr float kAlpha = 51.f;
     static constexpr uint32_t kType = 61u;
     static constexpr uint32_t kAppId = 62u;
+    static constexpr ui::Dataspace kDataspace = static_cast<ui::Dataspace>(71);
+    static constexpr int kSupportedPerFrameMetadata = 101;
+    static constexpr int kExpectedHwcSlot = 0;
 
+    static const half4 kColor;
     static const Rect kDisplayFrame;
+    static const Region kVisibleRegion;
+    static const mat4 kColorTransform;
+    static const Region kSurfaceDamage;
+    static const HdrMetadata kHdrMetadata;
+    static native_handle_t* kSidebandStreamHandle;
+    static const sp<GraphicBuffer> kBuffer;
+    static const sp<Fence> kFence;
 
     OutputLayerWriteStateToHWCTest() {
         auto& outputLayerState = mOutputLayer.editState();
@@ -529,12 +593,30 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         outputLayerState.sourceCrop = kSourceCrop;
         outputLayerState.z = kZOrder;
         outputLayerState.bufferTransform = static_cast<Hwc2::Transform>(kBufferTransform);
+        outputLayerState.visibleRegion = kVisibleRegion;
+        outputLayerState.dataspace = kDataspace;
 
         mLayerState.frontEnd.blendMode = kBlendMode;
         mLayerState.frontEnd.alpha = kAlpha;
         mLayerState.frontEnd.type = kType;
         mLayerState.frontEnd.appId = kAppId;
+        mLayerState.frontEnd.colorTransform = kColorTransform;
+        mLayerState.frontEnd.color = kColor;
+        mLayerState.frontEnd.surfaceDamage = kSurfaceDamage;
+        mLayerState.frontEnd.hdrMetadata = kHdrMetadata;
+        mLayerState.frontEnd.sidebandStream = NativeHandle::create(kSidebandStreamHandle, false);
+        mLayerState.frontEnd.buffer = kBuffer;
+        mLayerState.frontEnd.bufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
+        mLayerState.frontEnd.acquireFence = kFence;
+
+        EXPECT_CALL(mOutput, getDisplayColorProfile())
+                .WillRepeatedly(Return(&mDisplayColorProfile));
+        EXPECT_CALL(mDisplayColorProfile, getSupportedPerFrameMetadata())
+                .WillRepeatedly(Return(kSupportedPerFrameMetadata));
     }
+
+    // Some tests may need to simulate unsupported HWC calls
+    enum class SimulateUnsupported { None, ColorTransform };
 
     void expectGeometryCommonCalls() {
         EXPECT_CALL(*mHwcLayer, setDisplayFrame(kDisplayFrame)).WillOnce(Return(kError));
@@ -549,10 +631,62 @@ struct OutputLayerWriteStateToHWCTest : public OutputLayerTest {
         EXPECT_CALL(*mHwcLayer, setInfo(kType, kAppId)).WillOnce(Return(kError));
     }
 
+    void expectPerFrameCommonCalls(SimulateUnsupported unsupported = SimulateUnsupported::None) {
+        EXPECT_CALL(*mHwcLayer, setVisibleRegion(RegionEq(kVisibleRegion)))
+                .WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setDataspace(kDataspace)).WillOnce(Return(kError));
+        EXPECT_CALL(*mHwcLayer, setColorTransform(kColorTransform))
+                .WillOnce(Return(unsupported == SimulateUnsupported::ColorTransform
+                                         ? HWC2::Error::Unsupported
+                                         : HWC2::Error::None));
+        EXPECT_CALL(*mHwcLayer, setSurfaceDamage(RegionEq(kSurfaceDamage)))
+                .WillOnce(Return(kError));
+    }
+
+    void expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition compositionType) {
+        EXPECT_CALL(*mHwcLayer, setCompositionType(static_cast<HWC2::Composition>(compositionType)))
+                .WillOnce(Return(kError));
+    }
+
+    void expectNoSetCompositionTypeCall() {
+        EXPECT_CALL(*mHwcLayer, setCompositionType(_)).Times(0);
+    }
+
+    void expectSetColorCall() {
+        hwc_color_t color = {static_cast<uint8_t>(std::round(kColor.r * 255)),
+                             static_cast<uint8_t>(std::round(kColor.g * 255)),
+                             static_cast<uint8_t>(std::round(kColor.b * 255)), 255};
+
+        EXPECT_CALL(*mHwcLayer, setColor(ColorEq(color))).WillOnce(Return(kError));
+    }
+
+    void expectSetSidebandHandleCall() {
+        EXPECT_CALL(*mHwcLayer, setSidebandStream(kSidebandStreamHandle));
+    }
+
+    void expectSetHdrMetadataAndBufferCalls() {
+        EXPECT_CALL(*mHwcLayer, setPerFrameMetadata(kSupportedPerFrameMetadata, kHdrMetadata));
+        EXPECT_CALL(*mHwcLayer, setBuffer(kExpectedHwcSlot, kBuffer, kFence));
+    }
+
     std::shared_ptr<HWC2::mock::Layer> mHwcLayer{std::make_shared<StrictMock<HWC2::mock::Layer>>()};
+    StrictMock<mock::DisplayColorProfile> mDisplayColorProfile;
 };
 
+const half4 OutputLayerWriteStateToHWCTest::kColor{81.f / 255.f, 82.f / 255.f, 83.f / 255.f,
+                                                   84.f / 255.f};
 const Rect OutputLayerWriteStateToHWCTest::kDisplayFrame{1001, 1002, 1003, 10044};
+const Region OutputLayerWriteStateToHWCTest::kVisibleRegion{Rect{1005, 1006, 1007, 1008}};
+const mat4 OutputLayerWriteStateToHWCTest::kColorTransform{
+        1009, 1010, 1011, 1012, 1013, 1014, 1015, 1016,
+        1017, 1018, 1019, 1020, 1021, 1022, 1023, 1024,
+};
+const Region OutputLayerWriteStateToHWCTest::kSurfaceDamage{Rect{1025, 1026, 1027, 1028}};
+const HdrMetadata OutputLayerWriteStateToHWCTest::kHdrMetadata{{/* LightFlattenable */}, 1029};
+native_handle_t* OutputLayerWriteStateToHWCTest::kSidebandStreamHandle =
+        reinterpret_cast<native_handle_t*>(1031);
+const sp<GraphicBuffer> OutputLayerWriteStateToHWCTest::kBuffer;
+const sp<Fence> OutputLayerWriteStateToHWCTest::kFence;
 
 TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoHWCState) {
     mOutputLayer.editState().hwc.reset();
@@ -566,10 +700,88 @@ TEST_F(OutputLayerWriteStateToHWCTest, doesNothingIfNoHWCLayer) {
     mOutputLayer.writeStateToHWC(true);
 }
 
-TEST_F(OutputLayerWriteStateToHWCTest, canSetsAllState) {
+TEST_F(OutputLayerWriteStateToHWCTest, canSetAllState) {
     expectGeometryCommonCalls();
+    expectPerFrameCommonCalls();
+
+    expectNoSetCompositionTypeCall();
 
     mOutputLayer.writeStateToHWC(true);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSolidColor) {
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+
+    expectPerFrameCommonCalls();
+    expectSetColorCall();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::SOLID_COLOR);
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForSideband) {
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
+
+    expectPerFrameCommonCalls();
+    expectSetSidebandHandleCall();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::SIDEBAND);
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForCursor) {
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::CURSOR;
+
+    expectPerFrameCommonCalls();
+    expectSetHdrMetadataAndBufferCalls();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CURSOR);
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, canSetPerFrameStateForDevice) {
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::DEVICE;
+
+    expectPerFrameCommonCalls();
+    expectSetHdrMetadataAndBufferCalls();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::DEVICE);
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsNotSetIfUnchanged) {
+    (*mOutputLayer.editState().hwc).hwcCompositionType =
+            Hwc2::IComposerClient::Composition::SOLID_COLOR;
+
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+
+    expectPerFrameCommonCalls();
+    expectSetColorCall();
+    expectNoSetCompositionTypeCall();
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfColorTransformNotSupported) {
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+
+    expectPerFrameCommonCalls(SimulateUnsupported::ColorTransform);
+    expectSetColorCall();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
+
+    mOutputLayer.writeStateToHWC(false);
+}
+
+TEST_F(OutputLayerWriteStateToHWCTest, compositionTypeIsSetToClientIfClientCompositionForced) {
+    mOutputLayer.editState().forceClientComposition = true;
+
+    mLayerState.frontEnd.compositionType = Hwc2::IComposerClient::Composition::SOLID_COLOR;
+
+    expectPerFrameCommonCalls();
+    expectSetColorCall();
+    expectSetCompositionTypeCall(Hwc2::IComposerClient::Composition::CLIENT);
+
+    mOutputLayer.writeStateToHWC(false);
 }
 
 } // namespace

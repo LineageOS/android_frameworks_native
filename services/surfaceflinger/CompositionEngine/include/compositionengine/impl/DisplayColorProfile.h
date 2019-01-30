@@ -54,6 +54,8 @@ public:
     bool hasDolbyVisionSupport() const override;
 
     const HdrCapabilities& getHdrCapabilities() const override;
+    bool isDataspaceSupported(ui::Dataspace) const override;
+    ui::Dataspace getTargetDataspace(ui::ColorMode, ui::Dataspace, ui::Dataspace) const override;
 
     void dump(std::string&) const override;
 

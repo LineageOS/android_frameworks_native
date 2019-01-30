@@ -39,7 +39,7 @@ public:
     // compositionengine::Output overrides
     void dump(std::string&) const override;
     void setColorTransform(const mat4&) override;
-    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent) override;
+    void setColorMode(ui::ColorMode, ui::Dataspace, ui::RenderIntent, ui::Dataspace) override;
 
     // compositionengine::Display overrides
     const std::optional<DisplayId>& getId() const override;

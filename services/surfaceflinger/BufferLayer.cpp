@@ -25,6 +25,7 @@
 #include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerCreationArgs.h>
+#include <compositionengine/LayerFECompositionState.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
@@ -253,90 +254,20 @@ bool BufferLayer::isHdrY410() const {
             mActiveBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
-void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
-                                  const ui::Transform& transform, const Rect& viewport,
-                                  int32_t supportedPerFrameMetadata,
-                                  const ui::Dataspace targetDataspace) {
-    RETURN_IF_NO_HWC_LAYER(displayDevice);
-
-    // Apply this display's projection's viewport to the visible region
-    // before giving it to the HWC HAL.
-    Region visible = transform.transform(visibleRegion.intersect(viewport));
-
-    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
-    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
-
-    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
-    auto error = hwcLayer->setVisibleRegion(visible);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        visible.dump(LOG_TAG);
-    }
-    outputLayer->editState().visibleRegion = visible;
-
-    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
-
-    error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set surface damage: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-        surfaceDamageRegion.dump(LOG_TAG);
-    }
-    layerCompositionState.surfaceDamage = surfaceDamageRegion;
+void BufferLayer::latchPerFrameState(
+        compositionengine::LayerFECompositionState& compositionState) const {
+    Layer::latchPerFrameState(compositionState);
 
     // Sideband layers
-    if (layerCompositionState.sidebandStream.get()) {
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::SIDEBAND);
-        ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(layerCompositionState.sidebandStream->handle());
-        if (error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  layerCompositionState.sidebandStream->handle(), to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
-        layerCompositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
-        return;
-    }
-
-    // Device or Cursor layers
-    if (mPotentialCursor) {
-        ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::CURSOR);
+    if (compositionState.sidebandStream.get()) {
+        compositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
     } else {
-        ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::DEVICE);
+        // Normal buffer layers
+        compositionState.hdrMetadata = getDrawingHdrMetadata();
+        compositionState.compositionType = mPotentialCursor
+                ? Hwc2::IComposerClient::Composition::CURSOR
+                : Hwc2::IComposerClient::Composition::DEVICE;
     }
-
-    ui::Dataspace dataspace = isColorSpaceAgnostic() && targetDataspace != ui::Dataspace::UNKNOWN
-            ? targetDataspace
-            : mCurrentDataSpace;
-    error = hwcLayer->setDataspace(dataspace);
-    if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mName.string(), dataspace,
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    const HdrMetadata& metadata = getDrawingHdrMetadata();
-    error = hwcLayer->setPerFrameMetadata(supportedPerFrameMetadata, metadata);
-    if (error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
-        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mName.string(),
-              to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-
-    error = hwcLayer->setColorTransform(getColorTransform());
-    if (error == HWC2::Error::Unsupported) {
-        // If per layer color transform is not supported, we use GPU composition.
-        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::CLIENT);
-    } else if (error != HWC2::Error::None) {
-        ALOGE("[%s] Failed to setColorTransform: %s (%d)", mName.string(),
-                to_string(error).c_str(), static_cast<int32_t>(error));
-    }
-    layerCompositionState.dataspace = mCurrentDataSpace;
-    layerCompositionState.colorTransform = getColorTransform();
-    layerCompositionState.hdrMetadata = metadata;
-
-    setHwcLayerBuffer(displayDevice);
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {

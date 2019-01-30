@@ -104,15 +104,21 @@ void Output::setColorTransform(const mat4& transform) {
 }
 
 void Output::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
-                          ui::RenderIntent renderIntent) {
+                          ui::RenderIntent renderIntent,
+                          ui::Dataspace colorSpaceAgnosticDataspace) {
+    ui::Dataspace targetDataspace =
+            getDisplayColorProfile()->getTargetDataspace(mode, dataspace,
+                                                         colorSpaceAgnosticDataspace);
+
     if (mState.colorMode == mode && mState.dataspace == dataspace &&
-        mState.renderIntent == renderIntent) {
+        mState.renderIntent == renderIntent && mState.targetDataspace == targetDataspace) {
         return;
     }
 
     mState.colorMode = mode;
     mState.dataspace = dataspace;
     mState.renderIntent = renderIntent;
+    mState.targetDataspace = targetDataspace;
 
     mRenderSurface->setBufferDataspace(dataspace);
 

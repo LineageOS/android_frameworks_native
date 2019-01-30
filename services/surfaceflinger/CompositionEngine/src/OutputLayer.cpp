@@ -16,6 +16,7 @@
 
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/DisplayColorProfile.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
@@ -290,20 +291,43 @@ uint32_t OutputLayer::calculateOutputRelativeBufferTransform() const {
 } // namespace impl
 
 void OutputLayer::updateCompositionState(bool includeGeometry) {
+    const auto& layerFEState = mLayer->getState().frontEnd;
+    const auto& outputState = mOutput.getState();
+    const auto& profile = *mOutput.getDisplayColorProfile();
+
     if (includeGeometry) {
         mState.displayFrame = calculateOutputDisplayFrame();
         mState.sourceCrop = calculateOutputSourceCrop();
         mState.bufferTransform =
                 static_cast<Hwc2::Transform>(calculateOutputRelativeBufferTransform());
 
-        if ((mLayer->getState().frontEnd.isSecure && !mOutput.getState().isSecure) ||
+        if ((layerFEState.isSecure && !outputState.isSecure) ||
             (mState.bufferTransform & ui::Transform::ROT_INVALID)) {
             mState.forceClientComposition = true;
         }
     }
+
+    // Determine the output dependent dataspace for this layer. If it is
+    // colorspace agnostic, it just uses the dataspace chosen for the output to
+    // avoid the need for color conversion.
+    mState.dataspace = layerFEState.isColorspaceAgnostic &&
+                    outputState.targetDataspace != ui::Dataspace::UNKNOWN
+            ? outputState.targetDataspace
+            : layerFEState.dataspace;
+
+    // TODO(lpique): b/121291683 Remove this one we are sure we don't need the
+    // value recomputed / set every frame.
+    mState.visibleRegion = outputState.transform.transform(
+            layerFEState.geomVisibleRegion.intersect(outputState.viewport));
+
+    // These are evaluated every frame as they can potentially change at any
+    // time.
+    if (layerFEState.forceClientComposition || !profile.isDataspaceSupported(mState.dataspace)) {
+        mState.forceClientComposition = true;
+    }
 }
 
-void OutputLayer::writeStateToHWC(bool includeGeometry) const {
+void OutputLayer::writeStateToHWC(bool includeGeometry) {
     // Skip doing this if there is no HWC interface
     if (!mState.hwc) {
         return;
@@ -316,62 +340,212 @@ void OutputLayer::writeStateToHWC(bool includeGeometry) const {
         return;
     }
 
+    const auto& outputIndependentState = mLayer->getState().frontEnd;
+    auto requestedCompositionType = outputIndependentState.compositionType;
+
     if (includeGeometry) {
-        // Output dependent state
+        writeOutputDependentGeometryStateToHWC(hwcLayer.get(), requestedCompositionType);
+        writeOutputIndependentGeometryStateToHWC(hwcLayer.get(), outputIndependentState);
+    }
 
-        if (auto error = hwcLayer->setDisplayFrame(mState.displayFrame);
-            error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)",
-                  mLayerFE->getDebugName(), mState.displayFrame.left, mState.displayFrame.top,
-                  mState.displayFrame.right, mState.displayFrame.bottom, to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
+    writeOutputDependentPerFrameStateToHWC(hwcLayer.get());
+    writeOutputIndependentPerFrameStateToHWC(hwcLayer.get(), outputIndependentState);
 
-        if (auto error = hwcLayer->setSourceCrop(mState.sourceCrop); error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
-                  "%s (%d)",
-                  mLayerFE->getDebugName(), mState.sourceCrop.left, mState.sourceCrop.top,
-                  mState.sourceCrop.right, mState.sourceCrop.bottom, to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
+    writeCompositionTypeToHWC(hwcLayer.get(), requestedCompositionType);
+}
 
-        if (auto error = hwcLayer->setZOrder(mState.z); error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set Z %u: %s (%d)", mLayerFE->getDebugName(), mState.z,
+void OutputLayer::writeOutputDependentGeometryStateToHWC(
+        HWC2::Layer* hwcLayer, Hwc2::IComposerClient::Composition requestedCompositionType) {
+    const auto& outputDependentState = getState();
+
+    if (auto error = hwcLayer->setDisplayFrame(outputDependentState.displayFrame);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set display frame [%d, %d, %d, %d]: %s (%d)",
+              mLayerFE->getDebugName(), outputDependentState.displayFrame.left,
+              outputDependentState.displayFrame.top, outputDependentState.displayFrame.right,
+              outputDependentState.displayFrame.bottom, to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+
+    if (auto error = hwcLayer->setSourceCrop(outputDependentState.sourceCrop);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set source crop [%.3f, %.3f, %.3f, %.3f]: "
+              "%s (%d)",
+              mLayerFE->getDebugName(), outputDependentState.sourceCrop.left,
+              outputDependentState.sourceCrop.top, outputDependentState.sourceCrop.right,
+              outputDependentState.sourceCrop.bottom, to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+
+    if (auto error = hwcLayer->setZOrder(outputDependentState.z); error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set Z %u: %s (%d)", mLayerFE->getDebugName(), outputDependentState.z,
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    // Solid-color layers should always use an identity transform.
+    const auto bufferTransform =
+            requestedCompositionType != Hwc2::IComposerClient::Composition::SOLID_COLOR
+            ? outputDependentState.bufferTransform
+            : static_cast<Hwc2::Transform>(0);
+    if (auto error = hwcLayer->setTransform(static_cast<HWC2::Transform>(bufferTransform));
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set transform %s: %s (%d)", mLayerFE->getDebugName(),
+              toString(outputDependentState.bufferTransform).c_str(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+
+void OutputLayer::writeOutputIndependentGeometryStateToHWC(
+        HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState) {
+    if (auto error = hwcLayer->setBlendMode(
+                static_cast<HWC2::BlendMode>(outputIndependentState.blendMode));
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set blend mode %s: %s (%d)", mLayerFE->getDebugName(),
+              toString(outputIndependentState.blendMode).c_str(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+
+    if (auto error = hwcLayer->setPlaneAlpha(outputIndependentState.alpha);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set plane alpha %.3f: %s (%d)", mLayerFE->getDebugName(),
+              outputIndependentState.alpha, to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    if (auto error = hwcLayer->setInfo(outputIndependentState.type, outputIndependentState.appId);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set info %s (%d)", mLayerFE->getDebugName(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+
+void OutputLayer::writeOutputDependentPerFrameStateToHWC(HWC2::Layer* hwcLayer) {
+    const auto& outputDependentState = getState();
+
+    // TODO(lpique): b/121291683 visibleRegion is output-dependent geometry
+    // state and should not change every frame.
+    if (auto error = hwcLayer->setVisibleRegion(outputDependentState.visibleRegion);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set visible region: %s (%d)", mLayerFE->getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+        outputDependentState.visibleRegion.dump(LOG_TAG);
+    }
+
+    if (auto error = hwcLayer->setDataspace(outputDependentState.dataspace);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set dataspace %d: %s (%d)", mLayerFE->getDebugName(),
+              outputDependentState.dataspace, to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+
+void OutputLayer::writeOutputIndependentPerFrameStateToHWC(
+        HWC2::Layer* hwcLayer, const LayerFECompositionState& outputIndependentState) {
+    switch (auto error = hwcLayer->setColorTransform(outputIndependentState.colorTransform)) {
+        case HWC2::Error::None:
+            break;
+        case HWC2::Error::Unsupported:
+            editState().forceClientComposition = true;
+            break;
+        default:
+            ALOGE("[%s] Failed to set color transform: %s (%d)", mLayerFE->getDebugName(),
                   to_string(error).c_str(), static_cast<int32_t>(error));
-        }
+    }
 
-        if (auto error =
-                    hwcLayer->setTransform(static_cast<HWC2::Transform>(mState.bufferTransform));
+    if (auto error = hwcLayer->setSurfaceDamage(outputIndependentState.surfaceDamage);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set surface damage: %s (%d)", mLayerFE->getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+        outputIndependentState.surfaceDamage.dump(LOG_TAG);
+    }
+
+    // Content-specific per-frame state
+    switch (outputIndependentState.compositionType) {
+        case Hwc2::IComposerClient::Composition::SOLID_COLOR:
+            writeSolidColorStateToHWC(hwcLayer, outputIndependentState);
+            break;
+        case Hwc2::IComposerClient::Composition::SIDEBAND:
+            writeSidebandStateToHWC(hwcLayer, outputIndependentState);
+            break;
+        case Hwc2::IComposerClient::Composition::CURSOR:
+        case Hwc2::IComposerClient::Composition::DEVICE:
+            writeBufferStateToHWC(hwcLayer, outputIndependentState);
+            break;
+        case Hwc2::IComposerClient::Composition::INVALID:
+        case Hwc2::IComposerClient::Composition::CLIENT:
+            // Ignored
+            break;
+    }
+}
+
+void OutputLayer::writeSolidColorStateToHWC(HWC2::Layer* hwcLayer,
+                                            const LayerFECompositionState& outputIndependentState) {
+    hwc_color_t color = {static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.r)),
+                         static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.g)),
+                         static_cast<uint8_t>(std::round(255.0f * outputIndependentState.color.b)),
+                         255};
+
+    if (auto error = hwcLayer->setColor(color); error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set color: %s (%d)", mLayerFE->getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+}
+
+void OutputLayer::writeSidebandStateToHWC(HWC2::Layer* hwcLayer,
+                                          const LayerFECompositionState& outputIndependentState) {
+    if (auto error = hwcLayer->setSidebandStream(outputIndependentState.sidebandStream->handle());
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mLayerFE->getDebugName(),
+              outputIndependentState.sidebandStream->handle(), to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+
+void OutputLayer::writeBufferStateToHWC(HWC2::Layer* hwcLayer,
+                                        const LayerFECompositionState& outputIndependentState) {
+    auto supportedPerFrameMetadata =
+            mOutput.getDisplayColorProfile()->getSupportedPerFrameMetadata();
+    if (auto error = hwcLayer->setPerFrameMetadata(supportedPerFrameMetadata,
+                                                   outputIndependentState.hdrMetadata);
+        error != HWC2::Error::None && error != HWC2::Error::Unsupported) {
+        ALOGE("[%s] Failed to set hdrMetadata: %s (%d)", mLayerFE->getDebugName(),
+              to_string(error).c_str(), static_cast<int32_t>(error));
+    }
+
+    uint32_t hwcSlot = 0;
+    sp<GraphicBuffer> hwcBuffer;
+    // We need access to the output-dependent state for the buffer cache there,
+    // though otherwise the buffer is not output-dependent.
+    editState().hwc->hwcBufferCache.getHwcBuffer(outputIndependentState.bufferSlot,
+                                                 outputIndependentState.buffer, &hwcSlot,
+                                                 &hwcBuffer);
+
+    if (auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, outputIndependentState.acquireFence);
+        error != HWC2::Error::None) {
+        ALOGE("[%s] Failed to set buffer %p: %s (%d)", mLayerFE->getDebugName(),
+              outputIndependentState.buffer->handle, to_string(error).c_str(),
+              static_cast<int32_t>(error));
+    }
+}
+
+void OutputLayer::writeCompositionTypeToHWC(
+        HWC2::Layer* hwcLayer, Hwc2::IComposerClient::Composition requestedCompositionType) {
+    auto& outputDependentState = editState();
+
+    // If we are forcing client composition, we need to tell the HWC
+    if (outputDependentState.forceClientComposition) {
+        requestedCompositionType = Hwc2::IComposerClient::Composition::CLIENT;
+    }
+
+    // Set the requested composition type with the HWC whenever it changes
+    if (outputDependentState.hwc->hwcCompositionType != requestedCompositionType) {
+        outputDependentState.hwc->hwcCompositionType = requestedCompositionType;
+
+        if (auto error = hwcLayer->setCompositionType(
+                    static_cast<HWC2::Composition>(requestedCompositionType));
             error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set transform %s: %s (%d)", mLayerFE->getDebugName(),
-                  toString(mState.bufferTransform).c_str(), to_string(error).c_str(),
+            ALOGE("[%s] Failed to set composition type %s: %s (%d)", mLayerFE->getDebugName(),
+                  toString(requestedCompositionType).c_str(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
-        }
-
-        // Output independent state
-
-        const auto& outputIndependentState = mLayer->getState().frontEnd;
-
-        if (auto error = hwcLayer->setBlendMode(
-                    static_cast<HWC2::BlendMode>(outputIndependentState.blendMode));
-            error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set blend mode %s: %s (%d)", mLayerFE->getDebugName(),
-                  toString(outputIndependentState.blendMode).c_str(), to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
-
-        if (auto error = hwcLayer->setPlaneAlpha(outputIndependentState.alpha);
-            error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set plane alpha %.3f: %s (%d)", mLayerFE->getDebugName(),
-                  outputIndependentState.alpha, to_string(error).c_str(),
-                  static_cast<int32_t>(error));
-        }
-
-        if (auto error =
-                    hwcLayer->setInfo(outputIndependentState.type, outputIndependentState.appId);
-            error != HWC2::Error::None) {
-            ALOGE("[%s] Failed to set info %s (%d)", mLayerFE->getDebugName(),
-                  to_string(error).c_str(), static_cast<int32_t>(error));
         }
     }
 }

@@ -71,7 +71,7 @@ public:
     // Writes the geometry state to the HWC, or does nothing if this layer does
     // not use the HWC. If includeGeometry is false, the geometry state can be
     // skipped.
-    virtual void writeStateToHWC(bool includeGeometry) const = 0;
+    virtual void writeStateToHWC(bool includeGeometry) = 0;
 
     // Debugging
     virtual void dump(std::string& result) const = 0;

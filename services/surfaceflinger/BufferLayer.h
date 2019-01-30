@@ -82,10 +82,6 @@ public:
 
     bool isHdrY410() const override;
 
-    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
-                         const Rect& viewport, int32_t supportedPerFrameMetadata,
-                         const ui::Dataspace targetDataspace) override;
-
     bool onPreComposition(nsecs_t refreshStartTime) override;
     bool onPostComposition(const std::optional<DisplayId>& displayId,
                            const std::shared_ptr<FenceTime>& glDoneFence,
@@ -147,9 +143,9 @@ private:
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& displayDevice) = 0;
-
 protected:
+    void latchPerFrameState(compositionengine::LayerFECompositionState& outState) const override;
+
     // Loads the corresponding system property once per process
     static bool latchUnsignaledBuffers();
 

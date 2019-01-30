@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 
 #include <ui/GraphicTypes.h>
 
@@ -74,6 +75,13 @@ public:
 
     // Gets the supported HDR capabilities for the profile
     virtual const HdrCapabilities& getHdrCapabilities() const = 0;
+
+    // Returns true if HWC for this profile supports the dataspace
+    virtual bool isDataspaceSupported(ui::Dataspace) const = 0;
+
+    // Returns the target dataspace for picked color mode and dataspace
+    virtual ui::Dataspace getTargetDataspace(ui::ColorMode, ui::Dataspace,
+                                             ui::Dataspace colorSpaceAgnosticDataspace) const = 0;
 
     // Debugging
     virtual void dump(std::string&) const = 0;
