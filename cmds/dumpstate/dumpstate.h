@@ -347,7 +347,6 @@ class Dumpstate {
         // File descriptor to output zip file.
         android::base::unique_fd bugreport_fd;
         // File descriptor to screenshot file.
-        // TODO(b/111441001): Use this fd.
         android::base::unique_fd screenshot_fd;
         // TODO: rename to MODE.
         // Extra options passed as system property.
