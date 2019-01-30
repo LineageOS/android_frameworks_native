@@ -485,12 +485,6 @@ public:
     virtual void setTransformHint(uint32_t /*orientation*/) const { }
 
     /*
-     * called before composition.
-     * returns true if the layer has pending updates.
-     */
-    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
-
-    /*
      * called after composition.
      * returns true if the layer latched a new buffer this frame.
      */

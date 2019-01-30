@@ -17,6 +17,7 @@
 #pragma once
 
 #include <utils/RefBase.h>
+#include <utils/Timers.h>
 
 namespace android {
 
@@ -30,6 +31,11 @@ struct LayerFECompositionState;
 // of the front-end layer
 class LayerFE : public virtual RefBase {
 public:
+    // Called before composition starts. Should return true if this layer has
+    // pending updates which would require an extra display refresh cycle to
+    // process.
+    virtual bool onPreComposition(nsecs_t refreshStartTime) = 0;
+
     // Latches the output-independent state. If includeGeometry is false, the
     // geometry state can be skipped.
     virtual void latchCompositionState(LayerFECompositionState&, bool includeGeometry) const = 0;

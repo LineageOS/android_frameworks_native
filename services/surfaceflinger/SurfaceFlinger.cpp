@@ -1962,8 +1962,13 @@ void SurfaceFlinger::preComposition()
 
     bool needExtraInvalidate = false;
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (layer->onPreComposition(mRefreshStartTime)) {
-            needExtraInvalidate = true;
+        auto compositionLayer = layer->getCompositionLayer();
+        if (compositionLayer) {
+            auto layerFE = compositionLayer->getLayerFE();
+
+            if (layerFE && layerFE->onPreComposition(mRefreshStartTime)) {
+                needExtraInvalidate = true;
+            }
         }
     });
 
