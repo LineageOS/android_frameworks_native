@@ -395,6 +395,32 @@ public:
         return result;
     }
 
+    virtual status_t getDisplayNativePrimaries(const sp<IBinder>& display,
+            ui::DisplayPrimaries& primaries) {
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("getDisplayNativePrimaries failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(display);
+        if (result != NO_ERROR) {
+            ALOGE("getDisplayNativePrimaries failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::GET_DISPLAY_NATIVE_PRIMARIES, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("getDisplayNativePrimaries failed to transact: %d", result);
+            return result;
+        }
+        result = reply.readInt32();
+        if (result == NO_ERROR) {
+            memcpy(&primaries, reply.readInplace(sizeof(ui::DisplayPrimaries)),
+                    sizeof(ui::DisplayPrimaries));
+        }
+        return result;
+    }
+
     virtual ColorMode getActiveColorMode(const sp<IBinder>& display) {
         Parcel data, reply;
         status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
@@ -972,6 +998,26 @@ status_t BnSurfaceComposer::onTransact(
                     reply->writeInt32(static_cast<int32_t>(colorModes[i]));
                 }
             }
+            return NO_ERROR;
+        }
+        case GET_DISPLAY_NATIVE_PRIMARIES: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            ui::DisplayPrimaries primaries;
+            sp<IBinder> display = nullptr;
+
+            status_t result = data.readStrongBinder(&display);
+            if (result != NO_ERROR) {
+                ALOGE("getDisplayNativePrimaries failed to readStrongBinder: %d", result);
+                return result;
+            }
+
+            result = getDisplayNativePrimaries(display, primaries);
+            reply->writeInt32(result);
+            if (result == NO_ERROR) {
+                memcpy(reply->writeInplace(sizeof(ui::DisplayPrimaries)), &primaries,
+                        sizeof(ui::DisplayPrimaries));
+            }
+
             return NO_ERROR;
         }
         case GET_ACTIVE_COLOR_MODE: {

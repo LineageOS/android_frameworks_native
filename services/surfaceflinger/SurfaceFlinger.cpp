@@ -122,6 +122,7 @@ using namespace android::sysprop;
 using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
+using ui::DisplayPrimaries;
 using ui::Hdr;
 using ui::RenderIntent;
 
@@ -195,6 +196,19 @@ const String16 sHardwareTest("android.permission.HARDWARE_TEST");
 const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER");
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
+
+constexpr float kSrgbRedX = 0.4123f;
+constexpr float kSrgbRedY = 0.2126f;
+constexpr float kSrgbRedZ = 0.0193f;
+constexpr float kSrgbGreenX = 0.3576f;
+constexpr float kSrgbGreenY = 0.7152f;
+constexpr float kSrgbGreenZ = 0.1192f;
+constexpr float kSrgbBlueX = 0.1805f;
+constexpr float kSrgbBlueY = 0.0722f;
+constexpr float kSrgbBlueZ = 0.9506f;
+constexpr float kSrgbWhiteX = 0.9505f;
+constexpr float kSrgbWhiteY = 1.0000f;
+constexpr float kSrgbWhiteZ = 1.0891f;
 
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
@@ -339,6 +353,16 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     mPrimaryDispSync =
             getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
                                         SurfaceFlinger::dispSyncPresentTimeOffset);
+
+    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
+    if (surfaceFlingerConfigsServiceV1_2) {
+        surfaceFlingerConfigsServiceV1_2->getDisplayNativePrimaries(
+                [&](auto tmpPrimaries) {
+                    memcpy(&mInternalDisplayPrimaries, &tmpPrimaries, sizeof(ui::DisplayPrimaries));
+                });
+    } else {
+        initDefaultDisplayNativePrimaries();
+    }
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -1009,6 +1033,21 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
     outColorModes->clear();
     std::copy(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes));
 
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayToken,
+                                                   ui::DisplayPrimaries &primaries) {
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+
+    // Currently we only support this API for a single internal display.
+    if (getInternalDisplayToken() != displayToken) {
+        return BAD_VALUE;
+    }
+
+    memcpy(&primaries, &mInternalDisplayPrimaries, sizeof(ui::DisplayPrimaries));
     return NO_ERROR;
 }
 
@@ -3190,6 +3229,21 @@ void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Re
     }
 }
 
+void SurfaceFlinger::initDefaultDisplayNativePrimaries() {
+    mInternalDisplayPrimaries.red.X = kSrgbRedX;
+    mInternalDisplayPrimaries.red.Y = kSrgbRedY;
+    mInternalDisplayPrimaries.red.Z = kSrgbRedZ;
+    mInternalDisplayPrimaries.green.X = kSrgbGreenX;
+    mInternalDisplayPrimaries.green.Y = kSrgbGreenY;
+    mInternalDisplayPrimaries.green.Z = kSrgbGreenZ;
+    mInternalDisplayPrimaries.blue.X = kSrgbBlueX;
+    mInternalDisplayPrimaries.blue.Y = kSrgbBlueY;
+    mInternalDisplayPrimaries.blue.Z = kSrgbBlueZ;
+    mInternalDisplayPrimaries.white.X = kSrgbWhiteX;
+    mInternalDisplayPrimaries.white.Y = kSrgbWhiteY;
+    mInternalDisplayPrimaries.white.Z = kSrgbWhiteZ;
+}
+
 bool SurfaceFlinger::handlePageFlip()
 {
     ALOGV("handlePageFlip");
@@ -4975,6 +5029,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_CONFIG:
         case GET_BUILT_IN_DISPLAY:
         case GET_DISPLAY_COLOR_MODES:
+        case GET_DISPLAY_NATIVE_PRIMARIES:
         case GET_DISPLAY_CONFIGS:
         case GET_DISPLAY_STATS:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
