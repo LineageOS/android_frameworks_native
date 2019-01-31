@@ -17,8 +17,6 @@
 #include <gtest/gtest.h>
 #include <ui/BufferHubMetadata.h>
 
-using android::BufferHubDefs::IsBufferReleased;
-
 namespace android {
 namespace dvr {
 
@@ -52,13 +50,17 @@ TEST_F(BufferHubMetadataTest, Import_Success) {
   BufferHubDefs::MetadataHeader* mh1 = m1.metadata_header();
   EXPECT_NE(mh1, nullptr);
 
-  EXPECT_TRUE(IsBufferReleased(mh1->buffer_state.load()));
+  // Check if the newly allocated buffer is initialized in released state (i.e.
+  // state equals to 0U).
+  EXPECT_TRUE(mh1->buffer_state.load() == 0U);
 
   EXPECT_TRUE(m2.IsValid());
   BufferHubDefs::MetadataHeader* mh2 = m2.metadata_header();
   EXPECT_NE(mh2, nullptr);
 
-  EXPECT_TRUE(IsBufferReleased(mh2->buffer_state.load()));
+  // Check if the newly allocated buffer is initialized in released state (i.e.
+  // state equals to 0U).
+  EXPECT_TRUE(mh2->buffer_state.load() == 0U);
 }
 
 TEST_F(BufferHubMetadataTest, MoveMetadataInvalidatesOldOne) {
