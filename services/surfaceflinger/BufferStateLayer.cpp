@@ -20,6 +20,7 @@
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include "BufferStateLayer.h"
+#include "ColorLayer.h"
 
 #include "TimeStats/TimeStats.h"
 
@@ -299,6 +300,48 @@ bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
     mCurrentState.transparentRegionHint = transparent;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
+    return true;
+}
+
+bool BufferStateLayer::setColor(const half3& color) {
+    // create color layer if one does not yet exist
+    if (!mCurrentState.bgColorLayer) {
+        uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
+        const String8& name = mName + "BackgroundColorLayer";
+        mCurrentState.bgColorLayer =
+                new ColorLayer(LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags));
+
+        // add to child list
+        addChild(mCurrentState.bgColorLayer);
+        mFlinger->mLayersAdded = true;
+        // set up SF to handle added color layer
+        if (isRemovedFromCurrentState()) {
+            mCurrentState.bgColorLayer->onRemovedFromCurrentState();
+        }
+        mFlinger->setTransactionFlags(eTransactionNeeded);
+    }
+
+    mCurrentState.bgColorLayer->setColor(color);
+    mCurrentState.bgColorLayer->setLayer(std::numeric_limits<int32_t>::min());
+
+    return true;
+}
+
+bool BufferStateLayer::setColorAlpha(float alpha) {
+    if (!mCurrentState.bgColorLayer) {
+        ALOGE("Attempting to set color alpha on a buffer state layer with no background color");
+        return false;
+    }
+    mCurrentState.bgColorLayer->setAlpha(alpha);
+    return true;
+}
+
+bool BufferStateLayer::setColorDataspace(ui::Dataspace dataspace) {
+    if (!mCurrentState.bgColorLayer) {
+        ALOGE("Attempting to set color dataspace on a buffer state layer with no background color");
+        return false;
+    }
+    mCurrentState.bgColorLayer->setDataspace(dataspace);
     return true;
 }
 
