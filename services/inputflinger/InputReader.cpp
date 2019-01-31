@@ -805,6 +805,30 @@ bool InputReader::isInputDeviceEnabled(int32_t deviceId) {
     return false;
 }
 
+bool InputReader::canDispatchToDisplay(int32_t deviceId, int32_t displayId) {
+    AutoMutex _l(mLock);
+
+    ssize_t deviceIndex = mDevices.indexOfKey(deviceId);
+    if (deviceIndex < 0) {
+        ALOGW("Ignoring invalid device id %" PRId32 ".", deviceId);
+        return false;
+    }
+
+    InputDevice* device = mDevices.valueAt(deviceIndex);
+    std::optional<int32_t> associatedDisplayId = device->getAssociatedDisplay();
+    // No associated display. By default, can dispatch to all displays.
+    if (!associatedDisplayId) {
+        return true;
+    }
+
+    if (*associatedDisplayId == ADISPLAY_ID_NONE) {
+        ALOGW("Device has associated, but no associated display id.");
+        return true;
+    }
+
+    return *associatedDisplayId == displayId;
+}
+
 void InputReader::dump(std::string& dump) {
     AutoMutex _l(mLock);
 
@@ -1275,6 +1299,18 @@ void InputDevice::notifyReset(nsecs_t when) {
     mContext->getListener()->notifyDeviceReset(&args);
 }
 
+std::optional<int32_t> InputDevice::getAssociatedDisplay() {
+    size_t numMappers = mMappers.size();
+    for (size_t i = 0; i < numMappers; i++) {
+        InputMapper* mapper = mMappers[i];
+        std::optional<int32_t> associatedDisplayId = mapper->getAssociatedDisplay();
+        if (associatedDisplayId) {
+            return associatedDisplayId;
+        }
+    }
+
+    return std::nullopt;
+}
 
 // --- CursorButtonAccumulator ---
 
@@ -2647,7 +2683,7 @@ void CursorInputMapper::configure(nsecs_t when,
         }
 
         // Update the PointerController if viewports changed.
-        if (mParameters.hasAssociatedDisplay) {
+        if (mParameters.mode == Parameters::MODE_POINTER) {
             getPolicy()->obtainPointerController(getDeviceId());
         }
         bumpGeneration();
@@ -2917,6 +2953,19 @@ void CursorInputMapper::fadePointer() {
     if (mPointerController != nullptr) {
         mPointerController->fade(PointerControllerInterface::TRANSITION_GRADUAL);
     }
+}
+
+std::optional<int32_t> CursorInputMapper::getAssociatedDisplay() {
+    if (mParameters.hasAssociatedDisplay) {
+        if (mParameters.mode == Parameters::MODE_POINTER) {
+            return std::make_optional(mPointerController->getDisplayId());
+        } else {
+            // If the device is orientationAware and not a mouse,
+            // it expects to dispatch events to any display
+            return std::make_optional(ADISPLAY_ID_NONE);
+        }
+    }
+    return std::nullopt;
 }
 
 // --- RotaryEncoderInputMapper ---
@@ -6511,9 +6560,7 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
             ALOG_ASSERT(false);
         }
     }
-    const int32_t displayId = mPointerController != nullptr ?
-            mPointerController->getDisplayId() : mViewport.displayId;
-
+    const int32_t displayId = getAssociatedDisplay().value_or(ADISPLAY_ID_NONE);
     const int32_t deviceId = getDeviceId();
     std::vector<TouchVideoFrame> frames = mDevice->getEventHub()->getVideoFrames(deviceId);
     NotifyMotionArgs args(mContext->getNextSequenceNum(), when, deviceId,
@@ -6830,6 +6877,16 @@ bool TouchInputMapper::markSupportedKeyCodes(uint32_t sourceMask, size_t numCode
     return true;
 }
 
+std::optional<int32_t> TouchInputMapper::getAssociatedDisplay() {
+    if (mParameters.hasAssociatedDisplay) {
+        if (mDeviceMode == DEVICE_MODE_POINTER) {
+            return std::make_optional(mPointerController->getDisplayId());
+        } else {
+            return std::make_optional(mViewport.displayId);
+        }
+    }
+    return std::nullopt;
+}
 
 // --- SingleTouchInputMapper ---
 

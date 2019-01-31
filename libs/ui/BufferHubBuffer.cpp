@@ -167,32 +167,30 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
         return -EINVAL;
     }
 
+    // Import fds. Dup fds because hidl_handle owns the fds.
+    unique_fd ashmemFd(fcntl(bufferTraits.bufferInfo->data[0], F_DUPFD_CLOEXEC, 0));
+    mMetadata = BufferHubMetadata::Import(std::move(ashmemFd));
+    if (!mMetadata.IsValid()) {
+        ALOGE("%s: Received an invalid metadata.", __FUNCTION__);
+        return -EINVAL;
+    }
+
+    mEventFd = BufferHubEventFd(fcntl(bufferTraits.bufferInfo->data[1], F_DUPFD_CLOEXEC, 0));
+    if (!mEventFd.isValid()) {
+        ALOGE("%s: Received ad invalid event fd.", __FUNCTION__);
+        return -EINVAL;
+    }
+
     int bufferId = bufferTraits.bufferInfo->data[2];
     if (bufferId < 0) {
-        ALOGE("%s: Received an invalid (negative) id!", __FUNCTION__);
+        ALOGE("%s: Received an invalid (negative) id.", __FUNCTION__);
         return -EINVAL;
     }
 
     uint32_t clientBitMask;
     memcpy(&clientBitMask, &bufferTraits.bufferInfo->data[3], sizeof(clientBitMask));
     if (clientBitMask == 0U) {
-        ALOGE("%s: Received a invalid client state mask!", __FUNCTION__);
-        return -EINVAL;
-    }
-
-    // Import fds. Dup fds because hidl_handle owns the fds.
-    const int eventFd = fcntl(bufferTraits.bufferInfo->data[1], F_DUPFD_CLOEXEC, 0);
-    if (eventFd < 0) {
-        ALOGE("%s: Received a invalid event fd!", __FUNCTION__);
-        return -EINVAL;
-    }
-    mEventFd = BufferHubEventFd(eventFd);
-
-    unique_fd ashmemFd(fcntl(bufferTraits.bufferInfo->data[0], F_DUPFD_CLOEXEC, 0));
-    mMetadata = BufferHubMetadata::Import(std::move(ashmemFd));
-
-    if (!mMetadata.IsValid()) {
-        ALOGE("%s: invalid metadata.", __FUNCTION__);
+        ALOGE("%s: Received an invalid client state mask.", __FUNCTION__);
         return -EINVAL;
     }
 
