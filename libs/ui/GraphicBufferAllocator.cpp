@@ -48,12 +48,12 @@ KeyedVector<buffer_handle_t,
 GraphicBufferAllocator::GraphicBufferAllocator() : mMapper(GraphicBufferMapper::getInstance()) {
     mAllocator = std::make_unique<const Gralloc3Allocator>(
             reinterpret_cast<const Gralloc3Mapper&>(mMapper.getGrallocMapper()));
-    if (!mAllocator->isSupported()) {
+    if (!mAllocator->isLoaded()) {
         mAllocator = std::make_unique<const Gralloc2Allocator>(
                 reinterpret_cast<const Gralloc2Mapper&>(mMapper.getGrallocMapper()));
     }
 
-    if (!mAllocator->isSupported()) {
+    if (!mAllocator->isLoaded()) {
         LOG_ALWAYS_FATAL("gralloc-allocator is missing");
     }
 }

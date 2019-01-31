@@ -92,7 +92,7 @@ Gralloc3Mapper::Gralloc3Mapper() {
     }
 }
 
-bool Gralloc3Mapper::isSupported() const {
+bool Gralloc3Mapper::isLoaded() const {
     return mMapper != nullptr;
 }
 
@@ -322,7 +322,7 @@ Gralloc3Allocator::Gralloc3Allocator(const Gralloc3Mapper& mapper) : mMapper(map
     }
 }
 
-bool Gralloc3Allocator::isSupported() const {
+bool Gralloc3Allocator::isLoaded() const {
     return mAllocator != nullptr;
 }
 
