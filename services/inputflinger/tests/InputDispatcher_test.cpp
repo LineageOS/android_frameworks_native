@@ -444,7 +444,7 @@ public:
     }
 
     virtual bool updateInfo() {
-        mInfo.token = mServerChannel->getToken();
+        mInfo.token = mServerChannel ? mServerChannel->getToken() : nullptr;
         mInfo.name = mName;
         mInfo.layoutParamsFlags = 0;
         mInfo.layoutParamsType = InputWindowInfo::TYPE_APPLICATION;
@@ -474,8 +474,8 @@ public:
     }
 
     void releaseChannel() {
+        mServerChannel.clear();
         InputWindowHandle::releaseChannel();
-        mDispatcher->unregisterInputChannel(mServerChannel);
     }
 protected:
     virtual bool handled() {
