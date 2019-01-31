@@ -2142,8 +2142,14 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
         return error("Failed to stat " + _pkgdir);
     }
 
+    char *con = nullptr;
+    if (lgetfilecon(pkgdir, &con) < 0) {
+        return error("Failed to lgetfilecon " + _pkgdir);
+    }
+
     if (chown(pkgdir, AID_INSTALL, AID_INSTALL) < 0) {
-        return error("Failed to chown " + _pkgdir);
+        res = error("Failed to chown " + _pkgdir);
+        goto out;
     }
 
     if (chmod(pkgdir, 0700) < 0) {
@@ -2175,7 +2181,13 @@ binder::Status InstalldNativeService::linkNativeLibraryDirectory(
         goto out;
     }
 
+    if (lsetfilecon(libsymlink, con) < 0) {
+        res = error("Failed to lsetfilecon " + _libsymlink);
+        goto out;
+    }
+
 out:
+    free(con);
     if (chmod(pkgdir, s.st_mode) < 0) {
         auto msg = "Failed to cleanup chmod " + _pkgdir;
         if (res.isOk()) {
