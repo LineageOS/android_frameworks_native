@@ -35,7 +35,6 @@ namespace {
 using ::android::BufferHubDefs::AnyClientAcquired;
 using ::android::BufferHubDefs::AnyClientGained;
 using ::android::BufferHubDefs::AnyClientPosted;
-using ::android::BufferHubDefs::IsBufferReleased;
 using ::android::BufferHubDefs::IsClientAcquired;
 using ::android::BufferHubDefs::IsClientGained;
 using ::android::BufferHubDefs::IsClientPosted;
@@ -162,8 +161,8 @@ TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
     EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
 
     // Both buffer instances should be in released state currently.
-    EXPECT_TRUE(IsBufferReleased(b1->buffer_state()));
-    EXPECT_TRUE(IsBufferReleased(b2->buffer_state()));
+    EXPECT_TRUE(b1->IsReleased());
+    EXPECT_TRUE(b2->IsReleased());
 
     // The event fd should behave like duped event fds.
     const BufferHubEventFd& eventFd1 = b1->eventFd();
@@ -230,7 +229,7 @@ TEST_F(BufferHubBufferTest, ImportInvalidToken) {
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromReleasedState) {
-    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+    ASSERT_TRUE(b1->IsReleased());
 
     // Successful gaining the buffer should change the buffer state bit of b1 to
     // gained state, other client state bits to released state.
@@ -319,7 +318,7 @@ TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromAcquiredState) {
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromReleasedState) {
-    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+    ASSERT_TRUE(b1->IsReleased());
 
     // Posting from released state should fail.
     EXPECT_EQ(b1->Post(), -EBUSY);
@@ -357,7 +356,7 @@ TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromSelfInAcquiredState
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromReleasedState) {
-    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+    ASSERT_TRUE(b1->IsReleased());
 
     // Acquiring form released state should fail.
     EXPECT_EQ(b1->Acquire(), -EBUSY);
@@ -374,13 +373,13 @@ TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromGainedState) {
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInReleasedState) {
-    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+    ASSERT_TRUE(b1->IsReleased());
 
     EXPECT_EQ(b1->Release(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInGainedState) {
-    ASSERT_TRUE(IsBufferReleased(b1->buffer_state()));
+    ASSERT_TRUE(b1->IsReleased());
     ASSERT_EQ(b1->Gain(), 0);
     ASSERT_TRUE(AnyClientGained(b1->buffer_state()));
 

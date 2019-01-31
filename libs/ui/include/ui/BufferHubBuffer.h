@@ -59,9 +59,7 @@ public:
     const BufferHubEventFd& eventFd() const { return mEventFd; }
 
     // Returns the current value of MetadataHeader::buffer_state.
-    uint32_t buffer_state() {
-        return mMetadata.metadata_header()->buffer_state.load(std::memory_order_acquire);
-    }
+    uint32_t buffer_state() const { return buffer_state_->load(std::memory_order_acquire); }
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
@@ -96,6 +94,9 @@ public:
     // After releasing the buffer, this client no longer have any permissions to the buffer for the
     // current cycle of the usage of the buffer.
     int Release();
+
+    // Returns whether the buffer is released by all active clients or not.
+    bool IsReleased() const;
 
     // Creates a token that stands for this BufferHubBuffer client and could be used for Import to
     // create another BufferHubBuffer. The new BufferHubBuffer will share the same underlying

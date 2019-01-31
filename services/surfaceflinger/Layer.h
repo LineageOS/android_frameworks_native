@@ -201,6 +201,10 @@ public:
         mat4 colorTransform;
         bool hasColorTransform;
 
+        // pointer to background color layer that, if set, appears below the buffer state layer
+        // and the buffer state layer's children.  Z order will be set to
+        // INT_MIN
+        sp<Layer> bgColorLayer;
         ui::Dataspace colorDataspace; // The dataspace of the background color layer
 
         // The deque of callback handles for this frame. The back of the deque contains the most

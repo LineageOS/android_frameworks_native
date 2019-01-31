@@ -69,7 +69,7 @@ class ProducerChannel : public BufferHubChannel {
 
   bool CheckParameters(uint32_t width, uint32_t height, uint32_t layer_count,
                        uint32_t format, uint64_t usage,
-                       size_t user_metadata_size);
+                       size_t user_metadata_size) const;
 
  private:
   std::vector<ConsumerChannel*> consumer_channels_;
@@ -111,6 +111,10 @@ class ProducerChannel : public BufferHubChannel {
   // Remove consumer from atomics in shared memory based on consumer_state_mask.
   // This function is used for clean up for failures in CreateConsumer method.
   void RemoveConsumerClientMask(uint32_t consumer_state_mask);
+
+  // Checks whether the buffer is released by all active clients, excluding
+  // orphaned consumers.
+  bool IsBufferReleasedByAllActiveClientsExceptForOrphans() const;
 
   ProducerChannel(const ProducerChannel&) = delete;
   void operator=(const ProducerChannel&) = delete;

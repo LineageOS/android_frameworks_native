@@ -30,7 +30,6 @@
 #include <sys/prctl.h>
 
 #include <memory>
-#include <mutex>
 #include <string>
 
 #include <dlfcn.h>
@@ -406,19 +405,26 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
 }
 
 android_namespace_t* GraphicsEnv::getAngleNamespace() {
-    static std::once_flag once;
-    std::call_once(once, [this]() {
-        if (mAnglePath.empty()) return;
+    std::lock_guard<std::mutex> lock(mNamespaceMutex);
 
-        mAngleNamespace = android_create_namespace("ANGLE",
-                                                   nullptr,            // ld_library_path
-                                                   mAnglePath.c_str(), // default_library_path
-                                                   ANDROID_NAMESPACE_TYPE_SHARED |
-                                                           ANDROID_NAMESPACE_TYPE_ISOLATED,
-                                                   nullptr, // permitted_when_isolated_path
-                                                   nullptr);
-        if (!mAngleNamespace) ALOGD("Could not create ANGLE namespace from default");
-    });
+    if (mAngleNamespace) {
+        return mAngleNamespace;
+    }
+
+    if (mAnglePath.empty()) {
+        ALOGV("mAnglePath is empty, not creating ANGLE namespace");
+        return nullptr;
+    }
+
+    mAngleNamespace = android_create_namespace("ANGLE",
+                                               nullptr,            // ld_library_path
+                                               mAnglePath.c_str(), // default_library_path
+                                               ANDROID_NAMESPACE_TYPE_SHARED |
+                                                       ANDROID_NAMESPACE_TYPE_ISOLATED,
+                                               nullptr, // permitted_when_isolated_path
+                                               nullptr);
+
+    ALOGD_IF(!mAngleNamespace, "Could not create ANGLE namespace from default");
 
     return mAngleNamespace;
 }

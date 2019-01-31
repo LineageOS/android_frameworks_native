@@ -22,7 +22,6 @@
 using android::BufferHubDefs::AnyClientAcquired;
 using android::BufferHubDefs::AnyClientGained;
 using android::BufferHubDefs::AnyClientPosted;
-using android::BufferHubDefs::IsBufferReleased;
 using android::BufferHubDefs::IsClientAcquired;
 using android::BufferHubDefs::IsClientPosted;
 using android::BufferHubDefs::IsClientReleased;
@@ -284,7 +283,7 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   EXPECT_EQ(0, c->ReleaseAsync(&metadata, invalid_fence));
   EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
   EXPECT_EQ(p->buffer_state(), c->buffer_state());
-  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+  EXPECT_TRUE(p->is_released());
 
   // Acquire and post in released state should fail.
   EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
@@ -356,7 +355,7 @@ TEST_F(LibBufferHubTest, TestGainPostedBuffer_noConsumer) {
   // Producer state bit is in released state after post, other clients shall be
   // in posted state although there is no consumer of this buffer yet.
   ASSERT_TRUE(IsClientReleased(p->buffer_state(), p->client_state_mask()));
-  ASSERT_FALSE(IsBufferReleased(p->buffer_state()));
+  ASSERT_TRUE(p->is_released());
   ASSERT_TRUE(AnyClientPosted(p->buffer_state()));
 
   // Gain in released state should succeed.
@@ -374,7 +373,7 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
   for (size_t i = 0; i < kMaxConsumerCount; ++i) {
     cs[i] = ConsumerBuffer::Import(p->CreateConsumer());
     ASSERT_TRUE(cs[i].get() != nullptr);
-    EXPECT_TRUE(IsBufferReleased(cs[i]->buffer_state()));
+    EXPECT_TRUE(cs[i]->is_released());
     EXPECT_NE(producer_state_mask, cs[i]->client_state_mask());
   }
 
@@ -397,12 +396,12 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
   // All consumers have to release before the buffer is considered to be
   // released.
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
-    EXPECT_FALSE(IsBufferReleased(p->buffer_state()));
+    EXPECT_FALSE(p->is_released());
     EXPECT_EQ(0, cs[i]->ReleaseAsync(&metadata, invalid_fence));
   }
 
   EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
-  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+  EXPECT_TRUE(p->is_released());
 
   // Buffer state cross all clients must be consistent.
   for (size_t i = 0; i < kMaxConsumerCount; i++) {
@@ -445,7 +444,7 @@ TEST_F(LibBufferHubTest, TestCreateTheFirstConsumerAfterPostingBuffer) {
 
   // Post the gained buffer before any consumer gets created.
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
-  EXPECT_FALSE(IsBufferReleased(p->buffer_state()));
+  EXPECT_TRUE(p->is_released());
   EXPECT_EQ(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
 
   // Newly created consumer will be signalled for the posted buffer although it
@@ -481,7 +480,7 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
   // need to wait until the releasd is confirmed before creating another
   // consumer.
   EXPECT_LT(0, RETRY_EINTR(p->Poll(kPollTimeoutMs)));
-  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+  EXPECT_TRUE(p->is_released());
 
   // Create another consumer immediately after the release, should not make the
   // buffer un-released.
@@ -489,7 +488,7 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c2.get() != nullptr);
 
-  EXPECT_TRUE(IsBufferReleased(p->buffer_state()));
+  EXPECT_TRUE(p->is_released());
   EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
   EXPECT_TRUE(AnyClientGained(p->buffer_state()));
 }

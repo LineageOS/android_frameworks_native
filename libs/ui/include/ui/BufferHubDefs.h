@@ -106,11 +106,6 @@ static inline bool IsClientAcquired(uint32_t state, uint32_t client_bit_mask) {
     return high_bits == 0U;
 }
 
-// Returns true if all clients are in released state.
-static inline bool IsBufferReleased(uint32_t state) {
-    return state == 0U;
-}
-
 // Returns true if the input client is in released state.
 static inline bool IsClientReleased(uint32_t state, uint32_t client_bit_mask) {
     return (state & client_bit_mask) == 0U;

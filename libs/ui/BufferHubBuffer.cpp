@@ -318,6 +318,11 @@ int BufferHubBuffer::Release() {
     return 0;
 }
 
+bool BufferHubBuffer::IsReleased() const {
+    return (buffer_state_->load(std::memory_order_acquire) &
+            active_clients_bit_mask_->load(std::memory_order_acquire)) == 0;
+}
+
 bool BufferHubBuffer::IsValid() const {
     return mBufferHandle.getNativeHandle() != nullptr && mId >= 0 && mClientStateMask != 0U &&
             mEventFd.get() >= 0 && mMetadata.IsValid() && mBufferClient != nullptr;
