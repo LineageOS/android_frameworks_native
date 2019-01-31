@@ -287,8 +287,13 @@ TEST_F(ServiceTest, CreateAppDataSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request a snapshot of the CE content but not the DE content.
+  int64_t ce_snapshot_inode;
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_CE).isOk());
+          "com.foo", 0, FLAG_STORAGE_CE, &ce_snapshot_inode).isOk());
+  struct stat buf;
+  memset(&buf, 0, sizeof(buf));
+  ASSERT_EQ(0, stat((rollback_ce_dir + "/com.foo").c_str(), &buf));
+  ASSERT_EQ(ce_snapshot_inode, (int64_t) buf.st_ino);
 
   std::string ce_content, de_content;
   // At this point, we should have the CE content but not the DE content.
@@ -306,7 +311,9 @@ TEST_F(ServiceTest, CreateAppDataSnapshot) {
 
   // Request a snapshot of the DE content but not the CE content.
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+          "com.foo", 0, FLAG_STORAGE_DE, &ce_snapshot_inode).isOk());
+  // Only DE content snapshot was requested.
+  ASSERT_EQ(ce_snapshot_inode, 0);
 
   // At this point, both the CE as well as the DE content should be fully
   // populated.
@@ -325,7 +332,7 @@ TEST_F(ServiceTest, CreateAppDataSnapshot) {
 
   // Request a snapshot of both the CE as well as the DE content.
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE, nullptr).isOk());
 
   ASSERT_TRUE(android::base::ReadFileToString(
       rollback_ce_dir + "/com.foo/file1", &ce_content, false /* follow_symlinks */));
@@ -351,10 +358,13 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_AppDataAbsent) {
 
   auto scope_guard = android::base::make_scope_guard(deleter);
 
+  int64_t ce_snapshot_inode;
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_CE).isOk());
+          "com.foo", 0, FLAG_STORAGE_CE, &ce_snapshot_inode).isOk());
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+          "com.foo", 0, FLAG_STORAGE_DE, nullptr).isOk());
+  // No CE content snapshot was performed.
+  ASSERT_EQ(ce_snapshot_inode, 0);
 
   // The snapshot calls must succeed but there should be no snapshot
   // created.
@@ -404,7 +414,7 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsExistingSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE, nullptr).isOk());
 
   // Previous snapshot (with data for file1) must be cleared.
   struct stat sb;
@@ -430,7 +440,7 @@ TEST_F(ServiceTest, SnapshotAppData_WrongVolumeUuid) {
   auto scope_guard = android::base::make_scope_guard(deleter);
 
   ASSERT_FALSE(service->snapshotAppData(std::make_unique<std::string>("FOO"),
-          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+          "com.foo", 0, FLAG_STORAGE_DE, nullptr).isOk());
 }
 
 TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsCache) {
@@ -479,7 +489,7 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsCache) {
           "TEST_CONTENT_DE", fake_package_de_code_cache_path + "/file1",
           0700, 10000, 20000, false /* follow_symlinks */));
   ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_CE | FLAG_STORAGE_DE).isOk());
+          "com.foo", 0, FLAG_STORAGE_CE | FLAG_STORAGE_DE, nullptr).isOk());
   // The snapshot call must clear cache.
   struct stat sb;
   ASSERT_EQ(-1, stat((fake_package_ce_cache_path + "/file1").c_str(), &sb));
@@ -541,6 +551,133 @@ TEST_F(ServiceTest, RestoreAppDataSnapshot) {
   ASSERT_EQ("DE_RESTORE_CONTENT", de_content);
 }
 
+TEST_F(ServiceTest, CreateSnapshotThenDestroyIt) {
+  auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
+  auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir, 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir, 700));
+
+  auto fake_package_ce_path = create_data_user_ce_package_path("TEST", 0, "com.foo");
+  auto fake_package_de_path = create_data_user_de_package_path("TEST", 0, "com.foo");
+
+  ASSERT_TRUE(mkdirs(fake_package_ce_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_path, 700));
+
+  auto deleter = [&rollback_ce_dir, &rollback_de_dir,
+          &fake_package_ce_path, &fake_package_de_path]() {
+      delete_dir_contents(rollback_ce_dir, true);
+      delete_dir_contents(rollback_de_dir, true);
+      delete_dir_contents(fake_package_ce_path, true);
+      delete_dir_contents(fake_package_de_path, true);
+      rmdir(rollback_ce_dir.c_str());
+      rmdir(rollback_de_dir.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  // Prepare data for snapshot.
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_CE", fake_package_ce_path + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "TEST_CONTENT_DE", fake_package_de_path + "/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  int64_t ce_snapshot_inode;
+  // Request a snapshot of both the CE as well as the DE content.
+  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE, &ce_snapshot_inode).isOk());
+  // Because CE data snapshot was requested, ce_snapshot_inode can't be null.
+  ASSERT_NE(0, ce_snapshot_inode);
+  // Check snapshot is there.
+  struct stat sb;
+  ASSERT_EQ(0, stat((rollback_ce_dir + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(0, stat((rollback_de_dir + "/com.foo").c_str(), &sb));
+
+
+  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, ce_snapshot_inode, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+  // Check snapshot is deleted.
+  ASSERT_EQ(-1, stat((rollback_ce_dir + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(-1, stat((rollback_de_dir + "/com.foo").c_str(), &sb));
+}
+
+TEST_F(ServiceTest, DestroyAppDataSnapshot_CeSnapshotInodeIsZero) {
+  auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
+  auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir, 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir, 700));
+
+  auto fake_package_ce_path = create_data_user_ce_package_path("TEST", 0, "com.foo");
+  auto fake_package_de_path = create_data_user_de_package_path("TEST", 0, "com.foo");
+
+  ASSERT_TRUE(mkdirs(fake_package_ce_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_path, 700));
+
+  auto deleter = [&rollback_ce_dir, &rollback_de_dir,
+          &fake_package_ce_path, &fake_package_de_path]() {
+      delete_dir_contents(rollback_ce_dir, true);
+      delete_dir_contents(rollback_de_dir, true);
+      delete_dir_contents(fake_package_ce_path, true);
+      delete_dir_contents(fake_package_de_path, true);
+      rmdir(rollback_ce_dir.c_str());
+      rmdir(rollback_de_dir.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  // Create a snapshot
+  ASSERT_TRUE(mkdirs(rollback_ce_dir + "/com.foo/", 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir + "/com.foo/", 700));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "CE_RESTORE_CONTENT", rollback_ce_dir + "/com.foo/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+  ASSERT_TRUE(android::base::WriteStringToFile(
+          "DE_RESTORE_CONTENT", rollback_de_dir + "/com.foo/file1",
+          0700, 10000, 20000, false /* follow_symlinks */));
+
+  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+
+  // Check snapshot is deleted.
+  struct stat sb;
+  ASSERT_EQ(-1, stat((rollback_ce_dir + "/com.foo").c_str(), &sb));
+  ASSERT_EQ(-1, stat((rollback_de_dir + "/com.foo").c_str(), &sb));
+
+  // Check that deleting already deleted snapshot is no-op.
+  ASSERT_TRUE(service->destroyAppDataSnapshot(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+}
+
+TEST_F(ServiceTest, DestroyAppDataSnapshot_WrongVolumeUuid) {
+  // Setup rollback data to make sure that test fails due to wrong volumeUuid
+  // being passed, not because of some other reason.
+  auto rollback_ce_dir = create_data_misc_ce_rollback_path("TEST", 0);
+  auto rollback_de_dir = create_data_misc_de_rollback_path("TEST", 0);
+
+  ASSERT_TRUE(mkdirs(rollback_ce_dir, 700));
+  ASSERT_TRUE(mkdirs(rollback_de_dir, 700));
+
+  auto fake_package_ce_path = create_data_user_ce_package_path("TEST", 0, "com.foo");
+  auto fake_package_de_path = create_data_user_de_package_path("TEST", 0, "com.foo");
+
+  ASSERT_TRUE(mkdirs(fake_package_ce_path, 700));
+  ASSERT_TRUE(mkdirs(fake_package_de_path, 700));
+
+  auto deleter = [&rollback_ce_dir, &rollback_de_dir,
+          &fake_package_ce_path, &fake_package_de_path]() {
+      delete_dir_contents(rollback_ce_dir, true);
+      delete_dir_contents(rollback_de_dir, true);
+      delete_dir_contents(fake_package_ce_path, true);
+      delete_dir_contents(fake_package_de_path, true);
+      rmdir(rollback_ce_dir.c_str());
+      rmdir(rollback_de_dir.c_str());
+  };
+  auto scope_guard = android::base::make_scope_guard(deleter);
+
+  ASSERT_FALSE(service->destroyAppDataSnapshot(std::make_unique<std::string>("BAR"),
+          "com.foo", 0, 0, FLAG_STORAGE_DE).isOk());
+}
 
 TEST_F(ServiceTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
   // Setup rollback data to make sure that fails due to wrong volumeUuid being
