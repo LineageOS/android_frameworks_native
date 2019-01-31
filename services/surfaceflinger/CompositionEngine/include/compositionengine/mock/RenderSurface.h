@@ -39,9 +39,8 @@ public:
     MOCK_METHOD1(beginFrame, status_t(bool mustRecompose));
     MOCK_METHOD1(prepareFrame, status_t(std::vector<CompositionInfo>& compositionData));
     MOCK_METHOD0(dequeueBuffer, sp<GraphicBuffer>());
-    MOCK_METHOD0(queueBuffer, void());
+    MOCK_METHOD1(queueBuffer, void(base::unique_fd&&));
     MOCK_METHOD0(onPresentDisplayCompleted, void());
-    MOCK_METHOD0(finishBuffer, void());
     MOCK_METHOD0(setViewportAndProjection, void());
     MOCK_METHOD0(flip, void());
     MOCK_CONST_METHOD1(dump, void(std::string& result));

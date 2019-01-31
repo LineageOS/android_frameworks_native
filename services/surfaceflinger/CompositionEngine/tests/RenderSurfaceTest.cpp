@@ -373,7 +373,7 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesNoClientComposition) {
             .WillOnce(Return(false));
     EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
 
-    mSurface.queueBuffer();
+    mSurface.queueBuffer(base::unique_fd());
 
     EXPECT_EQ(buffer.get(), mSurface.mutableGraphicBufferForTest().get());
 }
@@ -387,7 +387,7 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesClientComposition) {
             .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
 
-    mSurface.queueBuffer();
+    mSurface.queueBuffer(base::unique_fd());
 
     EXPECT_EQ(nullptr, mSurface.mutableGraphicBufferForTest().get());
 }
@@ -402,7 +402,7 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesFlipClientTargetRequest) {
             .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
 
-    mSurface.queueBuffer();
+    mSurface.queueBuffer(base::unique_fd());
 
     EXPECT_EQ(nullptr, mSurface.mutableGraphicBufferForTest().get());
 }
@@ -419,7 +419,7 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesFlipClientTargetRequestWithNoBufferY
             .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
 
-    mSurface.queueBuffer();
+    mSurface.queueBuffer(base::unique_fd());
 
     EXPECT_EQ(nullptr, mSurface.mutableGraphicBufferForTest().get());
 }
@@ -436,7 +436,7 @@ TEST_F(RenderSurfaceTest, queueBufferHandlesNativeWindowQueueBufferFailureOnVirt
             .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(*mDisplaySurface, advanceFrame()).Times(1);
 
-    mSurface.queueBuffer();
+    mSurface.queueBuffer(base::unique_fd());
 
     EXPECT_EQ(nullptr, mSurface.mutableGraphicBufferForTest().get());
 }
@@ -449,29 +449,6 @@ TEST_F(RenderSurfaceTest, onPresentDisplayCompletedForwardsSignal) {
     EXPECT_CALL(*mDisplaySurface, onFrameCommitted()).Times(1);
 
     mSurface.onPresentDisplayCompleted();
-}
-
-/* ------------------------------------------------------------------------
- * RenderSurface::finishBuffer()
- */
-
-TEST_F(RenderSurfaceTest, finishBufferJustFlushesRenderEngine) {
-    int fd = dup(1);
-
-    EXPECT_CALL(mRenderEngine, flush()).WillOnce(Return(ByMove(base::unique_fd(fd))));
-
-    mSurface.finishBuffer();
-
-    EXPECT_EQ(fd, mSurface.mutableBufferReadyForTest().release());
-}
-
-TEST_F(RenderSurfaceTest, finishBufferFlushesAndFinishesRenderEngine) {
-    EXPECT_CALL(mRenderEngine, flush()).WillOnce(Return(ByMove(base::unique_fd(-2))));
-    EXPECT_CALL(mRenderEngine, finish()).Times(1);
-
-    mSurface.finishBuffer();
-
-    EXPECT_EQ(-2, mSurface.mutableBufferReadyForTest().release());
 }
 
 /* ------------------------------------------------------------------------

@@ -108,6 +108,8 @@ public:
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
+    virtual status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
+                                               sp<Fence> fence, bool cleanCache) = 0;
     // When binding a native buffer, it must be done before setViewportAndProjection
     // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
     virtual status_t bindFrameBuffer(Framebuffer* framebuffer) = 0;

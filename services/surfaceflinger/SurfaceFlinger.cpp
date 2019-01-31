@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <sys/types.h>
@@ -1876,16 +1876,13 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
 
     if (displayState.isEnabled) {
         // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getPhysicalSpaceDirtyRegion(repaintEverything);
+        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
         if (!dirtyRegion.isEmpty()) {
+            base::unique_fd readyFence;
             // redraw the whole screen
-            doComposeSurfaces(displayDevice);
+            doComposeSurfaces(displayDevice, dirtyRegion, &readyFence);
 
-            // and draw the dirty region
-            auto& engine(getRenderEngine());
-            engine.fillRegionWithColor(dirtyRegion, 1, 0, 1, 1);
-
-            display->getRenderSurface()->queueBuffer();
+            display->getRenderSurface()->queueBuffer(std::move(readyFence));
         }
     }
 
@@ -2404,7 +2401,7 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
     auto display = displayDevice->getCompositionDisplay();
     const auto& displayState = display->getState();
 
-    bool dirty = !display->getPhysicalSpaceDirtyRegion(false).isEmpty();
+    bool dirty = !display->getDirtyRegion(false).isEmpty();
     bool empty = displayDevice->getVisibleLayersSortedByZ().size() == 0;
     bool wasEmpty = !displayState.lastCompositionHadVisibleLayers;
 
@@ -2455,7 +2452,7 @@ void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool 
 
     if (displayState.isEnabled) {
         // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getPhysicalSpaceDirtyRegion(repaintEverything);
+        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
 
         // repaint the framebuffer (if needed)
         doDisplayComposition(displayDevice, dirtyRegion);
@@ -3340,13 +3337,15 @@ void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice
     }
 
     ALOGV("doDisplayComposition");
-    if (!doComposeSurfaces(displayDevice)) return;
+    base::unique_fd readyFence;
+    if (!doComposeSurfaces(displayDevice, Region::INVALID_REGION, &readyFence)) return;
 
     // swap buffers (presentation)
-    display->getRenderSurface()->queueBuffer();
+    display->getRenderSurface()->queueBuffer(std::move(readyFence));
 }
 
-bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
+bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
+                                       const Region& debugRegion, base::unique_fd* readyFence) {
     ALOGV("doComposeSurfaces");
 
     auto display = displayDevice->getCompositionDisplay();
@@ -3361,13 +3360,14 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
     mat4 colorMatrix;
     bool applyColorMatrix = false;
 
-    // Framebuffer will live in this scope for GPU composition.
-    std::unique_ptr<renderengine::BindNativeBufferAsFramebuffer> fbo;
+    renderengine::DisplaySettings clientCompositionDisplay;
+    std::vector<renderengine::LayerSettings> clientCompositionLayers;
+    sp<GraphicBuffer> buf;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        sp<GraphicBuffer> buf = display->getRenderSurface()->dequeueBuffer();
+        buf = display->getRenderSurface()->dequeueBuffer();
 
         if (buf == nullptr) {
             ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
@@ -3376,24 +3376,30 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
             return false;
         }
 
-        // Bind the framebuffer in this scope.
-        fbo = std::make_unique<renderengine::BindNativeBufferAsFramebuffer>(getRenderEngine(),
-                                                                            buf->getNativeBuffer());
+        clientCompositionDisplay.physicalDisplay = displayState.scissor;
+        clientCompositionDisplay.clip = displayState.scissor;
+        const ui::Transform& displayTransform = displayState.transform;
+        mat4 m;
+        m[0][0] = displayTransform[0][0];
+        m[0][1] = displayTransform[0][1];
+        m[0][3] = displayTransform[0][2];
+        m[1][0] = displayTransform[1][0];
+        m[1][1] = displayTransform[1][1];
+        m[1][3] = displayTransform[1][2];
+        m[3][0] = displayTransform[2][0];
+        m[3][1] = displayTransform[2][1];
+        m[3][3] = displayTransform[2][2];
 
-        if (fbo->getStatus() != NO_ERROR) {
-            ALOGW("Binding buffer for display [%s] failed with status: %d",
-                  displayDevice->getDisplayName().c_str(), fbo->getStatus());
-            return false;
-        }
+        clientCompositionDisplay.globalTransform = m;
 
         const auto* profile = display->getDisplayColorProfile();
         Dataspace outputDataspace = Dataspace::UNKNOWN;
         if (profile->hasWideColorGamut()) {
             outputDataspace = displayState.dataspace;
         }
-        getRenderEngine().setOutputDataSpace(outputDataspace);
-        getRenderEngine().setDisplayMaxLuminance(
-                profile->getHdrCapabilities().getDesiredMaxLuminance());
+        clientCompositionDisplay.outputDataspace = outputDataspace;
+        clientCompositionDisplay.maxLuminance =
+                profile->getHdrCapabilities().getDesiredMaxLuminance();
 
         const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
         const bool skipClientColorTransform =
@@ -3404,44 +3410,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
         // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
-            colorMatrix = mDrawingState.colorMatrix;
-        }
-
-        display->getRenderSurface()->setViewportAndProjection();
-
-        // Never touch the framebuffer if we don't have any framebuffer layers
-        if (hasDeviceComposition) {
-            // when using overlays, we assume a fully transparent framebuffer
-            // NOTE: we could reduce how much we need to clear, for instance
-            // remove where there are opaque FB layers. however, on some
-            // GPUs doing a "clean slate" clear might be more efficient.
-            // We'll revisit later if needed.
-            getRenderEngine().clearWithColor(0, 0, 0, 0);
-        } else {
-            // we start with the whole screen area and remove the scissor part
-            // we're left with the letterbox region
-            // (common case is that letterbox ends-up being empty)
-            const Region letterbox = bounds.subtract(displayState.scissor);
-
-            // compute the area to clear
-            const Region region = displayState.undefinedRegion.merge(letterbox);
-
-            // screen is already cleared here
-            if (!region.isEmpty()) {
-                // can happen with SurfaceView
-                drawWormhole(region);
-            }
-        }
-
-        const Rect& bounds = displayState.bounds;
-        const Rect& scissor = displayState.scissor;
-        if (scissor != bounds) {
-            // scissor doesn't match the screen's dimensions, so we
-            // need to clear everything outside of it and enable
-            // the GL scissor so we don't draw anything where we shouldn't
-
-            // enable scissor for this frame
-            getRenderEngine().setScissor(scissor);
+            clientCompositionDisplay.colorTransform = colorMatrix;
         }
     }
 
@@ -3450,11 +3419,11 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
      */
 
     ALOGV("Rendering client layers");
-    const ui::Transform& displayTransform = displayState.transform;
     bool firstLayer = true;
+    Region clearRegion = Region::INVALID_REGION;
     for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-        const Region clip(bounds.intersect(
-                displayTransform.transform(layer->visibleRegion)));
+        const Region viewportRegion(displayState.viewport);
+        const Region clip(viewportRegion.intersect(layer->visibleRegion));
         ALOGV("Layer: %s", layer->getName().string());
         ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
         if (!clip.isEmpty()) {
@@ -3470,22 +3439,28 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
                         layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        layer->clearWithOpenGL(renderArea);
+                        renderengine::LayerSettings layerSettings;
+                        Region dummyRegion;
+                        bool prepared = layer->prepareClientLayer(renderArea, clip, dummyRegion,
+                                                                  layerSettings);
+
+                        if (prepared) {
+                            layerSettings.source.buffer.buffer = nullptr;
+                            layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
+                            layerSettings.alpha = half(0.0);
+                            layerSettings.disableBlending = true;
+                            clientCompositionLayers.push_back(layerSettings);
+                        }
                     }
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    if (layer->hasColorTransform()) {
-                        mat4 tmpMatrix;
-                        if (applyColorMatrix) {
-                            tmpMatrix = mDrawingState.colorMatrix;
-                        }
-                        tmpMatrix *= layer->getColorTransform();
-                        getRenderEngine().setColorTransform(tmpMatrix);
-                    } else {
-                        getRenderEngine().setColorTransform(colorMatrix);
+                    renderengine::LayerSettings layerSettings;
+                    bool prepared =
+                            layer->prepareClientLayer(renderArea, clip, clearRegion, layerSettings);
+                    if (prepared) {
+                        clientCompositionLayers.push_back(layerSettings);
                     }
-                    layer->draw(renderArea, clip);
                     break;
                 }
                 default:
@@ -3497,14 +3472,23 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
         firstLayer = false;
     }
 
-    // Perform some cleanup steps if we used client composition.
     if (hasClientComposition) {
-        getRenderEngine().setColorTransform(mat4());
-        getRenderEngine().disableScissor();
-        display->getRenderSurface()->finishBuffer();
-        // Clear out error flags here so that we don't wait until next
-        // composition to log.
-        getRenderEngine().checkErrors();
+        clientCompositionDisplay.clearRegion = clearRegion;
+        if (!debugRegion.isEmpty()) {
+            Region::const_iterator it = debugRegion.begin();
+            Region::const_iterator end = debugRegion.end();
+            while (it != end) {
+                const Rect& rect = *it++;
+                renderengine::LayerSettings layerSettings;
+                layerSettings.source.buffer.buffer = nullptr;
+                layerSettings.source.solidColor = half3(1.0, 0.0, 1.0);
+                layerSettings.geometry.boundaries = rect.toFloatRect();
+                layerSettings.alpha = half(1.0);
+                clientCompositionLayers.push_back(layerSettings);
+            }
+        }
+        getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers,
+                                     buf->getNativeBuffer(), readyFence);
     }
     return true;
 }
@@ -5640,35 +5624,109 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 
 void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                             TraverseLayersFunction traverseLayers,
-                                            bool useIdentityTransform) {
+                                            ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                            int* outSyncFd) {
     ATRACE_CALL();
-
-    auto& engine(getRenderEngine());
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
     const auto sourceCrop = renderArea.getSourceCrop();
     const auto rotation = renderArea.getRotationFlags();
 
-    engine.setOutputDataSpace(renderArea.getReqDataSpace());
-    engine.setDisplayMaxLuminance(DisplayDevice::sDefaultMaxLumiance);
+    renderengine::DisplaySettings clientCompositionDisplay;
+    std::vector<renderengine::LayerSettings> clientCompositionLayers;
 
-    // make sure to clear all GL error flags
-    engine.checkErrors();
+    // assume that bounds are never offset, and that they are the same as the
+    // buffer bounds.
+    clientCompositionDisplay.physicalDisplay = Rect(reqWidth, reqHeight);
+    ui::Transform transform = renderArea.getTransform();
+    mat4 m;
+    m[0][0] = transform[0][0];
+    m[0][1] = transform[0][1];
+    m[0][3] = transform[0][2];
+    m[1][0] = transform[1][0];
+    m[1][1] = transform[1][1];
+    m[1][3] = transform[1][2];
+    m[3][0] = transform[2][0];
+    m[3][1] = transform[2][1];
+    m[3][3] = transform[2][2];
 
-    // set-up our viewport
-    engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, rotation);
-    engine.disableTexturing();
+    clientCompositionDisplay.globalTransform = m;
+    mat4 rotMatrix;
+    // Displacement for repositioning the clipping rectangle after rotating it
+    // with the rotation hint.
+    int displacementX = 0;
+    int displacementY = 0;
+    float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
+    switch (rotation) {
+        case ui::Transform::ROT_90:
+            rotMatrix = mat4::rotate(rot90InRadians, vec3(0, 0, 1));
+            displacementX = reqWidth;
+            break;
+        case ui::Transform::ROT_180:
+            rotMatrix = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1));
+            displacementX = reqWidth;
+            displacementY = reqHeight;
+            break;
+        case ui::Transform::ROT_270:
+            rotMatrix = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1));
+            displacementY = reqHeight;
+            break;
+        default:
+            break;
+    }
+    // We need to transform the clipping window into the right spot.
+    // First, rotate the clipping rectangle by the rotation hint to get the
+    // right orientation
+    const vec4 clipTL = vec4(sourceCrop.left, sourceCrop.top, 0, 1);
+    const vec4 clipBR = vec4(sourceCrop.right, sourceCrop.bottom, 0, 1);
+    const vec4 rotClipTL = rotMatrix * clipTL;
+    const vec4 rotClipBR = rotMatrix * clipBR;
+    const int newClipLeft = std::min(rotClipTL[0], rotClipBR[0]);
+    const int newClipTop = std::min(rotClipTL[1], rotClipBR[1]);
+    const int newClipRight = std::max(rotClipTL[0], rotClipBR[0]);
+    const int newClipBottom = std::max(rotClipTL[1], rotClipBR[1]);
+
+    // Now reposition the clipping rectangle with the displacement vector
+    // computed above.
+    const mat4 displacementMat = mat4::translate(vec4(displacementX, displacementY, 0, 1));
+
+    clientCompositionDisplay.clip =
+            Rect(newClipLeft + displacementX, newClipTop + displacementY,
+                 newClipRight + displacementX, newClipBottom + displacementY);
+
+    // We need to perform the same transformation in layer space, so propagate
+    // it to the global transform.
+    mat4 clipTransform = displacementMat * rotMatrix;
+    clientCompositionDisplay.globalTransform *= clipTransform;
+    clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
+    clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
-    // redraw the screen entirely...
-    engine.clearWithColor(0, 0, 0, alpha);
 
+    renderengine::LayerSettings fillLayer;
+    fillLayer.source.buffer.buffer = nullptr;
+    fillLayer.source.solidColor = half3(0.0, 0.0, 0.0);
+    fillLayer.geometry.boundaries = FloatRect(0.0, 0.0, 1.0, 1.0);
+    fillLayer.alpha = half(alpha);
+    clientCompositionLayers.push_back(fillLayer);
+
+    Region clearRegion = Region::INVALID_REGION;
     traverseLayers([&](Layer* layer) {
-        engine.setColorTransform(layer->getColorTransform());
-        layer->draw(renderArea, useIdentityTransform);
-        engine.setColorTransform(mat4());
+        renderengine::LayerSettings layerSettings;
+        bool prepared = layer->prepareClientLayer(renderArea, useIdentityTransform, clearRegion,
+                                                  layerSettings);
+        if (prepared) {
+            clientCompositionLayers.push_back(layerSettings);
+        }
     });
+
+    clientCompositionDisplay.clearRegion = clearRegion;
+    base::unique_fd drawFence;
+    getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
+                                 &drawFence);
+
+    *outSyncFd = drawFence.release();
 }
 
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
@@ -5692,28 +5750,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }
-    auto& engine(getRenderEngine());
-
-    // this binds the given EGLImage as a framebuffer for the
-    // duration of this scope.
-    renderengine::BindNativeBufferAsFramebuffer bufferBond(engine, buffer);
-    if (bufferBond.getStatus() != NO_ERROR) {
-        ALOGE("got ANWB binding error while taking screenshot");
-        return INVALID_OPERATION;
-    }
-
-    // this will in fact render into our dequeued buffer
-    // via an FBO, which means we didn't have to create
-    // an EGLSurface and therefore we're not
-    // dependent on the context's EGLConfig.
-    renderScreenImplLocked(renderArea, traverseLayers, useIdentityTransform);
-
-    base::unique_fd syncFd = engine.flush();
-    if (syncFd < 0) {
-        engine.finish();
-    }
-    *outSyncFd = syncFd.release();
-
+    renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, outSyncFd);
     return NO_ERROR;
 }
 

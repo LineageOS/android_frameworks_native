@@ -306,7 +306,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 
 status_t BufferQueueLayer::updateActiveBuffer() {
     // update the active buffer
-    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot);
+    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
     getBE().compositionInfo.mBuffer = mActiveBuffer;
     getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
 
@@ -315,6 +315,10 @@ status_t BufferQueueLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
     return NO_ERROR;
+}
+
+bool BufferQueueLayer::useCachedBufferForClientComposition() const {
+    return mConsumer->getAndSetCurrentBufferCacheHint();
 }
 
 status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {

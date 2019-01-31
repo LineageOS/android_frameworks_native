@@ -599,7 +599,8 @@ private:
     void startBootAnim();
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                bool useIdentityTransform);
+                                ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                int* outSyncFd);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
                                  bool useIdentityTransform);
@@ -738,8 +739,11 @@ private:
     void logLayerStats();
     void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
-    // This fails if using GL and the surface has been destroyed.
-    bool doComposeSurfaces(const sp<DisplayDevice>& display);
+    // This fails if using GL and the surface has been destroyed. readyFence
+    // will be populated if using GL and native fence sync is supported, to
+    // signal when drawing has completed.
+    bool doComposeSurfaces(const sp<DisplayDevice>& display, const Region& debugRegionm,
+                           base::unique_fd* readyFence);
 
     void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();

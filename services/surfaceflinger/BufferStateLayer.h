@@ -98,6 +98,9 @@ public:
     // -----------------------------------------------------------------------
     bool fenceHasSignaled() const override;
 
+protected:
+    bool useCachedBufferForClientComposition() const override;
+
 private:
     nsecs_t getDesiredPresentTime() override;
     std::shared_ptr<FenceTime> getCurrentFenceTime() const override;
