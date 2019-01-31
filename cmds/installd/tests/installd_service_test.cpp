@@ -15,18 +15,23 @@
  */
 
 #include <sstream>
+#include <string>
+
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/statvfs.h>
 #include <sys/xattr.h>
 
-#include <android-base/logging.h>
 #include <android-base/file.h>
+#include <android-base/logging.h>
+#include <android-base/properties.h>
 #include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
 #include <cutils/properties.h>
 #include <gtest/gtest.h>
 
+#include "binder_test_utils.h"
 #include "InstalldNativeService.h"
 #include "dexopt.h"
 #include "globals.h"
@@ -164,8 +169,8 @@ TEST_F(ServiceTest, HashSecondaryDex) {
 
     std::vector<uint8_t> result;
     std::string dexPath = get_full_path("com.example/foo/file");
-    EXPECT_TRUE(service->hashSecondaryDexFile(
-        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+    EXPECT_BINDER_SUCCESS(service->hashSecondaryDexFile(
+        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result));
 
     EXPECT_EQ(result.size(), 32U);
 
@@ -184,8 +189,8 @@ TEST_F(ServiceTest, HashSecondaryDex_NoSuch) {
 
     std::vector<uint8_t> result;
     std::string dexPath = get_full_path("com.example/foo/file");
-    EXPECT_TRUE(service->hashSecondaryDexFile(
-        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+    EXPECT_BINDER_SUCCESS(service->hashSecondaryDexFile(
+        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result));
 
     EXPECT_EQ(result.size(), 0U);
 }
@@ -199,8 +204,8 @@ TEST_F(ServiceTest, HashSecondaryDex_Unreadable) {
 
     std::vector<uint8_t> result;
     std::string dexPath = get_full_path("com.example/foo/file");
-    EXPECT_TRUE(service->hashSecondaryDexFile(
-        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+    EXPECT_BINDER_SUCCESS(service->hashSecondaryDexFile(
+        dexPath, "com.example", 10000, testUuid, FLAG_STORAGE_CE, &result));
 
     EXPECT_EQ(result.size(), 0U);
 }
@@ -214,8 +219,8 @@ TEST_F(ServiceTest, HashSecondaryDex_WrongApp) {
 
     std::vector<uint8_t> result;
     std::string dexPath = get_full_path("com.example/foo/file");
-    EXPECT_FALSE(service->hashSecondaryDexFile(
-        dexPath, "com.wrong", 10000, testUuid, FLAG_STORAGE_CE, &result).isOk());
+    EXPECT_BINDER_FAIL(service->hashSecondaryDexFile(
+        dexPath, "com.wrong", 10000, testUuid, FLAG_STORAGE_CE, &result));
 }
 
 TEST_F(ServiceTest, CalculateOat) {
@@ -287,8 +292,8 @@ TEST_F(ServiceTest, CreateAppDataSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request a snapshot of the CE content but not the DE content.
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_CE).isOk());
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_CE));
 
   std::string ce_content, de_content;
   // At this point, we should have the CE content but not the DE content.
@@ -305,8 +310,8 @@ TEST_F(ServiceTest, CreateAppDataSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request a snapshot of the DE content but not the CE content.
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_DE));
 
   // At this point, both the CE as well as the DE content should be fully
   // populated.
@@ -324,8 +329,8 @@ TEST_F(ServiceTest, CreateAppDataSnapshot) {
           0700, 10000, 20000, false /* follow_symlinks */));
 
   // Request a snapshot of both the CE as well as the DE content.
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE));
 
   ASSERT_TRUE(android::base::ReadFileToString(
       rollback_ce_dir + "/com.foo/file1", &ce_content, false /* follow_symlinks */));
@@ -351,10 +356,10 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_AppDataAbsent) {
 
   auto scope_guard = android::base::make_scope_guard(deleter);
 
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_CE).isOk());
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_CE));
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_DE));
 
   // The snapshot calls must succeed but there should be no snapshot
   // created.
@@ -403,8 +408,8 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsExistingSnapshot) {
           "TEST_CONTENT_2_DE", fake_package_de_path + "/file2",
           0700, 10000, 20000, false /* follow_symlinks */));
 
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE));
 
   // Previous snapshot (with data for file1) must be cleared.
   struct stat sb;
@@ -429,8 +434,8 @@ TEST_F(ServiceTest, SnapshotAppData_WrongVolumeUuid) {
   };
   auto scope_guard = android::base::make_scope_guard(deleter);
 
-  ASSERT_FALSE(service->snapshotAppData(std::make_unique<std::string>("FOO"),
-          "com.foo", 0, FLAG_STORAGE_DE).isOk());
+  EXPECT_BINDER_FAIL(service->snapshotAppData(std::make_unique<std::string>("FOO"),
+          "com.foo", 0, FLAG_STORAGE_DE));
 }
 
 TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsCache) {
@@ -478,8 +483,8 @@ TEST_F(ServiceTest, CreateAppDataSnapshot_ClearsCache) {
   ASSERT_TRUE(android::base::WriteStringToFile(
           "TEST_CONTENT_DE", fake_package_de_code_cache_path + "/file1",
           0700, 10000, 20000, false /* follow_symlinks */));
-  ASSERT_TRUE(service->snapshotAppData(std::make_unique<std::string>("TEST"),
-          "com.foo", 0, FLAG_STORAGE_CE | FLAG_STORAGE_DE).isOk());
+  ASSERT_BINDER_SUCCESS(service->snapshotAppData(std::make_unique<std::string>("TEST"),
+          "com.foo", 0, FLAG_STORAGE_CE | FLAG_STORAGE_DE));
   // The snapshot call must clear cache.
   struct stat sb;
   ASSERT_EQ(-1, stat((fake_package_ce_cache_path + "/file1").c_str(), &sb));
@@ -529,8 +534,8 @@ TEST_F(ServiceTest, RestoreAppDataSnapshot) {
           "TEST_CONTENT_DE", fake_package_de_path + "/file1",
           0700, 10000, 20000, false /* follow_symlinks */));
 
-  ASSERT_TRUE(service->restoreAppDataSnapshot(std::make_unique<std::string>("TEST"),
-          "com.foo", 10000, -1, "", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE).isOk());
+  ASSERT_BINDER_SUCCESS(service->restoreAppDataSnapshot(std::make_unique<std::string>("TEST"),
+          "com.foo", 10000, -1, "", 0, FLAG_STORAGE_DE | FLAG_STORAGE_CE));
 
   std::string ce_content, de_content;
   ASSERT_TRUE(android::base::ReadFileToString(
@@ -568,8 +573,8 @@ TEST_F(ServiceTest, RestoreAppDataSnapshot_WrongVolumeUuid) {
   };
   auto scope_guard = android::base::make_scope_guard(deleter);
 
-  ASSERT_FALSE(service->restoreAppDataSnapshot(std::make_unique<std::string>("BAR"),
-          "com.foo", 10000, -1, "", 0, FLAG_STORAGE_DE).isOk());
+  EXPECT_BINDER_FAIL(service->restoreAppDataSnapshot(std::make_unique<std::string>("BAR"),
+          "com.foo", 10000, -1, "", 0, FLAG_STORAGE_DE));
 }
 
 }  // namespace installd

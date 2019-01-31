@@ -25,7 +25,7 @@
 #include <android-base/logging.h>
 #include <android-base/stringprintf.h>
 #include <android-base/unique_fd.h>
-
+#include <binder/Status.h>
 #include <cutils/properties.h>
 
 #include <gtest/gtest.h>
@@ -33,6 +33,7 @@
 #include <selinux/android.h>
 #include <selinux/avc.h>
 
+#include "binder_test_utils.h"
 #include "dexopt.h"
 #include "InstalldNativeService.h"
 #include "globals.h"
@@ -451,11 +452,9 @@ protected:
         std::unique_ptr<std::string> compilation_reason_ptr(new std::string("test-reason"));
 
         bool prof_result;
-        binder::Status prof_binder_result = service_->prepareAppProfile(
+        ASSERT_BINDER_SUCCESS(service_->prepareAppProfile(
                 package_name_, kTestUserId, kTestAppId, *profile_name_ptr, apk_path_,
-                /*dex_metadata*/ nullptr, &prof_result);
-
-        ASSERT_TRUE(prof_binder_result.isOk()) << prof_binder_result.toString8().c_str();
+                /*dex_metadata*/ nullptr, &prof_result));
         ASSERT_TRUE(prof_result);
 
         binder::Status result = service_->dexopt(apk_path_,
@@ -760,9 +759,8 @@ class ProfileTest : public DexoptTest {
     void createProfileSnapshot(int32_t appid, const std::string& package_name,
             bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->createProfileSnapshot(
-                appid, package_name, kPrimaryProfile, apk_path_, &result);
-        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+        ASSERT_BINDER_SUCCESS(service_->createProfileSnapshot(
+                appid, package_name, kPrimaryProfile, apk_path_, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -802,9 +800,8 @@ class ProfileTest : public DexoptTest {
                               const std::string& code_path,
                               bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->mergeProfiles(
-                kTestAppUid, package_name, code_path, &result);
-        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+        ASSERT_BINDER_SUCCESS(service_->mergeProfiles(
+                kTestAppUid, package_name, code_path, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -830,10 +827,9 @@ class ProfileTest : public DexoptTest {
     void preparePackageProfile(const std::string& package_name, const std::string& profile_name,
             bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->prepareAppProfile(
+        ASSERT_BINDER_SUCCESS(service_->prepareAppProfile(
                 package_name, kTestUserId, kTestAppId, profile_name, apk_path_,
-                /*dex_metadata*/ nullptr, &result);
-        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+                /*dex_metadata*/ nullptr, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -919,8 +915,7 @@ TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     SetupProfiles(/*setup_ref*/ true);
     createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 
-    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, kPrimaryProfile);
-    ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+    ASSERT_BINDER_SUCCESS(service_->destroyProfileSnapshot(package_name_, kPrimaryProfile));
     struct stat st;
     ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
     ASSERT_EQ(ENOENT, errno);
@@ -978,7 +973,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     ASSERT_EQ(0, chmod(ref_profile_dir.c_str(), 0700));
 
     // Run createAppData again which will offer to fix-up the profile directories.
-    ASSERT_TRUE(service_->createAppData(
+    ASSERT_BINDER_SUCCESS(service_->createAppData(
             volume_uuid_,
             package_name_,
             kTestUserId,
@@ -986,7 +981,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
             kTestAppUid,
             se_info_,
             kOSdkVersion,
-            &ce_data_inode_).isOk());
+            &ce_data_inode_));
 
     // Check the file access.
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
@@ -1032,9 +1027,8 @@ class BootProfileTest : public ProfileTest {
 
     void createBootImageProfileSnapshot(const std::string& classpath, bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->createProfileSnapshot(
-                -1, "android", "android.prof", classpath, &result);
-        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_BINDER_SUCCESS(service_->createProfileSnapshot(
+                -1, "android", "android.prof", classpath, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
