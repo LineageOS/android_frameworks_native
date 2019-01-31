@@ -651,7 +651,7 @@ public:
     }
 };
 
-IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer,
+IMPLEMENT_HYBRID_META_INTERFACE(GraphicBufferProducer,
         "android.gui.IGraphicBufferProducer");
 
 // ----------------------------------------------------------------------
