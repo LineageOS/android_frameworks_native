@@ -314,9 +314,15 @@ class RunDex2Oat : public ExecVHelper {
         bool skip_compilation = vold_decrypt == "trigger_restart_min_framework" ||
                                 vold_decrypt == "1";
 
-        const std::string resolve_startup_string_arg =
+        std::string resolve_startup_string_arg =
+                MapPropertyToArg("persist.device_config.runtime.dex2oat_resolve_startup_strings",
+                                 "--resolve-startup-const-strings=%s");
+        if (resolve_startup_string_arg.empty()) {
+          // If empty, fall back to system property.
+          resolve_startup_string_arg =
                 MapPropertyToArg("dalvik.vm.dex2oat-resolve-startup-strings",
                                  "--resolve-startup-const-strings=%s");
+        }
 
         const std::string image_block_size_arg =
                 MapPropertyToArg("dalvik.vm.dex2oat-max-image-block-size",
