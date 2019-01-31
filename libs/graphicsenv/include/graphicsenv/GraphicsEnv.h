@@ -17,6 +17,7 @@
 #ifndef ANDROID_UI_GRAPHICS_ENV_H
 #define ANDROID_UI_GRAPHICS_ENV_H 1
 
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -77,6 +78,7 @@ private:
     std::string mDebugLayers;
     std::string mDebugLayersGLES;
     std::string mLayerPaths;
+    std::mutex mNamespaceMutex;
     android_namespace_t* mDriverNamespace = nullptr;
     android_namespace_t* mAngleNamespace = nullptr;
     NativeLoaderNamespace* mAppNamespace = nullptr;
