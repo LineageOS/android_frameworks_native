@@ -59,7 +59,7 @@ class DumpstateToken : public BnDumpstateToken {};
 
 }  // namespace
 
-DumpstateService::DumpstateService() : ds_(Dumpstate::GetInstance()) {
+DumpstateService::DumpstateService() : ds_(nullptr) {
 }
 
 char const* DumpstateService::getServiceName() {
@@ -78,6 +78,8 @@ status_t DumpstateService::Start() {
     return android::OK;
 }
 
+// Note: this method is part of the old flow and is not expected to be used in combination
+// with startBugreport.
 binder::Status DumpstateService::setListener(const std::string& name,
                                              const sp<IDumpstateListener>& listener,
                                              bool getSectionDetails,
@@ -92,20 +94,22 @@ binder::Status DumpstateService::setListener(const std::string& name,
         return binder::Status::ok();
     }
     std::lock_guard<std::mutex> lock(lock_);
-    if (ds_.listener_ != nullptr) {
-        MYLOGE("setListener(%s): already set (%s)\n", name.c_str(), ds_.listener_name_.c_str());
+    if (ds_ == nullptr) {
+        ds_ = &(Dumpstate::GetInstance());
+    }
+    if (ds_->listener_ != nullptr) {
+        MYLOGE("setListener(%s): already set (%s)\n", name.c_str(), ds_->listener_name_.c_str());
         return binder::Status::ok();
     }
 
-    ds_.listener_name_ = name;
-    ds_.listener_ = listener;
-    ds_.report_section_ = getSectionDetails;
+    ds_->listener_name_ = name;
+    ds_->listener_ = listener;
+    ds_->report_section_ = getSectionDetails;
     *returned_token = new DumpstateToken();
 
     return binder::Status::ok();
 }
 
-// TODO(b/111441001): Hook up to consent service & copy final br only if user approves.
 binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 const std::string& calling_package,
                                                 const android::base::unique_fd& bugreport_fd,
@@ -133,15 +137,21 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
     options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_fd,
                         screenshot_fd);
 
+    // This is the bugreporting API flow, so ensure there is only one bugreport in progress at a
+    // time.
     std::lock_guard<std::mutex> lock(lock_);
-    // TODO(b/111441001): Disallow multiple simultaneous bugreports.
-    ds_.SetOptions(std::move(options));
+    if (ds_ != nullptr) {
+        return exception(binder::Status::EX_SERVICE_SPECIFIC,
+                         "There is already a bugreport in progress");
+    }
+    ds_ = &(Dumpstate::GetInstance());
+    ds_->SetOptions(std::move(options));
     if (listener != nullptr) {
-        ds_.listener_ = listener;
+        ds_->listener_ = listener;
     }
 
     DumpstateInfo ds_info;
-    ds_info.ds = &ds_;
+    ds_info.ds = ds_;
     ds_info.calling_uid = calling_uid;
     ds_info.calling_package = calling_package;
 
@@ -162,32 +172,36 @@ binder::Status DumpstateService::cancelBugreport() {
 }
 
 status_t DumpstateService::dump(int fd, const Vector<String16>&) {
-    std::string destination = ds_.options_->bugreport_fd.get() != -1
-                                  ? StringPrintf("[fd:%d]", ds_.options_->bugreport_fd.get())
-                                  : ds_.bugreport_internal_dir_.c_str();
-    dprintf(fd, "id: %d\n", ds_.id_);
-    dprintf(fd, "pid: %d\n", ds_.pid_);
-    dprintf(fd, "update_progress: %s\n", ds_.options_->do_progress_updates ? "true" : "false");
-    dprintf(fd, "update_progress_threshold: %d\n", ds_.update_progress_threshold_);
-    dprintf(fd, "last_updated_progress: %d\n", ds_.last_updated_progress_);
+    if (ds_ == nullptr) {
+        dprintf(fd, "Bugreport not in progress yet");
+        return NO_ERROR;
+    }
+    std::string destination = ds_->options_->bugreport_fd.get() != -1
+                                  ? StringPrintf("[fd:%d]", ds_->options_->bugreport_fd.get())
+                                  : ds_->bugreport_internal_dir_.c_str();
+    dprintf(fd, "id: %d\n", ds_->id_);
+    dprintf(fd, "pid: %d\n", ds_->pid_);
+    dprintf(fd, "update_progress: %s\n", ds_->options_->do_progress_updates ? "true" : "false");
+    dprintf(fd, "update_progress_threshold: %d\n", ds_->update_progress_threshold_);
+    dprintf(fd, "last_updated_progress: %d\n", ds_->last_updated_progress_);
     dprintf(fd, "progress:\n");
-    ds_.progress_->Dump(fd, "  ");
-    dprintf(fd, "args: %s\n", ds_.options_->args.c_str());
-    dprintf(fd, "extra_options: %s\n", ds_.options_->extra_options.c_str());
-    dprintf(fd, "version: %s\n", ds_.version_.c_str());
+    ds_->progress_->Dump(fd, "  ");
+    dprintf(fd, "args: %s\n", ds_->options_->args.c_str());
+    dprintf(fd, "extra_options: %s\n", ds_->options_->extra_options.c_str());
+    dprintf(fd, "version: %s\n", ds_->version_.c_str());
     dprintf(fd, "bugreport_dir: %s\n", destination.c_str());
-    dprintf(fd, "screenshot_path: %s\n", ds_.screenshot_path_.c_str());
-    dprintf(fd, "log_path: %s\n", ds_.log_path_.c_str());
-    dprintf(fd, "tmp_path: %s\n", ds_.tmp_path_.c_str());
-    dprintf(fd, "path: %s\n", ds_.path_.c_str());
-    dprintf(fd, "extra_options: %s\n", ds_.options_->extra_options.c_str());
-    dprintf(fd, "base_name: %s\n", ds_.base_name_.c_str());
-    dprintf(fd, "name: %s\n", ds_.name_.c_str());
-    dprintf(fd, "now: %ld\n", ds_.now_);
-    dprintf(fd, "is_zipping: %s\n", ds_.IsZipping() ? "true" : "false");
-    dprintf(fd, "listener: %s\n", ds_.listener_name_.c_str());
-    dprintf(fd, "notification title: %s\n", ds_.options_->notification_title.c_str());
-    dprintf(fd, "notification description: %s\n", ds_.options_->notification_description.c_str());
+    dprintf(fd, "screenshot_path: %s\n", ds_->screenshot_path_.c_str());
+    dprintf(fd, "log_path: %s\n", ds_->log_path_.c_str());
+    dprintf(fd, "tmp_path: %s\n", ds_->tmp_path_.c_str());
+    dprintf(fd, "path: %s\n", ds_->path_.c_str());
+    dprintf(fd, "extra_options: %s\n", ds_->options_->extra_options.c_str());
+    dprintf(fd, "base_name: %s\n", ds_->base_name_.c_str());
+    dprintf(fd, "name: %s\n", ds_->name_.c_str());
+    dprintf(fd, "now: %ld\n", ds_->now_);
+    dprintf(fd, "is_zipping: %s\n", ds_->IsZipping() ? "true" : "false");
+    dprintf(fd, "listener: %s\n", ds_->listener_name_.c_str());
+    dprintf(fd, "notification title: %s\n", ds_->options_->notification_title.c_str());
+    dprintf(fd, "notification description: %s\n", ds_->options_->notification_description.c_str());
 
     return NO_ERROR;
 }
