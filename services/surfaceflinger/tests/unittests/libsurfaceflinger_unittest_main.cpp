@@ -16,6 +16,11 @@
 
 #include <gtest/gtest.h>
 
+#include <sched.h>
+
+#include <processgroup/sched_policy.h>
+#include <system/graphics.h>
+
 #include "libsurfaceflinger_unittest_main.h"
 
 // ------------------------------------------------------------------------
@@ -38,6 +43,12 @@ bool g_noSlowTests = false;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
+
+    // The SurfaceFlinger implementation assumes that threads resume
+    // execution as quickly as possible once they become unblocked.
+    // (These same calls are made in main_surfaceflinger.cpp)
+    setpriority(PRIO_PROCESS, 0, HAL_PRIORITY_URGENT_DISPLAY);
+    set_sched_policy(0, SP_FOREGROUND);
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--no-slow") == 0) {

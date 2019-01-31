@@ -81,7 +81,10 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
     }
 }
 
-Scheduler::~Scheduler() = default;
+Scheduler::~Scheduler() {
+    // Ensure the IdleTimer thread is joined before we start destroying state.
+    mIdleTimer.reset();
+}
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
         const char* connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
