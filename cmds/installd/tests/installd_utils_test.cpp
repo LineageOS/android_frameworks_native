@@ -18,6 +18,7 @@
 #include <string.h>
 
 #include <android-base/logging.h>
+#include <android-base/scopeguard.h>
 #include <gtest/gtest.h>
 
 #include "InstalldNativeService.h"
@@ -564,6 +565,29 @@ TEST_F(UtilsTest, TestRollbackPaths) {
             create_data_misc_de_rollback_path(nullptr, 0));
     EXPECT_EQ("/data/misc_de/10/rollback",
             create_data_misc_de_rollback_path(nullptr, 10));
+
+    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo", 0));
+    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo", 239));
+
+    auto rollback_ce_package_path = create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo");
+    auto deleter = [&rollback_ce_package_path]() {
+        delete_dir_contents_and_dir(rollback_ce_package_path, true /* ignore_if_missing */);
+    };
+    auto scope_guard = android::base::make_scope_guard(deleter);
+
+    ASSERT_NE(-1, mkdir(rollback_ce_package_path.c_str(), 700));
+
+    ino_t ce_data_inode;
+    ASSERT_EQ(0, get_path_inode(rollback_ce_package_path, &ce_data_inode));
+
+    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo", ce_data_inode));
+    // Check that path defined by inode is picked even if it's not the same as
+    // the fallback one.
+    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.bar", ce_data_inode));
 
     // These last couple of cases are never exercised in production because we
     // only snapshot apps in the primary data partition. Exercise them here for

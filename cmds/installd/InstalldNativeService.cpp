@@ -167,6 +167,15 @@ binder::Status checkArgumentUuid(const std::unique_ptr<std::string>& uuid) {
     }
 }
 
+binder::Status checkArgumentUuidTestOrNull(const std::unique_ptr<std::string>& uuid) {
+    if (!uuid || strcmp(uuid->c_str(), kTestUuid) == 0) {
+        return ok();
+    } else {
+        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
+                StringPrintf("UUID must be null or \"%s\", got: %s", kTestUuid, uuid->c_str()));
+    }
+}
+
 binder::Status checkArgumentPackageName(const std::string& packageName) {
     if (is_valid_package_name(packageName.c_str())) {
         return ok();
@@ -218,6 +227,13 @@ binder::Status checkArgumentPath(const std::unique_ptr<std::string>& path) {
         return status;                                      \
     }                                                       \
 }
+
+#define CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(uuid) {         \
+    auto status = checkArgumentUuidTestOrNull(uuid);        \
+    if (!status.isOk()) {                                   \
+        return status;                                      \
+    }                                                       \
+}                                                           \
 
 #define CHECK_ARGUMENT_PACKAGE_NAME(packageName) {          \
     binder::Status status =                                 \
@@ -768,20 +784,21 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
 
 binder::Status InstalldNativeService::snapshotAppData(
         const std::unique_ptr<std::string>& volumeUuid,
-        const std::string& packageName, int32_t user, int32_t storageFlags) {
+        const std::string& packageName, int32_t user, int32_t storageFlags,
+        int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
 
-    if (volume_uuid && strcmp(volume_uuid, kTestUuid)) {
-        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
-                StringPrintf("volumeUuid must be null or \"%s\", got: %s", kTestUuid, volume_uuid));
-    }
-
     binder::Status res = ok();
+    // Default result to 0, it will be populated with inode of ce data snapshot
+    // if FLAG_STORAGE_CE has been passed.
+    if (_aidl_return != nullptr) *_aidl_return = 0;
+
     bool clear_ce_on_exit = false;
     bool clear_de_on_exit = false;
 
@@ -862,6 +879,16 @@ binder::Status InstalldNativeService::snapshotAppData(
             clear_ce_on_exit = true;
             return res;
         }
+        if (_aidl_return != nullptr) {
+            auto ce_snapshot_path = create_data_misc_ce_rollback_package_path(volume_uuid, user,
+                    package_name);
+            rc = get_path_inode(ce_snapshot_path, reinterpret_cast<ino_t*>(_aidl_return));
+            if (rc != 0) {
+                res = error(rc, "Failed to get_path_inode for " + ce_snapshot_path);
+                clear_ce_on_exit = true;
+                return res;
+            }
+        }
     }
 
     return res;
@@ -872,16 +899,12 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
         const int32_t appId, const int64_t ceDataInode, const std::string& seInfo,
         const int32_t user, int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
     const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
     const char* package_name = packageName.c_str();
-
-    if (volume_uuid && strcmp(volume_uuid, kTestUuid)) {
-        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
-                StringPrintf("volumeUuid must be null or \"%s\", got: %s", kTestUuid, volume_uuid));
-    }
 
     auto from_ce = create_data_misc_ce_rollback_package_path(volume_uuid,
             user, package_name);
@@ -932,6 +955,39 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
     // Finally, restore the SELinux label on the app data.
     return restoreconAppData(volumeUuid, packageName, user, storageFlags, appId, seInfo);
 }
+
+binder::Status InstalldNativeService::destroyAppDataSnapshot(
+        const std::unique_ptr<std::string> &volumeUuid, const std::string& packageName,
+        const int32_t user, const int64_t ceSnapshotInode, int32_t storageFlags) {
+    ENFORCE_UID(AID_SYSTEM);
+    CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
+    CHECK_ARGUMENT_PACKAGE_NAME(packageName);
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+
+    const char* volume_uuid = volumeUuid ? volumeUuid->c_str() : nullptr;
+    const char* package_name = packageName.c_str();
+
+    if (storageFlags & FLAG_STORAGE_DE) {
+        auto de_snapshot_path = create_data_misc_de_rollback_package_path(volume_uuid,
+                user, package_name);
+
+        int res = delete_dir_contents_and_dir(de_snapshot_path, true /* ignore_if_missing */);
+        if (res != 0) {
+            return error(res, "Failed clearing snapshot " + de_snapshot_path);
+        }
+    }
+
+    if (storageFlags & FLAG_STORAGE_CE) {
+        auto ce_snapshot_path = create_data_misc_ce_rollback_package_path(volume_uuid,
+                user, package_name, ceSnapshotInode);
+        int res = delete_dir_contents_and_dir(ce_snapshot_path, true /* ignore_if_missing */);
+        if (res != 0) {
+            return error(res, "Failed clearing snapshot " + ce_snapshot_path);
+        }
+    }
+    return ok();
+}
+
 
 binder::Status InstalldNativeService::moveCompleteApp(const std::unique_ptr<std::string>& fromUuid,
         const std::unique_ptr<std::string>& toUuid, const std::string& packageName,

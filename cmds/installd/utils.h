@@ -65,6 +65,8 @@ std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t 
 std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user);
 std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
         userid_t user, const char* package_name);
+std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
+        userid_t user, const char* package_name, ino_t ce_rollback_inode);
 std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
         userid_t user, const char* package_name);
 
