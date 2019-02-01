@@ -27,38 +27,38 @@ static constexpr uint32_t kHighBitsMask = android::BufferHubDefs::kHighBitsMask;
 static constexpr uint32_t kFirstClientBitMask =
     android::BufferHubDefs::kFirstClientBitMask;
 
-static inline bool AnyClientGained(uint32_t state) {
-  return android::BufferHubDefs::AnyClientGained(state);
+static inline bool isAnyClientGained(uint32_t state) {
+  return android::BufferHubDefs::isAnyClientGained(state);
 }
 
-static inline bool IsClientGained(uint32_t state, uint32_t client_bit_mask) {
-  return android::BufferHubDefs::IsClientGained(state, client_bit_mask);
+static inline bool isClientGained(uint32_t state, uint32_t client_bit_mask) {
+  return android::BufferHubDefs::isClientGained(state, client_bit_mask);
 }
 
-static inline bool AnyClientPosted(uint32_t state) {
-  return android::BufferHubDefs::AnyClientPosted(state);
+static inline bool isAnyClientPosted(uint32_t state) {
+  return android::BufferHubDefs::isAnyClientPosted(state);
 }
 
-static inline bool IsClientPosted(uint32_t state, uint32_t client_bit_mask) {
-  return android::BufferHubDefs::IsClientPosted(state, client_bit_mask);
+static inline bool isClientPosted(uint32_t state, uint32_t client_bit_mask) {
+  return android::BufferHubDefs::isClientPosted(state, client_bit_mask);
 }
 
-static inline bool AnyClientAcquired(uint32_t state) {
-  return android::BufferHubDefs::AnyClientAcquired(state);
+static inline bool isAnyClientAcquired(uint32_t state) {
+  return android::BufferHubDefs::isAnyClientAcquired(state);
 }
 
-static inline bool IsClientAcquired(uint32_t state, uint32_t client_bit_mask) {
-  return android::BufferHubDefs::IsClientAcquired(state, client_bit_mask);
+static inline bool isClientAcquired(uint32_t state, uint32_t client_bit_mask) {
+  return android::BufferHubDefs::isClientAcquired(state, client_bit_mask);
 }
 
-static inline bool IsClientReleased(uint32_t state, uint32_t client_bit_mask) {
-  return android::BufferHubDefs::IsClientReleased(state, client_bit_mask);
+static inline bool isClientReleased(uint32_t state, uint32_t client_bit_mask) {
+  return android::BufferHubDefs::isClientReleased(state, client_bit_mask);
 }
 
 // Returns the next available buffer client's client_state_masks.
 // @params union_bits. Union of all existing clients' client_state_masks.
-static inline uint32_t FindNextAvailableClientStateMask(uint32_t union_bits) {
-  return android::BufferHubDefs::FindNextAvailableClientStateMask(union_bits);
+static inline uint32_t findNextAvailableClientStateMask(uint32_t union_bits) {
+  return android::BufferHubDefs::findNextAvailableClientStateMask(union_bits);
 }
 
 using MetadataHeader = android::BufferHubDefs::MetadataHeader;

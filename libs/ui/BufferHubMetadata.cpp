@@ -34,7 +34,7 @@ using BufferHubDefs::kMetadataHeaderSize;
 using BufferHubDefs::MetadataHeader;
 
 /* static */
-BufferHubMetadata BufferHubMetadata::Create(size_t userMetadataSize) {
+BufferHubMetadata BufferHubMetadata::create(size_t userMetadataSize) {
     // The size the of metadata buffer is used as the "width" parameter during allocation. Thus it
     // cannot overflow uint32_t.
     if (userMetadataSize >= (std::numeric_limits<uint32_t>::max() - kMetadataHeaderSize)) {
@@ -59,11 +59,11 @@ BufferHubMetadata BufferHubMetadata::Create(size_t userMetadataSize) {
         return {};
     }
 
-    return BufferHubMetadata::Import(std::move(ashmemFd));
+    return BufferHubMetadata::import(std::move(ashmemFd));
 }
 
 /* static */
-BufferHubMetadata BufferHubMetadata::Import(unique_fd ashmemFd) {
+BufferHubMetadata BufferHubMetadata::import(unique_fd ashmemFd) {
     if (!ashmem_valid(ashmemFd.get())) {
         ALOGE("BufferHubMetadata::Import: invalid ashmem fd.");
         return {};
@@ -94,7 +94,7 @@ BufferHubMetadata::BufferHubMetadata(size_t userMetadataSize, unique_fd ashmemFd
 
 BufferHubMetadata::~BufferHubMetadata() {
     if (mMetadataHeader != nullptr) {
-        int ret = munmap(mMetadataHeader, metadata_size());
+        int ret = munmap(mMetadataHeader, metadataSize());
         ALOGE_IF(ret != 0,
                  "BufferHubMetadata::~BufferHubMetadata: failed to unmap ashmem, error=%d.", errno);
         mMetadataHeader = nullptr;

@@ -82,7 +82,7 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
   // The buffer can be posted iff the buffer state for this client is gained.
   uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  if (!BufferHubDefs::IsClientGained(current_buffer_state,
+  if (!BufferHubDefs::isClientGained(current_buffer_state,
                                      client_state_mask())) {
     ALOGE("%s: not gained, id=%d state=%" PRIx32 ".", __FUNCTION__, id(),
           current_buffer_state);
@@ -103,7 +103,7 @@ int ProducerBuffer::LocalPost(const DvrNativeBufferMetadata* meta,
         "%" PRIx32
         ". About to try again if the buffer is still gained by this client.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
-    if (!BufferHubDefs::IsClientGained(current_buffer_state,
+    if (!BufferHubDefs::isClientGained(current_buffer_state,
                                        client_state_mask())) {
       ALOGE(
           "%s: Failed to post the buffer. The buffer is no longer gained, "
@@ -166,14 +166,14 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
   ALOGD_IF(TRACE, "%s: buffer=%d, state=%" PRIx32 ".", __FUNCTION__, id(),
            current_buffer_state);
 
-  if (BufferHubDefs::IsClientGained(current_buffer_state,
+  if (BufferHubDefs::isClientGained(current_buffer_state,
                                     client_state_mask())) {
     ALOGV("%s: already gained id=%d.", __FUNCTION__, id());
     return 0;
   }
-  if (BufferHubDefs::AnyClientAcquired(current_buffer_state) ||
-      BufferHubDefs::AnyClientGained(current_buffer_state) ||
-      (BufferHubDefs::AnyClientPosted(
+  if (BufferHubDefs::isAnyClientAcquired(current_buffer_state) ||
+      BufferHubDefs::isAnyClientGained(current_buffer_state) ||
+      (BufferHubDefs::isAnyClientPosted(
            current_buffer_state &
            active_clients_bit_mask_->load(std::memory_order_acquire)) &&
        !gain_posted_buffer)) {
@@ -195,9 +195,9 @@ int ProducerBuffer::LocalGain(DvrNativeBufferMetadata* out_meta,
         "clients.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
 
-    if (BufferHubDefs::AnyClientAcquired(current_buffer_state) ||
-        BufferHubDefs::AnyClientGained(current_buffer_state) ||
-        (BufferHubDefs::AnyClientPosted(
+    if (BufferHubDefs::isAnyClientAcquired(current_buffer_state) ||
+        BufferHubDefs::isAnyClientGained(current_buffer_state) ||
+        (BufferHubDefs::isAnyClientPosted(
              current_buffer_state &
              active_clients_bit_mask_->load(std::memory_order_acquire)) &&
          !gain_posted_buffer)) {
@@ -291,7 +291,7 @@ Status<LocalChannelHandle> ProducerBuffer::Detach() {
   // TODO(b/112338294) Keep here for reference. Remove it after new logic is
   // written.
   /* uint32_t buffer_state = buffer_state_->load(std::memory_order_acquire);
-  if (!BufferHubDefs::IsClientGained(
+  if (!BufferHubDefs::isClientGained(
       buffer_state, BufferHubDefs::kFirstClientStateMask)) {
     // Can only detach a ProducerBuffer when it's in gained state.
     ALOGW("ProducerBuffer::Detach: The buffer (id=%d, state=0x%" PRIx32

@@ -323,7 +323,7 @@ Status<size_t> ProducerQueueChannel::OnProducerQueueInsertBuffer(
   // memory to indicate which client is the last producer of the buffer.
   // Currently, the first client is the only producer to the buffer.
   // Thus, it checks whether the first client gains the buffer below.
-  if (!BufferHubDefs::IsClientGained(buffer_state,
+  if (!BufferHubDefs::isClientGained(buffer_state,
                                      BufferHubDefs::kFirstClientBitMask)) {
     // Rejects the request if the requested buffer is not in Gained state.
     ALOGE(

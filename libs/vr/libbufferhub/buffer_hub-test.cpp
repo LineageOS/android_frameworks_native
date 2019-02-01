@@ -20,12 +20,12 @@ namespace {
     return result;                            \
   })()
 
-using android::BufferHubDefs::AnyClientAcquired;
-using android::BufferHubDefs::AnyClientGained;
-using android::BufferHubDefs::AnyClientPosted;
-using android::BufferHubDefs::IsClientAcquired;
-using android::BufferHubDefs::IsClientPosted;
-using android::BufferHubDefs::IsClientReleased;
+using android::BufferHubDefs::isAnyClientAcquired;
+using android::BufferHubDefs::isAnyClientGained;
+using android::BufferHubDefs::isAnyClientPosted;
+using android::BufferHubDefs::isClientAcquired;
+using android::BufferHubDefs::isClientPosted;
+using android::BufferHubDefs::isClientReleased;
 using android::BufferHubDefs::kFirstClientBitMask;
 using android::dvr::ConsumerBuffer;
 using android::dvr::ProducerBuffer;
@@ -268,7 +268,7 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   // Post in gained state should succeed.
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
   EXPECT_EQ(p->buffer_state(), c->buffer_state());
-  EXPECT_TRUE(AnyClientPosted(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientPosted(p->buffer_state()));
 
   // Post and gain in posted state should fail.
   EXPECT_EQ(-EBUSY, p->PostAsync(&metadata, invalid_fence));
@@ -280,7 +280,7 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
   EXPECT_FALSE(invalid_fence.IsValid());
   EXPECT_EQ(p->buffer_state(), c->buffer_state());
-  EXPECT_TRUE(AnyClientAcquired(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientAcquired(p->buffer_state()));
 
   // Acquire, post, and gain in acquired state should fail.
   EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
@@ -304,7 +304,7 @@ TEST_F(LibBufferHubTest, TestAsyncStateTransitions) {
   EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
   EXPECT_FALSE(invalid_fence.IsValid());
   EXPECT_EQ(p->buffer_state(), c->buffer_state());
-  EXPECT_TRUE(AnyClientGained(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientGained(p->buffer_state()));
 
   // Acquire and gain in gained state should fail.
   EXPECT_EQ(-EBUSY, c->AcquireAsync(&metadata, &invalid_fence));
@@ -329,7 +329,7 @@ TEST_F(LibBufferHubTest, TestGainPostedBuffer) {
   ASSERT_TRUE(c.get() != nullptr);
   ASSERT_EQ(0, p->GainAsync());
   ASSERT_EQ(0, p->Post(LocalHandle()));
-  ASSERT_TRUE(AnyClientPosted(p->buffer_state()));
+  ASSERT_TRUE(isAnyClientPosted(p->buffer_state()));
 
   // Gain in posted state should only succeed with gain_posted_buffer = true.
   LocalHandle invalid_fence;
@@ -346,7 +346,7 @@ TEST_F(LibBufferHubTest, TestGainPostedBufferAsync) {
   ASSERT_TRUE(c.get() != nullptr);
   ASSERT_EQ(0, p->GainAsync());
   ASSERT_EQ(0, p->Post(LocalHandle()));
-  ASSERT_TRUE(AnyClientPosted(p->buffer_state()));
+  ASSERT_TRUE(isAnyClientPosted(p->buffer_state()));
 
   // GainAsync in posted state should only succeed with gain_posted_buffer
   // equals true.
@@ -364,9 +364,9 @@ TEST_F(LibBufferHubTest, TestGainPostedBuffer_noConsumer) {
   ASSERT_EQ(0, p->Post(LocalHandle()));
   // Producer state bit is in released state after post, other clients shall be
   // in posted state although there is no consumer of this buffer yet.
-  ASSERT_TRUE(IsClientReleased(p->buffer_state(), p->client_state_mask()));
+  ASSERT_TRUE(isClientReleased(p->buffer_state(), p->client_state_mask()));
   ASSERT_TRUE(p->is_released());
-  ASSERT_TRUE(AnyClientPosted(p->buffer_state()));
+  ASSERT_TRUE(isAnyClientPosted(p->buffer_state()));
 
   // Gain in released state should succeed.
   LocalHandle invalid_fence;
@@ -393,14 +393,14 @@ TEST_F(LibBufferHubTest, TestMaxConsumers) {
 
   // Post the producer should trigger all consumers to be available.
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
-  EXPECT_TRUE(IsClientReleased(p->buffer_state(), p->client_state_mask()));
+  EXPECT_TRUE(isClientReleased(p->buffer_state(), p->client_state_mask()));
   for (size_t i = 0; i < kMaxConsumerCount; ++i) {
     EXPECT_TRUE(
-        IsClientPosted(cs[i]->buffer_state(), cs[i]->client_state_mask()));
+        isClientPosted(cs[i]->buffer_state(), cs[i]->client_state_mask()));
     EXPECT_LT(0, RETRY_EINTR(PollBufferEvent(cs[i])));
     EXPECT_EQ(0, cs[i]->AcquireAsync(&metadata, &invalid_fence));
     EXPECT_TRUE(
-        IsClientAcquired(p->buffer_state(), cs[i]->client_state_mask()));
+        isClientAcquired(p->buffer_state(), cs[i]->client_state_mask()));
   }
 
   // All consumers have to release before the buffer is considered to be
@@ -424,22 +424,22 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferGained) {
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
   ASSERT_TRUE(p.get() != nullptr);
   EXPECT_EQ(0, p->GainAsync());
-  EXPECT_TRUE(AnyClientGained(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientGained(p->buffer_state()));
 
   std::unique_ptr<ConsumerBuffer> c =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c.get() != nullptr);
-  EXPECT_TRUE(AnyClientGained(c->buffer_state()));
+  EXPECT_TRUE(isAnyClientGained(c->buffer_state()));
 
   DvrNativeBufferMetadata metadata;
   LocalHandle invalid_fence;
 
   // Post the gained buffer should signal already created consumer.
   EXPECT_EQ(0, p->PostAsync(&metadata, invalid_fence));
-  EXPECT_TRUE(AnyClientPosted(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientPosted(p->buffer_state()));
   EXPECT_LT(0, RETRY_EINTR(PollBufferEvent(c)));
   EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
-  EXPECT_TRUE(AnyClientAcquired(c->buffer_state()));
+  EXPECT_TRUE(isAnyClientAcquired(c->buffer_state()));
 }
 
 TEST_F(LibBufferHubTest, TestCreateTheFirstConsumerAfterPostingBuffer) {
@@ -447,7 +447,7 @@ TEST_F(LibBufferHubTest, TestCreateTheFirstConsumerAfterPostingBuffer) {
       kWidth, kHeight, kFormat, kUsage, sizeof(uint64_t));
   ASSERT_TRUE(p.get() != nullptr);
   EXPECT_EQ(0, p->GainAsync());
-  EXPECT_TRUE(AnyClientGained(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientGained(p->buffer_state()));
 
   DvrNativeBufferMetadata metadata;
   LocalHandle invalid_fence;
@@ -462,7 +462,7 @@ TEST_F(LibBufferHubTest, TestCreateTheFirstConsumerAfterPostingBuffer) {
   std::unique_ptr<ConsumerBuffer> c =
       ConsumerBuffer::Import(p->CreateConsumer());
   ASSERT_TRUE(c.get() != nullptr);
-  EXPECT_TRUE(IsClientPosted(c->buffer_state(), c->client_state_mask()));
+  EXPECT_TRUE(isClientPosted(c->buffer_state(), c->client_state_mask()));
   EXPECT_EQ(0, c->AcquireAsync(&metadata, &invalid_fence));
 }
 
@@ -500,7 +500,7 @@ TEST_F(LibBufferHubTest, TestCreateConsumerWhenBufferReleased) {
 
   EXPECT_TRUE(p->is_released());
   EXPECT_EQ(0, p->GainAsync(&metadata, &invalid_fence));
-  EXPECT_TRUE(AnyClientGained(p->buffer_state()));
+  EXPECT_TRUE(isAnyClientGained(p->buffer_state()));
 }
 
 TEST_F(LibBufferHubTest, TestWithCustomMetadata) {

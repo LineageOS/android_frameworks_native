@@ -63,19 +63,19 @@ static constexpr uint32_t kHighBitsMask = ~kLowbitsMask;
 static constexpr uint32_t kFirstClientBitMask = (1U << kMaxNumberOfClients) + 1U;
 
 // Returns true if any of the client is in gained state.
-static inline bool AnyClientGained(uint32_t state) {
+static inline bool isAnyClientGained(uint32_t state) {
     uint32_t high_bits = state >> kMaxNumberOfClients;
     uint32_t low_bits = state & kLowbitsMask;
     return high_bits == low_bits && low_bits != 0U;
 }
 
 // Returns true if the input client is in gained state.
-static inline bool IsClientGained(uint32_t state, uint32_t client_bit_mask) {
+static inline bool isClientGained(uint32_t state, uint32_t client_bit_mask) {
     return state == client_bit_mask;
 }
 
 // Returns true if any of the client is in posted state.
-static inline bool AnyClientPosted(uint32_t state) {
+static inline bool isAnyClientPosted(uint32_t state) {
     uint32_t high_bits = state >> kMaxNumberOfClients;
     uint32_t low_bits = state & kLowbitsMask;
     uint32_t posted_or_acquired = high_bits ^ low_bits;
@@ -83,7 +83,7 @@ static inline bool AnyClientPosted(uint32_t state) {
 }
 
 // Returns true if the input client is in posted state.
-static inline bool IsClientPosted(uint32_t state, uint32_t client_bit_mask) {
+static inline bool isClientPosted(uint32_t state, uint32_t client_bit_mask) {
     uint32_t client_bits = state & client_bit_mask;
     if (client_bits == 0U) return false;
     uint32_t low_bits = client_bits & kLowbitsMask;
@@ -91,7 +91,7 @@ static inline bool IsClientPosted(uint32_t state, uint32_t client_bit_mask) {
 }
 
 // Return true if any of the client is in acquired state.
-static inline bool AnyClientAcquired(uint32_t state) {
+static inline bool isAnyClientAcquired(uint32_t state) {
     uint32_t high_bits = state >> kMaxNumberOfClients;
     uint32_t low_bits = state & kLowbitsMask;
     uint32_t posted_or_acquired = high_bits ^ low_bits;
@@ -99,7 +99,7 @@ static inline bool AnyClientAcquired(uint32_t state) {
 }
 
 // Return true if the input client is in acquired state.
-static inline bool IsClientAcquired(uint32_t state, uint32_t client_bit_mask) {
+static inline bool isClientAcquired(uint32_t state, uint32_t client_bit_mask) {
     uint32_t client_bits = state & client_bit_mask;
     if (client_bits == 0U) return false;
     uint32_t high_bits = client_bits & kHighBitsMask;
@@ -107,13 +107,13 @@ static inline bool IsClientAcquired(uint32_t state, uint32_t client_bit_mask) {
 }
 
 // Returns true if the input client is in released state.
-static inline bool IsClientReleased(uint32_t state, uint32_t client_bit_mask) {
+static inline bool isClientReleased(uint32_t state, uint32_t client_bit_mask) {
     return (state & client_bit_mask) == 0U;
 }
 
 // Returns the next available buffer client's client_state_masks.
 // @params union_bits. Union of all existing clients' client_state_masks.
-static inline uint32_t FindNextAvailableClientStateMask(uint32_t union_bits) {
+static inline uint32_t findNextAvailableClientStateMask(uint32_t union_bits) {
     uint32_t low_union = union_bits & kLowbitsMask;
     if (low_union == kLowbitsMask) return 0U;
     uint32_t incremented = low_union + 1U;

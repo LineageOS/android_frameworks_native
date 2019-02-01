@@ -37,10 +37,10 @@ class GraphicBufferTest : public testing::Test {};
 
 TEST_F(GraphicBufferTest, CreateFromBufferHubBuffer) {
     std::unique_ptr<BufferHubBuffer> b1 =
-            BufferHubBuffer::Create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
+            BufferHubBuffer::create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
                                     kTestUsage, /*userMetadataSize=*/0);
     ASSERT_NE(b1, nullptr);
-    EXPECT_TRUE(b1->IsValid());
+    EXPECT_TRUE(b1->isValid());
 
     sp<GraphicBuffer> gb(new GraphicBuffer(std::move(b1)));
     EXPECT_TRUE(gb->isBufferHubBuffer());
@@ -61,10 +61,10 @@ TEST_F(GraphicBufferTest, InvalidBufferIdForNoneBufferHubBuffer) {
 
 TEST_F(GraphicBufferTest, BufferIdMatchesBufferHubBufferId) {
     std::unique_ptr<BufferHubBuffer> b1 =
-            BufferHubBuffer::Create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
+            BufferHubBuffer::create(kTestWidth, kTestHeight, kTestLayerCount, kTestFormat,
                                     kTestUsage, /*userMetadataSize=*/0);
     EXPECT_NE(b1, nullptr);
-    EXPECT_TRUE(b1->IsValid());
+    EXPECT_TRUE(b1->isValid());
 
     int b1_id = b1->id();
     EXPECT_GE(b1_id, 0);
