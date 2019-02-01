@@ -48,6 +48,14 @@ typedef void (*CasPluginCallback)(
         uint8_t *data,
         size_t size);
 
+typedef void (*CasPluginCallbackExt)(
+        void *appData,
+        int32_t event,
+        int32_t arg,
+        uint8_t *data,
+        size_t size,
+        const CasSessionId *sessionId);
+
 struct CasFactory {
     CasFactory() {}
     virtual ~CasFactory() {}
@@ -65,6 +73,13 @@ struct CasFactory {
             int32_t CA_system_id,
             void *appData,
             CasPluginCallback callback,
+            CasPlugin **plugin) = 0;
+
+    // Construct a new extend instance of a CasPlugin given a CA_system_id
+    virtual status_t createPlugin(
+            int32_t CA_system_id,
+            void *appData,
+            CasPluginCallbackExt callback,
             CasPlugin **plugin) = 0;
 
 private:
@@ -110,7 +125,15 @@ struct CasPlugin {
             int32_t arg,
             const CasData &eventData) = 0;
 
-    // Native implementation of the MediaCas Java API provision method.
+    // Deliver an session event to the CasPlugin. The format of the event is
+    // specific to the CA scheme and is opaque to the framework.
+    virtual status_t sendSessionEvent(
+            const CasSessionId &sessionId,
+            int32_t event,
+            int32_t arg,
+            const CasData &eventData) = 0;
+
+   // Native implementation of the MediaCas Java API provision method.
     virtual status_t provision(
             const String8 &provisionString) = 0;
 
