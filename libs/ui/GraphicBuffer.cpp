@@ -344,6 +344,13 @@ status_t GraphicBuffer::unlockAsync(int *fenceFd)
     return res;
 }
 
+status_t GraphicBuffer::isSupported(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+                                    uint32_t inLayerCount, uint64_t inUsage,
+                                    bool* outSupported) const {
+    return mBufferMapper.isSupported(inWidth, inHeight, inFormat, inLayerCount, inUsage,
+                                     outSupported);
+}
+
 size_t GraphicBuffer::getFlattenedSize() const {
     return static_cast<size_t>(13 + (handle ? mTransportNumInts : 0)) * sizeof(int);
 }

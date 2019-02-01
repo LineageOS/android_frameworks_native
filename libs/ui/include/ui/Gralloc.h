@@ -67,6 +67,15 @@ public:
     // unlock returns a fence sync object (or -1) and the fence sync object is
     // owned by the caller
     virtual int unlock(buffer_handle_t bufferHandle) const = 0;
+
+    // isSupported queries whether or not a buffer with the given width, height,
+    // format, layer count, and usage can be allocated on the device.  If
+    // *outSupported is set to true, a buffer with the given specifications may be successfully
+    // allocated if resources are available.  If false, a buffer with the given specifications will
+    // never successfully allocate on this device. Note that this function is not guaranteed to be
+    // supported on all devices, in which case a status_t of INVALID_OPERATION will be returned.
+    virtual status_t isSupported(uint32_t width, uint32_t height, android::PixelFormat format,
+                                 uint32_t layerCount, uint64_t usage, bool* outSupported) const = 0;
 };
 
 // A wrapper to IAllocator
