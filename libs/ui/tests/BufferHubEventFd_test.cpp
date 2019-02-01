@@ -35,6 +35,7 @@ namespace {
 
 const int kTimeout = 100;
 const std::chrono::milliseconds kTimeoutMs(kTimeout);
+const int kTestRuns = 5;
 
 using ::testing::Contains;
 using BufferHubEventFdTest = ::testing::Test;
@@ -46,9 +47,9 @@ TEST_F(BufferHubEventFdTest, EventFd_testSingleEpollFd) {
     ASSERT_TRUE(eventFd.isValid());
 
     base::unique_fd epollFd(epoll_create(64));
-    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
-
     ASSERT_GE(epollFd.get(), 0);
+
+    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
     ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd.get(), &e), 0);
 
     std::array<epoll_event, 1> events;
@@ -59,6 +60,96 @@ TEST_F(BufferHubEventFdTest, EventFd_testSingleEpollFd) {
 
     // The epoll fd is edge triggered, so it only responds to the eventFd once.
     EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+
+    // Check that it can receive consecutive signal.
+    eventFd.signal();
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+
+    // Check that it can receive consecutive signal from a duplicated eventfd.
+    BufferHubEventFd dupEventFd(dup(eventFd.get()));
+    ASSERT_TRUE(dupEventFd.isValid());
+    dupEventFd.signal();
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+    dupEventFd.signal();
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+}
+
+TEST_F(BufferHubEventFdTest, EventFd_testCreateEpollFdAndAddSignaledEventFd) {
+    BufferHubEventFd eventFd;
+    ASSERT_TRUE(eventFd.isValid());
+    eventFd.signal();
+
+    base::unique_fd epollFd(epoll_create(64));
+    ASSERT_GE(epollFd.get(), 0);
+
+    // Make sure that the epoll set has not been signal yet.
+    std::array<epoll_event, 1> events;
+    ASSERT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+
+    // Check that adding an signaled fd into this epoll set will trigger the epoll set.
+    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
+    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd.get(), &e), 0);
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+
+    // The epoll fd is edge triggered, so it only responds to the eventFd once.
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+}
+
+TEST_F(BufferHubEventFdTest, EventFd_testAddSignaledEventFdToEpollFd) {
+    BufferHubEventFd eventFd;
+    ASSERT_TRUE(eventFd.isValid());
+
+    base::unique_fd epollFd(epoll_create(64));
+    ASSERT_GE(epollFd.get(), 0);
+
+    eventFd.signal();
+
+    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
+    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd.get(), &e), 0);
+
+    std::array<epoll_event, 1> events;
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+
+    // The epoll fd is edge triggered, so it only responds to the eventFd once.
+    EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+}
+
+TEST_F(BufferHubEventFdTest, EventFd_testConsecutiveSignalsFromAEventFd) {
+    BufferHubEventFd eventFd;
+    ASSERT_TRUE(eventFd.isValid());
+    base::unique_fd epollFd(epoll_create(64));
+    ASSERT_GE(epollFd.get(), 0);
+    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
+    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd.get(), &e), 0);
+
+    std::array<epoll_event, 1> events;
+    for (int i = 0; i < kTestRuns; ++i) {
+        eventFd.signal();
+        EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+        EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+    }
+}
+
+TEST_F(BufferHubEventFdTest, EventFd_testConsecutiveSignalsFromADuplicatedEventFd) {
+    BufferHubEventFd eventFd;
+    ASSERT_TRUE(eventFd.isValid());
+    base::unique_fd epollFd(epoll_create(64));
+    ASSERT_GE(epollFd.get(), 0);
+    epoll_event e = {.events = EPOLLIN | EPOLLET, .data = {.u32 = 0}};
+    ASSERT_EQ(epoll_ctl(epollFd.get(), EPOLL_CTL_ADD, eventFd.get(), &e), 0);
+
+    BufferHubEventFd dupEventFd(dup(eventFd.get()));
+    ASSERT_TRUE(dupEventFd.isValid());
+
+    std::array<epoll_event, 1> events;
+    for (int i = 0; i < kTestRuns; ++i) {
+        dupEventFd.signal();
+        EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 1);
+        EXPECT_EQ(epoll_wait(epollFd.get(), events.data(), events.size(), 0), 0);
+    }
 }
 
 TEST_F(BufferHubEventFdTest, EventFd_testClear) {
