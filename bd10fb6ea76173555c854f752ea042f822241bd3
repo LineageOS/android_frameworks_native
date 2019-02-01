@@ -25,6 +25,29 @@
     },
     {
       "key": {
+        "uuid": "9b26c299_3f6f962d",
+        "filename": "services/surfaceflinger/EventThread.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 233,
+      "author": {
+        "id": 13648
+      },
+      "writtenOn": "2019-02-01T23:55:57Z",
+      "side": 1,
+      "message": "@Christopher, can you check if this part alone fixes booting?",
+      "range": {
+        "startLine": 232,
+        "startChar": 0,
+        "endLine": 233,
+        "endChar": 34
+      },
+      "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
+    },
+    {
+      "key": {
         "uuid": "5ec3dddb_11e67418",
         "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
         "patchSetId": 2
