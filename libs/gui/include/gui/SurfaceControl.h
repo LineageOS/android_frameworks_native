@@ -71,6 +71,8 @@ public:
     sp<Surface> createSurface() const;
     sp<IBinder> getHandle() const;
 
+    sp<IGraphicBufferProducer> getIGraphicBufferProducer() const;
+
     status_t clearLayerFrameStats() const;
     status_t getLayerFrameStats(FrameStats* outStats) const;
 
