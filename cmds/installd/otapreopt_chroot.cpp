@@ -58,6 +58,27 @@ static void CloseDescriptor(const char* descriptor_string) {
     }
 }
 
+static std::vector<apex::ApexFile> ActivateApexPackages() {
+    // The logic here is (partially) copied and adapted from
+    // system/apex/apexd/apexd_main.cpp.
+    //
+    // Only scan the APEX directory under /system (within the chroot dir).
+    // Note that this leaves around the loop devices created and used by
+    // libapexd's code, but this is fine, as we expect to reboot soon after.
+    apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
+    return apex::getActivePackages();
+}
+
+static void DeactivateApexPackages(const std::vector<apex::ApexFile>& active_packages) {
+    for (const apex::ApexFile& apex_file : active_packages) {
+        const std::string& package_path = apex_file.GetPath();
+        apex::Status status = apex::deactivatePackage(package_path);
+        if (!status.Ok()) {
+            LOG(ERROR) << "Failed to deactivate " << package_path << ": " << status.ErrorMessage();
+        }
+    }
+}
+
 // Entry for otapreopt_chroot. Expected parameters are:
 //   [cmd] [status-fd] [target-slot] "dexopt" [dexopt-params]
 // The file descriptor denoted by status-fd will be closed. The rest of the parameters will
@@ -199,15 +220,7 @@ static int otapreopt_chroot(const int argc, char **arg) {
 
     // Try to mount APEX packages in "/apex" in the chroot dir. We need at least
     // the Android Runtime APEX, as it is required by otapreopt to run dex2oat.
-    // The logic here is (partially) copied and adapted from
-    // system/apex/apexd/apexd_main.cpp.
-    //
-    // Only scan the APEX directory under /system (within the chroot dir).
-    // Note that this leaves around the loop devices created and used by
-    // libapexd's code, but this is fine, as we expect to reboot soon after.
-    apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
-    // Collect activated packages.
-    std::vector<apex::ApexFile> active_packages = apex::getActivePackages();
+    std::vector<apex::ApexFile> active_packages = ActivateApexPackages();
 
     // Now go on and run otapreopt.
 
@@ -229,14 +242,8 @@ static int otapreopt_chroot(const int argc, char **arg) {
         LOG(ERROR) << "Running otapreopt failed: " << error_msg;
     }
 
-    // Tear down the work down by the apexd logic above (i.e. deactivate packages).
-    for (const apex::ApexFile& apex_file : active_packages) {
-        const std::string& package_path = apex_file.GetPath();
-        apex::Status status = apex::deactivatePackage(package_path);
-        if (!status.Ok()) {
-            LOG(ERROR) << "Failed to deactivate " << package_path << ": " << status.ErrorMessage();
-        }
-    }
+    // Tear down the work down by the apexd logic. (i.e. deactivate packages).
+    DeactivateApexPackages(active_packages);
 
     if (!exec_result) {
         exit(213);
