@@ -51,11 +51,11 @@ void GraphicBufferMapper::preloadHal() {
 
 GraphicBufferMapper::GraphicBufferMapper() {
     mMapper = std::make_unique<const Gralloc3Mapper>();
-    if (!mMapper->isSupported()) {
+    if (!mMapper->isLoaded()) {
         mMapper = std::make_unique<const Gralloc2Mapper>();
     }
 
-    if (!mMapper->isSupported()) {
+    if (!mMapper->isLoaded()) {
         LOG_ALWAYS_FATAL("gralloc-mapper is missing");
     }
 }

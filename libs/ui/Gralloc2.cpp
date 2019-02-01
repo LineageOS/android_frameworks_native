@@ -94,7 +94,7 @@ Gralloc2Mapper::Gralloc2Mapper() {
     mMapperV2_1 = IMapper::castFrom(mMapper);
 }
 
-bool Gralloc2Mapper::isSupported() const {
+bool Gralloc2Mapper::isLoaded() const {
     return mMapper != nullptr;
 }
 
@@ -359,7 +359,7 @@ Gralloc2Allocator::Gralloc2Allocator(const Gralloc2Mapper& mapper) : mMapper(map
     }
 }
 
-bool Gralloc2Allocator::isSupported() const {
+bool Gralloc2Allocator::isLoaded() const {
     return mAllocator != nullptr;
 }
 

@@ -236,15 +236,15 @@ status_t GraphicBuffer::initWithHandle(const native_handle_t* inHandle, HandleWr
     return NO_ERROR;
 }
 
-status_t GraphicBuffer::lock(uint32_t inUsage, void** vaddr)
-{
+status_t GraphicBuffer::lock(uint32_t inUsage, void** vaddr, int32_t* outBytesPerPixel,
+                             int32_t* outBytesPerStride) {
     const Rect lockBounds(width, height);
-    status_t res = lock(inUsage, lockBounds, vaddr);
+    status_t res = lock(inUsage, lockBounds, vaddr, outBytesPerPixel, outBytesPerStride);
     return res;
 }
 
-status_t GraphicBuffer::lock(uint32_t inUsage, const Rect& rect, void** vaddr)
-{
+status_t GraphicBuffer::lock(uint32_t inUsage, const Rect& rect, void** vaddr,
+                             int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
     if (rect.left < 0 || rect.right  > width ||
         rect.top  < 0 || rect.bottom > height) {
         ALOGE("locking pixels (%d,%d,%d,%d) outside of buffer (w=%d, h=%d)",
@@ -252,10 +252,10 @@ status_t GraphicBuffer::lock(uint32_t inUsage, const Rect& rect, void** vaddr)
                 width, height);
         return BAD_VALUE;
     }
-    int32_t bytesPerPixel, bytesPerStride;
 
-    status_t res =
-            getBufferMapper().lock(handle, inUsage, rect, vaddr, &bytesPerPixel, &bytesPerStride);
+    status_t res = getBufferMapper().lock(handle, inUsage, rect, vaddr, outBytesPerPixel,
+                                          outBytesPerStride);
+
     return res;
 }
 

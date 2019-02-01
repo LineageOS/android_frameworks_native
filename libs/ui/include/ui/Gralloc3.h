@@ -35,7 +35,7 @@ public:
 
     Gralloc3Mapper();
 
-    bool isSupported() const override;
+    bool isLoaded() const override;
 
     status_t createDescriptor(void* bufferDescriptorInfo, void* outBufferDescriptor) const override;
 
@@ -74,7 +74,7 @@ public:
     // time.
     Gralloc3Allocator(const Gralloc3Mapper& mapper);
 
-    bool isSupported() const override;
+    bool isLoaded() const override;
 
     std::string dumpDebugInfo() const override;
 
