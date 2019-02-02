@@ -120,12 +120,15 @@ namespace android {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
 using namespace android::sysprop;
+
 using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
 using ui::DisplayPrimaries;
 using ui::Hdr;
 using ui::RenderIntent;
+
+using RefreshRateType = scheduler::RefreshRateConfigs::RefreshRateType;
 
 namespace {
 
@@ -210,6 +213,9 @@ constexpr float kSrgbBlueZ = 0.9506f;
 constexpr float kSrgbWhiteX = 0.9505f;
 constexpr float kSrgbWhiteY = 1.0000f;
 constexpr float kSrgbWhiteZ = 1.0891f;
+
+constexpr float kDefaultRefreshRate = 60.f;
+constexpr float kPerformanceRefreshRate = 90.f;
 
 // ---------------------------------------------------------------------------
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
@@ -627,13 +633,17 @@ void SurfaceFlinger::init() {
         mPhaseOffsets->setRefreshRateType(
                 scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
 
+        auto resetIdleTimerCallback =
+                std::bind(&SurfaceFlinger::setRefreshRateTo, this, RefreshRateType::PERFORMANCE);
+
         mAppConnectionHandle =
                 mScheduler->createConnection("appConnection", mPhaseOffsets->getCurrentAppOffset(),
-                                             resyncCallback,
+                                             resyncCallback, resetIdleTimerCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
                 mScheduler->createConnection("sfConnection", mPhaseOffsets->getCurrentSfOffset(),
-                                             resyncCallback, [this](nsecs_t timestamp) {
+                                             resyncCallback, resetIdleTimerCallback,
+                                             [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
 
@@ -731,20 +741,11 @@ void SurfaceFlinger::init() {
     }
 
     if (mUseScheduler) {
-        mScheduler->setExpiredIdleTimerCallback([this]() {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
-            const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-            mVsyncModulator.setPhaseOffsets(early, gl, late);
-            setRefreshRateTo(60.f /* fps */);
+        mScheduler->setExpiredIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::DEFAULT);
         });
-        mScheduler->setResetIdleTimerCallback([this]() {
-            mPhaseOffsets->setRefreshRateType(
-                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
-            const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
-            mVsyncModulator.setPhaseOffsets(early, gl, late);
-            setRefreshRateTo(90.f /* fps */);
-        });
+
         mRefreshRateStats =
                 std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
                                                                       *display->getId()),
@@ -954,13 +955,6 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     }
 
     return display->getActiveConfig();
-}
-
-status_t SurfaceFlinger::setActiveConfigAsync(const sp<IBinder>& displayToken, int mode) {
-    ATRACE_NAME("setActiveConfigAsync");
-    postMessageAsync(new LambdaMessage(
-            [=]() NO_THREAD_SAFETY_ANALYSIS { setActiveConfigInternal(displayToken, mode); }));
-    return NO_ERROR;
 }
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
@@ -1269,16 +1263,21 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     });
 
     if (mUseScheduler) {
-        if (vsyncSource == eVsyncSourceSurfaceFlinger) {
-            return mScheduler->createDisplayEventConnection(mSfConnectionHandle, resyncCallback);
-        } else {
-            return mScheduler->createDisplayEventConnection(mAppConnectionHandle, resyncCallback);
-        }
+        auto resetIdleTimerCallback = [this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE);
+        };
+
+        const auto& handle = vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle
+                                                                       : mAppConnectionHandle;
+
+        return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback),
+                                                        std::move(resetIdleTimerCallback));
     } else {
         if (vsyncSource == eVsyncSourceSurfaceFlinger) {
-            return mSFEventThread->createEventConnection(resyncCallback);
+            return mSFEventThread->createEventConnection(resyncCallback, ResetIdleTimerCallback());
         } else {
-            return mEventThread->createEventConnection(resyncCallback);
+            return mEventThread->createEventConnection(resyncCallback, ResetIdleTimerCallback());
         }
     }
 }
@@ -1440,12 +1439,16 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-// TODO(b/123715322): Fix thread safety.
-void SurfaceFlinger::setRefreshRateTo(float newFps) NO_THREAD_SAFETY_ANALYSIS {
-    const auto display = getDefaultDisplayDeviceLocked();
-    if (!display || mBootStage != BootStage::FINISHED) {
+void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
+    mPhaseOffsets->setRefreshRateType(refreshRate);
+
+    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+    mVsyncModulator.setPhaseOffsets(early, gl, late);
+
+    if (mBootStage != BootStage::FINISHED) {
         return;
     }
+
     // TODO(b/113612090): There should be a message queue flush here. Because this esentially
     // runs on a mainthread, we cannot call postMessageSync. This can be resolved in a better
     // manner, once the setActiveConfig is synchronous, and is executed at a known time in a
@@ -1456,14 +1459,20 @@ void SurfaceFlinger::setRefreshRateTo(float newFps) NO_THREAD_SAFETY_ANALYSIS {
     if (currentVsyncPeriod == 0) {
         return;
     }
+
     // TODO(b/113612090): Consider having an enum value for correct refresh rates, rather than
     // floating numbers.
     const float currentFps = 1e9 / currentVsyncPeriod;
+    const float newFps = refreshRate == RefreshRateType::PERFORMANCE ? kPerformanceRefreshRate
+                                                                     : kDefaultRefreshRate;
     if (std::abs(currentFps - newFps) <= 1) {
         return;
     }
 
-    auto configs = getHwComposer().getConfigs(*display->getId());
+    const auto displayId = getInternalDisplayIdLocked();
+    LOG_ALWAYS_FATAL_IF(!displayId);
+
+    auto configs = getHwComposer().getConfigs(*displayId);
     for (int i = 0; i < configs.size(); i++) {
         const nsecs_t vsyncPeriod = configs.at(i)->getVsyncPeriod();
         if (vsyncPeriod == 0) {
@@ -1473,12 +1482,7 @@ void SurfaceFlinger::setRefreshRateTo(float newFps) NO_THREAD_SAFETY_ANALYSIS {
         // TODO(b/113612090): There should be a better way at determining which config
         // has the right refresh rate.
         if (std::abs(fps - newFps) <= 1) {
-            const sp<IBinder> token = display->getDisplayToken().promote();
-            LOG_ALWAYS_FATAL_IF(token == nullptr);
-
-            // This is posted in async function to avoid deadlock when getDisplayDevice
-            // requires mStateLock.
-            setActiveConfigAsync(token, i);
+            setActiveConfigInternal(getInternalDisplayTokenLocked(), i);
             ATRACE_INT("FPS", newFps);
         }
     }
@@ -5396,8 +5400,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
     DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, reqDataspace,
                                  renderAreaRotation);
 
-    auto traverseLayers = std::bind(std::mem_fn(&SurfaceFlinger::traverseLayersInDisplay), this,
-                                    display, std::placeholders::_1);
+    auto traverseLayers = std::bind(&SurfaceFlinger::traverseLayersInDisplay, this, display,
+                                    std::placeholders::_1);
     return captureScreenCommon(renderArea, traverseLayers, outBuffer, reqPixelFormat,
                                useIdentityTransform);
 }

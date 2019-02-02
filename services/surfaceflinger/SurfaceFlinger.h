@@ -60,6 +60,7 @@
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
 #include "Scheduler/PhaseOffsets.h"
+#include "Scheduler/RefreshRateConfigs.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
@@ -502,8 +503,6 @@ private:
 
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
-    // setActiveConfigInternal() posted on a main thread for async execution
-    status_t setActiveConfigAsync(const sp<IBinder>& displayToken, int mode);
     // called on the main thread in response to setActiveConfig()
     void setActiveConfigInternal(const sp<IBinder>& displayToken, int mode) REQUIRES(mStateLock);
     // called on the main thread in response to setPowerMode()
@@ -765,9 +764,9 @@ private:
     void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
     void disableHardwareVsync(bool makeUnavailable);
 
-    // Sets the refresh rate to newFps by switching active configs, if they are available for
+    // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void setRefreshRateTo(float newFps);
+    void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType) REQUIRES(mStateLock);
 
     using GetVsyncPeriod = std::function<nsecs_t()>;
 

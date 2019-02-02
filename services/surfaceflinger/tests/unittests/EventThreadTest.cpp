@@ -53,8 +53,10 @@ protected:
     class MockEventThreadConnection : public EventThreadConnection {
     public:
         MockEventThreadConnection(android::impl::EventThread* eventThread,
-                                  ResyncCallback&& resyncCallback)
-              : EventThreadConnection(eventThread, std::move(resyncCallback)) {}
+                                  ResyncCallback&& resyncCallback,
+                                  ResetIdleTimerCallback&& resetIdleTimerCallback)
+              : EventThreadConnection(eventThread, std::move(resyncCallback),
+                                      std::move(resetIdleTimerCallback)) {}
         MOCK_METHOD1(postEvent, status_t(const DisplayEventReceiver::Event& event));
     };
 
@@ -82,6 +84,7 @@ protected:
     AsyncCallRecorder<void (*)(VSyncSource::Callback*)> mVSyncSetCallbackCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t)> mVSyncSetPhaseOffsetCallRecorder;
     AsyncCallRecorder<void (*)()> mResyncCallRecorder;
+    AsyncCallRecorder<void (*)()> mResetIdleTimerCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t)> mInterceptVSyncCallRecorder;
     ConnectionEventRecorder mConnectionEventCallRecorder{0};
 
@@ -136,7 +139,8 @@ void EventThreadTest::createThread() {
 sp<EventThreadTest::MockEventThreadConnection> EventThreadTest::createConnection(
         ConnectionEventRecorder& recorder) {
     sp<MockEventThreadConnection> connection =
-            new MockEventThreadConnection(mThread.get(), mResyncCallRecorder.getInvocable());
+            new MockEventThreadConnection(mThread.get(), mResyncCallRecorder.getInvocable(),
+                                          mResetIdleTimerCallRecorder.getInvocable());
     EXPECT_CALL(*connection, postEvent(_)).WillRepeatedly(Invoke(recorder.getInvocable()));
     return connection;
 }
@@ -207,6 +211,7 @@ TEST_F(EventThreadTest, canCreateAndDestroyThreadWithNoEventsSent) {
     EXPECT_FALSE(mVSyncSetCallbackCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mVSyncSetPhaseOffsetCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mResyncCallRecorder.waitForCall(0us).has_value());
+    EXPECT_FALSE(mResetIdleTimerCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mInterceptVSyncCallRecorder.waitForCall(0us).has_value());
     EXPECT_FALSE(mConnectionEventCallRecorder.waitForCall(0us).has_value());
 }
@@ -224,9 +229,10 @@ TEST_F(EventThreadTest, vsyncRequestIsIgnoredIfDisplayIsDisconnected) {
 
 TEST_F(EventThreadTest, requestNextVsyncPostsASingleVSyncEventToTheConnection) {
     // Signal that we want the next vsync event to be posted to the connection
-    mThread->requestNextVsync(mConnection, false);
+    mThread->requestNextVsync(mConnection, true);
 
-    // EventThread should immediately request a resync.
+    // EventThread should immediately reset the idle timer and request a resync.
+    EXPECT_TRUE(mResetIdleTimerCallRecorder.waitForCall().has_value());
     EXPECT_TRUE(mResyncCallRecorder.waitForCall().has_value());
 
     // EventThread should enable vsync callbacks.

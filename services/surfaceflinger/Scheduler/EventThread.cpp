@@ -100,8 +100,10 @@ DisplayEventReceiver::Event makeVSync(PhysicalDisplayId displayId, nsecs_t times
 } // namespace
 
 EventThreadConnection::EventThreadConnection(EventThread* eventThread,
-                                             ResyncCallback resyncCallback)
+                                             ResyncCallback resyncCallback,
+                                             ResetIdleTimerCallback resetIdleTimerCallback)
       : resyncCallback(std::move(resyncCallback)),
+        resetIdleTimerCallback(std::move(resetIdleTimerCallback)),
         mEventThread(eventThread),
         mChannel(gui::BitTube::DefaultSize) {}
 
@@ -147,22 +149,18 @@ EventThread::~EventThread() = default;
 namespace impl {
 
 EventThread::EventThread(std::unique_ptr<VSyncSource> src,
-                         const InterceptVSyncsCallback& interceptVSyncsCallback,
-                         const ResetIdleTimerCallback& resetIdleTimerCallback,
-                         const char* threadName)
-      : EventThread(nullptr, std::move(src), interceptVSyncsCallback, threadName) {
-    mResetIdleTimer = resetIdleTimerCallback;
-}
+                         InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
+      : EventThread(nullptr, std::move(src), std::move(interceptVSyncsCallback), threadName) {}
 
 EventThread::EventThread(VSyncSource* src, InterceptVSyncsCallback interceptVSyncsCallback,
                          const char* threadName)
-      : EventThread(src, nullptr, interceptVSyncsCallback, threadName) {}
+      : EventThread(src, nullptr, std::move(interceptVSyncsCallback), threadName) {}
 
 EventThread::EventThread(VSyncSource* src, std::unique_ptr<VSyncSource> uniqueSrc,
                          InterceptVSyncsCallback interceptVSyncsCallback, const char* threadName)
       : mVSyncSource(src),
         mVSyncSourceUnique(std::move(uniqueSrc)),
-        mInterceptVSyncsCallback(interceptVSyncsCallback),
+        mInterceptVSyncsCallback(std::move(interceptVSyncsCallback)),
         mThreadName(threadName) {
     if (src == nullptr) {
         mVSyncSource = mVSyncSourceUnique.get();
@@ -205,8 +203,10 @@ void EventThread::setPhaseOffset(nsecs_t phaseOffset) {
     mVSyncSource->setPhaseOffset(phaseOffset);
 }
 
-sp<EventThreadConnection> EventThread::createEventConnection(ResyncCallback resyncCallback) const {
-    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback));
+sp<EventThreadConnection> EventThread::createEventConnection(
+        ResyncCallback resyncCallback, ResetIdleTimerCallback resetIdleTimerCallback) const {
+    return new EventThreadConnection(const_cast<EventThread*>(this), std::move(resyncCallback),
+                                     std::move(resetIdleTimerCallback));
 }
 
 status_t EventThread::registerDisplayEventConnection(const sp<EventThreadConnection>& connection) {
@@ -249,9 +249,9 @@ void EventThread::setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& c
 }
 
 void EventThread::requestNextVsync(const sp<EventThreadConnection>& connection, bool reset) {
-    if (mResetIdleTimer && reset) {
+    if (connection->resetIdleTimerCallback && reset) {
         ATRACE_NAME("resetIdleTimer");
-        mResetIdleTimer();
+        connection->resetIdleTimerCallback();
     }
 
     if (connection->resyncCallback) {
