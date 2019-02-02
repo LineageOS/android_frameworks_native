@@ -32,10 +32,12 @@ class InputListenerInterface;
 /* Superclass of all input event argument objects */
 struct NotifyArgs {
     uint32_t sequenceNum;
+    nsecs_t eventTime;
 
-    inline NotifyArgs() : sequenceNum(0) { }
+    inline NotifyArgs() : sequenceNum(0), eventTime(0) { }
 
-    inline explicit NotifyArgs(uint32_t sequenceNum) : sequenceNum(sequenceNum) { }
+    inline explicit NotifyArgs(uint32_t sequenceNum, nsecs_t eventTime) :
+            sequenceNum(sequenceNum), eventTime(eventTime) { }
 
     virtual ~NotifyArgs() { }
 
@@ -45,7 +47,6 @@ struct NotifyArgs {
 
 /* Describes a configuration change event. */
 struct NotifyConfigurationChangedArgs : public NotifyArgs {
-    nsecs_t eventTime;
 
     inline NotifyConfigurationChangedArgs() { }
 
@@ -63,7 +64,6 @@ struct NotifyConfigurationChangedArgs : public NotifyArgs {
 
 /* Describes a key event. */
 struct NotifyKeyArgs : public NotifyArgs {
-    nsecs_t eventTime;
     int32_t deviceId;
     uint32_t source;
     int32_t displayId;
@@ -93,7 +93,6 @@ struct NotifyKeyArgs : public NotifyArgs {
 
 /* Describes a motion event. */
 struct NotifyMotionArgs : public NotifyArgs {
-    nsecs_t eventTime;
     int32_t deviceId;
     uint32_t source;
     int32_t displayId;
@@ -146,7 +145,6 @@ struct NotifyMotionArgs : public NotifyArgs {
 
 /* Describes a switch event. */
 struct NotifySwitchArgs : public NotifyArgs {
-    nsecs_t eventTime;
     uint32_t policyFlags;
     uint32_t switchValues;
     uint32_t switchMask;
@@ -169,7 +167,6 @@ struct NotifySwitchArgs : public NotifyArgs {
 /* Describes a device reset event, such as when a device is added,
  * reconfigured, or removed. */
 struct NotifyDeviceResetArgs : public NotifyArgs {
-    nsecs_t eventTime;
     int32_t deviceId;
 
     inline NotifyDeviceResetArgs() { }
