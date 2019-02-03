@@ -152,6 +152,7 @@ filegroup {
         "Scheduler/MessageQueue.cpp",
         "Scheduler/Scheduler.cpp",
         "Scheduler/SchedulerUtils.cpp",
+        "Scheduler/PhaseOffsets.cpp",
         "StartPropertySetThread.cpp",
         "SurfaceFlinger.cpp",
         "SurfaceInterceptor.cpp",

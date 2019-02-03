@@ -981,6 +981,8 @@ static void AddAnrTraceFiles() {
 
     AddAnrTraceDir(add_to_zip, anr_traces_dir);
 
+    RunCommand("ANR FILES", {"ls", "-lt", ANR_DIR});
+
     // Slow traces for slow operations.
     struct stat st;
     int i = 0;

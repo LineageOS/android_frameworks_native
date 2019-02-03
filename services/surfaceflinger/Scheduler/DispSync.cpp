@@ -757,18 +757,7 @@ nsecs_t DispSync::expectedPresentTime() {
     const uint32_t hwcLatency = 0;
 
     // Ask DispSync when the next refresh will be (CLOCK_MONOTONIC).
-    const nsecs_t nextRefresh = computeNextRefresh(hwcLatency);
-
-    // The DispSync time is already adjusted for the difference between
-    // vsync and reported-vsync (SurfaceFlinger::dispSyncPresentTimeOffset), so
-    // we don't need to factor that in here.  Pad a little to avoid
-    // weird effects if apps might be requesting times right on the edge.
-    nsecs_t extraPadding = 0;
-    if (SurfaceFlinger::vsyncPhaseOffsetNs == 0) {
-        extraPadding = 1000000; // 1ms (6% of 60Hz)
-    }
-
-    return nextRefresh + extraPadding;
+    return computeNextRefresh(hwcLatency);
 }
 
 } // namespace impl

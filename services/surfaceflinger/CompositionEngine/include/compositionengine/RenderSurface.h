@@ -75,15 +75,12 @@ public:
     // Allocates a buffer as scratch space for GPU composition
     virtual sp<GraphicBuffer> dequeueBuffer() = 0;
 
-    // Queues the drawn buffer for consumption by HWC
-    virtual void queueBuffer() = 0;
+    // Queues the drawn buffer for consumption by HWC. readyFence is the fence
+    // which will fire when the buffer is ready for consumption.
+    virtual void queueBuffer(base::unique_fd&& readyFence) = 0;
 
     // Called after the HWC calls are made to present the display
     virtual void onPresentDisplayCompleted() = 0;
-
-    // Marks the current buffer has finished, so that it can be presented and
-    // swapped out
-    virtual void finishBuffer() = 0;
 
     // Called to set the viewport and projection state for rendering into this
     // surface

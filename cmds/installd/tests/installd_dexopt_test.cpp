@@ -23,9 +23,11 @@
 
 #include <android-base/file.h>
 #include <android-base/logging.h>
+#include <android-base/properties.h>
+#include <android-base/scopeguard.h>
 #include <android-base/stringprintf.h>
 #include <android-base/unique_fd.h>
-
+#include <binder/Status.h>
 #include <cutils/properties.h>
 
 #include <gtest/gtest.h>
@@ -33,6 +35,7 @@
 #include <selinux/android.h>
 #include <selinux/avc.h>
 
+#include "binder_test_utils.h"
 #include "dexopt.h"
 #include "InstalldNativeService.h"
 #include "globals.h"
@@ -82,6 +85,23 @@ bool create_cache_path(char path[PKG_PATH_MAX], const char *src, const char *ins
 
 static void run_cmd(const std::string& cmd) {
     system(cmd.c_str());
+}
+
+template <typename Visitor>
+static void run_cmd_and_process_output(const std::string& cmd, const Visitor& visitor) {
+    FILE* file = popen(cmd.c_str(), "r");
+    CHECK(file != nullptr) << "Failed to ptrace " << cmd;
+    char* line = nullptr;
+    while (true) {
+        size_t n = 0u;
+        ssize_t value = getline(&line, &n, file);
+        if (value == -1) {
+            break;
+        }
+        visitor(line);
+    }
+    free(line);
+    fclose(file);
 }
 
 static int mkdir(const std::string& path, uid_t owner, gid_t group, mode_t mode) {
@@ -221,7 +241,8 @@ protected:
     ::testing::AssertionResult create_mock_app() {
         // Create the oat dir.
         app_oat_dir_ = app_apk_dir_ + "/oat";
-        if (mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755) != 0) {
+        // For debug mode, the directory might already exist. Avoid erroring out.
+        if (mkdir(app_apk_dir_, kSystemUid, kSystemGid, 0755) != 0 && !kDebug) {
             return ::testing::AssertionFailure() << "Could not create app dir " << app_apk_dir_
                                                  << " : " << strerror(errno);
         }
@@ -451,11 +472,9 @@ protected:
         std::unique_ptr<std::string> compilation_reason_ptr(new std::string("test-reason"));
 
         bool prof_result;
-        binder::Status prof_binder_result = service_->prepareAppProfile(
+        ASSERT_BINDER_SUCCESS(service_->prepareAppProfile(
                 package_name_, kTestUserId, kTestAppId, *profile_name_ptr, apk_path_,
-                /*dex_metadata*/ nullptr, &prof_result);
-
-        ASSERT_TRUE(prof_binder_result.isOk()) << prof_binder_result.toString8().c_str();
+                /*dex_metadata*/ nullptr, &prof_result));
         ASSERT_TRUE(prof_result);
 
         binder::Status result = service_->dexopt(apk_path_,
@@ -629,6 +648,50 @@ TEST_F(DexoptTest, DexoptPrimaryBackgroundOk) {
                         DEX2OAT_FROM_SCRATCH);
 }
 
+TEST_F(DexoptTest, ResolveStartupConstStrings) {
+    LOG(INFO) << "DexoptDex2oatResolveStartupStrings";
+    const std::string property = "persist.device_config.runtime.dex2oat_resolve_startup_strings";
+    const std::string previous_value = android::base::GetProperty(property, "");
+    auto restore_property = android::base::make_scope_guard([=]() {
+        android::base::SetProperty(property, previous_value);
+    });
+    std::string odex = GetPrimaryDexArtifact(app_oat_dir_.c_str(), apk_path_, "odex");
+    // Disable the property to start.
+    bool found_disable = false;
+    ASSERT_TRUE(android::base::SetProperty(property, "false")) << property;
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED |
+                                DEXOPT_GENERATE_APP_IMAGE,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+    run_cmd_and_process_output(
+            "oatdump --header-only --oat-file=" + odex,
+            [&](const std::string& line) {
+        if (line.find("--resolve-startup-const-strings=false") != std::string::npos) {
+            found_disable = true;
+        }
+    });
+    EXPECT_TRUE(found_disable);
+    // Enable the property and inspect that .art artifact is larger.
+    bool found_enable = false;
+    ASSERT_TRUE(android::base::SetProperty(property, "true")) << property;
+    CompilePrimaryDexOk("speed-profile",
+                        DEXOPT_IDLE_BACKGROUND_JOB | DEXOPT_PROFILE_GUIDED |
+                                DEXOPT_GENERATE_APP_IMAGE,
+                        app_oat_dir_.c_str(),
+                        kTestAppGid,
+                        DEX2OAT_FROM_SCRATCH);
+    run_cmd_and_process_output(
+            "oatdump --header-only --oat-file=" + odex,
+            [&](const std::string& line) {
+        if (line.find("--resolve-startup-const-strings=true") != std::string::npos) {
+            found_enable = true;
+        }
+    });
+    EXPECT_TRUE(found_enable);
+}
+
 class PrimaryDexReCompilationTest : public DexoptTest {
   public:
     virtual void SetUp() {
@@ -760,9 +823,8 @@ class ProfileTest : public DexoptTest {
     void createProfileSnapshot(int32_t appid, const std::string& package_name,
             bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->createProfileSnapshot(
-                appid, package_name, kPrimaryProfile, apk_path_, &result);
-        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+        ASSERT_BINDER_SUCCESS(service_->createProfileSnapshot(
+                appid, package_name, kPrimaryProfile, apk_path_, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -802,9 +864,8 @@ class ProfileTest : public DexoptTest {
                               const std::string& code_path,
                               bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->mergeProfiles(
-                kTestAppUid, package_name, code_path, &result);
-        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+        ASSERT_BINDER_SUCCESS(service_->mergeProfiles(
+                kTestAppUid, package_name, code_path, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -830,10 +891,9 @@ class ProfileTest : public DexoptTest {
     void preparePackageProfile(const std::string& package_name, const std::string& profile_name,
             bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->prepareAppProfile(
+        ASSERT_BINDER_SUCCESS(service_->prepareAppProfile(
                 package_name, kTestUserId, kTestAppId, profile_name, apk_path_,
-                /*dex_metadata*/ nullptr, &result);
-        ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+                /*dex_metadata*/ nullptr, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {
@@ -919,8 +979,7 @@ TEST_F(ProfileTest, ProfileSnapshotDestroySnapshot) {
     SetupProfiles(/*setup_ref*/ true);
     createProfileSnapshot(kTestAppId, package_name_, /*expected_result*/ true);
 
-    binder::Status binder_result = service_->destroyProfileSnapshot(package_name_, kPrimaryProfile);
-    ASSERT_TRUE(binder_result.isOk()) << binder_result.toString8().c_str();
+    ASSERT_BINDER_SUCCESS(service_->destroyProfileSnapshot(package_name_, kPrimaryProfile));
     struct stat st;
     ASSERT_EQ(-1, stat(snap_profile_.c_str(), &st));
     ASSERT_EQ(ENOENT, errno);
@@ -978,7 +1037,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
     ASSERT_EQ(0, chmod(ref_profile_dir.c_str(), 0700));
 
     // Run createAppData again which will offer to fix-up the profile directories.
-    ASSERT_TRUE(service_->createAppData(
+    ASSERT_BINDER_SUCCESS(service_->createAppData(
             volume_uuid_,
             package_name_,
             kTestUserId,
@@ -986,7 +1045,7 @@ TEST_F(ProfileTest, ProfileDirOkAfterFixup) {
             kTestAppUid,
             se_info_,
             kOSdkVersion,
-            &ce_data_inode_).isOk());
+            &ce_data_inode_));
 
     // Check the file access.
     CheckFileAccess(cur_profile_dir, kTestAppUid, kTestAppUid, 0700 | S_IFDIR);
@@ -1032,9 +1091,8 @@ class BootProfileTest : public ProfileTest {
 
     void createBootImageProfileSnapshot(const std::string& classpath, bool expected_result) {
         bool result;
-        binder::Status binder_result = service_->createProfileSnapshot(
-                -1, "android", "android.prof", classpath, &result);
-        ASSERT_TRUE(binder_result.isOk());
+        ASSERT_BINDER_SUCCESS(service_->createProfileSnapshot(
+                -1, "android", "android.prof", classpath, &result));
         ASSERT_EQ(expected_result, result);
 
         if (!expected_result) {

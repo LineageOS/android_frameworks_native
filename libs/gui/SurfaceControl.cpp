@@ -177,6 +177,12 @@ sp<IBinder> SurfaceControl::getHandle() const
     return mHandle;
 }
 
+sp<IGraphicBufferProducer> SurfaceControl::getIGraphicBufferProducer() const
+{
+    Mutex::Autolock _l(mLock);
+    return mGraphicBufferProducer;
+}
+
 sp<SurfaceComposerClient> SurfaceControl::getClient() const
 {
     return mClient;

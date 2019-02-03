@@ -59,6 +59,7 @@
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
+#include "Scheduler/PhaseOffsets.h"
 #include "Scheduler/RefreshRateStats.h"
 #include "Scheduler/Scheduler.h"
 #include "Scheduler/VSyncModulator.h"
@@ -438,6 +439,8 @@ private:
     int getActiveConfig(const sp<IBinder>& displayToken) override;
     status_t getDisplayColorModes(const sp<IBinder>& displayToken,
                                   Vector<ui::ColorMode>* configs) override;
+    status_t getDisplayNativePrimaries(const sp<IBinder>& displayToken,
+                                       ui::DisplayPrimaries &primaries);
     ui::ColorMode getActiveColorMode(const sp<IBinder>& displayToken) override;
     status_t setActiveColorMode(const sp<IBinder>& displayToken, ui::ColorMode colorMode) override;
     void setPowerMode(const sp<IBinder>& displayToken, int mode) override;
@@ -597,7 +600,8 @@ private:
     void startBootAnim();
 
     void renderScreenImplLocked(const RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                                bool useIdentityTransform);
+                                ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                int* outSyncFd);
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
                                  bool useIdentityTransform);
@@ -662,6 +666,10 @@ private:
     // mark a region of a layer stack dirty. this updates the dirty
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
+
+    // Initialize structures containing information about the internal
+    // display's native color coordinates using default data
+    void initDefaultDisplayNativePrimaries();
 
     /* ------------------------------------------------------------------------
      * H/W composer
@@ -732,8 +740,11 @@ private:
     void logLayerStats();
     void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
-    // This fails if using GL and the surface has been destroyed.
-    bool doComposeSurfaces(const sp<DisplayDevice>& display);
+    // This fails if using GL and the surface has been destroyed. readyFence
+    // will be populated if using GL and native fence sync is supported, to
+    // signal when drawing has completed.
+    bool doComposeSurfaces(const sp<DisplayDevice>& display, const Region& debugRegionm,
+                           base::unique_fd* readyFence);
 
     void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();
@@ -942,7 +953,10 @@ private:
     std::unique_ptr<EventControlThread> mEventControlThread;
     std::unordered_map<DisplayId, sp<IBinder>> mPhysicalDisplayTokens;
 
+    // Calculates correct offsets.
     VSyncModulator mVsyncModulator;
+    // Keeps track of all available phase offsets for different refresh types.
+    std::unique_ptr<scheduler::PhaseOffsets> mPhaseOffsets;
 
     // Can only accessed from the main thread, these members
     // don't need synchronization
@@ -1083,6 +1097,8 @@ private:
     InputWindowCommands mInputWindowCommands;
 
     BufferStateLayerCache mBufferStateLayerCache;
+
+    ui::DisplayPrimaries mInternalDisplayPrimaries;
 };
 }; // namespace android
 

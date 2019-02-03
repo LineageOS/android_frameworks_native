@@ -29,8 +29,6 @@ public:
     ~ColorLayer() override;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
-    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform);
     bool isVisible() const override;
 
     void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
@@ -40,6 +38,9 @@ public:
 
 protected:
     FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
+    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                                    bool useIdentityTransform, Region& clearRegion,
+                                    renderengine::LayerSettings& layer);
 };
 
 } // namespace android

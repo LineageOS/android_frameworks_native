@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-// #define LOG_NDEBUG 0
+//#define LOG_NDEBUG 0
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <sys/types.h>
@@ -122,6 +122,7 @@ using namespace android::sysprop;
 using base::StringAppendF;
 using ui::ColorMode;
 using ui::Dataspace;
+using ui::DisplayPrimaries;
 using ui::Hdr;
 using ui::RenderIntent;
 
@@ -196,9 +197,20 @@ const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER"
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
+constexpr float kSrgbRedX = 0.4123f;
+constexpr float kSrgbRedY = 0.2126f;
+constexpr float kSrgbRedZ = 0.0193f;
+constexpr float kSrgbGreenX = 0.3576f;
+constexpr float kSrgbGreenY = 0.7152f;
+constexpr float kSrgbGreenZ = 0.1192f;
+constexpr float kSrgbBlueX = 0.1805f;
+constexpr float kSrgbBlueY = 0.0722f;
+constexpr float kSrgbBlueZ = 0.9506f;
+constexpr float kSrgbWhiteX = 0.9505f;
+constexpr float kSrgbWhiteY = 1.0000f;
+constexpr float kSrgbWhiteZ = 1.0891f;
+
 // ---------------------------------------------------------------------------
-int64_t SurfaceFlinger::vsyncPhaseOffsetNs;
-int64_t SurfaceFlinger::sfVsyncPhaseOffsetNs;
 int64_t SurfaceFlinger::dispSyncPresentTimeOffset;
 bool SurfaceFlinger::useHwcForRgbToYuv;
 uint64_t SurfaceFlinger::maxVirtualDisplaySize;
@@ -259,6 +271,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mLayersRemoved(false),
         mLayersAdded(false),
         mBootTime(systemTime()),
+        mPhaseOffsets{getFactory().createPhaseOffsets()},
         mVisibleRegionsDirty(false),
         mGeometryInvalid(false),
         mAnimCompositionPending(false),
@@ -283,10 +296,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
 SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
       : SurfaceFlinger(factory, SkipInitialization) {
     ALOGI("SurfaceFlinger is starting");
-
-    vsyncPhaseOffsetNs = vsync_event_phase_offset_ns(1000000);
-
-    sfVsyncPhaseOffsetNs = vsync_sf_event_phase_offset_ns(1000000);
 
     hasSyncFramework = running_without_sync_framework(true);
 
@@ -340,6 +349,16 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
             getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
                                         SurfaceFlinger::dispSyncPresentTimeOffset);
 
+    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
+    if (surfaceFlingerConfigsServiceV1_2) {
+        surfaceFlingerConfigsServiceV1_2->getDisplayNativePrimaries(
+                [&](auto tmpPrimaries) {
+                    memcpy(&mInternalDisplayPrimaries, &tmpPrimaries, sizeof(ui::DisplayPrimaries));
+                });
+    } else {
+        initDefaultDisplayNativePrimaries();
+    }
+
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
 
@@ -376,29 +395,11 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     auto listSize = property_get_int32("debug.sf.max_igbp_list_size", int32_t(defaultListSize));
     mMaxGraphicBufferProducerListSize = (listSize > 0) ? size_t(listSize) : defaultListSize;
 
-    property_get("debug.sf.early_phase_offset_ns", value, "-1");
-    const int earlySfOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_gl_phase_offset_ns", value, "-1");
-    const int earlyGlSfOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_app_phase_offset_ns", value, "-1");
-    const int earlyAppOffsetNs = atoi(value);
-
-    property_get("debug.sf.early_gl_app_phase_offset_ns", value, "-1");
-    const int earlyGlAppOffsetNs = atoi(value);
-
     property_get("debug.sf.use_scheduler", value, "0");
     mUseScheduler = atoi(value);
 
-    const VSyncModulator::Offsets earlyOffsets =
-            {earlySfOffsetNs != -1 ? earlySfOffsetNs : sfVsyncPhaseOffsetNs,
-            earlyAppOffsetNs != -1 ? earlyAppOffsetNs : vsyncPhaseOffsetNs};
-    const VSyncModulator::Offsets earlyGlOffsets =
-            {earlyGlSfOffsetNs != -1 ? earlyGlSfOffsetNs : sfVsyncPhaseOffsetNs,
-            earlyGlAppOffsetNs != -1 ? earlyGlAppOffsetNs : vsyncPhaseOffsetNs};
-    mVsyncModulator.setPhaseOffsets(earlyOffsets, earlyGlOffsets,
-            {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs});
+    const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+    mVsyncModulator.setPhaseOffsets(early, gl, late);
 
     // We should be reading 'persist.sys.sf.color_saturation' here
     // but since /data may be encrypted, we need to wait until after vold
@@ -605,7 +606,7 @@ void SurfaceFlinger::init() {
     ALOGI(  "SurfaceFlinger's main thread ready to run. "
             "Initializing graphics H/W...");
 
-    ALOGI("Phase offest NS: %" PRId64 "", vsyncPhaseOffsetNs);
+    ALOGI("Phase offset NS: %" PRId64 "", mPhaseOffsets->getCurrentAppOffset());
 
     Mutex::Autolock _l(mStateLock);
 
@@ -616,13 +617,17 @@ void SurfaceFlinger::init() {
         mScheduler = getFactory().createScheduler([this](bool enabled) {
             setVsyncEnabled(EventThread::DisplayType::Primary, enabled);
         });
+        // TODO(b/113612090): Currently we assume that if scheduler is turned on, then the refresh
+        // rate is 90. Once b/122905403 is completed, this should be updated accordingly.
+        mPhaseOffsets->setRefreshRateType(
+                scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
 
         mAppConnectionHandle =
-                mScheduler->createConnection("appConnection", SurfaceFlinger::vsyncPhaseOffsetNs,
+                mScheduler->createConnection("appConnection", mPhaseOffsets->getCurrentAppOffset(),
                                              resyncCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
-                mScheduler->createConnection("sfConnection", SurfaceFlinger::sfVsyncPhaseOffsetNs,
+                mScheduler->createConnection("sfConnection", mPhaseOffsets->getCurrentSfOffset(),
                                              resyncCallback, [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
@@ -633,14 +638,14 @@ void SurfaceFlinger::init() {
     } else {
         mEventThreadSource =
                 std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
-                                                 SurfaceFlinger::vsyncPhaseOffsetNs, true, "app");
+                                                 mPhaseOffsets->getCurrentAppOffset(), true, "app");
         mEventThread =
                 std::make_unique<impl::EventThread>(mEventThreadSource.get(),
                                                     impl::EventThread::InterceptVSyncsCallback(),
                                                     "appEventThread");
         mSfEventThreadSource =
                 std::make_unique<DispSyncSource>(mPrimaryDispSync.get(),
-                                                 SurfaceFlinger::sfVsyncPhaseOffsetNs, true, "sf");
+                                                 mPhaseOffsets->getCurrentSfOffset(), true, "sf");
 
         mSFEventThread =
                 std::make_unique<impl::EventThread>(mSfEventThreadSource.get(),
@@ -721,8 +726,20 @@ void SurfaceFlinger::init() {
     }
 
     if (mUseScheduler) {
-        mScheduler->setExpiredIdleTimerCallback([this]() { setRefreshRateTo(60.f /* fps */); });
-        mScheduler->setResetIdleTimerCallback([this]() { setRefreshRateTo(90.f /* fps */); });
+        mScheduler->setExpiredIdleTimerCallback([this]() {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
+            const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+            mVsyncModulator.setPhaseOffsets(early, gl, late);
+            setRefreshRateTo(60.f /* fps */);
+        });
+        mScheduler->setResetIdleTimerCallback([this]() {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
+            const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
+            mVsyncModulator.setPhaseOffsets(early, gl, late);
+            setRefreshRateTo(90.f /* fps */);
+        });
         mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(
                 getHwComposer().getConfigs(*display->getId()));
     }
@@ -877,7 +894,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.xdpi = xdpi;
         info.ydpi = ydpi;
         info.fps = 1e9 / hwConfig->getVsyncPeriod();
-        info.appVsyncOffset = vsyncPhaseOffsetNs;
+        info.appVsyncOffset = mPhaseOffsets->getCurrentAppOffset();
 
         // This is how far in advance a buffer must be queued for
         // presentation at a given time.  If you want a buffer to appear
@@ -891,8 +908,8 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         //
         // We add an additional 1ms to allow for processing time and
         // differences between the ideal and actual refresh rate.
-        info.presentationDeadline = hwConfig->getVsyncPeriod() -
-                sfVsyncPhaseOffsetNs + 1000000;
+        info.presentationDeadline =
+                hwConfig->getVsyncPeriod() - mPhaseOffsets->getCurrentSfOffset() + 1000000;
 
         // All non-virtual displays are currently considered secure.
         info.secure = true;
@@ -1009,6 +1026,21 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
     outColorModes->clear();
     std::copy(modes.cbegin(), modes.cend(), std::back_inserter(*outColorModes));
 
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getDisplayNativePrimaries(const sp<IBinder>& displayToken,
+                                                   ui::DisplayPrimaries &primaries) {
+    if (!displayToken) {
+        return BAD_VALUE;
+    }
+
+    // Currently we only support this API for a single internal display.
+    if (getInternalDisplayToken() != displayToken) {
+        return BAD_VALUE;
+    }
+
+    memcpy(&primaries, &mInternalDisplayPrimaries, sizeof(ui::DisplayPrimaries));
     return NO_ERROR;
 }
 
@@ -1837,16 +1869,13 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
 
     if (displayState.isEnabled) {
         // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getPhysicalSpaceDirtyRegion(repaintEverything);
+        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
         if (!dirtyRegion.isEmpty()) {
+            base::unique_fd readyFence;
             // redraw the whole screen
-            doComposeSurfaces(displayDevice);
+            doComposeSurfaces(displayDevice, dirtyRegion, &readyFence);
 
-            // and draw the dirty region
-            auto& engine(getRenderEngine());
-            engine.fillRegionWithColor(dirtyRegion, 1, 0, 1, 1);
-
-            display->getRenderSurface()->queueBuffer();
+            display->getRenderSurface()->queueBuffer(std::move(readyFence));
         }
     }
 
@@ -1930,11 +1959,11 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
                                                 nsecs_t compositeToPresentLatency) {
     // Integer division and modulo round toward 0 not -inf, so we need to
     // treat negative and positive offsets differently.
-    nsecs_t idealLatency = (sfVsyncPhaseOffsetNs > 0)
-            ? (stats.vsyncPeriod - (sfVsyncPhaseOffsetNs % stats.vsyncPeriod))
-            : ((-sfVsyncPhaseOffsetNs) % stats.vsyncPeriod);
+    nsecs_t idealLatency = (mPhaseOffsets->getCurrentSfOffset() > 0)
+            ? (stats.vsyncPeriod - (mPhaseOffsets->getCurrentSfOffset() % stats.vsyncPeriod))
+            : ((-mPhaseOffsets->getCurrentSfOffset()) % stats.vsyncPeriod);
 
-    // Just in case sfVsyncPhaseOffsetNs == -vsyncInterval.
+    // Just in case mPhaseOffsets->getCurrentSfOffset() == -vsyncInterval.
     if (idealLatency <= 0) {
         idealLatency = stats.vsyncPeriod;
     }
@@ -1943,7 +1972,7 @@ void SurfaceFlinger::setCompositorTimingSnapped(const DisplayStatInfo& stats,
     // composition and present times, which often have >1ms of jitter.
     // Reducing jitter is important if an app attempts to extrapolate
     // something (such as user input) to an accurate diasplay time.
-    // Snapping also allows an app to precisely calculate sfVsyncPhaseOffsetNs
+    // Snapping also allows an app to precisely calculate mPhaseOffsets->getCurrentSfOffset()
     // with (presentLatency % interval).
     nsecs_t bias = stats.vsyncPeriod / 2;
     int64_t extraVsyncs = (compositeToPresentLatency - idealLatency + bias) / stats.vsyncPeriod;
@@ -2365,7 +2394,7 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
     auto display = displayDevice->getCompositionDisplay();
     const auto& displayState = display->getState();
 
-    bool dirty = !display->getPhysicalSpaceDirtyRegion(false).isEmpty();
+    bool dirty = !display->getDirtyRegion(false).isEmpty();
     bool empty = displayDevice->getVisibleLayersSortedByZ().size() == 0;
     bool wasEmpty = !displayState.lastCompositionHadVisibleLayers;
 
@@ -2416,7 +2445,7 @@ void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool 
 
     if (displayState.isEnabled) {
         // transform the dirty region into this screen's coordinate space
-        const Region dirtyRegion = display->getPhysicalSpaceDirtyRegion(repaintEverything);
+        const Region dirtyRegion = display->getDirtyRegion(repaintEverything);
 
         // repaint the framebuffer (if needed)
         doDisplayComposition(displayDevice, dirtyRegion);
@@ -3190,6 +3219,21 @@ void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Re
     }
 }
 
+void SurfaceFlinger::initDefaultDisplayNativePrimaries() {
+    mInternalDisplayPrimaries.red.X = kSrgbRedX;
+    mInternalDisplayPrimaries.red.Y = kSrgbRedY;
+    mInternalDisplayPrimaries.red.Z = kSrgbRedZ;
+    mInternalDisplayPrimaries.green.X = kSrgbGreenX;
+    mInternalDisplayPrimaries.green.Y = kSrgbGreenY;
+    mInternalDisplayPrimaries.green.Z = kSrgbGreenZ;
+    mInternalDisplayPrimaries.blue.X = kSrgbBlueX;
+    mInternalDisplayPrimaries.blue.Y = kSrgbBlueY;
+    mInternalDisplayPrimaries.blue.Z = kSrgbBlueZ;
+    mInternalDisplayPrimaries.white.X = kSrgbWhiteX;
+    mInternalDisplayPrimaries.white.Y = kSrgbWhiteY;
+    mInternalDisplayPrimaries.white.Z = kSrgbWhiteZ;
+}
+
 bool SurfaceFlinger::handlePageFlip()
 {
     ALOGV("handlePageFlip");
@@ -3286,13 +3330,15 @@ void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice
     }
 
     ALOGV("doDisplayComposition");
-    if (!doComposeSurfaces(displayDevice)) return;
+    base::unique_fd readyFence;
+    if (!doComposeSurfaces(displayDevice, Region::INVALID_REGION, &readyFence)) return;
 
     // swap buffers (presentation)
-    display->getRenderSurface()->queueBuffer();
+    display->getRenderSurface()->queueBuffer(std::move(readyFence));
 }
 
-bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
+bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
+                                       const Region& debugRegion, base::unique_fd* readyFence) {
     ALOGV("doComposeSurfaces");
 
     auto display = displayDevice->getCompositionDisplay();
@@ -3307,13 +3353,14 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
     mat4 colorMatrix;
     bool applyColorMatrix = false;
 
-    // Framebuffer will live in this scope for GPU composition.
-    std::unique_ptr<renderengine::BindNativeBufferAsFramebuffer> fbo;
+    renderengine::DisplaySettings clientCompositionDisplay;
+    std::vector<renderengine::LayerSettings> clientCompositionLayers;
+    sp<GraphicBuffer> buf;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        sp<GraphicBuffer> buf = display->getRenderSurface()->dequeueBuffer();
+        buf = display->getRenderSurface()->dequeueBuffer();
 
         if (buf == nullptr) {
             ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
@@ -3322,24 +3369,30 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
             return false;
         }
 
-        // Bind the framebuffer in this scope.
-        fbo = std::make_unique<renderengine::BindNativeBufferAsFramebuffer>(getRenderEngine(),
-                                                                            buf->getNativeBuffer());
+        clientCompositionDisplay.physicalDisplay = displayState.scissor;
+        clientCompositionDisplay.clip = displayState.scissor;
+        const ui::Transform& displayTransform = displayState.transform;
+        mat4 m;
+        m[0][0] = displayTransform[0][0];
+        m[0][1] = displayTransform[0][1];
+        m[0][3] = displayTransform[0][2];
+        m[1][0] = displayTransform[1][0];
+        m[1][1] = displayTransform[1][1];
+        m[1][3] = displayTransform[1][2];
+        m[3][0] = displayTransform[2][0];
+        m[3][1] = displayTransform[2][1];
+        m[3][3] = displayTransform[2][2];
 
-        if (fbo->getStatus() != NO_ERROR) {
-            ALOGW("Binding buffer for display [%s] failed with status: %d",
-                  displayDevice->getDisplayName().c_str(), fbo->getStatus());
-            return false;
-        }
+        clientCompositionDisplay.globalTransform = m;
 
         const auto* profile = display->getDisplayColorProfile();
         Dataspace outputDataspace = Dataspace::UNKNOWN;
         if (profile->hasWideColorGamut()) {
             outputDataspace = displayState.dataspace;
         }
-        getRenderEngine().setOutputDataSpace(outputDataspace);
-        getRenderEngine().setDisplayMaxLuminance(
-                profile->getHdrCapabilities().getDesiredMaxLuminance());
+        clientCompositionDisplay.outputDataspace = outputDataspace;
+        clientCompositionDisplay.maxLuminance =
+                profile->getHdrCapabilities().getDesiredMaxLuminance();
 
         const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
         const bool skipClientColorTransform =
@@ -3350,44 +3403,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
         // Compute the global color transform matrix.
         applyColorMatrix = !hasDeviceComposition && !skipClientColorTransform;
         if (applyColorMatrix) {
-            colorMatrix = mDrawingState.colorMatrix;
-        }
-
-        display->getRenderSurface()->setViewportAndProjection();
-
-        // Never touch the framebuffer if we don't have any framebuffer layers
-        if (hasDeviceComposition) {
-            // when using overlays, we assume a fully transparent framebuffer
-            // NOTE: we could reduce how much we need to clear, for instance
-            // remove where there are opaque FB layers. however, on some
-            // GPUs doing a "clean slate" clear might be more efficient.
-            // We'll revisit later if needed.
-            getRenderEngine().clearWithColor(0, 0, 0, 0);
-        } else {
-            // we start with the whole screen area and remove the scissor part
-            // we're left with the letterbox region
-            // (common case is that letterbox ends-up being empty)
-            const Region letterbox = bounds.subtract(displayState.scissor);
-
-            // compute the area to clear
-            const Region region = displayState.undefinedRegion.merge(letterbox);
-
-            // screen is already cleared here
-            if (!region.isEmpty()) {
-                // can happen with SurfaceView
-                drawWormhole(region);
-            }
-        }
-
-        const Rect& bounds = displayState.bounds;
-        const Rect& scissor = displayState.scissor;
-        if (scissor != bounds) {
-            // scissor doesn't match the screen's dimensions, so we
-            // need to clear everything outside of it and enable
-            // the GL scissor so we don't draw anything where we shouldn't
-
-            // enable scissor for this frame
-            getRenderEngine().setScissor(scissor);
+            clientCompositionDisplay.colorTransform = colorMatrix;
         }
     }
 
@@ -3396,11 +3412,11 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
      */
 
     ALOGV("Rendering client layers");
-    const ui::Transform& displayTransform = displayState.transform;
     bool firstLayer = true;
+    Region clearRegion = Region::INVALID_REGION;
     for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
-        const Region clip(bounds.intersect(
-                displayTransform.transform(layer->visibleRegion)));
+        const Region viewportRegion(displayState.viewport);
+        const Region clip(viewportRegion.intersect(layer->visibleRegion));
         ALOGV("Layer: %s", layer->getName().string());
         ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
         if (!clip.isEmpty()) {
@@ -3416,22 +3432,28 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
                         layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
                         // guaranteed the FB is already cleared
-                        layer->clearWithOpenGL(renderArea);
+                        renderengine::LayerSettings layerSettings;
+                        Region dummyRegion;
+                        bool prepared = layer->prepareClientLayer(renderArea, clip, dummyRegion,
+                                                                  layerSettings);
+
+                        if (prepared) {
+                            layerSettings.source.buffer.buffer = nullptr;
+                            layerSettings.source.solidColor = half3(0.0, 0.0, 0.0);
+                            layerSettings.alpha = half(0.0);
+                            layerSettings.disableBlending = true;
+                            clientCompositionLayers.push_back(layerSettings);
+                        }
                     }
                     break;
                 }
                 case HWC2::Composition::Client: {
-                    if (layer->hasColorTransform()) {
-                        mat4 tmpMatrix;
-                        if (applyColorMatrix) {
-                            tmpMatrix = mDrawingState.colorMatrix;
-                        }
-                        tmpMatrix *= layer->getColorTransform();
-                        getRenderEngine().setColorTransform(tmpMatrix);
-                    } else {
-                        getRenderEngine().setColorTransform(colorMatrix);
+                    renderengine::LayerSettings layerSettings;
+                    bool prepared =
+                            layer->prepareClientLayer(renderArea, clip, clearRegion, layerSettings);
+                    if (prepared) {
+                        clientCompositionLayers.push_back(layerSettings);
                     }
-                    layer->draw(renderArea, clip);
                     break;
                 }
                 default:
@@ -3443,14 +3465,23 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice) {
         firstLayer = false;
     }
 
-    // Perform some cleanup steps if we used client composition.
     if (hasClientComposition) {
-        getRenderEngine().setColorTransform(mat4());
-        getRenderEngine().disableScissor();
-        display->getRenderSurface()->finishBuffer();
-        // Clear out error flags here so that we don't wait until next
-        // composition to log.
-        getRenderEngine().checkErrors();
+        clientCompositionDisplay.clearRegion = clearRegion;
+        if (!debugRegion.isEmpty()) {
+            Region::const_iterator it = debugRegion.begin();
+            Region::const_iterator end = debugRegion.end();
+            while (it != end) {
+                const Rect& rect = *it++;
+                renderengine::LayerSettings layerSettings;
+                layerSettings.source.buffer.buffer = nullptr;
+                layerSettings.source.solidColor = half3(1.0, 0.0, 1.0);
+                layerSettings.geometry.boundaries = rect.toFloatRect();
+                layerSettings.alpha = half(1.0);
+                clientCompositionLayers.push_back(layerSettings);
+            }
+        }
+        getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers,
+                                     buf->getNativeBuffer(), readyFence);
     }
     return true;
 }
@@ -4482,15 +4513,10 @@ void SurfaceFlinger::appendSfConfigString(std::string& result) const {
 }
 
 void SurfaceFlinger::dumpVSync(std::string& result) const {
-    const auto [sfEarlyOffset, appEarlyOffset] = mVsyncModulator.getEarlyOffsets();
-    const auto [sfEarlyGlOffset, appEarlyGlOffset] = mVsyncModulator.getEarlyGlOffsets();
+    mPhaseOffsets->dump(result);
     StringAppendF(&result,
-                  "         app phase: %9" PRId64 " ns\t         SF phase: %9" PRId64 " ns\n"
-                  "   early app phase: %9" PRId64 " ns\t   early SF phase: %9" PRId64 " ns\n"
-                  "GL early app phase: %9" PRId64 " ns\tGL early SF phase: %9" PRId64 " ns\n"
                   "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
-                  vsyncPhaseOffsetNs, sfVsyncPhaseOffsetNs, appEarlyOffset, sfEarlyOffset,
-                  appEarlyGlOffset, sfEarlyGlOffset, dispSyncPresentTimeOffset, getVsyncPeriod());
+                  dispSyncPresentTimeOffset, getVsyncPeriod());
 
     StringAppendF(&result, "Scheduler: %s\n\n", mUseScheduler ? "enabled" : "disabled");
 
@@ -4975,6 +5001,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ACTIVE_CONFIG:
         case GET_BUILT_IN_DISPLAY:
         case GET_DISPLAY_COLOR_MODES:
+        case GET_DISPLAY_NATIVE_PRIMARIES:
         case GET_DISPLAY_CONFIGS:
         case GET_DISPLAY_STATS:
         case GET_SUPPORTED_FRAME_TIMESTAMPS:
@@ -5585,35 +5612,109 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
 
 void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
                                             TraverseLayersFunction traverseLayers,
-                                            bool useIdentityTransform) {
+                                            ANativeWindowBuffer* buffer, bool useIdentityTransform,
+                                            int* outSyncFd) {
     ATRACE_CALL();
-
-    auto& engine(getRenderEngine());
 
     const auto reqWidth = renderArea.getReqWidth();
     const auto reqHeight = renderArea.getReqHeight();
     const auto sourceCrop = renderArea.getSourceCrop();
     const auto rotation = renderArea.getRotationFlags();
 
-    engine.setOutputDataSpace(renderArea.getReqDataSpace());
-    engine.setDisplayMaxLuminance(DisplayDevice::sDefaultMaxLumiance);
+    renderengine::DisplaySettings clientCompositionDisplay;
+    std::vector<renderengine::LayerSettings> clientCompositionLayers;
 
-    // make sure to clear all GL error flags
-    engine.checkErrors();
+    // assume that bounds are never offset, and that they are the same as the
+    // buffer bounds.
+    clientCompositionDisplay.physicalDisplay = Rect(reqWidth, reqHeight);
+    ui::Transform transform = renderArea.getTransform();
+    mat4 m;
+    m[0][0] = transform[0][0];
+    m[0][1] = transform[0][1];
+    m[0][3] = transform[0][2];
+    m[1][0] = transform[1][0];
+    m[1][1] = transform[1][1];
+    m[1][3] = transform[1][2];
+    m[3][0] = transform[2][0];
+    m[3][1] = transform[2][1];
+    m[3][3] = transform[2][2];
 
-    // set-up our viewport
-    engine.setViewportAndProjection(reqWidth, reqHeight, sourceCrop, rotation);
-    engine.disableTexturing();
+    clientCompositionDisplay.globalTransform = m;
+    mat4 rotMatrix;
+    // Displacement for repositioning the clipping rectangle after rotating it
+    // with the rotation hint.
+    int displacementX = 0;
+    int displacementY = 0;
+    float rot90InRadians = 2.0f * static_cast<float>(M_PI) / 4.0f;
+    switch (rotation) {
+        case ui::Transform::ROT_90:
+            rotMatrix = mat4::rotate(rot90InRadians, vec3(0, 0, 1));
+            displacementX = reqWidth;
+            break;
+        case ui::Transform::ROT_180:
+            rotMatrix = mat4::rotate(rot90InRadians * 2.0f, vec3(0, 0, 1));
+            displacementX = reqWidth;
+            displacementY = reqHeight;
+            break;
+        case ui::Transform::ROT_270:
+            rotMatrix = mat4::rotate(rot90InRadians * 3.0f, vec3(0, 0, 1));
+            displacementY = reqHeight;
+            break;
+        default:
+            break;
+    }
+    // We need to transform the clipping window into the right spot.
+    // First, rotate the clipping rectangle by the rotation hint to get the
+    // right orientation
+    const vec4 clipTL = vec4(sourceCrop.left, sourceCrop.top, 0, 1);
+    const vec4 clipBR = vec4(sourceCrop.right, sourceCrop.bottom, 0, 1);
+    const vec4 rotClipTL = rotMatrix * clipTL;
+    const vec4 rotClipBR = rotMatrix * clipBR;
+    const int newClipLeft = std::min(rotClipTL[0], rotClipBR[0]);
+    const int newClipTop = std::min(rotClipTL[1], rotClipBR[1]);
+    const int newClipRight = std::max(rotClipTL[0], rotClipBR[0]);
+    const int newClipBottom = std::max(rotClipTL[1], rotClipBR[1]);
+
+    // Now reposition the clipping rectangle with the displacement vector
+    // computed above.
+    const mat4 displacementMat = mat4::translate(vec4(displacementX, displacementY, 0, 1));
+
+    clientCompositionDisplay.clip =
+            Rect(newClipLeft + displacementX, newClipTop + displacementY,
+                 newClipRight + displacementX, newClipBottom + displacementY);
+
+    // We need to perform the same transformation in layer space, so propagate
+    // it to the global transform.
+    mat4 clipTransform = displacementMat * rotMatrix;
+    clientCompositionDisplay.globalTransform *= clipTransform;
+    clientCompositionDisplay.outputDataspace = renderArea.getReqDataSpace();
+    clientCompositionDisplay.maxLuminance = DisplayDevice::sDefaultMaxLumiance;
 
     const float alpha = RenderArea::getCaptureFillValue(renderArea.getCaptureFill());
-    // redraw the screen entirely...
-    engine.clearWithColor(0, 0, 0, alpha);
 
+    renderengine::LayerSettings fillLayer;
+    fillLayer.source.buffer.buffer = nullptr;
+    fillLayer.source.solidColor = half3(0.0, 0.0, 0.0);
+    fillLayer.geometry.boundaries = FloatRect(0.0, 0.0, 1.0, 1.0);
+    fillLayer.alpha = half(alpha);
+    clientCompositionLayers.push_back(fillLayer);
+
+    Region clearRegion = Region::INVALID_REGION;
     traverseLayers([&](Layer* layer) {
-        engine.setColorTransform(layer->getColorTransform());
-        layer->draw(renderArea, useIdentityTransform);
-        engine.setColorTransform(mat4());
+        renderengine::LayerSettings layerSettings;
+        bool prepared = layer->prepareClientLayer(renderArea, useIdentityTransform, clearRegion,
+                                                  layerSettings);
+        if (prepared) {
+            clientCompositionLayers.push_back(layerSettings);
+        }
     });
+
+    clientCompositionDisplay.clearRegion = clearRegion;
+    base::unique_fd drawFence;
+    getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
+                                 &drawFence);
+
+    *outSyncFd = drawFence.release();
 }
 
 status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
@@ -5637,28 +5738,7 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
         ALOGW("FB is protected: PERMISSION_DENIED");
         return PERMISSION_DENIED;
     }
-    auto& engine(getRenderEngine());
-
-    // this binds the given EGLImage as a framebuffer for the
-    // duration of this scope.
-    renderengine::BindNativeBufferAsFramebuffer bufferBond(engine, buffer);
-    if (bufferBond.getStatus() != NO_ERROR) {
-        ALOGE("got ANWB binding error while taking screenshot");
-        return INVALID_OPERATION;
-    }
-
-    // this will in fact render into our dequeued buffer
-    // via an FBO, which means we didn't have to create
-    // an EGLSurface and therefore we're not
-    // dependent on the context's EGLConfig.
-    renderScreenImplLocked(renderArea, traverseLayers, useIdentityTransform);
-
-    base::unique_fd syncFd = engine.flush();
-    if (syncFd < 0) {
-        engine.finish();
-    }
-    *outSyncFd = syncFd.release();
-
+    renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, outSyncFd);
     return NO_ERROR;
 }
 

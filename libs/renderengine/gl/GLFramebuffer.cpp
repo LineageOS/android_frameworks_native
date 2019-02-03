@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "GLFramebuffer.h"
 
 #include <GLES/gl.h>
@@ -21,6 +23,7 @@
 #include <GLES2/gl2.h>
 #include <GLES2/gl2ext.h>
 #include <nativebase/nativebase.h>
+#include <utils/Trace.h>
 #include "GLESRenderEngine.h"
 
 namespace android {
@@ -40,6 +43,7 @@ GLFramebuffer::~GLFramebuffer() {
 }
 
 bool GLFramebuffer::setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected) {
+    ATRACE_CALL();
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
         eglDestroyImageKHR(mEGLDisplay, mEGLImage);
         mEGLImage = EGL_NO_IMAGE_KHR;

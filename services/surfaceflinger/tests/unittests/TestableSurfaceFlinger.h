@@ -23,6 +23,7 @@
 #include "ColorLayer.h"
 #include "ContainerLayer.h"
 #include "DisplayDevice.h"
+#include "FakePhaseOffsets.h"
 #include "Layer.h"
 #include "NativeWindowSurface.h"
 #include "StartPropertySetThread.h"
@@ -73,6 +74,10 @@ public:
     std::unique_ptr<MessageQueue> createMessageQueue() override {
         // TODO: Use test-fixture controlled factory
         return std::make_unique<android::impl::MessageQueue>();
+    }
+
+    std::unique_ptr<scheduler::PhaseOffsets> createPhaseOffsets() override {
+        return std::make_unique<scheduler::FakePhaseOffsets>();
     }
 
     std::unique_ptr<Scheduler> createScheduler(std::function<void(bool)>) override {
@@ -187,6 +192,10 @@ public:
         mFactory.mCreateNativeWindowSurface = f;
     }
 
+    void setInternalDisplayPrimaries(const ui::DisplayPrimaries& primaries) {
+        memcpy(&mFlinger->mInternalDisplayPrimaries, &primaries, sizeof(ui::DisplayPrimaries));
+    }
+
     using HotplugEvent = SurfaceFlinger::HotplugEvent;
 
     auto& mutableLayerCurrentState(sp<Layer> layer) { return layer->mCurrentState; }
@@ -258,6 +267,15 @@ public:
     auto traverseLayersInDisplay(const sp<const DisplayDevice>& display,
                                  const LayerVector::Visitor& visitor) {
         return mFlinger->SurfaceFlinger::traverseLayersInDisplay(display, visitor);
+    }
+
+    auto getDisplayNativePrimaries(const sp<IBinder>& displayToken,
+                                   ui::DisplayPrimaries &primaries) {
+        return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
+    }
+
+    void initDefaultDisplayNativePrimaries() {
+        mFlinger->SurfaceFlinger::initDefaultDisplayNativePrimaries();
     }
 
     /* ------------------------------------------------------------------------
