@@ -68,6 +68,30 @@
       "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "f522ceff_efba924d",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 2297,
+      "author": {
+        "id": 2936
+      },
+      "writtenOn": "2019-02-03T18:45:00Z",
+      "side": 1,
+      "message": "Can we get some debugging put here and have an enchilada user get the logs out? I\u0027d be interested to know what the value of the display variable is coming into this function is. (eg: add ALOGI(\"display: %d\", display) on line 2291)",
+      "parentUuid": "5ec3dddb_11e67418",
+      "range": {
+        "startLine": 2297,
+        "startChar": 15,
+        "endLine": 2297,
+        "endChar": 85
+      },
+      "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
