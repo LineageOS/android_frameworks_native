@@ -210,15 +210,15 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
 
     // Populate shortcuts to the atomics in metadata.
     auto metadata_header = mMetadata.metadata_header();
-    buffer_state_ = &metadata_header->buffer_state;
-    fence_state_ = &metadata_header->fence_state;
-    active_clients_bit_mask_ = &metadata_header->active_clients_bit_mask;
+    mBufferState = &metadata_header->buffer_state;
+    mFenceState = &metadata_header->fence_state;
+    mActiveClientsBitMask = &metadata_header->active_clients_bit_mask;
     // The C++ standard recommends (but does not require) that lock-free atomic operations are
     // also address-free, that is, suitable for communication between processes using shared
     // memory.
-    LOG_ALWAYS_FATAL_IF(!std::atomic_is_lock_free(buffer_state_) ||
-                                !std::atomic_is_lock_free(fence_state_) ||
-                                !std::atomic_is_lock_free(active_clients_bit_mask_),
+    LOG_ALWAYS_FATAL_IF(!std::atomic_is_lock_free(mBufferState) ||
+                                !std::atomic_is_lock_free(mFenceState) ||
+                                !std::atomic_is_lock_free(mActiveClientsBitMask),
                         "Atomic variables in ashmen are not lock free.");
 
     // Import the buffer: We only need to hold on the native_handle_t here so that
@@ -231,96 +231,96 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
 
     // TODO(b/112012161) Set up shared fences.
     ALOGD("%s: id=%d, buffer_state=%" PRIx32 ".", __FUNCTION__, mId,
-          buffer_state_->load(std::memory_order_acquire));
+          mBufferState->load(std::memory_order_acquire));
     return 0;
 }
 
 int BufferHubBuffer::Gain() {
-    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
-    if (IsClientGained(current_buffer_state, mClientStateMask)) {
+    uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
+    if (IsClientGained(currentBufferState, mClientStateMask)) {
         ALOGV("%s: Buffer is already gained by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
     do {
-        if (AnyClientGained(current_buffer_state & (~mClientStateMask)) ||
-            AnyClientAcquired(current_buffer_state)) {
+        if (AnyClientGained(currentBufferState & (~mClientStateMask)) ||
+            AnyClientAcquired(currentBufferState)) {
             ALOGE("%s: Buffer is in use, id=%d mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
-                  __FUNCTION__, mId, mClientStateMask, current_buffer_state);
+                  __FUNCTION__, mId, mClientStateMask, currentBufferState);
             return -EBUSY;
         }
         // Change the buffer state to gained state, whose value happens to be the same as
         // mClientStateMask.
-    } while (!buffer_state_->compare_exchange_weak(current_buffer_state, mClientStateMask,
-                                                   std::memory_order_acq_rel,
-                                                   std::memory_order_acquire));
+    } while (!mBufferState->compare_exchange_weak(currentBufferState, mClientStateMask,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_acquire));
     // TODO(b/119837586): Update fence state and return GPU fence.
     return 0;
 }
 
 int BufferHubBuffer::Post() {
-    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
-    uint32_t updated_buffer_state = (~mClientStateMask) & BufferHubDefs::kHighBitsMask;
+    uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
+    uint32_t updatedBufferState = (~mClientStateMask) & BufferHubDefs::kHighBitsMask;
     do {
-        if (!IsClientGained(current_buffer_state, mClientStateMask)) {
+        if (!IsClientGained(currentBufferState, mClientStateMask)) {
             ALOGE("%s: Cannot post a buffer that is not gained by this client. buffer_id=%d "
                   "mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
-                  __FUNCTION__, mId, mClientStateMask, current_buffer_state);
+                  __FUNCTION__, mId, mClientStateMask, currentBufferState);
             return -EBUSY;
         }
         // Set the producer client buffer state to released, other clients' buffer state to posted.
         // Post to all existing and non-existing clients.
-    } while (!buffer_state_->compare_exchange_weak(current_buffer_state, updated_buffer_state,
-                                                   std::memory_order_acq_rel,
-                                                   std::memory_order_acquire));
+    } while (!mBufferState->compare_exchange_weak(currentBufferState, updatedBufferState,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_acquire));
     // TODO(b/119837586): Update fence state and return GPU fence if needed.
     return 0;
 }
 
 int BufferHubBuffer::Acquire() {
-    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
-    if (IsClientAcquired(current_buffer_state, mClientStateMask)) {
+    uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
+    if (IsClientAcquired(currentBufferState, mClientStateMask)) {
         ALOGV("%s: Buffer is already acquired by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
-    uint32_t updated_buffer_state = 0U;
+    uint32_t updatedBufferState = 0U;
     do {
-        if (!IsClientPosted(current_buffer_state, mClientStateMask)) {
+        if (!IsClientPosted(currentBufferState, mClientStateMask)) {
             ALOGE("%s: Cannot acquire a buffer that is not in posted state. buffer_id=%d "
                   "mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
-                  __FUNCTION__, mId, mClientStateMask, current_buffer_state);
+                  __FUNCTION__, mId, mClientStateMask, currentBufferState);
             return -EBUSY;
         }
         // Change the buffer state for this consumer from posted to acquired.
-        updated_buffer_state = current_buffer_state ^ mClientStateMask;
-    } while (!buffer_state_->compare_exchange_weak(current_buffer_state, updated_buffer_state,
-                                                   std::memory_order_acq_rel,
-                                                   std::memory_order_acquire));
+        updatedBufferState = currentBufferState ^ mClientStateMask;
+    } while (!mBufferState->compare_exchange_weak(currentBufferState, updatedBufferState,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_acquire));
     // TODO(b/119837586): Update fence state and return GPU fence.
     return 0;
 }
 
 int BufferHubBuffer::Release() {
-    uint32_t current_buffer_state = buffer_state_->load(std::memory_order_acquire);
-    if (IsClientReleased(current_buffer_state, mClientStateMask)) {
+    uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
+    if (IsClientReleased(currentBufferState, mClientStateMask)) {
         ALOGV("%s: Buffer is already released by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
-    uint32_t updated_buffer_state = 0U;
+    uint32_t updatedBufferState = 0U;
     do {
-        updated_buffer_state = current_buffer_state & (~mClientStateMask);
-    } while (!buffer_state_->compare_exchange_weak(current_buffer_state, updated_buffer_state,
-                                                   std::memory_order_acq_rel,
-                                                   std::memory_order_acquire));
+        updatedBufferState = currentBufferState & (~mClientStateMask);
+    } while (!mBufferState->compare_exchange_weak(currentBufferState, updatedBufferState,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_acquire));
     // TODO(b/119837586): Update fence state and return GPU fence if needed.
     return 0;
 }
 
 bool BufferHubBuffer::IsReleased() const {
-    return (buffer_state_->load(std::memory_order_acquire) &
-            active_clients_bit_mask_->load(std::memory_order_acquire)) == 0;
+    return (mBufferState->load(std::memory_order_acquire) &
+            mActiveClientsBitMask->load(std::memory_order_acquire)) == 0;
 }
 
 bool BufferHubBuffer::IsValid() const {

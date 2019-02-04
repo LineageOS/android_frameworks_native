@@ -239,8 +239,8 @@ TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromReleasedState) {
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromGainedState) {
     ASSERT_EQ(b1->Gain(), 0);
-    auto current_buffer_state = b1->buffer_state();
-    ASSERT_TRUE(IsClientGained(current_buffer_state, b1ClientMask));
+    auto currentBufferState = b1->buffer_state();
+    ASSERT_TRUE(IsClientGained(currentBufferState, b1ClientMask));
 
     // Gaining from gained state by the same client should not return error.
     EXPECT_EQ(b1->Gain(), 0);
@@ -291,9 +291,9 @@ TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromSelfInGainedState) {
     ASSERT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
 
     EXPECT_EQ(b1->Post(), 0);
-    auto current_buffer_state = b1->buffer_state();
-    EXPECT_TRUE(IsClientReleased(current_buffer_state, b1ClientMask));
-    EXPECT_TRUE(IsClientPosted(current_buffer_state, b2ClientMask));
+    auto currentBufferState = b1->buffer_state();
+    EXPECT_TRUE(IsClientReleased(currentBufferState, b1ClientMask));
+    EXPECT_TRUE(IsClientPosted(currentBufferState, b2ClientMask));
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromPostedState) {
@@ -348,8 +348,8 @@ TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromSelfInAcquiredState
     ASSERT_EQ(b1->Gain(), 0);
     ASSERT_EQ(b1->Post(), 0);
     ASSERT_EQ(b2->Acquire(), 0);
-    auto current_buffer_state = b1->buffer_state();
-    ASSERT_TRUE(IsClientAcquired(current_buffer_state, b2ClientMask));
+    auto currentBufferState = b1->buffer_state();
+    ASSERT_TRUE(IsClientAcquired(currentBufferState, b2ClientMask));
 
     // Acquiring from acquired state by the same client should not error out.
     EXPECT_EQ(b2->Acquire(), 0);
