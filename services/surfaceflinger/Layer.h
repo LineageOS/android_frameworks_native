@@ -849,6 +849,8 @@ protected:
 
     // Can only be accessed with the SF state lock held.
     bool mLayerDetached{false};
+    // Can only be accessed with the SF state lock held.
+    bool mChildrenChanged{false};
 
 private:
     /**
