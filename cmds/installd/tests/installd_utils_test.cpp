@@ -546,56 +546,86 @@ TEST_F(UtilsTest, MatchExtension_Invalid) {
 }
 
 TEST_F(UtilsTest, TestRollbackPaths) {
-    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
-            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo"));
-    EXPECT_EQ("/data/misc_ce/10/rollback/com.foo",
-            create_data_misc_ce_rollback_package_path(nullptr, 10, "com.foo"));
+    EXPECT_EQ("/data/misc_ce/0/rollback/239/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, 239, "com.foo"));
+    EXPECT_EQ("/data/misc_ce/10/rollback/37/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 10, 37, "com.foo"));
 
-    EXPECT_EQ("/data/misc_de/0/rollback/com.foo",
-            create_data_misc_de_rollback_package_path(nullptr, 0, "com.foo"));
-    EXPECT_EQ("/data/misc_de/10/rollback/com.foo",
-            create_data_misc_de_rollback_package_path(nullptr, 10, "com.foo"));
+    EXPECT_EQ("/data/misc_de/0/rollback/73/com.foo",
+            create_data_misc_de_rollback_package_path(nullptr, 0, 73, "com.foo"));
+    EXPECT_EQ("/data/misc_de/10/rollback/13/com.foo",
+            create_data_misc_de_rollback_package_path(nullptr, 10, 13, "com.foo"));
 
-    EXPECT_EQ("/data/misc_ce/0/rollback",
-            create_data_misc_ce_rollback_path(nullptr, 0));
-    EXPECT_EQ("/data/misc_ce/10/rollback",
-            create_data_misc_ce_rollback_path(nullptr, 10));
+    EXPECT_EQ("/data/misc_ce/0/rollback/57",
+            create_data_misc_ce_rollback_path(nullptr, 0, 57));
+    EXPECT_EQ("/data/misc_ce/10/rollback/1543",
+            create_data_misc_ce_rollback_path(nullptr, 10, 1543));
 
-    EXPECT_EQ("/data/misc_de/0/rollback",
-            create_data_misc_de_rollback_path(nullptr, 0));
-    EXPECT_EQ("/data/misc_de/10/rollback",
-            create_data_misc_de_rollback_path(nullptr, 10));
+    EXPECT_EQ("/data/misc_de/0/rollback/43",
+            create_data_misc_de_rollback_path(nullptr, 0, 43));
+    EXPECT_EQ("/data/misc_de/10/rollback/41",
+            create_data_misc_de_rollback_path(nullptr, 10, 41));
 
-    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
-            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo", 0));
-    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
-            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo", 239));
+    EXPECT_EQ("/data/misc_ce/0/rollback/17/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, 17, "com.foo", 0));
+    EXPECT_EQ("/data/misc_ce/0/rollback/19/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, 19, "com.foo", 239));
 
-    auto rollback_ce_package_path = create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo");
-    auto deleter = [&rollback_ce_package_path]() {
-        delete_dir_contents_and_dir(rollback_ce_package_path, true /* ignore_if_missing */);
+    auto rollback_ce_path = create_data_misc_ce_rollback_path(nullptr, 0, 53);
+    auto rollback_ce_package_path = create_data_misc_ce_rollback_package_path(nullptr, 0, 53,
+            "com.foo");
+    auto deleter = [&rollback_ce_path]() {
+        delete_dir_contents_and_dir(rollback_ce_path, true /* ignore_if_missing */);
     };
     auto scope_guard = android::base::make_scope_guard(deleter);
 
-    ASSERT_NE(-1, mkdir(rollback_ce_package_path.c_str(), 700));
+    EXPECT_NE(-1, mkdir(rollback_ce_path.c_str(), 700));
+    EXPECT_NE(-1, mkdir(rollback_ce_package_path.c_str(), 700));
 
     ino_t ce_data_inode;
-    ASSERT_EQ(0, get_path_inode(rollback_ce_package_path, &ce_data_inode));
+    EXPECT_EQ(0, get_path_inode(rollback_ce_package_path, &ce_data_inode));
 
-    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
-            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.foo", ce_data_inode));
+    EXPECT_EQ("/data/misc_ce/0/rollback/53/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, 53, "com.foo", ce_data_inode));
     // Check that path defined by inode is picked even if it's not the same as
     // the fallback one.
-    EXPECT_EQ("/data/misc_ce/0/rollback/com.foo",
-            create_data_misc_ce_rollback_package_path(nullptr, 0, "com.bar", ce_data_inode));
+    EXPECT_EQ("/data/misc_ce/0/rollback/53/com.foo",
+            create_data_misc_ce_rollback_package_path(nullptr, 0, 53, "com.bar", ce_data_inode));
 
     // These last couple of cases are never exercised in production because we
     // only snapshot apps in the primary data partition. Exercise them here for
     // the sake of completeness.
-    EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/misc_ce/0/rollback/com.example",
-            create_data_misc_ce_rollback_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, "com.example"));
-    EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/misc_de/0/rollback/com.example",
-            create_data_misc_de_rollback_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, "com.example"));
+    EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/misc_ce/0/rollback/7/com.example",
+            create_data_misc_ce_rollback_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, 7,
+                    "com.example"));
+    EXPECT_EQ("/mnt/expand/57f8f4bc-abf4-655f-bf67-946fc0f9f25b/misc_de/0/rollback/11/com.example",
+            create_data_misc_de_rollback_package_path("57f8f4bc-abf4-655f-bf67-946fc0f9f25b", 0, 11,
+                    "com.example"));
+}
+
+TEST_F(UtilsTest, TestCreateDirIfNeeded) {
+    system("mkdir -p /data/local/tmp/user/0");
+
+    auto deleter = [&]() {
+        delete_dir_contents_and_dir("/data/local/tmp/user/0", true /* ignore_if_missing */);
+    };
+    auto scope_guard = android::base::make_scope_guard(deleter);
+
+    // Create folder and check it's permissions.
+    ASSERT_EQ(0, create_dir_if_needed("/data/local/tmp/user/0/foo", 0700));
+    struct stat st;
+    ASSERT_EQ(0, stat("/data/local/tmp/user/0/foo", &st));
+    ASSERT_EQ(0700, st.st_mode & ALLPERMS);
+
+    // Check that create_dir_if_needed is no-op if folder already exists with
+    // correct permissions.
+    ASSERT_EQ(0, create_dir_if_needed("/data/local/tmp/user/0/foo", 0700));
+
+    // Check -1 is returned if folder exists but with different permissions.
+    ASSERT_EQ(-1, create_dir_if_needed("/data/local/tmp/user/0/foo", 0750));
+
+    // Check that call fails if parent doesn't exist.
+    ASSERT_NE(0, create_dir_if_needed("/data/local/tmp/user/0/bar/baz", 0700));
 }
 
 }  // namespace installd
