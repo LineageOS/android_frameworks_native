@@ -23,11 +23,15 @@
 #include <ui/GraphicTypes.h>
 #include <ui/Region.h>
 #include <ui/Transform.h>
+#include <utils/StrongPointer.h>
 
 namespace android::compositionengine {
 
 class DisplayColorProfile;
+class Layer;
+class LayerFE;
 class RenderSurface;
+class OutputLayer;
 
 namespace impl {
 struct OutputCompositionState;
@@ -38,6 +42,10 @@ struct OutputCompositionState;
  */
 class Output {
 public:
+    using OutputLayers = std::vector<std::unique_ptr<compositionengine::OutputLayer>>;
+
+    virtual ~Output();
+
     // Returns true if the output is valid. This is meant to be checked post-
     // construction and prior to use, as not everything is set up by the
     // constructor.
@@ -102,9 +110,23 @@ public:
     // this output allows that.
     virtual bool belongsInOutput(uint32_t layerStackId, bool internalOnly) const = 0;
 
-protected:
-    ~Output() = default;
+    // Returns a pointer to the output layer corresponding to the given layer on
+    // this output, or nullptr if the layer does not have one
+    virtual OutputLayer* getOutputLayerForLayer(Layer*) const = 0;
 
+    // Gets the OutputLayer corresponding to the input Layer instance from the
+    // current ordered set of output layers. If there is no such layer, a new
+    // one is created and returned.
+    virtual std::unique_ptr<OutputLayer> getOrCreateOutputLayer(std::shared_ptr<Layer>,
+                                                                sp<LayerFE>) = 0;
+
+    // Sets the new ordered set of output layers for this output
+    virtual void setOutputLayersOrderedByZ(OutputLayers&&) = 0;
+
+    // Gets the ordered set of output layers for this output
+    virtual const OutputLayers& getOutputLayersOrderedByZ() const = 0;
+
+protected:
     virtual void setDisplayColorProfile(std::unique_ptr<DisplayColorProfile>) = 0;
     virtual void setRenderSurface(std::unique_ptr<RenderSurface>) = 0;
 };

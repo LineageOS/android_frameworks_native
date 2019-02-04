@@ -19,6 +19,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 
+#include <compositionengine/impl/HwcBufferCache.h>
+
 #include <renderengine/Mesh.h>
 #include <renderengine/RenderEngine.h>
 #include <renderengine/Texture.h>
@@ -26,7 +28,6 @@
 
 #include "DisplayHardware/DisplayIdentification.h"
 #include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/HWComposerBufferCache.h"
 #include "SurfaceFlinger.h"
 
 namespace android {
@@ -120,7 +121,7 @@ private:
         bool clearClientTarget;
         Rect displayFrame;
         FloatRect sourceCrop;
-        HWComposerBufferCache bufferCache;
+        compositionengine::impl::HwcBufferCache bufferCache;
         HWC2::Transform transform;
     };
 

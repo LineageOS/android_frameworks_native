@@ -21,11 +21,11 @@
 #include <string>
 
 #include <compositionengine/DisplaySurface.h>
+#include <compositionengine/impl/HwcBufferCache.h>
 #include <gui/ConsumerBase.h>
 #include <gui/IGraphicBufferProducer.h>
 
 #include "DisplayIdentification.h"
-#include "HWComposerBufferCache.h"
 
 // ---------------------------------------------------------------------------
 namespace android {
@@ -253,7 +253,7 @@ private:
 
     bool mMustRecompose;
 
-    HWComposerBufferCache mHwcBufferCache;
+    compositionengine::impl::HwcBufferCache mHwcBufferCache;
 
     bool mForceHwcCopy;
 };

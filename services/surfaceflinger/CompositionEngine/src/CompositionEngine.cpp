@@ -16,6 +16,7 @@
 
 #include <compositionengine/impl/CompositionEngine.h>
 #include <compositionengine/impl/Display.h>
+#include <compositionengine/impl/Layer.h>
 #include <renderengine/RenderEngine.h>
 
 #include "DisplayHardware/HWComposer.h"
@@ -36,6 +37,10 @@ CompositionEngine::~CompositionEngine() = default;
 std::shared_ptr<compositionengine::Display> CompositionEngine::createDisplay(
         DisplayCreationArgs&& args) {
     return compositionengine::impl::createDisplay(*this, std::move(args));
+}
+
+std::shared_ptr<compositionengine::Layer> CompositionEngine::createLayer(LayerCreationArgs&& args) {
+    return compositionengine::impl::createLayer(*this, std::move(args));
 }
 
 HWComposer& CompositionEngine::getHwComposer() const {

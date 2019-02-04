@@ -17,11 +17,17 @@
 #include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/DisplayColorProfile.h>
+#include <compositionengine/LayerFE.h>
 #include <compositionengine/RenderSurface.h>
 #include <compositionengine/impl/Output.h>
+#include <compositionengine/impl/OutputLayer.h>
 #include <ui/DebugUtils.h>
 
-namespace android::compositionengine::impl {
+namespace android::compositionengine {
+
+Output::~Output() = default;
+
+namespace impl {
 
 Output::Output(const CompositionEngine& compositionEngine)
       : mCompositionEngine(compositionEngine) {}
@@ -178,8 +184,37 @@ bool Output::belongsInOutput(uint32_t layerStackId, bool internalOnly) const {
     return (layerStackId == mState.layerStackId) && (!internalOnly || mState.layerStackInternal);
 }
 
+compositionengine::OutputLayer* Output::getOutputLayerForLayer(
+        compositionengine::Layer* layer) const {
+    for (const auto& outputLayer : mOutputLayersOrderedByZ) {
+        if (outputLayer && &outputLayer->getLayer() == layer) {
+            return outputLayer.get();
+        }
+    }
+    return nullptr;
+}
+
+std::unique_ptr<compositionengine::OutputLayer> Output::getOrCreateOutputLayer(
+        std::shared_ptr<compositionengine::Layer> layer, sp<compositionengine::LayerFE> layerFE) {
+    for (auto& outputLayer : mOutputLayersOrderedByZ) {
+        if (outputLayer && &outputLayer->getLayer() == layer.get()) {
+            return std::move(outputLayer);
+        }
+    }
+    return createOutputLayer(*this, layer, layerFE);
+}
+
+void Output::setOutputLayersOrderedByZ(OutputLayers&& layers) {
+    mOutputLayersOrderedByZ = std::move(layers);
+}
+
+const Output::OutputLayers& Output::getOutputLayersOrderedByZ() const {
+    return mOutputLayersOrderedByZ;
+}
+
 void Output::dirtyEntireOutput() {
     mState.dirtyRegion.set(mState.bounds);
 }
 
-} // namespace android::compositionengine::impl
+} // namespace impl
+} // namespace android::compositionengine

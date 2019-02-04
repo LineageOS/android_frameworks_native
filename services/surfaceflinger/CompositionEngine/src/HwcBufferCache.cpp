@@ -14,21 +14,18 @@
  * limitations under the License.
  */
 
-#include "HWComposerBufferCache.h"
-
+#include <compositionengine/impl/HwcBufferCache.h>
 #include <gui/BufferQueue.h>
+#include <ui/GraphicBuffer.h>
 
-namespace android {
+namespace android::compositionengine::impl {
 
-HWComposerBufferCache::HWComposerBufferCache()
-{
+HwcBufferCache::HwcBufferCache() {
     mBuffers.reserve(BufferQueue::NUM_BUFFER_SLOTS);
 }
 
-void HWComposerBufferCache::getHwcBuffer(int slot,
-        const sp<GraphicBuffer>& buffer,
-        uint32_t* outSlot, sp<GraphicBuffer>* outBuffer)
-{
+void HwcBufferCache::getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+                                  sp<GraphicBuffer>* outBuffer) {
     if (slot == BufferQueue::INVALID_BUFFER_SLOT || slot < 0) {
         // default to slot 0
         slot = 0;
@@ -51,4 +48,4 @@ void HWComposerBufferCache::getHwcBuffer(int slot,
     }
 }
 
-} // namespace android
+} // namespace android::compositionengine::impl
