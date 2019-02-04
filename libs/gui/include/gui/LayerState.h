@@ -86,9 +86,8 @@ struct layer_state_t {
         eCornerRadiusChanged = 0x80000000,
         eFrameChanged = 0x1'00000000,
         eCachedBufferChanged = 0x2'00000000,
-        eColorAlphaChanged = 0x4'00000000,
-        eColorDataspaceChanged = 0x8'00000000,
-        eMetadataChanged = 0x10'00000000,
+        eBackgroundColorChanged = 0x4'00000000,
+        eMetadataChanged = 0x8'00000000,
     };
 
     layer_state_t()
@@ -115,8 +114,8 @@ struct layer_state_t {
             surfaceDamageRegion(),
             api(-1),
             colorTransform(mat4()),
-            colorAlpha(0),
-            colorDataspace(ui::Dataspace::UNKNOWN) {
+            bgColorAlpha(0),
+            bgColorDataspace(ui::Dataspace::UNKNOWN) {
         matrix.dsdx = matrix.dtdy = 1.0f;
         matrix.dsdy = matrix.dtdx = 0.0f;
         hdrMetadata.validTypes = 0;
@@ -187,10 +186,12 @@ struct layer_state_t {
 
     cached_buffer_t cachedBuffer;
 
-    float colorAlpha;
-    ui::Dataspace colorDataspace;
-
     LayerMetadata metadata;
+
+    // The following refer to the alpha, and dataspace, respectively of
+    // the background color layer
+    float bgColorAlpha;
+    ui::Dataspace bgColorDataspace;
 };
 
 struct ComposerState {
