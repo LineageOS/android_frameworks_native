@@ -742,8 +742,10 @@ void SurfaceFlinger::init() {
             mVsyncModulator.setPhaseOffsets(early, gl, late);
             setRefreshRateTo(90.f /* fps */);
         });
-        mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(
-                getHwComposer().getConfigs(*display->getId()));
+        mRefreshRateStats =
+                std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
+                                                                      *display->getId()),
+                                                              mTimeStats);
     }
 
     ALOGV("Done initializing");

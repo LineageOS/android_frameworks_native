@@ -144,9 +144,9 @@ public:
         return nullptr;
     }
 
-    std::unique_ptr<TimeStats> createTimeStats() override {
+    std::shared_ptr<TimeStats> createTimeStats() override {
         // TODO: Use test-fixture controlled factory
-        return std::make_unique<TimeStats>();
+        return std::make_shared<android::impl::TimeStats>();
     }
 
     using CreateBufferQueueFunction =

@@ -25,7 +25,7 @@ option optimize_for = LITE_RUNTIME;
 // changes to these messages, and keep google3 side proto messages in sync if
 // the end to end pipeline needs to be updated.
 
-// Next tag: 9
+// Next tag: 10
 message SFTimeStatsGlobalProto {
   // The stats start time in UTC as seconds since January 1, 1970
   optional int64 stats_start = 1;
@@ -39,6 +39,8 @@ message SFTimeStatsGlobalProto {
   optional int32 client_composition_frames = 5;
   // Primary display on time in milliseconds.
   optional int64 display_on_time = 7;
+  // Stats per display configuration.
+  repeated SFTimeStatsDisplayConfigBucketProto display_config_stats = 9;
   // Present to present histogram.
   repeated SFTimeStatsHistogramBucketProto present_to_present = 8;
   // Stats per layer. Apps could have multiple layers.
@@ -79,4 +81,19 @@ message SFTimeStatsHistogramBucketProto {
   optional int32 time_millis = 1;
   // Number of frames in the bucket.
   optional int32 frame_count = 2;
+}
+
+// Next tag: 3
+message SFTimeStatsDisplayConfigBucketProto {
+    // Metadata desribing a display config.
+    optional SFTimeStatsDisplayConfigProto config = 1;
+    // Duration in milliseconds for how long the display was in this
+    // configuration.
+    optional int64 duration_millis = 2;
+}
+
+// Next tag: 2
+message SFTimeStatsDisplayConfigProto {
+    // Frames per second, rounded to the nearest integer.
+    optional int32 fps = 1;
 }

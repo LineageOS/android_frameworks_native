@@ -36,6 +36,40 @@ using namespace android::surfaceflinger;
 namespace android {
 
 class TimeStats {
+public:
+    virtual ~TimeStats() = default;
+
+    virtual void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) = 0;
+    virtual bool isEnabled() = 0;
+
+    virtual void incrementTotalFrames() = 0;
+    virtual void incrementMissedFrames() = 0;
+    virtual void incrementClientCompositionFrames() = 0;
+
+    virtual void setPostTime(int32_t layerID, uint64_t frameNumber, const std::string& layerName,
+                             nsecs_t postTime) = 0;
+    virtual void setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latchTime) = 0;
+    virtual void setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t desiredTime) = 0;
+    virtual void setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t acquireTime) = 0;
+    virtual void setAcquireFence(int32_t layerID, uint64_t frameNumber,
+                                 const std::shared_ptr<FenceTime>& acquireFence) = 0;
+    virtual void setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t presentTime) = 0;
+    virtual void setPresentFence(int32_t layerID, uint64_t frameNumber,
+                                 const std::shared_ptr<FenceTime>& presentFence) = 0;
+    // Clean up the layer record
+    virtual void onDestroy(int32_t layerID) = 0;
+    // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
+    virtual void removeTimeRecord(int32_t layerID, uint64_t frameNumber) = 0;
+
+    virtual void setPowerMode(int32_t powerMode) = 0;
+    // Source of truth is RefrehRateStats.
+    virtual void recordRefreshRate(uint32_t fps, nsecs_t duration) = 0;
+    virtual void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) = 0;
+};
+
+namespace impl {
+
+class TimeStats : public android::TimeStats {
     struct FrameTime {
         uint64_t frameNumber = 0;
         nsecs_t postTime = 0;
@@ -75,32 +109,33 @@ class TimeStats {
 
 public:
     TimeStats() = default;
-    ~TimeStats() = default;
 
-    void parseArgs(bool asProto, const Vector<String16>& args, std::string& result);
-    bool isEnabled();
+    void parseArgs(bool asProto, const Vector<String16>& args, std::string& result) override;
+    bool isEnabled() override;
 
-    void incrementTotalFrames();
-    void incrementMissedFrames();
-    void incrementClientCompositionFrames();
+    void incrementTotalFrames() override;
+    void incrementMissedFrames() override;
+    void incrementClientCompositionFrames() override;
 
     void setPostTime(int32_t layerID, uint64_t frameNumber, const std::string& layerName,
-                     nsecs_t postTime);
-    void setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latchTime);
-    void setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t desiredTime);
-    void setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t acquireTime);
+                     nsecs_t postTime) override;
+    void setLatchTime(int32_t layerID, uint64_t frameNumber, nsecs_t latchTime) override;
+    void setDesiredTime(int32_t layerID, uint64_t frameNumber, nsecs_t desiredTime) override;
+    void setAcquireTime(int32_t layerID, uint64_t frameNumber, nsecs_t acquireTime) override;
     void setAcquireFence(int32_t layerID, uint64_t frameNumber,
-                         const std::shared_ptr<FenceTime>& acquireFence);
-    void setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t presentTime);
+                         const std::shared_ptr<FenceTime>& acquireFence) override;
+    void setPresentTime(int32_t layerID, uint64_t frameNumber, nsecs_t presentTime) override;
     void setPresentFence(int32_t layerID, uint64_t frameNumber,
-                         const std::shared_ptr<FenceTime>& presentFence);
+                         const std::shared_ptr<FenceTime>& presentFence) override;
     // Clean up the layer record
-    void onDestroy(int32_t layerID);
+    void onDestroy(int32_t layerID) override;
     // If SF skips or rejects a buffer, remove the corresponding TimeRecord.
-    void removeTimeRecord(int32_t layerID, uint64_t frameNumber);
+    void removeTimeRecord(int32_t layerID, uint64_t frameNumber) override;
 
-    void setPowerMode(int32_t powerMode);
-    void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence);
+    void setPowerMode(int32_t powerMode) override;
+    // Source of truth is RefrehRateStats.
+    void recordRefreshRate(uint32_t fps, nsecs_t duration) override;
+    void setPresentFenceGlobal(const std::shared_ptr<FenceTime>& presentFence) override;
 
     // TODO(zzyiwei): Bound the timeStatsTracker with weighted LRU
     // static const size_t MAX_NUM_LAYER_RECORDS = 200;
@@ -125,5 +160,7 @@ private:
     PowerTime mPowerTime;
     GlobalRecord mGlobalRecord;
 };
+
+} // namespace impl
 
 } // namespace android

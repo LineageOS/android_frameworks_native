@@ -16,6 +16,7 @@
 #pragma once
 
 #include <timestatsproto/TimeStatsProtoHeader.h>
+#include <utils/Timers.h>
 
 #include <optional>
 #include <string>
@@ -61,6 +62,7 @@ public:
         int64_t displayOnTime = 0;
         Histogram presentToPresent;
         std::unordered_map<std::string, TimeStatsLayer> stats;
+        std::unordered_map<uint32_t, nsecs_t> refreshRateStats;
 
         std::string toString(std::optional<uint32_t> maxLayers) const;
         SFTimeStatsGlobalProto toProto(std::optional<uint32_t> maxLayers) const;
