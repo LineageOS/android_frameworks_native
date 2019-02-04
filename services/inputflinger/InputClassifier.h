@@ -70,6 +70,11 @@ public:
     virtual MotionClassification classify(const NotifyMotionArgs& args) = 0;
     virtual void reset() = 0;
     virtual void reset(const NotifyDeviceResetArgs& args) = 0;
+
+    /**
+     * Dump the state of the motion classifier
+     */
+    virtual void dump(std::string& dump) = 0;
 };
 
 /**
@@ -77,6 +82,12 @@ public:
  * Provides classification to events.
  */
 class InputClassifierInterface : public virtual RefBase, public InputListenerInterface {
+public:
+    /**
+     * Dump the state of the input classifier.
+     * This method may be called on any thread (usually by the input manager).
+     */
+    virtual void dump(std::string& dump) = 0;
 protected:
     InputClassifierInterface() { }
     virtual ~InputClassifierInterface() { }
@@ -109,6 +120,8 @@ public:
     virtual MotionClassification classify(const NotifyMotionArgs& args) override;
     virtual void reset() override;
     virtual void reset(const NotifyDeviceResetArgs& args) override;
+
+    virtual void dump(std::string& dump) override;
 
 private:
     // The events that need to be sent to the HAL.
@@ -185,6 +198,8 @@ public:
     virtual void notifyMotion(const NotifyMotionArgs* args) override;
     virtual void notifySwitch(const NotifySwitchArgs* args) override;
     virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
+
+    virtual void dump(std::string& dump) override;
 
 private:
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier = nullptr;
