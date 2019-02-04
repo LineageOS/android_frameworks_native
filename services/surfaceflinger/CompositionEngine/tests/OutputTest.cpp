@@ -215,31 +215,51 @@ TEST_F(OutputTest, setRenderSurfaceResetsBounds) {
 }
 
 /* ------------------------------------------------------------------------
- * Output::getDirtyRegion()
+ * Output::getPhysicalSpaceDirtyRegion()
  */
 
-TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingTrue) {
-    const Rect viewport{100, 200};
-    mOutput.editState().viewport = viewport;
+TEST_F(OutputTest, getPhysicalSpaceDirtyRegionWithRepaintEverythingTrue) {
+    const Rect displaySize{100, 200};
+    mOutput.editState().bounds = displaySize;
     mOutput.editState().dirtyRegion.set(50, 300);
 
     {
-        Region result = mOutput.getDirtyRegion(true);
+        Region result = mOutput.getPhysicalSpaceDirtyRegion(true);
 
-        EXPECT_THAT(result, RegionEq(Region(viewport)));
+        EXPECT_THAT(result, RegionEq(Region(displaySize)));
+    }
+
+    // For repaint everything == true, the returned value does not depend on the display
+    // rotation.
+    mOutput.editState().transform.set(ui::Transform::ROT_90, 0, 0);
+
+    {
+        Region result = mOutput.getPhysicalSpaceDirtyRegion(true);
+
+        EXPECT_THAT(result, RegionEq(Region(displaySize)));
     }
 }
 
-TEST_F(OutputTest, getDirtyRegionWithRepaintEverythingFalse) {
-    const Rect viewport{100, 200};
-    mOutput.editState().viewport = viewport;
+TEST_F(OutputTest, getPhysicalSpaceDirtyRegionWithRepaintEverythingFalse) {
+    const Rect displaySize{100, 200};
+    mOutput.editState().bounds = displaySize;
     mOutput.editState().dirtyRegion.set(50, 300);
 
     {
-        Region result = mOutput.getDirtyRegion(false);
+        Region result = mOutput.getPhysicalSpaceDirtyRegion(false);
 
         // The dirtyRegion should be clipped to the display bounds.
         EXPECT_THAT(result, RegionEq(Region(Rect(50, 200))));
+    }
+
+    mOutput.editState().transform.set(ui::Transform::ROT_90, displaySize.getWidth(),
+                                      displaySize.getHeight());
+
+    {
+        Region result = mOutput.getPhysicalSpaceDirtyRegion(false);
+
+        // The dirtyRegion should be rotated and clipped to the display bounds.
+        EXPECT_THAT(result, RegionEq(Region(Rect(100, 50))));
     }
 }
 

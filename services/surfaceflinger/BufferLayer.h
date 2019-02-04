@@ -22,7 +22,6 @@
 
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
-#include <renderengine/Image.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
 #include <system/window.h> // For NATIVE_WINDOW_SCALING_MODE_FREEZE
@@ -77,6 +76,10 @@ public:
 
     // isFixedSize - true if content has a fixed size
     bool isFixedSize() const override;
+
+    // onDraw - draws the surface.
+    void onDraw(const RenderArea& renderArea, const Region& clip,
+                bool useIdentityTransform) override;
 
     bool isHdrY410() const override;
 
@@ -165,18 +168,12 @@ protected:
 
     bool mRefreshPending{false};
 
-    // Returns true if, when drawing the active buffer during gpu compositon, we
-    // should use a cached buffer or not.
-    virtual bool useCachedBufferForClientComposition() const = 0;
-
-    // prepareClientLayer - constructs a RenderEngine layer for GPU composition.
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            renderengine::LayerSettings& layer);
-
 private:
     // Returns true if this layer requires filtering
     bool needsFiltering() const;
+
+    // drawing
+    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
 
     uint64_t getHeadFrameNumber() const;
 
@@ -184,6 +181,9 @@ private:
 
     // main thread.
     bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
+
+    // The texture used to draw the layer in GLES composition mode
+    mutable renderengine::Texture mTexture;
 
     Rect getBufferSize(const State& s) const override;
 

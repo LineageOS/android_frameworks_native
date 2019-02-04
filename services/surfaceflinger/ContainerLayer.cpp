@@ -26,10 +26,7 @@ ContainerLayer::ContainerLayer(const LayerCreationArgs& args) : Layer(args) {}
 
 ContainerLayer::~ContainerLayer() = default;
 
-bool ContainerLayer::prepareClientLayer(const RenderArea&, const Region&, bool, Region&,
-                                        renderengine::LayerSettings&) {
-    return false;
-}
+void ContainerLayer::onDraw(const RenderArea&, const Region& /* clip */, bool) {}
 
 bool ContainerLayer::isVisible() const {
     return !isHiddenByPolicy();

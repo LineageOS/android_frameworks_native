@@ -639,7 +639,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
          * Here we cancel out the orientation component of the WM transform.
          * The scaling and translate components are already included in our bounds
          * computation so it's enough to just omit it in the composition.
-         * See comment in BufferLayer::prepareClientLayer with ref to b/36727915 for why.
+         * See comment in onDraw with ref to b/36727915 for why.
          */
         transform = ui::Transform(invTransform) * tr * bufferOrientation;
     }
@@ -707,51 +707,12 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 // drawing...
 // ---------------------------------------------------------------------------
 
-bool Layer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                               Region& clearRegion, renderengine::LayerSettings& layer) {
-    return prepareClientLayer(renderArea, clip, false, clearRegion, layer);
+void Layer::draw(const RenderArea& renderArea, const Region& clip) {
+    onDraw(renderArea, clip, false);
 }
 
-bool Layer::prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                               Region& clearRegion, renderengine::LayerSettings& layer) {
-    return prepareClientLayer(renderArea, Region(renderArea.getBounds()), useIdentityTransform,
-                              clearRegion, layer);
-}
-
-bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /*clip*/,
-                               bool useIdentityTransform, Region& /*clearRegion*/,
-                               renderengine::LayerSettings& layer) {
-    FloatRect bounds = computeBounds();
-    half alpha = getAlpha();
-    layer.geometry.boundaries = bounds;
-    if (useIdentityTransform) {
-        layer.geometry.positionTransform = mat4();
-    } else {
-        const ui::Transform transform = getTransform();
-        mat4 m;
-        m[0][0] = transform[0][0];
-        m[0][1] = transform[0][1];
-        m[0][3] = transform[0][2];
-        m[1][0] = transform[1][0];
-        m[1][1] = transform[1][1];
-        m[1][3] = transform[1][2];
-        m[3][0] = transform[2][0];
-        m[3][1] = transform[2][1];
-        m[3][3] = transform[2][2];
-        layer.geometry.positionTransform = m;
-    }
-
-    if (hasColorTransform()) {
-        layer.colorTransform = getColorTransform();
-    }
-
-    const auto roundedCornerState = getRoundedCornerState();
-    layer.geometry.roundedCornersRadius = roundedCornerState.radius;
-    layer.geometry.roundedCornersCrop = roundedCornerState.cropRect;
-
-    layer.alpha = alpha;
-    layer.sourceDataspace = mCurrentDataSpace;
-    return true;
+void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) {
+    onDraw(renderArea, Region(renderArea.getBounds()), useIdentityTransform);
 }
 
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,

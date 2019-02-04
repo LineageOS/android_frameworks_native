@@ -170,10 +170,13 @@ OutputCompositionState& Output::editState() {
     return mState;
 }
 
-Region Output::getDirtyRegion(bool repaintEverything) const {
-    Region dirty(mState.viewport);
-    if (!repaintEverything) {
-        dirty.andSelf(mState.dirtyRegion);
+Region Output::getPhysicalSpaceDirtyRegion(bool repaintEverything) const {
+    Region dirty;
+    if (repaintEverything) {
+        dirty.set(mState.bounds);
+    } else {
+        dirty = mState.transform.transform(mState.dirtyRegion);
+        dirty.andSelf(mState.bounds);
     }
     return dirty;
 }
