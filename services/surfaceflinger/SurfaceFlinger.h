@@ -47,6 +47,7 @@
 #include <utils/Trace.h>
 #include <utils/threads.h>
 
+#include "AllowedDisplayConfigs.h"
 #include "Barrier.h"
 #include "BufferStateLayerCache.h"
 #include "DisplayDevice.h"
@@ -490,6 +491,9 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
+    status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                      const std::vector<int32_t>& allowedConfigs) override;
+
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -533,6 +537,11 @@ private:
     bool performSetActiveConfig();
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
+
+    // called on the main thread in response to setAllowedDisplayConfigs()
+    void setAllowedDisplayConfigsInternal(
+            const sp<IBinder>& displayToken,
+            std::unique_ptr<const AllowedDisplayConfigs>&& allowedConfigs) REQUIRES(mStateLock);
 
     // Returns whether the transaction actually modified any state
     bool handleMessageTransaction();
@@ -803,6 +812,8 @@ private:
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
     void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType) REQUIRES(mStateLock);
+
+    bool isConfigAllowed(const DisplayId& displayId, int32_t config);
 
     /*
      * Display identification
@@ -1097,6 +1108,10 @@ private:
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
+
+    std::mutex mAllowedConfigsLock;
+    std::unordered_map<DisplayId, std::unique_ptr<const AllowedDisplayConfigs>> mAllowedConfigs
+            GUARDED_BY(mAllowedConfigsLock);
 
     struct ActiveConfigInfo {
         int configId;

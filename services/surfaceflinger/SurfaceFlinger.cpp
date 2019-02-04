@@ -984,9 +984,11 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
     ATRACE_CALL();
-    postMessageSync(new LambdaMessage(
-            [&]() NO_THREAD_SAFETY_ANALYSIS { setDesiredActiveConfig(displayToken, mode); }));
-    return NO_ERROR;
+
+    std::vector<int32_t> allowedConfig;
+    allowedConfig.push_back(mode);
+
+    return setAllowedDisplayConfigs(displayToken, allowedConfig);
 }
 
 void SurfaceFlinger::setActiveConfigInternal() {
@@ -1048,7 +1050,14 @@ bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
         return false;
     }
 
-    // Desired active config was set, it is different than the config currently in use. Notify HWC.
+    // Desired active config was set, it is different than the config currently in use, however
+    // allowed configs might have change by the time we process the refresh.
+    // Make sure the desired config is still allowed
+    if (!isConfigAllowed(*display->getId(), desiredActiveConfig.configId)) {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mDesiredActiveConfig.configId = display->getActiveConfig();
+        return false;
+    }
     mUpcomingActiveConfig = desiredActiveConfig;
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
@@ -1416,6 +1425,17 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
+bool SurfaceFlinger::isConfigAllowed(const DisplayId& displayId, int32_t config) {
+    std::lock_guard lock(mAllowedConfigsLock);
+
+    // if allowed configs are not set yet for this display, every config is considered allowed
+    if (mAllowedConfigs.find(displayId) == mAllowedConfigs.end()) {
+        return true;
+    }
+
+    return mAllowedConfigs[displayId]->isConfigAllowed(config);
+}
+
 void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
     mPhaseOffsets->setRefreshRateType(refreshRate);
 
@@ -1451,6 +1471,11 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
 
     auto configs = getHwComposer().getConfigs(*displayId);
     for (int i = 0; i < configs.size(); i++) {
+        if (!isConfigAllowed(*displayId, i)) {
+            ALOGV("Skipping config %d as it is not part of allowed configs", i);
+            continue;
+        }
+
         const nsecs_t vsyncPeriod = configs.at(i)->getVsyncPeriod();
         if (vsyncPeriod == 0) {
             continue;
@@ -4908,6 +4933,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_ANIMATION_FRAME_STATS:
         case GET_HDR_CAPABILITIES:
         case SET_ACTIVE_CONFIG:
+        case SET_ALLOWED_DISPLAY_CONFIGS:
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
@@ -5725,6 +5751,76 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
             visitor(layer);
         });
     }
+}
+
+void SurfaceFlinger::setAllowedDisplayConfigsInternal(
+        const android::sp<android::IBinder>& displayToken,
+        std::unique_ptr<const AllowedDisplayConfigs>&& allowedConfigs) {
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("setAllowedDisplayConfigsInternal: getPhysicalDisplayId failed");
+        return;
+    }
+
+    ALOGV("Updating allowed configs");
+    {
+        std::lock_guard lock(mAllowedConfigsLock);
+        mAllowedConfigs[*displayId] = std::move(allowedConfigs);
+    }
+
+    // make sure that the current config is still allowed
+    int currentConfigIndex = getHwComposer().getActiveConfigIndex(*displayId);
+    if (!isConfigAllowed(*displayId, currentConfigIndex)) {
+        // TODO(b/122906558): stop querying HWC for the available configs and instead use the cached
+        // configs queried on boot
+        auto configs = getHwComposer().getConfigs(*displayId);
+
+        for (int i = 0; i < configs.size(); i++) {
+            if (isConfigAllowed(*displayId, i)) {
+                // TODO: we switch to the first allowed config. In the future
+                // we may want to enhance this logic to pick a similar config
+                // to the current one
+                ALOGV("Old config is not allowed - switching to config %d", i);
+                setDesiredActiveConfig(displayToken, i);
+                break;
+            }
+        }
+    }
+}
+
+status_t SurfaceFlinger::setAllowedDisplayConfigs(const android::sp<android::IBinder>& displayToken,
+                                                  const std::vector<int32_t>& allowedConfigs) {
+    ATRACE_CALL();
+
+    if (!displayToken) {
+        ALOGE("setAllowedDisplayConfigs: displayToken is null");
+        return BAD_VALUE;
+    }
+
+    if (!allowedConfigs.size()) {
+        ALOGE("setAllowedDisplayConfigs: empty config set provided");
+        return BAD_VALUE;
+    }
+
+    {
+        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+        const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+        if (!displayId) {
+            ALOGE("setAllowedDisplayConfigs: display not found");
+            return NAME_NOT_FOUND;
+        }
+    }
+
+    auto allowedDisplayConfigsBuilder = AllowedDisplayConfigs::Builder();
+    for (int config : allowedConfigs) {
+        ALOGV("setAllowedDisplayConfigs: Adding config to the allowed configs = %d", config);
+        allowedDisplayConfigsBuilder.addConfig(config);
+    }
+    auto allowedDisplayConfigs = allowedDisplayConfigsBuilder.build();
+    postMessageSync(new LambdaMessage([&]() NO_THREAD_SAFETY_ANALYSIS {
+        setAllowedDisplayConfigsInternal(displayToken, std::move(allowedDisplayConfigs));
+    }));
+    return NO_ERROR;
 }
 
 // ----------------------------------------------------------------------------

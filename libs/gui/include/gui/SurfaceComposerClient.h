@@ -111,6 +111,12 @@ public:
     // returned by getDisplayInfo
     static status_t setActiveConfig(const sp<IBinder>& display, int id);
 
+    // Sets the allowed display configurations to be used.
+    // The allowedConfigs in a vector of indexes corresponding to the configurations
+    // returned from getDisplayConfigs().
+    static status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                             const std::vector<int32_t>& allowedConfigs);
+
     // Gets the list of supported color modes for the given display
     static status_t getDisplayColorModes(const sp<IBinder>& display,
             Vector<ui::ColorMode>* outColorModes);

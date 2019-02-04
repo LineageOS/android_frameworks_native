@@ -359,6 +359,14 @@ public:
      * Removes a listener that was streaming median luma updates from SurfaceFlinger.
      */
     virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
+
+    /*
+     * Sets the allowed display configurations to be used.
+     * The allowedConfigs in a vector of indexes corresponding to the configurations
+     * returned from getDisplayConfigs().
+     */
+    virtual status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                              const std::vector<int32_t>& allowedConfigs) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -406,7 +414,7 @@ public:
         GET_PHYSICAL_DISPLAY_IDS,
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
-
+        SET_ALLOWED_DISPLAY_CONFIGS,
         // Always append new enum to the end.
     };
 

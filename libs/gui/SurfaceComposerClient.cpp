@@ -1382,6 +1382,12 @@ status_t SurfaceComposerClient::setActiveConfig(const sp<IBinder>& display, int 
     return ComposerService::getComposerService()->setActiveConfig(display, id);
 }
 
+status_t SurfaceComposerClient::setAllowedDisplayConfigs(
+        const sp<IBinder>& displayToken, const std::vector<int32_t>& allowedConfigs) {
+    return ComposerService::getComposerService()->setAllowedDisplayConfigs(displayToken,
+                                                                           allowedConfigs);
+}
+
 status_t SurfaceComposerClient::getDisplayColorModes(const sp<IBinder>& display,
         Vector<ColorMode>* outColorModes) {
     return ComposerService::getComposerService()->getDisplayColorModes(display, outColorModes);
