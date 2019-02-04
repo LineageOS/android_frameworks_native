@@ -40,6 +40,7 @@
 using android::base::StringPrintf;
 using android::hardware::hidl_bitfield;
 using android::hardware::hidl_vec;
+using android::hardware::Return;
 using namespace android::hardware::input;
 
 namespace android {
@@ -548,23 +549,28 @@ void MotionClassifier::callInputClassifierHal() {
     ensureHalThread(__func__);
     while (true) {
         ClassifierEvent event = mEvents.pop();
+        bool halResponseOk = true;
         switch (event.type) {
             case ClassifierEventType::MOTION: {
                 NotifyMotionArgs* motionArgs = static_cast<NotifyMotionArgs*>(event.args.get());
                 common::V1_0::MotionEvent motionEvent = getMotionEvent(*motionArgs);
-                common::V1_0::Classification halClassification = mService->classify(motionEvent);
-                updateClassification(motionArgs->deviceId, motionArgs->eventTime,
-                        getMotionClassification(halClassification));
+                Return<common::V1_0::Classification> response = mService->classify(motionEvent);
+                halResponseOk = response.isOk();
+                if (halResponseOk) {
+                    common::V1_0::Classification halClassification = response;
+                    updateClassification(motionArgs->deviceId, motionArgs->eventTime,
+                            getMotionClassification(halClassification));
+                }
                 break;
             }
             case ClassifierEventType::DEVICE_RESET: {
                 const int32_t deviceId = *(event.getDeviceId());
-                mService->resetDevice(deviceId);
+                halResponseOk = mService->resetDevice(deviceId).isOk();
                 setClassification(deviceId, MotionClassification::NONE);
                 break;
             }
             case ClassifierEventType::HAL_RESET: {
-                mService->reset();
+                halResponseOk = mService->reset().isOk();
                 clearClassifications();
                 break;
             }
@@ -573,6 +579,21 @@ void MotionClassifier::callInputClassifierHal() {
                 return;
             }
         }
+        if (!halResponseOk) {
+            ALOGE("Error communicating with InputClassifier HAL. "
+                    "Exiting MotionClassifier HAL thread");
+            clearClassifications();
+            return;
+        }
+    }
+}
+
+void MotionClassifier::enqueueEvent(ClassifierEvent&& event) {
+    bool eventAdded = mEvents.push(std::move(event));
+    if (!eventAdded) {
+        // If the queue is full, suspect the HAL is slow in processing the events.
+        ALOGE("Dropped event with eventTime %" PRId64, event.args->eventTime);
+        reset();
     }
 }
 
@@ -617,22 +638,12 @@ void MotionClassifier::updateLastDownTime(int32_t deviceId, nsecs_t downTime) {
 }
 
 MotionClassification MotionClassifier::classify(const NotifyMotionArgs& args) {
-    if (!mService) {
-        // If HAL is not present, do nothing
-        return MotionClassification::NONE;
-    }
     if ((args.action & AMOTION_EVENT_ACTION_MASK) == AMOTION_EVENT_ACTION_DOWN) {
         updateLastDownTime(args.deviceId, args.downTime);
     }
 
     ClassifierEvent event(std::make_unique<NotifyMotionArgs>(args));
-    bool elementAdded = mEvents.push(std::move(event));
-    if (!elementAdded) {
-        // Queue should not ever overfill. Suspect HAL is slow.
-        ALOGE("Dropped element with eventTime %" PRIu64, args.eventTime);
-        reset();
-        return MotionClassification::NONE;
-    }
+    enqueueEvent(std::move(event));
     return getClassification(args.deviceId);
 }
 
@@ -652,7 +663,7 @@ void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
             std::optional<int32_t> eventDeviceId = event.getDeviceId();
             return eventDeviceId && (*eventDeviceId == deviceId);
     });
-    mEvents.push(std::make_unique<NotifyDeviceResetArgs>(args));
+    enqueueEvent(std::make_unique<NotifyDeviceResetArgs>(args));
 }
 
 void MotionClassifier::dump(std::string& dump) {
@@ -679,20 +690,39 @@ void MotionClassifier::dump(std::string& dump) {
     }
 }
 
+
 // --- InputClassifier ---
 
 InputClassifier::InputClassifier(const sp<InputListenerInterface>& listener) :
         mListener(listener) {
-    if (deepPressEnabled()) {
-        sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
-                classifier::V1_0::IInputClassifier::getService();
-        if (service) {
-            mMotionClassifier = std::make_unique<MotionClassifier>(service);
-        } else {
-            ALOGI("Could not obtain InputClassifier HAL");
-        }
+    // The rest of the initialization is done in onFirstRef, because we need to obtain
+    // an sp to 'this' in order to register for HAL death notifications
+}
+
+void InputClassifier::onFirstRef() {
+    std::scoped_lock lock(mLock);
+    if (!deepPressEnabled()) {
+        // If feature is not enabled, the InputClassifier will just be in passthrough
+        // mode, and will forward all events to the next InputListener, unmodified
+        return;
     }
-};
+
+    sp<android::hardware::input::classifier::V1_0::IInputClassifier> service =
+            classifier::V1_0::IInputClassifier::getService();
+    if (!service) {
+        // Not really an error, maybe the device does not have this HAL,
+        // but somehow the feature flag is flipped
+        ALOGI("Could not obtain InputClassifier HAL");
+        return;
+    }
+    const bool linked = service->linkToDeath(this, 0 /* cookie */).withDefault(false);
+    if (!linked) {
+        ALOGE("Could not link android::InputClassifier to the HAL death");
+        return;
+    }
+
+    mMotionClassifier = std::make_unique<MotionClassifier>(service);
+}
 
 void InputClassifier::notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) {
     // pass through
@@ -705,12 +735,17 @@ void InputClassifier::notifyKey(const NotifyKeyArgs* args) {
 }
 
 void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
-    NotifyMotionArgs copyArgs = NotifyMotionArgs(*args);
-    if (mMotionClassifier && isTouchEvent(*args)) {
-        // We only cover touch events, for now.
-        copyArgs.classification = mMotionClassifier->classify(copyArgs);
+    std::scoped_lock lock(mLock);
+    // MotionClassifier is only used for touch events, for now
+    const bool sendToMotionClassifier = mMotionClassifier && isTouchEvent(*args);
+    if (!sendToMotionClassifier) {
+        mListener->notifyMotion(args);
+        return;
     }
-    mListener->notifyMotion(&copyArgs);
+
+    NotifyMotionArgs newArgs(*args);
+    newArgs.classification = mMotionClassifier->classify(newArgs);
+    mListener->notifyMotion(&newArgs);
 }
 
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
@@ -719,6 +754,7 @@ void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
 }
 
 void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
+    std::scoped_lock lock(mLock);
     if (mMotionClassifier) {
         mMotionClassifier->reset(*args);
     }
@@ -726,7 +762,19 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     mListener->notifyDeviceReset(args);
 }
 
+void InputClassifier::serviceDied(uint64_t /*cookie*/,
+        const wp<android::hidl::base::V1_0::IBase>& who) {
+    std::scoped_lock lock(mLock);
+    ALOGE("InputClassifier HAL has died. Setting mMotionClassifier to null");
+    mMotionClassifier = nullptr;
+    sp<android::hidl::base::V1_0::IBase> service = who.promote();
+    if (service) {
+        service->unlinkToDeath(this);
+    }
+}
+
 void InputClassifier::dump(std::string& dump) {
+    std::scoped_lock lock(mLock);
     dump += "Input Classifier State:\n";
 
     dump += INDENT1 "Motion Classifier:\n";
