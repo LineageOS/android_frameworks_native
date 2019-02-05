@@ -831,8 +831,6 @@ private:
     /*
      * Debugging & dumpsys
      */
-    bool startDdmConnection();
-
     using DumpArgs = Vector<String16>;
     using Dumper = std::function<void(const DumpArgs&, bool asProto, std::string&)>;
 
@@ -984,7 +982,6 @@ private:
 
     // don't use a lock for these, we don't care
     int mDebugRegion;
-    int mDebugDDMS;
     int mDebugDisableHWC;
     int mDebugDisableTransformHint;
     volatile nsecs_t mDebugInSwapBuffers;
