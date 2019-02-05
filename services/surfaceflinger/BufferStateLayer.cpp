@@ -303,48 +303,6 @@ bool BufferStateLayer::setTransparentRegionHint(const Region& transparent) {
     return true;
 }
 
-bool BufferStateLayer::setColor(const half3& color) {
-    // create color layer if one does not yet exist
-    if (!mCurrentState.bgColorLayer) {
-        uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
-        const String8& name = mName + "BackgroundColorLayer";
-        mCurrentState.bgColorLayer =
-                new ColorLayer(LayerCreationArgs(mFlinger.get(), nullptr, name, 0, 0, flags));
-
-        // add to child list
-        addChild(mCurrentState.bgColorLayer);
-        mFlinger->mLayersAdded = true;
-        // set up SF to handle added color layer
-        if (isRemovedFromCurrentState()) {
-            mCurrentState.bgColorLayer->onRemovedFromCurrentState();
-        }
-        mFlinger->setTransactionFlags(eTransactionNeeded);
-    }
-
-    mCurrentState.bgColorLayer->setColor(color);
-    mCurrentState.bgColorLayer->setLayer(std::numeric_limits<int32_t>::min());
-
-    return true;
-}
-
-bool BufferStateLayer::setColorAlpha(float alpha) {
-    if (!mCurrentState.bgColorLayer) {
-        ALOGE("Attempting to set color alpha on a buffer state layer with no background color");
-        return false;
-    }
-    mCurrentState.bgColorLayer->setAlpha(alpha);
-    return true;
-}
-
-bool BufferStateLayer::setColorDataspace(ui::Dataspace dataspace) {
-    if (!mCurrentState.bgColorLayer) {
-        ALOGE("Attempting to set color dataspace on a buffer state layer with no background color");
-        return false;
-    }
-    mCurrentState.bgColorLayer->setDataspace(dataspace);
-    return true;
-}
-
 Rect BufferStateLayer::getBufferSize(const State& s) const {
     // for buffer state layers we use the display frame size as the buffer size.
     if (getActiveWidth(s) < UINT32_MAX && getActiveHeight(s) < UINT32_MAX) {
@@ -492,7 +450,46 @@ status_t BufferStateLayer::bindTextureImage() {
     const State& s(getDrawingState());
     auto& engine(mFlinger->getRenderEngine());
 
-    return engine.bindExternalTextureBuffer(mTextureName, s.buffer, s.acquireFence, false);
+    engine.checkErrors();
+
+    // TODO(marissaw): once buffers are cached, don't create a new image everytime
+    mTextureImage = engine.createImage();
+
+    bool created =
+            mTextureImage->setNativeWindowBuffer(s.buffer->getNativeBuffer(),
+                                                 s.buffer->getUsage() & GRALLOC_USAGE_PROTECTED);
+    if (!created) {
+        ALOGE("Failed to create image. size=%ux%u st=%u usage=%#" PRIx64 " fmt=%d",
+              s.buffer->getWidth(), s.buffer->getHeight(), s.buffer->getStride(),
+              s.buffer->getUsage(), s.buffer->getPixelFormat());
+        engine.bindExternalTextureImage(mTextureName, *engine.createImage());
+        return NO_INIT;
+    }
+
+    engine.bindExternalTextureImage(mTextureName, *mTextureImage);
+
+    // Wait for the new buffer to be ready.
+    if (s.acquireFence->isValid()) {
+        if (SyncFeatures::getInstance().useWaitSync()) {
+            base::unique_fd fenceFd(s.acquireFence->dup());
+            if (fenceFd == -1) {
+                ALOGE("error dup'ing fence fd: %d", errno);
+                return -errno;
+            }
+            if (!engine.waitFence(std::move(fenceFd))) {
+                ALOGE("failed to wait on fence fd");
+                return UNKNOWN_ERROR;
+            }
+        } else {
+            status_t err = s.acquireFence->waitForever("BufferStateLayer::bindTextureImage");
+            if (err != NO_ERROR) {
+                ALOGE("error waiting for fence: %d", err);
+                return err;
+            }
+        }
+    }
+
+    return NO_ERROR;
 }
 
 status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
@@ -615,16 +612,10 @@ status_t BufferStateLayer::updateActiveBuffer() {
     }
 
     mActiveBuffer = s.buffer;
-    mActiveBufferFence = s.acquireFence;
     getBE().compositionInfo.mBuffer = mActiveBuffer;
     getBE().compositionInfo.mBufferSlot = 0;
 
     return NO_ERROR;
-}
-
-bool BufferStateLayer::useCachedBufferForClientComposition() const {
-    // TODO: Store a proper staleness bit to support EGLImage caching.
-    return false;
 }
 
 status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {

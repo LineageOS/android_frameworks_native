@@ -196,12 +196,6 @@ int BufferHubBase::UpdateSharedFence(const LocalHandle& new_fence,
   return 0;
 }
 
-int BufferHubBase::Poll(int timeout_ms) {
-  ATRACE_NAME("BufferHubBase::Poll");
-  pollfd p = {event_fd(), POLLIN, 0};
-  return poll(&p, 1, timeout_ms);
-}
-
 int BufferHubBase::Lock(int usage, int x, int y, int width, int height,
                         void** address) {
   return buffer_.Lock(usage, x, y, width, height, address);
@@ -216,13 +210,6 @@ int BufferHubBase::GetBlobReadWritePointer(size_t size, void** addr) {
   if (ret == 0)
     Unlock();
   return ret;
-}
-
-void BufferHubBase::GetBlobFds(int* fds, size_t* fds_count,
-                               size_t max_fds_count) const {
-  size_t numFds = static_cast<size_t>(native_handle()->numFds);
-  *fds_count = std::min(max_fds_count, numFds);
-  std::copy(native_handle()->data, native_handle()->data + *fds_count, fds);
 }
 
 }  // namespace dvr

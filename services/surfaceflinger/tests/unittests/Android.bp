@@ -58,6 +58,7 @@ cc_test {
         "mock/MockMessageQueue.cpp",
         "mock/MockNativeWindowSurface.cpp",
         "mock/MockSurfaceInterceptor.cpp",
+        "mock/MockTimeStats.cpp",
         "mock/system/window/MockNativeWindow.cpp",
     ],
     static_libs: [

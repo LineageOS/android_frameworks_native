@@ -14,14 +14,11 @@
  * limitations under the License.
  */
 
-#define ATRACE_TAG ATRACE_TAG_GRAPHICS
-
 #include "GLImage.h"
 
 #include <vector>
 
 #include <log/log.h>
-#include <utils/Trace.h>
 #include "GLESRenderEngine.h"
 #include "GLExtensions.h"
 
@@ -53,7 +50,6 @@ GLImage::~GLImage() {
 }
 
 bool GLImage::setNativeWindowBuffer(ANativeWindowBuffer* buffer, bool isProtected) {
-    ATRACE_CALL();
     if (mEGLImage != EGL_NO_IMAGE_KHR) {
         if (!eglDestroyImageKHR(mEGLDisplay, mEGLImage)) {
             ALOGE("failed to destroy image: %#x", eglGetError());

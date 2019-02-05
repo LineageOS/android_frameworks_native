@@ -128,8 +128,8 @@ sp<SurfaceFlinger> createSurfaceFlinger() {
             return new ColorLayer(args);
         }
 
-        std::unique_ptr<TimeStats> createTimeStats() override {
-            return std::make_unique<TimeStats>();
+        std::shared_ptr<TimeStats> createTimeStats() override {
+            return std::make_shared<android::impl::TimeStats>();
         }
     };
     static Factory factory;

@@ -162,15 +162,6 @@ private:
     std::unordered_map<int32_t /*deviceId*/, nsecs_t /*downTime*/>
             mLastDownTimes; //GUARDED_BY(mLock);
     void updateLastDownTime(int32_t deviceId, nsecs_t downTime);
-    // Should only be accessed through isResetNeeded() and setResetNeeded()
-    bool mResetNeeded = false; //GUARDED_BY(mLock);
-    /**
-     * Check whether reset should be performed. Reset should be performed
-     * if the eventTime of the current event is older than mLastDownTime,
-     * i.e. a new gesture has already begun, but an older gesture is still being processed.
-     */
-    bool isResetNeeded(nsecs_t eventTime);
-    void setResetNeeded(bool isNeeded);
 
     /**
      * Exit the InputClassifier HAL thread.
@@ -188,11 +179,12 @@ private:
 class InputClassifier : public InputClassifierInterface {
 public:
     explicit InputClassifier(const sp<InputListenerInterface>& listener);
-    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args);
-    virtual void notifyKey(const NotifyKeyArgs* args);
-    virtual void notifyMotion(const NotifyMotionArgs* args);
-    virtual void notifySwitch(const NotifySwitchArgs* args);
-    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args);
+
+    virtual void notifyConfigurationChanged(const NotifyConfigurationChangedArgs* args) override;
+    virtual void notifyKey(const NotifyKeyArgs* args) override;
+    virtual void notifyMotion(const NotifyMotionArgs* args) override;
+    virtual void notifySwitch(const NotifySwitchArgs* args) override;
+    virtual void notifyDeviceReset(const NotifyDeviceResetArgs* args) override;
 
 private:
     std::unique_ptr<MotionClassifierInterface> mMotionClassifier = nullptr;

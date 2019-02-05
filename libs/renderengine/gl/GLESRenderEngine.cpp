@@ -449,7 +449,6 @@ bool GLESRenderEngine::isCurrent() const {
 }
 
 base::unique_fd GLESRenderEngine::flush() {
-    ATRACE_CALL();
     if (!GLExtensions::getInstance().hasNativeFenceSync()) {
         return base::unique_fd();
     }
@@ -480,7 +479,6 @@ base::unique_fd GLESRenderEngine::flush() {
 }
 
 bool GLESRenderEngine::finish() {
-    ATRACE_CALL();
     if (!GLExtensions::getInstance().hasFenceSync()) {
         ALOGW("no synchronization support");
         return false;
@@ -596,7 +594,6 @@ void GLESRenderEngine::deleteTextures(size_t count, uint32_t const* names) {
 }
 
 void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& image) {
-    ATRACE_CALL();
     const GLImage& glImage = static_cast<const GLImage&>(image);
     const GLenum target = GL_TEXTURE_EXTERNAL_OES;
 
@@ -611,15 +608,8 @@ void GLESRenderEngine::bindExternalTextureImage(uint32_t texName, const Image& i
 }
 
 status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
-                                                     sp<Fence> bufferFence, bool readCache) {
-    return bindExternalTextureBuffer(texName, buffer, bufferFence, readCache,
-                                     /*persistCache=*/false);
-}
-
-status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
                                                      sp<Fence> bufferFence, bool readCache,
                                                      bool persistCache) {
-    ATRACE_CALL();
     if (readCache) {
         auto cachedImage = mImageCache.find(buffer->getId());
 
@@ -665,7 +655,7 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<Graphi
     }
 
     // We don't always want to persist to the cache, e.g. on older devices we
-    // might bind for synchronization purposes, but that might leak if we never
+    // might bind for synchronization purpoeses, but that might leak if we never
     // call drawLayers again, so it's just better to recreate the image again
     // if needed when we draw.
     if (persistCache) {
@@ -713,7 +703,6 @@ FloatRect GLESRenderEngine::setupLayerCropping(const LayerSettings& layer, Mesh&
 }
 
 status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
-    ATRACE_CALL();
     GLFramebuffer* glFramebuffer = static_cast<GLFramebuffer*>(framebuffer);
     EGLImageKHR eglImage = glFramebuffer->getEGLImage();
     uint32_t textureName = glFramebuffer->getTextureName();
@@ -781,7 +770,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                                       const std::vector<LayerSettings>& layers,
                                       ANativeWindowBuffer* const buffer,
                                       base::unique_fd* drawFence) {
-    ATRACE_CALL();
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
         return NO_ERROR;
@@ -798,13 +786,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
     evictImages(layers);
 
-    // clear the entire buffer, sometimes when we reuse buffers we'd persist
-    // ghost images otherwise.
-    // we also require a full transparent framebuffer for overlays. This is
-    // probably not quite efficient on all GPUs, since we could filter out
-    // opaque layers.
-    clearWithColor(0.0, 0.0, 0.0, 0.0);
-
     setViewportAndProjection(display.physicalDisplay, display.clip);
 
     setOutputDataSpace(display.outputDataspace);
@@ -813,7 +794,6 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
     mat4 projectionMatrix = mState.projectionMatrix * display.globalTransform;
     mState.projectionMatrix = projectionMatrix;
     if (!display.clearRegion.isEmpty()) {
-        glDisable(GL_BLEND);
         fillRegionWithColor(display.clearRegion, 0.0, 0.0, 0.0, 1.0);
     }
 
@@ -833,11 +813,9 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
         bool usePremultipliedAlpha = true;
         bool disableTexture = true;
-        bool isOpaque = false;
 
         if (layer.source.buffer.buffer != nullptr) {
             disableTexture = false;
-            isOpaque = layer.source.buffer.isOpaque;
 
             sp<GraphicBuffer> gBuf = layer.source.buffer.buffer;
 
@@ -847,19 +825,17 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
 
             usePremultipliedAlpha = layer.source.buffer.usePremultipliedAlpha;
             Texture texture(Texture::TEXTURE_EXTERNAL, layer.source.buffer.textureName);
-            mat4 texMatrix = layer.source.buffer.textureTransform;
-
-            texture.setMatrix(texMatrix.asArray());
+            texture.setMatrix(layer.source.buffer.textureTransform.asArray());
             texture.setFiltering(layer.source.buffer.useTextureFiltering);
 
             texture.setDimensions(gBuf->getWidth(), gBuf->getHeight());
             setSourceY410BT2020(layer.source.buffer.isY410BT2020);
 
             renderengine::Mesh::VertexArray<vec2> texCoords(mesh.getTexCoordArray<vec2>());
-            texCoords[0] = vec2(0.0, 0.0);
-            texCoords[1] = vec2(0.0, 1.0);
-            texCoords[2] = vec2(1.0, 1.0);
-            texCoords[3] = vec2(1.0, 0.0);
+            texCoords[0] = vec2(0.0, 1.0);
+            texCoords[1] = vec2(0.0, 0.0);
+            texCoords[2] = vec2(1.0, 0.0);
+            texCoords[3] = vec2(1.0, 1.0);
             setupLayerTexturing(texture);
         }
 
@@ -867,11 +843,8 @@ status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
         const half4 color = half4(solidColor.r, solidColor.g, solidColor.b, layer.alpha);
         // Buffer sources will have a black solid color ignored in the shader,
         // so in that scenario the solid color passed here is arbitrary.
-        setupLayerBlending(usePremultipliedAlpha, isOpaque, disableTexture, color,
-                           layer.geometry.roundedCornersRadius);
-        if (layer.disableBlending) {
-            glDisable(GL_BLEND);
-        }
+        setupLayerBlending(usePremultipliedAlpha, layer.source.buffer.isOpaque, disableTexture,
+                           color, layer.geometry.roundedCornersRadius);
         setSourceDataSpace(layer.sourceDataspace);
 
         drawMesh(mesh);
@@ -930,7 +903,6 @@ void GLESRenderEngine::setViewportAndProjection(size_t vpw, size_t vph, Rect sou
 }
 
 void GLESRenderEngine::setViewportAndProjection(Rect viewport, Rect clip) {
-    ATRACE_CALL();
     mVpWidth = viewport.getWidth();
     mVpHeight = viewport.getHeight();
 

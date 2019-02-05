@@ -16,35 +16,31 @@
 
 #pragma once
 
-#include "BufferLayerConsumer.h"
-#include "Client.h"
-#include "Layer.h"
-#include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/HWComposerBufferCache.h"
-#include "FrameTracker.h"
-#include "LayerVector.h"
-#include "MonitoredProducer.h"
-#include "SurfaceFlinger.h"
+#include <sys/types.h>
+#include <cstdint>
+#include <list>
 
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
-#include <renderengine/Image.h>
 #include <renderengine/Mesh.h>
 #include <renderengine/Texture.h>
+#include <system/window.h> // For NATIVE_WINDOW_SCALING_MODE_FREEZE
 #include <ui/FrameStats.h>
 #include <ui/GraphicBuffer.h>
 #include <ui/PixelFormat.h>
 #include <ui/Region.h>
-
 #include <utils/RefBase.h>
 #include <utils/String8.h>
 #include <utils/Timers.h>
 
-#include <system/window.h> // For NATIVE_WINDOW_SCALING_MODE_FREEZE
-
-#include <stdint.h>
-#include <sys/types.h>
-#include <list>
+#include "BufferLayerConsumer.h"
+#include "Client.h"
+#include "DisplayHardware/HWComposer.h"
+#include "FrameTracker.h"
+#include "Layer.h"
+#include "LayerVector.h"
+#include "MonitoredProducer.h"
+#include "SurfaceFlinger.h"
 
 namespace android {
 
@@ -57,6 +53,8 @@ public:
     // Overriden from Layer
     // -----------------------------------------------------------------------
 public:
+    std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
+
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
     // one empty rect.
@@ -78,6 +76,10 @@ public:
 
     // isFixedSize - true if content has a fixed size
     bool isFixedSize() const override;
+
+    // onDraw - draws the surface.
+    void onDraw(const RenderArea& renderArea, const Region& clip,
+                bool useIdentityTransform) override;
 
     bool isHdrY410() const override;
 
@@ -166,18 +168,12 @@ protected:
 
     bool mRefreshPending{false};
 
-    // Returns true if, when drawing the active buffer during gpu compositon, we
-    // should use a cached buffer or not.
-    virtual bool useCachedBufferForClientComposition() const = 0;
-
-    // prepareClientLayer - constructs a RenderEngine layer for GPU composition.
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            renderengine::LayerSettings& layer);
-
 private:
     // Returns true if this layer requires filtering
     bool needsFiltering() const;
+
+    // drawing
+    void drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const;
 
     uint64_t getHeadFrameNumber() const;
 
@@ -186,7 +182,12 @@ private:
     // main thread.
     bool mBufferLatched{false}; // TODO: Use mActiveBuffer?
 
+    // The texture used to draw the layer in GLES composition mode
+    mutable renderengine::Texture mTexture;
+
     Rect getBufferSize(const State& s) const override;
+
+    std::shared_ptr<compositionengine::Layer> mCompositionLayer;
 };
 
 } // namespace android

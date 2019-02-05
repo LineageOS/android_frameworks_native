@@ -23,8 +23,10 @@
 
 #include "Scheduler/RefreshRateStats.h"
 #include "mock/DisplayHardware/MockDisplay.h"
+#include "mock/MockTimeStats.h"
 
 using namespace std::chrono_literals;
+using testing::_;
 
 namespace android {
 namespace scheduler {
@@ -42,6 +44,7 @@ protected:
     void init(std::vector<std::shared_ptr<const HWC2::Display::Config>> configs);
 
     std::unique_ptr<RefreshRateStats> mRefreshRateStats;
+    std::shared_ptr<android::mock::TimeStats> mTimeStats;
 };
 
 RefreshRateStatsTest::RefreshRateStatsTest() {
@@ -57,7 +60,8 @@ RefreshRateStatsTest::~RefreshRateStatsTest() {
 }
 
 void RefreshRateStatsTest::init(std::vector<std::shared_ptr<const HWC2::Display::Config>> configs) {
-    mRefreshRateStats = std::make_unique<RefreshRateStats>(configs);
+    mTimeStats = std::make_shared<android::mock::TimeStats>();
+    mRefreshRateStats = std::make_unique<RefreshRateStats>(configs, mTimeStats);
 }
 
 namespace {
@@ -81,6 +85,9 @@ TEST_F(RefreshRateStatsTest, oneConfigTest) {
     configs.push_back(config.build());
 
     init(configs);
+
+    EXPECT_CALL(*mTimeStats, recordRefreshRate(0, _)).Times(4);
+    EXPECT_CALL(*mTimeStats, recordRefreshRate(90, _)).Times(2);
 
     std::unordered_map<std::string, int64_t> times = mRefreshRateStats->getTotalTimes();
     ASSERT_EQ(2, times.size());
@@ -135,6 +142,10 @@ TEST_F(RefreshRateStatsTest, twoConfigsTest) {
     configs.push_back(config60.build());
 
     init(configs);
+
+    EXPECT_CALL(*mTimeStats, recordRefreshRate(0, _)).Times(6);
+    EXPECT_CALL(*mTimeStats, recordRefreshRate(60, _)).Times(4);
+    EXPECT_CALL(*mTimeStats, recordRefreshRate(90, _)).Times(4);
 
     std::unordered_map<std::string, int64_t> times = mRefreshRateStats->getTotalTimes();
     ASSERT_EQ(3, times.size());

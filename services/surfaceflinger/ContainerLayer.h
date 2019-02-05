@@ -29,6 +29,8 @@ public:
     ~ContainerLayer() override;
 
     const char* getTypeId() const override { return "ContainerLayer"; }
+    void onDraw(const RenderArea& renderArea, const Region& clip,
+                bool useIdentityTransform) override;
     bool isVisible() const override;
 
     void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
@@ -37,11 +39,6 @@ public:
     bool isCreatedFromMainThread() const override { return true; }
 
     bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
-
-protected:
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            renderengine::LayerSettings& layer);
 };
 
 } // namespace android

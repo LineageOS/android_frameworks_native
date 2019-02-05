@@ -505,6 +505,11 @@ MotionClassifier::MotionClassifier(
     // Set the thread name for debugging
     pthread_setname_np(mHalThread.native_handle(), "InputClassifier");
 #endif
+    // Under normal operation, we do not need to reset the HAL here. But in the case where system
+    // crashed, but HAL didn't, we may be connecting to an existing HAL process that might already
+    // have received events in the past. That means, that HAL could be in an inconsistent state
+    // once it receives events from the newly created MotionClassifier.
+    mEvents.push(ClassifierEvent::createHalResetEvent());
 }
 
 MotionClassifier::~MotionClassifier() {

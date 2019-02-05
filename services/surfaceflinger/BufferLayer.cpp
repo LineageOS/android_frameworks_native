@@ -19,6 +19,28 @@
 #define LOG_TAG "BufferLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
+#include <cmath>
+#include <cstdlib>
+#include <mutex>
+
+#include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/LayerCreationArgs.h>
+#include <cutils/compiler.h>
+#include <cutils/native_handle.h>
+#include <cutils/properties.h>
+#include <gui/BufferItem.h>
+#include <gui/BufferQueue.h>
+#include <gui/LayerDebugInfo.h>
+#include <gui/Surface.h>
+#include <renderengine/RenderEngine.h>
+#include <ui/DebugUtils.h>
+#include <utils/Errors.h>
+#include <utils/Log.h>
+#include <utils/NativeHandle.h>
+#include <utils/StopWatch.h>
+#include <utils/Trace.h>
+
 #include "BufferLayer.h"
 #include "Colorizer.h"
 #include "DisplayDevice.h"
@@ -26,34 +48,16 @@
 
 #include "TimeStats/TimeStats.h"
 
-#include <renderengine/RenderEngine.h>
-
-#include <gui/BufferItem.h>
-#include <gui/BufferQueue.h>
-#include <gui/LayerDebugInfo.h>
-#include <gui/Surface.h>
-
-#include <ui/DebugUtils.h>
-
-#include <utils/Errors.h>
-#include <utils/Log.h>
-#include <utils/NativeHandle.h>
-#include <utils/StopWatch.h>
-#include <utils/Trace.h>
-
-#include <cutils/compiler.h>
-#include <cutils/native_handle.h>
-#include <cutils/properties.h>
-
-#include <math.h>
-#include <stdlib.h>
-#include <mutex>
-
 namespace android {
 
 BufferLayer::BufferLayer(const LayerCreationArgs& args)
-      : Layer(args), mTextureName(args.flinger->getNewTexture()) {
+      : Layer(args),
+        mTextureName(args.flinger->getNewTexture()),
+        mCompositionLayer{mFlinger->getCompositionEngine().createLayer(
+                compositionengine::LayerCreationArgs{this})} {
     ALOGV("Creating Layer %s", args.name.string());
+
+    mTexture.init(renderengine::Texture::TEXTURE_EXTERNAL, mTextureName);
 
     mPremultipliedAlpha = !(args.flags & ISurfaceComposerClient::eNonPremultiplied);
 
@@ -125,11 +129,13 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
     return inverse(tr);
 }
 
-bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                     bool useIdentityTransform, Region& clearRegion,
-                                     renderengine::LayerSettings& layer) {
+/*
+ * onDraw will draw the current layer onto the presentable buffer
+ */
+void BufferLayer::onDraw(const RenderArea& renderArea, const Region& clip,
+                         bool useIdentityTransform) {
     ATRACE_CALL();
-    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion, layer);
+
     if (CC_UNLIKELY(mActiveBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
@@ -147,27 +153,30 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
                 finished = true;
                 return;
             }
-            under.orSelf(layer->visibleRegion);
+            under.orSelf(renderArea.getTransform().transform(layer->visibleRegion));
         });
         // if not everything below us is covered, we plug the holes!
         Region holes(clip.subtract(under));
         if (!holes.isEmpty()) {
-            clearRegion.orSelf(holes);
+            clearWithOpenGL(renderArea, 0, 0, 0, 1);
         }
-        return false;
+        return;
     }
+
+    // Bind the current buffer to the GL texture, and wait for it to be
+    // ready for us to draw into.
+    status_t err = bindTextureImage();
+    if (err != NO_ERROR) {
+        ALOGW("onDraw: bindTextureImage failed (err=%d)", err);
+        // Go ahead and draw the buffer anyway; no matter what we do the screen
+        // is probably going to have something visibly wrong.
+    }
+
     bool blackOutLayer = isProtected() || (isSecure() && !renderArea.isSecure());
-    const State& s(getDrawingState());
+
+    auto& engine(mFlinger->getRenderEngine());
+
     if (!blackOutLayer) {
-        layer.source.buffer.buffer = mActiveBuffer;
-        layer.source.buffer.isOpaque = isOpaque(s);
-        layer.source.buffer.fence = mActiveBufferFence;
-        layer.source.buffer.cacheHint = useCachedBufferForClientComposition()
-                ? renderengine::Buffer::CachingHint::USE_CACHE
-                : renderengine::Buffer::CachingHint::NO_CACHE;
-        layer.source.buffer.textureName = mTextureName;
-        layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
-        layer.source.buffer.isY410BT2020 = isHdrY410();
         // TODO: we could be more subtle with isFixedSize()
         const bool useFiltering = needsFiltering() || renderArea.needsFiltering() || isFixedSize();
 
@@ -204,31 +213,17 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
             memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
         }
 
-        const Rect win{computeBounds()};
-        const float bufferWidth = getBufferSize(s).getWidth();
-        const float bufferHeight = getBufferSize(s).getHeight();
+        // Set things up for texturing.
+        mTexture.setDimensions(mActiveBuffer->getWidth(), mActiveBuffer->getHeight());
+        mTexture.setFiltering(useFiltering);
+        mTexture.setMatrix(textureMatrix);
 
-        const float scaleHeight = (float(win.bottom) - float(win.top)) / bufferHeight;
-        const float scaleWidth = (float(win.right) - float(win.left)) / bufferWidth;
-        const float translateY = float(win.top) / bufferHeight;
-        const float translateX = float(win.left) / bufferWidth;
-
-        // Flip y-coordinates because GLConsumer expects OpenGL convention.
-        mat4 tr = mat4::translate(vec4(.5, .5, 0, 1)) * mat4::scale(vec4(1, -1, 1, 1)) *
-                mat4::translate(vec4(-.5, -.5, 0, 1)) *
-                mat4::translate(vec4(translateX, translateY, 0, 1)) *
-                mat4::scale(vec4(scaleWidth, scaleHeight, 1.0, 1.0));
-
-        layer.source.buffer.useTextureFiltering = useFiltering;
-        layer.source.buffer.textureTransform = mat4(static_cast<const float*>(textureMatrix)) * tr;
+        engine.setupLayerTexturing(mTexture);
     } else {
-        // If layer is blacked out, force alpha to 1 so that we draw a black color
-        // layer.
-        layer.source.buffer.buffer = nullptr;
-        layer.alpha = 1.0;
+        engine.setupLayerBlackedOut();
     }
-
-    return true;
+    drawWithOpenGL(renderArea, useIdentityTransform);
+    engine.disableTexturing();
 }
 
 bool BufferLayer::isHdrY410() const {
@@ -611,6 +606,67 @@ bool BufferLayer::needsFiltering() const {
             sourceCrop.getWidth() != displayFrame.getWidth();
 }
 
+void BufferLayer::drawWithOpenGL(const RenderArea& renderArea, bool useIdentityTransform) const {
+    ATRACE_CALL();
+    const State& s(getDrawingState());
+
+    computeGeometry(renderArea, getBE().mMesh, useIdentityTransform);
+
+    /*
+     * NOTE: the way we compute the texture coordinates here produces
+     * different results than when we take the HWC path -- in the later case
+     * the "source crop" is rounded to texel boundaries.
+     * This can produce significantly different results when the texture
+     * is scaled by a large amount.
+     *
+     * The GL code below is more logical (imho), and the difference with
+     * HWC is due to a limitation of the HWC API to integers -- a question
+     * is suspend is whether we should ignore this problem or revert to
+     * GL composition when a buffer scaling is applied (maybe with some
+     * minimal value)? Or, we could make GL behave like HWC -- but this feel
+     * like more of a hack.
+     */
+    const Rect bounds{computeBounds()}; // Rounds from FloatRect
+
+    Rect win = bounds;
+    const int bufferWidth = getBufferSize(s).getWidth();
+    const int bufferHeight = getBufferSize(s).getHeight();
+
+    const float left = float(win.left) / float(bufferWidth);
+    const float top = float(win.top) / float(bufferHeight);
+    const float right = float(win.right) / float(bufferWidth);
+    const float bottom = float(win.bottom) / float(bufferHeight);
+
+    // TODO: we probably want to generate the texture coords with the mesh
+    // here we assume that we only have 4 vertices
+    renderengine::Mesh::VertexArray<vec2> texCoords(getBE().mMesh.getTexCoordArray<vec2>());
+    // flip texcoords vertically because BufferLayerConsumer expects them to be in GL convention
+    texCoords[0] = vec2(left, 1.0f - top);
+    texCoords[1] = vec2(left, 1.0f - bottom);
+    texCoords[2] = vec2(right, 1.0f - bottom);
+    texCoords[3] = vec2(right, 1.0f - top);
+
+    const auto roundedCornerState = getRoundedCornerState();
+    const auto cropRect = roundedCornerState.cropRect;
+    setupRoundedCornersCropCoordinates(win, cropRect);
+
+    auto& engine(mFlinger->getRenderEngine());
+    engine.setupLayerBlending(mPremultipliedAlpha, isOpaque(s), false /* disableTexture */,
+                              getColor(), roundedCornerState.radius);
+    engine.setSourceDataSpace(mCurrentDataSpace);
+
+    if (isHdrY410()) {
+        engine.setSourceY410BT2020(true);
+    }
+
+    engine.setupCornerRadiusCropSize(cropRect.getWidth(), cropRect.getHeight());
+
+    engine.drawMesh(getBE().mMesh);
+    engine.disableBlending();
+
+    engine.setSourceY410BT2020(false);
+}
+
 uint64_t BufferLayer::getHeadFrameNumber() const {
     if (hasFrameUpdate()) {
         return getFrameNumber();
@@ -647,6 +703,10 @@ Rect BufferLayer::getBufferSize(const State& s) const {
     }
 
     return Rect(bufWidth, bufHeight);
+}
+
+std::shared_ptr<compositionengine::Layer> BufferLayer::getCompositionLayer() const {
+    return mCompositionLayer;
 }
 
 } // namespace android

@@ -156,7 +156,7 @@ sp<GraphicBuffer> RenderSurface::dequeueBuffer() {
     return mGraphicBuffer;
 }
 
-void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
+void RenderSurface::queueBuffer() {
     auto& hwc = mCompositionEngine.getHwComposer();
     const auto id = mDisplay.getId();
 
@@ -178,9 +178,9 @@ void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
         if (mGraphicBuffer == nullptr) {
             ALOGE("No buffer is ready for display [%s]", mDisplay.getName().c_str());
         } else {
-            status_t result =
-                    mNativeWindow->queueBuffer(mNativeWindow.get(),
-                                               mGraphicBuffer->getNativeBuffer(), dup(readyFence));
+            status_t result = mNativeWindow->queueBuffer(mNativeWindow.get(),
+                                                         mGraphicBuffer->getNativeBuffer(),
+                                                         dup(mBufferReady));
             if (result != NO_ERROR) {
                 ALOGE("Error when queueing buffer for display [%s]: %d", mDisplay.getName().c_str(),
                       result);
@@ -190,10 +190,12 @@ void RenderSurface::queueBuffer(base::unique_fd&& readyFence) {
                     LOG_ALWAYS_FATAL("ANativeWindow::queueBuffer failed with error: %d", result);
                 } else {
                     mNativeWindow->cancelBuffer(mNativeWindow.get(),
-                                                mGraphicBuffer->getNativeBuffer(), dup(readyFence));
+                                                mGraphicBuffer->getNativeBuffer(),
+                                                dup(mBufferReady));
                 }
             }
 
+            mBufferReady.reset();
             mGraphicBuffer = nullptr;
         }
     }
@@ -213,6 +215,14 @@ void RenderSurface::setViewportAndProjection() {
     Rect sourceCrop = Rect(mSize);
     renderEngine.setViewportAndProjection(mSize.width, mSize.height, sourceCrop,
                                           ui::Transform::ROT_0);
+}
+
+void RenderSurface::finishBuffer() {
+    auto& renderEngine = mCompositionEngine.getRenderEngine();
+    mBufferReady = renderEngine.flush();
+    if (mBufferReady.get() < 0) {
+        renderEngine.finish();
+    }
 }
 
 void RenderSurface::flip() {
@@ -251,6 +261,10 @@ void RenderSurface::setSizeForTest(const ui::Size& size) {
 
 sp<GraphicBuffer>& RenderSurface::mutableGraphicBufferForTest() {
     return mGraphicBuffer;
+}
+
+base::unique_fd& RenderSurface::mutableBufferReadyForTest() {
+    return mBufferReady;
 }
 
 } // namespace impl

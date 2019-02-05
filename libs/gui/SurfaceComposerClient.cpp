@@ -678,31 +678,18 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColor
     return *this;
 }
 
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorAlpha(
-        const sp<SurfaceControl>& sc, float alpha) {
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setBackgroundColor(
+        const sp<SurfaceControl>& sc, const half3& color, float alpha, ui::Dataspace dataspace) {
     layer_state_t* s = getLayerState(sc);
     if (!s) {
         mStatus = BAD_INDEX;
         return *this;
     }
 
-    s->what |= layer_state_t::eColorAlphaChanged;
-    s->colorAlpha = alpha;
-
-    registerSurfaceControlForCallback(sc);
-    return *this;
-}
-
-SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorDataspace(
-        const sp<SurfaceControl>& sc, ui::Dataspace dataspace) {
-    layer_state_t* s = getLayerState(sc);
-    if (!s) {
-        mStatus = BAD_INDEX;
-        return *this;
-    }
-
-    s->what |= layer_state_t::eColorDataspaceChanged;
-    s->colorDataspace = dataspace;
+    s->what |= layer_state_t::eBackgroundColorChanged;
+    s->color = color;
+    s->bgColorAlpha = alpha;
+    s->bgColorDataspace = dataspace;
 
     registerSurfaceControlForCallback(sc);
     return *this;

@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-#ifndef ANDROID_SF_HWCOMPOSERBUFFERCACHE_H
-#define ANDROID_SF_HWCOMPOSERBUFFERCACHE_H
+#pragma once
 
-#include <stdint.h>
+#include <cstdint>
+#include <vector>
 
 #include <utils/StrongPointer.h>
 
-#include <vector>
-
 namespace android {
-// ---------------------------------------------------------------------------
 
 class GraphicBuffer;
+
+namespace compositionengine::impl {
 
 // With HIDLized hwcomposer HAL, the HAL can maintain a buffer cache for each
 // HWC display and layer.  When updating a display target or a layer buffer,
@@ -37,17 +36,17 @@ class GraphicBuffer;
 //
 // To be able to find out whether a buffer is already in the HAL's cache, we
 // use HWComposerBufferCache to mirror the cache in SF.
-class HWComposerBufferCache {
+class HwcBufferCache {
 public:
-    HWComposerBufferCache();
+    HwcBufferCache();
 
     // Given a buffer queue slot and buffer, return the HWC cache slot and
     // buffer to be sent to HWC.
     //
     // outBuffer is set to buffer when buffer is not in the HWC cache;
     // otherwise, outBuffer is set to nullptr.
-    void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer,
-            uint32_t* outSlot, sp<GraphicBuffer>* outBuffer);
+    void getHwcBuffer(int slot, const sp<GraphicBuffer>& buffer, uint32_t* outSlot,
+                      sp<GraphicBuffer>* outBuffer);
 
 private:
     // a vector as we expect "slot" to be in the range of [0, 63] (that is,
@@ -55,7 +54,5 @@ private:
     std::vector<sp<GraphicBuffer>> mBuffers;
 };
 
-// ---------------------------------------------------------------------------
-}; // namespace android
-
-#endif // ANDROID_SF_HWCOMPOSERBUFFERCACHE_H
+} // namespace compositionengine::impl
+} // namespace android

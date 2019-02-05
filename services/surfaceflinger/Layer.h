@@ -19,6 +19,7 @@
 
 #include <sys/types.h>
 
+#include <compositionengine/LayerFE.h>
 #include <gui/BufferQueue.h>
 #include <gui/ISurfaceComposerClient.h>
 #include <gui/LayerState.h>
@@ -51,7 +52,6 @@
 #include "TransactionCompletedThread.h"
 
 #include "DisplayHardware/HWComposer.h"
-#include "DisplayHardware/HWComposerBufferCache.h"
 #include "RenderArea.h"
 
 using namespace android::surfaceflinger;
@@ -67,6 +67,10 @@ class GraphicBuffer;
 class SurfaceFlinger;
 class LayerDebugInfo;
 class LayerBE;
+
+namespace compositionengine {
+class Layer;
+}
 
 namespace impl {
 class SurfaceInterceptor;
@@ -87,7 +91,7 @@ struct LayerCreationArgs {
     uint32_t flags;
 };
 
-class Layer : public virtual RefBase {
+class Layer : public virtual compositionengine::LayerFE {
     static std::atomic<int32_t> sSequence;
 
 public:
@@ -205,7 +209,6 @@ public:
         // and the buffer state layer's children.  Z order will be set to
         // INT_MIN
         sp<Layer> bgColorLayer;
-        ui::Dataspace colorDataspace; // The dataspace of the background color layer
 
         // The deque of callback handles for this frame. The back of the deque contains the most
         // recent callback handle.
@@ -271,7 +274,7 @@ public:
     virtual bool setRelativeLayer(const sp<IBinder>& relativeToHandle, int32_t relativeZ);
 
     virtual bool setAlpha(float alpha);
-    virtual bool setColor(const half3& color);
+    virtual bool setColor(const half3& /*color*/) { return false; };
 
     // Set rounded corner radius for this layer and its children.
     //
@@ -314,8 +317,7 @@ public:
             const std::vector<sp<CallbackHandle>>& /*handles*/) {
         return false;
     };
-    virtual bool setColorAlpha(float /*alpha*/) { return false; };
-    virtual bool setColorDataspace(ui::Dataspace /*dataspace*/) { return false; };
+    virtual bool setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace);
 
     ui::Dataspace getDataSpace() const { return mCurrentDataSpace; }
 
@@ -325,6 +327,8 @@ public:
     // needed to be saturated so that they match what they are designed for
     // visually.
     bool isLegacyDataSpace() const;
+
+    virtual std::shared_ptr<compositionengine::Layer> getCompositionLayer() const;
 
     // If we have received a new buffer this frame, we will pass its surface
     // damage down to hardware composer. Otherwise, we must send a region with
@@ -417,9 +421,11 @@ public:
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
 
 protected:
-    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                    bool useIdentityTransform, Region& clearRegion,
-                                    renderengine::LayerSettings& layer) = 0;
+    /*
+     * onDraw - draws the surface.
+     */
+    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
+                        bool useIdentityTransform) = 0;
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
@@ -469,14 +475,11 @@ public:
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
 
     /*
-     * prepareClientLayer - populates a renderengine::LayerSettings to passed to
-     * RenderEngine::drawLayers. Returns true if the layer can be used, and
-     * false otherwise.
+     * draw - performs some global clipping optimizations
+     * and calls onDraw().
      */
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip, Region& clearRegion,
-                            renderengine::LayerSettings& layer);
-    bool prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                            Region& clearRegion, renderengine::LayerSettings& layer);
+    void draw(const RenderArea& renderArea, const Region& clip);
+    void draw(const RenderArea& renderArea, bool useIdentityTransform);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -807,13 +810,7 @@ protected:
     FenceTimeline mReleaseTimeline;
 
     // main thread
-    // Active buffer fields
     sp<GraphicBuffer> mActiveBuffer;
-    sp<Fence> mActiveBufferFence;
-    // False if the buffer and its contents have been previously used for GPU
-    // composition, true otherwise.
-    bool mIsActiveBufferUpdatedForGpu = true;
-
     ui::Dataspace mCurrentDataSpace = ui::Dataspace::UNKNOWN;
     Rect mCurrentCrop;
     uint32_t mCurrentTransform{0};
@@ -851,6 +848,8 @@ protected:
 
     // Can only be accessed with the SF state lock held.
     bool mLayerDetached{false};
+    // Can only be accessed with the SF state lock held.
+    bool mChildrenChanged{false};
 
 private:
     /**
@@ -867,6 +866,7 @@ private:
                                        const LayerVector::Visitor& visitor);
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
+
     /**
      * Retuns the child bounds in layer space cropped to its bounds as well all its parent bounds.
      * The cropped bounds must be transformed back from parent layer space to child layer space by

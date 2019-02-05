@@ -98,8 +98,8 @@ status_t layer_state_t::write(Parcel& output) const
     output.writeInt32(cachedBuffer.bufferId);
     output.writeParcelable(metadata);
 
-    output.writeFloat(colorAlpha);
-    output.writeUint32(static_cast<uint32_t>(colorDataspace));
+    output.writeFloat(bgColorAlpha);
+    output.writeUint32(static_cast<uint32_t>(bgColorDataspace));
 
     return NO_ERROR;
 }
@@ -175,8 +175,8 @@ status_t layer_state_t::read(const Parcel& input)
     cachedBuffer.bufferId = input.readInt32();
     input.readParcelable(&metadata);
 
-    colorAlpha = input.readFloat();
-    colorDataspace = static_cast<ui::Dataspace>(input.readUint32());
+    bgColorAlpha = input.readFloat();
+    bgColorDataspace = static_cast<ui::Dataspace>(input.readUint32());
 
     return NO_ERROR;
 }
@@ -390,13 +390,11 @@ void layer_state_t::merge(const layer_state_t& other) {
         what |= eCachedBufferChanged;
         cachedBuffer = other.cachedBuffer;
     }
-    if (other.what & eColorAlphaChanged) {
-        what |= eColorAlphaChanged;
-        colorAlpha = other.colorAlpha;
-    }
-    if (other.what & eColorDataspaceChanged) {
-        what |= eColorDataspaceChanged;
-        colorDataspace = other.colorDataspace;
+    if (other.what & eBackgroundColorChanged) {
+        what |= eBackgroundColorChanged;
+        color = other.color;
+        bgColorAlpha = other.bgColorAlpha;
+        bgColorDataspace = other.bgColorDataspace;
     }
     if (other.what & eMetadataChanged) {
         what |= eMetadataChanged;
