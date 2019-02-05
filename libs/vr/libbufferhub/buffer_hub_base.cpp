@@ -196,12 +196,6 @@ int BufferHubBase::UpdateSharedFence(const LocalHandle& new_fence,
   return 0;
 }
 
-int BufferHubBase::Poll(int timeout_ms) {
-  ATRACE_NAME("BufferHubBase::Poll");
-  pollfd p = {event_fd(), POLLIN, 0};
-  return poll(&p, 1, timeout_ms);
-}
-
 int BufferHubBase::Lock(int usage, int x, int y, int width, int height,
                         void** address) {
   return buffer_.Lock(usage, x, y, width, height, address);
