@@ -194,7 +194,7 @@ struct RenderEngineTest : public ::testing::Test {
 
     void clearLeftRegion();
 
-    void clearRegion();
+    void fillBufferThenClearRegion();
 
     // Dumb hack to get aroud the fact that tear-down for renderengine isn't
     // well defined right now, so we can't create multiple instances
@@ -685,13 +685,14 @@ void RenderEngineTest::clearLeftRegion() {
     invokeDraw(settings, layers, mBuffer);
 }
 
-void RenderEngineTest::clearRegion() {
+void RenderEngineTest::fillBufferThenClearRegion() {
+    fillGreenBuffer<ColorSourceVariant>();
     // Reuse mBuffer
     clearLeftRegion();
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 255);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
                            DEFAULT_DISPLAY_HEIGHT),
-                      0, 0, 0, 0);
+                      0, 255, 0, 255);
 }
 
 TEST_F(RenderEngineTest, drawLayers_noLayersToDraw) {
@@ -854,8 +855,8 @@ TEST_F(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
     fillBufferWithoutPremultiplyAlpha();
 }
 
-TEST_F(RenderEngineTest, drawLayers_clearRegion) {
-    clearRegion();
+TEST_F(RenderEngineTest, drawLayers_fillBufferThenClearRegion) {
+    fillBufferThenClearRegion();
 }
 
 } // namespace android

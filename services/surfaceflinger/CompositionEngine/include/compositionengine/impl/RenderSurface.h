@@ -53,8 +53,9 @@ public:
     status_t beginFrame(bool mustRecompose) override;
     status_t prepareFrame(std::vector<CompositionInfo>& compositionData) override;
     sp<GraphicBuffer> dequeueBuffer() override;
-    void queueBuffer(base::unique_fd&& readyFence) override;
+    void queueBuffer() override;
     void onPresentDisplayCompleted() override;
+    void finishBuffer() override;
     void setViewportAndProjection() override;
     void flip() override;
 
@@ -76,6 +77,9 @@ private:
     const sp<ANativeWindow> mNativeWindow;
     // Current buffer being rendered into
     sp<GraphicBuffer> mGraphicBuffer;
+    // File descriptor indicating that mGraphicBuffer is ready for display, i.e.
+    // that drawing to the buffer is now complete.
+    base::unique_fd mBufferReady;
     const sp<DisplaySurface> mDisplaySurface;
     ui::Size mSize;
     std::uint32_t mPageFlipCount{0};

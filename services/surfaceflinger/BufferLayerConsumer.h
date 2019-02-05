@@ -150,16 +150,10 @@ public:
     // for use with bilinear filtering.
     void setFilteringEnabled(bool enabled);
 
-    // Sets mCurrentTextureBufferStaleForGpu to true to indicate that the
-    // buffer is now "stale" for GPU composition, and returns the old staleness
-    // bit as a caching hint.
-    bool getAndSetCurrentBufferCacheHint();
-
     // getCurrentBuffer returns the buffer associated with the current image.
     // When outSlot is not nullptr, the current buffer slot index is also
-    // returned. Simiarly, when outFence is not nullptr, the current output
-    // fence is returned.
-    sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr, sp<Fence>* outFence = nullptr) const;
+    // returned.
+    sp<GraphicBuffer> getCurrentBuffer(int* outSlot = nullptr) const;
 
     // getCurrentCrop returns the cropping rectangle of the current buffer.
     Rect getCurrentCrop() const;
@@ -260,10 +254,6 @@ private:
     // possible that this buffer is not associated with any buffer slot, so we
     // must track it separately in order to support the getCurrentBuffer method.
     sp<GraphicBuffer> mCurrentTextureBuffer;
-
-    // True if the buffer was used for the previous client composition frame,
-    // and false otherwise.
-    bool mCurrentTextureBufferStaleForGpu;
 
     // mCurrentCrop is the crop rectangle that applies to the current texture.
     // It gets set each time updateTexImage is called.
