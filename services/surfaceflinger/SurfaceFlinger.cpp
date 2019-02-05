@@ -1159,20 +1159,6 @@ status_t SurfaceFlinger::getProtectedContentSupport(bool* outSupported) const {
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
-                                     int32_t* outBufferId) {
-    if (!outBufferId) {
-        return BAD_VALUE;
-    }
-    *outBufferId = mBufferStateLayerCache.add(token, buffer);
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) {
-    mBufferStateLayerCache.release(token, bufferId);
-    return NO_ERROR;
-}
-
 status_t SurfaceFlinger::isWideColorDisplay(const sp<IBinder>& displayToken,
                                             bool* outIsWideColorDisplay) const {
     if (!displayToken || !outIsWideColorDisplay) {
@@ -3999,9 +3985,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     if (what & layer_state_t::eFrameChanged) {
         if (layer->setFrame(s.frame)) flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eBufferChanged) {
-        if (layer->setBuffer(s.buffer)) flags |= eTraversalNeeded;
-    }
     if (what & layer_state_t::eAcquireFenceChanged) {
         if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
     }
@@ -4038,9 +4021,16 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
+
+    if (what & layer_state_t::eBufferChanged) {
+        // Add the new buffer to the cache. This should always come before eCachedBufferChanged.
+        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.bufferId,
+                                                 s.buffer);
+    }
     if (what & layer_state_t::eCachedBufferChanged) {
         sp<GraphicBuffer> buffer =
-                mBufferStateLayerCache.get(s.cachedBuffer.token, s.cachedBuffer.bufferId);
+                BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
+                                                         s.cachedBuffer.bufferId);
         if (layer->setBuffer(buffer)) flags |= eTraversalNeeded;
     }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
@@ -5022,8 +5012,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case CACHE_BUFFER:
-        case UNCACHE_BUFFER:
         case IS_WIDE_COLOR_DISPLAY: {
             return OK;
         }

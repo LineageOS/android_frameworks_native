@@ -467,9 +467,6 @@ private:
                                        uint64_t timestamp,
                                        DisplayedFrameStats* outStats) const override;
     status_t getProtectedContentSupport(bool* outSupported) const override;
-    status_t cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
-                         int32_t* outBufferId) override;
-    status_t uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) override;
     status_t isWideColorDisplay(const sp<IBinder>& displayToken,
                                 bool* outIsWideColorDisplay) const override;
 
@@ -1088,8 +1085,6 @@ private:
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowCommands mInputWindowCommands;
-
-    BufferStateLayerCache mBufferStateLayerCache;
 
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 };

@@ -20,36 +20,36 @@
 #include <binder/IBinder.h>
 #include <ui/GraphicBuffer.h>
 #include <utils/RefBase.h>
+#include <utils/Singleton.h>
 
+#include <array>
+#include <map>
 #include <mutex>
-#include <unordered_map>
-#include <vector>
+
+#define BUFFER_CACHE_MAX_SIZE 64
 
 namespace android {
 
-class BufferStateLayerCache {
+class BufferStateLayerCache : public Singleton<BufferStateLayerCache> {
 public:
-    int32_t add(const sp<IBinder>& processToken, const sp<GraphicBuffer>& buffer);
-    void release(const sp<IBinder>& processToken, int32_t id);
+    BufferStateLayerCache();
 
-    sp<GraphicBuffer> get(const sp<IBinder>& processToken, int32_t id);
+    void add(sp<IBinder> processToken, int32_t id, const sp<GraphicBuffer>& buffer);
+    sp<GraphicBuffer> get(sp<IBinder> processToken, int32_t id);
+
+    void removeProcess(const wp<IBinder>& processToken);
 
 private:
     std::mutex mMutex;
+    std::map<wp<IBinder> /*caching process*/, std::array<sp<GraphicBuffer>, BUFFER_CACHE_MAX_SIZE>>
+            mBuffers GUARDED_BY(mMutex);
 
-    std::vector<sp<GraphicBuffer>>& getProccessCache(const sp<IBinder>& processToken)
-            REQUIRES(mMutex);
-
-    int32_t findSlot(std::vector<sp<GraphicBuffer>>& proccessCache) REQUIRES(mMutex);
-
-    struct IBinderHash {
-        std::size_t operator()(const sp<IBinder>& strongPointer) const {
-            return std::hash<IBinder*>{}(strongPointer.get());
-        }
+    class CacheDeathRecipient : public IBinder::DeathRecipient {
+    public:
+        void binderDied(const wp<IBinder>& who) override;
     };
 
-    std::unordered_map<sp<IBinder> /*caching process*/, std::vector<sp<GraphicBuffer>>, IBinderHash>
-            mBuffers GUARDED_BY(mMutex);
+    sp<CacheDeathRecipient> mDeathRecipient;
 };
 
 }; // namespace android
