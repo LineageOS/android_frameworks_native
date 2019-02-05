@@ -416,7 +416,7 @@ android_pixel_format GetNativePixelFormat(VkFormat format) {
         case VK_FORMAT_R16G16B16A16_SFLOAT:
             native_format = HAL_PIXEL_FORMAT_RGBA_FP16;
             break;
-        case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+        case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
             native_format = HAL_PIXEL_FORMAT_RGBA_1010102;
             break;
         default:
@@ -570,6 +570,7 @@ VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
         case HAL_PIXEL_FORMAT_RGBA_8888:
         case HAL_PIXEL_FORMAT_RGB_565:
         case HAL_PIXEL_FORMAT_RGBA_FP16:
+        case HAL_PIXEL_FORMAT_RGBA_1010102:
             format_supported = true;
             break;
         default:
@@ -700,6 +701,8 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
          VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT},
         {VK_FORMAT_R16G16B16A16_SFLOAT,
          VK_COLOR_SPACE_EXTENDED_SRGB_NONLINEAR_EXT},
+        {VK_FORMAT_A2B10G10R10_UNORM_PACK32,
+         VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT},
     };
     const uint32_t kNumWideColorFormats =
         sizeof(kWideColorFormats) / sizeof(kWideColorFormats[0]);
