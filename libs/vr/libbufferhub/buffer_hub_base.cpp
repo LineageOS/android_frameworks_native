@@ -212,12 +212,5 @@ int BufferHubBase::GetBlobReadWritePointer(size_t size, void** addr) {
   return ret;
 }
 
-void BufferHubBase::GetBlobFds(int* fds, size_t* fds_count,
-                               size_t max_fds_count) const {
-  size_t numFds = static_cast<size_t>(native_handle()->numFds);
-  *fds_count = std::min(max_fds_count, numFds);
-  std::copy(native_handle()->data, native_handle()->data + *fds_count, fds);
-}
-
 }  // namespace dvr
 }  // namespace android
