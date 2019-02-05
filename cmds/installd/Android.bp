@@ -229,16 +229,16 @@ cc_binary {
 }
 
 // OTA slot script
-cc_prebuilt_binary {
+sh_binary {
     name: "otapreopt_slot",
-    srcs: ["otapreopt_slot.sh"],
+    src: "otapreopt_slot.sh",
     init_rc: ["otapreopt.rc"],
 }
 
 // OTA postinstall script
-cc_prebuilt_binary {
+sh_binary {
     name: "otapreopt_script",
-    srcs: ["otapreopt_script.sh"],
+    src: "otapreopt_script.sh",
     // Let this depend on otapreopt, the chroot tool and the slot script,
     // so we just have to mention one in a configuration.
     required: [
