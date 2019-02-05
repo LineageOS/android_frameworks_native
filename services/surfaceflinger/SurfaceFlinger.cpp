@@ -2356,10 +2356,12 @@ Dataspace SurfaceFlinger::getBestDataspace(const sp<const DisplayDevice>& displa
                 break;
             case Dataspace::BT2020_PQ:
             case Dataspace::BT2020_ITU_PQ:
+                bestDataSpace = Dataspace::DISPLAY_P3;
                 *outHdrDataSpace = Dataspace::BT2020_PQ;
                 break;
             case Dataspace::BT2020_HLG:
             case Dataspace::BT2020_ITU_HLG:
+                bestDataSpace = Dataspace::DISPLAY_P3;
                 // When there's mixed PQ content and HLG content, we set the HDR
                 // data space to be BT2020_PQ and convert HLG to PQ.
                 if (*outHdrDataSpace == Dataspace::UNKNOWN) {
