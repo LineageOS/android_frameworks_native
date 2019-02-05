@@ -152,6 +152,20 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
+void GraphicsEnv::setGpuStats(const std::string driverPackageName,
+                              const std::string driverVersionName, const uint64_t driverVersionCode,
+                              const std::string appPackageName) {
+    ALOGV("setGpuStats: drvPkgName[%s], drvVerName[%s], drvVerCode[%lld], appPkgName[%s]",
+          driverPackageName.c_str(), driverVersionName.c_str(), (long long)driverVersionCode,
+          appPackageName.c_str());
+    mGpuStats = {
+            .driverPackageName = driverPackageName,
+            .driverVersionName = driverVersionName,
+            .driverVersionCode = driverVersionCode,
+            .appPackageName = appPackageName,
+    };
+}
+
 void* GraphicsEnv::loadLibrary(std::string name) {
     const android_dlextinfo dlextinfo = {
             .flags = ANDROID_DLEXT_USE_NAMESPACE,
