@@ -92,6 +92,30 @@
       "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
       "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
       "unresolved": true
+    },
+    {
+      "key": {
+        "uuid": "810e0268_35154c2c",
+        "filename": "services/surfaceflinger/SurfaceFlinger.cpp",
+        "patchSetId": 2
+      },
+      "lineNbr": 2297,
+      "author": {
+        "id": 1063
+      },
+      "writtenOn": "2019-02-05T12:24:53Z",
+      "side": 1,
+      "message": "Log statement:\n\n+    ALOGI(\"%s: display %d prim %d %d ext %d %d conn %d\", __func__, (unsigned int) display,\n+            !!primaryDisplayId, (unsigned int) primaryDisplayId.value_or(0),\n+            !!externalDisplayId, (unsigned int) externalDisplayId.value_or(0),\n+            connection);\n\nyields\n\n02-05 13:22:12.659  6371  6371 I SurfaceFlinger: determineDisplayType: display 0 prim 0 0 ext 0 0 conn 1",
+      "parentUuid": "f522ceff_efba924d",
+      "range": {
+        "startLine": 2297,
+        "startChar": 15,
+        "endLine": 2297,
+        "endChar": 85
+      },
+      "revId": "bd10fb6ea76173555c854f752ea042f822241bd3",
+      "serverId": "1ec6b3db-b2c1-4fa4-84a2-4c7efe89ba71",
+      "unresolved": true
     }
   ]
 }
