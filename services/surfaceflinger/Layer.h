@@ -421,11 +421,9 @@ public:
     virtual Rect getCrop(const Layer::State& s) const { return s.crop_legacy; }
 
 protected:
-    /*
-     * onDraw - draws the surface.
-     */
-    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform) = 0;
+    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                                    bool useIdentityTransform, Region& clearRegion,
+                                    renderengine::LayerSettings& layer) = 0;
 
 public:
     virtual void setDefaultBufferSize(uint32_t /*w*/, uint32_t /*h*/) {}
@@ -475,11 +473,14 @@ public:
     virtual void releasePendingBuffer(nsecs_t /*dequeueReadyTime*/) { }
 
     /*
-     * draw - performs some global clipping optimizations
-     * and calls onDraw().
+     * prepareClientLayer - populates a renderengine::LayerSettings to passed to
+     * RenderEngine::drawLayers. Returns true if the layer can be used, and
+     * false otherwise.
      */
-    void draw(const RenderArea& renderArea, const Region& clip);
-    void draw(const RenderArea& renderArea, bool useIdentityTransform);
+    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip, Region& clearRegion,
+                            renderengine::LayerSettings& layer);
+    bool prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
+                            Region& clearRegion, renderengine::LayerSettings& layer);
 
     /*
      * doTransaction - process the transaction. This is a good place to figure
@@ -810,7 +811,13 @@ protected:
     FenceTimeline mReleaseTimeline;
 
     // main thread
+    // Active buffer fields
     sp<GraphicBuffer> mActiveBuffer;
+    sp<Fence> mActiveBufferFence;
+    // False if the buffer and its contents have been previously used for GPU
+    // composition, true otherwise.
+    bool mIsActiveBufferUpdatedForGpu = true;
+
     ui::Dataspace mCurrentDataSpace = ui::Dataspace::UNKNOWN;
     Rect mCurrentCrop;
     uint32_t mCurrentTransform{0};
@@ -866,7 +873,6 @@ private:
                                        const LayerVector::Visitor& visitor);
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
-
     /**
      * Retuns the child bounds in layer space cropped to its bounds as well all its parent bounds.
      * The cropped bounds must be transformed back from parent layer space to child layer space by

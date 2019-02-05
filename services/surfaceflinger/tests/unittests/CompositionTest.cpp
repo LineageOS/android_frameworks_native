@@ -45,8 +45,10 @@ namespace {
 
 using testing::_;
 using testing::AtLeast;
+using testing::Between;
 using testing::ByMove;
 using testing::DoAll;
+using testing::Field;
 using testing::Invoke;
 using testing::IsNull;
 using testing::Mock;
@@ -159,7 +161,6 @@ public:
     renderengine::mock::RenderEngine* mRenderEngine = new renderengine::mock::RenderEngine();
     mock::MessageQueue* mMessageQueue = new mock::MessageQueue();
     mock::DispSync* mPrimaryDispSync = new mock::DispSync();
-    renderengine::mock::Image* mReImage = new renderengine::mock::Image();
     renderengine::mock::Framebuffer* mReFrameBuffer = new renderengine::mock::Framebuffer();
 
     sp<Fence> mClientTargetAcquireFence = Fence::NO_FENCE;
@@ -279,11 +280,10 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mComposer, getReleaseFences(HWC_DISPLAY, _, _)).Times(1);
 
         EXPECT_CALL(*test->mRenderEngine, useNativeFenceSync()).WillRepeatedly(Return(true));
-        EXPECT_CALL(*test->mRenderEngine, checkErrors()).WillRepeatedly(Return());
-        EXPECT_CALL(*test->mRenderEngine, isCurrent()).WillRepeatedly(Return(true));
-
+        // TODO: remove once we verify that we can just grab the fence from the
+        // FramebufferSurface.
         EXPECT_CALL(*test->mRenderEngine, flush()).WillRepeatedly(Invoke([]() {
-            return base::unique_fd(0);
+            return base::unique_fd();
         }));
 
         EXPECT_CALL(*test->mDisplaySurface, onFrameCommitted()).Times(1);
@@ -295,36 +295,18 @@ struct BaseDisplayVariant {
 
     template <typename Case>
     static void setupCommonScreensCaptureCallExpectations(CompositionTest* test) {
-        // Called once with a non-null value to set a framebuffer, and then
-        // again with nullptr to clear it.
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull(), false))
-                .WillOnce(Return(true));
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull(), false))
-                .WillOnce(Return(true));
-
-        EXPECT_CALL(*test->mRenderEngine, checkErrors()).WillRepeatedly(Return());
-        EXPECT_CALL(*test->mRenderEngine, createFramebuffer())
-                .WillOnce(Return(
-                        ByMove(std::unique_ptr<renderengine::Framebuffer>(test->mReFrameBuffer))));
-        EXPECT_CALL(*test->mRenderEngine, bindFrameBuffer(test->mReFrameBuffer)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, unbindFrameBuffer(test->mReFrameBuffer)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, clearWithColor(0, 0, 0, 1)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, flush()).WillOnce(Return(ByMove(base::unique_fd())));
-        EXPECT_CALL(*test->mRenderEngine, finish()).WillOnce(Return(true));
-
-        EXPECT_CALL(*test->mRenderEngine, setOutputDataSpace(_)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setDisplayMaxLuminance(DEFAULT_DISPLAY_MAX_LUMINANCE))
-                .Times(1);
-        // This expectation retires on saturation as setViewportAndProjection is
-        // called an extra time for the code path this setup is for.
-        // TODO: Investigate this extra call
-        EXPECT_CALL(*test->mRenderEngine,
-                    setViewportAndProjection(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
-                                             Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                             ui::Transform::ROT_0))
-                .Times(1)
-                .RetiresOnSaturation();
-        EXPECT_CALL(*test->mRenderEngine, disableTexturing()).Times(1);
+        EXPECT_CALL(*test->mRenderEngine, drawLayers)
+                .WillRepeatedly(
+                        [](const renderengine::DisplaySettings& displaySettings,
+                           const std::vector<renderengine::LayerSettings>& /*layerSettings*/,
+                           ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                            EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                      displaySettings.physicalDisplay);
+                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                      displaySettings.clip);
+                            return NO_ERROR;
+                        });
     }
 
     static void setupNonEmptyFrameCompositionCallExpectations(CompositionTest* test) {
@@ -348,31 +330,23 @@ struct BaseDisplayVariant {
         EXPECT_CALL(*test->mDisplaySurface, getClientTargetAcquireFence())
                 .WillRepeatedly(ReturnRef(test->mClientTargetAcquireFence));
 
-        EXPECT_CALL(*test->mRenderEngine, setOutputDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setDisplayMaxLuminance(DEFAULT_DISPLAY_MAX_LUMINANCE))
-                .Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setColorTransform(_)).Times(2);
-        // These expectations retire on saturation as the code path these
-        // expectations are for appears to make an extra call to them.
-        // TODO: Investigate this extra call
-        EXPECT_CALL(*test->mRenderEngine,
-                    setViewportAndProjection(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT,
-                                             Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
-                                             ui::Transform::ROT_0))
-                .Times(1);
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(NotNull(), false))
-                .WillOnce(Return(true));
-        EXPECT_CALL(*test->mReFrameBuffer, setNativeWindowBuffer(IsNull(), false))
-                .WillOnce(Return(true));
-        EXPECT_CALL(*test->mRenderEngine, createFramebuffer())
-                .WillOnce(Return(
-                        ByMove(std::unique_ptr<renderengine::Framebuffer>(test->mReFrameBuffer))));
-        EXPECT_CALL(*test->mRenderEngine, bindFrameBuffer(test->mReFrameBuffer)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, unbindFrameBuffer(test->mReFrameBuffer)).Times(1);
         EXPECT_CALL(*test->mNativeWindow, queueBuffer(_, _)).WillOnce(Return(0));
         EXPECT_CALL(*test->mNativeWindow, dequeueBuffer(_, _))
                 .WillOnce(DoAll(SetArgPointee<0>(test->mNativeWindowBuffer), SetArgPointee<1>(-1),
                                 Return(0)));
+        EXPECT_CALL(*test->mRenderEngine, drawLayers)
+                .WillRepeatedly(
+                        [](const renderengine::DisplaySettings& displaySettings,
+                           const std::vector<renderengine::LayerSettings>& /*layerSettings*/,
+                           ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                            EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                      displaySettings.physicalDisplay);
+                            EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                                      displaySettings.clip);
+                            EXPECT_EQ(ui::Dataspace::UNKNOWN, displaySettings.outputDataspace);
+                            return NO_ERROR;
+                        });
     }
 
     template <typename Case>
@@ -383,8 +357,6 @@ struct BaseDisplayVariant {
     template <typename Case>
     static void setupRELayerScreenshotCompositionCallExpectations(CompositionTest* test) {
         Case::Layer::setupREScreenshotCompositionCallExpectations(test);
-
-        EXPECT_CALL(*test->mRenderEngine, isCurrent()).WillRepeatedly(Return(true));
     }
 };
 
@@ -396,16 +368,11 @@ struct InsecureDisplaySetupVariant : public BaseDisplayVariant<InsecureDisplaySe
     template <typename Case>
     static void setupRELayerCompositionCallExpectations(CompositionTest* test) {
         Case::Layer::setupInsecureRECompositionCallExpectations(test);
-
-        // TODO: Investigate this extra call
-        EXPECT_CALL(*test->mRenderEngine, disableScissor()).Times(1);
     }
 
     template <typename Case>
     static void setupRELayerScreenshotCompositionCallExpectations(CompositionTest* test) {
         Case::Layer::setupInsecureREScreenshotCompositionCallExpectations(test);
-
-        EXPECT_CALL(*test->mRenderEngine, isCurrent()).WillRepeatedly(Return(true));
     }
 };
 
@@ -516,7 +483,6 @@ struct BaseLayerProperties {
         bool ignoredRecomputeVisibleRegions;
         layer->latchBuffer(ignoredRecomputeVisibleRegions, 0, Fence::NO_FENCE);
         Mock::VerifyAndClear(test->mRenderEngine);
-        Mock::VerifyAndClear(test->mReImage);
     }
 
     static void setupLayerState(CompositionTest* test, sp<BufferQueueLayer> layer) {
@@ -598,33 +564,35 @@ struct BaseLayerProperties {
     }
 
     static void setupREBufferCompositionCommonCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine,
-                    setupLayerBlending(true, false, false,
-                                       half4(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
-                                             LayerProperties::COLOR[2], LayerProperties::COLOR[3]),
-                                       0.0f))
-                .Times(1);
-
-        EXPECT_CALL(*test->mRenderEngine, createImage())
-                .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
-        EXPECT_CALL(*test->mReImage, setNativeWindowBuffer(_, _)).WillOnce(Return(true));
-        EXPECT_CALL(*test->mRenderEngine, bindExternalTextureImage(DEFAULT_TEXTURE_ID, _)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setupLayerTexturing(_)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setSourceDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, drawMesh(_)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, disableBlending()).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setSourceY410BT2020(false)).Times(1);
-        // This call retires on saturation as the code that renders a texture disables the state,
-        // along with a top-level disable to ensure it is disabled for non-buffer layers.
-        EXPECT_CALL(*test->mRenderEngine, disableTexturing()).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(*test->mRenderEngine, drawLayers)
+                .WillOnce([](const renderengine::DisplaySettings& displaySettings,
+                             const std::vector<renderengine::LayerSettings>& layerSettings,
+                             ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                    EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.physicalDisplay);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.clip);
+                    // screen capture adds an additional color layer as an alpha
+                    // prefill, so gtet the back layer.
+                    renderengine::LayerSettings layer = layerSettings.back();
+                    EXPECT_THAT(layer.source.buffer.buffer, Not(IsNull()));
+                    EXPECT_THAT(layer.source.buffer.fence, Not(IsNull()));
+                    EXPECT_EQ(renderengine::Buffer::CachingHint::NO_CACHE,
+                              layer.source.buffer.cacheHint);
+                    EXPECT_EQ(DEFAULT_TEXTURE_ID, layer.source.buffer.textureName);
+                    EXPECT_EQ(false, layer.source.buffer.isY410BT2020);
+                    EXPECT_EQ(true, layer.source.buffer.usePremultipliedAlpha);
+                    EXPECT_EQ(false, layer.source.buffer.isOpaque);
+                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
+                    return NO_ERROR;
+                });
     }
 
     static void setupREBufferCompositionCallExpectations(CompositionTest* test) {
         LayerProperties::setupREBufferCompositionCommonCallExpectations(test);
-
-        // TODO - Investigate and eliminate these differences between display
-        // composition and screenshot composition.
-        EXPECT_CALL(*test->mRenderEngine, disableScissor()).Times(1);
     }
 
     static void setupInsecureREBufferCompositionCallExpectations(CompositionTest* test) {
@@ -639,20 +607,28 @@ struct BaseLayerProperties {
         LayerProperties::setupREBufferCompositionCommonCallExpectations(test);
     }
 
-    static void setupREColorCompositionCommonCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine, disableScissor()).Times(1);
-    }
-
     static void setupREColorCompositionCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine, setSourceDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine,
-                    setupLayerBlending(true, false, true,
-                                       half4(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
-                                             LayerProperties::COLOR[2], LayerProperties::COLOR[3]),
-                                       0.0f))
-                .Times(1);
-        EXPECT_CALL(*test->mRenderEngine, drawMesh(_)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, disableBlending()).Times(1);
+        EXPECT_CALL(*test->mRenderEngine, drawLayers)
+                .WillOnce([](const renderengine::DisplaySettings& displaySettings,
+                             const std::vector<renderengine::LayerSettings>& layerSettings,
+                             ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                    EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.physicalDisplay);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.clip);
+                    // screen capture adds an additional color layer as an alpha
+                    // prefill, so get the back layer.
+                    renderengine::LayerSettings layer = layerSettings.back();
+                    EXPECT_THAT(layer.source.buffer.buffer, IsNull());
+                    EXPECT_EQ(half3(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
+                                    LayerProperties::COLOR[2]),
+                              layer.source.solidColor);
+                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(LayerProperties::COLOR[3], layer.alpha);
+                    return NO_ERROR;
+                });
     }
 
     static void setupREColorScreenshotCompositionCallExpectations(CompositionTest* test) {
@@ -692,10 +668,7 @@ struct SidebandLayerProperties : public BaseLayerProperties<SidebandLayerPropert
         EXPECT_CALL(*test->mComposer, setLayerSurfaceDamage(HWC_DISPLAY, HWC_LAYER, _)).Times(1);
     }
 
-    static void setupREBufferCompositionCommonCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine, setupFillWithColor(0, 0, 0, 1)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, drawMesh(_)).Times(1);
-    }
+    static void setupREBufferCompositionCommonCallExpectations(CompositionTest* /*test*/) {}
 };
 
 struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties> {
@@ -704,25 +677,25 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
     static constexpr uint32_t LAYER_FLAGS = ISurfaceComposerClient::eSecure;
 
     static void setupInsecureREBufferCompositionCommonCallExpectations(CompositionTest* test) {
-        EXPECT_CALL(*test->mRenderEngine, createImage())
-                .WillOnce(Return(ByMove(std::unique_ptr<renderengine::Image>(test->mReImage))));
-        EXPECT_CALL(*test->mReImage, setNativeWindowBuffer(_, _)).WillOnce(Return(true));
-        EXPECT_CALL(*test->mRenderEngine, bindExternalTextureImage(DEFAULT_TEXTURE_ID, _)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setupLayerBlackedOut()).Times(1);
-
-        EXPECT_CALL(*test->mRenderEngine,
-                    setupLayerBlending(true, false, false,
-                                       half4(Base::COLOR[0], Base::COLOR[1], Base::COLOR[2],
-                                             Base::COLOR[3]),
-                                       0.0f))
-                .Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setSourceDataSpace(ui::Dataspace::UNKNOWN)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, drawMesh(_)).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, disableBlending()).Times(1);
-        EXPECT_CALL(*test->mRenderEngine, setSourceY410BT2020(false)).Times(1);
-        // This call retires on saturation as the code that renders a texture disables the state,
-        // along with a top-level disable to ensure it is disabled for non-buffer layers.
-        EXPECT_CALL(*test->mRenderEngine, disableTexturing()).Times(1).RetiresOnSaturation();
+        EXPECT_CALL(*test->mRenderEngine, drawLayers)
+                .WillOnce([](const renderengine::DisplaySettings& displaySettings,
+                             const std::vector<renderengine::LayerSettings>& layerSettings,
+                             ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                    EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.physicalDisplay);
+                    EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                              displaySettings.clip);
+                    // screen capture adds an additional color layer as an alpha
+                    // prefill, so get the back layer.
+                    renderengine::LayerSettings layer = layerSettings.back();
+                    EXPECT_THAT(layer.source.buffer.buffer, IsNull());
+                    EXPECT_EQ(half3(0.0f, 0.0f, 0.0f), layer.source.solidColor);
+                    EXPECT_EQ(0.0, layer.geometry.roundedCornersRadius);
+                    EXPECT_EQ(ui::Dataspace::UNKNOWN, layer.sourceDataspace);
+                    EXPECT_EQ(1.0f, layer.alpha);
+                    return NO_ERROR;
+                });
     }
 
     static void setupInsecureREBufferCompositionCallExpectations(CompositionTest* test) {
@@ -826,7 +799,6 @@ struct ColorLayerVariant : public BaseLayerVariant<LayerProperties> {
     }
 
     static void setupRECompositionCallExpectations(CompositionTest* test) {
-        LayerProperties::setupREColorCompositionCommonCallExpectations(test);
         LayerProperties::setupREColorCompositionCallExpectations(test);
     }
 

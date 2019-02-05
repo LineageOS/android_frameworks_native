@@ -61,7 +61,7 @@ public:
     const OutputCompositionState& getState() const override;
     OutputCompositionState& editState() override;
 
-    Region getPhysicalSpaceDirtyRegion(bool repaintEverything) const override;
+    Region getDirtyRegion(bool repaintEverything) const override;
     bool belongsInOutput(uint32_t, bool) const override;
 
     compositionengine::OutputLayer* getOutputLayerForLayer(

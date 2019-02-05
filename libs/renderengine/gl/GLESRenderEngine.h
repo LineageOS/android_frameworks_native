@@ -71,6 +71,8 @@ public:
     void genTextures(size_t count, uint32_t* names) override;
     void deleteTextures(size_t count, uint32_t const* names) override;
     void bindExternalTextureImage(uint32_t texName, const Image& image) override;
+    status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer, sp<Fence> fence,
+                                       bool readCache);
     status_t bindFrameBuffer(Framebuffer* framebuffer) override;
     void unbindFrameBuffer(Framebuffer* framebuffer) override;
     void checkErrors() const override;
@@ -184,6 +186,9 @@ private:
     const bool mUseColorManagement = false;
 
     // Cache of GL images that we'll store per GraphicBuffer ID
+    // TODO: Layer should call back on destruction instead to clean this up,
+    // as it has better system utilization at the potential expense of a
+    // more complicated interface.
     std::unordered_map<uint64_t, std::unique_ptr<Image>> mImageCache;
 
     class FlushTracer {
