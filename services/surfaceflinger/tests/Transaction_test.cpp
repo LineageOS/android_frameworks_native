@@ -1625,7 +1625,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = true;
     float alpha = 1.0f;
     Color finalColor = Color::RED;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1635,7 +1635,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 1.0f;
     Color finalColor = Color::GREEN;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1645,7 +1645,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 1.0f;
     Color finalColor = Color::GREEN;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1655,7 +1655,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 0;
     Color finalColor = Color::BLACK;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1665,7 +1665,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 0;
     Color finalColor = Color::BLACK;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -2405,7 +2405,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferMultipleLayers_BufferState) {
     }
 }
 
-TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
+TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
@@ -2441,7 +2441,7 @@ TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
     }
 }
 
-TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_BufferState) {
+TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
@@ -2477,7 +2477,7 @@ TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_Buffer
     }
 }
 
-TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_DestroyedBuffer_BufferState) {
+TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_DestroyedBuffer_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
