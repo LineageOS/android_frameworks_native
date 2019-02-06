@@ -763,7 +763,7 @@ EventHub::Device* EventHub::getDeviceByDescriptorLocked(const std::string& descr
 }
 
 EventHub::Device* EventHub::getDeviceLocked(int32_t deviceId) const {
-    if (deviceId == BUILT_IN_KEYBOARD_ID) {
+    if (deviceId == ReservedInputDeviceId::BUILT_IN_KEYBOARD_ID) {
         deviceId = mBuiltInKeyboardId;
     }
     ssize_t index = mDevices.indexOfKey(deviceId);
@@ -835,7 +835,8 @@ size_t EventHub::getEvents(int timeoutMillis, RawEvent* buffer, size_t bufferSiz
                  device->id, device->path.c_str());
             mClosingDevices = device->next;
             event->when = now;
-            event->deviceId = device->id == mBuiltInKeyboardId ? BUILT_IN_KEYBOARD_ID : device->id;
+            event->deviceId = (device->id == mBuiltInKeyboardId) ?
+                    ReservedInputDeviceId::BUILT_IN_KEYBOARD_ID : device->id;
             event->type = DEVICE_REMOVED;
             event += 1;
             delete device;
@@ -1081,7 +1082,7 @@ void EventHub::scanDevicesLocked() {
             ALOGE("scan video dir failed for %s", VIDEO_DEVICE_PATH);
         }
     }
-    if (mDevices.indexOfKey(VIRTUAL_KEYBOARD_ID) < 0) {
+    if (mDevices.indexOfKey(ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID) < 0) {
         createVirtualKeyboardLocked();
     }
 }
@@ -1580,7 +1581,8 @@ void EventHub::createVirtualKeyboardLocked() {
     identifier.uniqueId = "<virtual>";
     assignDescriptorLocked(identifier);
 
-    Device* device = new Device(-1, VIRTUAL_KEYBOARD_ID, "<virtual>", identifier);
+    Device* device = new Device(-1, ReservedInputDeviceId::VIRTUAL_KEYBOARD_ID, "<virtual>",
+            identifier);
     device->classes = INPUT_DEVICE_CLASS_KEYBOARD
             | INPUT_DEVICE_CLASS_ALPHAKEY
             | INPUT_DEVICE_CLASS_DPAD
