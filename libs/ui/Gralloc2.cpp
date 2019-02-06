@@ -351,6 +351,12 @@ int Gralloc2Mapper::unlock(buffer_handle_t bufferHandle) const {
     return releaseFence;
 }
 
+status_t Gralloc2Mapper::isSupported(uint32_t /*width*/, uint32_t /*height*/,
+                                     android::PixelFormat /*format*/, uint32_t /*layerCount*/,
+                                     uint64_t /*usage*/, bool* /*outSupported*/) const {
+    return INVALID_OPERATION;
+}
+
 Gralloc2Allocator::Gralloc2Allocator(const Gralloc2Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
     if (mAllocator == nullptr) {

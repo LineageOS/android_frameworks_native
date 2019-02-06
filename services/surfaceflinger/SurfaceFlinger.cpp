@@ -78,7 +78,6 @@
 #include "ColorLayer.h"
 #include "Colorizer.h"
 #include "ContainerLayer.h"
-#include "DdmConnection.h"
 #include "DisplayDevice.h"
 #include "Layer.h"
 #include "LayerVector.h"
@@ -279,7 +278,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mAnimCompositionPending(false),
         mBootStage(BootStage::BOOTLOADER),
         mDebugRegion(0),
-        mDebugDDMS(0),
         mDebugDisableHWC(0),
         mDebugDisableTransformHint(0),
         mDebugInTransaction(0),
@@ -370,16 +368,12 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     property_get("debug.sf.showupdates", value, "0");
     mDebugRegion = atoi(value);
 
-    property_get("debug.sf.ddms", value, "0");
-    mDebugDDMS = atoi(value);
-    if (mDebugDDMS) {
-        if (!startDdmConnection()) {
-            // start failed, and DDMS debugging not enabled
-            mDebugDDMS = 0;
-        }
-    }
     ALOGI_IF(mDebugRegion, "showupdates enabled");
-    ALOGI_IF(mDebugDDMS, "DDMS debugging enabled");
+
+    // DDMS debugging deprecated (b/120782499)
+    property_get("debug.sf.ddms", value, "0");
+    int debugDdms = atoi(value);
+    ALOGI_IF(debugDdms, "DDMS debugging not supported");
 
     property_get("debug.sf.disable_backpressure", value, "0");
     mPropagateBackpressure = !atoi(value);
@@ -1162,20 +1156,6 @@ status_t SurfaceFlinger::getProtectedContentSupport(bool* outSupported) const {
         return BAD_VALUE;
     }
     *outSupported = getRenderEngine().supportsProtectedContent();
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::cacheBuffer(const sp<IBinder>& token, const sp<GraphicBuffer>& buffer,
-                                     int32_t* outBufferId) {
-    if (!outBufferId) {
-        return BAD_VALUE;
-    }
-    *outBufferId = mBufferStateLayerCache.add(token, buffer);
-    return NO_ERROR;
-}
-
-status_t SurfaceFlinger::uncacheBuffer(const sp<IBinder>& token, int32_t bufferId) {
-    mBufferStateLayerCache.release(token, bufferId);
     return NO_ERROR;
 }
 
@@ -4005,9 +3985,6 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
     if (what & layer_state_t::eFrameChanged) {
         if (layer->setFrame(s.frame)) flags |= eTraversalNeeded;
     }
-    if (what & layer_state_t::eBufferChanged) {
-        if (layer->setBuffer(s.buffer)) flags |= eTraversalNeeded;
-    }
     if (what & layer_state_t::eAcquireFenceChanged) {
         if (layer->setAcquireFence(s.acquireFence)) flags |= eTraversalNeeded;
     }
@@ -4044,9 +4021,16 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
             callbackHandles.emplace_back(new CallbackHandle(listener, callbackIds, s.surface));
         }
     }
+
+    if (what & layer_state_t::eBufferChanged) {
+        // Add the new buffer to the cache. This should always come before eCachedBufferChanged.
+        BufferStateLayerCache::getInstance().add(s.cachedBuffer.token, s.cachedBuffer.bufferId,
+                                                 s.buffer);
+    }
     if (what & layer_state_t::eCachedBufferChanged) {
         sp<GraphicBuffer> buffer =
-                mBufferStateLayerCache.get(s.cachedBuffer.token, s.cachedBuffer.bufferId);
+                BufferStateLayerCache::getInstance().get(s.cachedBuffer.token,
+                                                         s.cachedBuffer.bufferId);
         if (layer->setBuffer(buffer)) flags |= eTraversalNeeded;
     }
     if (layer->setTransactionCompletedListeners(callbackHandles)) flags |= eTraversalNeeded;
@@ -4945,24 +4929,6 @@ const Vector<sp<Layer>>& SurfaceFlinger::getLayerSortedByZForHwcDisplay(DisplayI
     return empty;
 }
 
-bool SurfaceFlinger::startDdmConnection()
-{
-    void* libddmconnection_dso =
-            dlopen("libsurfaceflinger_ddmconnection.so", RTLD_NOW);
-    if (!libddmconnection_dso) {
-        return false;
-    }
-    void (*DdmConnection_start)(const char* name);
-    DdmConnection_start =
-            (decltype(DdmConnection_start))dlsym(libddmconnection_dso, "DdmConnection_start");
-    if (!DdmConnection_start) {
-        dlclose(libddmconnection_dso);
-        return false;
-    }
-    (*DdmConnection_start)(getServiceName());
-    return true;
-}
-
 void SurfaceFlinger::updateColorMatrixLocked() {
     mat4 colorMatrix;
     if (mGlobalSaturationFactor != 1.0f) {
@@ -5046,8 +5012,6 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case CACHE_BUFFER:
-        case UNCACHE_BUFFER:
         case IS_WIDE_COLOR_DISPLAY: {
             return OK;
         }

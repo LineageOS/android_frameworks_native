@@ -314,6 +314,36 @@ int Gralloc3Mapper::unlock(buffer_handle_t bufferHandle) const {
     return releaseFence;
 }
 
+status_t Gralloc3Mapper::isSupported(uint32_t width, uint32_t height, android::PixelFormat format,
+                                     uint32_t layerCount, uint64_t usage,
+                                     bool* outSupported) const {
+    IMapper::BufferDescriptorInfo descriptorInfo;
+    sBufferDescriptorInfo(width, height, format, layerCount, usage, &descriptorInfo);
+
+    Error error;
+    auto ret = mMapper->isSupported(descriptorInfo,
+                                    [&](const auto& tmpError, const auto& tmpSupported) {
+                                        error = tmpError;
+                                        if (error != Error::NONE) {
+                                            return;
+                                        }
+                                        if (outSupported) {
+                                            *outSupported = tmpSupported;
+                                        }
+                                    });
+
+    if (!ret.isOk()) {
+        error = kTransactionError;
+    }
+
+    if (error != Error::NONE) {
+        ALOGE("isSupported(%u, %u, %d, %u, ...) failed with %d", width, height, format, layerCount,
+              error);
+    }
+
+    return static_cast<status_t>(error);
+}
+
 Gralloc3Allocator::Gralloc3Allocator(const Gralloc3Mapper& mapper) : mMapper(mapper) {
     mAllocator = IAllocator::getService();
     if (mAllocator == nullptr) {

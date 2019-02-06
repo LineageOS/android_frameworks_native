@@ -191,6 +191,9 @@ public:
             android_ycbcr *ycbcr, int fenceFd);
     status_t unlockAsync(int *fenceFd);
 
+    status_t isSupported(uint32_t inWidth, uint32_t inHeight, PixelFormat inFormat,
+                         uint32_t inLayerCount, uint64_t inUsage, bool* outSupported) const;
+
     ANativeWindowBuffer* getNativeBuffer() const;
 
     // for debugging

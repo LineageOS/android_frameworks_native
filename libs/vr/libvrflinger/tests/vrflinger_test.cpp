@@ -205,9 +205,9 @@ TEST(VrFlingerTest, ActivateDeactivate) {
     ASSERT_EQ(buffer.get()->height(), metrics.get().display_height);
 
     void* raw_buf = nullptr;
-    ASSERT_GE(buffer.get()->Lock(AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN,
-                                 /*x=*/0, /*y=*/0, buffer.get()->width(),
-                                 buffer.get()->height(), &raw_buf),
+    ASSERT_GE(buffer.get()->buffer()->Lock(
+                  AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN, /*x=*/0, /*y=*/0,
+                  buffer.get()->width(), buffer.get()->height(), &raw_buf),
               0);
     ASSERT_NE(raw_buf, nullptr);
     uint32_t* pixels = static_cast<uint32_t*>(raw_buf);
@@ -216,7 +216,7 @@ TEST(VrFlingerTest, ActivateDeactivate) {
       pixels[i] = 0x0000ff00;
     }
 
-    ASSERT_GE(buffer.get()->Unlock(), 0);
+    ASSERT_GE(buffer.get()->buffer()->Unlock(), 0);
 
     ASSERT_GE(buffer.get()->Post(/*ready_fence=*/pdx::LocalHandle()), 0);
 
