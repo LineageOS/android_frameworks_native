@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include <algorithm>
 
 #include <grallocusage/GrallocUsageConversion.h>
@@ -21,6 +23,7 @@
 #include <ui/BufferQueueDefs.h>
 #include <sync/sync.h>
 #include <utils/StrongPointer.h>
+#include <utils/Trace.h>
 #include <utils/Vector.h>
 #include <system/window.h>
 #include <android/hardware/graphics/common/1.0/types.h>
@@ -486,6 +489,8 @@ VkResult CreateAndroidSurfaceKHR(
     const VkAndroidSurfaceCreateInfoKHR* pCreateInfo,
     const VkAllocationCallbacks* allocator,
     VkSurfaceKHR* out_surface) {
+    ATRACE_CALL();
+
     if (!allocator)
         allocator = &GetData(instance).allocator;
     void* mem = allocator->pfnAllocation(allocator->pUserData, sizeof(Surface),
@@ -528,6 +533,8 @@ VKAPI_ATTR
 void DestroySurfaceKHR(VkInstance instance,
                        VkSurfaceKHR surface_handle,
                        const VkAllocationCallbacks* allocator) {
+    ATRACE_CALL();
+
     Surface* surface = SurfaceFromHandle(surface_handle);
     if (!surface)
         return;
@@ -548,6 +555,8 @@ VkResult GetPhysicalDeviceSurfaceSupportKHR(VkPhysicalDevice /*pdev*/,
                                             uint32_t /*queue_family*/,
                                             VkSurfaceKHR surface_handle,
                                             VkBool32* supported) {
+    ATRACE_CALL();
+
     const Surface* surface = SurfaceFromHandle(surface_handle);
     if (!surface) {
         return VK_ERROR_SURFACE_LOST_KHR;
@@ -590,6 +599,8 @@ VkResult GetPhysicalDeviceSurfaceCapabilitiesKHR(
     VkPhysicalDevice /*pdev*/,
     VkSurfaceKHR surface,
     VkSurfaceCapabilitiesKHR* capabilities) {
+    ATRACE_CALL();
+
     int err;
     ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
 
@@ -663,6 +674,8 @@ VkResult GetPhysicalDeviceSurfaceFormatsKHR(VkPhysicalDevice pdev,
                                             VkSurfaceKHR surface_handle,
                                             uint32_t* count,
                                             VkSurfaceFormatKHR* formats) {
+    ATRACE_CALL();
+
     const InstanceData& instance_data = GetData(pdev);
 
     // TODO(jessehall): Fill out the set of supported formats. Longer term, add
@@ -737,6 +750,8 @@ VkResult GetPhysicalDeviceSurfaceCapabilities2KHR(
     VkPhysicalDevice physicalDevice,
     const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo,
     VkSurfaceCapabilities2KHR* pSurfaceCapabilities) {
+    ATRACE_CALL();
+
     VkResult result = GetPhysicalDeviceSurfaceCapabilitiesKHR(
         physicalDevice, pSurfaceInfo->surface,
         &pSurfaceCapabilities->surfaceCapabilities);
@@ -772,6 +787,8 @@ VkResult GetPhysicalDeviceSurfaceFormats2KHR(
     const VkPhysicalDeviceSurfaceInfo2KHR* pSurfaceInfo,
     uint32_t* pSurfaceFormatCount,
     VkSurfaceFormat2KHR* pSurfaceFormats) {
+    ATRACE_CALL();
+
     if (!pSurfaceFormats) {
         return GetPhysicalDeviceSurfaceFormatsKHR(physicalDevice,
                                                   pSurfaceInfo->surface,
@@ -803,6 +820,8 @@ VkResult GetPhysicalDeviceSurfacePresentModesKHR(VkPhysicalDevice pdev,
                                                  VkSurfaceKHR surface,
                                                  uint32_t* count,
                                                  VkPresentModeKHR* modes) {
+    ATRACE_CALL();
+
     int err;
     int query_value;
     ANativeWindow* window = SurfaceFromHandle(surface)->window.get();
@@ -854,6 +873,8 @@ VKAPI_ATTR
 VkResult GetDeviceGroupPresentCapabilitiesKHR(
     VkDevice,
     VkDeviceGroupPresentCapabilitiesKHR* pDeviceGroupPresentCapabilities) {
+    ATRACE_CALL();
+
     ALOGV_IF(pDeviceGroupPresentCapabilities->sType !=
                  VK_STRUCTURE_TYPE_DEVICE_GROUP_PRESENT_CAPABILITIES_KHR,
              "vkGetDeviceGroupPresentCapabilitiesKHR: invalid "
@@ -876,6 +897,8 @@ VkResult GetDeviceGroupSurfacePresentModesKHR(
     VkDevice,
     VkSurfaceKHR,
     VkDeviceGroupPresentModeFlagsKHR* pModes) {
+    ATRACE_CALL();
+
     *pModes = VK_DEVICE_GROUP_PRESENT_MODE_LOCAL_BIT_KHR;
     return VK_SUCCESS;
 }
@@ -885,6 +908,8 @@ VkResult GetPhysicalDevicePresentRectanglesKHR(VkPhysicalDevice,
                                                VkSurfaceKHR surface,
                                                uint32_t* pRectCount,
                                                VkRect2D* pRects) {
+    ATRACE_CALL();
+
     if (!pRects) {
         *pRectCount = 1;
     } else {
@@ -926,6 +951,8 @@ VkResult CreateSwapchainKHR(VkDevice device,
                             const VkSwapchainCreateInfoKHR* create_info,
                             const VkAllocationCallbacks* allocator,
                             VkSwapchainKHR* swapchain_handle) {
+    ATRACE_CALL();
+
     int err;
     VkResult result = VK_SUCCESS;
 
@@ -1150,9 +1177,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
     int32_t legacy_usage = 0;
     if (dispatch.GetSwapchainGrallocUsage2ANDROID) {
         uint64_t consumer_usage, producer_usage;
+        ATRACE_BEGIN("dispatch.GetSwapchainGrallocUsage2ANDROID");
         result = dispatch.GetSwapchainGrallocUsage2ANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             swapchain_image_usage, &consumer_usage, &producer_usage);
+        ATRACE_END();
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsage2ANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
@@ -1160,9 +1189,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
         legacy_usage =
             android_convertGralloc1To0Usage(producer_usage, consumer_usage);
     } else if (dispatch.GetSwapchainGrallocUsageANDROID) {
+        ATRACE_BEGIN("dispatch.GetSwapchainGrallocUsageANDROID");
         result = dispatch.GetSwapchainGrallocUsageANDROID(
             device, create_info->imageFormat, create_info->imageUsage,
             &legacy_usage);
+        ATRACE_END();
         if (result != VK_SUCCESS) {
             ALOGE("vkGetSwapchainGrallocUsageANDROID failed: %d", result);
             return VK_ERROR_SURFACE_LOST_KHR;
@@ -1257,8 +1288,10 @@ VkResult CreateSwapchainKHR(VkDevice device,
             &image_native_buffer.usage2.producer,
             &image_native_buffer.usage2.consumer);
 
+        ATRACE_BEGIN("dispatch.CreateImage");
         result =
             dispatch.CreateImage(device, &image_create, nullptr, &img.image);
+        ATRACE_END();
         if (result != VK_SUCCESS) {
             ALOGD("vkCreateImage w/ native buffer failed: %u", result);
             break;
@@ -1282,8 +1315,11 @@ VkResult CreateSwapchainKHR(VkDevice device,
             }
         }
         if (result != VK_SUCCESS) {
-            if (img.image)
+            if (img.image) {
+                ATRACE_BEGIN("dispatch.DestroyImage");
                 dispatch.DestroyImage(device, img.image, nullptr);
+                ATRACE_END();
+            }
         }
     }
 
@@ -1302,6 +1338,8 @@ VKAPI_ATTR
 void DestroySwapchainKHR(VkDevice device,
                          VkSwapchainKHR swapchain_handle,
                          const VkAllocationCallbacks* allocator) {
+    ATRACE_CALL();
+
     const auto& dispatch = GetData(device).driver;
     Swapchain* swapchain = SwapchainFromHandle(swapchain_handle);
     if (!swapchain)
@@ -1327,6 +1365,8 @@ VkResult GetSwapchainImagesKHR(VkDevice,
                                VkSwapchainKHR swapchain_handle,
                                uint32_t* count,
                                VkImage* images) {
+    ATRACE_CALL();
+
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     ALOGW_IF(swapchain.surface.swapchain_handle != swapchain_handle,
              "getting images for non-active swapchain 0x%" PRIx64
@@ -1355,6 +1395,8 @@ VkResult AcquireNextImageKHR(VkDevice device,
                              VkSemaphore semaphore,
                              VkFence vk_fence,
                              uint32_t* image_index) {
+    ATRACE_CALL();
+
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     ANativeWindow* window = swapchain.surface.window.get();
     VkResult result;
@@ -1435,6 +1477,8 @@ VKAPI_ATTR
 VkResult AcquireNextImage2KHR(VkDevice device,
                               const VkAcquireNextImageInfoKHR* pAcquireInfo,
                               uint32_t* pImageIndex) {
+    ATRACE_CALL();
+
     // TODO: this should actually be the other way around and this function
     // should handle any additional structures that get passed in
     return AcquireNextImageKHR(device, pAcquireInfo->swapchain,
@@ -1464,6 +1508,8 @@ static VkResult WorstPresentResult(VkResult a, VkResult b) {
 
 VKAPI_ATTR
 VkResult QueuePresentKHR(VkQueue queue, const VkPresentInfoKHR* present_info) {
+    ATRACE_CALL();
+
     ALOGV_IF(present_info->sType != VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
              "vkQueuePresentKHR: invalid VkPresentInfoKHR structure type %d",
              present_info->sType);
@@ -1675,6 +1721,8 @@ VkResult GetRefreshCycleDurationGOOGLE(
     VkDevice,
     VkSwapchainKHR swapchain_handle,
     VkRefreshCycleDurationGOOGLE* pDisplayTimingProperties) {
+    ATRACE_CALL();
+
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     VkResult result = VK_SUCCESS;
 
@@ -1690,6 +1738,8 @@ VkResult GetPastPresentationTimingGOOGLE(
     VkSwapchainKHR swapchain_handle,
     uint32_t* count,
     VkPastPresentationTimingGOOGLE* timings) {
+    ATRACE_CALL();
+
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     ANativeWindow* window = swapchain.surface.window.get();
     VkResult result = VK_SUCCESS;
@@ -1714,6 +1764,8 @@ VKAPI_ATTR
 VkResult GetSwapchainStatusKHR(
     VkDevice,
     VkSwapchainKHR swapchain_handle) {
+    ATRACE_CALL();
+
     Swapchain& swapchain = *SwapchainFromHandle(swapchain_handle);
     VkResult result = VK_SUCCESS;
 
@@ -1731,6 +1783,7 @@ VKAPI_ATTR void SetHdrMetadataEXT(
     uint32_t swapchainCount,
     const VkSwapchainKHR* pSwapchains,
     const VkHdrMetadataEXT* pHdrMetadataEXTs) {
+    ATRACE_CALL();
 
     for (uint32_t idx = 0; idx < swapchainCount; idx++) {
         Swapchain* swapchain = SwapchainFromHandle(pSwapchains[idx]);
