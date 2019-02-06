@@ -67,7 +67,6 @@
 #include "ColorLayer.h"
 #include "Colorizer.h"
 #include "ContainerLayer.h"
-#include "DdmConnection.h"
 #include "DispSync.h"
 #include "DisplayDevice.h"
 #include "EventControlThread.h"
@@ -225,7 +224,6 @@ SurfaceFlinger::SurfaceFlinger(SurfaceFlinger::SkipInitializationTag)
         mAnimCompositionPending(false),
         mBootStage(BootStage::BOOTLOADER),
         mDebugRegion(0),
-        mDebugDDMS(0),
         mDebugDisableHWC(0),
         mDebugDisableTransformHint(0),
         mDebugInSwapBuffers(0),
@@ -305,16 +303,12 @@ SurfaceFlinger::SurfaceFlinger() : SurfaceFlinger(SkipInitialization) {
     property_get("debug.sf.showupdates", value, "0");
     mDebugRegion = atoi(value);
 
-    property_get("debug.sf.ddms", value, "0");
-    mDebugDDMS = atoi(value);
-    if (mDebugDDMS) {
-        if (!startDdmConnection()) {
-            // start failed, and DDMS debugging not enabled
-            mDebugDDMS = 0;
-        }
-    }
     ALOGI_IF(mDebugRegion, "showupdates enabled");
-    ALOGI_IF(mDebugDDMS, "DDMS debugging enabled");
+
+    // DDMS debugging deprecated (b/120782499)
+    property_get("debug.sf.ddms", value, "0");
+    int debugDdms = atoi(value);
+    ALOGI_IF(debugDdms, "DDMS debugging not supported");
 
     property_get("debug.sf.disable_backpressure", value, "0");
     mPropagateBackpressure = !atoi(value);
@@ -4493,24 +4487,6 @@ SurfaceFlinger::getLayerSortedByZForHwcDisplay(int id) {
         dpy = getBuiltInDisplay(DisplayDevice::DISPLAY_PRIMARY);
     }
     return getDisplayDeviceLocked(dpy)->getVisibleLayersSortedByZ();
-}
-
-bool SurfaceFlinger::startDdmConnection()
-{
-    void* libddmconnection_dso =
-            dlopen("libsurfaceflinger_ddmconnection.so", RTLD_NOW);
-    if (!libddmconnection_dso) {
-        return false;
-    }
-    void (*DdmConnection_start)(const char* name);
-    DdmConnection_start =
-            (decltype(DdmConnection_start))dlsym(libddmconnection_dso, "DdmConnection_start");
-    if (!DdmConnection_start) {
-        dlclose(libddmconnection_dso);
-        return false;
-    }
-    (*DdmConnection_start)(getServiceName());
-    return true;
 }
 
 void SurfaceFlinger::updateColorMatrixLocked() {

@@ -199,24 +199,6 @@ cc_binary {
     },
 }
 
-cc_library_shared {
-    name: "libsurfaceflinger_ddmconnection",
-    defaults: ["surfaceflinger_defaults"],
-    srcs: ["DdmConnection.cpp"],
-    shared_libs: [
-        "libcutils",
-        "libdl",
-        "liblog",
-        "libprocessgroup",
-    ],
-    product_variables: {
-        // uses jni which may not be available in PDK
-        pdk: {
-            enabled: false,
-        },
-    },
-}
-
 subdirs = [
     "layerproto",
     "TimeStats/timestatsproto",
