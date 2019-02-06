@@ -1638,6 +1638,10 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
 
             bool refreshNeeded = handleMessageTransaction();
             refreshNeeded |= handleMessageInvalidate();
+
+            updateCursorAsync();
+            updateInputFlinger();
+
             refreshNeeded |= mRepaintEverything;
             if (refreshNeeded && CC_LIKELY(mBootStage != BootStage::BOOTLOADER)) {
                 // Signal a refresh if a transaction modified the window state,
@@ -1732,7 +1736,15 @@ void SurfaceFlinger::handleMessageRefresh() {
 
 bool SurfaceFlinger::handleMessageInvalidate() {
     ATRACE_CALL();
-    return handlePageFlip();
+    bool refreshNeeded = handlePageFlip();
+
+    for (auto& layer : mLayersPendingRefresh) {
+        Region visibleReg;
+        visibleReg.set(layer->computeScreenBounds());
+        invalidateLayerStack(layer, visibleReg);
+    }
+    mLayersPendingRefresh.clear();
+    return refreshNeeded;
 }
 
 void SurfaceFlinger::calculateWorkingSet() {
@@ -2844,7 +2856,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
      * (perform the transaction for each of them if needed)
      */
 
-    bool inputChanged = false;
     if (transactionFlags & eTraversalNeeded) {
         mCurrentState.traverseInZOrder([&](Layer* layer) {
             uint32_t trFlags = layer->getTransactionFlags(eTransactionNeeded);
@@ -2855,7 +2866,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 mVisibleRegionsDirty = true;
 
             if (flags & Layer::eInputInfoChanged) {
-                inputChanged = true;
+                mInputInfoChanged = true;
             }
         });
     }
@@ -2967,22 +2978,23 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
     }
 
     commitTransaction();
-
-    if (inputChanged || mVisibleRegionsDirty) {
-        updateInputWindows();
-    }
-    executeInputWindowCommands();
-
-    updateCursorAsync();
 }
 
-void SurfaceFlinger::updateInputWindows() {
+void SurfaceFlinger::updateInputFlinger() {
     ATRACE_CALL();
-
-    if (mInputFlinger == nullptr) {
+    if (!mInputFlinger) {
         return;
     }
 
+    if (mVisibleRegionsDirty || mInputInfoChanged) {
+        mInputInfoChanged = false;
+        updateInputWindowInfo();
+    }
+
+    executeInputWindowCommands();
+}
+
+void SurfaceFlinger::updateInputWindowInfo() {
     Vector<InputWindowInfo> inputHandles;
 
     mDrawingState.traverseInReverseZOrder([&](Layer* layer) {
@@ -2996,10 +3008,6 @@ void SurfaceFlinger::updateInputWindows() {
 }
 
 void SurfaceFlinger::executeInputWindowCommands() {
-    if (!mInputFlinger) {
-        return;
-    }
-
     for (const auto& transferTouchFocusCommand : mInputWindowCommands.transferTouchFocusCommands) {
         if (transferTouchFocusCommand.fromToken != nullptr &&
             transferTouchFocusCommand.toToken != nullptr &&
@@ -3276,9 +3284,10 @@ bool SurfaceFlinger::handlePageFlip()
         Mutex::Autolock lock(mStateLock);
 
         for (auto& layer : mLayersWithQueuedFrames) {
-            const Region dirty(layer->latchBuffer(visibleRegions, latchTime, getBE().flushFence));
+            if (layer->latchBuffer(visibleRegions, latchTime, getBE().flushFence)) {
+                mLayersPendingRefresh.push_back(layer);
+            }
             layer->useSurfaceDamage();
-            invalidateLayerStack(layer, dirty);
             if (layer->isBufferLatched()) {
                 newDataLatched = true;
             }
@@ -3291,11 +3300,6 @@ bool SurfaceFlinger::handlePageFlip()
     getBE().flushFence = Fence::NO_FENCE;
 
     mVisibleRegionsDirty |= visibleRegions;
-
-    if (visibleRegions) {
-        // Update input window info if the layer receives its first buffer.
-        updateInputWindows();
-    }
 
     // If we will need to wake up at some time in the future to deal with a
     // queued frame that shouldn't be displayed during this vsync period, wake

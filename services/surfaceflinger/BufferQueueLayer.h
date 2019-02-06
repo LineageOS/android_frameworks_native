@@ -81,7 +81,7 @@ private:
     bool getAutoRefresh() const override;
     bool getSidebandStreamChanged() const override;
 
-    std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) override;
+    bool latchSidebandStream(bool& recomputeVisibleRegions) override;
 
     bool hasFrameUpdate() const override;
 

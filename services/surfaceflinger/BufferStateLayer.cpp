@@ -420,7 +420,7 @@ bool BufferStateLayer::getSidebandStreamChanged() const {
     return mSidebandStreamChanged.load();
 }
 
-std::optional<Region> BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
+bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
@@ -432,9 +432,9 @@ std::optional<Region> BufferStateLayer::latchSidebandStream(bool& recomputeVisib
         }
         recomputeVisibleRegions = true;
 
-        return getTransform().transform(Region(Rect(s.active.w, s.active.h)));
+        return true;
     }
-    return {};
+    return false;
 }
 
 bool BufferStateLayer::hasFrameUpdate() const {
