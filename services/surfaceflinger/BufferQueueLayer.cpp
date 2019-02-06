@@ -190,7 +190,7 @@ bool BufferQueueLayer::getSidebandStreamChanged() const {
     return mSidebandStreamChanged;
 }
 
-std::optional<Region> BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
+bool BufferQueueLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     bool sidebandStreamChanged = true;
     if (mSidebandStreamChanged.compare_exchange_strong(sidebandStreamChanged, false)) {
         // mSidebandStreamChanged was changed to false
@@ -202,10 +202,9 @@ std::optional<Region> BufferQueueLayer::latchSidebandStream(bool& recomputeVisib
         }
         recomputeVisibleRegions = true;
 
-        const State& s(getDrawingState());
-        return getTransform().transform(Region(Rect(s.active_legacy.w, s.active_legacy.h)));
+        return true;
     }
-    return {};
+    return false;
 }
 
 bool BufferQueueLayer::hasFrameUpdate() const {

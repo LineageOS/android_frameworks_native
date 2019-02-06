@@ -365,20 +365,18 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     return true;
 }
 
-Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                                const sp<Fence>& releaseFence) {
+bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                              const sp<Fence>& releaseFence) {
     ATRACE_CALL();
 
-    std::optional<Region> sidebandStreamDirtyRegion = latchSidebandStream(recomputeVisibleRegions);
+    bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
 
-    if (sidebandStreamDirtyRegion) {
-        return *sidebandStreamDirtyRegion;
+    if (refreshRequired) {
+        return refreshRequired;
     }
 
-    Region dirtyRegion;
-
     if (!hasReadyFrame()) {
-        return dirtyRegion;
+        return false;
     }
 
     // if we've already called updateTexImage() without going through
@@ -387,14 +385,14 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     // compositionComplete() call.
     // we'll trigger an update in onPreComposition().
     if (mRefreshPending) {
-        return dirtyRegion;
+        return false;
     }
 
     // If the head buffer's acquire fence hasn't signaled yet, return and
     // try again later
     if (!fenceHasSignaled()) {
         mFlinger->signalLayerUpdate();
-        return dirtyRegion;
+        return false;
     }
 
     // Capture the old state of the layer for comparisons later
@@ -404,24 +402,24 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
 
     if (!allTransactionsSignaled()) {
         mFlinger->signalLayerUpdate();
-        return dirtyRegion;
+        return false;
     }
 
     status_t err = updateTexImage(recomputeVisibleRegions, latchTime, releaseFence);
     if (err != NO_ERROR) {
-        return dirtyRegion;
+        return false;
     }
 
     err = updateActiveBuffer();
     if (err != NO_ERROR) {
-        return dirtyRegion;
+        return false;
     }
 
     mBufferLatched = true;
 
     err = updateFrameNumber(latchTime);
     if (err != NO_ERROR) {
-        return dirtyRegion;
+        return false;
     }
 
     mRefreshPending = true;
@@ -461,11 +459,14 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
     Rect crop(getDrawingCrop());
     const uint32_t transform(getDrawingTransform());
     const uint32_t scalingMode(getDrawingScalingMode());
+    const bool transformToDisplayInverse(getTransformToDisplayInverse());
     if ((crop != mCurrentCrop) || (transform != mCurrentTransform) ||
-        (scalingMode != mCurrentScalingMode)) {
+        (scalingMode != mCurrentScalingMode) ||
+        (transformToDisplayInverse != mTransformToDisplayInverse)) {
         mCurrentCrop = crop;
         mCurrentTransform = transform;
         mCurrentScalingMode = scalingMode;
+        mTransformToDisplayInverse = transformToDisplayInverse;
         recomputeVisibleRegions = true;
     }
 
@@ -502,9 +503,7 @@ Region BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime
         }
     }
 
-    // FIXME: postedRegion should be dirty & bounds
-    // transform the dirty region to window-manager space
-    return getTransform().transform(Region(getBufferSize(s)));
+    return true;
 }
 
 // transaction

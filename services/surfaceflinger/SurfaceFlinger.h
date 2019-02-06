@@ -520,7 +520,8 @@ private:
     void handleTransaction(uint32_t transactionFlags);
     void handleTransactionLocked(uint32_t transactionFlags);
 
-    void updateInputWindows();
+    void updateInputFlinger();
+    void updateInputWindowInfo();
     void executeInputWindowCommands();
     void updateCursorAsync();
 
@@ -947,9 +948,13 @@ private:
     // don't need synchronization
     State mDrawingState{LayerVector::StateSet::Drawing};
     bool mVisibleRegionsDirty;
+    // Set during transaction commit stage to track if the input info for a layer has changed.
+    bool mInputInfoChanged{false};
     bool mGeometryInvalid;
     bool mAnimCompositionPending;
     std::vector<sp<Layer>> mLayersWithQueuedFrames;
+    // Tracks layers that need to update a display's dirty region.
+    std::vector<sp<Layer>> mLayersPendingRefresh;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
     bool mHadClientComposition = false;
 
