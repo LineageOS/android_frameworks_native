@@ -387,6 +387,11 @@ public:
     bool isHiddenByPolicy() const;
 
     /*
+     * Returns whether this layer can receive input.
+     */
+    virtual bool canReceiveInput() const;
+
+    /*
      * isProtected - true if the layer may contain protected content in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
