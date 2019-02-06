@@ -29,7 +29,6 @@
 #include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
-#include <gui/ISurfaceComposer.h>
 #include <ui/DisplayStatInfo.h>
 #include <utils/Timers.h>
 #include <utils/Trace.h>
@@ -131,9 +130,9 @@ sp<EventThreadConnection> Scheduler::getEventConnection(const sp<ConnectionHandl
 }
 
 void Scheduler::hotplugReceived(const sp<Scheduler::ConnectionHandle>& handle,
-                                EventThread::DisplayType displayType, bool connected) {
+                                PhysicalDisplayId displayId, bool connected) {
     RETURN_IF_INVALID();
-    mConnections[handle->id]->thread->onHotplugReceived(displayType, connected);
+    mConnections[handle->id]->thread->onHotplugReceived(displayId, connected);
 }
 
 void Scheduler::onScreenAcquired(const sp<Scheduler::ConnectionHandle>& handle) {

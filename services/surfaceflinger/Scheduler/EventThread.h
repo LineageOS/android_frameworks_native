@@ -94,9 +94,6 @@ private:
 
 class EventThread {
 public:
-    // TODO: Remove once stable display IDs are plumbed through SF/WM interface.
-    enum class DisplayType { Primary, External };
-
     virtual ~EventThread();
 
     virtual sp<EventThreadConnection> createEventConnection(
@@ -108,8 +105,7 @@ public:
     // called after the screen is turned on from main thread
     virtual void onScreenAcquired() = 0;
 
-    // called when receiving a hotplug event
-    virtual void onHotplugReceived(DisplayType displayType, bool connected) = 0;
+    virtual void onHotplugReceived(PhysicalDisplayId displayId, bool connected) = 0;
 
     virtual void dump(std::string& result) const = 0;
 
@@ -151,8 +147,7 @@ public:
     // called after the screen is turned on from main thread
     void onScreenAcquired() override;
 
-    // called when receiving a hotplug event
-    void onHotplugReceived(DisplayType displayType, bool connected) override;
+    void onHotplugReceived(PhysicalDisplayId displayId, bool connected) override;
 
     void dump(std::string& result) const override;
 
@@ -199,9 +194,9 @@ private:
 
     // VSYNC state of connected display.
     struct VSyncState {
-        explicit VSyncState(uint32_t displayId) : displayId(displayId) {}
+        explicit VSyncState(PhysicalDisplayId displayId) : displayId(displayId) {}
 
-        const uint32_t displayId;
+        const PhysicalDisplayId displayId;
 
         // Number of VSYNC events since display was connected.
         uint32_t count = 0;

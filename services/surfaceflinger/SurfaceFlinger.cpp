@@ -492,21 +492,30 @@ void SurfaceFlinger::destroyDisplay(const sp<IBinder>& displayToken) {
     setTransactionFlags(eDisplayTransactionNeeded);
 }
 
-sp<IBinder> SurfaceFlinger::getBuiltInDisplay(int32_t id) {
-    std::optional<DisplayId> displayId;
+std::vector<PhysicalDisplayId> SurfaceFlinger::getPhysicalDisplayIds() const {
+    Mutex::Autolock lock(mStateLock);
 
-    if (id == HWC_DISPLAY_PRIMARY) {
-        displayId = getInternalDisplayId();
-    } else if (id == HWC_DISPLAY_EXTERNAL) {
-        displayId = getExternalDisplayId();
+    const auto internalDisplayId = getInternalDisplayIdLocked();
+    if (!internalDisplayId) {
+        return {};
     }
 
-    if (!displayId) {
-        ALOGE("%s: Invalid display %d", __FUNCTION__, id);
-        return nullptr;
+    std::vector<PhysicalDisplayId> displayIds;
+    displayIds.reserve(mPhysicalDisplayTokens.size());
+    displayIds.push_back(internalDisplayId->value);
+
+    for (const auto& [id, token] : mPhysicalDisplayTokens) {
+        if (id != *internalDisplayId) {
+            displayIds.push_back(id.value);
+        }
     }
 
-    return getPhysicalDisplayToken(*displayId);
+    return displayIds;
+}
+
+sp<IBinder> SurfaceFlinger::getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
+    Mutex::Autolock lock(mStateLock);
+    return getPhysicalDisplayTokenLocked(DisplayId{displayId});
 }
 
 status_t SurfaceFlinger::getColorManagement(bool* outGetColorManagement) const {
@@ -610,9 +619,9 @@ void SurfaceFlinger::init() {
 
     // start the EventThread
     if (mUseScheduler) {
-        mScheduler = getFactory().createScheduler([this](bool enabled) {
-            setVsyncEnabled(EventThread::DisplayType::Primary, enabled);
-        });
+        mScheduler = getFactory().createScheduler(
+                [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+
         // TODO(b/113612090): Currently we assume that if scheduler is turned on, then the refresh
         // rate is 90. Once b/122905403 is completed, this should be updated accordingly.
         mPhaseOffsets->setRefreshRateType(
@@ -701,7 +710,7 @@ void SurfaceFlinger::init() {
     }
 
     mEventControlThread = getFactory().createEventControlThread(
-            [this](bool enabled) { setVsyncEnabled(EventThread::DisplayType::Primary, enabled); });
+            [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -818,7 +827,9 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         return BAD_VALUE;
     }
 
-    const auto displayId = getPhysicalDisplayId(displayToken);
+    ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
     if (!displayId) {
         return NAME_NOT_FOUND;
     }
@@ -842,8 +853,6 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
 
     configs->clear();
 
-    ConditionalLock _l(mStateLock,
-            std::this_thread::get_id() != mMainThreadId);
     for (const auto& hwConfig : getHwComposer().getConfigs(*displayId)) {
         DisplayInfo info = DisplayInfo();
 
@@ -856,7 +865,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         info.viewportW = info.w;
         info.viewportH = info.h;
 
-        if (displayId == getInternalDisplayId()) {
+        if (displayId == getInternalDisplayIdLocked()) {
             // The density of the device is provided by a build property
             float density = Density::getBuildDensity() / 160.0f;
             if (density == 0) {
@@ -912,7 +921,7 @@ status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
         // All non-virtual displays are currently considered secure.
         info.secure = true;
 
-        if (displayId == getInternalDisplayId() &&
+        if (displayId == getInternalDisplayIdLocked() &&
             primaryDisplayOrientation & DisplayState::eOrientationSwapMask) {
             std::swap(info.w, info.h);
         }
@@ -1010,15 +1019,15 @@ status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
         return BAD_VALUE;
     }
 
-    const auto displayId = getPhysicalDisplayId(displayToken);
-    if (!displayId) {
-        return NAME_NOT_FOUND;
-    }
-
     std::vector<ColorMode> modes;
     {
-        ConditionalLock _l(mStateLock,
-                std::this_thread::get_id() != mMainThreadId);
+        ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+
+        const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+        if (!displayId) {
+            return NAME_NOT_FOUND;
+        }
+
         modes = getHwComposer().getColorModes(*displayId);
     }
     outColorModes->clear();
@@ -1314,7 +1323,7 @@ void SurfaceFlinger::run() {
 }
 
 nsecs_t SurfaceFlinger::getVsyncPeriod() const {
-    const auto displayId = getInternalDisplayId();
+    const auto displayId = getInternalDisplayIdLocked();
     if (!displayId || !getHwComposer().isConnected(*displayId)) {
         return 0;
     }
@@ -1431,9 +1440,10 @@ void SurfaceFlinger::getCompositorTiming(CompositorTiming* compositorTiming) {
     *compositorTiming = getBE().mCompositorTiming;
 }
 
-void SurfaceFlinger::setRefreshRateTo(float newFps) {
-    const auto displayId = getInternalDisplayId();
-    if (!displayId || mBootStage != BootStage::FINISHED) {
+// TODO(b/123715322): Fix thread safety.
+void SurfaceFlinger::setRefreshRateTo(float newFps) NO_THREAD_SAFETY_ANALYSIS {
+    const auto display = getDefaultDisplayDeviceLocked();
+    if (!display || mBootStage != BootStage::FINISHED) {
         return;
     }
     // TODO(b/113612090): There should be a message queue flush here. Because this esentially
@@ -1442,8 +1452,7 @@ void SurfaceFlinger::setRefreshRateTo(float newFps) {
     // refresh cycle.
 
     // Don't do any updating if the current fps is the same as the new one.
-    const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
-    const nsecs_t currentVsyncPeriod = activeConfig->getVsyncPeriod();
+    const nsecs_t currentVsyncPeriod = getVsyncPeriod();
     if (currentVsyncPeriod == 0) {
         return;
     }
@@ -1454,7 +1463,7 @@ void SurfaceFlinger::setRefreshRateTo(float newFps) {
         return;
     }
 
-    auto configs = getHwComposer().getConfigs(*displayId);
+    auto configs = getHwComposer().getConfigs(*display->getId());
     for (int i = 0; i < configs.size(); i++) {
         const nsecs_t vsyncPeriod = configs.at(i)->getVsyncPeriod();
         if (vsyncPeriod == 0) {
@@ -1464,11 +1473,12 @@ void SurfaceFlinger::setRefreshRateTo(float newFps) {
         // TODO(b/113612090): There should be a better way at determining which config
         // has the right refresh rate.
         if (std::abs(fps - newFps) <= 1) {
-            const auto display = getBuiltInDisplay(HWC_DISPLAY_PRIMARY);
-            if (!display) return;
+            const sp<IBinder> token = display->getDisplayToken().promote();
+            LOG_ALWAYS_FATAL_IF(token == nullptr);
+
             // This is posted in async function to avoid deadlock when getDisplayDevice
             // requires mStateLock.
-            setActiveConfigAsync(display, i);
+            setActiveConfigAsync(token, i);
             ATRACE_INT("FPS", newFps);
         }
     }
@@ -1508,10 +1518,10 @@ void SurfaceFlinger::onRefreshReceived(int sequenceId, hwc2_display_t /*hwcDispl
     repaintEverythingForHWC();
 }
 
-void SurfaceFlinger::setVsyncEnabled(EventThread::DisplayType /*displayType*/, bool enabled) {
+void SurfaceFlinger::setPrimaryVsyncEnabled(bool enabled) {
     ATRACE_CALL();
     Mutex::Autolock lock(mStateLock);
-    if (const auto displayId = getInternalDisplayId()) {
+    if (const auto displayId = getInternalDisplayIdLocked()) {
         getHwComposer().setVsyncEnabled(*displayId,
                                         enabled ? HWC2::Vsync::Enable : HWC2::Vsync::Disable);
     }
@@ -2598,14 +2608,13 @@ void SurfaceFlinger::processDisplayHotplugEventsLocked() {
     mPendingHotplugEvents.clear();
 }
 
-void SurfaceFlinger::dispatchDisplayHotplugEvent(EventThread::DisplayType displayType,
-                                                 bool connected) {
+void SurfaceFlinger::dispatchDisplayHotplugEvent(PhysicalDisplayId displayId, bool connected) {
     if (mUseScheduler) {
-        mScheduler->hotplugReceived(mAppConnectionHandle, displayType, connected);
-        mScheduler->hotplugReceived(mSfConnectionHandle, displayType, connected);
+        mScheduler->hotplugReceived(mAppConnectionHandle, displayId, connected);
+        mScheduler->hotplugReceived(mSfConnectionHandle, displayId, connected);
     } else {
-        mEventThread->onHotplugReceived(displayType, connected);
-        mSFEventThread->onHotplugReceived(displayType, connected);
+        mEventThread->onHotplugReceived(displayId, connected);
+        mSFEventThread->onHotplugReceived(displayId, connected);
     }
 }
 
@@ -2621,7 +2630,7 @@ sp<DisplayDevice> SurfaceFlinger::setupNewDisplayDeviceInternal(
     creationArgs.hasWideColorGamut = false;
     creationArgs.supportedPerFrameMetadata = 0;
 
-    const bool isInternalDisplay = displayId && displayId == getInternalDisplayId();
+    const bool isInternalDisplay = displayId && displayId == getInternalDisplayIdLocked();
     creationArgs.isPrimary = isInternalDisplay;
 
     if (useColorManagement && displayId) {
@@ -2704,19 +2713,18 @@ void SurfaceFlinger::processDisplayChangesLocked() {
         for (size_t i = 0; i < dc;) {
             const ssize_t j = curr.indexOfKey(draw.keyAt(i));
             if (j < 0) {
-                // Save display IDs before disconnecting.
-                const auto internalDisplayId = getInternalDisplayId();
-                const auto externalDisplayId = getExternalDisplayId();
-
                 // in drawing state but not in current state
                 if (const auto display = getDisplayDeviceLocked(draw.keyAt(i))) {
+                    // Save display ID before disconnecting.
+                    const auto displayId = display->getId();
                     display->disconnect();
+
+                    if (!display->isVirtual()) {
+                        LOG_ALWAYS_FATAL_IF(!displayId);
+                        dispatchDisplayHotplugEvent(displayId->value, false);
+                    }
                 }
-                if (internalDisplayId && internalDisplayId == draw[i].displayId) {
-                    dispatchDisplayHotplugEvent(EventThread::DisplayType::Primary, false);
-                } else if (externalDisplayId && externalDisplayId == draw[i].displayId) {
-                    dispatchDisplayHotplugEvent(EventThread::DisplayType::External, false);
-                }
+
                 mDisplays.erase(draw.keyAt(i));
             } else {
                 // this display is in both lists. see if something changed.
@@ -2819,12 +2827,7 @@ void SurfaceFlinger::processDisplayChangesLocked() {
                                                                     dispSurface, producer));
                     if (!state.isVirtual()) {
                         LOG_ALWAYS_FATAL_IF(!displayId);
-
-                        if (displayId == getInternalDisplayId()) {
-                            dispatchDisplayHotplugEvent(EventThread::DisplayType::Primary, true);
-                        } else if (displayId == getExternalDisplayId()) {
-                            dispatchDisplayHotplugEvent(EventThread::DisplayType::External, true);
-                        }
+                        dispatchDisplayHotplugEvent(displayId->value, true);
                     }
                 }
             }
@@ -4849,7 +4852,7 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
                   "  gpu_to_cpu_unsupported    : %d\n",
                   mTransactionFlags.load(), !mGpuToCpuSupported);
 
-    if (const auto displayId = getInternalDisplayId();
+    if (const auto displayId = getInternalDisplayIdLocked();
         displayId && getHwComposer().isConnected(*displayId)) {
         const auto activeConfig = getHwComposer().getActiveConfig(*displayId);
         StringAppendF(&result,
@@ -5001,7 +5004,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         // information, so it is OK to pass them.
         case AUTHENTICATE_SURFACE:
         case GET_ACTIVE_CONFIG:
-        case GET_BUILT_IN_DISPLAY:
+        case GET_PHYSICAL_DISPLAY_IDS:
+        case GET_PHYSICAL_DISPLAY_TOKEN:
         case GET_DISPLAY_COLOR_MODES:
         case GET_DISPLAY_NATIVE_PRIMARIES:
         case GET_DISPLAY_CONFIGS:

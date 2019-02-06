@@ -240,10 +240,12 @@ void SurfaceInterceptorTest::capture(TestAction action, Trace* outTrace) {
 }
 
 void SurfaceInterceptorTest::setupBackgroundSurface() {
-    sp<IBinder> display(SurfaceComposerClient::getBuiltInDisplay(
-                ISurfaceComposer::eDisplayIdMain));
+    const auto display = SurfaceComposerClient::getInternalDisplayToken();
+    ASSERT_FALSE(display == nullptr);
+
     DisplayInfo info;
-    SurfaceComposerClient::getDisplayInfo(display, &info);
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
+
     ssize_t displayWidth = info.w;
     ssize_t displayHeight = info.h;
 

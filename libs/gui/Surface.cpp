@@ -321,8 +321,11 @@ status_t Surface::getFrameTimestamps(uint64_t frameNumber,
 status_t Surface::getWideColorSupport(bool* supported) {
     ATRACE_CALL();
 
-    sp<IBinder> display(
-        composerService()->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    const sp<IBinder> display = composerService()->getInternalDisplayToken();
+    if (display == nullptr) {
+        return NAME_NOT_FOUND;
+    }
+
     *supported = false;
     status_t error = composerService()->isWideColorDisplay(display, supported);
     return error;
@@ -331,8 +334,11 @@ status_t Surface::getWideColorSupport(bool* supported) {
 status_t Surface::getHdrSupport(bool* supported) {
     ATRACE_CALL();
 
-    sp<IBinder> display(
-        composerService()->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    const sp<IBinder> display = composerService()->getInternalDisplayToken();
+    if (display == nullptr) {
+        return NAME_NOT_FOUND;
+    }
+
     HdrCapabilities hdrCapabilities;
     status_t err =
         composerService()->getHdrCapabilities(display, &hdrCapabilities);
