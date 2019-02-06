@@ -90,13 +90,25 @@ void Output::setLayerStackFilter(uint32_t layerStackId, bool isInternal) {
 
 void Output::setColorTransform(const mat4& transform) {
     const bool isIdentity = (transform == mat4());
-
-    mState.colorTransform =
+    const auto newColorTransform =
             isIdentity ? HAL_COLOR_TRANSFORM_IDENTITY : HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX;
+
+    if (mState.colorTransform == newColorTransform) {
+        return;
+    }
+
+    mState.colorTransform = newColorTransform;
+
+    dirtyEntireOutput();
 }
 
 void Output::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
                           ui::RenderIntent renderIntent) {
+    if (mState.colorMode == mode && mState.dataspace == dataspace &&
+        mState.renderIntent == renderIntent) {
+        return;
+    }
+
     mState.colorMode = mode;
     mState.dataspace = dataspace;
     mState.renderIntent = renderIntent;
@@ -106,6 +118,8 @@ void Output::setColorMode(ui::ColorMode mode, ui::Dataspace dataspace,
     ALOGV("Set active color mode: %s (%d), active render intent: %s (%d)",
           decodeColorMode(mode).c_str(), mode, decodeRenderIntent(renderIntent).c_str(),
           renderIntent);
+
+    dirtyEntireOutput();
 }
 
 void Output::dump(std::string& out) const {
