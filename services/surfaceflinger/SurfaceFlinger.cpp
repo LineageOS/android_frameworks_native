@@ -3156,16 +3156,8 @@ void SurfaceFlinger::updateCursorAsync()
 
 void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
     if (layer->hasReadyFrame()) {
-        nsecs_t expectedPresentTime;
-        if (mUseScheduler) {
-            expectedPresentTime = mScheduler->expectedPresentTime();
-        } else {
-            expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
-        }
-        if (layer->shouldPresentNow(expectedPresentTime)) {
-            bool ignored = false;
-            layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
-        }
+        bool ignored = false;
+        layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
     }
     layer->releasePendingBuffer(systemTime());
 }
