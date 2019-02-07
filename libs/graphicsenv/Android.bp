@@ -17,14 +17,17 @@ cc_library_shared {
 
     srcs: [
         "GraphicsEnv.cpp",
+        "IGpuService.cpp"
     ],
 
     cflags: ["-Wall", "-Werror"],
 
     shared_libs: [
         "libbase",
+        "libbinder",
         "libcutils",
         "liblog",
+        "libutils",
     ],
 
     export_include_dirs: ["include"],

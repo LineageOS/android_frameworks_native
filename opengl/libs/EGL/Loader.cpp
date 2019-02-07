@@ -255,6 +255,8 @@ void* Loader::open(egl_connection_t* cnx)
     LOG_ALWAYS_FATAL_IF(!cnx->libGles2 || !cnx->libGles1,
             "couldn't load system OpenGL ES wrapper libraries");
 
+    android::GraphicsEnv::getInstance().sendGpuStats();
+
     return (void*)hnd;
 }
 
