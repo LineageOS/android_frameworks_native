@@ -119,7 +119,7 @@ EventThreadTest::~EventThreadTest() {
     ALOGD("**** Tearing down after %s.%s\n", test_info->test_case_name(), test_info->name());
 
     // EventThread should unregister itself as VSyncSource callback.
-    EXPECT_FALSE(expectVSyncSetCallbackCallReceived());
+    EXPECT_TRUE(!mVSyncSetCallbackCallRecorder.waitForUnexpectedCall().has_value());
 }
 
 void EventThreadTest::createThread() {
