@@ -238,6 +238,10 @@ void Scheduler::makeHWSyncAvailable(bool makeAvailable) {
     mHWVsyncAvailable = makeAvailable;
 }
 
+nsecs_t Scheduler::expectedPresentTime() {
+    return mPrimaryDispSync->expectedPresentTime();
+}
+
 void Scheduler::addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
                                             const std::string layerName) {
     // This is V1 logic. It calculates the average FPS based on the timestamp frequency

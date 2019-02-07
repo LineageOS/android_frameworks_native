@@ -351,10 +351,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     }
     ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
-    mPrimaryDispSync =
-            getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
-                                        SurfaceFlinger::dispSyncPresentTimeOffset);
-
     auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
     if (surfaceFlingerConfigsServiceV1_2) {
         surfaceFlingerConfigsServiceV1_2->getDisplayNativePrimaries(
@@ -399,6 +395,12 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
 
     property_get("debug.sf.use_scheduler", value, "0");
     mUseScheduler = atoi(value);
+
+    if (!mUseScheduler) {
+        mPrimaryDispSync =
+                getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
+                                            SurfaceFlinger::dispSyncPresentTimeOffset);
+    }
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
@@ -719,8 +721,10 @@ void SurfaceFlinger::init() {
         }
     }
 
-    mEventControlThread = getFactory().createEventControlThread(
-            [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+    if (!mUseScheduler) {
+        mEventControlThread = getFactory().createEventControlThread(
+                [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+    }
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -1399,6 +1403,7 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
 }
 
 void SurfaceFlinger::enableHardwareVsync() {
+    assert(!mUseScheduler);
     Mutex::Autolock _l(mHWVsyncLock);
     if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
         mPrimaryDispSync->beginResync();
@@ -1441,6 +1446,7 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
 }
 
 void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
+    assert(!mUseScheduler);
     Mutex::Autolock _l(mHWVsyncLock);
     if (mPrimaryHWVsyncEnabled) {
         mEventControlThread->setVsyncEnabled(false);
@@ -3109,7 +3115,12 @@ void SurfaceFlinger::updateCursorAsync()
 
 void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
     if (layer->hasReadyFrame()) {
-        const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+        nsecs_t expectedPresentTime;
+        if (mUseScheduler) {
+            expectedPresentTime = mScheduler->expectedPresentTime();
+        } else {
+            expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+        }
         if (layer->shouldPresentNow(expectedPresentTime)) {
             bool ignored = false;
             layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
@@ -3341,7 +3352,12 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+            nsecs_t expectedPresentTime;
+            if (mUseScheduler) {
+                expectedPresentTime = mScheduler->expectedPresentTime();
+            } else {
+                expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+            }
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -3682,7 +3698,12 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
-    const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+    nsecs_t expectedPresentTime;
+    if (mUseScheduler) {
+        expectedPresentTime = mScheduler->expectedPresentTime();
+    } else {
+        expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+    }
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&

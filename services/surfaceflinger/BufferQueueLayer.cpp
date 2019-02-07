@@ -232,7 +232,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
 
     const nsecs_t expectedPresentTime = mFlinger->mUseScheduler
-            ? mFlinger->mScheduler->mPrimaryDispSync->expectedPresentTime()
+            ? mFlinger->mScheduler->expectedPresentTime()
             : mFlinger->mPrimaryDispSync->expectedPresentTime();
 
     // updateTexImage() below might drop the some buffers at the head of the queue if there is a
