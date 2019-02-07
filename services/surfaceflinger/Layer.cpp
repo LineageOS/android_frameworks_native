@@ -1078,13 +1078,18 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
     if (mLayerDetached) {
-        return 0;
+        return flags;
+    }
+
+    if (mChildrenChanged) {
+        flags |= eVisibleRegion;
+        mChildrenChanged = false;
     }
 
     pushPendingState();
     State c = getCurrentState();
     if (!applyPendingStates(&c)) {
-        return 0;
+        return flags;
     }
 
     flags = doTransactionResize(flags, &c);
@@ -1104,11 +1109,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         // we may use linear filtering, if the matrix scales us
         const uint8_t type = getActiveTransform(c).getType();
         mNeedsFiltering = (!getActiveTransform(c).preserveRects() || type >= ui::Transform::SCALE);
-    }
-
-    if (mChildrenChanged) {
-        flags |= eVisibleRegion;
-        mChildrenChanged = false;
     }
 
     // If the layer is hidden, signal and clear out all local sync points so
@@ -1634,6 +1634,7 @@ size_t Layer::getChildrenCount() const {
 
 void Layer::addChild(const sp<Layer>& layer) {
     mChildrenChanged = true;
+    setTransactionFlags(eTransactionNeeded);
 
     mCurrentChildren.add(layer);
     layer->setParent(this);
@@ -1641,6 +1642,7 @@ void Layer::addChild(const sp<Layer>& layer) {
 
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
     mChildrenChanged = true;
+    setTransactionFlags(eTransactionNeeded);
 
     layer->setParent(nullptr);
     return mCurrentChildren.remove(layer);
