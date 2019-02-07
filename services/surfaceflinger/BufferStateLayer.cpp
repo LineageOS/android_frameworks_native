@@ -42,6 +42,7 @@ const std::array<float, 16> BufferStateLayer::IDENTITY_MATRIX{
 
 BufferStateLayer::BufferStateLayer(const LayerCreationArgs& args) : BufferLayer(args) {
     mOverrideScalingMode = NATIVE_WINDOW_SCALING_MODE_SCALE_TO_WINDOW;
+    mCurrentState.dataspace = ui::Dataspace::V0_SRGB;
 }
 BufferStateLayer::~BufferStateLayer() = default;
 
