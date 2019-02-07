@@ -82,7 +82,6 @@ SchedulerTest::SchedulerTest() {
             .WillRepeatedly(Return(mEventThreadConnection));
 
     mConnectionHandle = mScheduler->createConnection("appConnection", 16, ResyncCallback(),
-                                                     ResetIdleTimerCallback(),
                                                      impl::EventThread::InterceptVSyncsCallback());
     EXPECT_TRUE(mConnectionHandle != nullptr);
 }
@@ -103,8 +102,7 @@ TEST_F(SchedulerTest, testNullPtr) {
     // exceptions, just gracefully continues.
     sp<IDisplayEventConnection> returnedValue;
     ASSERT_NO_FATAL_FAILURE(
-            returnedValue = mScheduler->createDisplayEventConnection(nullptr, ResyncCallback(),
-                                                                     ResetIdleTimerCallback()));
+            returnedValue = mScheduler->createDisplayEventConnection(nullptr, ResyncCallback()));
     EXPECT_TRUE(returnedValue == nullptr);
     EXPECT_TRUE(mScheduler->getEventThread(nullptr) == nullptr);
     EXPECT_TRUE(mScheduler->getEventConnection(nullptr) == nullptr);
@@ -125,8 +123,7 @@ TEST_F(SchedulerTest, invalidConnectionHandle) {
     sp<IDisplayEventConnection> returnedValue;
     ASSERT_NO_FATAL_FAILURE(
             returnedValue =
-                    mScheduler->createDisplayEventConnection(connectionHandle, ResyncCallback(),
-                                                             ResetIdleTimerCallback()));
+                    mScheduler->createDisplayEventConnection(connectionHandle, ResyncCallback()));
     EXPECT_TRUE(returnedValue == nullptr);
     EXPECT_TRUE(mScheduler->getEventThread(connectionHandle) == nullptr);
     EXPECT_TRUE(mScheduler->getEventConnection(connectionHandle) == nullptr);
@@ -155,8 +152,7 @@ TEST_F(SchedulerTest, validConnectionHandle) {
     sp<IDisplayEventConnection> returnedValue;
     ASSERT_NO_FATAL_FAILURE(
             returnedValue =
-                    mScheduler->createDisplayEventConnection(mConnectionHandle, ResyncCallback(),
-                                                             ResetIdleTimerCallback()));
+                    mScheduler->createDisplayEventConnection(mConnectionHandle, ResyncCallback()));
     EXPECT_TRUE(returnedValue != nullptr);
     ASSERT_EQ(returnedValue, mEventThreadConnection);
 

@@ -37,6 +37,7 @@ class EventControlThread;
 class Scheduler {
 public:
     using ExpiredIdleTimerCallback = std::function<void()>;
+    using ResetIdleTimerCallback = std::function<void()>;
 
     // Enum to indicate whether to start the transaction early, or at vsync time.
     enum class TransactionStart { EARLY, NORMAL };
@@ -72,12 +73,11 @@ public:
 
     /** Creates an EventThread connection. */
     sp<ConnectionHandle> createConnection(const char* connectionName, int64_t phaseOffsetNs,
-                                          ResyncCallback, ResetIdleTimerCallback,
+                                          ResyncCallback,
                                           impl::EventThread::InterceptVSyncsCallback);
 
     sp<IDisplayEventConnection> createDisplayEventConnection(const sp<ConnectionHandle>& handle,
-                                                             ResyncCallback,
-                                                             ResetIdleTimerCallback);
+                                                             ResyncCallback);
 
     // Getter methods.
     EventThread* getEventThread(const sp<ConnectionHandle>& handle);
@@ -117,6 +117,8 @@ public:
     void incrementFrameCounter();
     // Callback that gets invoked once the idle timer expires.
     void setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expiredTimerCallback);
+    // Callback that gets invoked once the idle timer is reset.
+    void setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback);
     // Returns relevant information about Scheduler for dumpsys purposes.
     std::string doDump();
 
@@ -127,8 +129,7 @@ protected:
 
 private:
     // Creates a connection on the given EventThread and forwards the given callbacks.
-    sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&,
-                                                       ResetIdleTimerCallback&&);
+    sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&);
 
     nsecs_t calculateAverage() const;
     void updateFrameSkipping(const int64_t skipCount);
@@ -140,9 +141,10 @@ private:
     void determineTimestampAverage(bool isAutoTimestamp, const nsecs_t framePresentTime);
     // Function that resets the idle timer.
     void resetIdleTimer();
+    // Function that is called when the timer resets.
+    void resetTimerCallback();
     // Function that is called when the timer expires.
     void expiredTimerCallback();
-
 
     // If fences from sync Framework are supported.
     const bool mHasSyncFramework;
@@ -184,6 +186,7 @@ private:
 
     std::mutex mCallbackLock;
     ExpiredIdleTimerCallback mExpiredTimerCallback GUARDED_BY(mCallbackLock);
+    ExpiredIdleTimerCallback mResetTimerCallback GUARDED_BY(mCallbackLock);
 };
 
 } // namespace android
