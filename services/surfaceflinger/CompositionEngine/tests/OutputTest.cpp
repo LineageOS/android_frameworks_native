@@ -43,14 +43,20 @@ public:
         mOutput.setDisplayColorProfileForTest(
                 std::unique_ptr<DisplayColorProfile>(mDisplayColorProfile));
         mOutput.setRenderSurfaceForTest(std::unique_ptr<RenderSurface>(mRenderSurface));
+
+        mOutput.editState().bounds = kDefaultDisplaySize;
     }
     ~OutputTest() override = default;
+
+    static const Rect kDefaultDisplaySize;
 
     StrictMock<mock::CompositionEngine> mCompositionEngine;
     mock::DisplayColorProfile* mDisplayColorProfile = new StrictMock<mock::DisplayColorProfile>();
     mock::RenderSurface* mRenderSurface = new StrictMock<mock::RenderSurface>();
     impl::Output mOutput{mCompositionEngine};
 };
+
+const Rect OutputTest::kDefaultDisplaySize{100, 200};
 
 /* ------------------------------------------------------------------------
  * Basic construction
@@ -76,8 +82,6 @@ TEST_F(OutputTest, canInstantiateOutput) {
  */
 
 TEST_F(OutputTest, setCompositionEnabledDoesNothingIfAlreadyEnabled) {
-    const Rect displaySize{100, 200};
-    mOutput.editState().bounds = displaySize;
     mOutput.editState().isEnabled = true;
 
     mOutput.setCompositionEnabled(true);
@@ -87,25 +91,21 @@ TEST_F(OutputTest, setCompositionEnabledDoesNothingIfAlreadyEnabled) {
 }
 
 TEST_F(OutputTest, setCompositionEnabledSetsEnabledAndDirtiesEntireOutput) {
-    const Rect displaySize{100, 200};
-    mOutput.editState().bounds = displaySize;
     mOutput.editState().isEnabled = false;
 
     mOutput.setCompositionEnabled(true);
 
     EXPECT_TRUE(mOutput.getState().isEnabled);
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(displaySize)));
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 TEST_F(OutputTest, setCompositionEnabledSetsDisabledAndDirtiesEntireOutput) {
-    const Rect displaySize{100, 200};
-    mOutput.editState().bounds = displaySize;
     mOutput.editState().isEnabled = true;
 
     mOutput.setCompositionEnabled(false);
 
     EXPECT_FALSE(mOutput.getState().isEnabled);
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(displaySize)));
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /* ------------------------------------------------------------------------
@@ -135,7 +135,7 @@ TEST_F(OutputTest, setProjectionTriviallyWorks) {
  */
 
 TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
-    const ui::Size displaySize{100, 200};
+    const ui::Size displaySize{200, 400};
 
     EXPECT_CALL(*mRenderSurface, setDisplaySize(displaySize)).Times(1);
     EXPECT_CALL(*mRenderSurface, getSize()).WillOnce(ReturnRef(displaySize));
@@ -152,16 +152,13 @@ TEST_F(OutputTest, setBoundsSetsSizeAndDirtiesEntireOutput) {
  */
 
 TEST_F(OutputTest, setLayerStackFilterSetsFilterAndDirtiesEntireOutput) {
-    const Rect displaySize{100, 200};
-    mOutput.editState().bounds = displaySize;
-
     const uint32_t layerStack = 123u;
     mOutput.setLayerStackFilter(layerStack, true);
 
     EXPECT_TRUE(mOutput.getState().layerStackInternal);
     EXPECT_EQ(layerStack, mOutput.getState().layerStackId);
 
-    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(displaySize)));
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /* ------------------------------------------------------------------------
@@ -176,27 +173,45 @@ TEST_F(OutputTest, setColorTransformSetsTransform) {
 
     EXPECT_EQ(HAL_COLOR_TRANSFORM_IDENTITY, mOutput.getState().colorTransform);
 
+    // Since identity is the default, the dirty region should be unchanged (empty)
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
+
     // Non-identity matrix sets a non-identity state value
     const mat4 nonIdentity = mat4() * 2;
 
     mOutput.setColorTransform(nonIdentity);
 
     EXPECT_EQ(HAL_COLOR_TRANSFORM_ARBITRARY_MATRIX, mOutput.getState().colorTransform);
+
+    // Since this is a state change, the entire output should now be dirty.
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
 }
 
 /* ------------------------------------------------------------------------
  * Output::setColorMode
  */
 
-TEST_F(OutputTest, setColorModeSetsModeUnlessNoChange) {
-    EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::SRGB)).Times(1);
+TEST_F(OutputTest, setColorModeSetsStateAndDirtiesOutputIfChanged) {
+    EXPECT_CALL(*mRenderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
 
-    mOutput.setColorMode(ui::ColorMode::BT2100_PQ, ui::Dataspace::SRGB,
+    mOutput.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
                          ui::RenderIntent::TONE_MAP_COLORIMETRIC);
 
-    EXPECT_EQ(ui::ColorMode::BT2100_PQ, mOutput.getState().colorMode);
-    EXPECT_EQ(ui::Dataspace::SRGB, mOutput.getState().dataspace);
+    EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mOutput.getState().colorMode);
+    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mOutput.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mOutput.getState().renderIntent);
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region(kDefaultDisplaySize)));
+}
+
+TEST_F(OutputTest, setColorModeDoesNothingIfNoChange) {
+    mOutput.editState().colorMode = ui::ColorMode::DISPLAY_P3;
+    mOutput.editState().dataspace = ui::Dataspace::DISPLAY_P3;
+    mOutput.editState().renderIntent = ui::RenderIntent::TONE_MAP_COLORIMETRIC;
+
+    mOutput.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
+                         ui::RenderIntent::TONE_MAP_COLORIMETRIC);
+
+    EXPECT_THAT(mOutput.getState().dirtyRegion, RegionEq(Region()));
 }
 
 /* ------------------------------------------------------------------------
