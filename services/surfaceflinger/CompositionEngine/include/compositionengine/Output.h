@@ -97,10 +97,9 @@ public:
     // TODO(lpique): Make this protected once it is only internally called.
     virtual OutputCompositionState& editState() = 0;
 
-    // Gets the physical space dirty region. If repaintEverything is true, this
-    // will be the full display bounds. Internally the dirty region is stored in
-    // logical (aka layer stack) space.
-    virtual Region getPhysicalSpaceDirtyRegion(bool repaintEverything) const = 0;
+    // Gets the dirty region in layer stack space.
+    // If repaintEverything is true, this will be the full display bounds.
+    virtual Region getDirtyRegion(bool repaintEverything) const = 0;
 
     // Tests whether a given layerStackId belongs in this output.
     // A layer belongs to the output if its layerStackId matches the of the output layerStackId,

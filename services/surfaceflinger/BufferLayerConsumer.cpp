@@ -272,6 +272,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
     // Update the BufferLayerConsumer state.
     mCurrentTexture = slot;
     mCurrentTextureBuffer = nextTextureBuffer;
+    mCurrentTextureBufferStaleForGpu = false;
     mCurrentTextureImageFreed = nullptr;
     mCurrentCrop = item.mCrop;
     mCurrentTransform = item.mTransform;
@@ -294,48 +295,7 @@ status_t BufferLayerConsumer::updateAndReleaseLocked(const BufferItem& item,
 status_t BufferLayerConsumer::bindTextureImageLocked() {
     ATRACE_CALL();
 
-    mRE.checkErrors();
-
-    // It is possible for the current slot's buffer to be freed before a new one
-    // is bound. In that scenario we still want to bind the image.
-    if (mCurrentTexture == BufferQueue::INVALID_BUFFER_SLOT && mCurrentTextureBuffer == nullptr) {
-        BLC_LOGE("bindTextureImage: no currently-bound texture");
-        mRE.bindExternalTextureImage(mTexName, *mRE.createImage());
-        return NO_INIT;
-    }
-
-    renderengine::Image* imageToRender;
-
-    // mCurrentTextureImageFreed is non-null iff mCurrentTexture ==
-    // BufferQueue::INVALID_BUFFER_SLOT, so we can omit that check.
-    if (mCurrentTextureImageFreed) {
-        imageToRender = mCurrentTextureImageFreed.get();
-    } else if (mImages[mCurrentTexture]) {
-        imageToRender = mImages[mCurrentTexture].get();
-    } else {
-        std::unique_ptr<renderengine::Image> image = mRE.createImage();
-        bool success = image->setNativeWindowBuffer(mCurrentTextureBuffer->getNativeBuffer(),
-                                                    mCurrentTextureBuffer->getUsage() &
-                                                            GRALLOC_USAGE_PROTECTED);
-        if (!success) {
-            BLC_LOGE("bindTextureImage: Failed to create image. size=%ux%u st=%u usage=%#" PRIx64
-                     " fmt=%d",
-                     mCurrentTextureBuffer->getWidth(), mCurrentTextureBuffer->getHeight(),
-                     mCurrentTextureBuffer->getStride(), mCurrentTextureBuffer->getUsage(),
-                     mCurrentTextureBuffer->getPixelFormat());
-            BLC_LOGW("bindTextureImage: can't create image on slot=%d", mCurrentTexture);
-            mRE.bindExternalTextureImage(mTexName, *image);
-            return UNKNOWN_ERROR;
-        }
-        imageToRender = image.get();
-        // Cache the image here so that we can reuse it.
-        mImages[mCurrentTexture] = std::move(image);
-    }
-
-    mRE.bindExternalTextureImage(mTexName, *imageToRender);
-
-    // Wait for the new buffer to be ready.
-    return doFenceWaitLocked();
+    return mRE.bindExternalTextureBuffer(mTexName, mCurrentTextureBuffer, mCurrentFence, false);
 }
 
 status_t BufferLayerConsumer::syncForReleaseLocked(const sp<Fence>& releaseFence) {
@@ -433,14 +393,27 @@ int BufferLayerConsumer::getCurrentApi() const {
     return mCurrentApi;
 }
 
-sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot) const {
+sp<GraphicBuffer> BufferLayerConsumer::getCurrentBuffer(int* outSlot, sp<Fence>* outFence) const {
     Mutex::Autolock lock(mMutex);
 
     if (outSlot != nullptr) {
         *outSlot = mCurrentTexture;
     }
 
+    if (outFence != nullptr) {
+        *outFence = mCurrentFence;
+    }
+
     return mCurrentTextureBuffer;
+}
+
+bool BufferLayerConsumer::getAndSetCurrentBufferCacheHint() {
+    Mutex::Autolock lock(mMutex);
+    bool useCache = mCurrentTextureBufferStaleForGpu;
+    // Set the staleness bit here, as this function is only called during a
+    // client composition path.
+    mCurrentTextureBufferStaleForGpu = true;
+    return useCache;
 }
 
 Rect BufferLayerConsumer::getCurrentCrop() const {

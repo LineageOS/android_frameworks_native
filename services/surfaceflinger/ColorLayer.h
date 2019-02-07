@@ -31,8 +31,6 @@ public:
     std::shared_ptr<compositionengine::Layer> getCompositionLayer() const override;
 
     virtual const char* getTypeId() const { return "ColorLayer"; }
-    virtual void onDraw(const RenderArea& renderArea, const Region& clip,
-                        bool useIdentityTransform);
     bool isVisible() const override;
 
     bool setColor(const half3& color) override;
@@ -44,6 +42,9 @@ public:
 
 protected:
     FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
+    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                                    bool useIdentityTransform, Region& clearRegion,
+                                    renderengine::LayerSettings& layer);
 
 private:
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;

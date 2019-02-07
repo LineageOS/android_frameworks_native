@@ -178,6 +178,9 @@ struct RenderEngineTest : public ::testing::Test {
     template <typename SourceVariant>
     void fillBufferWithRoundedCorners();
 
+    template <typename SourceVariant>
+    void overlayCorners();
+
     void fillRedBufferTextureTransform();
 
     void fillBufferTextureTransform();
@@ -194,7 +197,7 @@ struct RenderEngineTest : public ::testing::Test {
 
     void clearLeftRegion();
 
-    void fillBufferThenClearRegion();
+    void clearRegion();
 
     // Dumb hack to get aroud the fact that tear-down for renderengine isn't
     // well defined right now, so we can't create multiple instances
@@ -543,6 +546,44 @@ void RenderEngineTest::fillBufferWithRoundedCorners() {
                       255);
 }
 
+template <typename SourceVariant>
+void RenderEngineTest::overlayCorners() {
+    renderengine::DisplaySettings settings;
+    settings.physicalDisplay = fullscreenRect();
+    settings.clip = fullscreenRect();
+
+    std::vector<renderengine::LayerSettings> layersFirst;
+
+    renderengine::LayerSettings layerOne;
+    layerOne.geometry.boundaries =
+            FloatRect(0, 0, DEFAULT_DISPLAY_WIDTH / 3.0, DEFAULT_DISPLAY_HEIGHT / 3.0);
+    SourceVariant::fillColor(layerOne, 1.0f, 0.0f, 0.0f, this);
+    layerOne.alpha = 0.2;
+
+    layersFirst.push_back(layerOne);
+    invokeDraw(settings, layersFirst, mBuffer);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3, DEFAULT_DISPLAY_HEIGHT / 3), 51, 0, 0, 51);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3 + 1, DEFAULT_DISPLAY_HEIGHT / 3 + 1,
+                           DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                      0, 0, 0, 0);
+
+    std::vector<renderengine::LayerSettings> layersSecond;
+    renderengine::LayerSettings layerTwo;
+    layerTwo.geometry.boundaries =
+            FloatRect(DEFAULT_DISPLAY_WIDTH / 3.0, DEFAULT_DISPLAY_HEIGHT / 3.0,
+                      DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT);
+    SourceVariant::fillColor(layerTwo, 0.0f, 1.0f, 0.0f, this);
+    layerTwo.alpha = 1.0f;
+
+    layersSecond.push_back(layerTwo);
+    invokeDraw(settings, layersSecond, mBuffer);
+
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3, DEFAULT_DISPLAY_HEIGHT / 3), 0, 0, 0, 0);
+    expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 3 + 1, DEFAULT_DISPLAY_HEIGHT / 3 + 1,
+                           DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
+                      0, 255, 0, 255);
+}
+
 void RenderEngineTest::fillRedBufferTextureTransform() {
     renderengine::DisplaySettings settings;
     settings.physicalDisplay = fullscreenRect();
@@ -685,14 +726,13 @@ void RenderEngineTest::clearLeftRegion() {
     invokeDraw(settings, layers, mBuffer);
 }
 
-void RenderEngineTest::fillBufferThenClearRegion() {
-    fillGreenBuffer<ColorSourceVariant>();
+void RenderEngineTest::clearRegion() {
     // Reuse mBuffer
     clearLeftRegion();
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, DEFAULT_DISPLAY_HEIGHT), 0, 0, 0, 255);
     expectBufferColor(Rect(DEFAULT_DISPLAY_WIDTH / 2, 0, DEFAULT_DISPLAY_WIDTH,
                            DEFAULT_DISPLAY_HEIGHT),
-                      0, 255, 0, 255);
+                      0, 0, 0, 0);
 }
 
 TEST_F(RenderEngineTest, drawLayers_noLayersToDraw) {
@@ -747,6 +787,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferRoundedCorners_colorSource) {
     fillBufferWithRoundedCorners<ColorSourceVariant>();
 }
 
+TEST_F(RenderEngineTest, drawLayers_overlayCorners_colorSource) {
+    overlayCorners<ColorSourceVariant>();
+}
+
 TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_opaqueBufferSource) {
     fillRedBuffer<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
@@ -793,6 +837,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferColorTransform_opaqueBufferSource)
 
 TEST_F(RenderEngineTest, drawLayers_fillBufferRoundedCorners_opaqueBufferSource) {
     fillBufferWithRoundedCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
+}
+
+TEST_F(RenderEngineTest, drawLayers_overlayCorners_opaqueBufferSource) {
+    overlayCorners<BufferSourceVariant<ForceOpaqueBufferVariant>>();
 }
 
 TEST_F(RenderEngineTest, drawLayers_fillRedBuffer_bufferSource) {
@@ -843,6 +891,10 @@ TEST_F(RenderEngineTest, drawLayers_fillBufferRoundedCorners_bufferSource) {
     fillBufferWithRoundedCorners<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
 }
 
+TEST_F(RenderEngineTest, drawLayers_overlayCorners_bufferSource) {
+    overlayCorners<BufferSourceVariant<RelaxOpaqueBufferVariant>>();
+}
+
 TEST_F(RenderEngineTest, drawLayers_fillBufferTextureTransform) {
     fillBufferTextureTransform();
 }
@@ -855,8 +907,8 @@ TEST_F(RenderEngineTest, drawLayers_fillBuffer_withoutPremultiplyingAlpha) {
     fillBufferWithoutPremultiplyAlpha();
 }
 
-TEST_F(RenderEngineTest, drawLayers_fillBufferThenClearRegion) {
-    fillBufferThenClearRegion();
+TEST_F(RenderEngineTest, drawLayers_clearRegion) {
+    clearRegion();
 }
 
 } // namespace android

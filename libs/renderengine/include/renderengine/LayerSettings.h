@@ -126,6 +126,9 @@ struct LayerSettings {
     // Additional layer-specific color transform to be applied before the global
     // transform.
     mat4 colorTransform = mat4();
+
+    // True if blending will be forced to be disabled.
+    bool disableBlending = false;
 };
 
 } // namespace renderengine
