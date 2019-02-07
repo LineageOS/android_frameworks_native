@@ -1134,7 +1134,7 @@ TEST_P(LayerTypeAndRenderTypeTransactionTest, SetRelativeZBug64572777) {
             .setRelativeLayer(layerG, layerR->getHandle(), 1)
             .apply();
 
-    layerG->clear();
+    layerG.clear();
     // layerG should have been removed
     getScreenCapture()->expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
@@ -4332,7 +4332,7 @@ TEST_F(ChildLayerTest, ChildrenSurviveParentDestruction) {
         mCapture->checkPixel(64, 64, 111, 111, 111);
     }
 
-    mChild->clear();
+    mChild.clear();
 
     {
         SCOPED_TRACE("After destroying child");
@@ -5204,7 +5204,7 @@ TEST_F(ScreenCaptureTest, CaptureInvalidLayer) {
     ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(redLayer, Color::RED, 60, 60));
 
     auto redLayerHandle = redLayer->getHandle();
-    redLayer->clear();
+    redLayer.clear();
     SurfaceComposerClient::Transaction().apply(true);
 
     sp<GraphicBuffer> outBuffer;
