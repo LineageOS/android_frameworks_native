@@ -29,6 +29,10 @@ ContainerLayer::~ContainerLayer() = default;
 void ContainerLayer::onDraw(const RenderArea&, const Region& /* clip */, bool) {}
 
 bool ContainerLayer::isVisible() const {
+    return false;
+}
+
+bool ContainerLayer::canReceiveInput() const {
     return !isHiddenByPolicy();
 }
 

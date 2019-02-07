@@ -156,17 +156,17 @@ TEST_F(DisplayTest, setColorModeSetsModeUnlessNoChange) {
     EXPECT_EQ(ui::RenderIntent::COLORIMETRIC, mDisplay.getState().renderIntent);
 
     // Otherwise if the values are different, updates happen
-    EXPECT_CALL(*renderSurface, setBufferDataspace(ui::Dataspace::SRGB)).Times(1);
+    EXPECT_CALL(*renderSurface, setBufferDataspace(ui::Dataspace::DISPLAY_P3)).Times(1);
     EXPECT_CALL(mHwComposer,
-                setActiveColorMode(DEFAULT_DISPLAY_ID, ui::ColorMode::BT2100_PQ,
+                setActiveColorMode(DEFAULT_DISPLAY_ID, ui::ColorMode::DISPLAY_P3,
                                    ui::RenderIntent::TONE_MAP_COLORIMETRIC))
             .Times(1);
 
-    mDisplay.setColorMode(ui::ColorMode::BT2100_PQ, ui::Dataspace::SRGB,
+    mDisplay.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
                           ui::RenderIntent::TONE_MAP_COLORIMETRIC);
 
-    EXPECT_EQ(ui::ColorMode::BT2100_PQ, mDisplay.getState().colorMode);
-    EXPECT_EQ(ui::Dataspace::SRGB, mDisplay.getState().dataspace);
+    EXPECT_EQ(ui::ColorMode::DISPLAY_P3, mDisplay.getState().colorMode);
+    EXPECT_EQ(ui::Dataspace::DISPLAY_P3, mDisplay.getState().dataspace);
     EXPECT_EQ(ui::RenderIntent::TONE_MAP_COLORIMETRIC, mDisplay.getState().renderIntent);
 }
 
@@ -174,7 +174,7 @@ TEST_F(DisplayTest, setColorModeDoesNothingForVirtualDisplay) {
     impl::Display virtualDisplay{mCompositionEngine,
                                  DisplayCreationArgs{false, true, DEFAULT_DISPLAY_ID}};
 
-    virtualDisplay.setColorMode(ui::ColorMode::BT2100_PQ, ui::Dataspace::SRGB,
+    virtualDisplay.setColorMode(ui::ColorMode::DISPLAY_P3, ui::Dataspace::DISPLAY_P3,
                                 ui::RenderIntent::TONE_MAP_COLORIMETRIC);
 
     EXPECT_EQ(ui::ColorMode::NATIVE, virtualDisplay.getState().colorMode);

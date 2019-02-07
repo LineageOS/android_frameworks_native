@@ -387,6 +387,11 @@ public:
     bool isHiddenByPolicy() const;
 
     /*
+     * Returns whether this layer can receive input.
+     */
+    virtual bool canReceiveInput() const;
+
+    /*
      * isProtected - true if the layer may contain protected content in the
      * GRALLOC_USAGE_PROTECTED sense.
      */
@@ -517,8 +522,8 @@ public:
      * operation, so this should be set only if needed). Typically this is used
      * to figure out if the content or size of a surface has changed.
      */
-    virtual Region latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
-                               const sp<Fence>& /*releaseFence*/) {
+    virtual bool latchBuffer(bool& /*recomputeVisibleRegions*/, nsecs_t /*latchTime*/,
+                             const sp<Fence>& /*releaseFence*/) {
         return {};
     }
 

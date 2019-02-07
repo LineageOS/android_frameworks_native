@@ -954,6 +954,22 @@ EGLContext eglCreateContextImpl(EGLDisplay dpy, EGLConfig config,
             egl_context_t* const c = get_context(share_list);
             share_list = c->context;
         }
+        // b/111083885 - If we are presenting EGL 1.4 interface to apps
+        // error out on robust access attributes that are invalid
+        // in EGL 1.4 as the driver may be fine with them but dEQP expects
+        // tests to fail according to spec.
+        if (attrib_list && (cnx->driverVersion < EGL_MAKE_VERSION(1, 5, 0))) {
+            const EGLint* attrib_ptr = attrib_list;
+            while (*attrib_ptr != EGL_NONE) {
+                GLint attr = *attrib_ptr++;
+                GLint value = *attrib_ptr++;
+                if (attr == EGL_CONTEXT_OPENGL_RESET_NOTIFICATION_STRATEGY_KHR) {
+                    // We are GL ES context with EGL 1.4, this is an invalid
+                    // attribute
+                    return setError(EGL_BAD_ATTRIBUTE, EGL_NO_CONTEXT);
+                }
+            };
+        }
         EGLContext context = cnx->egl.eglCreateContext(
                 dp->disp.dpy, config, share_list, attrib_list);
         if (context != EGL_NO_CONTEXT) {

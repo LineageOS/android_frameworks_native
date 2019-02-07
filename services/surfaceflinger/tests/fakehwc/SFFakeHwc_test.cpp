@@ -145,7 +145,7 @@ protected:
     void TearDown() override;
 
     void waitForDisplayTransaction();
-    bool waitForHotplugEvent(uint32_t id, bool connected);
+    bool waitForHotplugEvent(PhysicalDisplayId displayId, bool connected);
 
     sp<IComposer> mFakeService;
     sp<SurfaceComposerClient> mComposerClient;
@@ -242,7 +242,7 @@ void DisplayTest::waitForDisplayTransaction() {
     mMockComposer->runVSyncAndWait();
 }
 
-bool DisplayTest::waitForHotplugEvent(uint32_t id, bool connected) {
+bool DisplayTest::waitForHotplugEvent(PhysicalDisplayId displayId, bool connected) {
     int waitCount = 20;
     while (waitCount--) {
         while (!mReceivedDisplayEvents.empty()) {
@@ -250,11 +250,12 @@ bool DisplayTest::waitForHotplugEvent(uint32_t id, bool connected) {
             mReceivedDisplayEvents.pop_front();
 
             ALOGV_IF(event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG,
-                    "event hotplug: id %d, connected %d\t", event.header.id,
-                    event.hotplug.connected);
+                     "event hotplug: displayId %" ANDROID_PHYSICAL_DISPLAY_ID_FORMAT
+                     ", connected %d\t",
+                     event.header.displayId, event.hotplug.connected);
 
             if (event.header.type == DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG &&
-                event.header.id == id && event.hotplug.connected == connected) {
+                event.header.displayId == displayId && event.hotplug.connected == connected) {
                 return true;
             }
         }
@@ -294,13 +295,14 @@ TEST_F(DisplayTest, Hotplug) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
+    EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdHdmi));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
+        ASSERT_FALSE(display == nullptr);
+
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(display, &info);
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
         ASSERT_EQ(400u, info.w);
         ASSERT_EQ(200u, info.h);
 
@@ -328,14 +330,15 @@ TEST_F(DisplayTest, Hotplug) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, false));
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdHdmi, true));
+    EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, false));
+    EXPECT_TRUE(waitForHotplugEvent(EXTERNAL_DISPLAY, true));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdHdmi));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(EXTERNAL_DISPLAY);
+        ASSERT_FALSE(display == nullptr);
+
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(display, &info);
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
         ASSERT_EQ(400u, info.w);
         ASSERT_EQ(200u, info.h);
 
@@ -364,11 +367,12 @@ TEST_F(DisplayTest, HotplugPrimaryDisplay) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, false));
+    EXPECT_TRUE(waitForHotplugEvent(PRIMARY_DISPLAY, false));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
+        EXPECT_FALSE(display == nullptr);
+
         DisplayInfo info;
         auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
         EXPECT_NE(NO_ERROR, result);
@@ -402,11 +406,12 @@ TEST_F(DisplayTest, HotplugPrimaryDisplay) {
 
     waitForDisplayTransaction();
 
-    EXPECT_TRUE(waitForHotplugEvent(ISurfaceComposer::eDisplayIdMain, true));
+    EXPECT_TRUE(waitForHotplugEvent(PRIMARY_DISPLAY, true));
 
     {
-        sp<android::IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
+        EXPECT_FALSE(display == nullptr);
+
         DisplayInfo info;
         auto result = SurfaceComposerClient::getDisplayInfo(display, &info);
         EXPECT_EQ(NO_ERROR, result);
@@ -473,10 +478,11 @@ void TransactionTest::SetUp() {
     ASSERT_EQ(NO_ERROR, mComposerClient->initCheck());
 
     ALOGI("TransactionTest::SetUp - display");
-    sp<android::IBinder> display(
-            SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+    const auto display = SurfaceComposerClient::getPhysicalDisplayToken(PRIMARY_DISPLAY);
+    ASSERT_FALSE(display == nullptr);
+
     DisplayInfo info;
-    SurfaceComposerClient::getDisplayInfo(display, &info);
+    ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
 
     mDisplayWidth = info.w;
     mDisplayHeight = info.h;

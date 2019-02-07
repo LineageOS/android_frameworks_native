@@ -75,14 +75,16 @@ class AsyncCallRecorder;
 template <typename... Args>
 class AsyncCallRecorder<void (*)(Args...)> {
 public:
-    // For the tests, we expect the wait for an expected change to be signaled
-    // to be much shorter than this.
-    static constexpr std::chrono::milliseconds DEFAULT_CALL_EXPECTED_TIMEOUT{10};
+    // This wait value needs to be large enough to avoid flakes caused by delays
+    // scheduling threads, but small enough that tests don't take forever if
+    // something really is wrong. Based on some empirical evidence, 100ms should
+    // be enough to avoid the former.
+    static constexpr std::chrono::milliseconds DEFAULT_CALL_EXPECTED_TIMEOUT{100};
 
-    // The wait here is tricky. We don't expect a change, but we don't want to
-    // wait forever (or for longer than the typical test function runtime). As
-    // even the simplest Google Test can take 1ms (1000us) to run, we wait for
-    // half that time.
+    // The wait here is tricky. It's for when We don't expect to record a call,
+    // but we don't want to wait forever (or for longer than the typical test
+    // function runtime). As even the simplest Google Test can take 1ms (1000us)
+    // to run, we wait for half that time.
     static constexpr std::chrono::microseconds UNEXPECTED_CALL_TIMEOUT{500};
 
     using ArgTuple = std::tuple<std::remove_cv_t<std::remove_reference_t<Args>>...>;

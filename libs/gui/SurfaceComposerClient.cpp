@@ -484,8 +484,20 @@ void SurfaceComposerClient::destroyDisplay(const sp<IBinder>& display) {
     return ComposerService::getComposerService()->destroyDisplay(display);
 }
 
-sp<IBinder> SurfaceComposerClient::getBuiltInDisplay(int32_t id) {
-    return ComposerService::getComposerService()->getBuiltInDisplay(id);
+std::vector<PhysicalDisplayId> SurfaceComposerClient::getPhysicalDisplayIds() {
+    return ComposerService::getComposerService()->getPhysicalDisplayIds();
+}
+
+std::optional<PhysicalDisplayId> SurfaceComposerClient::getInternalDisplayId() {
+    return ComposerService::getComposerService()->getInternalDisplayId();
+}
+
+sp<IBinder> SurfaceComposerClient::getPhysicalDisplayToken(PhysicalDisplayId displayId) {
+    return ComposerService::getComposerService()->getPhysicalDisplayToken(displayId);
+}
+
+sp<IBinder> SurfaceComposerClient::getInternalDisplayToken() {
+    return ComposerService::getComposerService()->getInternalDisplayToken();
 }
 
 void SurfaceComposerClient::Transaction::setAnimationTransaction() {

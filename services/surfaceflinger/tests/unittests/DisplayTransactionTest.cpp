@@ -45,9 +45,9 @@ namespace android {
 namespace {
 
 using testing::_;
-using testing::ByMove;
 using testing::DoAll;
 using testing::Mock;
+using testing::ResultOf;
 using testing::Return;
 using testing::SetArgPointee;
 
@@ -320,11 +320,6 @@ struct DisplayVariant {
 
     // Whether the display is primary
     static constexpr Primary PRIMARY = primary;
-
-    static constexpr auto displayType() {
-        return static_cast<bool>(PRIMARY) ? EventThread::DisplayType::Primary
-                                          : EventThread::DisplayType::External;
-    }
 
     static auto makeFakeExistingDisplayInjector(DisplayTransactionTest* test) {
         auto injector =
@@ -1497,6 +1492,9 @@ public:
     template <typename Case>
     void setupCommonPreconditions();
 
+    template <typename Case, bool connected>
+    static void expectHotplugReceived(mock::EventThread*);
+
     template <typename Case>
     void setupCommonCallExpectationsForConnectProcessing();
 
@@ -1534,6 +1532,17 @@ void HandleTransactionLockedTest::setupCommonPreconditions() {
     injectFakeNativeWindowSurfaceFactory();
 }
 
+template <typename Case, bool connected>
+void HandleTransactionLockedTest::expectHotplugReceived(mock::EventThread* eventThread) {
+    const auto convert = [](auto physicalDisplayId) {
+        return std::make_optional(DisplayId{physicalDisplayId});
+    };
+
+    EXPECT_CALL(*eventThread,
+                onHotplugReceived(ResultOf(convert, Case::Display::DISPLAY_ID::get()), connected))
+            .Times(1);
+}
+
 template <typename Case>
 void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessing() {
     Case::Display::setupHwcHotplugCallExpectations(this);
@@ -1549,16 +1558,16 @@ void HandleTransactionLockedTest::setupCommonCallExpectationsForConnectProcessin
 
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayCreation(_)).Times(1);
 
-    EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::displayType(), true)).Times(1);
-    EXPECT_CALL(*mSFEventThread, onHotplugReceived(Case::Display::displayType(), true)).Times(1);
+    expectHotplugReceived<Case, true>(mEventThread);
+    expectHotplugReceived<Case, true>(mSFEventThread);
 }
 
 template <typename Case>
 void HandleTransactionLockedTest::setupCommonCallExpectationsForDisconnectProcessing() {
     EXPECT_CALL(*mSurfaceInterceptor, saveDisplayDeletion(_)).Times(1);
 
-    EXPECT_CALL(*mEventThread, onHotplugReceived(Case::Display::displayType(), false)).Times(1);
-    EXPECT_CALL(*mSFEventThread, onHotplugReceived(Case::Display::displayType(), false)).Times(1);
+    expectHotplugReceived<Case, false>(mEventThread);
+    expectHotplugReceived<Case, false>(mSFEventThread);
 }
 
 template <typename Case>

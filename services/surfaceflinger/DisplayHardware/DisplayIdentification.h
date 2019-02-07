@@ -23,10 +23,12 @@
 #include <string_view>
 #include <vector>
 
+#include <ui/GraphicTypes.h>
+
 namespace android {
 
 struct DisplayId {
-    using Type = uint64_t;
+    using Type = PhysicalDisplayId;
     Type value;
 
     uint16_t manufacturerId() const;

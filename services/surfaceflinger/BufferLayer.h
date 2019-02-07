@@ -99,8 +99,8 @@ public:
     // If there was a GL composition step rendering the previous frame, then
     // releaseFence will be populated with a native fence that fires when
     // composition has completed.
-    Region latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                       const sp<Fence>& releaseFence) override;
+    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
+                     const sp<Fence>& releaseFence) override;
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
@@ -137,7 +137,8 @@ private:
     virtual bool getAutoRefresh() const = 0;
     virtual bool getSidebandStreamChanged() const = 0;
 
-    virtual std::optional<Region> latchSidebandStream(bool& recomputeVisibleRegions) = 0;
+    // Latch sideband stream and returns true if the dirty region should be updated.
+    virtual bool latchSidebandStream(bool& recomputeVisibleRegions) = 0;
 
     virtual bool hasFrameUpdate() const = 0;
 
@@ -178,6 +179,8 @@ private:
     uint64_t getHeadFrameNumber() const;
 
     uint32_t mCurrentScalingMode{NATIVE_WINDOW_SCALING_MODE_FREEZE};
+
+    bool mTransformToDisplayInverse{false};
 
     // main thread.
     bool mBufferLatched{false}; // TODO: Use mActiveBuffer?

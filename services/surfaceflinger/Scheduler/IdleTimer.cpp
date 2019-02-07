@@ -54,18 +54,24 @@ void IdleTimer::loop() {
         if (mState == TimerState::IDLE) {
             mCondition.wait(mMutex);
         } else if (mState == TimerState::RESET) {
+            auto triggerTime = std::chrono::steady_clock::now() + mInterval;
             mState = TimerState::WAITING;
-            if (mCondition.wait_for(mMutex, mInterval) == std::cv_status::timeout) {
-                if (mTimeoutCallback) {
-                    mTimeoutCallback();
+            while (mState == TimerState::WAITING) {
+                constexpr auto zero = std::chrono::steady_clock::duration::zero();
+                auto waitTime = triggerTime - std::chrono::steady_clock::now();
+                if (waitTime > zero) mCondition.wait_for(mMutex, waitTime);
+                if (mState == TimerState::WAITING &&
+                    (triggerTime - std::chrono::steady_clock::now()) <= zero) {
+                    if (mTimeoutCallback) {
+                        mTimeoutCallback();
+                    }
+
+                    mState = TimerState::IDLE;
                 }
-            }
-            if (mState == TimerState::WAITING) {
-                mState = TimerState::IDLE;
             }
         }
     }
-}
+} // namespace scheduler
 
 void IdleTimer::reset() {
     {

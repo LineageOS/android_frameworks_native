@@ -275,12 +275,25 @@ public:
         remote()->transact(BnSurfaceComposer::DESTROY_DISPLAY, data, &reply);
     }
 
-    virtual sp<IBinder> getBuiltInDisplay(int32_t id)
-    {
+    virtual std::vector<PhysicalDisplayId> getPhysicalDisplayIds() const {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        data.writeInt32(id);
-        remote()->transact(BnSurfaceComposer::GET_BUILT_IN_DISPLAY, data, &reply);
+        if (remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_IDS, data, &reply) ==
+            NO_ERROR) {
+            std::vector<PhysicalDisplayId> displayIds;
+            if (reply.readUint64Vector(&displayIds) == NO_ERROR) {
+                return displayIds;
+            }
+        }
+
+        return {};
+    }
+
+    virtual sp<IBinder> getPhysicalDisplayToken(PhysicalDisplayId displayId) const {
+        Parcel data, reply;
+        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        data.writeUint64(displayId);
+        remote()->transact(BnSurfaceComposer::GET_PHYSICAL_DISPLAY_TOKEN, data, &reply);
         return reply.readStrongBinder();
     }
 
@@ -896,10 +909,10 @@ status_t BnSurfaceComposer::onTransact(
             destroyDisplay(display);
             return NO_ERROR;
         }
-        case GET_BUILT_IN_DISPLAY: {
+        case GET_PHYSICAL_DISPLAY_TOKEN: {
             CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            int32_t id = data.readInt32();
-            sp<IBinder> display(getBuiltInDisplay(id));
+            PhysicalDisplayId displayId = data.readUint64();
+            sp<IBinder> display = getPhysicalDisplayToken(displayId);
             reply->writeStrongBinder(display);
             return NO_ERROR;
         }
@@ -1216,12 +1229,14 @@ status_t BnSurfaceComposer::onTransact(
             }
             return error;
         }
+        case GET_PHYSICAL_DISPLAY_IDS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            return reply->writeUint64Vector(getPhysicalDisplayIds());
+        }
         default: {
             return BBinder::onTransact(code, data, reply, flags);
         }
     }
 }
 
-// ----------------------------------------------------------------------------
-
-};
+} // namespace android

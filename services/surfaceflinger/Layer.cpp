@@ -2206,7 +2206,7 @@ InputWindowInfo Layer::fillInputInfo() {
     // Position the touchable region relative to frame screen location and restrict it to frame
     // bounds.
     info.touchableRegion = info.touchableRegion.translate(info.frameLeft, info.frameTop);
-    info.visible = isVisible();
+    info.visible = canReceiveInput();
     return info;
 }
 
@@ -2216,6 +2216,10 @@ bool Layer::hasInput() const {
 
 std::shared_ptr<compositionengine::Layer> Layer::getCompositionLayer() const {
     return nullptr;
+}
+
+bool Layer::canReceiveInput() const {
+    return isVisible();
 }
 
 // ---------------------------------------------------------------------------

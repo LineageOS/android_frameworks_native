@@ -195,13 +195,12 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g,
 class ScreenCapture : public RefBase {
 public:
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
-        sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        sp<IBinder> display(sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        const auto sf = ComposerService::getComposerService();
+        const auto token = sf->getInternalDisplayToken();
         SurfaceComposerClient::Transaction().apply(true);
 
         sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR,
-                  sf->captureScreen(display, &outBuffer, Rect(), 0, 0, false));
+        ASSERT_EQ(NO_ERROR, sf->captureScreen(token, &outBuffer, Rect(), 0, 0, false));
         *sc = std::make_unique<ScreenCapture>(outBuffer);
     }
 
@@ -324,7 +323,6 @@ protected:
         ASSERT_NO_FATAL_FAILURE(SetUpDisplay());
 
         sp<ISurfaceComposer> sf(ComposerService::getComposerService());
-        sp<IBinder> binder = sf->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
         ASSERT_NO_FATAL_FAILURE(sf->getColorManagement(&mColorManagementUsed));
     }
 
@@ -502,12 +500,12 @@ protected:
 
 private:
     void SetUpDisplay() {
-        mDisplay = mClient->getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
-        ASSERT_NE(nullptr, mDisplay.get()) << "failed to get built-in display";
+        mDisplay = mClient->getInternalDisplayToken();
+        ASSERT_FALSE(mDisplay == nullptr) << "failed to get display";
 
         // get display width/height
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(mDisplay, &info);
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(mDisplay, &info));
         mDisplayWidth = info.w;
         mDisplayHeight = info.h;
         mDisplayRect =
@@ -558,8 +556,7 @@ public:
                 return mDelegate->screenshot();
             case RenderPath::VIRTUAL_DISPLAY:
 
-                sp<IBinder> mainDisplay =
-                        SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain);
+                const auto mainDisplay = SurfaceComposerClient::getInternalDisplayToken();
                 DisplayInfo mainDisplayInfo;
                 SurfaceComposerClient::getDisplayInfo(mainDisplay, &mainDisplayInfo);
 
@@ -1625,7 +1622,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = true;
     float alpha = 1.0f;
     Color finalColor = Color::RED;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1635,7 +1632,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 1.0f;
     Color finalColor = Color::GREEN;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1645,7 +1642,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 1.0f;
     Color finalColor = Color::GREEN;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1655,7 +1652,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 0;
     Color finalColor = Color::BLACK;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -1665,7 +1662,7 @@ TEST_P(LayerRenderTypeTransactionTest,
     bool bufferFill = false;
     float alpha = 0;
     Color finalColor = Color::BLACK;
-    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferQueue,
+    ASSERT_NO_FATAL_FAILURE(setBackgroundColorHelper(ISurfaceComposerClient::eFXSurfaceBufferState,
                                                      priorColor, bufferFill, alpha, finalColor));
 }
 
@@ -2405,7 +2402,7 @@ TEST_P(LayerRenderTypeTransactionTest, SetBufferMultipleLayers_BufferState) {
     }
 }
 
-TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
+TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
@@ -2441,7 +2438,7 @@ TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_BufferState) {
     }
 }
 
-TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_BufferState) {
+TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
@@ -2477,7 +2474,7 @@ TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_LeastRecentlyUsed_Buffer
     }
 }
 
-TEST_F(LayerRenderTypeTransactionTest, SetBufferCaching_DestroyedBuffer_BufferState) {
+TEST_P(LayerRenderTypeTransactionTest, SetBufferCaching_DestroyedBuffer_BufferState) {
     sp<SurfaceControl> layer;
     ASSERT_NO_FATAL_FAILURE(
             layer = createLayer("test", 32, 32, ISurfaceComposerClient::eFXSurfaceBufferState));
@@ -3870,10 +3867,11 @@ protected:
         LayerTransactionTest::SetUp();
         ASSERT_EQ(NO_ERROR, mClient->initCheck());
 
-        sp<IBinder> display(
-                SurfaceComposerClient::getBuiltInDisplay(ISurfaceComposer::eDisplayIdMain));
+        const auto display = SurfaceComposerClient::getInternalDisplayToken();
+        ASSERT_FALSE(display == nullptr);
+
         DisplayInfo info;
-        SurfaceComposerClient::getDisplayInfo(display, &info);
+        ASSERT_EQ(NO_ERROR, SurfaceComposerClient::getDisplayInfo(display, &info));
 
         ssize_t displayWidth = info.w;
         ssize_t displayHeight = info.h;
