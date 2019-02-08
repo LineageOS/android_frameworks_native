@@ -286,22 +286,22 @@ status_t GraphicBuffer::unlock()
     return res;
 }
 
-status_t GraphicBuffer::lockAsync(uint32_t inUsage, void** vaddr, int fenceFd)
-{
+status_t GraphicBuffer::lockAsync(uint32_t inUsage, void** vaddr, int fenceFd,
+                                  int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
     const Rect lockBounds(width, height);
-    status_t res = lockAsync(inUsage, lockBounds, vaddr, fenceFd);
+    status_t res =
+            lockAsync(inUsage, lockBounds, vaddr, fenceFd, outBytesPerPixel, outBytesPerStride);
     return res;
 }
 
-status_t GraphicBuffer::lockAsync(uint32_t inUsage, const Rect& rect,
-        void** vaddr, int fenceFd)
-{
-    return lockAsync(inUsage, inUsage, rect, vaddr, fenceFd);
+status_t GraphicBuffer::lockAsync(uint32_t inUsage, const Rect& rect, void** vaddr, int fenceFd,
+                                  int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
+    return lockAsync(inUsage, inUsage, rect, vaddr, fenceFd, outBytesPerPixel, outBytesPerStride);
 }
 
-status_t GraphicBuffer::lockAsync(uint64_t inProducerUsage,
-        uint64_t inConsumerUsage, const Rect& rect, void** vaddr, int fenceFd)
-{
+status_t GraphicBuffer::lockAsync(uint64_t inProducerUsage, uint64_t inConsumerUsage,
+                                  const Rect& rect, void** vaddr, int fenceFd,
+                                  int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
     if (rect.left < 0 || rect.right  > width ||
         rect.top  < 0 || rect.bottom > height) {
         ALOGE("locking pixels (%d,%d,%d,%d) outside of buffer (w=%d, h=%d)",
@@ -310,9 +310,9 @@ status_t GraphicBuffer::lockAsync(uint64_t inProducerUsage,
         return BAD_VALUE;
     }
 
-    int32_t bytesPerPixel, bytesPerStride;
     status_t res = getBufferMapper().lockAsync(handle, inProducerUsage, inConsumerUsage, rect,
-                                               vaddr, fenceFd, &bytesPerPixel, &bytesPerStride);
+                                               vaddr, fenceFd, outBytesPerPixel, outBytesPerStride);
+
     return res;
 }
 
