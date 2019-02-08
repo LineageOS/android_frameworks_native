@@ -96,7 +96,8 @@ bool BufferStateLayer::shouldPresentNow(nsecs_t /*expectedPresentTime*/) const {
 bool BufferStateLayer::willPresentCurrentTransaction() const {
     // Returns true if the most recent Transaction applied to CurrentState will be presented.
     return getSidebandStreamChanged() || getAutoRefresh() ||
-            (mCurrentState.modified && mCurrentState.buffer != nullptr);
+            (mCurrentState.modified &&
+             (mCurrentState.buffer != nullptr || mCurrentState.bgColorLayer != nullptr));
 }
 
 bool BufferStateLayer::getTransformToDisplayInverse() const {
@@ -438,7 +439,8 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
 }
 
 bool BufferStateLayer::hasFrameUpdate() const {
-    return mCurrentStateModified && getCurrentState().buffer != nullptr;
+    const State& c(getCurrentState());
+    return mCurrentStateModified && (c.buffer != nullptr || c.bgColorLayer != nullptr);
 }
 
 void BufferStateLayer::setFilteringEnabled(bool enabled) {
@@ -458,6 +460,11 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
     const State& s(getDrawingState());
 
     if (!s.buffer) {
+        if (s.bgColorLayer) {
+            for (auto& handle : mDrawingState.callbackHandles) {
+                handle->latchTime = latchTime;
+            }
+        }
         return NO_ERROR;
     }
 

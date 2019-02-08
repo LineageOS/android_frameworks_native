@@ -1280,7 +1280,12 @@ bool Layer::setAlpha(float alpha) {
 bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace) {
     if (!mCurrentState.bgColorLayer && alpha == 0) {
         return false;
-    } else if (!mCurrentState.bgColorLayer && alpha != 0) {
+    }
+    mCurrentState.sequence++;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+
+    if (!mCurrentState.bgColorLayer && alpha != 0) {
         // create background color layer if one does not yet exist
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
         const String8& name = mName + "BackgroundColorLayer";
