@@ -424,6 +424,7 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
         mTraceGpuCompletion = true;
         mFlushTracer = std::make_unique<FlushTracer>(this);
     }
+    mDrawingBuffer = createFramebuffer();
 }
 
 GLESRenderEngine::~GLESRenderEngine() {
@@ -437,6 +438,10 @@ std::unique_ptr<Framebuffer> GLESRenderEngine::createFramebuffer() {
 
 std::unique_ptr<Image> GLESRenderEngine::createImage() {
     return std::make_unique<GLImage>(*this);
+}
+
+Framebuffer* GLESRenderEngine::getFramebufferForDrawing() {
+    return mDrawingBuffer.get();
 }
 
 void GLESRenderEngine::primeCache() const {
@@ -678,6 +683,7 @@ status_t GLESRenderEngine::bindExternalTextureBuffer(uint32_t texName, sp<Graphi
 }
 
 void GLESRenderEngine::evictImages(const std::vector<LayerSettings>& layers) {
+    ATRACE_CALL();
     // destroy old image references that we're not going to draw with.
     std::unordered_set<uint64_t> bufIds;
     for (auto layer : layers) {
@@ -744,6 +750,7 @@ status_t GLESRenderEngine::bindFrameBuffer(Framebuffer* framebuffer) {
 }
 
 void GLESRenderEngine::unbindFrameBuffer(Framebuffer* /* framebuffer */) {
+    ATRACE_CALL();
     mFboHeight = 0;
 
     // back to main framebuffer

@@ -3328,7 +3328,6 @@ void SurfaceFlinger::invalidateHwcGeometry()
 void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice,
                                           const Region& inDirtyRegion) {
     auto display = displayDevice->getCompositionDisplay();
-
     // We only need to actually compose the display if:
     // 1) It is being handled by hardware composer, which may need this to
     //    keep its virtual display state machine in sync, or
@@ -3348,6 +3347,7 @@ void SurfaceFlinger::doDisplayComposition(const sp<DisplayDevice>& displayDevice
 
 bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                                        const Region& debugRegion, base::unique_fd* readyFence) {
+    ATRACE_CALL();
     ALOGV("doComposeSurfaces");
 
     auto display = displayDevice->getCompositionDisplay();
@@ -3474,6 +3474,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         firstLayer = false;
     }
 
+    // Perform some cleanup steps if we used client composition.
     if (hasClientComposition) {
         clientCompositionDisplay.clearRegion = clearRegion;
         if (!debugRegion.isEmpty()) {
