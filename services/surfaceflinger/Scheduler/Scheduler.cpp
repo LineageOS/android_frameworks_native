@@ -190,9 +190,15 @@ void Scheduler::disableHardwareVsync(bool makeUnavailable) {
 }
 
 void Scheduler::setVsyncPeriod(const nsecs_t period) {
+    std::lock_guard<std::mutex> lock(mHWVsyncLock);
     mPrimaryDispSync->reset();
     mPrimaryDispSync->setPeriod(period);
-    enableHardwareVsync();
+
+    if (!mPrimaryHWVsyncEnabled) {
+        mPrimaryDispSync->beginResync();
+        mEventControlThread->setVsyncEnabled(true);
+        mPrimaryHWVsyncEnabled = true;
+    }
 }
 
 void Scheduler::addResyncSample(const nsecs_t timestamp) {
@@ -228,8 +234,17 @@ void Scheduler::makeHWSyncAvailable(bool makeAvailable) {
     mHWVsyncAvailable = makeAvailable;
 }
 
+bool Scheduler::getHWSyncAvailable() {
+    std::lock_guard<std::mutex> lock(mHWVsyncLock);
+    return mHWVsyncAvailable;
+}
+
 nsecs_t Scheduler::expectedPresentTime() {
     return mPrimaryDispSync->expectedPresentTime();
+}
+
+void Scheduler::dumpPrimaryDispSync(std::string& result) const {
+    mPrimaryDispSync->dump(result);
 }
 
 void Scheduler::addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
