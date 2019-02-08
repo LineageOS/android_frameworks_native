@@ -73,6 +73,8 @@ public:
     size_t readAndQueueFrames();
     /**
      * Return all of the queued frames, and erase them from the local buffer.
+     * The returned frames are in the order that they were received from the
+     * v4l2 device, with the oldest frame at the index 0.
      */
     std::vector<TouchVideoFrame> consumeFrames();
     /**
