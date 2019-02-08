@@ -988,6 +988,7 @@ private:
     int mDebugRegion;
     int mDebugDisableHWC;
     int mDebugDisableTransformHint;
+    bool mDebugEnableProtectedContent;
     volatile nsecs_t mDebugInSwapBuffers;
     volatile nsecs_t mDebugInTransaction;
     nsecs_t mLastTransactionTime;

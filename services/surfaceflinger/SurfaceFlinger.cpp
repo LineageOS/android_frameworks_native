@@ -288,6 +288,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mDebugRegion(0),
         mDebugDisableHWC(0),
         mDebugDisableTransformHint(0),
+        mDebugEnableProtectedContent(false),
         mDebugInTransaction(0),
         mLastTransactionTime(0),
         mForceFullDamage(false),
@@ -3331,6 +3332,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     auto display = displayDevice->getCompositionDisplay();
     const auto& displayState = display->getState();
     const auto displayId = display->getId();
+    auto& renderEngine = getRenderEngine();
+    const bool supportProtectedContent =
+            mDebugEnableProtectedContent && renderEngine.supportsProtectedContent();
 
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
@@ -3348,7 +3352,23 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
+        if (displayDevice->isPrimary() && supportProtectedContent) {
+            bool needsProtected = false;
+            for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
+                // If the layer is a protected layer, mark protected context is needed.
+                if (layer->isProtected()) {
+                    needsProtected = true;
+                    break;
+                }
+            }
+            if (needsProtected != renderEngine.isProtected() &&
+                renderEngine.useProtectedContext(needsProtected)) {
+                display->getRenderSurface()->setProtected(needsProtected);
+            }
+        }
+
         buf = display->getRenderSurface()->dequeueBuffer(&fd);
+
         if (buf == nullptr) {
             ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
                   "client composition for this frame",
@@ -3420,8 +3440,9 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                         // guaranteed the FB is already cleared
                         renderengine::LayerSettings layerSettings;
                         Region dummyRegion;
-                        bool prepared = layer->prepareClientLayer(renderArea, clip, dummyRegion,
-                                                                  layerSettings);
+                        bool prepared =
+                                layer->prepareClientLayer(renderArea, clip, dummyRegion,
+                                                          supportProtectedContent, layerSettings);
 
                         if (prepared) {
                             layerSettings.source.buffer.buffer = nullptr;
@@ -3436,7 +3457,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                 case Hwc2::IComposerClient::Composition::CLIENT: {
                     renderengine::LayerSettings layerSettings;
                     bool prepared =
-                            layer->prepareClientLayer(renderArea, clip, clearRegion, layerSettings);
+                            layer->prepareClientLayer(renderArea, clip, clearRegion,
+                                                      supportProtectedContent, layerSettings);
                     if (prepared) {
                         clientCompositionLayers.push_back(layerSettings);
                     }
@@ -3467,8 +3489,8 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                 clientCompositionLayers.push_back(layerSettings);
             }
         }
-        getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers,
-                                     buf->getNativeBuffer(), std::move(fd), readyFence);
+        renderEngine.drawLayers(clientCompositionDisplay, clientCompositionLayers,
+                                buf->getNativeBuffer(), std::move(fd), readyFence);
     }
     return true;
 }
@@ -4987,9 +5009,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         code == IBinder::SYSPROPS_TRANSACTION) {
         return OK;
     }
-    // Numbers from 1000 to 1031 are currently use for backdoors. The code
+    // Numbers from 1000 to 1032 are currently use for backdoors. The code
     // in onTransact verifies that the user is root, and has access to use SF.
-    if (code >= 1000 && code <= 1031) {
+    if (code >= 1000 && code <= 1032) {
         ALOGV("Accessing SurfaceFlinger through backdoor code: %u", code);
         return OK;
     }
@@ -5265,6 +5287,11 @@ status_t SurfaceFlinger::onTransact(uint32_t code, const Parcel& data, Parcel* r
                     mDefaultCompositionDataspace = defaultCompositionDataspace;
                     mWideColorGamutCompositionDataspace = wideColorGamutCompositionDataspace;
                 }
+                return NO_ERROR;
+            }
+            case 1032: {
+                n = data.readInt32();
+                mDebugEnableProtectedContent = n;
                 return NO_ERROR;
             }
         }
@@ -5648,7 +5675,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     traverseLayers([&](Layer* layer) {
         renderengine::LayerSettings layerSettings;
         bool prepared = layer->prepareClientLayer(renderArea, useIdentityTransform, clearRegion,
-                                                  layerSettings);
+                                                  false, layerSettings);
         if (prepared) {
             clientCompositionLayers.push_back(layerSettings);
         }
@@ -5659,6 +5686,7 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     // there is no need for synchronization with the GPU.
     base::unique_fd bufferFence;
     base::unique_fd drawFence;
+    getRenderEngine().useProtectedContext(false);
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
                                  std::move(bufferFence), &drawFence);
 

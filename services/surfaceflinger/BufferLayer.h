@@ -168,7 +168,8 @@ protected:
     // prepareClientLayer - constructs a RenderEngine layer for GPU composition.
     bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                             bool useIdentityTransform, Region& clearRegion,
-                            renderengine::LayerSettings& layer);
+                            const bool supportProtectedContent,
+                            renderengine::LayerSettings& layer) override;
 
 private:
     // Returns true if this layer requires filtering
