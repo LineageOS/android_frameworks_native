@@ -74,6 +74,8 @@ public:
     const std::string& getDebugLayersGLES();
 
 private:
+    enum UseAngle { UNKNOWN, YES, NO };
+
     void* loadLibrary(std::string name);
     bool checkAngleRules(void* so);
     void updateUseAngle();
@@ -85,7 +87,7 @@ private:
     std::string mAngleAppName;
     std::string mAngleDeveloperOptIn;
     std::vector<char> mRulesBuffer;
-    bool mUseAngle;
+    UseAngle mUseAngle = UNKNOWN;
     std::string mDebugLayers;
     std::string mDebugLayersGLES;
     std::string mLayerPaths;
