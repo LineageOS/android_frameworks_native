@@ -295,9 +295,11 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
 }
 
 Rect Layer::getScreenBounds(bool reduceTransparentRegion) const {
-    const State& s(getDrawingState());
-    Region transparentRegion = reduceTransparentRegion ? getActiveTransparentRegion(s) : Region();
-    FloatRect bounds = getBounds(transparentRegion);
+    if (!reduceTransparentRegion) {
+        return Rect{mScreenBounds};
+    }
+
+    FloatRect bounds = getBounds();
     ui::Transform t = getTransform();
     // Transform to screen space.
     bounds = t.transform(bounds);
@@ -307,6 +309,11 @@ Rect Layer::getScreenBounds(bool reduceTransparentRegion) const {
 FloatRect Layer::getBounds() const {
     const State& s(getDrawingState());
     return getBounds(getActiveTransparentRegion(s));
+}
+
+FloatRect Layer::getBounds(const Region& activeTransparentRegion) const {
+    // Subtract the transparent region and snap to the bounds.
+    return reduce(mBounds, activeTransparentRegion);
 }
 
 ui::Transform Layer::getTransformWithScale() const {
@@ -362,64 +369,7 @@ void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform)
     }
 }
 
-FloatRect Layer::getBounds(const Region& activeTransparentRegion) const {
-    const State& s(getDrawingState());
-    Rect bounds = getCroppedBufferSize(s);
-    FloatRect floatBounds = bounds.toFloatRect();
-    if (bounds.isValid()) {
-        // Layer has bounds. Pass in our bounds as a special case. Then pass on to our parents so
-        // that they can clip it.
-        floatBounds = cropChildBounds(floatBounds);
-    } else {
-        // Layer does not have bounds, so we fill to our parent bounds. This is done by getting our
-        // parent bounds and inverting the transform to get the maximum bounds we can have that
-        // will fit within our parent bounds.
-        const auto& p = mDrawingParent.promote();
-        if (p != nullptr) {
-            ui::Transform t = s.active_legacy.transform;
-            // When calculating the parent bounds for purposes of clipping, we don't need to
-            // constrain the parent to its transparent region. The transparent region is an
-            // optimization based on the buffer contents of the layer, but does not affect the
-            // space allocated to it by policy, and thus children should be allowed to extend into
-            // the parent's transparent region.
-            // One of the main uses is a parent window with a child sitting behind the parent
-            // window, marked by a transparent region. When computing the parent bounds from the
-            // parent's perspective we pass in the transparent region to reduce buffer allocation
-            // size. When computing the parent bounds from the child's perspective, we pass in an
-            // empty transparent region in order to extend into the the parent bounds.
-            floatBounds = p->getBounds(Region());
-            // Transform back to layer space.
-            floatBounds = t.inverse().transform(floatBounds);
-        }
-    }
 
-    // Subtract the transparent region and snap to the bounds.
-    return reduce(floatBounds, activeTransparentRegion);
-}
-
-FloatRect Layer::cropChildBounds(const FloatRect& childBounds) const {
-    const State& s(getDrawingState());
-    Rect bounds = getCroppedBufferSize(s);
-    FloatRect croppedBounds = childBounds;
-
-    // If the layer has bounds, then crop the passed in child bounds and pass
-    // it to our parents so they can crop it as well. If the layer has no bounds,
-    // then pass on the child bounds.
-    if (bounds.isValid()) {
-        croppedBounds = croppedBounds.intersect(bounds.toFloatRect());
-    }
-
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        // Transform to parent space and allow parent layer to crop the
-        // child bounds as well.
-        ui::Transform t = s.active_legacy.transform;
-        croppedBounds = t.transform(croppedBounds);
-        croppedBounds = p->cropChildBounds(croppedBounds);
-        croppedBounds = t.inverse().transform(croppedBounds);
-    }
-    return croppedBounds;
-}
 
 Rect Layer::getCroppedBufferSize(const State& s) const {
     Rect size = getBufferSize(s);
@@ -2061,34 +2011,7 @@ void Layer::traverseChildrenInZOrder(LayerVector::StateSet stateSet,
 }
 
 ui::Transform Layer::getTransform() const {
-    ui::Transform t;
-    const auto& p = mDrawingParent.promote();
-    if (p != nullptr) {
-        t = p->getTransform();
-
-        // If the parent is not using NATIVE_WINDOW_SCALING_MODE_FREEZE (e.g.
-        // it isFixedSize) then there may be additional scaling not accounted
-        // for in the transform. We need to mirror this scaling in child surfaces
-        // or we will break the contract where WM can treat child surfaces as
-        // pixels in the parent surface.
-        if (p->isFixedSize() && p->getBE().compositionInfo.mBuffer != nullptr) {
-            int bufferWidth;
-            int bufferHeight;
-            if ((p->mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
-                bufferWidth = p->getBE().compositionInfo.mBuffer->getWidth();
-                bufferHeight = p->getBE().compositionInfo.mBuffer->getHeight();
-            } else {
-                bufferHeight = p->getBE().compositionInfo.mBuffer->getWidth();
-                bufferWidth = p->getBE().compositionInfo.mBuffer->getHeight();
-            }
-            float sx = p->getActiveWidth(p->getDrawingState()) / static_cast<float>(bufferWidth);
-            float sy = p->getActiveHeight(p->getDrawingState()) / static_cast<float>(bufferHeight);
-            ui::Transform extraParentScaling;
-            extraParentScaling.set(sx, 0, 0, sy);
-            t = t * extraParentScaling;
-        }
-    }
-    return t * getActiveTransform(getDrawingState());
+    return mEffectiveTransform;
 }
 
 half Layer::getAlpha() const {

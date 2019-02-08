@@ -895,13 +895,6 @@ private:
     LayerVector makeChildrenTraversalList(LayerVector::StateSet stateSet,
                                           const std::vector<Layer*>& layersInTree);
     /**
-     * Retuns the child bounds in layer space cropped to its bounds as well all its parent bounds.
-     * The cropped bounds must be transformed back from parent layer space to child layer space by
-     * applying the inverse of the child's transformation.
-     */
-    FloatRect cropChildBounds(const FloatRect& childBounds) const;
-
-    /**
      * Returns the cropped buffer size or the layer crop if the layer has no buffer. Return
      * INVALID_RECT if the layer has no buffer and no crop.
      * A layer with an invalid buffer size and no crop is considered to be boundless. The layer

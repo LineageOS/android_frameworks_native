@@ -2992,9 +2992,6 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         mDrawingState.traverseInZOrder([&](Layer* layer) {
             if (mLayersPendingRemoval.indexOf(layer) >= 0) {
                 // this layer is not visible anymore
-                // TODO: we could traverse the tree from front to back and
-                //       compute the actual visible region
-                // TODO: we could cache the transformed region
                 Region visibleReg;
                 visibleReg.set(layer->getScreenBounds());
                 invalidateLayerStack(layer, visibleReg);
