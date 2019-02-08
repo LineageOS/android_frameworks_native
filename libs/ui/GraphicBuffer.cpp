@@ -15,6 +15,7 @@
  */
 
 #define LOG_TAG "GraphicBuffer"
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
 #include <ui/GraphicBuffer.h>
 
@@ -29,6 +30,7 @@
 #include <ui/Gralloc2.h>
 #include <ui/GraphicBufferAllocator.h>
 #include <ui/GraphicBufferMapper.h>
+#include <utils/Trace.h>
 
 namespace android {
 
@@ -111,6 +113,7 @@ GraphicBuffer::GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer) : GraphicB
 
 GraphicBuffer::~GraphicBuffer()
 {
+    ATRACE_CALL();
     if (handle) {
         free_handle();
     }

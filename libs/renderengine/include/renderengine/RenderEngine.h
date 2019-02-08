@@ -167,7 +167,9 @@ public:
     // drawing any layers.
     // @param layers The layers to draw onto the display, in Z-order.
     // @param buffer The buffer which will be drawn to. This buffer will be
-    // ready once displayFence fires.
+    // ready once drawFence fires.
+    // @param bufferFence Fence signalling that the buffer is ready to be drawn
+    // to.
     // @param drawFence A pointer to a fence, which will fire when the buffer
     // has been drawn to and is ready to be examined. The fence will be
     // initialized by this method. The caller will be responsible for owning the
@@ -176,7 +178,8 @@ public:
     // now, this always returns NO_ERROR.
     virtual status_t drawLayers(const DisplaySettings& display,
                                 const std::vector<LayerSettings>& layers,
-                                ANativeWindowBuffer* buffer, base::unique_fd* drawFence) = 0;
+                                ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
+                                base::unique_fd* drawFence) = 0;
 
 protected:
     // Gets a framebuffer to render to. This framebuffer may or may not be

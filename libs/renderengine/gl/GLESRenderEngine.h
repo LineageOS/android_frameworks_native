@@ -81,7 +81,8 @@ public:
     bool supportsProtectedContent() const override;
     bool useProtectedContext(bool useProtectedContext) override;
     status_t drawLayers(const DisplaySettings& display, const std::vector<LayerSettings>& layers,
-                        ANativeWindowBuffer* buffer, base::unique_fd* drawFence) override;
+                        ANativeWindowBuffer* buffer, base::unique_fd&& bufferFence,
+                        base::unique_fd* drawFence) override;
 
     // internal to RenderEngine
     EGLDisplay getEGLDisplay() const { return mEGLDisplay; }

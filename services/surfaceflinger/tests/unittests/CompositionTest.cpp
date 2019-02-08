@@ -312,7 +312,7 @@ struct BaseDisplayVariant {
                 .WillRepeatedly(
                         [](const renderengine::DisplaySettings& displaySettings,
                            const std::vector<renderengine::LayerSettings>& /*layerSettings*/,
-                           ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                           ANativeWindowBuffer*, base::unique_fd&&, base::unique_fd*) -> status_t {
                             EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                             EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                       displaySettings.physicalDisplay);
@@ -351,7 +351,7 @@ struct BaseDisplayVariant {
                 .WillRepeatedly(
                         [](const renderengine::DisplaySettings& displaySettings,
                            const std::vector<renderengine::LayerSettings>& /*layerSettings*/,
-                           ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                           ANativeWindowBuffer*, base::unique_fd&&, base::unique_fd*) -> status_t {
                             EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                             EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                                       displaySettings.physicalDisplay);
@@ -580,7 +580,8 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<renderengine::LayerSettings>& layerSettings,
-                             ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                             ANativeWindowBuffer*, base::unique_fd&&,
+                             base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -624,7 +625,8 @@ struct BaseLayerProperties {
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<renderengine::LayerSettings>& layerSettings,
-                             ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                             ANativeWindowBuffer*, base::unique_fd&&,
+                             base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);
@@ -693,7 +695,8 @@ struct SecureLayerProperties : public BaseLayerProperties<SecureLayerProperties>
         EXPECT_CALL(*test->mRenderEngine, drawLayers)
                 .WillOnce([](const renderengine::DisplaySettings& displaySettings,
                              const std::vector<renderengine::LayerSettings>& layerSettings,
-                             ANativeWindowBuffer*, base::unique_fd*) -> status_t {
+                             ANativeWindowBuffer*, base::unique_fd&&,
+                             base::unique_fd*) -> status_t {
                     EXPECT_EQ(DEFAULT_DISPLAY_MAX_LUMINANCE, displaySettings.maxLuminance);
                     EXPECT_EQ(Rect(DEFAULT_DISPLAY_WIDTH, DEFAULT_DISPLAY_HEIGHT),
                               displaySettings.physicalDisplay);

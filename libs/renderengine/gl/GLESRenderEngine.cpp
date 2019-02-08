@@ -789,11 +789,16 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
                                       const std::vector<LayerSettings>& layers,
                                       ANativeWindowBuffer* const buffer,
-                                      base::unique_fd* drawFence) {
+                                      base::unique_fd&& bufferFence, base::unique_fd* drawFence) {
     ATRACE_CALL();
     if (layers.empty()) {
         ALOGV("Drawing empty layer stack");
         return NO_ERROR;
+    }
+
+    if (bufferFence.get() >= 0 && !waitFence(std::move(bufferFence))) {
+        ATRACE_NAME("Waiting before draw");
+        sync_wait(bufferFence.get(), -1);
     }
 
     BindNativeBufferAsFramebuffer fbo(*this, buffer);
