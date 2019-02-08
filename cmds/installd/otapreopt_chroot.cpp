@@ -80,8 +80,6 @@ static std::vector<apex::ApexFile> ActivateApexPackages() {
     // system/apex/apexd/apexd_main.cpp.
     //
     // Only scan the APEX directory under /system (within the chroot dir).
-    // Note that this leaves around the loop devices created and used by
-    // libapexd's code, but this is fine, as we expect to reboot soon after.
     apex::scanPackagesDirAndActivate(apex::kApexPackageSystemDir);
     return apex::getActivePackages();
 }
