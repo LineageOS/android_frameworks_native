@@ -28,12 +28,12 @@ namespace android {
 
 NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(
         uint32_t sequenceNum, nsecs_t eventTime) :
-        NotifyArgs(sequenceNum), eventTime(eventTime) {
+        NotifyArgs(sequenceNum, eventTime) {
 }
 
 NotifyConfigurationChangedArgs::NotifyConfigurationChangedArgs(
         const NotifyConfigurationChangedArgs& other) :
-        NotifyArgs(other.sequenceNum), eventTime(other.eventTime) {
+        NotifyArgs(other.sequenceNum, other.eventTime) {
 }
 
 bool NotifyConfigurationChangedArgs::operator==(const NotifyConfigurationChangedArgs& rhs) const {
@@ -51,14 +51,14 @@ NotifyKeyArgs::NotifyKeyArgs(uint32_t sequenceNum, nsecs_t eventTime, int32_t de
         uint32_t source, int32_t displayId, uint32_t policyFlags,
         int32_t action, int32_t flags, int32_t keyCode, int32_t scanCode,
         int32_t metaState, nsecs_t downTime) :
-        NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId), source(source),
+        NotifyArgs(sequenceNum, eventTime), deviceId(deviceId), source(source),
         displayId(displayId), policyFlags(policyFlags),
         action(action), flags(flags), keyCode(keyCode), scanCode(scanCode),
         metaState(metaState), downTime(downTime) {
 }
 
 NotifyKeyArgs::NotifyKeyArgs(const NotifyKeyArgs& other) :
-        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId),
+        NotifyArgs(other.sequenceNum, other.eventTime), deviceId(other.deviceId),
         source(other.source), displayId(other.displayId), policyFlags(other.policyFlags),
         action(other.action), flags(other.flags),
         keyCode(other.keyCode), scanCode(other.scanCode),
@@ -95,7 +95,7 @@ NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int3
         const PointerProperties* pointerProperties, const PointerCoords* pointerCoords,
         float xPrecision, float yPrecision, nsecs_t downTime,
         const std::vector<TouchVideoFrame>& videoFrames) :
-        NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId), source(source),
+        NotifyArgs(sequenceNum, eventTime), deviceId(deviceId), source(source),
         displayId(displayId), policyFlags(policyFlags),
         action(action), actionButton(actionButton),
         flags(flags), metaState(metaState), buttonState(buttonState),
@@ -110,7 +110,7 @@ NotifyMotionArgs::NotifyMotionArgs(uint32_t sequenceNum, nsecs_t eventTime, int3
 }
 
 NotifyMotionArgs::NotifyMotionArgs(const NotifyMotionArgs& other) :
-        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId),
+        NotifyArgs(other.sequenceNum, other.eventTime), deviceId(other.deviceId),
         source(other.source), displayId(other.displayId), policyFlags(other.policyFlags),
         action(other.action), actionButton(other.actionButton), flags(other.flags),
         metaState(other.metaState), buttonState(other.buttonState),
@@ -170,12 +170,12 @@ void NotifyMotionArgs::notify(const sp<InputListenerInterface>& listener) const 
 
 NotifySwitchArgs::NotifySwitchArgs(uint32_t sequenceNum, nsecs_t eventTime, uint32_t policyFlags,
         uint32_t switchValues, uint32_t switchMask) :
-        NotifyArgs(sequenceNum), eventTime(eventTime), policyFlags(policyFlags),
+        NotifyArgs(sequenceNum, eventTime), policyFlags(policyFlags),
         switchValues(switchValues), switchMask(switchMask) {
 }
 
 NotifySwitchArgs::NotifySwitchArgs(const NotifySwitchArgs& other) :
-        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), policyFlags(other.policyFlags),
+        NotifyArgs(other.sequenceNum, other.eventTime), policyFlags(other.policyFlags),
         switchValues(other.switchValues), switchMask(other.switchMask) {
 }
 
@@ -196,11 +196,11 @@ void NotifySwitchArgs::notify(const sp<InputListenerInterface>& listener) const 
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(
         uint32_t sequenceNum, nsecs_t eventTime, int32_t deviceId) :
-        NotifyArgs(sequenceNum), eventTime(eventTime), deviceId(deviceId) {
+        NotifyArgs(sequenceNum, eventTime), deviceId(deviceId) {
 }
 
 NotifyDeviceResetArgs::NotifyDeviceResetArgs(const NotifyDeviceResetArgs& other) :
-        NotifyArgs(other.sequenceNum), eventTime(other.eventTime), deviceId(other.deviceId) {
+        NotifyArgs(other.sequenceNum, other.eventTime), deviceId(other.deviceId) {
 }
 
 bool NotifyDeviceResetArgs::operator==(const NotifyDeviceResetArgs& rhs) const {
