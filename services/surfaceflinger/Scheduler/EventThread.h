@@ -45,6 +45,7 @@ class SurfaceFlinger;
 // ---------------------------------------------------------------------------
 
 using ResyncCallback = std::function<void()>;
+using ResetIdleTimerCallback = std::function<void()>;
 
 enum class VSyncRequest {
     None = -1,
@@ -69,7 +70,7 @@ public:
 
 class EventThreadConnection : public BnDisplayEventConnection {
 public:
-    EventThreadConnection(EventThread* eventThread, ResyncCallback resyncCallback);
+    EventThreadConnection(EventThread*, ResyncCallback, ResetIdleTimerCallback);
     virtual ~EventThreadConnection();
 
     virtual status_t postEvent(const DisplayEventReceiver::Event& event);
@@ -83,6 +84,7 @@ public:
 
     // Called in response to requestNextVsync.
     const ResyncCallback resyncCallback;
+    const ResetIdleTimerCallback resetIdleTimerCallback;
 
     VSyncRequest vsyncRequest = VSyncRequest::None;
 
@@ -96,8 +98,8 @@ class EventThread {
 public:
     virtual ~EventThread();
 
-    virtual sp<EventThreadConnection> createEventConnection(
-            ResyncCallback resyncCallback) const = 0;
+    virtual sp<EventThreadConnection> createEventConnection(ResyncCallback,
+                                                            ResetIdleTimerCallback) const = 0;
 
     // called before the screen is turned off from main thread
     virtual void onScreenReleased() = 0;
@@ -124,17 +126,14 @@ namespace impl {
 class EventThread : public android::EventThread, private VSyncSource::Callback {
 public:
     using InterceptVSyncsCallback = std::function<void(nsecs_t)>;
-    using ResetIdleTimerCallback = std::function<void()>;
 
     // TODO(b/113612090): Once the Scheduler is complete this constructor will become obsolete.
-    EventThread(VSyncSource* src, InterceptVSyncsCallback interceptVSyncsCallback,
-                const char* threadName);
-    EventThread(std::unique_ptr<VSyncSource> src,
-                const InterceptVSyncsCallback& interceptVSyncsCallback,
-                const ResetIdleTimerCallback& resetIdleTimerCallback, const char* threadName);
+    EventThread(VSyncSource*, InterceptVSyncsCallback, const char* threadName);
+    EventThread(std::unique_ptr<VSyncSource>, InterceptVSyncsCallback, const char* threadName);
     ~EventThread();
 
-    sp<EventThreadConnection> createEventConnection(ResyncCallback resyncCallback) const override;
+    sp<EventThreadConnection> createEventConnection(ResyncCallback,
+                                                    ResetIdleTimerCallback) const override;
 
     status_t registerDisplayEventConnection(const sp<EventThreadConnection>& connection) override;
     void setVsyncRate(uint32_t rate, const sp<EventThreadConnection>& connection) override;
@@ -220,9 +219,6 @@ private:
     State mState GUARDED_BY(mMutex) = State::Idle;
 
     static const char* toCString(State);
-
-    // Callback that resets the idle timer when the next vsync is received.
-    ResetIdleTimerCallback mResetIdleTimer;
 };
 
 // ---------------------------------------------------------------------------
