@@ -681,7 +681,7 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     }
 
     // This gives us only the "orientation" component of the transform
-    const State& s(getCurrentState());
+    const State& s(getDrawingState());
 
     // Apply the layer's transform, followed by the display's global transform
     // Here we're guaranteed that the layer's transform preserves rects
