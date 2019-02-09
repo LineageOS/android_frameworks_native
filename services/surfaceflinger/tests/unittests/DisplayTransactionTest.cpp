@@ -658,7 +658,8 @@ using NonHwcVirtualDisplayCase =
 using SimpleHwcVirtualDisplayVariant = HwcVirtualDisplayVariant<1024, 768, Secure::TRUE>;
 using HwcVirtualDisplayCase =
         Case<SimpleHwcVirtualDisplayVariant, WideColorSupportNotConfiguredVariant,
-             NonHwcDisplayHdrSupportVariant, NonHwcPerFrameMetadataSupportVariant>;
+             HdrNotSupportedVariant<SimpleHwcVirtualDisplayVariant>,
+             NoPerFrameMetadataSupportVariant<SimpleHwcVirtualDisplayVariant>>;
 using WideColorP3ColorimetricDisplayCase =
         Case<PrimaryDisplayVariant, WideColorP3ColorimetricSupportedVariant<PrimaryDisplayVariant>,
              HdrNotSupportedVariant<PrimaryDisplayVariant>,
