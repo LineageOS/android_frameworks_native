@@ -165,6 +165,13 @@ extern std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
 extern std::string getInputDeviceConfigurationFilePathByName(
         const std::string& name, InputDeviceConfigurationFileType type);
 
+enum ReservedInputDeviceId : int32_t {
+    // Device id of a special "virtual" keyboard that is always present.
+    VIRTUAL_KEYBOARD_ID = -1,
+    // Device id of the "built-in" keyboard if there is one.
+    BUILT_IN_KEYBOARD_ID = 0,
+};
+
 } // namespace android
 
 #endif // _LIBINPUT_INPUT_DEVICE_H

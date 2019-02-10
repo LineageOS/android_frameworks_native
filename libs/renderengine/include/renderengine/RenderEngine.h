@@ -108,6 +108,8 @@ public:
     virtual void genTextures(size_t count, uint32_t* names) = 0;
     virtual void deleteTextures(size_t count, uint32_t const* names) = 0;
     virtual void bindExternalTextureImage(uint32_t texName, const Image& image) = 0;
+    virtual status_t bindExternalTextureBuffer(uint32_t texName, sp<GraphicBuffer> buffer,
+                                               sp<Fence> fence, bool cleanCache) = 0;
     // When binding a native buffer, it must be done before setViewportAndProjection
     // Returns NO_ERROR when binds successfully, NO_MEMORY when there's no memory for allocation.
     virtual status_t bindFrameBuffer(Framebuffer* framebuffer) = 0;
@@ -172,37 +174,37 @@ public:
     // fence.
     // @return An error code indicating whether drawing was successful. For
     // now, this always returns NO_ERROR.
-    // TODO(alecmouri): Consider making this a multi-display API, so that the
-    // caller deoes not need to handle multiple fences.
     virtual status_t drawLayers(const DisplaySettings& display,
                                 const std::vector<LayerSettings>& layers,
                                 ANativeWindowBuffer* buffer, base::unique_fd* drawFence) = 0;
 
-    // TODO(alecmouri): Expose something like bindTexImage() so that devices
-    // that don't support native sync fences can get rid of code duplicated
-    // between BufferStateLayer and BufferQueueLayer for binding an external
-    // texture.
-
-    // TODO(alecmouri): Add API to help with managing a texture pool.
+protected:
+    // Gets a framebuffer to render to. This framebuffer may or may not be
+    // cached depending on the implementation.
+    //
+    // Note that this method does not transfer ownership, so the caller most not
+    // live longer than RenderEngine.
+    virtual Framebuffer* getFramebufferForDrawing() = 0;
+    friend class BindNativeBufferAsFramebuffer;
 };
 
 class BindNativeBufferAsFramebuffer {
 public:
     BindNativeBufferAsFramebuffer(RenderEngine& engine, ANativeWindowBuffer* buffer)
-          : mEngine(engine), mFramebuffer(mEngine.createFramebuffer()), mStatus(NO_ERROR) {
+          : mEngine(engine), mFramebuffer(mEngine.getFramebufferForDrawing()), mStatus(NO_ERROR) {
         mStatus = mFramebuffer->setNativeWindowBuffer(buffer, mEngine.isProtected())
-                ? mEngine.bindFrameBuffer(mFramebuffer.get())
+                ? mEngine.bindFrameBuffer(mFramebuffer)
                 : NO_MEMORY;
     }
     ~BindNativeBufferAsFramebuffer() {
         mFramebuffer->setNativeWindowBuffer(nullptr, false);
-        mEngine.unbindFrameBuffer(mFramebuffer.get());
+        mEngine.unbindFrameBuffer(mFramebuffer);
     }
     status_t getStatus() const { return mStatus; }
 
 private:
     RenderEngine& mEngine;
-    std::unique_ptr<Framebuffer> mFramebuffer;
+    Framebuffer* mFramebuffer;
     status_t mStatus;
 };
 

@@ -84,6 +84,10 @@ sp<InputReaderInterface> InputManager::getReader() {
     return mReader;
 }
 
+sp<InputClassifierInterface> InputManager::getClassifier() {
+    return mClassifier;
+}
+
 sp<InputDispatcherInterface> InputManager::getDispatcher() {
     return mDispatcher;
 }

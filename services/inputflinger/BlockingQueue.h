@@ -80,6 +80,16 @@ public:
         mQueue.clear();
     };
 
+    /**
+     * How many elements are currently stored in the queue.
+     * Primary used for debugging.
+     * Does not block.
+     */
+    size_t size() {
+        std::scoped_lock lock(mLock);
+        return mQueue.size();
+    }
+
 private:
     size_t mCapacity;
     /**

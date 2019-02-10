@@ -44,28 +44,14 @@ ColorLayer::ColorLayer(const LayerCreationArgs& args)
 
 ColorLayer::~ColorLayer() = default;
 
-void ColorLayer::onDraw(const RenderArea& renderArea, const Region& /* clip */,
-                        bool useIdentityTransform) {
-    half4 color = getColor();
-    if (color.a > 0) {
-        renderengine::Mesh mesh(renderengine::Mesh::TRIANGLE_FAN, 4, 2);
-        computeGeometry(renderArea, mesh, useIdentityTransform);
-        auto& engine(mFlinger->getRenderEngine());
-
-        Rect win{computeBounds()};
-
-        const auto roundedCornerState = getRoundedCornerState();
-        const auto cropRect = roundedCornerState.cropRect;
-        setupRoundedCornersCropCoordinates(win, cropRect);
-
-        engine.setupLayerBlending(getPremultipledAlpha(), false /* opaque */,
-                                  true /* disableTexture */, color, roundedCornerState.radius);
-
-        engine.setSourceDataSpace(mCurrentDataSpace);
-        engine.setupCornerRadiusCropSize(cropRect.getWidth(), cropRect.getHeight());
-        engine.drawMesh(mesh);
-        engine.disableBlending();
-    }
+bool ColorLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                                    bool useIdentityTransform, Region& clearRegion,
+                                    renderengine::LayerSettings& layer) {
+    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion, layer);
+    half4 color(getColor());
+    half3 solidColor(color.r, color.g, color.b);
+    layer.source.solidColor = solidColor;
+    return true;
 }
 
 bool ColorLayer::isVisible() const {

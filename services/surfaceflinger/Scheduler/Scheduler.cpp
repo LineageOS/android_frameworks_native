@@ -87,6 +87,7 @@ Scheduler::~Scheduler() {
 
 sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
         const char* connectionName, int64_t phaseOffsetNs, ResyncCallback resyncCallback,
+        ResetIdleTimerCallback resetIdleTimerCallback,
         impl::EventThread::InterceptVSyncsCallback interceptCallback) {
     const int64_t id = sNextId++;
     ALOGV("Creating a connection handle with ID: %" PRId64 "\n", id);
@@ -94,12 +95,14 @@ sp<Scheduler::ConnectionHandle> Scheduler::createConnection(
     std::unique_ptr<EventThread> eventThread =
             makeEventThread(connectionName, mPrimaryDispSync.get(), phaseOffsetNs,
                             std::move(interceptCallback));
-    auto connection = std::make_unique<Connection>(new ConnectionHandle(id),
-                                                   eventThread->createEventConnection(
-                                                           std::move(resyncCallback)),
-                                                   std::move(eventThread));
 
-    mConnections.insert(std::make_pair(id, std::move(connection)));
+    auto eventThreadConnection =
+            createConnectionInternal(eventThread.get(), std::move(resyncCallback),
+                                     std::move(resetIdleTimerCallback));
+    mConnections.emplace(id,
+                         std::make_unique<Connection>(new ConnectionHandle(id),
+                                                      eventThreadConnection,
+                                                      std::move(eventThread)));
     return mConnections[id]->handle;
 }
 
@@ -109,14 +112,29 @@ std::unique_ptr<EventThread> Scheduler::makeEventThread(
     std::unique_ptr<VSyncSource> eventThreadSource =
             std::make_unique<DispSyncSource>(dispSync, phaseOffsetNs, true, connectionName);
     return std::make_unique<impl::EventThread>(std::move(eventThreadSource),
-                                               std::move(interceptCallback),
-                                               [this] { resetIdleTimer(); }, connectionName);
+                                               std::move(interceptCallback), connectionName);
+}
+
+sp<EventThreadConnection> Scheduler::createConnectionInternal(
+        EventThread* eventThread, ResyncCallback&& resyncCallback,
+        ResetIdleTimerCallback&& resetIdleTimerCallback) {
+    return eventThread->createEventConnection(std::move(resyncCallback),
+                                              [this,
+                                               resetIdleTimerCallback =
+                                                       std::move(resetIdleTimerCallback)] {
+                                                  resetIdleTimer();
+                                                  if (resetIdleTimerCallback) {
+                                                      resetIdleTimerCallback();
+                                                  }
+                                              });
 }
 
 sp<IDisplayEventConnection> Scheduler::createDisplayEventConnection(
-        const sp<Scheduler::ConnectionHandle>& handle, ResyncCallback resyncCallback) {
+        const sp<Scheduler::ConnectionHandle>& handle, ResyncCallback resyncCallback,
+        ResetIdleTimerCallback resetIdleTimerCallback) {
     RETURN_VALUE_IF_INVALID(nullptr);
-    return mConnections[handle->id]->thread->createEventConnection(std::move(resyncCallback));
+    return createConnectionInternal(mConnections[handle->id]->thread.get(),
+                                    std::move(resyncCallback), std::move(resetIdleTimerCallback));
 }
 
 EventThread* Scheduler::getEventThread(const sp<Scheduler::ConnectionHandle>& handle) {
@@ -241,11 +259,6 @@ void Scheduler::setExpiredIdleTimerCallback(const ExpiredIdleTimerCallback& expi
     mExpiredTimerCallback = expiredTimerCallback;
 }
 
-void Scheduler::setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback) {
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    mResetTimerCallback = resetTimerCallback;
-}
-
 void Scheduler::updateFrameSkipping(const int64_t skipCount) {
     ATRACE_INT("FrameSkipCount", skipCount);
     if (mSkipCount != skipCount) {
@@ -335,11 +348,6 @@ void Scheduler::resetIdleTimer() {
     if (mIdleTimer) {
         mIdleTimer->reset();
         ATRACE_INT("ExpiredIdleTimer", 0);
-    }
-
-    std::lock_guard<std::mutex> lock(mCallbackLock);
-    if (mResetTimerCallback) {
-        mResetTimerCallback();
     }
 }
 

@@ -90,6 +90,7 @@ public:
     virtual status_t stop();
 
     virtual sp<InputReaderInterface> getReader();
+    virtual sp<InputClassifierInterface> getClassifier();
     virtual sp<InputDispatcherInterface> getDispatcher();
 
     virtual void setInputWindows(const Vector<InputWindowInfo>& handles);

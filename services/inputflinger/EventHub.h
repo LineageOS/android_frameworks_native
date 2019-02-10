@@ -46,13 +46,6 @@
 
 namespace android {
 
-enum {
-    // Device id of a special "virtual" keyboard that is always present.
-    VIRTUAL_KEYBOARD_ID = -1,
-    // Device id of the "built-in" keyboard if there is one.
-    BUILT_IN_KEYBOARD_ID = 0,
-};
-
 /*
  * A raw event as retrieved from the EventHub.
  */

@@ -63,39 +63,30 @@ SurfaceControl::SurfaceControl(const sp<SurfaceControl>& other) {
 
 SurfaceControl::~SurfaceControl()
 {
+    // Avoid reparenting the server-side surface to null if we are not the owner of it,
+    // meaning that we retrieved it from another process.
     if (mClient != nullptr && mHandle != nullptr && mOwned) {
         SurfaceComposerClient::doDropReferenceTransaction(mHandle, mClient->getClient());
     }
-    mClient.clear();
-    mHandle.clear();
-    mGraphicBufferProducer.clear();
-    IPCThreadState::self()->flushCommands();
+    release();
 }
 
 void SurfaceControl::destroy()
 {
-    // Avoid destroying the server-side surface if we are not the owner of it, meaning that we
-    // retrieved it from another process.
-    if (isValid() && mOwned) {
+    if (isValid()) {
         SurfaceComposerClient::Transaction().reparent(this, nullptr).apply();
     }
-    // clear all references and trigger an IPC now, to make sure things
+    release();
+}
+
+void SurfaceControl::release()
+{
+    // Trigger an IPC now, to make sure things
     // happen without delay, since these resources are quite heavy.
     mClient.clear();
     mHandle.clear();
     mGraphicBufferProducer.clear();
     IPCThreadState::self()->flushCommands();
-}
-
-void SurfaceControl::clear()
-{
-    // here, the window manager tells us explicitly that we should destroy
-    // the surface's resource. Soon after this call, it will also release
-    // its last reference (which will call the dtor); however, it is possible
-    // that a client living in the same process still holds references which
-    // would delay the call to the dtor -- that is why we need this explicit
-    // "clear()" call.
-    destroy();
 }
 
 void SurfaceControl::disconnect() {

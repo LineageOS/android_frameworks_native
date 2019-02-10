@@ -639,7 +639,7 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
          * Here we cancel out the orientation component of the WM transform.
          * The scaling and translate components are already included in our bounds
          * computation so it's enough to just omit it in the composition.
-         * See comment in onDraw with ref to b/36727915 for why.
+         * See comment in BufferLayer::prepareClientLayer with ref to b/36727915 for why.
          */
         transform = ui::Transform(invTransform) * tr * bufferOrientation;
     }
@@ -681,7 +681,7 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
     }
 
     // This gives us only the "orientation" component of the transform
-    const State& s(getCurrentState());
+    const State& s(getDrawingState());
 
     // Apply the layer's transform, followed by the display's global transform
     // Here we're guaranteed that the layer's transform preserves rects
@@ -707,12 +707,51 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 // drawing...
 // ---------------------------------------------------------------------------
 
-void Layer::draw(const RenderArea& renderArea, const Region& clip) {
-    onDraw(renderArea, clip, false);
+bool Layer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                               Region& clearRegion, renderengine::LayerSettings& layer) {
+    return prepareClientLayer(renderArea, clip, false, clearRegion, layer);
 }
 
-void Layer::draw(const RenderArea& renderArea, bool useIdentityTransform) {
-    onDraw(renderArea, Region(renderArea.getBounds()), useIdentityTransform);
+bool Layer::prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
+                               Region& clearRegion, renderengine::LayerSettings& layer) {
+    return prepareClientLayer(renderArea, Region(renderArea.getBounds()), useIdentityTransform,
+                              clearRegion, layer);
+}
+
+bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /*clip*/,
+                               bool useIdentityTransform, Region& /*clearRegion*/,
+                               renderengine::LayerSettings& layer) {
+    FloatRect bounds = computeBounds();
+    half alpha = getAlpha();
+    layer.geometry.boundaries = bounds;
+    if (useIdentityTransform) {
+        layer.geometry.positionTransform = mat4();
+    } else {
+        const ui::Transform transform = getTransform();
+        mat4 m;
+        m[0][0] = transform[0][0];
+        m[0][1] = transform[0][1];
+        m[0][3] = transform[0][2];
+        m[1][0] = transform[1][0];
+        m[1][1] = transform[1][1];
+        m[1][3] = transform[1][2];
+        m[3][0] = transform[2][0];
+        m[3][1] = transform[2][1];
+        m[3][3] = transform[2][2];
+        layer.geometry.positionTransform = m;
+    }
+
+    if (hasColorTransform()) {
+        layer.colorTransform = getColorTransform();
+    }
+
+    const auto roundedCornerState = getRoundedCornerState();
+    layer.geometry.roundedCornersRadius = roundedCornerState.radius;
+    layer.geometry.roundedCornersCrop = roundedCornerState.cropRect;
+
+    layer.alpha = alpha;
+    layer.sourceDataspace = mCurrentDataSpace;
+    return true;
 }
 
 void Layer::clearWithOpenGL(const RenderArea& renderArea, float red, float green, float blue,
@@ -1039,13 +1078,18 @@ uint32_t Layer::doTransaction(uint32_t flags) {
     ATRACE_CALL();
 
     if (mLayerDetached) {
-        return 0;
+        return flags;
+    }
+
+    if (mChildrenChanged) {
+        flags |= eVisibleRegion;
+        mChildrenChanged = false;
     }
 
     pushPendingState();
     State c = getCurrentState();
     if (!applyPendingStates(&c)) {
-        return 0;
+        return flags;
     }
 
     flags = doTransactionResize(flags, &c);
@@ -1065,11 +1109,6 @@ uint32_t Layer::doTransaction(uint32_t flags) {
         // we may use linear filtering, if the matrix scales us
         const uint8_t type = getActiveTransform(c).getType();
         mNeedsFiltering = (!getActiveTransform(c).preserveRects() || type >= ui::Transform::SCALE);
-    }
-
-    if (mChildrenChanged) {
-        flags |= eVisibleRegion;
-        mChildrenChanged = false;
     }
 
     // If the layer is hidden, signal and clear out all local sync points so
@@ -1241,7 +1280,12 @@ bool Layer::setAlpha(float alpha) {
 bool Layer::setBackgroundColor(const half3& color, float alpha, ui::Dataspace dataspace) {
     if (!mCurrentState.bgColorLayer && alpha == 0) {
         return false;
-    } else if (!mCurrentState.bgColorLayer && alpha != 0) {
+    }
+    mCurrentState.sequence++;
+    mCurrentState.modified = true;
+    setTransactionFlags(eTransactionNeeded);
+
+    if (!mCurrentState.bgColorLayer && alpha != 0) {
         // create background color layer if one does not yet exist
         uint32_t flags = ISurfaceComposerClient::eFXSurfaceColor;
         const String8& name = mName + "BackgroundColorLayer";
@@ -1595,6 +1639,7 @@ size_t Layer::getChildrenCount() const {
 
 void Layer::addChild(const sp<Layer>& layer) {
     mChildrenChanged = true;
+    setTransactionFlags(eTransactionNeeded);
 
     mCurrentChildren.add(layer);
     layer->setParent(this);
@@ -1602,6 +1647,7 @@ void Layer::addChild(const sp<Layer>& layer) {
 
 ssize_t Layer::removeChild(const sp<Layer>& layer) {
     mChildrenChanged = true;
+    setTransactionFlags(eTransactionNeeded);
 
     layer->setParent(nullptr);
     return mCurrentChildren.remove(layer);

@@ -59,7 +59,7 @@ public:
     const BufferHubEventFd& eventFd() const { return mEventFd; }
 
     // Returns the current value of MetadataHeader::buffer_state.
-    uint32_t buffer_state() const { return buffer_state_->load(std::memory_order_acquire); }
+    uint32_t buffer_state() const { return mBufferState->load(std::memory_order_acquire); }
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
@@ -134,9 +134,9 @@ private:
     // bufferhubd daemon and all buffer clients.
     BufferHubMetadata mMetadata;
     // Shortcuts to the atomics inside the header of mMetadata.
-    std::atomic<uint32_t>* buffer_state_ = nullptr;
-    std::atomic<uint32_t>* fence_state_ = nullptr;
-    std::atomic<uint32_t>* active_clients_bit_mask_ = nullptr;
+    std::atomic<uint32_t>* mBufferState = nullptr;
+    std::atomic<uint32_t>* mFenceState = nullptr;
+    std::atomic<uint32_t>* mActiveClientsBitMask = nullptr;
 
     // HwBinder backend
     sp<frameworks::bufferhub::V1_0::IBufferClient> mBufferClient;

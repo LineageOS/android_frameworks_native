@@ -180,11 +180,15 @@ public:
     status_t lockYCbCr(uint32_t inUsage, const Rect& rect,
             android_ycbcr *ycbcr);
     status_t unlock();
-    status_t lockAsync(uint32_t inUsage, void** vaddr, int fenceFd);
-    status_t lockAsync(uint32_t inUsage, const Rect& rect, void** vaddr,
-            int fenceFd);
-    status_t lockAsync(uint64_t inProducerUsage, uint64_t inConsumerUsage,
-            const Rect& rect, void** vaddr, int fenceFd);
+    // For the following three lockAsync functions, if bytesPerStride or bytesPerPixel
+    // are unknown or variable, -1 will be returned
+    status_t lockAsync(uint32_t inUsage, void** vaddr, int fenceFd,
+                       int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
+    status_t lockAsync(uint32_t inUsage, const Rect& rect, void** vaddr, int fenceFd,
+                       int32_t* outBytesPerPixel = nullptr, int32_t* outBytesPerStride = nullptr);
+    status_t lockAsync(uint64_t inProducerUsage, uint64_t inConsumerUsage, const Rect& rect,
+                       void** vaddr, int fenceFd, int32_t* outBytesPerPixel = nullptr,
+                       int32_t* outBytesPerStride = nullptr);
     status_t lockAsyncYCbCr(uint32_t inUsage, android_ycbcr *ycbcr,
             int fenceFd);
     status_t lockAsyncYCbCr(uint32_t inUsage, const Rect& rect,

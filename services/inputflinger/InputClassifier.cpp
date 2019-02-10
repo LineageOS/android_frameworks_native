@@ -19,6 +19,7 @@
 #include "InputClassifier.h"
 
 #include <algorithm>
+#include <android-base/stringprintf.h>
 #include <cmath>
 #include <inttypes.h>
 #include <log/log.h>
@@ -26,9 +27,17 @@
     #include <pthread.h>
 #endif
 #include <server_configurable_flags/get_flags.h>
+#include <unordered_set>
 
 #include <android/hardware/input/classifier/1.0/IInputClassifier.h>
 
+#define INDENT1 "  "
+#define INDENT2 "    "
+#define INDENT3 "      "
+#define INDENT4 "        "
+#define INDENT5 "          "
+
+using android::base::StringPrintf;
 using android::hardware::hidl_bitfield;
 using android::hardware::hidl_vec;
 using namespace android::hardware::input;
@@ -646,6 +655,30 @@ void MotionClassifier::reset(const NotifyDeviceResetArgs& args) {
     mEvents.push(std::make_unique<NotifyDeviceResetArgs>(args));
 }
 
+void MotionClassifier::dump(std::string& dump) {
+    std::scoped_lock lock(mLock);
+    std::string serviceStatus = mService->ping().isOk() ? "running" : " not responding";
+    dump += StringPrintf(INDENT2 "mService status: %s\n", serviceStatus.c_str());
+    dump += StringPrintf(INDENT2 "mEvents: %zu element(s) (max=%zu)\n",
+            mEvents.size(), MAX_EVENTS);
+    dump += INDENT2 "mClassifications, mLastDownTimes:\n";
+    dump += INDENT3 "Device Id\tClassification\tLast down time";
+    // Combine mClassifications and mLastDownTimes into a single table.
+    // Create a superset of device ids.
+    std::unordered_set<int32_t> deviceIds;
+    std::for_each(mClassifications.begin(), mClassifications.end(),
+            [&deviceIds](auto pair){ deviceIds.insert(pair.first); });
+    std::for_each(mLastDownTimes.begin(), mLastDownTimes.end(),
+            [&deviceIds](auto pair){ deviceIds.insert(pair.first); });
+    for(int32_t deviceId : deviceIds) {
+        const MotionClassification classification =
+                getValueForKey(mClassifications, deviceId, MotionClassification::NONE);
+        const nsecs_t downTime = getValueForKey(mLastDownTimes, deviceId, static_cast<nsecs_t>(0));
+        dump += StringPrintf("\n" INDENT4 "%" PRId32 "\t%s\t%" PRId64,
+                deviceId, motionClassificationToString(classification), downTime);
+    }
+}
+
 // --- InputClassifier ---
 
 InputClassifier::InputClassifier(const sp<InputListenerInterface>& listener) :
@@ -692,6 +725,18 @@ void InputClassifier::notifyDeviceReset(const NotifyDeviceResetArgs* args) {
     }
     // continue to next stage
     mListener->notifyDeviceReset(args);
+}
+
+void InputClassifier::dump(std::string& dump) {
+    dump += "Input Classifier State:\n";
+
+    dump += INDENT1 "Motion Classifier:\n";
+    if (mMotionClassifier) {
+        mMotionClassifier->dump(dump);
+    } else {
+        dump += INDENT2 "<nullptr>";
+    }
+    dump += "\n";
 }
 
 } // namespace android

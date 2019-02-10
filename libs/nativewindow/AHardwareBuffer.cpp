@@ -263,8 +263,17 @@ int AHardwareBuffer_isSupported(const AHardwareBuffer_Desc* desc) {
     if (!desc) return 0;
     if (!AHardwareBuffer_isValidDescription(desc, /*log=*/false)) return 0;
 
-    // Make a trial allocation.
-    // TODO(b/115660272): add implementation that uses a HAL query.
+    bool supported = false;
+    GraphicBuffer* gBuffer = new GraphicBuffer();
+    status_t err = gBuffer->isSupported(desc->width, desc->height, desc->format, desc->layers,
+                                        desc->usage, &supported);
+
+    if (err == NO_ERROR) {
+        return supported;
+    }
+
+    // function isSupported is not implemented on device or an error occurred during HAL
+    // query.  Make a trial allocation.
     AHardwareBuffer_Desc trialDesc = *desc;
     trialDesc.width = 4;
     trialDesc.height = desc->format == AHARDWAREBUFFER_FORMAT_BLOB ? 1 : 4;

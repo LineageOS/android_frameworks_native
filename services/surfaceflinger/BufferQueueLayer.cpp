@@ -234,9 +234,28 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     const nsecs_t expectedPresentTime = mFlinger->mUseScheduler
             ? mFlinger->mScheduler->mPrimaryDispSync->expectedPresentTime()
             : mFlinger->mPrimaryDispSync->expectedPresentTime();
+
+    // updateTexImage() below might drop the some buffers at the head of the queue if there is a
+    // buffer behind them which is timely to be presented. However this buffer may not be signaled
+    // yet. The code below makes sure that this wouldn't happen by setting maxFrameNumber to the
+    // last buffer that was signaled.
+    uint64_t lastSignaledFrameNumber = mLastFrameNumberReceived;
+    {
+        Mutex::Autolock lock(mQueueItemLock);
+        for (int i = 0; i < mQueueItems.size(); i++) {
+            bool fenceSignaled =
+                    mQueueItems[i].mFenceTime->getSignalTime() != Fence::SIGNAL_TIME_PENDING;
+            if (!fenceSignaled) {
+                break;
+            }
+            lastSignaledFrameNumber = mQueueItems[i].mFrameNumber;
+        }
+    }
+    const uint64_t maxFrameNumberToAcquire =
+            std::min(mLastFrameNumberReceived.load(), lastSignaledFrameNumber);
     status_t updateResult =
             mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh, &queuedBuffer,
-                                      mLastFrameNumberReceived, releaseFence);
+                                      maxFrameNumberToAcquire, releaseFence);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.
@@ -305,7 +324,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
 
 status_t BufferQueueLayer::updateActiveBuffer() {
     // update the active buffer
-    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot);
+    mActiveBuffer = mConsumer->getCurrentBuffer(&mActiveBufferSlot, &mActiveBufferFence);
     getBE().compositionInfo.mBuffer = mActiveBuffer;
     getBE().compositionInfo.mBufferSlot = mActiveBufferSlot;
 
@@ -314,6 +333,10 @@ status_t BufferQueueLayer::updateActiveBuffer() {
         return BAD_VALUE;
     }
     return NO_ERROR;
+}
+
+bool BufferQueueLayer::useCachedBufferForClientComposition() const {
+    return mConsumer->getAndSetCurrentBufferCacheHint();
 }
 
 status_t BufferQueueLayer::updateFrameNumber(nsecs_t latchTime) {

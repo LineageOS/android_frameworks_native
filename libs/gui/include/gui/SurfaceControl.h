@@ -58,8 +58,12 @@ public:
     static bool isSameSurface(
             const sp<SurfaceControl>& lhs, const sp<SurfaceControl>& rhs);
 
-    // release surface data from java
-    void        clear();
+    // Release the handles assosciated with the SurfaceControl, without reparenting
+    // them off-screen. At the moment if this isn't executed before ~SurfaceControl
+    // is called then the destructor will reparent the layer off-screen for you.
+    void        release();
+    // Reparent off-screen and release. This is invoked by the destructor.
+    void destroy();
 
     // disconnect any api that's connected
     void        disconnect();
@@ -98,7 +102,6 @@ private:
 
     sp<Surface> generateSurfaceLocked() const;
     status_t validate() const;
-    void destroy();
 
     sp<SurfaceComposerClient>   mClient;
     sp<IBinder>                 mHandle;
