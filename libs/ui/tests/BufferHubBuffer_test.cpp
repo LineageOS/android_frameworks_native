@@ -32,13 +32,13 @@ namespace android {
 
 namespace {
 
-using ::android::BufferHubDefs::AnyClientAcquired;
-using ::android::BufferHubDefs::AnyClientGained;
-using ::android::BufferHubDefs::AnyClientPosted;
-using ::android::BufferHubDefs::IsClientAcquired;
-using ::android::BufferHubDefs::IsClientGained;
-using ::android::BufferHubDefs::IsClientPosted;
-using ::android::BufferHubDefs::IsClientReleased;
+using ::android::BufferHubDefs::isAnyClientAcquired;
+using ::android::BufferHubDefs::isAnyClientGained;
+using ::android::BufferHubDefs::isAnyClientPosted;
+using ::android::BufferHubDefs::isClientAcquired;
+using ::android::BufferHubDefs::isClientGained;
+using ::android::BufferHubDefs::isClientPosted;
+using ::android::BufferHubDefs::isClientReleased;
 using ::android::BufferHubDefs::kMetadataHeaderSize;
 using ::testing::IsNull;
 using ::testing::NotNull;
@@ -81,88 +81,88 @@ private:
 };
 
 void BufferHubBufferStateTransitionTest::CreateTwoClientsOfABuffer() {
-    b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
+    b1 = BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage, kUserMetadataSize);
     ASSERT_THAT(b1, NotNull());
-    b1ClientMask = b1->client_state_mask();
+    b1ClientMask = b1->clientStateMask();
     ASSERT_NE(b1ClientMask, 0U);
 
-    native_handle_t* token = b1->Duplicate();
+    native_handle_t* token = b1->duplicate();
     ASSERT_THAT(token, NotNull());
 
     // TODO(b/122543147): use a movalbe wrapper for token
-    b2 = BufferHubBuffer::Import(token);
+    b2 = BufferHubBuffer::import(token);
     native_handle_close(token);
     native_handle_delete(token);
     ASSERT_THAT(b2, NotNull());
 
-    b2ClientMask = b2->client_state_mask();
+    b2ClientMask = b2->clientStateMask();
     ASSERT_NE(b2ClientMask, 0U);
     ASSERT_NE(b2ClientMask, b1ClientMask);
 }
 
 TEST_F(BufferHubBufferTest, CreateBufferFails) {
     // Buffer Creation will fail: BLOB format requires height to be 1.
-    auto b1 = BufferHubBuffer::Create(kWidth, /*height=*/2, kLayerCount,
+    auto b1 = BufferHubBuffer::create(kWidth, /*height=*/2, kLayerCount,
                                       /*format=*/HAL_PIXEL_FORMAT_BLOB, kUsage, kUserMetadataSize);
 
     EXPECT_THAT(b1, IsNull());
 
     // Buffer Creation will fail: user metadata size too large.
-    auto b2 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+    auto b2 = BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       /*userMetadataSize=*/std::numeric_limits<size_t>::max());
 
     EXPECT_THAT(b2, IsNull());
 
     // Buffer Creation will fail: user metadata size too large.
     const size_t userMetadataSize = std::numeric_limits<size_t>::max() - kMetadataHeaderSize;
-    auto b3 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+    auto b3 = BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       userMetadataSize);
 
     EXPECT_THAT(b3, IsNull());
 }
 
 TEST_F(BufferHubBufferTest, CreateBuffer) {
-    auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+    auto b1 = BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
     ASSERT_THAT(b1, NotNull());
-    EXPECT_TRUE(b1->IsConnected());
-    EXPECT_TRUE(b1->IsValid());
+    EXPECT_TRUE(b1->isConnected());
+    EXPECT_TRUE(b1->isValid());
     EXPECT_TRUE(cmpAHardwareBufferDesc(b1->desc(), kDesc));
-    EXPECT_EQ(b1->user_metadata_size(), kUserMetadataSize);
+    EXPECT_EQ(b1->userMetadataSize(), kUserMetadataSize);
 }
 
 TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
-    auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+    auto b1 = BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
     ASSERT_THAT(b1, NotNull());
-    EXPECT_TRUE(b1->IsValid());
+    EXPECT_TRUE(b1->isValid());
 
-    native_handle_t* token = b1->Duplicate();
+    native_handle_t* token = b1->duplicate();
     EXPECT_TRUE(token);
 
     // The detached buffer should still be valid.
-    EXPECT_TRUE(b1->IsConnected());
-    EXPECT_TRUE(b1->IsValid());
+    EXPECT_TRUE(b1->isConnected());
+    EXPECT_TRUE(b1->isValid());
 
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
     native_handle_close(token);
     native_handle_delete(token);
 
     ASSERT_THAT(b2, NotNull());
-    EXPECT_TRUE(b2->IsValid());
+    EXPECT_TRUE(b2->isValid());
 
     EXPECT_TRUE(cmpAHardwareBufferDesc(b1->desc(), b2->desc()));
-    EXPECT_EQ(b1->user_metadata_size(), b2->user_metadata_size());
+    EXPECT_EQ(b1->userMetadataSize(), b2->userMetadataSize());
 
     // These two buffer instances are based on the same physical buffer under the
     // hood, so they should share the same id.
     EXPECT_EQ(b1->id(), b2->id());
-    // We use client_state_mask() to tell those two instances apart.
-    EXPECT_NE(b1->client_state_mask(), b2->client_state_mask());
+    // We use clientStateMask() to tell those two instances apart.
+    EXPECT_NE(b1->clientStateMask(), b2->clientStateMask());
 
     // Both buffer instances should be in released state currently.
-    EXPECT_TRUE(b1->IsReleased());
-    EXPECT_TRUE(b2->IsReleased());
+    EXPECT_TRUE(b1->isReleased());
+    EXPECT_TRUE(b2->isReleased());
 
     // The event fd should behave like duped event fds.
     const BufferHubEventFd& eventFd1 = b1->eventFd();
@@ -192,19 +192,19 @@ TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
 }
 
 TEST_F(BufferHubBufferTest, ImportFreedBuffer) {
-    auto b1 = BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+    auto b1 = BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                       kUserMetadataSize);
     ASSERT_THAT(b1, NotNull());
-    EXPECT_TRUE(b1->IsValid());
+    EXPECT_TRUE(b1->isValid());
 
-    native_handle_t* token = b1->Duplicate();
+    native_handle_t* token = b1->duplicate();
     EXPECT_TRUE(token);
 
     // Explicitly destroy b1. Backend buffer should be freed and token becomes invalid
     b1.reset();
 
     // TODO(b/122543147): use a movalbe wrapper for token
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
     native_handle_close(token);
     native_handle_delete(token);
 
@@ -214,7 +214,7 @@ TEST_F(BufferHubBufferTest, ImportFreedBuffer) {
 
 // nullptr must not crash the service
 TEST_F(BufferHubBufferTest, ImportNullToken) {
-    auto b1 = BufferHubBuffer::Import(nullptr);
+    auto b1 = BufferHubBuffer::import(nullptr);
     EXPECT_THAT(b1, IsNull());
 }
 
@@ -222,185 +222,185 @@ TEST_F(BufferHubBufferTest, ImportInvalidToken) {
     native_handle_t* token = native_handle_create(/*numFds=*/0, /*numInts=*/1);
     token->data[0] = 0;
 
-    auto b1 = BufferHubBuffer::Import(token);
+    auto b1 = BufferHubBuffer::import(token);
     native_handle_delete(token);
 
     EXPECT_THAT(b1, IsNull());
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromReleasedState) {
-    ASSERT_TRUE(b1->IsReleased());
+    ASSERT_TRUE(b1->isReleased());
 
     // Successful gaining the buffer should change the buffer state bit of b1 to
     // gained state, other client state bits to released state.
-    EXPECT_EQ(b1->Gain(), 0);
-    EXPECT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
+    EXPECT_EQ(b1->gain(), 0);
+    EXPECT_TRUE(isClientGained(b1->bufferState(), b1ClientMask));
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromGainedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    auto currentBufferState = b1->buffer_state();
-    ASSERT_TRUE(IsClientGained(currentBufferState, b1ClientMask));
+    ASSERT_EQ(b1->gain(), 0);
+    auto currentBufferState = b1->bufferState();
+    ASSERT_TRUE(isClientGained(currentBufferState, b1ClientMask));
 
     // Gaining from gained state by the same client should not return error.
-    EXPECT_EQ(b1->Gain(), 0);
+    EXPECT_EQ(b1->gain(), 0);
 
     // Gaining from gained state by another client should return error.
-    EXPECT_EQ(b2->Gain(), -EBUSY);
+    EXPECT_EQ(b2->gain(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromAcquiredState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_EQ(b2->Acquire(), 0);
-    ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_EQ(b2->acquire(), 0);
+    ASSERT_TRUE(isAnyClientAcquired(b1->bufferState()));
 
     // Gaining from acquired state should fail.
-    EXPECT_EQ(b1->Gain(), -EBUSY);
-    EXPECT_EQ(b2->Gain(), -EBUSY);
+    EXPECT_EQ(b1->gain(), -EBUSY);
+    EXPECT_EQ(b2->gain(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromOtherClientInPostedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_TRUE(isAnyClientPosted(b1->bufferState()));
 
     // Gaining a buffer who has other posted client should succeed.
-    EXPECT_EQ(b1->Gain(), 0);
+    EXPECT_EQ(b1->gain(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, GainBuffer_fromSelfInPostedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_TRUE(isAnyClientPosted(b1->bufferState()));
 
     // A posted client should be able to gain the buffer when there is no other clients in
     // acquired state.
-    EXPECT_EQ(b2->Gain(), 0);
+    EXPECT_EQ(b2->gain(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromOtherInGainedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_TRUE(isClientGained(b1->bufferState(), b1ClientMask));
 
-    EXPECT_EQ(b2->Post(), -EBUSY);
+    EXPECT_EQ(b2->post(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromSelfInGainedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_TRUE(IsClientGained(b1->buffer_state(), b1ClientMask));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_TRUE(isClientGained(b1->bufferState(), b1ClientMask));
 
-    EXPECT_EQ(b1->Post(), 0);
-    auto currentBufferState = b1->buffer_state();
-    EXPECT_TRUE(IsClientReleased(currentBufferState, b1ClientMask));
-    EXPECT_TRUE(IsClientPosted(currentBufferState, b2ClientMask));
+    EXPECT_EQ(b1->post(), 0);
+    auto currentBufferState = b1->bufferState();
+    EXPECT_TRUE(isClientReleased(currentBufferState, b1ClientMask));
+    EXPECT_TRUE(isClientPosted(currentBufferState, b2ClientMask));
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromPostedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_TRUE(isAnyClientPosted(b1->bufferState()));
 
     // Post from posted state should fail.
-    EXPECT_EQ(b1->Post(), -EBUSY);
-    EXPECT_EQ(b2->Post(), -EBUSY);
+    EXPECT_EQ(b1->post(), -EBUSY);
+    EXPECT_EQ(b2->post(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromAcquiredState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_EQ(b2->Acquire(), 0);
-    ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_EQ(b2->acquire(), 0);
+    ASSERT_TRUE(isAnyClientAcquired(b1->bufferState()));
 
     // Posting from acquired state should fail.
-    EXPECT_EQ(b1->Post(), -EBUSY);
-    EXPECT_EQ(b2->Post(), -EBUSY);
+    EXPECT_EQ(b1->post(), -EBUSY);
+    EXPECT_EQ(b2->post(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, PostBuffer_fromReleasedState) {
-    ASSERT_TRUE(b1->IsReleased());
+    ASSERT_TRUE(b1->isReleased());
 
     // Posting from released state should fail.
-    EXPECT_EQ(b1->Post(), -EBUSY);
-    EXPECT_EQ(b2->Post(), -EBUSY);
+    EXPECT_EQ(b1->post(), -EBUSY);
+    EXPECT_EQ(b2->post(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromSelfInPostedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_TRUE(IsClientPosted(b1->buffer_state(), b2ClientMask));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_TRUE(isClientPosted(b1->bufferState(), b2ClientMask));
 
     // Acquire from posted state should pass.
-    EXPECT_EQ(b2->Acquire(), 0);
+    EXPECT_EQ(b2->acquire(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromOtherInPostedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_TRUE(IsClientPosted(b1->buffer_state(), b2ClientMask));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_TRUE(isClientPosted(b1->bufferState(), b2ClientMask));
 
     // Acquire from released state should fail, although there are other clients
     // in posted state.
-    EXPECT_EQ(b1->Acquire(), -EBUSY);
+    EXPECT_EQ(b1->acquire(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromSelfInAcquiredState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_EQ(b2->Acquire(), 0);
-    auto currentBufferState = b1->buffer_state();
-    ASSERT_TRUE(IsClientAcquired(currentBufferState, b2ClientMask));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_EQ(b2->acquire(), 0);
+    auto currentBufferState = b1->bufferState();
+    ASSERT_TRUE(isClientAcquired(currentBufferState, b2ClientMask));
 
     // Acquiring from acquired state by the same client should not error out.
-    EXPECT_EQ(b2->Acquire(), 0);
+    EXPECT_EQ(b2->acquire(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromReleasedState) {
-    ASSERT_TRUE(b1->IsReleased());
+    ASSERT_TRUE(b1->isReleased());
 
     // Acquiring form released state should fail.
-    EXPECT_EQ(b1->Acquire(), -EBUSY);
-    EXPECT_EQ(b2->Acquire(), -EBUSY);
+    EXPECT_EQ(b1->acquire(), -EBUSY);
+    EXPECT_EQ(b2->acquire(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, AcquireBuffer_fromGainedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_TRUE(AnyClientGained(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_TRUE(isAnyClientGained(b1->bufferState()));
 
     // Acquiring from gained state should fail.
-    EXPECT_EQ(b1->Acquire(), -EBUSY);
-    EXPECT_EQ(b2->Acquire(), -EBUSY);
+    EXPECT_EQ(b1->acquire(), -EBUSY);
+    EXPECT_EQ(b2->acquire(), -EBUSY);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInReleasedState) {
-    ASSERT_TRUE(b1->IsReleased());
+    ASSERT_TRUE(b1->isReleased());
 
-    EXPECT_EQ(b1->Release(), 0);
+    EXPECT_EQ(b1->release(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInGainedState) {
-    ASSERT_TRUE(b1->IsReleased());
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_TRUE(AnyClientGained(b1->buffer_state()));
+    ASSERT_TRUE(b1->isReleased());
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_TRUE(isAnyClientGained(b1->bufferState()));
 
-    EXPECT_EQ(b1->Release(), 0);
+    EXPECT_EQ(b1->release(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInPostedState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_TRUE(AnyClientPosted(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_TRUE(isAnyClientPosted(b1->bufferState()));
 
-    EXPECT_EQ(b2->Release(), 0);
+    EXPECT_EQ(b2->release(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, ReleaseBuffer_fromSelfInAcquiredState) {
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
-    ASSERT_EQ(b2->Acquire(), 0);
-    ASSERT_TRUE(AnyClientAcquired(b1->buffer_state()));
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    ASSERT_EQ(b2->acquire(), 0);
+    ASSERT_TRUE(isAnyClientAcquired(b1->bufferState()));
 
-    EXPECT_EQ(b2->Release(), 0);
+    EXPECT_EQ(b2->release(), 0);
 }
 
 TEST_F(BufferHubBufferStateTransitionTest, BasicUsage) {
@@ -408,60 +408,60 @@ TEST_F(BufferHubBufferStateTransitionTest, BasicUsage) {
     // Test if this set of basic operation succeed:
     // Producer post three times to the consumer, and released by consumer.
     for (int i = 0; i < 3; ++i) {
-        ASSERT_EQ(b1->Gain(), 0);
-        ASSERT_EQ(b1->Post(), 0);
-        ASSERT_EQ(b2->Acquire(), 0);
-        ASSERT_EQ(b2->Release(), 0);
+        ASSERT_EQ(b1->gain(), 0);
+        ASSERT_EQ(b1->post(), 0);
+        ASSERT_EQ(b2->acquire(), 0);
+        ASSERT_EQ(b2->release(), 0);
     }
 }
 
 TEST_F(BufferHubBufferTest, createNewConsumerAfterGain) {
     // Create a poducer buffer and gain.
     std::unique_ptr<BufferHubBuffer> b1 =
-            BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+            BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                     kUserMetadataSize);
     ASSERT_THAT(b1, NotNull());
-    ASSERT_EQ(b1->Gain(), 0);
+    ASSERT_EQ(b1->gain(), 0);
 
     // Create a consumer of the buffer and test if the consumer can acquire the
     // buffer if producer posts.
     // TODO(b/122543147): use a movalbe wrapper for token
-    native_handle_t* token = b1->Duplicate();
+    native_handle_t* token = b1->duplicate();
     ASSERT_TRUE(token);
 
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
     native_handle_close(token);
     native_handle_delete(token);
 
     ASSERT_THAT(b2, NotNull());
-    ASSERT_NE(b1->client_state_mask(), b2->client_state_mask());
+    ASSERT_NE(b1->clientStateMask(), b2->clientStateMask());
 
-    ASSERT_EQ(b1->Post(), 0);
-    EXPECT_EQ(b2->Acquire(), 0);
+    ASSERT_EQ(b1->post(), 0);
+    EXPECT_EQ(b2->acquire(), 0);
 }
 
 TEST_F(BufferHubBufferTest, createNewConsumerAfterPost) {
     // Create a poducer buffer and post.
     std::unique_ptr<BufferHubBuffer> b1 =
-            BufferHubBuffer::Create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
+            BufferHubBuffer::create(kWidth, kHeight, kLayerCount, kFormat, kUsage,
                                     kUserMetadataSize);
-    ASSERT_EQ(b1->Gain(), 0);
-    ASSERT_EQ(b1->Post(), 0);
+    ASSERT_EQ(b1->gain(), 0);
+    ASSERT_EQ(b1->post(), 0);
 
     // Create a consumer of the buffer and test if the consumer can acquire the
     // buffer if producer posts.
     // TODO(b/122543147): use a movalbe wrapper for token
-    native_handle_t* token = b1->Duplicate();
+    native_handle_t* token = b1->duplicate();
     ASSERT_TRUE(token);
 
-    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::Import(token);
+    std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
     native_handle_close(token);
     native_handle_delete(token);
 
     ASSERT_THAT(b2, NotNull());
-    ASSERT_NE(b1->client_state_mask(), b2->client_state_mask());
+    ASSERT_NE(b1->clientStateMask(), b2->clientStateMask());
 
-    EXPECT_EQ(b2->Acquire(), 0);
+    EXPECT_EQ(b2->acquire(), 0);
 }
 
 } // namespace

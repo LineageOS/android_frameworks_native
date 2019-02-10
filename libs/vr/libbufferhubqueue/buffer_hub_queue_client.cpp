@@ -532,7 +532,7 @@ Status<void> ProducerQueue::AddBuffer(
 Status<size_t> ProducerQueue::InsertBuffer(
     const std::shared_ptr<ProducerBuffer>& buffer) {
   if (buffer == nullptr ||
-      !BufferHubDefs::IsClientGained(buffer->buffer_state(),
+      !BufferHubDefs::isClientGained(buffer->buffer_state(),
                                      buffer->client_state_mask())) {
     ALOGE(
         "ProducerQueue::InsertBuffer: Can only insert a buffer when it's in "
@@ -638,7 +638,7 @@ Status<std::shared_ptr<ProducerBuffer>> ProducerQueue::DequeueUnacquiredBuffer(
             static_cast<int>(*slot));
       return ErrorStatus(EIO);
     }
-    if (!BufferHubDefs::AnyClientAcquired(buffer->buffer_state())) {
+    if (!BufferHubDefs::isAnyClientAcquired(buffer->buffer_state())) {
       *slot = *iter;
       unavailable_buffers_slot_.erase(iter);
       unavailable_buffers_slot_.push_back(*slot);

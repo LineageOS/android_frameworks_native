@@ -29,14 +29,14 @@ namespace android {
 class BufferHubBuffer {
 public:
     // Allocates a standalone BufferHubBuffer.
-    static std::unique_ptr<BufferHubBuffer> Create(uint32_t width, uint32_t height,
+    static std::unique_ptr<BufferHubBuffer> create(uint32_t width, uint32_t height,
                                                    uint32_t layerCount, uint32_t format,
                                                    uint64_t usage, size_t userMetadataSize);
 
     // Imports the given token to a BufferHubBuffer. Not taking ownership of the token. Caller
     // should close and destroy the token after calling this function regardless of output.
     // TODO(b/122543147): use a movable wrapper for token
-    static std::unique_ptr<BufferHubBuffer> Import(const native_handle_t* token);
+    static std::unique_ptr<BufferHubBuffer> import(const native_handle_t* token);
 
     BufferHubBuffer(const BufferHubBuffer&) = delete;
     void operator=(const BufferHubBuffer&) = delete;
@@ -52,51 +52,51 @@ public:
 
     // Duplicate the underlying Gralloc buffer handle. Caller is responsible to free the handle
     // after use.
-    native_handle_t* DuplicateHandle() {
+    native_handle_t* duplicateHandle() {
         return native_handle_clone(mBufferHandle.getNativeHandle());
     }
 
     const BufferHubEventFd& eventFd() const { return mEventFd; }
 
     // Returns the current value of MetadataHeader::buffer_state.
-    uint32_t buffer_state() const { return mBufferState->load(std::memory_order_acquire); }
+    uint32_t bufferState() const { return mBufferState->load(std::memory_order_acquire); }
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same
     // concrete graphic buffer.
-    uint32_t client_state_mask() const { return mClientStateMask; }
+    uint32_t clientStateMask() const { return mClientStateMask; }
 
-    size_t user_metadata_size() const { return mMetadata.user_metadata_size(); }
+    size_t userMetadataSize() const { return mMetadata.userMetadataSize(); }
 
     // Returns true if the BufferClient is still alive.
-    bool IsConnected() const { return mBufferClient->ping().isOk(); }
+    bool isConnected() const { return mBufferClient->ping().isOk(); }
 
     // Returns true if the buffer is valid: non-null buffer handle, valid id, valid client bit mask,
     // valid metadata and valid buffer client
-    bool IsValid() const;
+    bool isValid() const;
 
     // Gains the buffer for exclusive write permission. Read permission is implied once a buffer is
     // gained.
     // The buffer can be gained as long as there is no other client in acquired or gained state.
-    int Gain();
+    int gain();
 
     // Posts the gained buffer for other buffer clients to use the buffer.
     // The buffer can be posted iff the buffer state for this client is gained.
     // After posting the buffer, this client is put to released state and does not have access to
     // the buffer for this cycle of the usage of the buffer.
-    int Post();
+    int post();
 
     // Acquires the buffer for shared read permission.
     // The buffer can be acquired iff the buffer state for this client is posted.
-    int Acquire();
+    int acquire();
 
     // Releases the buffer.
     // The buffer can be released from any buffer state.
     // After releasing the buffer, this client no longer have any permissions to the buffer for the
     // current cycle of the usage of the buffer.
-    int Release();
+    int release();
 
     // Returns whether the buffer is released by all active clients or not.
-    bool IsReleased() const;
+    bool isReleased() const;
 
     // Creates a token that stands for this BufferHubBuffer client and could be used for Import to
     // create another BufferHubBuffer. The new BufferHubBuffer will share the same underlying
@@ -104,7 +104,7 @@ public:
     // should free it after use.
     // Returns a valid token on success, nullptr on failure.
     // TODO(b/122543147): use a movable wrapper for token
-    native_handle_t* Duplicate();
+    native_handle_t* duplicate();
 
 private:
     BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layerCount, uint32_t format,

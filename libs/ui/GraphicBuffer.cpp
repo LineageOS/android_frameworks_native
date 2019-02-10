@@ -100,7 +100,7 @@ GraphicBuffer::GraphicBuffer(std::unique_ptr<BufferHubBuffer> buffer) : GraphicB
         return;
     }
 
-    mInitCheck = initWithHandle(buffer->DuplicateHandle(), /*method=*/TAKE_UNREGISTERED_HANDLE,
+    mInitCheck = initWithHandle(buffer->duplicateHandle(), /*method=*/TAKE_UNREGISTERED_HANDLE,
                                 buffer->desc().width, buffer->desc().height,
                                 static_cast<PixelFormat>(buffer->desc().format),
                                 buffer->desc().layers, buffer->desc().usage, buffer->desc().stride);

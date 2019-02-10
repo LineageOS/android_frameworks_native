@@ -33,12 +33,12 @@ public:
     // @param userMetadataSize Size in bytes of the user defined metadata. The entire metadata
     //        shared memory region to be allocated is the size of canonical
     //        BufferHubDefs::MetadataHeader plus userMetadataSize.
-    static BufferHubMetadata Create(size_t userMetadataSize);
+    static BufferHubMetadata create(size_t userMetadataSize);
 
     // Imports an existing BufferHubMetadata from an ashmem FD.
     //
     // @param ashmemFd Ashmem file descriptor representing an ashmem region.
-    static BufferHubMetadata Import(unique_fd ashmemFd);
+    static BufferHubMetadata import(unique_fd ashmemFd);
 
     BufferHubMetadata() = default;
 
@@ -63,13 +63,13 @@ public:
 
     // Returns true if the metadata is valid, i.e. the metadata has a valid ashmem fd and the ashmem
     // has been mapped into virtual address space.
-    bool IsValid() const { return mAshmemFd.get() != -1 && mMetadataHeader != nullptr; }
+    bool isValid() const { return mAshmemFd.get() != -1 && mMetadataHeader != nullptr; }
 
-    size_t user_metadata_size() const { return mUserMetadataSize; }
-    size_t metadata_size() const { return mUserMetadataSize + BufferHubDefs::kMetadataHeaderSize; }
+    size_t userMetadataSize() const { return mUserMetadataSize; }
+    size_t metadataSize() const { return mUserMetadataSize + BufferHubDefs::kMetadataHeaderSize; }
 
-    const unique_fd& ashmem_fd() const { return mAshmemFd; }
-    BufferHubDefs::MetadataHeader* metadata_header() { return mMetadataHeader; }
+    const unique_fd& ashmemFd() const { return mAshmemFd; }
+    BufferHubDefs::MetadataHeader* metadataHeader() { return mMetadataHeader; }
 
 private:
     BufferHubMetadata(size_t userMetadataSize, unique_fd ashmemFd,
