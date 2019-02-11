@@ -705,13 +705,12 @@ void InputClassifier::notifyKey(const NotifyKeyArgs* args) {
 }
 
 void InputClassifier::notifyMotion(const NotifyMotionArgs* args) {
+    NotifyMotionArgs copyArgs = NotifyMotionArgs(*args);
     if (mMotionClassifier && isTouchEvent(*args)) {
         // We only cover touch events, for now.
-        NotifyMotionArgs newArgs = NotifyMotionArgs(*args);
-        newArgs.classification = mMotionClassifier->classify(newArgs);
-        args = &newArgs;
+        copyArgs.classification = mMotionClassifier->classify(copyArgs);
     }
-    mListener->notifyMotion(args);
+    mListener->notifyMotion(&copyArgs);
 }
 
 void InputClassifier::notifySwitch(const NotifySwitchArgs* args) {
