@@ -22,15 +22,15 @@ public:
     ~BufferNode();
 
     // Returns whether the object holds a valid metadata.
-    bool IsValid() const { return mMetadata.IsValid(); }
+    bool isValid() const { return mMetadata.isValid(); }
 
     int id() const { return mId; }
 
-    size_t user_metadata_size() const { return mMetadata.user_metadata_size(); }
+    size_t userMetadataSize() const { return mMetadata.userMetadataSize(); }
 
     // Accessors of the buffer description and handle
-    const native_handle_t* buffer_handle() const { return mBufferHandle; }
-    const AHardwareBuffer_Desc& buffer_desc() const { return mBufferDesc; }
+    const native_handle_t* bufferHandle() const { return mBufferHandle; }
+    const AHardwareBuffer_Desc& bufferDesc() const { return mBufferDesc; }
 
     // Accessor of event fd.
     const BufferHubEventFd& eventFd() const { return mEventFd; }
@@ -41,24 +41,24 @@ public:
     // Gets the current value of mActiveClientsBitMask in mMetadata with
     // std::memory_order_acquire, so that all previous releases of
     // mActiveClientsBitMask from all threads will be returned here.
-    uint32_t GetActiveClientsBitMask() const;
+    uint32_t getActiveClientsBitMask() const;
 
     // Find and add a new client state mask to mActiveClientsBitMask in
     // mMetadata.
     // Return the new client state mask that is added to mActiveClientsBitMask.
     // Return 0U if there are already 16 clients of the buffer.
-    uint32_t AddNewActiveClientsBitToMask();
+    uint32_t addNewActiveClientsBitToMask();
 
     // Removes the value from active_clients_bit_mask in mMetadata with
     // std::memory_order_release, so that the change will be visible to any
     // acquire of mActiveClientsBitMask in any threads after the succeed of
     // this operation.
-    void RemoveClientsBitFromMask(const uint32_t& value);
+    void removeClientsBitFromMask(const uint32_t& value);
 
 private:
     // Helper method for constructors to initialize atomic metadata header
     // variables in shared memory.
-    void InitializeMetadata();
+    void initializeMetadata();
 
     // Gralloc buffer handles.
     native_handle_t* mBufferHandle;

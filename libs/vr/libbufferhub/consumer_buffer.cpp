@@ -38,7 +38,7 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
   // The buffer can be acquired iff the buffer state for this client is posted.
   uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  if (!BufferHubDefs::IsClientPosted(current_buffer_state,
+  if (!BufferHubDefs::isClientPosted(current_buffer_state,
                                      client_state_mask())) {
     ALOGE(
         "%s: Failed to acquire the buffer. The buffer is not posted, id=%d "
@@ -58,7 +58,7 @@ int ConsumerBuffer::LocalAcquire(DvrNativeBufferMetadata* out_meta,
         " when trying to acquire the buffer and modify the buffer state to "
         "%" PRIx32 ". About to try again if the buffer is still posted.",
         __FUNCTION__, current_buffer_state, updated_buffer_state);
-    if (!BufferHubDefs::IsClientPosted(current_buffer_state,
+    if (!BufferHubDefs::isClientPosted(current_buffer_state,
                                        client_state_mask())) {
       ALOGE(
           "%s: Failed to acquire the buffer. The buffer is no longer posted, "
@@ -144,7 +144,7 @@ int ConsumerBuffer::LocalRelease(const DvrNativeBufferMetadata* meta,
   // released state.
   uint32_t current_buffer_state =
       buffer_state_->load(std::memory_order_acquire);
-  if (BufferHubDefs::IsClientReleased(current_buffer_state,
+  if (BufferHubDefs::isClientReleased(current_buffer_state,
                                       client_state_mask())) {
     return 0;
   }

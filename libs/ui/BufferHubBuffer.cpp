@@ -24,12 +24,12 @@
 #include <utils/Trace.h>
 
 using ::android::base::unique_fd;
-using ::android::BufferHubDefs::AnyClientAcquired;
-using ::android::BufferHubDefs::AnyClientGained;
-using ::android::BufferHubDefs::IsClientAcquired;
-using ::android::BufferHubDefs::IsClientGained;
-using ::android::BufferHubDefs::IsClientPosted;
-using ::android::BufferHubDefs::IsClientReleased;
+using ::android::BufferHubDefs::isAnyClientAcquired;
+using ::android::BufferHubDefs::isAnyClientGained;
+using ::android::BufferHubDefs::isClientAcquired;
+using ::android::BufferHubDefs::isClientGained;
+using ::android::BufferHubDefs::isClientPosted;
+using ::android::BufferHubDefs::isClientReleased;
 using ::android::frameworks::bufferhub::V1_0::BufferHubStatus;
 using ::android::frameworks::bufferhub::V1_0::BufferTraits;
 using ::android::frameworks::bufferhub::V1_0::IBufferClient;
@@ -39,22 +39,22 @@ using ::android::hardware::graphics::common::V1_2::HardwareBufferDescription;
 
 namespace android {
 
-std::unique_ptr<BufferHubBuffer> BufferHubBuffer::Create(uint32_t width, uint32_t height,
+std::unique_ptr<BufferHubBuffer> BufferHubBuffer::create(uint32_t width, uint32_t height,
                                                          uint32_t layerCount, uint32_t format,
                                                          uint64_t usage, size_t userMetadataSize) {
     auto buffer = std::unique_ptr<BufferHubBuffer>(
             new BufferHubBuffer(width, height, layerCount, format, usage, userMetadataSize));
-    return buffer->IsValid() ? std::move(buffer) : nullptr;
+    return buffer->isValid() ? std::move(buffer) : nullptr;
 }
 
-std::unique_ptr<BufferHubBuffer> BufferHubBuffer::Import(const native_handle_t* token) {
+std::unique_ptr<BufferHubBuffer> BufferHubBuffer::import(const native_handle_t* token) {
     if (token == nullptr) {
         ALOGE("%s: token cannot be nullptr!", __FUNCTION__);
         return nullptr;
     }
 
     auto buffer = std::unique_ptr<BufferHubBuffer>(new BufferHubBuffer(token));
-    return buffer->IsValid() ? std::move(buffer) : nullptr;
+    return buffer->isValid() ? std::move(buffer) : nullptr;
 }
 
 BufferHubBuffer::BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layerCount,
@@ -169,8 +169,8 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
 
     // Import fds. Dup fds because hidl_handle owns the fds.
     unique_fd ashmemFd(fcntl(bufferTraits.bufferInfo->data[0], F_DUPFD_CLOEXEC, 0));
-    mMetadata = BufferHubMetadata::Import(std::move(ashmemFd));
-    if (!mMetadata.IsValid()) {
+    mMetadata = BufferHubMetadata::import(std::move(ashmemFd));
+    if (!mMetadata.isValid()) {
         ALOGE("%s: Received an invalid metadata.", __FUNCTION__);
         return -EINVAL;
     }
@@ -196,20 +196,20 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
 
     uint32_t userMetadataSize;
     memcpy(&userMetadataSize, &bufferTraits.bufferInfo->data[4], sizeof(userMetadataSize));
-    if (mMetadata.user_metadata_size() != userMetadataSize) {
+    if (mMetadata.userMetadataSize() != userMetadataSize) {
         ALOGE("%s: user metadata size not match: expected %u, actual %zu.", __FUNCTION__,
-              userMetadataSize, mMetadata.user_metadata_size());
+              userMetadataSize, mMetadata.userMetadataSize());
         return -EINVAL;
     }
 
-    size_t metadataSize = static_cast<size_t>(mMetadata.metadata_size());
+    size_t metadataSize = static_cast<size_t>(mMetadata.metadataSize());
     if (metadataSize < BufferHubDefs::kMetadataHeaderSize) {
         ALOGE("%s: metadata too small: %zu", __FUNCTION__, metadataSize);
         return -EINVAL;
     }
 
     // Populate shortcuts to the atomics in metadata.
-    auto metadata_header = mMetadata.metadata_header();
+    auto metadata_header = mMetadata.metadataHeader();
     mBufferState = &metadata_header->buffer_state;
     mFenceState = &metadata_header->fence_state;
     mActiveClientsBitMask = &metadata_header->active_clients_bit_mask;
@@ -235,16 +235,16 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
     return 0;
 }
 
-int BufferHubBuffer::Gain() {
+int BufferHubBuffer::gain() {
     uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
-    if (IsClientGained(currentBufferState, mClientStateMask)) {
+    if (isClientGained(currentBufferState, mClientStateMask)) {
         ALOGV("%s: Buffer is already gained by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
     do {
-        if (AnyClientGained(currentBufferState & (~mClientStateMask)) ||
-            AnyClientAcquired(currentBufferState)) {
+        if (isAnyClientGained(currentBufferState & (~mClientStateMask)) ||
+            isAnyClientAcquired(currentBufferState)) {
             ALOGE("%s: Buffer is in use, id=%d mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
                   __FUNCTION__, mId, mClientStateMask, currentBufferState);
             return -EBUSY;
@@ -258,11 +258,11 @@ int BufferHubBuffer::Gain() {
     return 0;
 }
 
-int BufferHubBuffer::Post() {
+int BufferHubBuffer::post() {
     uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
     uint32_t updatedBufferState = (~mClientStateMask) & BufferHubDefs::kHighBitsMask;
     do {
-        if (!IsClientGained(currentBufferState, mClientStateMask)) {
+        if (!isClientGained(currentBufferState, mClientStateMask)) {
             ALOGE("%s: Cannot post a buffer that is not gained by this client. buffer_id=%d "
                   "mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
                   __FUNCTION__, mId, mClientStateMask, currentBufferState);
@@ -277,16 +277,16 @@ int BufferHubBuffer::Post() {
     return 0;
 }
 
-int BufferHubBuffer::Acquire() {
+int BufferHubBuffer::acquire() {
     uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
-    if (IsClientAcquired(currentBufferState, mClientStateMask)) {
+    if (isClientAcquired(currentBufferState, mClientStateMask)) {
         ALOGV("%s: Buffer is already acquired by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
     }
     uint32_t updatedBufferState = 0U;
     do {
-        if (!IsClientPosted(currentBufferState, mClientStateMask)) {
+        if (!isClientPosted(currentBufferState, mClientStateMask)) {
             ALOGE("%s: Cannot acquire a buffer that is not in posted state. buffer_id=%d "
                   "mClientStateMask=%" PRIx32 " state=%" PRIx32 ".",
                   __FUNCTION__, mId, mClientStateMask, currentBufferState);
@@ -301,9 +301,9 @@ int BufferHubBuffer::Acquire() {
     return 0;
 }
 
-int BufferHubBuffer::Release() {
+int BufferHubBuffer::release() {
     uint32_t currentBufferState = mBufferState->load(std::memory_order_acquire);
-    if (IsClientReleased(currentBufferState, mClientStateMask)) {
+    if (isClientReleased(currentBufferState, mClientStateMask)) {
         ALOGV("%s: Buffer is already released by this client %" PRIx32 ".", __FUNCTION__,
               mClientStateMask);
         return 0;
@@ -318,17 +318,17 @@ int BufferHubBuffer::Release() {
     return 0;
 }
 
-bool BufferHubBuffer::IsReleased() const {
+bool BufferHubBuffer::isReleased() const {
     return (mBufferState->load(std::memory_order_acquire) &
             mActiveClientsBitMask->load(std::memory_order_acquire)) == 0;
 }
 
-bool BufferHubBuffer::IsValid() const {
+bool BufferHubBuffer::isValid() const {
     return mBufferHandle.getNativeHandle() != nullptr && mId >= 0 && mClientStateMask != 0U &&
-            mEventFd.get() >= 0 && mMetadata.IsValid() && mBufferClient != nullptr;
+            mEventFd.get() >= 0 && mMetadata.isValid() && mBufferClient != nullptr;
 }
 
-native_handle_t* BufferHubBuffer::Duplicate() {
+native_handle_t* BufferHubBuffer::duplicate() {
     if (mBufferClient == nullptr) {
         ALOGE("%s: missing BufferClient!", __FUNCTION__);
         return nullptr;

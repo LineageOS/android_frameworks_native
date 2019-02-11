@@ -53,7 +53,7 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
             std::make_shared<BufferNode>(desc.width, desc.height, desc.layers, desc.format,
                                          desc.usage, userMetadataSize,
                                          BufferHubIdGenerator::getInstance().getId());
-    if (node == nullptr || !node->IsValid()) {
+    if (node == nullptr || !node->isValid()) {
         ALOGE("%s: creating BufferNode failed.", __FUNCTION__);
         _hidl_cb(/*status=*/BufferHubStatus::ALLOCATION_FAILED, /*bufferClient=*/nullptr,
                  /*bufferTraits=*/{});
@@ -70,11 +70,11 @@ Return<void> BufferHubService::allocateBuffer(const HardwareBufferDescription& d
     NATIVE_HANDLE_DECLARE_STORAGE(bufferInfoStorage, BufferHubDefs::kBufferInfoNumFds,
                                   BufferHubDefs::kBufferInfoNumInts);
     hidl_handle bufferInfo =
-            buildBufferInfo(bufferInfoStorage, node->id(), node->AddNewActiveClientsBitToMask(),
-                            node->user_metadata_size(), node->metadata().ashmem_fd(),
+            buildBufferInfo(bufferInfoStorage, node->id(), node->addNewActiveClientsBitToMask(),
+                            node->userMetadataSize(), node->metadata().ashmemFd(),
                             node->eventFd().get());
     BufferTraits bufferTraits = {/*bufferDesc=*/description,
-                                 /*bufferHandle=*/hidl_handle(node->buffer_handle()),
+                                 /*bufferHandle=*/hidl_handle(node->bufferHandle()),
                                  /*bufferInfo=*/std::move(bufferInfo)};
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
@@ -141,7 +141,7 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
     }
 
     sp<BufferClient> client = new BufferClient(*originClient);
-    uint32_t clientStateMask = client->getBufferNode()->AddNewActiveClientsBitToMask();
+    uint32_t clientStateMask = client->getBufferNode()->addNewActiveClientsBitToMask();
     if (clientStateMask == 0U) {
         // Reach max client count
         ALOGE("%s: import failed, BufferNode#%u reached maximum clients.", __FUNCTION__,
@@ -157,17 +157,17 @@ Return<void> BufferHubService::importBuffer(const hidl_handle& tokenHandle,
     std::shared_ptr<BufferNode> node = client->getBufferNode();
 
     HardwareBufferDescription bufferDesc;
-    memcpy(&bufferDesc, &node->buffer_desc(), sizeof(HardwareBufferDescription));
+    memcpy(&bufferDesc, &node->bufferDesc(), sizeof(HardwareBufferDescription));
 
     // Allocate memory for bufferInfo of type hidl_handle on the stack. See
     // http://aosp/286282 for the usage of NATIVE_HANDLE_DECLARE_STORAGE.
     NATIVE_HANDLE_DECLARE_STORAGE(bufferInfoStorage, BufferHubDefs::kBufferInfoNumFds,
                                   BufferHubDefs::kBufferInfoNumInts);
     hidl_handle bufferInfo = buildBufferInfo(bufferInfoStorage, node->id(), clientStateMask,
-                                             node->user_metadata_size(),
-                                             node->metadata().ashmem_fd(), node->eventFd().get());
+                                             node->userMetadataSize(), node->metadata().ashmemFd(),
+                                             node->eventFd().get());
     BufferTraits bufferTraits = {/*bufferDesc=*/bufferDesc,
-                                 /*bufferHandle=*/hidl_handle(node->buffer_handle()),
+                                 /*bufferHandle=*/hidl_handle(node->bufferHandle()),
                                  /*bufferInfo=*/std::move(bufferInfo)};
 
     _hidl_cb(/*status=*/BufferHubStatus::NO_ERROR, /*bufferClient=*/client,
@@ -231,10 +231,10 @@ Return<void> BufferHubService::debug(const hidl_handle& fd, const hidl_vec<hidl_
     for (auto iter = clientCount.begin(); iter != clientCount.end(); ++iter) {
         const std::shared_ptr<BufferNode> node = std::move(iter->second.first);
         const uint32_t clientCount = iter->second.second;
-        AHardwareBuffer_Desc desc = node->buffer_desc();
+        AHardwareBuffer_Desc desc = node->bufferDesc();
 
         MetadataHeader* metadataHeader =
-                const_cast<BufferHubMetadata*>(&node->metadata())->metadata_header();
+                const_cast<BufferHubMetadata*>(&node->metadata())->metadataHeader();
         const uint32_t state = metadataHeader->buffer_state.load(std::memory_order_acquire);
         const uint64_t index = metadataHeader->queue_index;
 

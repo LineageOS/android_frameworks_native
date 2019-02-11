@@ -11,10 +11,10 @@ namespace bufferhub {
 namespace V1_0 {
 namespace implementation {
 
-void BufferNode::InitializeMetadata() {
+void BufferNode::initializeMetadata() {
     // Using placement new here to reuse shared memory instead of new allocation
     // Initialize the atomic variables to zero.
-    BufferHubDefs::MetadataHeader* metadataHeader = mMetadata.metadata_header();
+    BufferHubDefs::MetadataHeader* metadataHeader = mMetadata.metadataHeader();
     mBufferState = new (&metadataHeader->buffer_state) std::atomic<uint32_t>(0);
     mFenceState = new (&metadataHeader->fence_state) std::atomic<uint32_t>(0);
     mActiveClientsBitMask = new (&metadataHeader->active_clients_bit_mask) std::atomic<uint32_t>(0);
@@ -54,12 +54,12 @@ BufferNode::BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, ui
     mBufferDesc.usage = usage;
     mBufferDesc.stride = out_stride;
 
-    mMetadata = BufferHubMetadata::Create(user_metadata_size);
-    if (!mMetadata.IsValid()) {
+    mMetadata = BufferHubMetadata::create(user_metadata_size);
+    if (!mMetadata.isValid()) {
         ALOGE("%s: Failed to allocate metadata.", __FUNCTION__);
         return;
     }
-    InitializeMetadata();
+    initializeMetadata();
 }
 
 BufferNode::~BufferNode() {
@@ -77,17 +77,17 @@ BufferNode::~BufferNode() {
     }
 }
 
-uint32_t BufferNode::GetActiveClientsBitMask() const {
+uint32_t BufferNode::getActiveClientsBitMask() const {
     return mActiveClientsBitMask->load(std::memory_order_acquire);
 }
 
-uint32_t BufferNode::AddNewActiveClientsBitToMask() {
-    uint32_t currentActiveClientsBitMask = GetActiveClientsBitMask();
+uint32_t BufferNode::addNewActiveClientsBitToMask() {
+    uint32_t currentActiveClientsBitMask = getActiveClientsBitMask();
     uint32_t client_state_mask = 0U;
     uint32_t updatedActiveClientsBitMask = 0U;
     do {
         client_state_mask =
-                BufferHubDefs::FindNextAvailableClientStateMask(currentActiveClientsBitMask);
+                BufferHubDefs::findNextAvailableClientStateMask(currentActiveClientsBitMask);
         if (client_state_mask == 0U) {
             ALOGE("%s: reached the maximum number of channels per buffer node: %d.", __FUNCTION__,
                   BufferHubDefs::kMaxNumberOfClients);
@@ -102,7 +102,7 @@ uint32_t BufferNode::AddNewActiveClientsBitToMask() {
     return client_state_mask;
 }
 
-void BufferNode::RemoveClientsBitFromMask(const uint32_t& value) {
+void BufferNode::removeClientsBitFromMask(const uint32_t& value) {
     mActiveClientsBitMask->fetch_and(~value);
 }
 
