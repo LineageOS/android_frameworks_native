@@ -349,8 +349,15 @@ public:
 
     void computeGeometry(const RenderArea& renderArea, renderengine::Mesh& mesh,
                          bool useIdentityTransform) const;
-    FloatRect computeBounds(const Region& activeTransparentRegion) const;
-    FloatRect computeBounds() const;
+    FloatRect getBounds(const Region& activeTransparentRegion) const;
+    FloatRect getBounds() const;
+
+    // Compute bounds for the layer and cache the results.
+    void computeBounds(FloatRect parentBounds, ui::Transform parentTransform);
+
+    // Get effective layer transform, taking into account all its parent transform with any
+    // scaling if the parent scaling more is not NATIVE_WINDOW_SCALING_MODE_FREEZE.
+    ui::Transform getTransformWithScale() const;
 
     int32_t getSequence() const { return sequence; }
 
@@ -643,7 +650,7 @@ public:
     ssize_t removeChild(const sp<Layer>& layer);
     sp<Layer> getParent() const { return mCurrentParent.promote(); }
     bool hasParent() const { return getParent() != nullptr; }
-    Rect computeScreenBounds(bool reduceTransparentRegion = true) const;
+    Rect getScreenBounds(bool reduceTransparentRegion = true) const;
     bool setChildLayer(const sp<Layer>& childLayer, int32_t z);
     bool setChildRelativeLayer(const sp<Layer>& childLayer,
             const sp<IBinder>& relativeToHandle, int32_t relativeZ);
@@ -659,6 +666,15 @@ public:
      * any buffer transformations. If the layer has no buffer then return INVALID_RECT.
      */
     virtual Rect getBufferSize(const Layer::State&) const { return Rect::INVALID_RECT; }
+
+    /**
+     * Returns the source bounds. If the bounds are not defined, it is inferred from the
+     * buffer size. Failing that, the bounds are determined from the passed in parent bounds.
+     * For the root layer, this is the display viewport size.
+     */
+    virtual FloatRect computeSourceBounds(const FloatRect& parentBounds) const {
+        return parentBounds;
+    }
 
 protected:
     // constant
@@ -892,6 +908,21 @@ private:
      * bounds are constrained by its parent bounds.
      */
     Rect getCroppedBufferSize(const Layer::State& s) const;
+
+    // Cached properties computed from drawing state
+    // Effective transform taking into account parent transforms and any parent scaling.
+    ui::Transform mEffectiveTransform;
+
+    // Bounds of the layer before any transformation is applied and before it has been cropped
+    // by its parents.
+    FloatRect mSourceBounds;
+
+    // Bounds of the layer in layer space. This is the mSourceBounds cropped by its layer crop and
+    // its parent bounds.
+    FloatRect mBounds;
+
+    // Layer bounds in screen space.
+    FloatRect mScreenBounds;
 };
 
 } // namespace android

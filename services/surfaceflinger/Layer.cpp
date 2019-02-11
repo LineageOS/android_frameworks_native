@@ -294,22 +294,75 @@ static FloatRect reduce(const FloatRect& win, const Region& exclude) {
     return Region(Rect{win}).subtract(exclude).getBounds().toFloatRect();
 }
 
-Rect Layer::computeScreenBounds(bool reduceTransparentRegion) const {
+Rect Layer::getScreenBounds(bool reduceTransparentRegion) const {
     const State& s(getDrawingState());
     Region transparentRegion = reduceTransparentRegion ? getActiveTransparentRegion(s) : Region();
-    FloatRect bounds = computeBounds(transparentRegion);
+    FloatRect bounds = getBounds(transparentRegion);
     ui::Transform t = getTransform();
     // Transform to screen space.
     bounds = t.transform(bounds);
     return Rect{bounds};
 }
 
-FloatRect Layer::computeBounds() const {
+FloatRect Layer::getBounds() const {
     const State& s(getDrawingState());
-    return computeBounds(getActiveTransparentRegion(s));
+    return getBounds(getActiveTransparentRegion(s));
 }
 
-FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
+ui::Transform Layer::getTransformWithScale() const {
+    // If the layer is not using NATIVE_WINDOW_SCALING_MODE_FREEZE (e.g.
+    // it isFixedSize) then there may be additional scaling not accounted
+    // for in the transform. We need to mirror this scaling to child surfaces
+    // or we will break the contract where WM can treat child surfaces as
+    // pixels in the parent surface.
+    if (!isFixedSize() || !getBE().compositionInfo.mBuffer) {
+        return mEffectiveTransform;
+    }
+
+    int bufferWidth;
+    int bufferHeight;
+    if ((mCurrentTransform & NATIVE_WINDOW_TRANSFORM_ROT_90) == 0) {
+        bufferWidth = getBE().compositionInfo.mBuffer->getWidth();
+        bufferHeight = getBE().compositionInfo.mBuffer->getHeight();
+    } else {
+        bufferHeight = getBE().compositionInfo.mBuffer->getWidth();
+        bufferWidth = getBE().compositionInfo.mBuffer->getHeight();
+    }
+    float sx = getActiveWidth(getDrawingState()) / static_cast<float>(bufferWidth);
+    float sy = getActiveHeight(getDrawingState()) / static_cast<float>(bufferHeight);
+    ui::Transform extraParentScaling;
+    extraParentScaling.set(sx, 0, 0, sy);
+    return mEffectiveTransform * extraParentScaling;
+}
+
+void Layer::computeBounds(FloatRect parentBounds, ui::Transform parentTransform) {
+    const State& s(getDrawingState());
+
+    // Calculate effective layer transform
+    mEffectiveTransform = parentTransform * getActiveTransform(s);
+
+    // Transform parent bounds to layer space
+    parentBounds = getActiveTransform(s).inverse().transform(parentBounds);
+
+    // Calculate display frame
+    mSourceBounds = computeSourceBounds(parentBounds);
+
+    // Calculate bounds by croping diplay frame with layer crop and parent bounds
+    FloatRect bounds = mSourceBounds;
+    const Rect layerCrop = getCrop(s);
+    if (!layerCrop.isEmpty()) {
+        bounds = mSourceBounds.intersect(layerCrop.toFloatRect());
+    }
+    bounds = bounds.intersect(parentBounds);
+
+    mBounds = bounds;
+    mScreenBounds = mEffectiveTransform.transform(mBounds);
+    for (const sp<Layer>& child : mDrawingChildren) {
+        child->computeBounds(mBounds, getTransformWithScale());
+    }
+}
+
+FloatRect Layer::getBounds(const Region& activeTransparentRegion) const {
     const State& s(getDrawingState());
     Rect bounds = getCroppedBufferSize(s);
     FloatRect floatBounds = bounds.toFloatRect();
@@ -334,7 +387,7 @@ FloatRect Layer::computeBounds(const Region& activeTransparentRegion) const {
             // parent's perspective we pass in the transparent region to reduce buffer allocation
             // size. When computing the parent bounds from the child's perspective, we pass in an
             // empty transparent region in order to extend into the the parent bounds.
-            floatBounds = p->computeBounds(Region());
+            floatBounds = p->getBounds(Region());
             // Transform back to layer space.
             floatBounds = t.inverse().transform(floatBounds);
         }
@@ -389,7 +442,7 @@ Rect Layer::computeInitialCrop(const sp<const DisplayDevice>& display) const {
     // if there are no window scaling involved, this operation will map to full
     // pixels in the buffer.
 
-    FloatRect activeCropFloat = computeBounds();
+    FloatRect activeCropFloat = getBounds();
     ui::Transform t = getTransform();
     // Transform to screen space.
     activeCropFloat = t.transform(activeCropFloat);
@@ -550,9 +603,9 @@ void Layer::setGeometry(const sp<const DisplayDevice>& display, uint32_t z) {
                 Rect(activeCrop.right, activeCrop.top, bufferSize.getWidth(), activeCrop.bottom));
     }
 
-    // computeBounds returns a FloatRect to provide more accuracy during the
+    // getBounds returns a FloatRect to provide more accuracy during the
     // transformation. We then round upon constructing 'frame'.
-    Rect frame{t.transform(computeBounds(activeTransparentRegion))};
+    Rect frame{t.transform(getBounds(activeTransparentRegion))};
     if (!frame.intersect(display->getViewport(), &frame)) {
         frame.clear();
     }
@@ -721,7 +774,7 @@ bool Layer::prepareClientLayer(const RenderArea& renderArea, bool useIdentityTra
 bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /*clip*/,
                                bool useIdentityTransform, Region& /*clearRegion*/,
                                renderengine::LayerSettings& layer) {
-    FloatRect bounds = computeBounds();
+    FloatRect bounds = getBounds();
     half alpha = getAlpha();
     layer.geometry.boundaries = bounds;
     if (useIdentityTransform) {
@@ -841,7 +894,7 @@ void Layer::computeGeometry(const RenderArea& renderArea,
                             renderengine::Mesh& mesh,
                             bool useIdentityTransform) const {
     const ui::Transform renderAreaTransform(renderArea.getTransform());
-    FloatRect win = computeBounds();
+    FloatRect win = getBounds();
 
     vec2 lt = vec2(win.left, win.top);
     vec2 lb = vec2(win.left, win.bottom);
@@ -1680,6 +1733,7 @@ bool Layer::reparentChildren(const sp<IBinder>& newParentHandle) {
 void Layer::setChildrenDrawingParent(const sp<Layer>& newParent) {
     for (const sp<Layer>& child : mDrawingChildren) {
         child->mDrawingParent = newParent;
+        child->computeBounds(newParent->mBounds, newParent->getTransformWithScale());
     }
 }
 
@@ -2066,7 +2120,7 @@ Layer::RoundedCornerState Layer::getRoundedCornerState() const {
         }
     }
     const float radius = getDrawingState().cornerRadius;
-    return radius > 0 ? RoundedCornerState(computeBounds(), radius) : RoundedCornerState();
+    return radius > 0 ? RoundedCornerState(getBounds(), radius) : RoundedCornerState();
 }
 
 void Layer::commitChildList() {
@@ -2181,6 +2235,10 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     for (const auto& entry : state.metadata.mMap) {
         (*protoMap)[entry.first] = std::string(entry.second.cbegin(), entry.second.cend());
     }
+    LayerProtoHelper::writeToProto(mEffectiveTransform, layerInfo->mutable_effective_transform());
+    LayerProtoHelper::writeToProto(mSourceBounds, layerInfo->mutable_source_bounds());
+    LayerProtoHelper::writeToProto(mScreenBounds, layerInfo->mutable_screen_bounds());
+    LayerProtoHelper::writeToProto(mBounds, layerInfo->mutable_bounds());
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, DisplayId displayId) {

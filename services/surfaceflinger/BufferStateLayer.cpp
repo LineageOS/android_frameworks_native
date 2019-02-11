@@ -313,7 +313,7 @@ Rect BufferStateLayer::getBufferSize(const State& s) const {
     // if the display frame is not defined, use the parent bounds as the buffer size.
     const auto& p = mDrawingParent.promote();
     if (p != nullptr) {
-        Rect parentBounds = Rect(p->computeBounds(Region()));
+        Rect parentBounds = Rect(p->getBounds(Region()));
         if (!parentBounds.isEmpty()) {
             return parentBounds;
         }
@@ -325,6 +325,18 @@ Rect BufferStateLayer::getBufferSize(const State& s) const {
     }
     return Rect::INVALID_RECT;
 }
+
+FloatRect BufferStateLayer::computeSourceBounds(const FloatRect& parentBounds) const {
+    const State& s(getDrawingState());
+    // for buffer state layers we use the display frame size as the buffer size.
+    if (getActiveWidth(s) < UINT32_MAX && getActiveHeight(s) < UINT32_MAX) {
+        return FloatRect(0, 0, getActiveWidth(s), getActiveHeight(s));
+    }
+
+    // if the display frame is not defined, use the parent bounds as the buffer size.
+    return parentBounds;
+}
+
 // -----------------------------------------------------------------------
 
 // -----------------------------------------------------------------------

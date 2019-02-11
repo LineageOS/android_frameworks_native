@@ -1752,9 +1752,13 @@ bool SurfaceFlinger::handleMessageInvalidate() {
     ATRACE_CALL();
     bool refreshNeeded = handlePageFlip();
 
+    if (mVisibleRegionsDirty) {
+        computeLayerBounds();
+    }
+
     for (auto& layer : mLayersPendingRefresh) {
         Region visibleReg;
-        visibleReg.set(layer->computeScreenBounds());
+        visibleReg.set(layer->getScreenBounds());
         invalidateLayerStack(layer, visibleReg);
     }
     mLayersPendingRefresh.clear();
@@ -2232,6 +2236,21 @@ void SurfaceFlinger::postComposition()
     ASSERT_ON_STACK_GUARD();
 }
 #pragma clang optimize on // b/119477596
+
+void SurfaceFlinger::computeLayerBounds() {
+    for (const auto& pair : mDisplays) {
+        const auto& displayDevice = pair.second;
+        const auto display = displayDevice->getCompositionDisplay();
+        for (const auto& layer : mDrawingState.layersSortedByZ) {
+            // only consider the layers on the given layer stack
+            if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+                return;
+            }
+
+            layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform());
+        }
+    }
+}
 
 void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
@@ -2977,7 +2996,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
                 //       compute the actual visible region
                 // TODO: we could cache the transformed region
                 Region visibleReg;
-                visibleReg.set(layer->computeScreenBounds());
+                visibleReg.set(layer->getScreenBounds());
                 invalidateLayerStack(layer, visibleReg);
             }
         });
@@ -3141,7 +3160,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         // handle hidden surfaces by setting the visible region to empty
         if (CC_LIKELY(layer->isVisible())) {
             const bool translucent = !layer->isOpaque(s);
-            Rect bounds(layer->computeScreenBounds());
+            Rect bounds(layer->getScreenBounds());
 
             visibleRegion.set(bounds);
             ui::Transform tr = layer->getTransform();
@@ -5438,11 +5457,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
             const sp<Layer>& oldParent;
             const sp<Layer>& newParent;
 
-            ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent)
+            ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
+                               const Rect& drawingBounds)
                   : oldParent(oldParent), newParent(newParent) {
+                // Compute and cache the bounds for the new parent layer.
+                newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform());
                 oldParent->setChildrenDrawingParent(newParent);
             }
-            ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
+            ~ReparentForDrawing() { newParent->setChildrenDrawingParent(oldParent); }
         };
 
         void render(std::function<void()> drawLayers) override {
@@ -5460,7 +5482,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                         LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
                                           bounds.getWidth(), bounds.getHeight(), 0));
 
-                ReparentForDrawing reparent(mLayer, screenshotParentLayer);
+                ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
                 drawLayers();
             }
         }
