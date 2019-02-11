@@ -37,9 +37,8 @@ namespace android {
 // 2. If none enabled, check system properties
 //
 // - Layer initializing -
-// TODO: ADD DETAIL ABOUT NEW INTERFACES
-// - InitializeLayer (provided by layer, called by loader)
-// - GetLayerProcAddress (provided by layer, called by loader)
+// - AndroidGLESLayer_Initialize (provided by layer, called by loader)
+// - AndroidGLESLayer_GetProcAddress (provided by layer, called by loader)
 // - getNextLayerProcAddress (provided by loader, called by layer)
 //
 // 1. Walk through defs for egl and each gl version
@@ -73,7 +72,7 @@ std::vector<FunctionTable> layer_functions;
 
 const void* getNextLayerProcAddress(void* layer_id, const char* name) {
     // Use layer_id to find funcs for layer below current
-    // This is the same key provided in InitializeLayer
+    // This is the same key provided in AndroidGLESLayer_Initialize
     auto next_layer_funcs = reinterpret_cast<FunctionTable*>(layer_id);
     EGLFuncPointer val;
 
@@ -400,7 +399,7 @@ void LayerLoader::LoadLayers() {
                 }
 
                 // Find the layer's Initialize function
-                std::string init_func = "InitializeLayer";
+                std::string init_func = "AndroidGLESLayer_Initialize";
                 ALOGV("Looking for entrypoint %s", init_func.c_str());
 
                 layer_init_func LayerInit =
@@ -414,7 +413,7 @@ void LayerLoader::LoadLayers() {
                 }
 
                 // Find the layer's setup function
-                std::string setup_func = "GetLayerProcAddress";
+                std::string setup_func = "AndroidGLESLayer_GetProcAddress";
                 ALOGV("Looking for entrypoint %s", setup_func.c_str());
 
                 layer_setup_func LayerSetup =
