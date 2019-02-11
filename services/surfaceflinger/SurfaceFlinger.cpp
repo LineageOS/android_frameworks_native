@@ -351,10 +351,6 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     }
     ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
-    mPrimaryDispSync =
-            getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
-                                        SurfaceFlinger::dispSyncPresentTimeOffset);
-
     auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
     if (surfaceFlingerConfigsServiceV1_2) {
         surfaceFlingerConfigsServiceV1_2->getDisplayNativePrimaries(
@@ -399,6 +395,12 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
 
     property_get("debug.sf.use_scheduler", value, "0");
     mUseScheduler = atoi(value);
+
+    if (!mUseScheduler) {
+        mPrimaryDispSync =
+                getFactory().createDispSync("PrimaryDispSync", SurfaceFlinger::hasSyncFramework,
+                                            SurfaceFlinger::dispSyncPresentTimeOffset);
+    }
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
@@ -719,8 +721,10 @@ void SurfaceFlinger::init() {
         }
     }
 
-    mEventControlThread = getFactory().createEventControlThread(
-            [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+    if (!mUseScheduler) {
+        mEventControlThread = getFactory().createEventControlThread(
+                [this](bool enabled) { setPrimaryVsyncEnabled(enabled); });
+    }
 
     // initialize our drawing state
     mDrawingState = mCurrentState;
@@ -822,13 +826,11 @@ status_t SurfaceFlinger::getSupportedFrameTimestamps(
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::getDisplayConfigs(const sp<IBinder>& displayToken,
-                                           Vector<DisplayInfo>* configs) {
+status_t SurfaceFlinger::getDisplayConfigsLocked(const sp<IBinder>& displayToken,
+                                                 Vector<DisplayInfo>* configs) {
     if (!displayToken || !configs) {
         return BAD_VALUE;
     }
-
-    ConditionalLock lock(mStateLock, std::this_thread::get_id() != mMainThreadId);
 
     const auto displayId = getPhysicalDisplayIdLocked(displayToken);
     if (!displayId) {
@@ -957,22 +959,19 @@ int SurfaceFlinger::getActiveConfig(const sp<IBinder>& displayToken) {
     return display->getActiveConfig();
 }
 
-status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
-    ATRACE_NAME("setActiveConfigSync");
-    postMessageSync(new LambdaMessage(
-            [&]() NO_THREAD_SAFETY_ANALYSIS { setActiveConfigInternal(displayToken, mode); }));
-    return NO_ERROR;
-}
+void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode) {
+    ATRACE_CALL();
 
-void SurfaceFlinger::setActiveConfigInternal(const sp<IBinder>& displayToken, int mode) {
     Vector<DisplayInfo> configs;
-    getDisplayConfigs(displayToken, &configs);
+    // Lock is acquired by setRefreshRateTo.
+    getDisplayConfigsLocked(displayToken, &configs);
     if (mode < 0 || mode >= static_cast<int>(configs.size())) {
         ALOGE("Attempt to set active config %d for display with %zu configs", mode, configs.size());
         return;
     }
 
-    const auto display = getDisplayDevice(displayToken);
+    // Lock is acquired by setRefreshRateTo.
+    const auto display = getDisplayDeviceLocked(displayToken);
     if (!display) {
         ALOGE("Attempt to set active config %d for invalid display token %p", mode,
               displayToken.get());
@@ -988,23 +987,95 @@ void SurfaceFlinger::setActiveConfigInternal(const sp<IBinder>& displayToken, in
         return;
     }
 
-    int currentMode = display->getActiveConfig();
-    if (mode == currentMode) {
-        // Don't update config if we are already running in the desired mode.
+    // Don't check against the current mode yet. Worst case we set the desired
+    // config twice.
+    {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken};
+    }
+    // This will trigger HWC refresh without resetting the idle timer.
+    repaintEverythingForHWC();
+}
+
+status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
+    ATRACE_CALL();
+    postMessageSync(new LambdaMessage(
+            [&]() NO_THREAD_SAFETY_ANALYSIS { setDesiredActiveConfig(displayToken, mode); }));
+    return NO_ERROR;
+}
+
+void SurfaceFlinger::setActiveConfigInHWC() {
+    ATRACE_CALL();
+
+    const auto display = getDisplayDevice(mUpcomingActiveConfig.displayToken);
+    if (!display) {
         return;
     }
-    if (mUseScheduler) {
-        mRefreshRateStats->setConfigMode(mode);
-    }
-
     const auto displayId = display->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
 
-    display->setActiveConfig(mode);
-    getHwComposer().setActiveConfig(*displayId, mode);
+    ATRACE_INT("ActiveConfigModeHWC", mUpcomingActiveConfig.configId);
+    getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId);
+    mSetActiveConfigState = SetActiveConfigState::NOTIFIED_HWC;
+    ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
+}
 
-    ATRACE_INT("ActiveConfigMode", mode);
+void SurfaceFlinger::setActiveConfigInternal() {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mActiveConfigLock);
+    if (mUseScheduler) {
+        mRefreshRateStats->setConfigMode(mUpcomingActiveConfig.configId);
+    }
+
+    const auto display = getDisplayDeviceLocked(mUpcomingActiveConfig.displayToken);
+    display->setActiveConfig(mUpcomingActiveConfig.configId);
+
+    mSetActiveConfigState = SetActiveConfigState::NONE;
+    ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
+
     resyncToHardwareVsync(true, getVsyncPeriod());
+    ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
+}
+
+bool SurfaceFlinger::updateSetActiveConfigStateMachine() NO_THREAD_SAFETY_ANALYSIS {
+    // Store the local variable to release the lock.
+    ActiveConfigInfo desiredActiveConfig;
+    {
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        desiredActiveConfig = mDesiredActiveConfig;
+    }
+
+    const auto display = getDisplayDevice(desiredActiveConfig.displayToken);
+    if (display) {
+        if (mSetActiveConfigState == SetActiveConfigState::NONE &&
+            display->getActiveConfig() != desiredActiveConfig.configId) {
+            // Step 1) Desired active config was set, it is different than the
+            // config currently in use. Notify HWC.
+            mUpcomingActiveConfig = desiredActiveConfig;
+            setActiveConfigInHWC();
+        } else if (mSetActiveConfigState == SetActiveConfigState::NOTIFIED_HWC) {
+            // Step 2) HWC was notified and we received refresh from it.
+            mSetActiveConfigState = SetActiveConfigState::REFRESH_RECEIVED;
+            ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
+            repaintEverythingForHWC();
+            // We do not want to give another frame to HWC while we are transitioning.
+            return false;
+        } else if (mSetActiveConfigState == SetActiveConfigState::REFRESH_RECEIVED &&
+                   !(mPreviousPresentFence != Fence::NO_FENCE &&
+                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled))) {
+            // Step 3) We received the present fence from the HWC, so we assume it
+            // successfully updated the config, hence we update SF.
+            setActiveConfigInternal();
+            // If the config changed again while we were transitioning, restart the
+            // process.
+            if (desiredActiveConfig != mUpcomingActiveConfig) {
+                mUpcomingActiveConfig = desiredActiveConfig;
+                setActiveConfigInHWC(); // sets the state to NOTIFY_HWC
+            }
+        }
+    }
+    return true;
 }
 
 status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
@@ -1332,6 +1403,7 @@ nsecs_t SurfaceFlinger::getVsyncPeriod() const {
 }
 
 void SurfaceFlinger::enableHardwareVsync() {
+    assert(!mUseScheduler);
     Mutex::Autolock _l(mHWVsyncLock);
     if (!mPrimaryHWVsyncEnabled && mHWVsyncAvailable) {
         mPrimaryDispSync->beginResync();
@@ -1374,6 +1446,7 @@ void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
 }
 
 void SurfaceFlinger::disableHardwareVsync(bool makeUnavailable) {
+    assert(!mUseScheduler);
     Mutex::Autolock _l(mHWVsyncLock);
     if (mPrimaryHWVsyncEnabled) {
         mEventControlThread->setVsyncEnabled(false);
@@ -1482,8 +1555,7 @@ void SurfaceFlinger::setRefreshRateTo(RefreshRateType refreshRate) {
         // TODO(b/113612090): There should be a better way at determining which config
         // has the right refresh rate.
         if (std::abs(fps - newFps) <= 1) {
-            setActiveConfigInternal(getInternalDisplayTokenLocked(), i);
-            ATRACE_INT("FPS", newFps);
+            setDesiredActiveConfig(getInternalDisplayTokenLocked(), i);
         }
     }
 }
@@ -1627,14 +1699,16 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
+            if (!updateSetActiveConfigStateMachine()) {
+                break;
+            }
+
             if (mUseScheduler) {
                 // This call is made each time SF wakes up and creates a new frame.
                 mScheduler->incrementFrameCounter();
             }
-            bool frameMissed = !mHadClientComposition &&
-                    mPreviousPresentFence != Fence::NO_FENCE &&
-                    (mPreviousPresentFence->getSignalTime() ==
-                            Fence::SIGNAL_TIME_PENDING);
+            bool frameMissed = !mHadClientComposition && mPreviousPresentFence != Fence::NO_FENCE &&
+                    (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
             mFrameMissedCount += frameMissed;
             ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
             if (frameMissed) {
@@ -3041,7 +3115,12 @@ void SurfaceFlinger::updateCursorAsync()
 
 void SurfaceFlinger::latchAndReleaseBuffer(const sp<Layer>& layer) {
     if (layer->hasReadyFrame()) {
-        const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+        nsecs_t expectedPresentTime;
+        if (mUseScheduler) {
+            expectedPresentTime = mScheduler->expectedPresentTime();
+        } else {
+            expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+        }
         if (layer->shouldPresentNow(expectedPresentTime)) {
             bool ignored = false;
             layer->latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
@@ -3273,7 +3352,12 @@ bool SurfaceFlinger::handlePageFlip()
     mDrawingState.traverseInZOrder([&](Layer* layer) {
         if (layer->hasReadyFrame()) {
             frameQueued = true;
-            const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+            nsecs_t expectedPresentTime;
+            if (mUseScheduler) {
+                expectedPresentTime = mScheduler->expectedPresentTime();
+            } else {
+                expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+            }
             if (layer->shouldPresentNow(expectedPresentTime)) {
                 mLayersWithQueuedFrames.push_back(layer);
             } else {
@@ -3614,7 +3698,12 @@ bool SurfaceFlinger::containsAnyInvalidClientState(const Vector<ComposerState>& 
 
 bool SurfaceFlinger::transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                                    const Vector<ComposerState>& states) {
-    const nsecs_t expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+    nsecs_t expectedPresentTime;
+    if (mUseScheduler) {
+        expectedPresentTime = mScheduler->expectedPresentTime();
+    } else {
+        expectedPresentTime = mPrimaryDispSync->expectedPresentTime();
+    }
     // Do not present if the desiredPresentTime has not passed unless it is more than one second
     // in the future. We ignore timestamps more than 1 second in the future for stability reasons.
     if (desiredPresentTime >= 0 && desiredPresentTime >= expectedPresentTime &&
