@@ -47,8 +47,8 @@ std::unique_ptr<BufferHubBuffer> BufferHubBuffer::create(uint32_t width, uint32_
     return buffer->isValid() ? std::move(buffer) : nullptr;
 }
 
-std::unique_ptr<BufferHubBuffer> BufferHubBuffer::import(const native_handle_t* token) {
-    if (token == nullptr) {
+std::unique_ptr<BufferHubBuffer> BufferHubBuffer::import(const sp<NativeHandle>& token) {
+    if (token == nullptr || token.get() == nullptr) {
         ALOGE("%s: token cannot be nullptr!", __FUNCTION__);
         return nullptr;
     }
@@ -105,7 +105,7 @@ BufferHubBuffer::BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layer
     mBufferClient = std::move(client);
 }
 
-BufferHubBuffer::BufferHubBuffer(const native_handle_t* token) {
+BufferHubBuffer::BufferHubBuffer(const sp<NativeHandle>& token) {
     sp<IBufferHub> bufferhub = IBufferHub::getService();
     if (bufferhub.get() == nullptr) {
         ALOGE("%s: BufferHub service not found!", __FUNCTION__);
@@ -124,7 +124,7 @@ BufferHubBuffer::BufferHubBuffer(const native_handle_t* token) {
 
     // hidl_handle(native_handle_t*) simply creates a raw pointer reference withouth ownership
     // transfer.
-    if (!bufferhub->importBuffer(hidl_handle(token), import_cb).isOk()) {
+    if (!bufferhub->importBuffer(hidl_handle(token.get()->handle()), import_cb).isOk()) {
         ALOGE("%s: importBuffer transaction failed!", __FUNCTION__);
         return;
     } else if (ret != BufferHubStatus::NO_ERROR) {
@@ -328,7 +328,7 @@ bool BufferHubBuffer::isValid() const {
             mEventFd.get() >= 0 && mMetadata.isValid() && mBufferClient != nullptr;
 }
 
-native_handle_t* BufferHubBuffer::duplicate() {
+sp<NativeHandle> BufferHubBuffer::duplicate() {
     if (mBufferClient == nullptr) {
         ALOGE("%s: missing BufferClient!", __FUNCTION__);
         return nullptr;
@@ -352,7 +352,7 @@ native_handle_t* BufferHubBuffer::duplicate() {
         return nullptr;
     }
 
-    return native_handle_clone(token.getNativeHandle());
+    return NativeHandle::create(native_handle_clone(token.getNativeHandle()), /*ownsHandle=*/true);
 }
 
 } // namespace android
