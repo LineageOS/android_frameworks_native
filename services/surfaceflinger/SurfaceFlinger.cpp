@@ -4433,6 +4433,12 @@ void SurfaceFlinger::dumpAllLocked(const Vector<String16>& args, size_t& index,
     result.append("\n");
 
     /*
+     * Tracing state
+     */
+    mTracing.dump(result);
+    result.append("\n");
+
+    /*
      * HWC layer minidump
      */
     for (size_t d = 0; d < mDisplays.size(); d++) {
@@ -4779,12 +4785,12 @@ status_t SurfaceFlinger::onTransact(
             case 1025: { // Set layer tracing
                 n = data.readInt32();
                 if (n) {
-                    ALOGV("LayerTracing enabled");
+                    ALOGD("LayerTracing enabled");
                     mTracing.enable();
                     doTracing("tracing.enable");
                     reply->writeInt32(NO_ERROR);
                 } else {
-                    ALOGV("LayerTracing disabled");
+                    ALOGD("LayerTracing disabled");
                     status_t err = mTracing.disable();
                     reply->writeInt32(err);
                 }

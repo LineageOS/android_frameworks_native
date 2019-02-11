@@ -325,8 +325,8 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
         eventTime = event->getHistoricalEventTime(h);
         for (size_t i = 0; i < pointerCount; i++) {
             uint32_t index = pointerIndex[i];
-            positions[index].x = event->getHistoricalRawX(i, h);
-            positions[index].y = event->getHistoricalRawY(i, h);
+            positions[index].x = event->getHistoricalX(i, h);
+            positions[index].y = event->getHistoricalY(i, h);
         }
         addMovement(eventTime, idBits, positions);
     }
@@ -334,8 +334,8 @@ void VelocityTracker::addMovement(const MotionEvent* event) {
     eventTime = event->getEventTime();
     for (size_t i = 0; i < pointerCount; i++) {
         uint32_t index = pointerIndex[i];
-        positions[index].x = event->getRawX(i);
-        positions[index].y = event->getRawY(i);
+        positions[index].x = event->getX(i);
+        positions[index].y = event->getY(i);
     }
     addMovement(eventTime, idBits, positions);
 }
