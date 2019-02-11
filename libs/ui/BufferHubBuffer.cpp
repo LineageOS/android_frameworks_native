@@ -209,10 +209,10 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
     }
 
     // Populate shortcuts to the atomics in metadata.
-    auto metadata_header = mMetadata.metadataHeader();
-    mBufferState = &metadata_header->buffer_state;
-    mFenceState = &metadata_header->fence_state;
-    mActiveClientsBitMask = &metadata_header->active_clients_bit_mask;
+    auto metadataHeader = mMetadata.metadataHeader();
+    mBufferState = &metadataHeader->buffer_state;
+    mFenceState = &metadataHeader->fence_state;
+    mActiveClientsBitMask = &metadataHeader->active_clients_bit_mask;
     // The C++ standard recommends (but does not require) that lock-free atomic operations are
     // also address-free, that is, suitable for communication between processes using shared
     // memory.
