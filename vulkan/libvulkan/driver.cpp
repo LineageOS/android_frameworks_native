@@ -254,6 +254,8 @@ bool Hal::Open() {
         return true;
     }
 
+    android::GraphicsEnv::getInstance().sendGpuStats();
+
     hwvulkan_device_t* device;
     ATRACE_BEGIN("hwvulkan module open");
     result =

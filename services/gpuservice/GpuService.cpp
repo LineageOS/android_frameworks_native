@@ -14,48 +14,19 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 #include "GpuService.h"
 
 #include <binder/IResultReceiver.h>
 #include <binder/Parcel.h>
 #include <utils/String8.h>
+#include <utils/Trace.h>
+
 #include <vkjson.h>
 
 namespace android {
 
-class BpGpuService : public BpInterface<IGpuService> {
-public:
-    explicit BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
-};
-
-IMPLEMENT_META_INTERFACE(GpuService, "android.ui.IGpuService");
-
-status_t BnGpuService::onTransact(uint32_t code, const Parcel& data,
-        Parcel* reply, uint32_t flags) {
-    status_t status;
-    switch (code) {
-    case SHELL_COMMAND_TRANSACTION: {
-        int in = data.readFileDescriptor();
-        int out = data.readFileDescriptor();
-        int err = data.readFileDescriptor();
-        std::vector<String16> args;
-        data.readString16Vector(&args);
-        sp<IBinder> unusedCallback;
-        sp<IResultReceiver> resultReceiver;
-        if ((status = data.readNullableStrongBinder(&unusedCallback)) != OK)
-            return status;
-        if ((status = data.readNullableStrongBinder(&resultReceiver)) != OK)
-            return status;
-        status = shellCommand(in, out, err, args);
-        if (resultReceiver != nullptr)
-            resultReceiver->send(status);
-        return OK;
-    }
-
-    default:
-        return BBinder::onTransact(code, data, reply, flags);
-    }
-}
 
 namespace {
     status_t cmd_help(int out);
@@ -66,9 +37,25 @@ const char* const GpuService::SERVICE_NAME = "gpu";
 
 GpuService::GpuService() = default;
 
-status_t GpuService::shellCommand(int /*in*/, int out, int err,
-                                  std::vector<String16>& args) {
-    ALOGV("GpuService::shellCommand");
+void GpuService::setGpuStats(const std::string driverPackageName,
+                             const std::string driverVersionName, const uint64_t driverVersionCode,
+                             const std::string appPackageName) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mStateLock);
+    ALOGV("Received:\n"
+          "\tdriverPackageName[%s]\n"
+          "\tdriverVersionName[%s]\n"
+          "\tdriverVersionCode[%llu]\n"
+          "\tappPackageName[%s]\n",
+          driverPackageName.c_str(), driverVersionName.c_str(),
+          (unsigned long long)driverVersionCode, appPackageName.c_str());
+}
+
+status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
+    ATRACE_CALL();
+
+    ALOGV("shellCommand");
     for (size_t i = 0, n = args.size(); i < n; i++)
         ALOGV("  arg[%zu]: '%s'", i, String8(args[i]).string());
 

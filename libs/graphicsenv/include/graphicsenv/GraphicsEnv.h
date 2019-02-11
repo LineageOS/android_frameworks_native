@@ -49,6 +49,7 @@ public:
     android_namespace_t* getDriverNamespace();
     void setGpuStats(const std::string driverPackageName, const std::string driverVersionName,
                      const uint64_t versionCode, const std::string appPackageName);
+    void sendGpuStats();
 
     bool shouldUseAngle(std::string appName);
     bool shouldUseAngle();
