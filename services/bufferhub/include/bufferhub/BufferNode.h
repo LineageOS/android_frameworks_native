@@ -16,8 +16,8 @@ namespace implementation {
 class BufferNode {
 public:
     // Allocates a new BufferNode.
-    BufferNode(uint32_t width, uint32_t height, uint32_t layer_count, uint32_t format,
-               uint64_t usage, size_t user_metadata_size, int id = -1);
+    BufferNode(uint32_t width, uint32_t height, uint32_t layerCount, uint32_t format,
+               uint64_t usage, size_t userMetadataSize, int id = -1);
 
     ~BufferNode();
 
