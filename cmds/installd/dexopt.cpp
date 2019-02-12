@@ -1958,6 +1958,11 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
 
+        // Clear BOOTCLASSPATH.
+        // Let dex2oat use the BCP from boot image, excluding updatable BCP
+        // modules for AOT to avoid app recompilation after their upgrades.
+        unsetenv("BOOTCLASSPATH");
+
         SetDex2OatScheduling(boot_complete);
         if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {
             PLOG(ERROR) << "flock(" << out_oat_path << ") failed";
