@@ -32,7 +32,7 @@ class GLESRenderEngine;
 
 class GLFramebuffer : public renderengine::Framebuffer {
 public:
-    explicit GLFramebuffer(const GLESRenderEngine& engine);
+    explicit GLFramebuffer(GLESRenderEngine& engine);
     ~GLFramebuffer() override;
 
     bool setNativeWindowBuffer(ANativeWindowBuffer* nativeBuffer, bool isProtected) override;
@@ -43,6 +43,7 @@ public:
     int32_t getBufferWidth() const { return mBufferWidth; }
 
 private:
+    GLESRenderEngine& mEngine;
     EGLDisplay mEGLDisplay;
     EGLImageKHR mEGLImage;
     uint32_t mTextureName, mFramebufferName;
