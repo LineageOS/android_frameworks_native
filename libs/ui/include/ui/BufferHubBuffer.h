@@ -23,6 +23,7 @@
 #include <ui/BufferHubDefs.h>
 #include <ui/BufferHubEventFd.h>
 #include <ui/BufferHubMetadata.h>
+#include <utils/NativeHandle.h>
 
 namespace android {
 
@@ -33,10 +34,8 @@ public:
                                                    uint32_t layerCount, uint32_t format,
                                                    uint64_t usage, size_t userMetadataSize);
 
-    // Imports the given token to a BufferHubBuffer. Not taking ownership of the token. Caller
-    // should close and destroy the token after calling this function regardless of output.
-    // TODO(b/122543147): use a movable wrapper for token
-    static std::unique_ptr<BufferHubBuffer> import(const native_handle_t* token);
+    // Imports the given token to a BufferHubBuffer. Not taking ownership of the token.
+    static std::unique_ptr<BufferHubBuffer> import(const sp<NativeHandle>& token);
 
     BufferHubBuffer(const BufferHubBuffer&) = delete;
     void operator=(const BufferHubBuffer&) = delete;
@@ -100,17 +99,15 @@ public:
 
     // Creates a token that stands for this BufferHubBuffer client and could be used for Import to
     // create another BufferHubBuffer. The new BufferHubBuffer will share the same underlying
-    // gralloc buffer and ashmem region for metadata. Note that the caller owns the token and
-    // should free it after use.
+    // gralloc buffer and ashmem region for metadata. Not taking ownership of the token.
     // Returns a valid token on success, nullptr on failure.
-    // TODO(b/122543147): use a movable wrapper for token
-    native_handle_t* duplicate();
+    sp<NativeHandle> duplicate();
 
 private:
     BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layerCount, uint32_t format,
                     uint64_t usage, size_t userMetadataSize);
 
-    BufferHubBuffer(const native_handle_t* token);
+    BufferHubBuffer(const sp<NativeHandle>& token);
 
     int initWithBufferTraits(const frameworks::bufferhub::V1_0::BufferTraits& bufferTraits);
 
