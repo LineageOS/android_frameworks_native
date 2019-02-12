@@ -635,17 +635,13 @@ void SurfaceFlinger::init() {
         mPhaseOffsets->setRefreshRateType(
                 scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
 
-        auto resetIdleTimerCallback =
-                std::bind(&SurfaceFlinger::setRefreshRateTo, this, RefreshRateType::PERFORMANCE);
-
         mAppConnectionHandle =
                 mScheduler->createConnection("appConnection", mPhaseOffsets->getCurrentAppOffset(),
-                                             resyncCallback, resetIdleTimerCallback,
+                                             resyncCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
                 mScheduler->createConnection("sfConnection", mPhaseOffsets->getCurrentSfOffset(),
-                                             resyncCallback, resetIdleTimerCallback,
-                                             [this](nsecs_t timestamp) {
+                                             resyncCallback, [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
 
@@ -748,6 +744,10 @@ void SurfaceFlinger::init() {
         mScheduler->setExpiredIdleTimerCallback([this] {
             Mutex::Autolock lock(mStateLock);
             setRefreshRateTo(RefreshRateType::DEFAULT);
+        });
+        mScheduler->setResetIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE);
         });
 
         mRefreshRateStats =
@@ -1345,16 +1345,10 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     });
 
     if (mUseScheduler) {
-        auto resetIdleTimerCallback = [this] {
-            Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE);
-        };
-
         const auto& handle = vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle
                                                                        : mAppConnectionHandle;
 
-        return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback),
-                                                        std::move(resetIdleTimerCallback));
+        return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback));
     } else {
         if (vsyncSource == eVsyncSourceSurfaceFlinger) {
             return mSFEventThread->createEventConnection(resyncCallback, ResetIdleTimerCallback());

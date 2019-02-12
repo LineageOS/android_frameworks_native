@@ -22,8 +22,9 @@
 namespace android {
 namespace scheduler {
 
-IdleTimer::IdleTimer(const Interval& interval, const TimeoutCallback& timeoutCallback)
-      : mInterval(interval), mTimeoutCallback(timeoutCallback) {}
+IdleTimer::IdleTimer(const Interval& interval, const ResetCallback& resetCallback,
+                     const TimeoutCallback& timeoutCallback)
+      : mInterval(interval), mResetCallback(resetCallback), mTimeoutCallback(timeoutCallback) {}
 
 IdleTimer::~IdleTimer() {
     stop();
@@ -49,11 +50,34 @@ void IdleTimer::stop() {
 }
 
 void IdleTimer::loop() {
-    std::lock_guard<std::mutex> lock(mMutex);
-    while (mState != TimerState::STOPPED) {
-        if (mState == TimerState::IDLE) {
-            mCondition.wait(mMutex);
-        } else if (mState == TimerState::RESET) {
+    while (true) {
+        bool triggerReset = false;
+        bool triggerTimeout = false;
+        {
+            std::lock_guard<std::mutex> lock(mMutex);
+            if (mState == TimerState::STOPPED) {
+                break;
+            }
+
+            if (mState == TimerState::IDLE) {
+                mCondition.wait(mMutex);
+                continue;
+            }
+
+            if (mState == TimerState::RESET) {
+                triggerReset = true;
+            }
+        }
+        if (triggerReset && mResetCallback) {
+            mResetCallback();
+        }
+
+        { // lock the mutex again. someone might have called stop meanwhile
+            std::lock_guard<std::mutex> lock(mMutex);
+            if (mState == TimerState::STOPPED) {
+                break;
+            }
+
             auto triggerTime = std::chrono::steady_clock::now() + mInterval;
             mState = TimerState::WAITING;
             while (mState == TimerState::WAITING) {
@@ -62,13 +86,13 @@ void IdleTimer::loop() {
                 if (waitTime > zero) mCondition.wait_for(mMutex, waitTime);
                 if (mState == TimerState::WAITING &&
                     (triggerTime - std::chrono::steady_clock::now()) <= zero) {
-                    if (mTimeoutCallback) {
-                        mTimeoutCallback();
-                    }
-
+                    triggerTimeout = true;
                     mState = TimerState::IDLE;
                 }
             }
+        }
+        if (triggerTimeout && mTimeoutCallback) {
+            mTimeoutCallback();
         }
     }
 } // namespace scheduler
