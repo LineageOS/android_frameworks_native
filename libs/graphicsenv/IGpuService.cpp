@@ -27,9 +27,9 @@ class BpGpuService : public BpInterface<IGpuService> {
 public:
     explicit BpGpuService(const sp<IBinder>& impl) : BpInterface<IGpuService>(impl) {}
 
-    virtual void setGpuStats(const std::string driverPackageName,
-                             const std::string driverVersionName, const uint64_t driverVersionCode,
-                             const std::string appPackageName) {
+    virtual void setGpuStats(const std::string& driverPackageName,
+                             const std::string& driverVersionName, const uint64_t driverVersionCode,
+                             const std::string& appPackageName) {
         Parcel data, reply;
         data.writeInterfaceToken(IGpuService::getInterfaceDescriptor());
 
