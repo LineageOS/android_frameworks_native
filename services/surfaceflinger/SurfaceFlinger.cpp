@@ -636,11 +636,11 @@ void SurfaceFlinger::init() {
                 scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
 
         mAppConnectionHandle =
-                mScheduler->createConnection("appConnection", mPhaseOffsets->getCurrentAppOffset(),
+                mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
                                              resyncCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
-                mScheduler->createConnection("sfConnection", mPhaseOffsets->getCurrentSfOffset(),
+                mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
                                              resyncCallback, [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
@@ -1419,17 +1419,23 @@ void SurfaceFlinger::enableHardwareVsync() {
 
 void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
     Mutex::Autolock _l(mHWVsyncLock);
-
-    if (makeAvailable) {
-        mHWVsyncAvailable = true;
-        // TODO(b/113612090): This is silly, but necessary evil until we turn on the flag for good.
-        if (mUseScheduler) {
+    // TODO(b/113612090): This is silly, but necessary evil until we turn on the flag for good.
+    if (mUseScheduler) {
+        if (makeAvailable) {
             mScheduler->makeHWSyncAvailable(true);
+        } else if (!mScheduler->getHWSyncAvailable()) {
+            // Hardware vsync is not currently available, so abort the resync
+            // attempt for now
+            return;
         }
-    } else if (!mHWVsyncAvailable) {
-        // Hardware vsync is not currently available, so abort the resync
-        // attempt for now
-        return;
+    } else {
+        if (makeAvailable) {
+            mHWVsyncAvailable = true;
+        } else if (!mHWVsyncAvailable) {
+            // Hardware vsync is not currently available, so abort the resync
+            // attempt for now
+            return;
+        }
     }
 
     if (period <= 0) {
@@ -4545,7 +4551,13 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                 {"--clear-layer-stats"s, dumper([this](std::string&) { mLayerStats.clear(); })},
                 {"--disable-layer-stats"s, dumper([this](std::string&) { mLayerStats.disable(); })},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
-                {"--dispsync"s, dumper([this](std::string& s) { mPrimaryDispSync->dump(s); })},
+                {"--dispsync"s, dumper([this](std::string& s) {
+                     if (mUseScheduler) {
+                         mScheduler->dumpPrimaryDispSync(s);
+                     } else {
+                         mPrimaryDispSync->dump(s);
+                     }
+                 })},
                 {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
                 {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
                 {"--frame-composition"s, dumper(&SurfaceFlinger::dumpFrameCompositionInfo)},

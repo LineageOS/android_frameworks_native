@@ -109,6 +109,8 @@ public:
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
     void makeHWSyncAvailable(bool makeAvailable);
+    // returns HWSyncAvailable flag to SF would enable HW vsync based on this
+    bool getHWSyncAvailable();
     nsecs_t expectedPresentTime();
     // Adds the present time for given layer to the history of present times.
     void addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
@@ -121,6 +123,9 @@ public:
     void setResetIdleTimerCallback(const ResetIdleTimerCallback& resetTimerCallback);
     // Returns relevant information about Scheduler for dumpsys purposes.
     std::string doDump();
+
+    // calls DispSync::dump() on primary disp sync
+    void dumpPrimaryDispSync(std::string& result) const;
 
 protected:
     virtual std::unique_ptr<EventThread> makeEventThread(

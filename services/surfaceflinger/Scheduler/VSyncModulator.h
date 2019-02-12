@@ -124,7 +124,7 @@ private:
             changed = true;
         }
         if (desired.app != current.app) {
-            if (mSfConnectionHandle != nullptr) {
+            if (mAppConnectionHandle != nullptr) {
                 mScheduler->setPhaseOffset(mAppConnectionHandle, desired.app);
             } else {
                 mAppEventThread->setPhaseOffset(desired.app);
