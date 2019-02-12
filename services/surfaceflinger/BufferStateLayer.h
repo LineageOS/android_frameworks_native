@@ -88,6 +88,7 @@ public:
                                       uint64_t /*frameNumber*/) override {}
 
     Rect getBufferSize(const State& s) const override;
+    FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
     // -----------------------------------------------------------------------
 
     // -----------------------------------------------------------------------

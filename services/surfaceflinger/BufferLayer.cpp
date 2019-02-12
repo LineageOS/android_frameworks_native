@@ -206,7 +206,7 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
             memcpy(textureMatrix, texTransform.asArray(), sizeof(textureMatrix));
         }
 
-        const Rect win{computeBounds()};
+        const Rect win{getBounds()};
         const float bufferWidth = getBufferSize(s).getWidth();
         const float bufferHeight = getBufferSize(s).getHeight();
 
@@ -652,6 +652,38 @@ Rect BufferLayer::getBufferSize(const State& s) const {
 
 std::shared_ptr<compositionengine::Layer> BufferLayer::getCompositionLayer() const {
     return mCompositionLayer;
+}
+
+FloatRect BufferLayer::computeSourceBounds(const FloatRect& parentBounds) const {
+    const State& s(getDrawingState());
+
+    // If we have a sideband stream, or we are scaling the buffer then return the layer size since
+    // we cannot determine the buffer size.
+    if ((s.sidebandStream != nullptr) ||
+        (getEffectiveScalingMode() != NATIVE_WINDOW_SCALING_MODE_FREEZE)) {
+        return FloatRect(0, 0, getActiveWidth(s), getActiveHeight(s));
+    }
+
+    if (mActiveBuffer == nullptr) {
+        return parentBounds;
+    }
+
+    uint32_t bufWidth = mActiveBuffer->getWidth();
+    uint32_t bufHeight = mActiveBuffer->getHeight();
+
+    // Undo any transformations on the buffer and return the result.
+    if (mCurrentTransform & ui::Transform::ROT_90) {
+        std::swap(bufWidth, bufHeight);
+    }
+
+    if (getTransformToDisplayInverse()) {
+        uint32_t invTransform = DisplayDevice::getPrimaryDisplayOrientationTransform();
+        if (invTransform & ui::Transform::ROT_90) {
+            std::swap(bufWidth, bufHeight);
+        }
+    }
+
+    return FloatRect(0, 0, bufWidth, bufHeight);
 }
 
 } // namespace android

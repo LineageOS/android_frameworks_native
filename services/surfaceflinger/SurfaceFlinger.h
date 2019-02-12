@@ -606,6 +606,9 @@ private:
             const sp<Layer>& parent,
             bool addToCurrentState);
 
+    // Traverse through all the layers and compute and cache its bounds.
+    void computeLayerBounds();
+
     /* ------------------------------------------------------------------------
      * Boot animation, on/off animations and screen capture
      */
