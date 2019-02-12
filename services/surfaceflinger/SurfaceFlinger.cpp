@@ -997,6 +997,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
 }
 
 bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_CALL();
     // we may be in the process of changing the active state
     if (mWaitForNextInvalidate) {
         mWaitForNextInvalidate = false;
@@ -1509,6 +1510,7 @@ void SurfaceFlinger::resetDisplayState() {
 }
 
 void SurfaceFlinger::updateVrFlinger() {
+    ATRACE_CALL();
     if (!mVrFlinger)
         return;
     bool vrFlingerRequestsDisplay = mVrFlingerRequestsDisplay;
@@ -1603,13 +1605,16 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 // of video detection feature.
                 mScheduler->incrementFrameCounter();
             }
-
-            bool frameMissed = !mHadClientComposition && mPreviousPresentFence != Fence::NO_FENCE &&
+            bool frameMissed = mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
-            mFrameMissedCount += frameMissed;
-            ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
+            bool hwcFrameMissed = !mHadClientComposition && frameMissed;
             if (frameMissed) {
+                ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
+                mFrameMissedCount++;
                 mTimeStats->incrementMissedFrames();
+            }
+            // For now, only propagate backpressure when missing a hwc frame.
+            if (hwcFrameMissed) {
                 if (mPropagateBackpressure) {
                     signalLayerUpdate();
                     break;
@@ -1644,6 +1649,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
 }
 
 bool SurfaceFlinger::handleMessageTransaction() {
+    ATRACE_CALL();
     uint32_t transactionFlags = peekTransactionFlags();
 
     // Apply any ready transactions in the queues if there are still transactions that have not been
