@@ -59,10 +59,10 @@ PhaseOffsets::PhaseOffsets() {
     const int highFpsEarlyGlAppOffsetNs = atoi(value);
 
     // TODO(b/122905996): Define these in device.mk.
-    property_get("debug.sf.high_fps_late_app_phase_offset_ns", value, "1000000");
+    property_get("debug.sf.high_fps_late_app_phase_offset_ns", value, "2000000");
     const int highFpsLateAppOffsetNs = atoi(value);
 
-    property_get("debug.sf.high_fps_late_sf_phase_offset_ns", value, "8000000");
+    property_get("debug.sf.high_fps_late_sf_phase_offset_ns", value, "1000000");
     const int highFpsLateSfOffsetNs = atoi(value);
 
     mDefaultRefreshRateOffsets.early = {earlySfOffsetNs != -1 ? earlySfOffsetNs
@@ -83,7 +83,7 @@ PhaseOffsets::PhaseOffsets() {
                                                                       : highFpsLateAppOffsetNs,
                                        highFpsEarlyGlAppOffsetNs != -1 ? highFpsEarlyGlAppOffsetNs
                                                                        : highFpsLateSfOffsetNs};
-    mHighRefreshRateOffsets.late = {highFpsLateAppOffsetNs, highFpsLateSfOffsetNs};
+    mHighRefreshRateOffsets.late = {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs};
 }
 
 PhaseOffsets::Offsets PhaseOffsets::getCurrentOffsets() const {

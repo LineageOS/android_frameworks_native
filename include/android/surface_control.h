@@ -28,6 +28,7 @@
 
 #include <sys/cdefs.h>
 
+#include <android/data_space.h>
 #include <android/hardware_buffer.h>
 #include <android/hdr_metadata.h>
 #include <android/native_window.h>
@@ -315,6 +316,15 @@ void ASurfaceTransaction_setDesiredPresentTime(ASurfaceTransaction* transaction,
 void ASurfaceTransaction_setBufferAlpha(ASurfaceTransaction* transaction,
                                         ASurfaceControl* surface_control, float alpha)
                                         __INTRODUCED_IN(29);
+
+/**
+ * Sets the data space of the surface_control's buffers.
+ *
+ * If no data space is set, the surface control defaults to ADATASPACE_SRGB.
+ */
+void ASurfaceTransaction_setBufferDataSpace(ASurfaceTransaction* transaction,
+                                            ASurfaceControl* surface_control, ADataSpace data_space)
+                                            __INTRODUCED_IN(29);
 
 /*
  * SMPTE ST 2086 "Mastering Display Color Volume" static metadata

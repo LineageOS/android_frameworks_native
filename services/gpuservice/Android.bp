@@ -30,6 +30,8 @@ cc_defaults {
     ],
     shared_libs: [
         "libbinder",
+        "libcutils",
+        "libgraphicsenv",
         "liblog",
         "libutils",
         "libvulkan",
@@ -59,6 +61,7 @@ cc_defaults {
     ],
     shared_libs: [
         "libbinder",
+        "libcutils",
         "liblog",
         "libutils",
     ],

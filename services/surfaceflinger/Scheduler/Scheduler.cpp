@@ -69,7 +69,7 @@ Scheduler::Scheduler(impl::EventControlThread::SetVSyncEnabledFunction function)
     mEventControlThread = std::make_unique<impl::EventControlThread>(function);
 
     char value[PROPERTY_VALUE_MAX];
-    property_get("debug.sf.set_idle_timer_ms", value, "30");
+    property_get("debug.sf.set_idle_timer_ms", value, "0");
     mSetIdleTimerMs = atoi(value);
 
     if (mSetIdleTimerMs > 0) {
@@ -236,6 +236,10 @@ void Scheduler::setIgnorePresentFences(bool ignore) {
 void Scheduler::makeHWSyncAvailable(bool makeAvailable) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     mHWVsyncAvailable = makeAvailable;
+}
+
+nsecs_t Scheduler::expectedPresentTime() {
+    return mPrimaryDispSync->expectedPresentTime();
 }
 
 void Scheduler::addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,

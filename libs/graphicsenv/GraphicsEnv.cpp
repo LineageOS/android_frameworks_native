@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+#define ATRACE_TAG ATRACE_TAG_GRAPHICS
+
 //#define LOG_NDEBUG 1
 #define LOG_TAG "GraphicsEnv"
+
 #include <graphicsenv/GraphicsEnv.h>
 
 #include <dlfcn.h>
@@ -25,14 +28,15 @@
 #include <android-base/properties.h>
 #include <android-base/strings.h>
 #include <android/dlext.h>
+#include <binder/IServiceManager.h>
 #include <cutils/properties.h>
+#include <graphicsenv/IGpuService.h>
 #include <log/log.h>
 #include <sys/prctl.h>
+#include <utils/Trace.h>
 
 #include <memory>
 #include <string>
-
-#include <dlfcn.h>
 
 // TODO(b/37049319) Get this from a header once one exists
 extern "C" {
@@ -155,15 +159,48 @@ void GraphicsEnv::setDriverPath(const std::string path) {
 void GraphicsEnv::setGpuStats(const std::string driverPackageName,
                               const std::string driverVersionName, const uint64_t driverVersionCode,
                               const std::string appPackageName) {
-    ALOGV("setGpuStats: drvPkgName[%s], drvVerName[%s], drvVerCode[%lld], appPkgName[%s]",
-          driverPackageName.c_str(), driverVersionName.c_str(), (long long)driverVersionCode,
-          appPackageName.c_str());
+    ATRACE_CALL();
+
+    ALOGV("setGpuStats:\n"
+          "\tdriverPackageName[%s]\n"
+          "\tdriverVersionName[%s]\n"
+          "\tdriverVersionCode[%llu]\n"
+          "\tappPackageName[%s]\n",
+          driverPackageName.c_str(), driverVersionName.c_str(),
+          (unsigned long long)driverVersionCode, appPackageName.c_str());
+
     mGpuStats = {
             .driverPackageName = driverPackageName,
             .driverVersionName = driverVersionName,
             .driverVersionCode = driverVersionCode,
             .appPackageName = appPackageName,
     };
+}
+
+void GraphicsEnv::sendGpuStats() {
+    ATRACE_CALL();
+
+    // Do not sendGpuStats for those skipping the GraphicsEnvironment setup
+    if (mGpuStats.appPackageName.empty()) return;
+
+    ALOGV("sendGpuStats:\n"
+          "\tdriverPackageName[%s]\n"
+          "\tdriverVersionName[%s]\n"
+          "\tdriverVersionCode[%llu]\n"
+          "\tappPackageName[%s]\n",
+          mGpuStats.driverPackageName.c_str(), mGpuStats.driverVersionName.c_str(),
+          (unsigned long long)mGpuStats.driverVersionCode, mGpuStats.appPackageName.c_str());
+
+    const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
+    if (!binder) {
+        ALOGE("Failed to get gpu service for [%s]", mGpuStats.appPackageName.c_str());
+        return;
+    }
+
+    interface_cast<IGpuService>(binder)->setGpuStats(mGpuStats.driverPackageName,
+                                                     mGpuStats.driverVersionName,
+                                                     mGpuStats.driverVersionCode,
+                                                     mGpuStats.appPackageName);
 }
 
 void* GraphicsEnv::loadLibrary(std::string name) {

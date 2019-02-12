@@ -437,7 +437,12 @@ private:
                            const Rect& sourceCrop, float frameScale, bool childrenOnly) override;
     status_t getDisplayStats(const sp<IBinder>& displayToken, DisplayStatInfo* stats) override;
     status_t getDisplayConfigs(const sp<IBinder>& displayToken,
-                               Vector<DisplayInfo>* configs) override;
+                               Vector<DisplayInfo>* configs) override {
+        Mutex::Autolock _l(mStateLock);
+        return getDisplayConfigsLocked(displayToken, configs);
+    }
+    status_t getDisplayConfigsLocked(const sp<IBinder>& displayToken, Vector<DisplayInfo>* configs)
+            REQUIRES(mStateLock);
     int getActiveConfig(const sp<IBinder>& displayToken) override;
     status_t getDisplayColorModes(const sp<IBinder>& displayToken,
                                   Vector<ui::ColorMode>* configs) override;
@@ -503,8 +508,18 @@ private:
 
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
-    // called on the main thread in response to setActiveConfig()
-    void setActiveConfigInternal(const sp<IBinder>& displayToken, int mode) REQUIRES(mStateLock);
+    // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
+    void setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode) REQUIRES(mStateLock);
+    // Calls setActiveConfig in HWC.
+    void setActiveConfigInHWC();
+    // Once HWC has returned the present fence, this sets the active config and a new refresh
+    // rate in SF. It also triggers HWC vsync.
+    void setActiveConfigInternal() REQUIRES(mStateLock);
+    // Active config is updated on INVALIDATE call in a state machine-like manner. When the
+    // desired config was set, HWC needs to update the pannel on the next refresh, and when
+    // we receive the fence back, we know that the process was complete. It returns whether
+    // the invalidate process should continue.
+    bool updateSetActiveConfigStateMachine();
     // called on the main thread in response to setPowerMode()
     void setPowerModeInternal(const sp<DisplayDevice>& display, int mode) REQUIRES(mStateLock);
 
@@ -1083,6 +1098,34 @@ private:
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
     std::unique_ptr<scheduler::RefreshRateStats> mRefreshRateStats;
+
+    // The following structs are used for configuring active config state at a desired time,
+    // which is once per vsync at invalidate time.
+    enum SetActiveConfigState {
+        NONE,            // not in progress
+        NOTIFIED_HWC,    // call to HWC has been made
+        REFRESH_RECEIVED // onRefresh was received from HWC
+    };
+    std::atomic<SetActiveConfigState> mSetActiveConfigState = SetActiveConfigState::NONE;
+
+    struct ActiveConfigInfo {
+        int configId;
+        sp<IBinder> displayToken;
+
+        bool operator!=(const ActiveConfigInfo& other) const {
+            if (configId != other.configId) {
+                return true;
+            }
+            return (displayToken != other.displayToken);
+        }
+    };
+    std::mutex mActiveConfigLock;
+    // This bit is set once we start setting the config. We read from this bit during the
+    // process. If at the end, this bit is different than mDesiredActiveConfig, we restart
+    // the process.
+    ActiveConfigInfo mUpcomingActiveConfig; // Always read and written on the main thread.
+    // This bit can be set at any point in time when the system wants the new config.
+    ActiveConfigInfo mDesiredActiveConfig GUARDED_BY(mActiveConfigLock);
 
     /* ------------------------------------------------------------------------ */
     sp<IInputFlinger> mInputFlinger;

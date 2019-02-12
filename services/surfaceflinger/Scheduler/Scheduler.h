@@ -109,6 +109,7 @@ public:
     void addPresentFence(const std::shared_ptr<FenceTime>& fenceTime);
     void setIgnorePresentFences(bool ignore);
     void makeHWSyncAvailable(bool makeAvailable);
+    nsecs_t expectedPresentTime();
     // Adds the present time for given layer to the history of present times.
     void addFramePresentTimeForLayer(const nsecs_t framePresentTime, bool isAutoTimestamp,
                                      const std::string layerName);
@@ -142,9 +143,6 @@ private:
     // Function that is called when the timer expires.
     void expiredTimerCallback();
 
-    // TODO(b/113612090): Instead of letting BufferQueueLayer to access mDispSync directly, it
-    // should make request to Scheduler to compute next refresh.
-    friend class BufferQueueLayer;
 
     // If fences from sync Framework are supported.
     const bool mHasSyncFramework;

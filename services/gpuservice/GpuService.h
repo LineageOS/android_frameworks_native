@@ -17,30 +17,14 @@
 #ifndef ANDROID_GPUSERVICE_H
 #define ANDROID_GPUSERVICE_H
 
-#include <vector>
-
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
+#include <graphicsenv/IGpuService.h>
+
+#include <mutex>
+#include <vector>
 
 namespace android {
-
-/*
- * This class defines the Binder IPC interface for GPU-related queries and
- * control.
- */
-class IGpuService : public IInterface {
-public:
-    DECLARE_META_INTERFACE(GpuService);
-};
-
-class BnGpuService: public BnInterface<IGpuService> {
-protected:
-    virtual status_t shellCommand(int in, int out, int err,
-                                  std::vector<String16>& args) = 0;
-
-    status_t onTransact(uint32_t code, const Parcel& data,
-            Parcel* reply, uint32_t flags = 0) override;
-};
 
 class GpuService : public BnGpuService {
 public:
@@ -49,8 +33,15 @@ public:
     GpuService() ANDROID_API;
 
 protected:
-    status_t shellCommand(int in, int out, int err,
-                          std::vector<String16>& args) override;
+    status_t shellCommand(int in, int out, int err, std::vector<String16>& args) override;
+
+private:
+    // IGpuService interface
+    void setGpuStats(const std::string driverPackageName, const std::string driverVersionName,
+                     const uint64_t driverVersionCode, const std::string appPackageName);
+
+    // GpuStats access must be protected by mStateLock
+    std::mutex mStateLock;
 };
 
 } // namespace android
