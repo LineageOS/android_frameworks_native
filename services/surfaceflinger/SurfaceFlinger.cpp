@@ -1324,6 +1324,17 @@ status_t SurfaceFlinger::getCompositionPreference(
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::addRegionSamplingListener(
+        const Rect& /*samplingArea*/, const sp<IBinder>& /*stopLayerHandle*/,
+        const sp<IRegionSamplingListener>& /*listener*/) {
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::removeRegionSamplingListener(
+        const sp<IRegionSamplingListener>& /*listener*/) {
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -5121,7 +5132,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             return OK;
         }
         case CAPTURE_LAYERS:
-        case CAPTURE_SCREEN: {
+        case CAPTURE_SCREEN:
+        case ADD_REGION_SAMPLING_LISTENER:
+        case REMOVE_REGION_SAMPLING_LISTENER: {
             // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
