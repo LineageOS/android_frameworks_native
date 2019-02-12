@@ -85,7 +85,19 @@ void DispSyncSource::setPhaseOffset(nsecs_t phaseOffset) {
     }
 }
 
+void DispSyncSource::pauseVsyncCallback(bool pause) {
+    std::lock_guard lock(mVsyncMutex);
+    mCallbackPaused = pause;
+}
+
 void DispSyncSource::onDispSyncEvent(nsecs_t when) {
+    {
+        std::lock_guard lock(mVsyncMutex);
+        if (mCallbackPaused) {
+            return;
+        }
+    }
+
     VSyncSource::Callback* callback;
     {
         std::lock_guard lock(mCallbackMutex);

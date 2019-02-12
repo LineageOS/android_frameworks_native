@@ -163,6 +163,12 @@ void Scheduler::setPhaseOffset(const sp<Scheduler::ConnectionHandle>& handle, ns
     mConnections[handle->id]->thread->setPhaseOffset(phaseOffset);
 }
 
+void Scheduler::pauseVsyncCallback(const android::sp<android::Scheduler::ConnectionHandle>& handle,
+                                   bool pause) {
+    RETURN_IF_INVALID();
+    mConnections[handle->id]->thread->pauseVsyncCallback(pause);
+}
+
 void Scheduler::getDisplayStatInfo(DisplayStatInfo* stats) {
     stats->vsyncTime = mPrimaryDispSync->computeNextRefresh(0);
     stats->vsyncPeriod = mPrimaryDispSync->getPeriod();

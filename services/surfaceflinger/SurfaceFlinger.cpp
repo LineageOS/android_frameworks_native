@@ -949,12 +949,18 @@ void SurfaceFlinger::setDesiredActiveConfig(const sp<IBinder>& displayToken, int
 
     // Don't check against the current mode yet. Worst case we set the desired
     // config twice.
-    {
-        std::lock_guard<std::mutex> lock(mActiveConfigLock);
-        mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken};
+    std::lock_guard<std::mutex> lock(mActiveConfigLock);
+    mDesiredActiveConfig = ActiveConfigInfo{mode, displayToken};
+
+    if (!mDesiredActiveConfigChanged) {
+        // This is the first time we set the desired
+        mScheduler->pauseVsyncCallback(mAppConnectionHandle, true);
+
+        // This will trigger HWC refresh without resetting the idle timer.
+        repaintEverythingForHWC();
     }
-    // This will trigger HWC refresh without resetting the idle timer.
-    repaintEverythingForHWC();
+    mDesiredActiveConfigChanged = true;
+    ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
 }
 
 status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mode) {
@@ -962,23 +968,6 @@ status_t SurfaceFlinger::setActiveConfig(const sp<IBinder>& displayToken, int mo
     postMessageSync(new LambdaMessage(
             [&]() NO_THREAD_SAFETY_ANALYSIS { setDesiredActiveConfig(displayToken, mode); }));
     return NO_ERROR;
-}
-
-void SurfaceFlinger::setActiveConfigInHWC() {
-    ATRACE_CALL();
-
-    const auto display = getDisplayDevice(mUpcomingActiveConfig.displayToken);
-    if (!display) {
-        return;
-    }
-
-    const auto displayId = display->getId();
-    LOG_ALWAYS_FATAL_IF(!displayId);
-
-    ATRACE_INT("ActiveConfigModeHWC", mUpcomingActiveConfig.configId);
-    getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId);
-    mSetActiveConfigState = SetActiveConfigState::NOTIFIED_HWC;
-    ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
 }
 
 void SurfaceFlinger::setActiveConfigInternal() {
@@ -990,51 +979,68 @@ void SurfaceFlinger::setActiveConfigInternal() {
     const auto display = getDisplayDeviceLocked(mUpcomingActiveConfig.displayToken);
     display->setActiveConfig(mUpcomingActiveConfig.configId);
 
-    mSetActiveConfigState = SetActiveConfigState::NONE;
-    ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
-
     mScheduler->resyncToHardwareVsync(true, getVsyncPeriod());
     ATRACE_INT("ActiveConfigMode", mUpcomingActiveConfig.configId);
 }
 
-bool SurfaceFlinger::updateSetActiveConfigStateMachine() NO_THREAD_SAFETY_ANALYSIS {
+bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
+    // we may be in the process of changing the active state
+    if (mWaitForNextInvalidate) {
+        mWaitForNextInvalidate = false;
+
+        repaintEverythingForHWC();
+        // We do not want to give another frame to HWC while we are transitioning.
+        return true;
+    }
+
+    if (mCheckPendingFence) {
+        if (mPreviousPresentFence != Fence::NO_FENCE &&
+            (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled)) {
+            // fence has not signaled yet. wait for the next invalidate
+            repaintEverythingForHWC();
+            return true;
+        }
+
+        // We received the present fence from the HWC, so we assume it successfully updated
+        // the config, hence we update SF.
+        mCheckPendingFence = false;
+        setActiveConfigInternal();
+    }
+
     // Store the local variable to release the lock.
     ActiveConfigInfo desiredActiveConfig;
     {
         std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        if (!mDesiredActiveConfigChanged) {
+            return false;
+        }
         desiredActiveConfig = mDesiredActiveConfig;
     }
 
     const auto display = getDisplayDevice(desiredActiveConfig.displayToken);
-    if (display) {
-        if (mSetActiveConfigState == SetActiveConfigState::NONE &&
-            display->getActiveConfig() != desiredActiveConfig.configId) {
-            // Step 1) Desired active config was set, it is different than the
-            // config currently in use. Notify HWC.
-            mUpcomingActiveConfig = desiredActiveConfig;
-            setActiveConfigInHWC();
-        } else if (mSetActiveConfigState == SetActiveConfigState::NOTIFIED_HWC) {
-            // Step 2) HWC was notified and we received refresh from it.
-            mSetActiveConfigState = SetActiveConfigState::REFRESH_RECEIVED;
-            ATRACE_INT("SetActiveConfigState", mSetActiveConfigState);
-            repaintEverythingForHWC();
-            // We do not want to give another frame to HWC while we are transitioning.
-            return false;
-        } else if (mSetActiveConfigState == SetActiveConfigState::REFRESH_RECEIVED &&
-                   !(mPreviousPresentFence != Fence::NO_FENCE &&
-                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled))) {
-            // Step 3) We received the present fence from the HWC, so we assume it
-            // successfully updated the config, hence we update SF.
-            setActiveConfigInternal();
-            // If the config changed again while we were transitioning, restart the
-            // process.
-            if (desiredActiveConfig != mUpcomingActiveConfig) {
-                mUpcomingActiveConfig = desiredActiveConfig;
-                setActiveConfigInHWC(); // sets the state to NOTIFY_HWC
-            }
-        }
+    if (!display || display->getActiveConfig() == desiredActiveConfig.configId) {
+        // display is not valid or we are already in the requested mode
+        // on both cases there is nothing left to do
+        std::lock_guard<std::mutex> lock(mActiveConfigLock);
+        mScheduler->pauseVsyncCallback(mAppConnectionHandle, false);
+        mDesiredActiveConfigChanged = false;
+        ATRACE_INT("DesiredActiveConfigChanged", mDesiredActiveConfigChanged);
+        return false;
     }
-    return true;
+
+    // Desired active config was set, it is different than the config currently in use. Notify HWC.
+    mUpcomingActiveConfig = desiredActiveConfig;
+    const auto displayId = display->getId();
+    LOG_ALWAYS_FATAL_IF(!displayId);
+
+    ATRACE_INT("ActiveConfigModeHWC", mUpcomingActiveConfig.configId);
+    getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId);
+
+    // we need to submit an empty frame to HWC to start the process
+    mWaitForNextInvalidate = true;
+    mCheckPendingFence = true;
+
+    return false;
 }
 
 status_t SurfaceFlinger::getDisplayColorModes(const sp<IBinder>& displayToken,
@@ -1575,7 +1581,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
     ATRACE_CALL();
     switch (what) {
         case MessageQueue::INVALIDATE: {
-            if (!updateSetActiveConfigStateMachine()) {
+            if (performSetActiveConfig()) {
                 break;
             }
 
