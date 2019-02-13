@@ -51,7 +51,7 @@ TEST_F(BufferHubMetadataTest, Import_Success) {
 
     // Check if the newly allocated buffer is initialized in released state (i.e.
     // state equals to 0U).
-    EXPECT_TRUE(mh1->buffer_state.load() == 0U);
+    EXPECT_TRUE(mh1->bufferState.load() == 0U);
 
     EXPECT_TRUE(m2.isValid());
     BufferHubDefs::MetadataHeader* mh2 = m2.metadataHeader();
@@ -59,7 +59,7 @@ TEST_F(BufferHubMetadataTest, Import_Success) {
 
     // Check if the newly allocated buffer is initialized in released state (i.e.
     // state equals to 0U).
-    EXPECT_TRUE(mh2->buffer_state.load() == 0U);
+    EXPECT_TRUE(mh2->bufferState.load() == 0U);
 }
 
 TEST_F(BufferHubMetadataTest, MoveMetadataInvalidatesOldOne) {

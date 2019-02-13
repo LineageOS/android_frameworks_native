@@ -97,8 +97,8 @@ class BufferHubBase : public pdx::Client {
   uint32_t usage() const { return buffer_.usage(); }
   uint32_t layer_count() const { return buffer_.layer_count(); }
 
-  uint64_t GetQueueIndex() const { return metadata_header_->queue_index; }
-  void SetQueueIndex(uint64_t index) { metadata_header_->queue_index = index; }
+  uint64_t GetQueueIndex() const { return metadata_header_->queueIndex; }
+  void SetQueueIndex(uint64_t index) { metadata_header_->queueIndex = index; }
 
  protected:
   explicit BufferHubBase(LocalChannelHandle channel);

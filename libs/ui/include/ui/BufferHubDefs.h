@@ -32,7 +32,7 @@ namespace BufferHubDefs {
 // Single buffer clients (up to 16) ownership signal.
 // 32-bit atomic unsigned int.
 // Each client takes 2 bits. The first bit locates in the first 16 bits of
-// buffer_state; the second bit locates in the last 16 bits of buffer_state.
+// bufferState; the second bit locates in the last 16 bits of bufferState.
 // Client states:
 // Gained state 11. Exclusive write state.
 // Posted state 10.
@@ -64,9 +64,9 @@ static constexpr uint32_t kFirstClientBitMask = (1U << kMaxNumberOfClients) + 1U
 
 // Returns true if any of the client is in gained state.
 static inline bool isAnyClientGained(uint32_t state) {
-    uint32_t high_bits = state >> kMaxNumberOfClients;
-    uint32_t low_bits = state & kLowbitsMask;
-    return high_bits == low_bits && low_bits != 0U;
+    uint32_t highBits = state >> kMaxNumberOfClients;
+    uint32_t lowBits = state & kLowbitsMask;
+    return highBits == lowBits && lowBits != 0U;
 }
 
 // Returns true if the input client is in gained state.
@@ -76,34 +76,34 @@ static inline bool isClientGained(uint32_t state, uint32_t client_bit_mask) {
 
 // Returns true if any of the client is in posted state.
 static inline bool isAnyClientPosted(uint32_t state) {
-    uint32_t high_bits = state >> kMaxNumberOfClients;
-    uint32_t low_bits = state & kLowbitsMask;
-    uint32_t posted_or_acquired = high_bits ^ low_bits;
-    return posted_or_acquired & high_bits;
+    uint32_t highBits = state >> kMaxNumberOfClients;
+    uint32_t lowBits = state & kLowbitsMask;
+    uint32_t postedOrAcquired = highBits ^ lowBits;
+    return postedOrAcquired & highBits;
 }
 
 // Returns true if the input client is in posted state.
 static inline bool isClientPosted(uint32_t state, uint32_t client_bit_mask) {
-    uint32_t client_bits = state & client_bit_mask;
-    if (client_bits == 0U) return false;
-    uint32_t low_bits = client_bits & kLowbitsMask;
-    return low_bits == 0U;
+    uint32_t clientBits = state & client_bit_mask;
+    if (clientBits == 0U) return false;
+    uint32_t lowBits = clientBits & kLowbitsMask;
+    return lowBits == 0U;
 }
 
 // Return true if any of the client is in acquired state.
 static inline bool isAnyClientAcquired(uint32_t state) {
-    uint32_t high_bits = state >> kMaxNumberOfClients;
-    uint32_t low_bits = state & kLowbitsMask;
-    uint32_t posted_or_acquired = high_bits ^ low_bits;
-    return posted_or_acquired & low_bits;
+    uint32_t highBits = state >> kMaxNumberOfClients;
+    uint32_t lowBits = state & kLowbitsMask;
+    uint32_t postedOrAcquired = highBits ^ lowBits;
+    return postedOrAcquired & lowBits;
 }
 
 // Return true if the input client is in acquired state.
 static inline bool isClientAcquired(uint32_t state, uint32_t client_bit_mask) {
-    uint32_t client_bits = state & client_bit_mask;
-    if (client_bits == 0U) return false;
-    uint32_t high_bits = client_bits & kHighBitsMask;
-    return high_bits == 0U;
+    uint32_t clientBits = state & client_bit_mask;
+    if (clientBits == 0U) return false;
+    uint32_t highBits = clientBits & kHighBitsMask;
+    return highBits == 0U;
 }
 
 // Returns true if the input client is in released state.
@@ -114,12 +114,12 @@ static inline bool isClientReleased(uint32_t state, uint32_t client_bit_mask) {
 // Returns the next available buffer client's client_state_masks.
 // @params union_bits. Union of all existing clients' client_state_masks.
 static inline uint32_t findNextAvailableClientStateMask(uint32_t union_bits) {
-    uint32_t low_union = union_bits & kLowbitsMask;
-    if (low_union == kLowbitsMask) return 0U;
-    uint32_t incremented = low_union + 1U;
-    uint32_t difference = incremented ^ low_union;
-    uint32_t new_low_bit = (difference + 1U) >> 1;
-    return new_low_bit + (new_low_bit << kMaxNumberOfClients);
+    uint32_t lowUnion = union_bits & kLowbitsMask;
+    if (lowUnion == kLowbitsMask) return 0U;
+    uint32_t incremented = lowUnion + 1U;
+    uint32_t difference = incremented ^ lowUnion;
+    uint32_t newLowBit = (difference + 1U) >> 1;
+    return newLowBit + (newLowBit << kMaxNumberOfClients);
 }
 
 struct __attribute__((aligned(8))) MetadataHeader {
@@ -129,22 +129,22 @@ struct __attribute__((aligned(8))) MetadataHeader {
     // platform (include Apps and vendor HAL).
 
     // Every client takes up one bit from the higher 32 bits and one bit from the lower 32 bits in
-    // buffer_state.
-    std::atomic<uint32_t> buffer_state;
+    // bufferState.
+    std::atomic<uint32_t> bufferState;
 
-    // Every client takes up one bit in fence_state. Only the lower 32 bits are valid. The upper 32
+    // Every client takes up one bit in fenceState. Only the lower 32 bits are valid. The upper 32
     // bits are there for easier manipulation, but the value should be ignored.
-    std::atomic<uint32_t> fence_state;
+    std::atomic<uint32_t> fenceState;
 
     // Every client takes up one bit from the higher 32 bits and one bit from the lower 32 bits in
-    // active_clients_bit_mask.
-    std::atomic<uint32_t> active_clients_bit_mask;
+    // activeClientsBitMask.
+    std::atomic<uint32_t> activeClientsBitMask;
 
     // Explicit padding 4 bytes.
     uint32_t padding;
 
     // The index of the buffer queue where the buffer belongs to.
-    uint64_t queue_index;
+    uint64_t queueIndex;
 
     // Public data format, which should be updated with caution. See more details in dvr_api.h
     DvrNativeBufferMetadata metadata;

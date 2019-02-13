@@ -57,7 +57,7 @@ public:
 
     const BufferHubEventFd& eventFd() const { return mEventFd; }
 
-    // Returns the current value of MetadataHeader::buffer_state.
+    // Returns the current value of MetadataHeader::bufferState.
     uint32_t bufferState() const { return mBufferState->load(std::memory_order_acquire); }
 
     // A state mask which is unique to a buffer hub client among all its siblings sharing the same

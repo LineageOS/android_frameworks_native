@@ -15,9 +15,9 @@ void BufferNode::initializeMetadata() {
     // Using placement new here to reuse shared memory instead of new allocation
     // Initialize the atomic variables to zero.
     BufferHubDefs::MetadataHeader* metadataHeader = mMetadata.metadataHeader();
-    mBufferState = new (&metadataHeader->buffer_state) std::atomic<uint32_t>(0);
-    mFenceState = new (&metadataHeader->fence_state) std::atomic<uint32_t>(0);
-    mActiveClientsBitMask = new (&metadataHeader->active_clients_bit_mask) std::atomic<uint32_t>(0);
+    mBufferState = new (&metadataHeader->bufferState) std::atomic<uint32_t>(0);
+    mFenceState = new (&metadataHeader->fenceState) std::atomic<uint32_t>(0);
+    mActiveClientsBitMask = new (&metadataHeader->activeClientsBitMask) std::atomic<uint32_t>(0);
     // The C++ standard recommends (but does not require) that lock-free atomic operations are
     // also address-free, that is, suitable for communication between processes using shared
     // memory.

@@ -122,15 +122,15 @@ int BufferHubBase::ImportBuffer() {
   // are mapped from shared memory as an atomic object. The std::atomic's
   // constructor will not be called so that the original value stored in the
   // memory region will be preserved.
-  buffer_state_ = &metadata_header_->buffer_state;
+  buffer_state_ = &metadata_header_->bufferState;
   ALOGD_IF(TRACE,
            "BufferHubBase::ImportBuffer: id=%d, buffer_state=%" PRIx32 ".",
            id(), buffer_state_->load(std::memory_order_acquire));
-  fence_state_ = &metadata_header_->fence_state;
+  fence_state_ = &metadata_header_->fenceState;
   ALOGD_IF(TRACE,
            "BufferHubBase::ImportBuffer: id=%d, fence_state=%" PRIx32 ".", id(),
            fence_state_->load(std::memory_order_acquire));
-  active_clients_bit_mask_ = &metadata_header_->active_clients_bit_mask;
+  active_clients_bit_mask_ = &metadata_header_->activeClientsBitMask;
   ALOGD_IF(
       TRACE,
       "BufferHubBase::ImportBuffer: id=%d, active_clients_bit_mask=%" PRIx32
