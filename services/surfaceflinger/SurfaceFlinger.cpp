@@ -2329,7 +2329,7 @@ void SurfaceFlinger::computeLayerBounds() {
         for (const auto& layer : mDrawingState.layersSortedByZ) {
             // only consider the layers on the given layer stack
             if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
-                return;
+                continue;
             }
 
             layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform());
