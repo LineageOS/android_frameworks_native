@@ -245,7 +245,8 @@ public:
      * This method is expected to set the POLICY_FLAG_PASS_TO_USER policy flag if the event
      * should be dispatched to applications.
      */
-    virtual void interceptMotionBeforeQueueing(nsecs_t when, uint32_t& policyFlags) = 0;
+    virtual void interceptMotionBeforeQueueing(const int32_t displayId, nsecs_t when,
+            uint32_t& policyFlags) = 0;
 
     /* Allows the policy a chance to intercept a key before dispatching. */
     virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>& token,
