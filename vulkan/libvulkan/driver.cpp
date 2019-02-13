@@ -33,6 +33,7 @@
 #include <configstore/Utils.h>
 #include <cutils/properties.h>
 #include <graphicsenv/GraphicsEnv.h>
+#include <utils/Timers.h>
 #include <utils/Trace.h>
 #include <utils/Vector.h>
 
@@ -210,6 +211,8 @@ int LoadBuiltinDriver(const hwvulkan_module_t** module) {
     auto ns = android_get_exported_namespace("sphal");
     if (!ns)
         return -ENOENT;
+    android::GraphicsEnv::getInstance().setDriverToLoad(
+        android::GraphicsEnv::Driver::VULKAN);
     return LoadDriver(ns, module);
 }
 
@@ -219,11 +222,15 @@ int LoadUpdatedDriver(const hwvulkan_module_t** module) {
     auto ns = android::GraphicsEnv::getInstance().getDriverNamespace();
     if (!ns)
         return -ENOENT;
+    android::GraphicsEnv::getInstance().setDriverToLoad(
+        android::GraphicsEnv::Driver::VULKAN_UPDATED);
     return LoadDriver(ns, module);
 }
 
 bool Hal::Open() {
     ATRACE_CALL();
+
+    const nsecs_t openTime = systemTime();
 
     ALOG_ASSERT(!hal_.dev_, "OpenHAL called more than once");
 
@@ -250,11 +257,12 @@ bool Hal::Open() {
         }
     }
     if (result != 0) {
+        android::GraphicsEnv::getInstance().setDriverLoaded(
+            android::GraphicsEnv::Api::API_VK, false, systemTime() - openTime);
         ALOGV("unable to load Vulkan HAL, using stub HAL (result=%d)", result);
         return true;
     }
 
-    android::GraphicsEnv::getInstance().sendGpuStats();
 
     hwvulkan_device_t* device;
     ATRACE_BEGIN("hwvulkan module open");
@@ -263,6 +271,8 @@ bool Hal::Open() {
                                      reinterpret_cast<hw_device_t**>(&device));
     ATRACE_END();
     if (result != 0) {
+        android::GraphicsEnv::getInstance().setDriverLoaded(
+            android::GraphicsEnv::Api::API_VK, false, systemTime() - openTime);
         // Any device with a Vulkan HAL should be able to open the device.
         ALOGE("failed to open Vulkan HAL device: %s (%d)", strerror(-result),
               result);
@@ -272,6 +282,9 @@ bool Hal::Open() {
     hal_.dev_ = device;
 
     hal_.InitDebugReportIndex();
+
+    android::GraphicsEnv::getInstance().setDriverLoaded(
+        android::GraphicsEnv::Api::API_VK, true, systemTime() - openTime);
 
     return true;
 }

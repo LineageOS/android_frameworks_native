@@ -27,6 +27,7 @@
 #include <android/dlext.h>
 #include <cutils/properties.h>
 #include <log/log.h>
+#include <utils/Timers.h>
 
 #ifndef __ANDROID_VNDK__
 #include <graphicsenv/GraphicsEnv.h>
@@ -217,6 +218,7 @@ static void setEmulatorGlesValue(void) {
 void* Loader::open(egl_connection_t* cnx)
 {
     ATRACE_CALL();
+    const nsecs_t openTime = systemTime();
 
     void* dso;
     driver_t* hnd = nullptr;
@@ -234,6 +236,8 @@ void* Loader::open(egl_connection_t* cnx)
     if (dso) {
         hnd = new driver_t(dso);
     } else {
+        android::GraphicsEnv::getInstance().clearDriverLoadingInfo(
+                android::GraphicsEnv::Api::API_GL);
         // Always load EGL first
         dso = load_driver("EGL", cnx, EGL);
         if (dso) {
@@ -243,11 +247,21 @@ void* Loader::open(egl_connection_t* cnx)
         }
     }
 
+    if (!hnd) {
+        android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL,
+                                                            false, systemTime() - openTime);
+    }
+
     LOG_ALWAYS_FATAL_IF(!hnd, "couldn't find an OpenGL ES implementation");
 
     cnx->libEgl   = load_wrapper(EGL_WRAPPER_DIR "/libEGL.so");
     cnx->libGles2 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv2.so");
     cnx->libGles1 = load_wrapper(EGL_WRAPPER_DIR "/libGLESv1_CM.so");
+
+    if (!cnx->libEgl || !cnx->libGles2 || !cnx->libGles1) {
+        android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL,
+                                                            false, systemTime() - openTime);
+    }
 
     LOG_ALWAYS_FATAL_IF(!cnx->libEgl,
             "couldn't load system EGL wrapper libraries");
@@ -255,7 +269,8 @@ void* Loader::open(egl_connection_t* cnx)
     LOG_ALWAYS_FATAL_IF(!cnx->libGles2 || !cnx->libGles1,
             "couldn't load system OpenGL ES wrapper libraries");
 
-    android::GraphicsEnv::getInstance().sendGpuStats();
+    android::GraphicsEnv::getInstance().setDriverLoaded(android::GraphicsEnv::Api::API_GL, true,
+                                                        systemTime() - openTime);
 
     return (void*)hnd;
 }
@@ -591,17 +606,21 @@ void *Loader::load_driver(const char* kind,
     void* dso = nullptr;
     android_namespace_t* ns = android::GraphicsEnv::getInstance().getAngleNamespace();
     if (ns) {
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::ANGLE);
         dso = load_angle(kind, ns, cnx);
     }
 #ifndef __ANDROID_VNDK__
     if (!dso) {
         android_namespace_t* ns = android::GraphicsEnv::getInstance().getDriverNamespace();
         if (ns) {
+            android::GraphicsEnv::getInstance().setDriverToLoad(
+                    android::GraphicsEnv::Driver::GL_UPDATED);
             dso = load_updated_driver(kind, ns);
         }
     }
 #endif
     if (!dso) {
+        android::GraphicsEnv::getInstance().setDriverToLoad(android::GraphicsEnv::Driver::GL);
         dso = load_system_driver(kind);
         if (!dso)
             return nullptr;
