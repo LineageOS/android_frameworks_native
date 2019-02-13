@@ -1458,6 +1458,12 @@ static bool DumpstateDefault() {
     // Run iotop as root to show top 100 IO threads
     RunCommand("IOTOP", {"iotop", "-n", "1", "-m", "100"});
 
+    // Gather shared memory buffer info if the product implements it
+    struct stat st;
+    if (!stat("/product/bin/dmabuf_dump", &st)) {
+        RunCommand("Dmabuf dump", {"/product/bin/dmabuf_dump"});
+    }
+
     if (!DropRootUser()) {
         return false;
     }
