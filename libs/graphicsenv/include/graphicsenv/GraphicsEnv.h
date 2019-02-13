@@ -47,8 +47,8 @@ public:
     //     /data/app/com.example.driver/base.apk!/lib/arm64-v8a
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
-    void setGpuStats(const std::string driverPackageName, const std::string driverVersionName,
-                     const uint64_t versionCode, const std::string appPackageName);
+    void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
+                     const uint64_t versionCode, const std::string& appPackageName);
     void sendGpuStats();
 
     bool shouldUseAngle(std::string appName);

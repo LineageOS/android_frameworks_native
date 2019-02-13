@@ -32,9 +32,9 @@ public:
     DECLARE_META_INTERFACE(GpuService);
 
     // set GPU stats from GraphicsEnvironment.
-    virtual void setGpuStats(const std::string driverPackageName,
-                             const std::string driverVersionName, const uint64_t driverVersionCode,
-                             const std::string appPackageName) = 0;
+    virtual void setGpuStats(const std::string& driverPackageName,
+                             const std::string& driverVersionName, const uint64_t driverVersionCode,
+                             const std::string& appPackageName) = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {

@@ -156,9 +156,9 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
-void GraphicsEnv::setGpuStats(const std::string driverPackageName,
-                              const std::string driverVersionName, const uint64_t driverVersionCode,
-                              const std::string appPackageName) {
+void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
+                              const std::string& driverVersionName,
+                              const uint64_t driverVersionCode, const std::string& appPackageName) {
     ATRACE_CALL();
 
     ALOGV("setGpuStats:\n"
