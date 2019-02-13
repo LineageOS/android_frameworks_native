@@ -146,6 +146,8 @@ public:
         return ProfileFactory()
                 .setHasWideColorGamut(true)
                 .addHdrType(Hdr::HDR10)
+                .addColorModeRenderIntent(ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC)
+                .addColorModeRenderIntent(ColorMode::DISPLAY_BT2020, RenderIntent::ENHANCE)
                 .addColorModeRenderIntent(ColorMode::DISPLAY_BT2020, VendorRenderIntent)
                 .build();
     }
@@ -154,6 +156,8 @@ public:
         return ProfileFactory()
                 .setHasWideColorGamut(true)
                 .addHdrType(Hdr::HDR10)
+                .addColorModeRenderIntent(ColorMode::SRGB, RenderIntent::COLORIMETRIC)
+                .addColorModeRenderIntent(ColorMode::SRGB, RenderIntent::ENHANCE)
                 .addColorModeRenderIntent(ColorMode::SRGB, VendorRenderIntent)
                 .build();
     }
@@ -163,6 +167,16 @@ public:
                 .setHasWideColorGamut(true)
                 .addHdrType(Hdr::HLG)
                 .addColorModeRenderIntent(ColorMode::BT2100_PQ, VendorRenderIntent)
+                .build();
+    }
+
+    static impl::DisplayColorProfile createProfileWithDisplayP3ColorModeSupport() {
+        return ProfileFactory()
+                .setHasWideColorGamut(true)
+                .addHdrType(Hdr::HLG)
+                .addColorModeRenderIntent(ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC)
+                .addColorModeRenderIntent(ColorMode::DISPLAY_P3, RenderIntent::ENHANCE)
+                .addColorModeRenderIntent(ColorMode::DISPLAY_P3, VendorRenderIntent)
                 .build();
     }
 
@@ -348,7 +362,7 @@ TEST_F(DisplayColorProfileTest, hasRenderIntentReturnsExpectedValueWhenOutputHas
     auto profile = ProfileFactory::createProfileWithBT2020ColorModeSupport();
 
     EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::COLORIMETRIC));
-    EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::ENHANCE));
+    EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::ENHANCE));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_COLORIMETRIC));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_ENHANCE));
     EXPECT_FALSE(profile.hasRenderIntent(VendorRenderIntent));
@@ -358,7 +372,7 @@ TEST_F(DisplayColorProfileTest, hasRenderIntentReturnsExpectedValueWhenOutputHas
     auto profile = ProfileFactory::createProfileWithSRGBColorModeSupport();
 
     EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::COLORIMETRIC));
-    EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::ENHANCE));
+    EXPECT_TRUE(profile.hasRenderIntent(RenderIntent::ENHANCE));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_COLORIMETRIC));
     EXPECT_FALSE(profile.hasRenderIntent(RenderIntent::TONE_MAP_ENHANCE));
     EXPECT_TRUE(profile.hasRenderIntent(VendorRenderIntent));
@@ -414,47 +428,37 @@ TEST_F(DisplayColorProfileTest, hasLegacyHdrSupport) {
 
 void checkGetBestColorMode(
         DisplayColorProfile& profile,
-        const std::array<std::tuple<Dataspace, ColorMode, RenderIntent>, 25>& expected) {
+        const std::array<std::tuple<Dataspace, ColorMode, RenderIntent>, 15>& expected) {
     using ArgsType = std::tuple<Dataspace, RenderIntent>;
 
     // These are the combinations of dataspaces and render intents that could be
     // passed to RenderSurface::getBestColorMode()
-    const std::array<std::tuple<Dataspace, RenderIntent>, 25> kArgs = {
+    const std::array<std::tuple<Dataspace, RenderIntent>, 15> kArgs = {
             /* clang-format off */
 
             // Non-HDR combinations
 
             /*  0 */ ArgsType{Dataspace::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
             /*  1 */ ArgsType{Dataspace::DISPLAY_BT2020, RenderIntent::ENHANCE},
-            /*  2 */ ArgsType{Dataspace::DISPLAY_BT2020, RenderIntent::TONE_MAP_COLORIMETRIC}, // Vendor explicit setting
-            /*  3 */ ArgsType{Dataspace::DISPLAY_BT2020, RenderIntent::TONE_MAP_ENHANCE},      // Vendor explicit setting
-            /*  4 */ ArgsType{Dataspace::DISPLAY_BT2020, VendorRenderIntent},                  // Vendor explicit setting
+            /*  2 */ ArgsType{Dataspace::DISPLAY_BT2020, VendorRenderIntent},                  // Vendor explicit setting
 
-            /*  5 */ ArgsType{Dataspace::DISPLAY_P3, RenderIntent::COLORIMETRIC},
-            /*  6 */ ArgsType{Dataspace::DISPLAY_P3, RenderIntent::ENHANCE},
-            /*  7 */ ArgsType{Dataspace::DISPLAY_P3, RenderIntent::TONE_MAP_COLORIMETRIC}, // Vendor explicit setting
-            /*  8 */ ArgsType{Dataspace::DISPLAY_P3, RenderIntent::TONE_MAP_ENHANCE},      // Vendor explicit setting
-            /*  9 */ ArgsType{Dataspace::DISPLAY_P3, VendorRenderIntent},                  // Vendor explicit setting
+            /*  3 */ ArgsType{Dataspace::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /*  4 */ ArgsType{Dataspace::DISPLAY_P3, RenderIntent::ENHANCE},
+            /*  5 */ ArgsType{Dataspace::DISPLAY_P3, VendorRenderIntent},                  // Vendor explicit setting
 
-            /* 10 */ ArgsType{Dataspace::V0_SRGB, RenderIntent::COLORIMETRIC},
-            /* 11 */ ArgsType{Dataspace::V0_SRGB, RenderIntent::ENHANCE},
-            /* 12 */ ArgsType{Dataspace::V0_SRGB, RenderIntent::TONE_MAP_COLORIMETRIC}, // Vendor explicit setting
-            /* 13 */ ArgsType{Dataspace::V0_SRGB, RenderIntent::TONE_MAP_ENHANCE},      // Vendor explicit setting
-            /* 14 */ ArgsType{Dataspace::V0_SRGB, VendorRenderIntent},                  // Vendor explicit setting
+            /*  6 */ ArgsType{Dataspace::V0_SRGB, RenderIntent::COLORIMETRIC},
+            /*  7 */ ArgsType{Dataspace::V0_SRGB, RenderIntent::ENHANCE},
+            /*  8 */ ArgsType{Dataspace::V0_SRGB, VendorRenderIntent},                  // Vendor explicit setting
 
             // HDR combinations
 
-            /* 15 */ ArgsType{Dataspace::BT2020_PQ, RenderIntent::TONE_MAP_COLORIMETRIC},
-            /* 16 */ ArgsType{Dataspace::BT2020_PQ, RenderIntent::TONE_MAP_ENHANCE},
-            /* 17 */ ArgsType{Dataspace::BT2020_PQ, RenderIntent::COLORIMETRIC},       // Vendor explicit setting
-            /* 18 */ ArgsType{Dataspace::BT2020_PQ, RenderIntent::ENHANCE},            // Vendor explicit setting
-            /* 19 */ ArgsType{Dataspace::BT2020_PQ, VendorRenderIntent},               // Vendor explicit setting
+            /*  9 */ ArgsType{Dataspace::BT2020_PQ, RenderIntent::TONE_MAP_COLORIMETRIC},
+            /* 10 */ ArgsType{Dataspace::BT2020_PQ, RenderIntent::TONE_MAP_ENHANCE},
+            /* 11 */ ArgsType{Dataspace::BT2020_PQ, VendorRenderIntent},               // Vendor explicit setting
 
-            /* 20 */ ArgsType{Dataspace::BT2020_HLG, RenderIntent::TONE_MAP_COLORIMETRIC},
-            /* 21 */ ArgsType{Dataspace::BT2020_HLG, RenderIntent::TONE_MAP_ENHANCE},
-            /* 22 */ ArgsType{Dataspace::BT2020_HLG, RenderIntent::COLORIMETRIC},       // Vendor explicit setting
-            /* 23 */ ArgsType{Dataspace::BT2020_HLG, RenderIntent::ENHANCE},            // Vendor explicit setting
-            /* 24 */ ArgsType{Dataspace::BT2020_HLG, VendorRenderIntent},               // Vendor explicit setting
+            /* 12 */ ArgsType{Dataspace::BT2020_HLG, RenderIntent::TONE_MAP_COLORIMETRIC},
+            /* 13 */ ArgsType{Dataspace::BT2020_HLG, RenderIntent::TONE_MAP_ENHANCE},
+            /* 14 */ ArgsType{Dataspace::BT2020_HLG, VendorRenderIntent},               // Vendor explicit setting
             /* clang-format on */
     };
 
@@ -473,37 +477,27 @@ TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHa
     // Note: This table of expected values goes with the table of arguments
     // used in checkGetBestColorMode.
     using Result = std::tuple<Dataspace, ColorMode, RenderIntent>;
-    std::array<Result, 25> expectedResults = {
+    std::array<Result, 15> expectedResults = {
             /* clang-format off */
             /*  0 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  1 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  2 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
             /*  3 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  4 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
             /*  5 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
             /*  6 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  7 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  8 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  9 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
 
+            /*  9 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* 10 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* 11 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
             /* 12 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* 13 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
-            /* 15 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 16 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 17 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 18 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 19 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
-            /* 20 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 21 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 22 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 23 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 24 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
 
             /* clang-format on */
     };
@@ -517,37 +511,27 @@ TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHa
     // Note: This table of expected values goes with the table of arguments
     // used in checkGetBestColorMode.
     using Result = std::tuple<Dataspace, ColorMode, RenderIntent>;
-    std::array<Result, 25> expectedResults = {
+    std::array<Result, 15> expectedResults = {
             /* clang-format off */
             /*  0 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /*  1 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
+            /*  1 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::ENHANCE},
             /*  2 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  3 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  4 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
 
-            /*  5 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
+            /*  3 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
+            /*  4 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::ENHANCE},
+            /*  5 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
             /*  6 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /*  7 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+            /*  7 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::ENHANCE},
             /*  8 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  9 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
 
+            /*  9 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
             /* 10 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 11 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 12 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 13 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+            /* 11 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
+            /* 12 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
+            /* 13 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
             /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
-            /* 15 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 16 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 17 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 18 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 19 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
-            /* 20 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 21 */ Result{Dataspace::DISPLAY_BT2020, ColorMode::DISPLAY_BT2020, RenderIntent::COLORIMETRIC},
-            /* 22 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 23 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 24 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* clang-format on */
     };
 
@@ -560,37 +544,61 @@ TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHa
     // Note: This table of expected values goes with the table of arguments
     // used in checkGetBestColorMode.
     using Result = std::tuple<Dataspace, ColorMode, RenderIntent>;
-    std::array<Result, 25> expectedResults = {
+    std::array<Result, 15> expectedResults = {
             /* clang-format off */
             /*  0 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /*  1 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /*  2 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  3 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  4 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
+            /*  1 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::ENHANCE},
+            /*  2 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
 
-            /*  5 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
+            /*  3 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
+            /*  4 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::ENHANCE},
+            /*  5 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
+
             /*  6 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /*  7 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  8 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  9 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
+            /*  7 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::ENHANCE},
+            /*  8 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
 
+            /*  9 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
             /* 10 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 11 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 12 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 13 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 14 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, VendorRenderIntent},
+            /* 11 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
 
-            /* 15 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 16 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 17 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 18 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 19 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+            /* 12 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
+            /* 13 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
+            /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+            /* clang-format on */
+    };
 
-            /* 20 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 21 */ Result{Dataspace::V0_SRGB, ColorMode::SRGB, RenderIntent::COLORIMETRIC},
-            /* 22 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 23 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 24 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+    checkGetBestColorMode(profile, expectedResults);
+}
+
+TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHasDisplayP3Support) {
+    auto profile = ProfileFactory::createProfileWithDisplayP3ColorModeSupport();
+
+    // Note: This table of expected values goes with the table of arguments
+    // used in checkGetBestColorMode.
+    using Result = std::tuple<Dataspace, ColorMode, RenderIntent>;
+    std::array<Result, 15> expectedResults = {
+            /* clang-format off */
+            /*  0 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /*  1 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::ENHANCE},
+            // TODO(b/124317977): There is bug here.
+            /*  2 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
+            /*  3 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /*  4 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::ENHANCE},
+            /*  5 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
+            /*  6 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /*  7 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::ENHANCE},
+            /*  8 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
+            /*  9 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /* 10 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /* 11 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
+            /* 12 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /* 13 */ Result{Dataspace::DISPLAY_P3, ColorMode::DISPLAY_P3, RenderIntent::COLORIMETRIC},
+            /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /* clang-format on */
     };
 
@@ -603,37 +611,27 @@ TEST_F(DisplayColorProfileTest, getBestColorModeReturnsExpectedModesWhenOutputHa
     // Note: This table of expected values goes with the table of arguments
     // used in checkGetBestColorMode.
     using Result = std::tuple<Dataspace, ColorMode, RenderIntent>;
-    std::array<Result, 25> expectedResults = {
+    std::array<Result, 15> expectedResults = {
             /* clang-format off */
             /*  0 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  1 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  2 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
             /*  3 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  4 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
             /*  5 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+
             /*  6 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  7 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
             /*  8 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /*  9 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
 
-            /* 19 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 11 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 12 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 13 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 14 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+            /*  9 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
+            /* 10 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
+            /* 11 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, VendorRenderIntent},
 
-            /* 15 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
-            /* 16 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
-            /* 17 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 18 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 19 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-
-            /* 20 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
-            /* 21 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
-            /* 22 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 23 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
-            /* 24 */ Result{Dataspace::UNKNOWN, ColorMode::NATIVE, RenderIntent::COLORIMETRIC},
+            /* 12 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
+            /* 13 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, RenderIntent::COLORIMETRIC},
+            /* 14 */ Result{Dataspace::BT2020_PQ, ColorMode::BT2100_PQ, VendorRenderIntent},
             /* clang-format on */
     };
 

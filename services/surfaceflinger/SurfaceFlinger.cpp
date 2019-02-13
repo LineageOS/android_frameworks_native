@@ -771,6 +771,9 @@ void SurfaceFlinger::readPersistentProperties() {
 
     property_get("persist.sys.sf.native_mode", value, "0");
     mDisplayColorSetting = static_cast<DisplayColorSetting>(atoi(value));
+
+    property_get("persist.sys.sf.color_mode", value, "0");
+    mForceColorMode = static_cast<ColorMode>(atoi(value));
 }
 
 void SurfaceFlinger::startBootAnim() {
@@ -2497,6 +2500,17 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     Dataspace bestDataSpace = getBestDataspace(display, &hdrDataSpace);
 
     auto* profile = display->getCompositionDisplay()->getDisplayColorProfile();
+
+    switch (mForceColorMode) {
+        case ColorMode::SRGB:
+            bestDataSpace = Dataspace::V0_SRGB;
+            break;
+        case ColorMode::DISPLAY_P3:
+            bestDataSpace = Dataspace::DISPLAY_P3;
+            break;
+        default:
+            break;
+    }
 
     // respect hdrDataSpace only when there is no legacy HDR support
     const bool isHdr =
