@@ -144,6 +144,8 @@ protected:
             impl::EventThread::InterceptVSyncsCallback interceptCallback);
 
 private:
+    friend class TestableScheduler;
+
     // Creates a connection on the given EventThread and forwards the given callbacks.
     sp<EventThreadConnection> createConnectionInternal(EventThread*, ResyncCallback&&);
 

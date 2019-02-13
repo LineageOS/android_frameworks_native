@@ -33,6 +33,7 @@
 #include "ColorLayer.h"
 #include "Layer.h"
 
+#include "TestableScheduler.h"
 #include "TestableSurfaceFlinger.h"
 #include "mock/DisplayHardware/MockComposer.h"
 #include "mock/MockDispSync.h"
@@ -90,11 +91,9 @@ public:
                 ::testing::UnitTest::GetInstance()->current_test_info();
         ALOGD("**** Setting up for %s.%s\n", test_info->test_case_name(), test_info->name());
 
-        mFlinger.mutableEventControlThread().reset(mEventControlThread);
-        mFlinger.mutableEventThread().reset(mEventThread);
         mFlinger.mutableEventQueue().reset(mMessageQueue);
+        setupScheduler();
 
-        mFlinger.mutablePrimaryDispSync().reset(mPrimaryDispSync);
         EXPECT_CALL(*mPrimaryDispSync, computeNextRefresh(0)).WillRepeatedly(Return(0));
         EXPECT_CALL(*mPrimaryDispSync, getPeriod())
                 .WillRepeatedly(Return(FakeHwcDisplayInjector::DEFAULT_REFRESH_RATE));
@@ -124,6 +123,18 @@ public:
         Mock::VerifyAndClear(mComposer);
     }
 
+    void setupScheduler() {
+        mScheduler = new TestableScheduler();
+        mScheduler->mutableEventControlThread().reset(mEventControlThread);
+        mScheduler->mutablePrimaryDispSync().reset(mPrimaryDispSync);
+        EXPECT_CALL(*mEventThread.get(), registerDisplayEventConnection(_));
+        sp<Scheduler::ConnectionHandle> connectionHandle =
+                mScheduler->addConnection(std::move(mEventThread));
+        mFlinger.mutableSfConnectionHandle() = std::move(connectionHandle);
+
+        mFlinger.mutableScheduler().reset(mScheduler);
+    }
+
     void setupForceGeometryDirty() {
         // TODO: This requires the visible region and other related
         // state to be set, and is problematic for BufferLayers since they are
@@ -145,6 +156,7 @@ public:
 
     std::unordered_set<HWC2::Capability> mDefaultCapabilities = {HWC2::Capability::SidebandStream};
 
+    TestableScheduler* mScheduler;
     TestableSurfaceFlinger mFlinger;
     sp<DisplayDevice> mDisplay;
     sp<DisplayDevice> mExternalDisplay;
@@ -155,7 +167,7 @@ public:
     sp<GraphicBuffer> mBuffer = new GraphicBuffer();
     ANativeWindowBuffer* mNativeWindowBuffer = mBuffer->getNativeBuffer();
 
-    mock::EventThread* mEventThread = new mock::EventThread();
+    std::unique_ptr<mock::EventThread> mEventThread = std::make_unique<mock::EventThread>();
     mock::EventControlThread* mEventControlThread = new mock::EventControlThread();
 
     Hwc2::mock::Composer* mComposer = nullptr;
