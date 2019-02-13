@@ -3702,11 +3702,12 @@ bool SurfaceFlinger::flushTransactionQueues() {
         auto& [applyToken, transactionQueue] = *it;
 
         while (!transactionQueue.empty()) {
-            const auto& [states, displays, flags, desiredPresentTime] = transactionQueue.front();
+            const auto& [states, displays, flags, desiredPresentTime, privileged] =
+                    transactionQueue.front();
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
-            applyTransactionState(states, displays, flags, mPendingInputWindowCommands);
+            applyTransactionState(states, displays, flags, mPendingInputWindowCommands, privileged);
             transactionQueue.pop();
         }
 
@@ -3770,6 +3771,9 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
                                          const InputWindowCommands& inputWindowCommands,
                                          int64_t desiredPresentTime) {
     ATRACE_CALL();
+
+    bool privileged = callingThreadHasUnscopedSurfaceFlingerAccess();
+
     Mutex::Autolock _l(mStateLock);
 
     if (containsAnyInvalidClientState(states)) {
@@ -3779,17 +3783,19 @@ void SurfaceFlinger::setTransactionState(const Vector<ComposerState>& states,
     // If its TransactionQueue already has a pending TransactionState or if it is pending
     if (mTransactionQueues.find(applyToken) != mTransactionQueues.end() ||
         !transactionIsReadyToBeApplied(desiredPresentTime, states)) {
-        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime);
+        mTransactionQueues[applyToken].emplace(states, displays, flags, desiredPresentTime,
+                privileged);
         setTransactionFlags(eTransactionNeeded);
         return;
     }
 
-    applyTransactionState(states, displays, flags, inputWindowCommands);
+    applyTransactionState(states, displays, flags, inputWindowCommands, privileged);
 }
 
 void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
                                            const Vector<DisplayState>& displays, uint32_t flags,
-                                           const InputWindowCommands& inputWindowCommands) {
+                                           const InputWindowCommands& inputWindowCommands,
+                                           bool privileged) {
     uint32_t transactionFlags = 0;
 
     if (flags & eAnimation) {
@@ -3814,7 +3820,7 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
 
     uint32_t clientStateFlags = 0;
     for (const ComposerState& state : states) {
-        clientStateFlags |= setClientStateLocked(state);
+        clientStateFlags |= setClientStateLocked(state, privileged);
     }
     // If the state doesn't require a traversal and there are callbacks, send them now
     if (!(clientStateFlags & eTraversalNeeded)) {
@@ -3912,7 +3918,7 @@ uint32_t SurfaceFlinger::setDisplayStateLocked(const DisplayState& s) {
     return flags;
 }
 
-bool callingThreadHasUnscopedSurfaceFlingerAccess() {
+bool SurfaceFlinger::callingThreadHasUnscopedSurfaceFlingerAccess() {
     IPCThreadState* ipc = IPCThreadState::self();
     const int pid = ipc->getCallingPid();
     const int uid = ipc->getCallingUid();
@@ -3923,7 +3929,8 @@ bool callingThreadHasUnscopedSurfaceFlingerAccess() {
     return true;
 }
 
-uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState) {
+uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState,
+        bool privileged) {
     const layer_state_t& s = composerState.state;
     sp<Client> client(static_cast<Client*>(composerState.client.get()));
 
@@ -4024,7 +4031,7 @@ uint32_t SurfaceFlinger::setClientStateLocked(const ComposerState& composerState
         // of cropped areas, we need to prevent non-root clients without permission ACCESS_SURFACE_FLINGER
         // (a.k.a. everyone except WindowManager and tests) from setting non rectangle preserving
         // transformations.
-        if (layer->setMatrix(s.matrix, callingThreadHasUnscopedSurfaceFlingerAccess()))
+        if (layer->setMatrix(s.matrix, privileged))
             flags |= eTraversalNeeded;
     }
     if (what & layer_state_t::eTransparentRegionChanged) {
