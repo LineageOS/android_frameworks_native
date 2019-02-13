@@ -747,7 +747,6 @@ private:
     void computeVisibleRegions(const sp<const DisplayDevice>& display, Region& dirtyRegion,
                                Region& opaqueRegion);
 
-    void preComposition();
     void postComposition();
     void getCompositorTiming(CompositorTiming* compositorTiming);
     void updateCompositorTiming(const DisplayStatInfo& stats, nsecs_t compositeTime,

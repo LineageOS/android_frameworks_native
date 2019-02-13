@@ -17,6 +17,7 @@
 #pragma once
 
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/CompositionRefreshArgs.h>
 #include <compositionengine/DisplayCreationArgs.h>
 #include <compositionengine/LayerCreationArgs.h>
 #include <gmock/gmock.h>
@@ -39,6 +40,11 @@ public:
 
     MOCK_CONST_METHOD0(getRenderEngine, renderengine::RenderEngine&());
     MOCK_METHOD1(setRenderEngine, void(std::unique_ptr<renderengine::RenderEngine>));
+
+    MOCK_CONST_METHOD0(needsAnotherUpdate, bool());
+    MOCK_CONST_METHOD0(getLastFrameRefreshTimestamp, nsecs_t());
+
+    MOCK_METHOD1(preComposition, void(CompositionRefreshArgs&));
 };
 
 } // namespace android::compositionengine::mock

@@ -36,9 +36,19 @@ public:
     renderengine::RenderEngine& getRenderEngine() const override;
     void setRenderEngine(std::unique_ptr<renderengine::RenderEngine>) override;
 
+    bool needsAnotherUpdate() const override;
+    nsecs_t getLastFrameRefreshTimestamp() const override;
+
+    void preComposition(CompositionRefreshArgs&) override;
+
+    // Testing
+    void setNeedsAnotherUpdateForTest(bool);
+
 private:
     std::unique_ptr<HWComposer> mHwComposer;
     std::unique_ptr<renderengine::RenderEngine> mRenderEngine;
+    bool mNeedsAnotherUpdate = false;
+    nsecs_t mRefreshStartTime = 0;
 };
 
 std::unique_ptr<compositionengine::CompositionEngine> createCompositionEngine();
