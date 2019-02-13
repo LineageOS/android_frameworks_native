@@ -29,7 +29,7 @@
 
 namespace android::compositionengine::impl {
 
-std::shared_ptr<compositionengine::Display> createDisplay(
+std::shared_ptr<Display> createDisplay(
         const compositionengine::CompositionEngine& compositionEngine,
         compositionengine::DisplayCreationArgs&& args) {
     return std::make_shared<Display>(compositionEngine, std::move(args));
@@ -211,6 +211,33 @@ void Display::applyLayerRequestsToLayers(const LayerRequests& layerRequests) {
                     static_cast<Hwc2::IComposerClient::LayerRequest>(it->second));
         }
     }
+}
+
+compositionengine::Output::FrameFences Display::presentAndGetFrameFences() {
+    auto result = impl::Output::presentAndGetFrameFences();
+
+    if (!mId) {
+        return result;
+    }
+
+    auto& hwc = getCompositionEngine().getHwComposer();
+    hwc.presentAndGetReleaseFences(*mId);
+
+    result.presentFence = hwc.getPresentFence(*mId);
+
+    // TODO(b/121291683): Change HWComposer call to return entire map
+    for (const auto& layer : getOutputLayersOrderedByZ()) {
+        auto hwcLayer = layer->getHwcLayer();
+        if (!hwcLayer) {
+            continue;
+        }
+
+        result.layerFences.emplace(hwcLayer, hwc.getLayerReleaseFence(*mId, hwcLayer));
+    }
+
+    hwc.clearReleaseFences(*mId);
+
+    return result;
 }
 
 } // namespace android::compositionengine::impl

@@ -1948,7 +1948,7 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
         }
     }
 
-    postFramebuffer(displayDevice);
+    displayDevice->getCompositionDisplay()->postFramebuffer();
 
     if (mDebugRegion > 1) {
         usleep(mDebugRegion * 1000);
@@ -2422,7 +2422,7 @@ void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool 
         display->editState().dirtyRegion.clear();
         display->getRenderSurface()->flip();
     }
-    postFramebuffer(displayDevice);
+    displayDevice->getCompositionDisplay()->postFramebuffer();
 }
 
 void SurfaceFlinger::postFrame()
@@ -2433,68 +2433,6 @@ void SurfaceFlinger::postFrame()
         uint32_t flipCount = display->getPageFlipCount();
         if (flipCount % LOG_FRAME_STATS_PERIOD == 0) {
             logFrameStats();
-        }
-    }
-}
-
-void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
-    ATRACE_CALL();
-    ALOGV("postFramebuffer");
-
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-    const auto displayId = display->getId();
-
-    if (displayState.isEnabled) {
-        if (displayId) {
-            getHwComposer().presentAndGetReleaseFences(*displayId);
-        }
-        display->getRenderSurface()->onPresentDisplayCompleted();
-        for (auto& layer : display->getOutputLayersOrderedByZ()) {
-            sp<Fence> releaseFence = Fence::NO_FENCE;
-            bool usedClientComposition = true;
-
-            // The layer buffer from the previous frame (if any) is released
-            // by HWC only when the release fence from this frame (if any) is
-            // signaled.  Always get the release fence from HWC first.
-            if (layer->getState().hwc) {
-                const auto& hwcState = *layer->getState().hwc;
-                releaseFence =
-                        getHwComposer().getLayerReleaseFence(*displayId, hwcState.hwcLayer.get());
-                usedClientComposition =
-                        hwcState.hwcCompositionType == Hwc2::IComposerClient::Composition::CLIENT;
-            }
-
-            // If the layer was client composited in the previous frame, we
-            // need to merge with the previous client target acquire fence.
-            // Since we do not track that, always merge with the current
-            // client target acquire fence when it is available, even though
-            // this is suboptimal.
-            if (usedClientComposition) {
-                releaseFence =
-                        Fence::merge("LayerRelease", releaseFence,
-                                     display->getRenderSurface()->getClientTargetAcquireFence());
-            }
-
-            layer->getLayerFE().onLayerDisplayed(releaseFence);
-        }
-
-        // We've got a list of layers needing fences, that are disjoint with
-        // display->getVisibleLayersSortedByZ.  The best we can do is to
-        // supply them with the present fence.
-        auto releasedLayers = display->takeReleasedLayers();
-        if (!releasedLayers.empty()) {
-            sp<Fence> presentFence =
-                    displayId ? getHwComposer().getPresentFence(*displayId) : Fence::NO_FENCE;
-            for (auto& weakLayer : releasedLayers) {
-                if (auto layer = weakLayer.promote(); layer != nullptr) {
-                    layer->onLayerDisplayed(presentFence);
-                }
-            }
-        }
-
-        if (displayId) {
-            getHwComposer().clearReleaseFences(*displayId);
         }
     }
 }

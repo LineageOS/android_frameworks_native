@@ -463,5 +463,44 @@ TEST_F(DisplayTest, applyLayerRequestsToLayers2) {
     });
 }
 
+/*
+ * Display::presentAndGetFrameFences()
+ */
+
+TEST_F(DisplayTest, presentAndGetFrameFencesReturnsNoFencesOnNonHwcDisplay) {
+    auto nonHwcDisplay{
+            impl::createDisplay(mCompositionEngine, DisplayCreationArgsBuilder().build())};
+
+    auto result = nonHwcDisplay->presentAndGetFrameFences();
+
+    ASSERT_TRUE(result.presentFence.get());
+    EXPECT_FALSE(result.presentFence->isValid());
+    EXPECT_EQ(0u, result.layerFences.size());
+}
+
+TEST_F(DisplayTest, presentAndGetFrameFencesReturnsPresentAndLayerFences) {
+    sp<Fence> presentFence = new Fence();
+    sp<Fence> layer1Fence = new Fence();
+    sp<Fence> layer2Fence = new Fence();
+
+    EXPECT_CALL(mHwComposer, presentAndGetReleaseFences(DEFAULT_DISPLAY_ID)).Times(1);
+    EXPECT_CALL(mHwComposer, getPresentFence(DEFAULT_DISPLAY_ID)).WillOnce(Return(presentFence));
+    EXPECT_CALL(mHwComposer, getLayerReleaseFence(DEFAULT_DISPLAY_ID, &mHWC2Layer1))
+            .WillOnce(Return(layer1Fence));
+    EXPECT_CALL(mHwComposer, getLayerReleaseFence(DEFAULT_DISPLAY_ID, &mHWC2Layer2))
+            .WillOnce(Return(layer2Fence));
+    EXPECT_CALL(mHwComposer, clearReleaseFences(DEFAULT_DISPLAY_ID)).Times(1);
+
+    auto result = mDisplay.presentAndGetFrameFences();
+
+    EXPECT_EQ(presentFence, result.presentFence);
+
+    EXPECT_EQ(2u, result.layerFences.size());
+    ASSERT_EQ(1, result.layerFences.count(&mHWC2Layer1));
+    EXPECT_EQ(layer1Fence, result.layerFences[&mHWC2Layer1]);
+    ASSERT_EQ(1, result.layerFences.count(&mHWC2Layer2));
+    EXPECT_EQ(layer2Fence, result.layerFences[&mHWC2Layer2]);
+}
+
 } // namespace
 } // namespace android::compositionengine

@@ -780,7 +780,6 @@ private:
     bool doComposeSurfaces(const sp<DisplayDevice>& display, const Region& debugRegionm,
                            base::unique_fd* readyFence);
 
-    void postFramebuffer(const sp<DisplayDevice>& display);
     void postFrame();
 
     /* ------------------------------------------------------------------------

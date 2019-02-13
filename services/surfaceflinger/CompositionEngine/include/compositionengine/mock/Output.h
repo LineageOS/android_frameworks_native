@@ -75,6 +75,9 @@ public:
 
     MOCK_METHOD0(prepareFrame, void());
     MOCK_METHOD0(chooseCompositionStrategy, void());
+
+    MOCK_METHOD0(postFramebuffer, void());
+    MOCK_METHOD0(presentAndGetFrameFences, compositionengine::Output::FrameFences());
 };
 
 } // namespace android::compositionengine::mock
