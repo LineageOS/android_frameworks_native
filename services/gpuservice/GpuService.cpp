@@ -37,9 +37,9 @@ const char* const GpuService::SERVICE_NAME = "gpu";
 
 GpuService::GpuService() = default;
 
-void GpuService::setGpuStats(const std::string driverPackageName,
-                             const std::string driverVersionName, const uint64_t driverVersionCode,
-                             const std::string appPackageName) {
+void GpuService::setGpuStats(const std::string& driverPackageName,
+                             const std::string& driverVersionName, const uint64_t driverVersionCode,
+                             const std::string& appPackageName) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStateLock);

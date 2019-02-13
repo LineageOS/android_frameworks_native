@@ -47,8 +47,8 @@ public:
     //     /data/app/com.example.driver/base.apk!/lib/arm64-v8a
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
-    void setGpuStats(const std::string driverPackageName, const std::string driverVersionName,
-                     const uint64_t versionCode, const std::string appPackageName);
+    void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
+                     const uint64_t versionCode, const std::string& appPackageName);
     void sendGpuStats();
 
     bool shouldUseAngle(std::string appName);
@@ -74,6 +74,8 @@ public:
     const std::string& getDebugLayersGLES();
 
 private:
+    enum UseAngle { UNKNOWN, YES, NO };
+
     void* loadLibrary(std::string name);
     bool checkAngleRules(void* so);
     void updateUseAngle();
@@ -85,7 +87,7 @@ private:
     std::string mAngleAppName;
     std::string mAngleDeveloperOptIn;
     std::vector<char> mRulesBuffer;
-    bool mUseAngle;
+    UseAngle mUseAngle = UNKNOWN;
     std::string mDebugLayers;
     std::string mDebugLayersGLES;
     std::string mLayerPaths;

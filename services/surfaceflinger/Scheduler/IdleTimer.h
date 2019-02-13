@@ -32,9 +32,11 @@ namespace scheduler {
 class IdleTimer {
 public:
     using Interval = std::chrono::milliseconds;
+    using ResetCallback = std::function<void()>;
     using TimeoutCallback = std::function<void()>;
 
-    IdleTimer(const Interval& interval, const TimeoutCallback& timeoutCallback);
+    IdleTimer(const Interval& interval, const ResetCallback& resetCallback,
+              const TimeoutCallback& timeoutCallback);
     ~IdleTimer();
 
     void start();
@@ -61,6 +63,9 @@ private:
 
     // Interval after which timer expires.
     const Interval mInterval;
+
+    // Callback that happens when timer resets.
+    const ResetCallback mResetCallback;
 
     // Callback that happens when timer expires.
     const TimeoutCallback mTimeoutCallback;

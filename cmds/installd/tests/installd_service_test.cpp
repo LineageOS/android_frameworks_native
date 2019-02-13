@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/statvfs.h>
+#include <sys/stat.h>
 #include <sys/xattr.h>
 
 #include <android-base/file.h>
@@ -70,27 +71,28 @@ static std::string get_full_path(const char* path) {
 
 static void mkdir(const char* path, uid_t owner, gid_t group, mode_t mode) {
     const std::string fullPath = get_full_path(path);
-    ::mkdir(fullPath.c_str(), mode);
-    ::chown(fullPath.c_str(), owner, group);
-    ::chmod(fullPath.c_str(), mode);
+    EXPECT_EQ(::mkdir(fullPath.c_str(), mode), 0);
+    EXPECT_EQ(::chown(fullPath.c_str(), owner, group), 0);
+    EXPECT_EQ(::chmod(fullPath.c_str(), mode), 0);
 }
 
 static void touch(const char* path, uid_t owner, gid_t group, mode_t mode) {
     int fd = ::open(get_full_path(path).c_str(), O_RDWR | O_CREAT, mode);
-    ::fchown(fd, owner, group);
-    ::fchmod(fd, mode);
-    ::close(fd);
+    EXPECT_NE(fd, -1);
+    EXPECT_EQ(::fchown(fd, owner, group), 0);
+    EXPECT_EQ(::fchmod(fd, mode), 0);
+    EXPECT_EQ(::close(fd), 0);
 }
 
 static int stat_gid(const char* path) {
     struct stat buf;
-    ::stat(get_full_path(path).c_str(), &buf);
+    EXPECT_EQ(::stat(get_full_path(path).c_str(), &buf), 0);
     return buf.st_gid;
 }
 
 static int stat_mode(const char* path) {
     struct stat buf;
-    ::stat(get_full_path(path).c_str(), &buf);
+    EXPECT_EQ(::stat(get_full_path(path).c_str(), &buf), 0);
     return buf.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
 }
 

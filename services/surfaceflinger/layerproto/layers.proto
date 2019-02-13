@@ -91,6 +91,11 @@ message LayerProto {
   optional float corner_radius = 41;
   // Metadata map. May be empty.
   map<int32, bytes> metadata = 42;
+
+  optional TransformProto effective_transform = 43;
+  optional FloatRectProto source_bounds = 44;
+  optional FloatRectProto bounds = 45;
+  optional FloatRectProto screen_bounds = 46;
 }
 
 message PositionProto {

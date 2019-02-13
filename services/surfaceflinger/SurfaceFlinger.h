@@ -476,7 +476,9 @@ private:
     status_t getProtectedContentSupport(bool* outSupported) const override;
     status_t isWideColorDisplay(const sp<IBinder>& displayToken,
                                 bool* outIsWideColorDisplay) const override;
-
+    status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+                                       const sp<IRegionSamplingListener>& listener) override;
+    status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -605,6 +607,9 @@ private:
             const sp<Layer>& lbc,
             const sp<Layer>& parent,
             bool addToCurrentState);
+
+    // Traverse through all the layers and compute and cache its bounds.
+    void computeLayerBounds();
 
     /* ------------------------------------------------------------------------
      * Boot animation, on/off animations and screen capture

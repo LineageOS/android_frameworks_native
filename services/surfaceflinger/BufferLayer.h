@@ -191,6 +191,8 @@ private:
     Rect getBufferSize(const State& s) const override;
 
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;
+
+    FloatRect computeSourceBounds(const FloatRect& parentBounds) const override;
 };
 
 } // namespace android

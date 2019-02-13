@@ -86,13 +86,10 @@ void BufferHubBufferStateTransitionTest::CreateTwoClientsOfABuffer() {
     b1ClientMask = b1->clientStateMask();
     ASSERT_NE(b1ClientMask, 0U);
 
-    native_handle_t* token = b1->duplicate();
+    sp<NativeHandle> token = b1->duplicate();
     ASSERT_THAT(token, NotNull());
 
-    // TODO(b/122543147): use a movalbe wrapper for token
     b2 = BufferHubBuffer::import(token);
-    native_handle_close(token);
-    native_handle_delete(token);
     ASSERT_THAT(b2, NotNull());
 
     b2ClientMask = b2->clientStateMask();
@@ -137,16 +134,14 @@ TEST_F(BufferHubBufferTest, DuplicateAndImportBuffer) {
     ASSERT_THAT(b1, NotNull());
     EXPECT_TRUE(b1->isValid());
 
-    native_handle_t* token = b1->duplicate();
-    EXPECT_TRUE(token);
+    sp<NativeHandle> token = b1->duplicate();
+    ASSERT_THAT(token, NotNull());
 
     // The detached buffer should still be valid.
     EXPECT_TRUE(b1->isConnected());
     EXPECT_TRUE(b1->isValid());
 
     std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
-    native_handle_close(token);
-    native_handle_delete(token);
 
     ASSERT_THAT(b2, NotNull());
     EXPECT_TRUE(b2->isValid());
@@ -197,16 +192,13 @@ TEST_F(BufferHubBufferTest, ImportFreedBuffer) {
     ASSERT_THAT(b1, NotNull());
     EXPECT_TRUE(b1->isValid());
 
-    native_handle_t* token = b1->duplicate();
-    EXPECT_TRUE(token);
+    sp<NativeHandle> token = b1->duplicate();
+    ASSERT_THAT(token, NotNull());
 
     // Explicitly destroy b1. Backend buffer should be freed and token becomes invalid
     b1.reset();
 
-    // TODO(b/122543147): use a movalbe wrapper for token
     std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
-    native_handle_close(token);
-    native_handle_delete(token);
 
     // Import should fail with INVALID_TOKEN
     EXPECT_THAT(b2, IsNull());
@@ -222,7 +214,7 @@ TEST_F(BufferHubBufferTest, ImportInvalidToken) {
     native_handle_t* token = native_handle_create(/*numFds=*/0, /*numInts=*/1);
     token->data[0] = 0;
 
-    auto b1 = BufferHubBuffer::import(token);
+    auto b1 = BufferHubBuffer::import(NativeHandle::create(token, /*ownHandle=*/true));
     native_handle_delete(token);
 
     EXPECT_THAT(b1, IsNull());
@@ -425,13 +417,10 @@ TEST_F(BufferHubBufferTest, createNewConsumerAfterGain) {
 
     // Create a consumer of the buffer and test if the consumer can acquire the
     // buffer if producer posts.
-    // TODO(b/122543147): use a movalbe wrapper for token
-    native_handle_t* token = b1->duplicate();
-    ASSERT_TRUE(token);
+    sp<NativeHandle> token = b1->duplicate();
+    ASSERT_THAT(token, NotNull());
 
     std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
-    native_handle_close(token);
-    native_handle_delete(token);
 
     ASSERT_THAT(b2, NotNull());
     ASSERT_NE(b1->clientStateMask(), b2->clientStateMask());
@@ -450,13 +439,10 @@ TEST_F(BufferHubBufferTest, createNewConsumerAfterPost) {
 
     // Create a consumer of the buffer and test if the consumer can acquire the
     // buffer if producer posts.
-    // TODO(b/122543147): use a movalbe wrapper for token
-    native_handle_t* token = b1->duplicate();
-    ASSERT_TRUE(token);
+    sp<NativeHandle> token = b1->duplicate();
+    ASSERT_THAT(token, NotNull());
 
     std::unique_ptr<BufferHubBuffer> b2 = BufferHubBuffer::import(token);
-    native_handle_close(token);
-    native_handle_delete(token);
 
     ASSERT_THAT(b2, NotNull());
     ASSERT_NE(b1->clientStateMask(), b2->clientStateMask());

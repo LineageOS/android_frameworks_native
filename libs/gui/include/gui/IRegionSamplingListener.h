@@ -16,39 +16,28 @@
 
 #pragma once
 
-#include <binder/IInterface.h>
-#include <cutils/compiler.h>
-
+#include <cstdint>
 #include <vector>
+
+#include <binder/IInterface.h>
+#include <binder/SafeInterface.h>
 
 namespace android {
 
-/*
- * This class defines the Binder IPC interface for GPU-related queries and
- * control.
- */
-class IGpuService : public IInterface {
+class IRegionSamplingListener : public IInterface {
 public:
-    DECLARE_META_INTERFACE(GpuService);
+    DECLARE_META_INTERFACE(RegionSamplingListener)
 
-    // set GPU stats from GraphicsEnvironment.
-    virtual void setGpuStats(const std::string& driverPackageName,
-                             const std::string& driverVersionName, const uint64_t driverVersionCode,
-                             const std::string& appPackageName) = 0;
+    virtual void onSampleCollected(float medianLuma) = 0;
 };
 
-class BnGpuService : public BnInterface<IGpuService> {
+class BnRegionSamplingListener : public SafeBnInterface<IRegionSamplingListener> {
 public:
-    enum IGpuServiceTag {
-        SET_GPU_STATS = IBinder::FIRST_CALL_TRANSACTION,
-        // Always append new enum to the end.
-    };
+    BnRegionSamplingListener()
+          : SafeBnInterface<IRegionSamplingListener>("BnRegionSamplingListener") {}
 
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply,
                         uint32_t flags = 0) override;
-
-protected:
-    virtual status_t shellCommand(int in, int out, int err, std::vector<String16>& args) = 0;
 };
 
 } // namespace android

@@ -122,6 +122,54 @@ int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
     return gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence);
 }
 
+int AHardwareBuffer_lockPlanes(AHardwareBuffer* buffer, uint64_t usage,
+        int32_t fence, const ARect* rect, AHardwareBuffer_Planes* outPlanes) {
+    if (!buffer || !outPlanes) return BAD_VALUE;
+
+    if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
+                  AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) {
+        ALOGE("Invalid usage flags passed to AHardwareBuffer_lock; only "
+                " AHARDWAREBUFFER_USAGE_CPU_* flags are allowed");
+        return BAD_VALUE;
+    }
+
+    usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+    GraphicBuffer* gBuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
+    Rect bounds;
+    if (!rect) {
+        bounds.set(Rect(gBuffer->getWidth(), gBuffer->getHeight()));
+    } else {
+        bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
+    }
+    int format = AHardwareBuffer_convertFromPixelFormat(uint32_t(gBuffer->getPixelFormat()));
+    memset(outPlanes->planes, 0, sizeof(outPlanes->planes));
+    if (AHardwareBuffer_formatIsYuv(format)) {
+      android_ycbcr yuvData;
+      int result = gBuffer->lockAsyncYCbCr(usage, bounds, &yuvData, fence);
+      if (result == 0) {
+        outPlanes->planeCount = 3;
+        outPlanes->planes[0].data = yuvData.y;
+        outPlanes->planes[0].pixelStride = 1;
+        outPlanes->planes[0].rowStride = yuvData.ystride;
+        outPlanes->planes[1].data = yuvData.cb;
+        outPlanes->planes[1].pixelStride = yuvData.chroma_step;
+        outPlanes->planes[1].rowStride = yuvData.cstride;
+        outPlanes->planes[2].data = yuvData.cr;
+        outPlanes->planes[2].pixelStride = yuvData.chroma_step;
+        outPlanes->planes[2].rowStride = yuvData.cstride;
+      } else {
+        outPlanes->planeCount = 0;
+      }
+      return result;
+    } else {
+      const uint32_t pixelStride = AHardwareBuffer_bytesPerPixel(format);
+      outPlanes->planeCount = 1;
+      outPlanes->planes[0].pixelStride = pixelStride;
+      outPlanes->planes[0].rowStride = gBuffer->getStride() * pixelStride;
+      return gBuffer->lockAsync(usage, usage, bounds, &outPlanes->planes[0].data, fence);
+    }
+}
+
 int AHardwareBuffer_unlock(AHardwareBuffer* buffer, int32_t* fence) {
     if (!buffer) return BAD_VALUE;
 
@@ -375,6 +423,19 @@ bool AHardwareBuffer_isValidDescription(const AHardwareBuffer_Desc* desc, bool l
             ALOGE_IF(log, "AHARDWAREBUFFER_FORMAT_BLOB cannot be encoded as video");
             return false;
         }
+    } else if (AHardwareBuffer_formatIsYuv(desc->format)) {
+        if (desc->layers != 1) {
+            ALOGE_IF(log, "Layers must be 1 for YUV formats.");
+            return false;
+        }
+        const uint64_t yuvInvalidGpuMask =
+            AHARDWAREBUFFER_USAGE_GPU_MIPMAP_COMPLETE |
+            AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP;
+        if (desc->usage & yuvInvalidGpuMask) {
+            ALOGE_IF(log, "Invalid usage flags specified for YUV format; "
+                    "mip-mapping and cube-mapping are not allowed.");
+            return false;
+        }
     } else {
         if (desc->usage & AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA) {
             ALOGE_IF(log, "AHARDWAREBUFFER_USAGE_SENSOR_DIRECT_DATA requires AHARDWAREBUFFER_FORMAT_BLOB");
@@ -474,6 +535,7 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
         case AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT:
         case AHARDWAREBUFFER_FORMAT_S8_UINT:
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
             // VNDK formats only -- unfortunately we can't differentiate from where we're called
         case AHARDWAREBUFFER_FORMAT_B8G8R8A8_UNORM:
         case AHARDWAREBUFFER_FORMAT_YV12:
@@ -484,7 +546,6 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         case AHARDWAREBUFFER_FORMAT_RAW12:
         case AHARDWAREBUFFER_FORMAT_RAW_OPAQUE:
         case AHARDWAREBUFFER_FORMAT_IMPLEMENTATION_DEFINED:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
         case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
         case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
@@ -493,6 +554,40 @@ bool AHardwareBuffer_isValidPixelFormat(uint32_t format) {
         default:
             return false;
     }
+}
+
+bool AHardwareBuffer_formatIsYuv(uint32_t format) {
+    switch (format) {
+        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
+        case AHARDWAREBUFFER_FORMAT_YV12:
+        case AHARDWAREBUFFER_FORMAT_Y8:
+        case AHARDWAREBUFFER_FORMAT_Y16:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_422_SP:
+        case AHARDWAREBUFFER_FORMAT_YCrCb_420_SP:
+        case AHARDWAREBUFFER_FORMAT_YCbCr_422_I:
+            return true;
+        default:
+            return false;
+    }
+}
+
+uint32_t AHardwareBuffer_bytesPerPixel(uint32_t format) {
+  switch (format) {
+      case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D16_UNORM:
+          return 2;
+      case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D24_UNORM:
+          return 3;
+      case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
+      case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
+      case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
+      case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
+          return 4;
+      default:
+          return 0;
+  }
 }
 
 uint32_t AHardwareBuffer_convertFromPixelFormat(uint32_t hal_format) {

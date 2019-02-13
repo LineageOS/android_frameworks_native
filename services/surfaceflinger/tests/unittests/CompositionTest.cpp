@@ -746,7 +746,7 @@ struct BaseLayerVariant {
         layerDrawingState.active.h = 100;
         layerDrawingState.color = half4(LayerProperties::COLOR[0], LayerProperties::COLOR[1],
                                         LayerProperties::COLOR[2], LayerProperties::COLOR[3]);
-
+        layer->computeBounds(FloatRect(0, 0, 100, 100), ui::Transform());
         layer->setVisibleRegion(Region(Rect(0, 0, 100, 100)));
 
         return layer;

@@ -635,17 +635,13 @@ void SurfaceFlinger::init() {
         mPhaseOffsets->setRefreshRateType(
                 scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
 
-        auto resetIdleTimerCallback =
-                std::bind(&SurfaceFlinger::setRefreshRateTo, this, RefreshRateType::PERFORMANCE);
-
         mAppConnectionHandle =
-                mScheduler->createConnection("appConnection", mPhaseOffsets->getCurrentAppOffset(),
-                                             resyncCallback, resetIdleTimerCallback,
+                mScheduler->createConnection("app", mPhaseOffsets->getCurrentAppOffset(),
+                                             resyncCallback,
                                              impl::EventThread::InterceptVSyncsCallback());
         mSfConnectionHandle =
-                mScheduler->createConnection("sfConnection", mPhaseOffsets->getCurrentSfOffset(),
-                                             resyncCallback, resetIdleTimerCallback,
-                                             [this](nsecs_t timestamp) {
+                mScheduler->createConnection("sf", mPhaseOffsets->getCurrentSfOffset(),
+                                             resyncCallback, [this](nsecs_t timestamp) {
                                                  mInterceptor->saveVSyncEvent(timestamp);
                                              });
 
@@ -748,6 +744,10 @@ void SurfaceFlinger::init() {
         mScheduler->setExpiredIdleTimerCallback([this] {
             Mutex::Autolock lock(mStateLock);
             setRefreshRateTo(RefreshRateType::DEFAULT);
+        });
+        mScheduler->setResetIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE);
         });
 
         mRefreshRateStats =
@@ -1324,6 +1324,17 @@ status_t SurfaceFlinger::getCompositionPreference(
     return NO_ERROR;
 }
 
+status_t SurfaceFlinger::addRegionSamplingListener(
+        const Rect& /*samplingArea*/, const sp<IBinder>& /*stopLayerHandle*/,
+        const sp<IRegionSamplingListener>& /*listener*/) {
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::removeRegionSamplingListener(
+        const sp<IRegionSamplingListener>& /*listener*/) {
+    return NO_ERROR;
+}
+
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1334,16 +1345,10 @@ sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
     });
 
     if (mUseScheduler) {
-        auto resetIdleTimerCallback = [this] {
-            Mutex::Autolock lock(mStateLock);
-            setRefreshRateTo(RefreshRateType::PERFORMANCE);
-        };
-
         const auto& handle = vsyncSource == eVsyncSourceSurfaceFlinger ? mSfConnectionHandle
                                                                        : mAppConnectionHandle;
 
-        return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback),
-                                                        std::move(resetIdleTimerCallback));
+        return mScheduler->createDisplayEventConnection(handle, std::move(resyncCallback));
     } else {
         if (vsyncSource == eVsyncSourceSurfaceFlinger) {
             return mSFEventThread->createEventConnection(resyncCallback, ResetIdleTimerCallback());
@@ -1414,17 +1419,23 @@ void SurfaceFlinger::enableHardwareVsync() {
 
 void SurfaceFlinger::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
     Mutex::Autolock _l(mHWVsyncLock);
-
-    if (makeAvailable) {
-        mHWVsyncAvailable = true;
-        // TODO(b/113612090): This is silly, but necessary evil until we turn on the flag for good.
-        if (mUseScheduler) {
+    // TODO(b/113612090): This is silly, but necessary evil until we turn on the flag for good.
+    if (mUseScheduler) {
+        if (makeAvailable) {
             mScheduler->makeHWSyncAvailable(true);
+        } else if (!mScheduler->getHWSyncAvailable()) {
+            // Hardware vsync is not currently available, so abort the resync
+            // attempt for now
+            return;
         }
-    } else if (!mHWVsyncAvailable) {
-        // Hardware vsync is not currently available, so abort the resync
-        // attempt for now
-        return;
+    } else {
+        if (makeAvailable) {
+            mHWVsyncAvailable = true;
+        } else if (!mHWVsyncAvailable) {
+            // Hardware vsync is not currently available, so abort the resync
+            // attempt for now
+            return;
+        }
     }
 
     if (period <= 0) {
@@ -1826,9 +1837,13 @@ bool SurfaceFlinger::handleMessageInvalidate() {
     ATRACE_CALL();
     bool refreshNeeded = handlePageFlip();
 
+    if (mVisibleRegionsDirty) {
+        computeLayerBounds();
+    }
+
     for (auto& layer : mLayersPendingRefresh) {
         Region visibleReg;
-        visibleReg.set(layer->computeScreenBounds());
+        visibleReg.set(layer->getScreenBounds());
         invalidateLayerStack(layer, visibleReg);
     }
     mLayersPendingRefresh.clear();
@@ -2306,6 +2321,21 @@ void SurfaceFlinger::postComposition()
     ASSERT_ON_STACK_GUARD();
 }
 #pragma clang optimize on // b/119477596
+
+void SurfaceFlinger::computeLayerBounds() {
+    for (const auto& pair : mDisplays) {
+        const auto& displayDevice = pair.second;
+        const auto display = displayDevice->getCompositionDisplay();
+        for (const auto& layer : mDrawingState.layersSortedByZ) {
+            // only consider the layers on the given layer stack
+            if (!display->belongsInOutput(layer->getLayerStack(), layer->getPrimaryDisplayOnly())) {
+                continue;
+            }
+
+            layer->computeBounds(displayDevice->getViewport().toFloatRect(), ui::Transform());
+        }
+    }
+}
 
 void SurfaceFlinger::rebuildLayerStacks() {
     ATRACE_CALL();
@@ -3047,11 +3077,8 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         mDrawingState.traverseInZOrder([&](Layer* layer) {
             if (mLayersPendingRemoval.indexOf(layer) >= 0) {
                 // this layer is not visible anymore
-                // TODO: we could traverse the tree from front to back and
-                //       compute the actual visible region
-                // TODO: we could cache the transformed region
                 Region visibleReg;
-                visibleReg.set(layer->computeScreenBounds());
+                visibleReg.set(layer->getScreenBounds());
                 invalidateLayerStack(layer, visibleReg);
             }
         });
@@ -3220,7 +3247,7 @@ void SurfaceFlinger::computeVisibleRegions(const sp<const DisplayDevice>& displa
         // handle hidden surfaces by setting the visible region to empty
         if (CC_LIKELY(layer->isVisible())) {
             const bool translucent = !layer->isOpaque(s);
-            Rect bounds(layer->computeScreenBounds());
+            Rect bounds(layer->getScreenBounds());
 
             visibleRegion.set(bounds);
             ui::Transform tr = layer->getTransform();
@@ -4524,7 +4551,13 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                 {"--clear-layer-stats"s, dumper([this](std::string&) { mLayerStats.clear(); })},
                 {"--disable-layer-stats"s, dumper([this](std::string&) { mLayerStats.disable(); })},
                 {"--display-id"s, dumper(&SurfaceFlinger::dumpDisplayIdentificationData)},
-                {"--dispsync"s, dumper([this](std::string& s) { mPrimaryDispSync->dump(s); })},
+                {"--dispsync"s, dumper([this](std::string& s) {
+                     if (mUseScheduler) {
+                         mScheduler->dumpPrimaryDispSync(s);
+                     } else {
+                         mPrimaryDispSync->dump(s);
+                     }
+                 })},
                 {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
                 {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
                 {"--frame-composition"s, dumper(&SurfaceFlinger::dumpFrameCompositionInfo)},
@@ -5105,7 +5138,9 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
             return OK;
         }
         case CAPTURE_LAYERS:
-        case CAPTURE_SCREEN: {
+        case CAPTURE_SCREEN:
+        case ADD_REGION_SAMPLING_LISTENER:
+        case REMOVE_REGION_SAMPLING_LISTENER: {
             // codes that require permission check
             IPCThreadState* ipc = IPCThreadState::self();
             const int pid = ipc->getCallingPid();
@@ -5527,11 +5562,14 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
             const sp<Layer>& oldParent;
             const sp<Layer>& newParent;
 
-            ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent)
+            ReparentForDrawing(const sp<Layer>& oldParent, const sp<Layer>& newParent,
+                               const Rect& drawingBounds)
                   : oldParent(oldParent), newParent(newParent) {
+                // Compute and cache the bounds for the new parent layer.
+                newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform());
                 oldParent->setChildrenDrawingParent(newParent);
             }
-            ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
+            ~ReparentForDrawing() { newParent->setChildrenDrawingParent(oldParent); }
         };
 
         void render(std::function<void()> drawLayers) override {
@@ -5549,7 +5587,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                         LayerCreationArgs(mFlinger, nullptr, String8("Screenshot Parent"),
                                           bounds.getWidth(), bounds.getHeight(), 0));
 
-                ReparentForDrawing reparent(mLayer, screenshotParentLayer);
+                ReparentForDrawing reparent(mLayer, screenshotParentLayer, sourceCrop);
                 drawLayers();
             }
         }

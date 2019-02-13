@@ -156,9 +156,9 @@ void GraphicsEnv::setDriverPath(const std::string path) {
     mDriverPath = path;
 }
 
-void GraphicsEnv::setGpuStats(const std::string driverPackageName,
-                              const std::string driverVersionName, const uint64_t driverVersionCode,
-                              const std::string appPackageName) {
+void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
+                              const std::string& driverVersionName,
+                              const uint64_t driverVersionCode, const std::string& appPackageName) {
     ATRACE_CALL();
 
     ALOGV("setGpuStats:\n"
@@ -316,28 +316,28 @@ bool GraphicsEnv::shouldUseAngle() {
         return false;
     }
 
-    return mUseAngle;
+    return (mUseAngle == YES) ? true : false;
 }
 
 void GraphicsEnv::updateUseAngle() {
-    mUseAngle = false;
+    mUseAngle = NO;
 
     const char* ANGLE_PREFER_ANGLE = "angle";
     const char* ANGLE_PREFER_NATIVE = "native";
 
     if (mAngleDeveloperOptIn == ANGLE_PREFER_ANGLE) {
         ALOGV("User set \"Developer Options\" to force the use of ANGLE");
-        mUseAngle = true;
+        mUseAngle = YES;
     } else if (mAngleDeveloperOptIn == ANGLE_PREFER_NATIVE) {
         ALOGV("User set \"Developer Options\" to force the use of Native");
-        mUseAngle = false;
+        mUseAngle = NO;
     } else {
         // The "Developer Options" value wasn't set to force the use of ANGLE.  Need to temporarily
         // load ANGLE and call the updatable opt-in/out logic:
         void* featureSo = loadLibrary("feature_support");
         if (featureSo) {
             ALOGV("loaded ANGLE's opt-in/out logic from namespace");
-            mUseAngle = checkAngleRules(featureSo);
+            mUseAngle = checkAngleRules(featureSo) ? YES : NO;
             dlclose(featureSo);
             featureSo = nullptr;
         } else {
@@ -349,6 +349,13 @@ void GraphicsEnv::updateUseAngle() {
 void GraphicsEnv::setAngleInfo(const std::string path, const std::string appName,
                                const std::string developerOptIn, const int rulesFd,
                                const long rulesOffset, const long rulesLength) {
+    if (mUseAngle != UNKNOWN) {
+        // We've already figured out an answer for this app, so just return.
+        ALOGV("Already evaluated the rules file for '%s': use ANGLE = %s", appName.c_str(),
+              (mUseAngle == YES) ? "true" : "false");
+        return;
+    }
+
     ALOGV("setting ANGLE path to '%s'", path.c_str());
     mAnglePath = path;
     ALOGV("setting ANGLE app name to '%s'", appName.c_str());
