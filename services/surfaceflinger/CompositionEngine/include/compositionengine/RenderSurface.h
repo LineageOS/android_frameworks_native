@@ -71,7 +71,7 @@ public:
     virtual status_t beginFrame(bool mustRecompose) = 0;
 
     // Prepares the frame for rendering
-    virtual status_t prepareFrame() = 0;
+    virtual void prepareFrame(bool usesClientComposition, bool usesDeviceComposition) = 0;
 
     // Allocates a buffer as scratch space for GPU composition
     virtual sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) = 0;

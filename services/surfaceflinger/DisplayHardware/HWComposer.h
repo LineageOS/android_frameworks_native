@@ -71,8 +71,26 @@ public:
     // Destroy a previously created layer
     virtual void destroyLayer(DisplayId displayId, HWC2::Layer* layer) = 0;
 
-    // Asks the HAL what it can do
-    virtual status_t prepare(DisplayId displayId, const compositionengine::Output&) = 0;
+    struct DeviceRequestedChanges {
+        using ChangedTypes = std::unordered_map<HWC2::Layer*, HWC2::Composition>;
+        using DisplayRequests = HWC2::DisplayRequest;
+        using LayerRequests = std::unordered_map<HWC2::Layer*, HWC2::LayerRequest>;
+
+        ChangedTypes changedTypes;
+        DisplayRequests displayRequests;
+        LayerRequests layerRequests;
+    };
+
+    // Gets any required composition change requests from the HWC device.
+    //
+    // Note that frameUsesClientComposition must be set correctly based on
+    // whether the current frame appears to use client composition. If it is
+    // false some internal optimizations are allowed to present the display
+    // with fewer handshakes, but this does not work if client composition is
+    // expected.
+    virtual status_t getDeviceCompositionChanges(
+            DisplayId, bool frameUsesClientComposition,
+            std::optional<DeviceRequestedChanges>* outChanges) = 0;
 
     virtual status_t setClientTarget(DisplayId displayId, uint32_t slot,
                                      const sp<Fence>& acquireFence, const sp<GraphicBuffer>& target,
@@ -92,15 +110,6 @@ public:
 
     // reset state when an external, non-virtual display is disconnected
     virtual void disconnectDisplay(DisplayId displayId) = 0;
-
-    // does this display have layers handled by HWC
-    virtual bool hasDeviceComposition(const std::optional<DisplayId>& displayId) const = 0;
-
-    // does this display have pending request to flip client target
-    virtual bool hasFlipClientTargetRequest(const std::optional<DisplayId>& displayId) const = 0;
-
-    // does this display have layers handled by GLES
-    virtual bool hasClientComposition(const std::optional<DisplayId>& displayId) const = 0;
 
     // get the present fence received from the last call to present.
     virtual sp<Fence> getPresentFence(DisplayId displayId) const = 0;
@@ -210,8 +219,9 @@ public:
     // Destroy a previously created layer
     void destroyLayer(DisplayId displayId, HWC2::Layer* layer) override;
 
-    // Asks the HAL what it can do
-    status_t prepare(DisplayId displayId, const compositionengine::Output&) override;
+    status_t getDeviceCompositionChanges(
+            DisplayId, bool frameUsesClientComposition,
+            std::optional<DeviceRequestedChanges>* outChanges) override;
 
     status_t setClientTarget(DisplayId displayId, uint32_t slot, const sp<Fence>& acquireFence,
                              const sp<GraphicBuffer>& target, ui::Dataspace dataspace) override;
@@ -230,15 +240,6 @@ public:
 
     // reset state when an external, non-virtual display is disconnected
     void disconnectDisplay(DisplayId displayId) override;
-
-    // does this display have layers handled by HWC
-    bool hasDeviceComposition(const std::optional<DisplayId>& displayId) const override;
-
-    // does this display have pending request to flip client target
-    bool hasFlipClientTargetRequest(const std::optional<DisplayId>& displayId) const override;
-
-    // does this display have layers handled by GLES
-    bool hasClientComposition(const std::optional<DisplayId>& displayId) const override;
 
     // get the present fence received from the last call to present.
     sp<Fence> getPresentFence(DisplayId displayId) const override;
@@ -326,14 +327,10 @@ private:
 
     std::optional<DisplayIdentificationInfo> onHotplugConnect(hwc2_display_t hwcDisplayId);
 
-    static void validateChange(HWC2::Composition from, HWC2::Composition to);
-
     struct DisplayData {
         bool isVirtual = false;
-        bool hasClientComposition = false;
-        bool hasDeviceComposition = false;
+
         HWC2::Display* hwcDisplay = nullptr;
-        HWC2::DisplayRequest displayRequests;
         sp<Fence> lastPresentFence = Fence::NO_FENCE; // signals when the last set op retires
         std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
         buffer_handle_t outbufHandle = nullptr;

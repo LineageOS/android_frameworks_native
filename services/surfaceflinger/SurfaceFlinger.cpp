@@ -1792,7 +1792,7 @@ void SurfaceFlinger::handleMessageRefresh() {
     calculateWorkingSet();
     for (const auto& [token, display] : mDisplays) {
         beginFrame(display);
-        prepareFrame(display);
+        display->getCompositionDisplay()->prepareFrame();
         doDebugFlashRegions(display, repaintEverything);
         doComposition(display, repaintEverything);
     }
@@ -1802,16 +1802,16 @@ void SurfaceFlinger::handleMessageRefresh() {
     postFrame();
     postComposition();
 
-    mHadClientComposition = false;
-    mHadDeviceComposition = false;
-    for (const auto& [token, displayDevice] : mDisplays) {
-        auto display = displayDevice->getCompositionDisplay();
-        const auto displayId = display->getId();
-        mHadClientComposition =
-                mHadClientComposition || getHwComposer().hasClientComposition(displayId);
-        mHadDeviceComposition =
-                mHadDeviceComposition || getHwComposer().hasDeviceComposition(displayId);
-    }
+    mHadClientComposition =
+            std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
+                auto& displayDevice = tokenDisplayPair.second;
+                return displayDevice->getCompositionDisplay()->getState().usesClientComposition;
+            });
+    mHadDeviceComposition =
+            std::any_of(mDisplays.cbegin(), mDisplays.cend(), [](const auto& tokenDisplayPair) {
+                auto& displayDevice = tokenDisplayPair.second;
+                return displayDevice->getCompositionDisplay()->getState().usesDeviceComposition;
+            });
 
     mVSyncModulator->onRefreshed(mHadClientComposition);
 
@@ -1954,7 +1954,7 @@ void SurfaceFlinger::doDebugFlashRegions(const sp<DisplayDevice>& displayDevice,
         usleep(mDebugRegion * 1000);
     }
 
-    prepareFrame(displayDevice);
+    displayDevice->getCompositionDisplay()->prepareFrame();
 }
 
 void SurfaceFlinger::logLayerStats() {
@@ -2043,7 +2043,7 @@ void SurfaceFlinger::postComposition()
 
     getBE().mGlCompositionDoneTimeline.updateSignalTimes();
     std::shared_ptr<FenceTime> glCompositionDoneFenceTime;
-    if (displayDevice && getHwComposer().hasClientComposition(displayDevice->getId())) {
+    if (displayDevice && displayDevice->getCompositionDisplay()->getState().usesClientComposition) {
         glCompositionDoneFenceTime =
                 std::make_shared<FenceTime>(displayDevice->getCompositionDisplay()
                                                     ->getRenderSurface()
@@ -2403,19 +2403,6 @@ void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
     if (mustRecompose) {
         display->editState().lastCompositionHadVisibleLayers = !empty;
     }
-}
-
-void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& displayDevice) {
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    if (!displayState.isEnabled) {
-        return;
-    }
-
-    status_t result = display->getRenderSurface()->prepareFrame();
-    ALOGE_IF(result != NO_ERROR, "prepareFrame failed for %s: %d (%s)",
-             displayDevice->getDebugName().c_str(), result, strerror(-result));
 }
 
 void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool repaintEverything) {
@@ -3354,9 +3341,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     const Region bounds(displayState.bounds);
     const DisplayRenderArea renderArea(displayDevice);
     const TracedOrdinal<bool> hasClientComposition = {"hasClientComposition",
-                                                      getHwComposer().hasClientComposition(
-                                                              displayId)};
-
+                                                      displayState.usesClientComposition};
     bool applyColorMatrix = false;
 
     renderengine::DisplaySettings clientCompositionDisplay;
@@ -3409,7 +3394,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         clientCompositionDisplay.maxLuminance =
                 profile->getHdrCapabilities().getDesiredMaxLuminance();
 
-        const bool hasDeviceComposition = getHwComposer().hasDeviceComposition(displayId);
+        const bool hasDeviceComposition = displayState.usesDeviceComposition;
         const bool skipClientColorTransform =
                 getHwComposer()
                         .hasDisplayCapability(displayId,

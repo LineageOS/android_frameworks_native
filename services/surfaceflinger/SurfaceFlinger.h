@@ -769,11 +769,6 @@ private:
      * CompositionInfo
      */
     void beginFrame(const sp<DisplayDevice>& display);
-    /* prepareFrame - This function will call into the DisplayDevice to prepare a
-     * frame after CompositionInfo has been programmed.   This provides a mechanism
-     * to prepare the hardware composer
-     */
-    void prepareFrame(const sp<DisplayDevice>& display);
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
     void logLayerStats();
