@@ -79,10 +79,10 @@ BufferHubBuffer::BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layer
     sp<IBufferClient> client;
     BufferTraits bufferTraits;
     IBufferHub::allocateBuffer_cb alloc_cb = [&](const auto& status, const auto& outClient,
-                                                 const auto& traits) {
+                                                 const auto& outTraits) {
         ret = status;
         client = std::move(outClient);
-        bufferTraits = std::move(traits);
+        bufferTraits = std::move(outTraits);
     };
 
     if (!bufferhub->allocateBuffer(desc, static_cast<uint32_t>(userMetadataSize), alloc_cb)
@@ -116,10 +116,10 @@ BufferHubBuffer::BufferHubBuffer(const sp<NativeHandle>& token) {
     sp<IBufferClient> client;
     BufferTraits bufferTraits;
     IBufferHub::importBuffer_cb import_cb = [&](const auto& status, const auto& outClient,
-                                                const auto& traits) {
+                                                const auto& outTraits) {
         ret = status;
         client = std::move(outClient);
-        bufferTraits = std::move(traits);
+        bufferTraits = std::move(outTraits);
     };
 
     // hidl_handle(native_handle_t*) simply creates a raw pointer reference withouth ownership
