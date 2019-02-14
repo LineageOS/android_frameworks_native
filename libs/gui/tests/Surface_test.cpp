@@ -679,6 +679,8 @@ public:
         return NO_ERROR;
     }
 
+    void setInputWindowsFinished() override {}
+
 protected:
     IBinder* onAsBinder() override { return nullptr; }
 

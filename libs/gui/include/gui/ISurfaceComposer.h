@@ -359,6 +359,8 @@ public:
      * Removes a listener that was streaming median luma updates from SurfaceFlinger.
      */
     virtual status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) = 0;
+
+    virtual void setInputWindowsFinished() = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -406,6 +408,8 @@ public:
         GET_PHYSICAL_DISPLAY_IDS,
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
+        SET_INPUT_WINDOWS_FINISHED,
+
         // Always append new enum to the end.
     };
 

@@ -479,6 +479,7 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
+    void setInputWindowsFinished() override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */

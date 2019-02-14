@@ -5154,7 +5154,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case IS_WIDE_COLOR_DISPLAY: {
+        case IS_WIDE_COLOR_DISPLAY:
+        case SET_INPUT_WINDOWS_FINISHED: {
             return OK;
         }
         case CAPTURE_LAYERS:
@@ -5886,6 +5887,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, outSyncFd);
     return NO_ERROR;
 }
+
+void SurfaceFlinger::setInputWindowsFinished() {}
 
 // ---------------------------------------------------------------------------
 
