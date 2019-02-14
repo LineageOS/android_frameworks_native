@@ -138,7 +138,7 @@ private:
     virtual void interceptKeyBeforeQueueing(const KeyEvent*, uint32_t&) {
     }
 
-    virtual void interceptMotionBeforeQueueing(nsecs_t, uint32_t&) {
+    virtual void interceptMotionBeforeQueueing(int32_t, nsecs_t, uint32_t&) {
     }
 
     virtual nsecs_t interceptKeyBeforeDispatching(const sp<IBinder>&,

@@ -303,7 +303,7 @@ void DisplayColorProfile::populateColorModes(
     }
 
     // add all known HDR combinations
-    for (auto intent : sHdrRenderIntents) {
+    for (auto intent : hdrRenderIntents) {
         for (auto mode : sHdrColorModes) {
             addColorMode(hwcColorModes, mode, intent);
         }

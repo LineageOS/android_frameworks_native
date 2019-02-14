@@ -1089,6 +1089,15 @@ private:
 
     DisplayColorSetting mDisplayColorSetting = DisplayColorSetting::ENHANCED;
 
+    // Color mode forced by setting persist.sys.sf.color_mode, it must:
+    //     1. not be NATIVE color mode, NATIVE color mode means no forced color mode;
+    //     2. be one of the supported color modes returned by hardware composer, otherwise
+    //        it will not be respected.
+    // persist.sys.sf.color_mode will only take effect when persist.sys.sf.native_mode
+    // is not set to 1.
+    // This property can be used to force SurfaceFlinger to always pick a certain color mode.
+    ui::ColorMode mForceColorMode = ui::ColorMode::NATIVE;
+
     ui::Dataspace mDefaultCompositionDataspace;
     ui::Dataspace mWideColorGamutCompositionDataspace;
 
