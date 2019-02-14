@@ -33,6 +33,7 @@ public:
     MOCK_METHOD0(onScreenReleased, void());
     MOCK_METHOD0(onScreenAcquired, void());
     MOCK_METHOD2(onHotplugReceived, void(PhysicalDisplayId, bool));
+    MOCK_METHOD2(onConfigChanged, void(PhysicalDisplayId, int32_t));
     MOCK_CONST_METHOD1(dump, void(std::string&));
     MOCK_METHOD1(setPhaseOffset, void(nsecs_t phaseOffset));
     MOCK_METHOD1(registerDisplayEventConnection,

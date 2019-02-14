@@ -153,6 +153,12 @@ void Scheduler::onScreenReleased(const sp<Scheduler::ConnectionHandle>& handle) 
     mConnections[handle->id]->thread->onScreenReleased();
 }
 
+void Scheduler::onConfigChanged(const sp<ConnectionHandle>& handle, PhysicalDisplayId displayId,
+                                int32_t configId) {
+    RETURN_IF_INVALID();
+    mConnections[handle->id]->thread->onConfigChanged(displayId, configId);
+}
+
 void Scheduler::dump(const sp<Scheduler::ConnectionHandle>& handle, std::string& result) const {
     RETURN_IF_INVALID();
     mConnections.at(handle->id)->thread->dump(result);

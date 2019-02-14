@@ -523,10 +523,13 @@ private:
     void signalLayerUpdate();
     void signalRefresh();
 
+    enum class ConfigEvent { None, Changed };
+
     // called on the main thread in response to initializeDisplays()
     void onInitializeDisplays() REQUIRES(mStateLock);
     // Sets the desired active config bit. It obtains the lock, and sets mDesiredActiveConfig.
-    void setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode) REQUIRES(mStateLock);
+    void setDesiredActiveConfig(const sp<IBinder>& displayToken, int mode, ConfigEvent event)
+            REQUIRES(mStateLock);
     // Once HWC has returned the present fence, this sets the active config and a new refresh
     // rate in SF. It also triggers HWC vsync.
     void setActiveConfigInternal() REQUIRES(mStateLock);
@@ -811,7 +814,8 @@ private:
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
-    void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType) REQUIRES(mStateLock);
+    void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType, ConfigEvent event)
+            REQUIRES(mStateLock);
 
     bool isConfigAllowed(const DisplayId& displayId, int32_t config);
 
@@ -1116,6 +1120,7 @@ private:
     struct ActiveConfigInfo {
         int configId;
         sp<IBinder> displayToken;
+        ConfigEvent event;
 
         bool operator!=(const ActiveConfigInfo& other) const {
             if (configId != other.configId) {
