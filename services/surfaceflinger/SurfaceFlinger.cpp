@@ -5583,7 +5583,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
                 newParent->computeBounds(drawingBounds.toFloatRect(), ui::Transform());
                 oldParent->setChildrenDrawingParent(newParent);
             }
-            ~ReparentForDrawing() { newParent->setChildrenDrawingParent(oldParent); }
+            ~ReparentForDrawing() { oldParent->setChildrenDrawingParent(oldParent); }
         };
 
         void render(std::function<void()> drawLayers) override {
