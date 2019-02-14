@@ -3098,6 +3098,7 @@ void SurfaceFlinger::handleTransactionLocked(uint32_t transactionFlags)
         });
     }
 
+    commitInputWindowCommands();
     commitTransaction();
 }
 
@@ -3126,6 +3127,11 @@ void SurfaceFlinger::updateInputWindowInfo() {
         }
     });
     mInputFlinger->setInputWindows(inputHandles);
+}
+
+void SurfaceFlinger::commitInputWindowCommands() {
+    mInputWindowCommands.merge(mPendingInputWindowCommands);
+    mPendingInputWindowCommands.clear();
 }
 
 void SurfaceFlinger::executeInputWindowCommands() {
@@ -3706,7 +3712,7 @@ bool SurfaceFlinger::flushTransactionQueues() {
             if (!transactionIsReadyToBeApplied(desiredPresentTime, states)) {
                 break;
             }
-            applyTransactionState(states, displays, flags, mInputWindowCommands);
+            applyTransactionState(states, displays, flags, mPendingInputWindowCommands);
             transactionQueue.pop();
         }
 
@@ -4174,7 +4180,7 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
         flags |= eTraversalNeeded;
     }
 
-    mInputWindowCommands.merge(inputWindowCommands);
+    mPendingInputWindowCommands.merge(inputWindowCommands);
     return flags;
 }
 
@@ -4390,7 +4396,7 @@ void SurfaceFlinger::onInitializeDisplays() {
     d.width = 0;
     d.height = 0;
     displays.add(d);
-    setTransactionState(state, displays, 0, nullptr, mInputWindowCommands, -1);
+    setTransactionState(state, displays, 0, nullptr, mPendingInputWindowCommands, -1);
 
     setPowerModeInternal(display, HWC_POWER_MODE_NORMAL);
 

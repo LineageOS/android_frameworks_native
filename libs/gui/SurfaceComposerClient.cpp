@@ -383,6 +383,7 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::merge(Tr
     other.mListenerCallbacks.clear();
 
     mInputWindowCommands.merge(other.mInputWindowCommands);
+    other.mInputWindowCommands.clear();
 
     return *this;
 }

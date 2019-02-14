@@ -538,6 +538,7 @@ private:
 
     void updateInputFlinger();
     void updateInputWindowInfo();
+    void commitInputWindowCommands();
     void executeInputWindowCommands();
     void updateCursorAsync();
 
@@ -1144,6 +1145,9 @@ private:
     /* ------------------------------------------------------------------------ */
     sp<IInputFlinger> mInputFlinger;
 
+    // Access must be protected by mStateLock.
+    InputWindowCommands mPendingInputWindowCommands;
+    // Should only be accessed by the drawing thread.
     InputWindowCommands mInputWindowCommands;
 
     ui::DisplayPrimaries mInternalDisplayPrimaries;
