@@ -378,6 +378,7 @@ public:
 #ifndef NO_INPUT
         Transaction& setInputWindowInfo(const sp<SurfaceControl>& sc, const InputWindowInfo& info);
         Transaction& transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
+        Transaction& syncInputWindows();
 #endif
 
         // Set a color transform matrix on the given layer on the built-in display.

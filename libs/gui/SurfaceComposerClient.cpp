@@ -1083,6 +1083,11 @@ SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::transfer
     return *this;
 }
 
+SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::syncInputWindows() {
+    mInputWindowCommands.syncInputWindows = true;
+    return *this;
+}
+
 #endif
 
 SurfaceComposerClient::Transaction& SurfaceComposerClient::Transaction::setColorTransform(
