@@ -16,7 +16,12 @@
 
 #pragma once
 
+#include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/CompositionEngine.h>
+#include <compositionengine/impl/LayerCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 
 #include "BufferQueueLayer.h"
 #include "BufferStateLayer.h"
@@ -203,8 +208,17 @@ public:
 
     void setLayerSidebandStream(sp<Layer> layer, sp<NativeHandle> sidebandStream) {
         layer->mDrawingState.sidebandStream = sidebandStream;
-        layer->getBE().compositionInfo.hwc.sidebandStream = sidebandStream;
+        layer->mSidebandStream = sidebandStream;
+        layer->getCompositionLayer()->editState().frontEnd.sidebandStream = sidebandStream;
     }
+
+    void setLayerCompositionType(sp<Layer> layer, HWC2::Composition type) {
+        auto outputLayer = layer->findOutputLayerForDisplay(mFlinger->getDefaultDisplayDevice());
+        LOG_ALWAYS_FATAL_IF(!outputLayer);
+        auto& state = outputLayer->editState();
+        LOG_ALWAYS_FATAL_IF(!outputLayer->getState().hwc);
+        (*state.hwc).hwcCompositionType = static_cast<Hwc2::IComposerClient::Composition>(type);
+    };
 
     void setLayerPotentialCursor(sp<Layer> layer, bool potentialCursor) {
         layer->mPotentialCursor = potentialCursor;

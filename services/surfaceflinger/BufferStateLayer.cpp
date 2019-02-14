@@ -19,15 +19,19 @@
 #define LOG_TAG "BufferStateLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "BufferStateLayer.h"
-#include "ColorLayer.h"
+#include <limits>
 
-#include "TimeStats/TimeStats.h"
-
+#include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
-#include <limits>
+#include "BufferStateLayer.h"
+#include "ColorLayer.h"
+#include "TimeStats/TimeStats.h"
 
 namespace android {
 
@@ -438,9 +442,10 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
-        // replicated in LayerBE until FE/BE is ready to be synchronized
-        getBE().compositionInfo.hwc.sidebandStream = s.sidebandStream;
-        if (getBE().compositionInfo.hwc.sidebandStream != nullptr) {
+        LOG_ALWAYS_FATAL_IF(!getCompositionLayer());
+        mSidebandStream = s.sidebandStream;
+        getCompositionLayer()->editState().frontEnd.sidebandStream = mSidebandStream;
+        if (mSidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -594,8 +599,9 @@ status_t BufferStateLayer::updateActiveBuffer() {
 
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
-    getBE().compositionInfo.mBuffer = mActiveBuffer;
-    getBE().compositionInfo.mBufferSlot = 0;
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.bufferSlot = 0;
 
     return NO_ERROR;
 }
@@ -611,9 +617,10 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::setHwcLayerBuffer(DisplayId displayId) {
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
+void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
+    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
 
     const State& s(getDrawingState());
 

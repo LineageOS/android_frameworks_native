@@ -43,7 +43,9 @@
 #include <compositionengine/Layer.h>
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/RenderSurface.h>
+#include <compositionengine/impl/LayerCompositionState.h>
 #include <compositionengine/impl/OutputCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <dvr/vr_flinger.h>
 #include <gui/BufferQueue.h>
 #include <gui/GuiConfig.h>
@@ -1826,11 +1828,6 @@ void SurfaceFlinger::handleMessageRefresh() {
     mVsyncModulator.onRefreshed(mHadClientComposition);
 
     getBE().mEndOfFrameCompositionInfo = std::move(getBE().mCompositionInfo);
-    for (const auto& [token, display] : mDisplays) {
-        for (auto& compositionInfo : getBE().mEndOfFrameCompositionInfo[token]) {
-            compositionInfo.hwc.hwcLayer = nullptr;
-        }
-    }
 
     mLayersWithQueuedFrames.clear();
 }
@@ -1871,16 +1868,16 @@ void SurfaceFlinger::calculateWorkingSet() {
             for (size_t i = 0; i < currentLayers.size(); i++) {
                 const auto& layer = currentLayers[i];
 
-                if (!layer->hasHwcLayer(*displayId)) {
-                    if (!layer->createHwcLayer(&getHwComposer(), *displayId)) {
-                        layer->forceClientComposition(*displayId);
+                if (!layer->hasHwcLayer(displayDevice)) {
+                    if (!layer->createHwcLayer(&getHwComposer(), displayDevice)) {
+                        layer->forceClientComposition(displayDevice);
                         continue;
                     }
                 }
 
                 layer->setGeometry(displayDevice, i);
                 if (mDebugDisableHWC || mDebugRegion) {
-                    layer->forceClientComposition(*displayId);
+                    layer->forceClientComposition(displayDevice);
                 }
             }
         }
@@ -1900,34 +1897,35 @@ void SurfaceFlinger::calculateWorkingSet() {
         }
         for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             if (layer->isHdrY410()) {
-                layer->forceClientComposition(*displayId);
+                layer->forceClientComposition(displayDevice);
             } else if ((layer->getDataSpace() == Dataspace::BT2020_PQ ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_PQ) &&
                        !profile->hasHDR10Support()) {
-                layer->forceClientComposition(*displayId);
+                layer->forceClientComposition(displayDevice);
             } else if ((layer->getDataSpace() == Dataspace::BT2020_HLG ||
                         layer->getDataSpace() == Dataspace::BT2020_ITU_HLG) &&
                        !profile->hasHLGSupport()) {
-                layer->forceClientComposition(*displayId);
+                layer->forceClientComposition(displayDevice);
             }
 
             // TODO(b/111562338) remove when composer 2.3 is shipped.
             if (layer->hasColorTransform()) {
-                layer->forceClientComposition(*displayId);
+                layer->forceClientComposition(displayDevice);
             }
 
             if (layer->getRoundedCornerState().radius > 0.0f) {
-                layer->forceClientComposition(*displayId);
+                layer->forceClientComposition(displayDevice);
             }
 
-            if (layer->getForceClientComposition(*displayId)) {
+            if (layer->getForceClientComposition(displayDevice)) {
                 ALOGV("[%s] Requesting Client composition", layer->getName().string());
-                layer->setCompositionType(*displayId, HWC2::Composition::Client);
+                layer->setCompositionType(displayDevice,
+                                          Hwc2::IComposerClient::Composition::CLIENT);
                 continue;
             }
 
             const auto& displayState = display->getState();
-            layer->setPerFrameData(*displayId, displayState.transform, displayState.viewport,
+            layer->setPerFrameData(displayDevice, displayState.transform, displayState.viewport,
                                    displayDevice->getSupportedPerFrameMetadata());
         }
 
@@ -1942,20 +1940,15 @@ void SurfaceFlinger::calculateWorkingSet() {
 
     mDrawingState.colorMatrixChanged = false;
 
-    for (const auto& [token, display] : mDisplays) {
-        for (auto& layer : display->getVisibleLayersSortedByZ()) {
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        for (auto& layer : displayDevice->getVisibleLayersSortedByZ()) {
             const auto displayId = display->getId();
-            layer->getBE().compositionInfo.compositionType = layer->getCompositionType(displayId);
-
-            if (displayId) {
-                if (!layer->setHwcLayer(*displayId)) {
-                    ALOGV("Need to create HWCLayer for %s", layer->getName().string());
-                }
-                layer->getBE().compositionInfo.hwc.displayId = *displayId;
-            }
-
+            auto& layerState = layer->getCompositionLayer()->editState().frontEnd;
+            layerState.compositionType = static_cast<Hwc2::IComposerClient::Composition>(
+                    layer->getCompositionType(displayDevice));
+            layer->getBE().compositionInfo.hwc.displayId = *displayId;
             getBE().mCompositionInfo[token].push_back(layer->getBE().compositionInfo);
-            layer->getBE().compositionInfo.hwc.hwcLayer = nullptr;
         }
     }
 }
@@ -2003,7 +1996,7 @@ void SurfaceFlinger::logLayerStats() {
     if (CC_UNLIKELY(mLayerStats.isEnabled())) {
         for (const auto& [token, display] : mDisplays) {
             if (display->isPrimary()) {
-                mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(*display));
+                mLayerStats.logLayerStats(dumpVisibleLayersProtoInfo(display));
                 return;
             }
         }
@@ -2400,13 +2393,13 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         } else {
                             // Clear out the HWC layer if this layer was
                             // previously visible, but no longer is
-                            hwcLayerDestroyed = displayId && layer->destroyHwcLayer(*displayId);
+                            hwcLayerDestroyed = displayId && layer->destroyHwcLayer(displayDevice);
                         }
                     } else {
                         // WM changes display->layerStack upon sleep/awake.
                         // Here we make sure we delete the HWC layers even if
                         // WM changed their layer stack.
-                        hwcLayerDestroyed = displayId && layer->destroyHwcLayer(*displayId);
+                        hwcLayerDestroyed = displayId && layer->destroyHwcLayer(displayDevice);
                     }
 
                     // If a layer is not going to get a release fence because
@@ -2576,8 +2569,7 @@ void SurfaceFlinger::prepareFrame(const sp<DisplayDevice>& displayDevice) {
         return;
     }
 
-    status_t result = display->getRenderSurface()->prepareFrame(
-            getBE().mCompositionInfo[displayDevice->getDisplayToken()]);
+    status_t result = display->getRenderSurface()->prepareFrame();
     ALOGE_IF(result != NO_ERROR, "prepareFrame failed for %s: %d (%s)",
              displayDevice->getDebugName().c_str(), result, strerror(-result));
 }
@@ -2635,9 +2627,10 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             // The layer buffer from the previous frame (if any) is released
             // by HWC only when the release fence from this frame (if any) is
             // signaled.  Always get the release fence from HWC first.
-            if (displayId && layer->hasHwcLayer(*displayId)) {
-                releaseFence = getHwComposer().getLayerReleaseFence(*displayId,
-                                                                    layer->getHwcLayer(*displayId));
+            if (displayId && layer->hasHwcLayer(displayDevice)) {
+                releaseFence =
+                        getHwComposer().getLayerReleaseFence(*displayId,
+                                                             layer->getHwcLayer(displayDevice));
             }
 
             // If the layer was client composited in the previous frame, we
@@ -2645,7 +2638,8 @@ void SurfaceFlinger::postFramebuffer(const sp<DisplayDevice>& displayDevice) {
             // Since we do not track that, always merge with the current
             // client target acquire fence when it is available, even though
             // this is suboptimal.
-            if (layer->getCompositionType(displayId) == HWC2::Composition::Client) {
+            if (layer->getCompositionType(displayDevice) ==
+                Hwc2::IComposerClient::Composition::CLIENT) {
                 releaseFence =
                         Fence::merge("LayerRelease", releaseFence,
                                      display->getRenderSurface()->getClientTargetAcquireFence());
@@ -3562,16 +3556,16 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         const Region viewportRegion(displayState.viewport);
         const Region clip(viewportRegion.intersect(layer->visibleRegion));
         ALOGV("Layer: %s", layer->getName().string());
-        ALOGV("  Composition type: %s", to_string(layer->getCompositionType(displayId)).c_str());
+        ALOGV("  Composition type: %s", toString(layer->getCompositionType(displayDevice)).c_str());
         if (!clip.isEmpty()) {
-            switch (layer->getCompositionType(displayId)) {
-                case HWC2::Composition::Cursor:
-                case HWC2::Composition::Device:
-                case HWC2::Composition::Sideband:
-                case HWC2::Composition::SolidColor: {
+            switch (layer->getCompositionType(displayDevice)) {
+                case Hwc2::IComposerClient::Composition::CURSOR:
+                case Hwc2::IComposerClient::Composition::DEVICE:
+                case Hwc2::IComposerClient::Composition::SIDEBAND:
+                case Hwc2::IComposerClient::Composition::SOLID_COLOR: {
                     LOG_ALWAYS_FATAL_IF(!displayId);
                     const Layer::State& state(layer->getDrawingState());
-                    if (layer->getClearClientTarget(*displayId) && !firstLayer &&
+                    if (layer->getClearClientTarget(displayDevice) && !firstLayer &&
                         layer->isOpaque(state) && (layer->getAlpha() == 1.0f) &&
                         layer->getRoundedCornerState().radius == 0.0f && hasClientComposition) {
                         // never clear the very first layer since we're
@@ -3591,7 +3585,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
                     }
                     break;
                 }
-                case HWC2::Composition::Client: {
+                case Hwc2::IComposerClient::Composition::CLIENT: {
                     renderengine::LayerSettings layerSettings;
                     bool prepared =
                             layer->prepareClientLayer(renderArea, clip, clearRegion, layerSettings);
@@ -4580,7 +4574,6 @@ status_t SurfaceFlinger::doDump(int fd, const DumpArgs& args,
                  })},
                 {"--dump-layer-stats"s, dumper([this](std::string& s) { mLayerStats.dump(s); })},
                 {"--enable-layer-stats"s, dumper([this](std::string&) { mLayerStats.enable(); })},
-                {"--frame-composition"s, dumper(&SurfaceFlinger::dumpFrameCompositionInfo)},
                 {"--frame-events"s, dumper(&SurfaceFlinger::dumpFrameEventsLocked)},
                 {"--latency"s, argsDumper(&SurfaceFlinger::dumpStatsLocked)},
                 {"--latency-clear"s, argsDumper(&SurfaceFlinger::clearStatsLocked)},
@@ -4834,23 +4827,6 @@ void SurfaceFlinger::dumpWideColorInfo(std::string& result) const {
     result.append("\n");
 }
 
-void SurfaceFlinger::dumpFrameCompositionInfo(std::string& result) const {
-    for (const auto& [token, display] : mDisplays) {
-        const auto it = getBE().mEndOfFrameCompositionInfo.find(token);
-        if (it == getBE().mEndOfFrameCompositionInfo.end()) {
-            continue;
-        }
-
-        const auto& compositionInfoList = it->second;
-        StringAppendF(&result, "%s\n", display->getDebugName().c_str());
-        StringAppendF(&result, "numComponents: %zu\n", compositionInfoList.size());
-        for (const auto& compositionInfo : compositionInfoList) {
-            compositionInfo.dump(result, nullptr);
-            result.append("\n");
-        }
-    }
-}
-
 LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const {
     LayersProto layersProto;
     const bool useDrawing = stateSet == LayerVector::StateSet::Drawing;
@@ -4863,26 +4839,27 @@ LayersProto SurfaceFlinger::dumpProtoInfo(LayerVector::StateSet stateSet) const 
     return layersProto;
 }
 
-LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(const DisplayDevice& displayDevice) const {
+LayersProto SurfaceFlinger::dumpVisibleLayersProtoInfo(
+        const sp<DisplayDevice>& displayDevice) const {
     LayersProto layersProto;
 
     SizeProto* resolution = layersProto.mutable_resolution();
-    resolution->set_w(displayDevice.getWidth());
-    resolution->set_h(displayDevice.getHeight());
+    resolution->set_w(displayDevice->getWidth());
+    resolution->set_h(displayDevice->getHeight());
 
-    auto display = displayDevice.getCompositionDisplay();
+    auto display = displayDevice->getCompositionDisplay();
     const auto& displayState = display->getState();
 
     layersProto.set_color_mode(decodeColorMode(displayState.colorMode));
     layersProto.set_color_transform(decodeColorTransform(displayState.colorTransform));
     layersProto.set_global_transform(displayState.orientation);
 
-    const auto displayId = displayDevice.getId();
+    const auto displayId = displayDevice->getId();
     LOG_ALWAYS_FATAL_IF(!displayId);
     mDrawingState.traverseInZOrder([&](Layer* layer) {
-        if (!layer->visibleRegion.isEmpty() && layer->getBE().mHwcLayers.count(*displayId)) {
+        if (!layer->visibleRegion.isEmpty() && !display->getOutputLayersOrderedByZ().empty()) {
             LayerProto* layerProto = layersProto.add_layers();
-            layer->writeToProto(layerProto, *displayId);
+            layer->writeToProto(layerProto, displayDevice);
         }
     });
 
@@ -4951,10 +4928,6 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
         result.append("\n");
     }
 
-    result.append("\nFrame-Composition information:\n");
-    dumpFrameCompositionInfo(result);
-    result.append("\n");
-
     /*
      * Dump Display state
      */
@@ -5018,7 +4991,9 @@ void SurfaceFlinger::dumpAllLocked(const DumpArgs& args, std::string& result) co
 
         StringAppendF(&result, "Display %s HWC layers:\n", to_string(*displayId).c_str());
         Layer::miniDumpHeader(result);
-        mCurrentState.traverseInZOrder([&](Layer* layer) { layer->miniDump(result, *displayId); });
+        const sp<DisplayDevice> displayDevice = display;
+        mCurrentState.traverseInZOrder(
+                [&](Layer* layer) { layer->miniDump(result, displayDevice); });
         result.append("\n");
     }
 
@@ -5570,6 +5545,7 @@ status_t SurfaceFlinger::captureLayers(const sp<IBinder>& layerHandleBinder,
         }
         bool isSecure() const override { return false; }
         bool needsFiltering() const override { return mNeedsFiltering; }
+        const sp<const DisplayDevice> getDisplayDevice() const override { return nullptr; }
         Rect getSourceCrop() const override {
             if (mCrop.isEmpty()) {
                 return getBounds();

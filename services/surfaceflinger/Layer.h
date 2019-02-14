@@ -51,6 +51,7 @@
 #include "SurfaceFlinger.h"
 #include "TransactionCompletedThread.h"
 
+#include "DisplayHardware/ComposerHal.h"
 #include "DisplayHardware/HWComposer.h"
 #include "RenderArea.h"
 
@@ -70,6 +71,7 @@ class LayerBE;
 
 namespace compositionengine {
 class Layer;
+class OutputLayer;
 }
 
 namespace impl {
@@ -419,7 +421,7 @@ public:
     void writeToProto(LayerProto* layerInfo,
                       LayerVector::StateSet stateSet = LayerVector::StateSet::Drawing);
 
-    void writeToProto(LayerProto* layerInfo, DisplayId displayId);
+    void writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice);
 
     virtual Geometry getActiveGeometry(const Layer::State& s) const { return s.active_legacy; }
     virtual uint32_t getActiveWidth(const Layer::State& s) const { return s.active_legacy.w; }
@@ -443,17 +445,19 @@ public:
     virtual bool isHdrY410() const { return false; }
 
     void setGeometry(const sp<const DisplayDevice>& display, uint32_t z);
-    void forceClientComposition(DisplayId displayId);
-    bool getForceClientComposition(DisplayId displayId);
-    virtual void setPerFrameData(DisplayId displayId, const ui::Transform& transform,
-                                 const Rect& viewport, int32_t supportedPerFrameMetadata) = 0;
+    void forceClientComposition(const sp<DisplayDevice>& display);
+    bool getForceClientComposition(const sp<DisplayDevice>& display);
+    virtual void setPerFrameData(const sp<const DisplayDevice>& display,
+                                 const ui::Transform& transform, const Rect& viewport,
+                                 int32_t supportedPerFrameMetadata) = 0;
 
     // callIntoHwc exists so we can update our local state and call
     // acceptDisplayChanges without unnecessarily updating the device's state
-    void setCompositionType(DisplayId displayId, HWC2::Composition type, bool callIntoHwc = true);
-    HWC2::Composition getCompositionType(const std::optional<DisplayId>& displayId) const;
-    void setClearClientTarget(DisplayId displayId, bool clear);
-    bool getClearClientTarget(DisplayId displayId) const;
+    void setCompositionType(const sp<const DisplayDevice>& display,
+                            Hwc2::IComposerClient::Composition type);
+    Hwc2::IComposerClient::Composition getCompositionType(
+            const sp<const DisplayDevice>& display) const;
+    bool getClearClientTarget(const sp<const DisplayDevice>& display) const;
     void updateCursorPosition(const sp<const DisplayDevice>& display);
 
     /*
@@ -567,27 +571,13 @@ public:
 
     // -----------------------------------------------------------------------
 
-    bool createHwcLayer(HWComposer* hwc, DisplayId displayId);
-    bool destroyHwcLayer(DisplayId displayId);
-    void destroyHwcLayersForAllDisplays();
-    void destroyAllHwcLayersPlusChildren();
+    bool createHwcLayer(HWComposer* hwc, const sp<DisplayDevice>& display);
+    bool destroyHwcLayer(const sp<DisplayDevice>& display);
+    bool destroyHwcLayersForAllDisplays();
+    bool destroyAllHwcLayersPlusChildren();
 
-    bool hasHwcLayer(DisplayId displayId) const { return getBE().mHwcLayers.count(displayId) > 0; }
-
-    HWC2::Layer* getHwcLayer(DisplayId displayId) {
-        if (!hasHwcLayer(displayId)) {
-            return nullptr;
-        }
-        return getBE().mHwcLayers[displayId].layer.get();
-    }
-
-    bool setHwcLayer(DisplayId displayId) {
-        if (!hasHwcLayer(displayId)) {
-            return false;
-        }
-        getBE().compositionInfo.hwc.hwcLayer = getBE().mHwcLayers[displayId].layer;
-        return true;
-    }
+    bool hasHwcLayer(const sp<const DisplayDevice>& displayDevice);
+    HWC2::Layer* getHwcLayer(const sp<const DisplayDevice>& displayDevice);
 
     // -----------------------------------------------------------------------
     void clearWithOpenGL(const RenderArea& renderArea) const;
@@ -600,7 +590,7 @@ public:
 
     /* always call base class first */
     static void miniDumpHeader(std::string& result);
-    void miniDump(std::string& result, DisplayId displayId) const;
+    void miniDump(std::string& result, const sp<DisplayDevice>& display) const;
     void dumpFrameStats(std::string& result) const;
     void dumpFrameEvents(std::string& result);
     void clearFrameStats();
@@ -675,6 +665,9 @@ public:
     virtual FloatRect computeSourceBounds(const FloatRect& parentBounds) const {
         return parentBounds;
     }
+
+    compositionengine::OutputLayer* findOutputLayerForDisplay(
+            const sp<const DisplayDevice>& display) const;
 
 protected:
     // constant
@@ -832,6 +825,7 @@ protected:
     FenceTimeline mReleaseTimeline;
 
     // main thread
+    sp<NativeHandle> mSidebandStream;
     // Active buffer fields
     sp<GraphicBuffer> mActiveBuffer;
     sp<Fence> mActiveBufferFence;
@@ -920,11 +914,11 @@ private:
 
 } // namespace android
 
-#define RETURN_IF_NO_HWC_LAYER(displayId, ...)                                         \
+#define RETURN_IF_NO_HWC_LAYER(displayDevice, ...)                                     \
     do {                                                                               \
-        if (!hasHwcLayer(displayId)) {                                                 \
+        if (!hasHwcLayer(displayDevice)) {                                             \
             ALOGE("[%s] %s failed: no HWC layer found for display %s", mName.string(), \
-                  __FUNCTION__, to_string(displayId).c_str());                         \
+                  __FUNCTION__, displayDevice->getDebugName().c_str());                \
             return __VA_ARGS__;                                                        \
         }                                                                              \
     } while (false)

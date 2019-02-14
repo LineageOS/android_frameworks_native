@@ -17,6 +17,7 @@
 #undef LOG_TAG
 #define LOG_TAG "CompositionTest"
 
+#include <compositionengine/Display.h>
 #include <compositionengine/mock/DisplaySurface.h>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -753,12 +754,16 @@ struct BaseLayerVariant {
     }
 
     static void injectLayer(CompositionTest* test, sp<Layer> layer) {
+        std::vector<std::unique_ptr<compositionengine::OutputLayer>> outputLayers;
+        outputLayers.emplace_back(
+                test->mDisplay->getCompositionDisplay()
+                        ->getOrCreateOutputLayer(layer->getCompositionLayer(), layer));
+        test->mDisplay->getCompositionDisplay()->setOutputLayersOrderedByZ(std::move(outputLayers));
+
         EXPECT_CALL(*test->mComposer, createLayer(HWC_DISPLAY, _))
                 .WillOnce(DoAll(SetArgPointee<1>(HWC_LAYER), Return(Error::NONE)));
 
-        const auto displayId = test->mDisplay->getId();
-        ASSERT_TRUE(displayId);
-        layer->createHwcLayer(&test->mFlinger.getHwComposer(), *displayId);
+        layer->createHwcLayer(&test->mFlinger.getHwComposer(), test->mDisplay);
 
         Mock::VerifyAndClear(test->mComposer);
 
@@ -771,10 +776,12 @@ struct BaseLayerVariant {
     static void cleanupInjectedLayers(CompositionTest* test) {
         EXPECT_CALL(*test->mComposer, destroyLayer(HWC_DISPLAY, HWC_LAYER))
                 .WillOnce(Return(Error::NONE));
-        const auto displayId = test->mDisplay->getId();
-        ASSERT_TRUE(displayId);
+
+        test->mDisplay->getCompositionDisplay()->setOutputLayersOrderedByZ(
+                std::vector<std::unique_ptr<compositionengine::OutputLayer>>());
+
         for (auto layer : test->mFlinger.mutableDrawingState().layersSortedByZ) {
-            layer->destroyHwcLayer(*displayId);
+            layer->destroyHwcLayer(test->mDisplay);
         }
         test->mFlinger.mutableDrawingState().layersSortedByZ.clear();
     }
@@ -963,8 +970,8 @@ struct RECompositionResultVariant : public CompositionResultBaseVariant {
 };
 
 struct ForcedClientCompositionResultVariant : public RECompositionResultVariant {
-    static void setupLayerState(CompositionTest*, sp<Layer> layer) {
-        layer->forceClientComposition(DEFAULT_DISPLAY_ID);
+    static void setupLayerState(CompositionTest* test, sp<Layer> layer) {
+        layer->forceClientComposition(test->mDisplay);
     }
 
     template <typename Case>

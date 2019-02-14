@@ -17,8 +17,10 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 
 namespace android::compositionengine::impl {
 
@@ -32,10 +34,17 @@ public:
     compositionengine::Layer& getLayer() const override;
     compositionengine::LayerFE& getLayerFE() const override;
 
+    const OutputLayerCompositionState& getState() const override;
+    OutputLayerCompositionState& editState() override;
+
+    void dump(std::string& result) const override;
+
 private:
     const compositionengine::Output& mOutput;
     std::shared_ptr<compositionengine::Layer> mLayer;
     sp<compositionengine::LayerFE> mLayerFE;
+
+    OutputLayerCompositionState mState;
 };
 
 std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(

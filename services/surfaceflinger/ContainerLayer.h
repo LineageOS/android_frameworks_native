@@ -33,8 +33,8 @@ public:
 
     bool canReceiveInput() const override;
 
-    void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
-                         int32_t supportedPerFrameMetadata) override;
+    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
+                         const Rect& viewport, int32_t supportedPerFrameMetadata) override;
 
     bool isCreatedFromMainThread() const override { return true; }
 

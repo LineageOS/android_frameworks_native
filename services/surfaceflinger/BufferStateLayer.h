@@ -131,7 +131,7 @@ private:
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void setHwcLayerBuffer(DisplayId displayId) override;
+    void setHwcLayerBuffer(const sp<const DisplayDevice>& display) override;
 
 private:
     void onFirstRef() override;

@@ -39,6 +39,7 @@ bool ContainerLayer::canReceiveInput() const {
     return !isHiddenByPolicy();
 }
 
-void ContainerLayer::setPerFrameData(DisplayId, const ui::Transform&, const Rect&, int32_t) {}
+void ContainerLayer::setPerFrameData(const sp<const DisplayDevice>&, const ui::Transform&,
+                                     const Rect&, int32_t) {}
 
 } // namespace android

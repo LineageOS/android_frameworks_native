@@ -31,7 +31,6 @@ cc_test {
         "libutils",
     ],
     static_libs: [
-        "libcompositionengine",
         "libgmock",
         "librenderengine",
         "libtrace_proto",
