@@ -34,23 +34,5 @@ int64_t calculate_median(std::vector<int64_t>* v) {
     return v->at(n);
 }
 
-int64_t calculate_mode(const std::vector<int64_t>& v) {
-    if (v.empty()) {
-        return 0;
-    }
-
-    // Create a map with all the counts for the indivicual values in the vector.
-    std::unordered_map<int64_t, int64_t> counts;
-    for (int64_t value : v) {
-        counts[value]++;
-    }
-
-    // Sort the map, and return the number with the highest count. If two numbers have
-    // the same count, first one is returned.
-    using ValueType = const decltype(counts)::value_type&;
-    const auto compareCounts = [](ValueType l, ValueType r) { return l.second <= r.second; };
-    return std::max_element(counts.begin(), counts.end(), compareCounts)->first;
-}
-
 } // namespace scheduler
 } // namespace android
