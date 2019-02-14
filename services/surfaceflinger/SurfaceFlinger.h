@@ -534,11 +534,11 @@ private:
     void handleMessageRefresh();
 
     void handleTransaction(uint32_t transactionFlags);
-    void handleTransactionLocked(uint32_t transactionFlags);
+    void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
 
     void updateInputFlinger();
     void updateInputWindowInfo();
-    void commitInputWindowCommands();
+    void commitInputWindowCommands() REQUIRES(mStateLock);
     void executeInputWindowCommands();
     void updateCursorAsync();
 
@@ -567,7 +567,8 @@ private:
                                        const Vector<ComposerState>& states);
     uint32_t setClientStateLocked(const ComposerState& composerState);
     uint32_t setDisplayStateLocked(const DisplayState& s);
-    uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands);
+    uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
+            REQUIRES(mStateLock);
 
     /* ------------------------------------------------------------------------
      * Layer management
@@ -1145,9 +1146,8 @@ private:
     /* ------------------------------------------------------------------------ */
     sp<IInputFlinger> mInputFlinger;
 
-    // Access must be protected by mStateLock.
-    InputWindowCommands mPendingInputWindowCommands;
-    // Should only be accessed by the drawing thread.
+    InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
+    // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
 
     ui::DisplayPrimaries mInternalDisplayPrimaries;

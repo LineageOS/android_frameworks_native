@@ -234,6 +234,7 @@ public:
     }
 
     auto handleTransactionLocked(uint32_t transactionFlags) {
+        Mutex::Autolock _l(mFlinger->mStateLock);
         return mFlinger->handleTransactionLocked(transactionFlags);
     }
 
