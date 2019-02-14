@@ -2952,6 +2952,10 @@ void SurfaceFlinger::updateInputFlinger() {
     if (mVisibleRegionsDirty || mInputInfoChanged) {
         mInputInfoChanged = false;
         updateInputWindowInfo();
+    } else if (mInputWindowCommands.syncInputWindows) {
+        // If the caller requested to sync input windows, but there are no
+        // changes to input windows, notify immediately.
+        setInputWindowsFinished();
     }
 
     executeInputWindowCommands();
@@ -3681,13 +3685,16 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
         }
-        while (mTransactionPending) {
+
+        mPendingSyncInputWindows = mPendingInputWindowCommands.syncInputWindows;
+        while (mTransactionPending || mPendingSyncInputWindows) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 // just in case something goes wrong in SF, return to the
                 // called after a few seconds.
                 ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
                 mTransactionPending = false;
+                mPendingSyncInputWindows = false;
                 break;
             }
         }
@@ -5657,7 +5664,12 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setInputWindowsFinished() {}
+void SurfaceFlinger::setInputWindowsFinished() {
+    Mutex::Autolock _l(mStateLock);
+
+    mPendingSyncInputWindows = false;
+    mTransactionCV.broadcast();
+}
 
 // ---------------------------------------------------------------------------
 
