@@ -1,6 +1,4 @@
 
-#include <sysprop/SurfaceFlingerProperties.sysprop.h>
-
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
