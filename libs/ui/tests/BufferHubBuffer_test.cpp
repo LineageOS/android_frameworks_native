@@ -214,8 +214,8 @@ TEST_F(BufferHubBufferTest, ImportInvalidToken) {
     native_handle_t* token = native_handle_create(/*numFds=*/0, /*numInts=*/1);
     token->data[0] = 0;
 
-    auto b1 = BufferHubBuffer::import(NativeHandle::create(token, /*ownHandle=*/true));
-    native_handle_delete(token);
+    sp<NativeHandle> tokenHandle = NativeHandle::create(token, /*ownHandle=*/true);
+    auto b1 = BufferHubBuffer::import(tokenHandle);
 
     EXPECT_THAT(b1, IsNull());
 }
