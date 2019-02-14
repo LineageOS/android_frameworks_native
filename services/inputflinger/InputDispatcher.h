@@ -21,6 +21,7 @@
 #include <input/InputApplication.h>
 #include <input/InputTransport.h>
 #include <input/InputWindow.h>
+#include <input/ISetInputWindowsListener.h>
 #include <utils/KeyedVector.h>
 #include <utils/Vector.h>
 #include <utils/threads.h>
@@ -38,7 +39,6 @@
 
 #include "InputListener.h"
 #include "InputReporterInterface.h"
-
 
 namespace android {
 
@@ -315,7 +315,8 @@ public:
      * This method may be called on any thread (usually by the input manager).
      */
     virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
-            int32_t displayId) = 0;
+            int32_t displayId,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr) = 0;
 
     /* Sets the focused application on the given display.
      *
@@ -406,7 +407,8 @@ public:
             uint32_t policyFlags);
 
     virtual void setInputWindows(const Vector<sp<InputWindowHandle> >& inputWindowHandles,
-            int32_t displayId);
+            int32_t displayId,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener = nullptr);
     virtual void setFocusedApplication(int32_t displayId,
             const sp<InputApplicationHandle>& inputApplicationHandle);
     virtual void setFocusedDisplay(int32_t displayId);

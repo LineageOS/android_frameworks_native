@@ -33,6 +33,7 @@
 #include <gui/LayerState.h>
 #include <gui/OccupancyTracker.h>
 #include <hardware/hwcomposer_defs.h>
+#include <input/ISetInputWindowsListener.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
 #include <serviceutils/PriorityDumper.h>
@@ -201,6 +202,14 @@ public:
     std::map<wp<IBinder>, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
 };
 
+class SetInputWindowsListener : public BnSetInputWindowsListener {
+public:
+    SetInputWindowsListener(const sp<SurfaceFlinger>& flinger) : mFlinger(flinger) {}
+    void onSetInputWindowsFinished() override;
+
+private:
+    const sp<SurfaceFlinger> mFlinger;
+};
 
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
@@ -348,6 +357,8 @@ public:
         return mTransactionCompletedThread;
     }
 
+    void setInputWindowsFinished();
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
@@ -477,7 +488,6 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
-    void setInputWindowsFinished() override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -1112,6 +1122,8 @@ private:
     InputWindowCommands mInputWindowCommands;
 
     ui::DisplayPrimaries mInternalDisplayPrimaries;
+
+    sp<SetInputWindowsListener> mSetInputWindowsListener;
 };
 }; // namespace android
 

@@ -806,12 +806,6 @@ public:
         }
         return error;
     }
-
-    virtual void setInputWindowsFinished() {
-        Parcel data, reply;
-        data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
-        remote()->transact(BnSurfaceComposer::SET_INPUT_WINDOWS_FINISHED, data, &reply);
-    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1322,11 +1316,6 @@ status_t BnSurfaceComposer::onTransact(
                 return result;
             }
             return removeRegionSamplingListener(listener);
-        }
-        case SET_INPUT_WINDOWS_FINISHED: {
-            CHECK_INTERFACE(ISurfaceComposer, data, reply);
-            setInputWindowsFinished();
-            return NO_ERROR;
         }
         default: {
             return BBinder::onTransact(code, data, reply, flags);

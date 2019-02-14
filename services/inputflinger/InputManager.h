@@ -29,6 +29,7 @@
 
 #include <input/Input.h>
 #include <input/InputTransport.h>
+#include <input/ISetInputWindowsListener.h>
 
 #include <input/IInputFlinger.h>
 #include <utils/Errors.h>
@@ -93,7 +94,8 @@ public:
     virtual sp<InputClassifierInterface> getClassifier();
     virtual sp<InputDispatcherInterface> getDispatcher();
 
-    virtual void setInputWindows(const Vector<InputWindowInfo>& handles);
+    virtual void setInputWindows(const Vector<InputWindowInfo>& handles,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener);
     virtual void transferTouchFocus(const sp<IBinder>& fromToken, const sp<IBinder>& toToken);
 
     virtual void registerInputChannel(const sp<InputChannel>& channel);

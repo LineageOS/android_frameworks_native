@@ -103,7 +103,8 @@ public:
     }
 };
 
-void InputManager::setInputWindows(const Vector<InputWindowInfo>& infos) {
+void InputManager::setInputWindows(const Vector<InputWindowInfo>& infos,
+        const sp<ISetInputWindowsListener>& setInputWindowsListener) {
     std::unordered_map<int32_t, Vector<sp<InputWindowHandle>>> handlesPerDisplay;
 
     Vector<sp<InputWindowHandle>> handles;
@@ -112,7 +113,7 @@ void InputManager::setInputWindows(const Vector<InputWindowInfo>& infos) {
         handlesPerDisplay[info.displayId].add(new BinderWindowHandle(info));
     }
     for (auto const& i : handlesPerDisplay) {
-        mDispatcher->setInputWindows(i.second, i.first);
+        mDispatcher->setInputWindows(i.second, i.first, setInputWindowsListener);
     }
 }
 

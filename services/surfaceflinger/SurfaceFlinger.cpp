@@ -297,7 +297,9 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
-        mCompositionEngine{getFactory().createCompositionEngine()} {}
+        mCompositionEngine{getFactory().createCompositionEngine()} {
+    mSetInputWindowsListener = new SetInputWindowsListener(this);
+}
 
 SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
       : SurfaceFlinger(factory, SkipInitialization) {
@@ -2948,7 +2950,10 @@ void SurfaceFlinger::updateInputWindowInfo() {
             inputHandles.add(layer->fillInputInfo());
         }
     });
-    mInputFlinger->setInputWindows(inputHandles);
+
+    mInputFlinger->setInputWindows(inputHandles,
+                                   mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
+                                                                         : nullptr);
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -4907,8 +4912,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case IS_WIDE_COLOR_DISPLAY:
-        case SET_INPUT_WINDOWS_FINISHED: {
+        case IS_WIDE_COLOR_DISPLAY: {
             return OK;
         }
         case CAPTURE_LAYERS:
@@ -5665,6 +5669,12 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
             visitor(layer);
         });
     }
+}
+
+// ----------------------------------------------------------------------------
+
+void SetInputWindowsListener::onSetInputWindowsFinished() {
+    mFlinger->setInputWindowsFinished();
 }
 
 }; // namespace android
