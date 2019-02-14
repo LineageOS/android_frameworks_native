@@ -94,7 +94,7 @@ public:
      * pressed (not hovering).
      */
     virtual void setSpots(const PointerCoords* spotCoords, const uint32_t* spotIdToIndex,
-            BitSet32 spotIdBits) = 0;
+            BitSet32 spotIdBits, int32_t displayId) = 0;
 
     /* Removes all spots. */
     virtual void clearSpots() = 0;
