@@ -352,6 +352,8 @@ class RunDex2Oat : public ExecVHelper {
         bool generate_minidebug_info = kEnableMinidebugInfo &&
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
+        std::string boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+
         // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
         // use arraysize instead.
         std::string zip_fd_arg = StringPrintf("--zip-fd=%d", zip_fd);
@@ -437,6 +439,7 @@ class RunDex2Oat : public ExecVHelper {
         AddArg(instruction_set_variant_arg);
         AddArg(instruction_set_features_arg);
 
+        AddRuntimeArg(boot_image);
         AddRuntimeArg(dex2oat_Xms_arg);
         AddRuntimeArg(dex2oat_Xmx_arg);
 
