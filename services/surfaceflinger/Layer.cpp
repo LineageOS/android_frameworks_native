@@ -2125,11 +2125,15 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     auto parent = useDrawing ? mDrawingParent.promote() : mCurrentParent.promote();
     if (parent != nullptr) {
         layerInfo->set_parent(parent->sequence);
+    } else {
+        layerInfo->set_parent(-1);
     }
 
     auto zOrderRelativeOf = state.zOrderRelativeOf.promote();
     if (zOrderRelativeOf != nullptr) {
         layerInfo->set_z_order_relative_of(zOrderRelativeOf->sequence);
+    } else {
+        layerInfo->set_z_order_relative_of(-1);
     }
 
     // XXX getBE().compositionInfo.mBuffer is not protected
