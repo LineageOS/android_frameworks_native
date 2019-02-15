@@ -351,13 +351,12 @@ const ColorSpace ColorSpace::ACEScg() {
     };
 }
 
-std::unique_ptr<float3> ColorSpace::createLUT(uint32_t size,
-        const ColorSpace& src, const ColorSpace& dst) {
-
+std::unique_ptr<float3[]> ColorSpace::createLUT(uint32_t size, const ColorSpace& src,
+                                                const ColorSpace& dst) {
     size = clamp(size, 2u, 256u);
     float m = 1.0f / float(size - 1);
 
-    std::unique_ptr<float3> lut(new float3[size * size * size]);
+    std::unique_ptr<float3[]> lut(new float3[size * size * size]);
     float3* data = lut.get();
 
     ColorSpaceConnector connector(src, dst);
