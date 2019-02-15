@@ -29,6 +29,7 @@ cc_library {
         "KeyCharacterMap.cpp",
         "KeyLayoutMap.cpp",
         "VirtualKeyMap.cpp",
+        "TouchVideoFrame.cpp",
     ],
 
     clang: true,
