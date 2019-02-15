@@ -2586,21 +2586,26 @@ Dumpstate::RunStatus Dumpstate::CopyBugreportIfUserConsented() {
     return Dumpstate::RunStatus::ERROR;
 }
 
-/* Main entry point for dumpstate binary. */
-int run_main(int argc, char* argv[]) {
+Dumpstate::RunStatus Dumpstate::ParseCommandlineAndRun(int argc, char* argv[]) {
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     Dumpstate::RunStatus status = options->Initialize(argc, argv);
     if (status == Dumpstate::RunStatus::OK) {
-        ds.SetOptions(std::move(options));
+        SetOptions(std::move(options));
         // When directly running dumpstate binary, the output is not expected to be written
         // to any external file descriptor.
-        assert(ds.options_->bugreport_fd.get() == -1);
+        assert(options_->bugreport_fd.get() == -1);
 
         // calling_uid and calling_package are for user consent to share the bugreport with
         // an app; they are irrelvant here because bugreport is only written to a local
         // directory, and not shared.
-        status = ds.Run(-1 /* calling_uid */, "" /* calling_package */);
+        status = Run(-1 /* calling_uid */, "" /* calling_package */);
     }
+    return status;
+}
+
+/* Main entry point for dumpstate binary. */
+int run_main(int argc, char* argv[]) {
+    Dumpstate::RunStatus status = ds.ParseCommandlineAndRun(argc, argv);
 
     switch (status) {
         case Dumpstate::RunStatus::OK:
