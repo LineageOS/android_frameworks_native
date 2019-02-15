@@ -236,9 +236,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
 
-    nsecs_t expectedPresentTime = mFlinger->mUseScheduler
-            ? mFlinger->mScheduler->expectedPresentTime()
-            : mFlinger->mPrimaryDispSync->expectedPresentTime();
+    nsecs_t expectedPresentTime = mFlinger->mScheduler->expectedPresentTime();
 
     if (isRemovedFromCurrentState()) {
         expectedPresentTime = 0;
@@ -400,10 +398,8 @@ void BufferQueueLayer::onFrameAvailable(const BufferItem& item) {
     // Add this buffer from our internal queue tracker
     { // Autolock scope
         // Report the requested present time to the Scheduler.
-        if (mFlinger->mUseScheduler) {
-            mFlinger->mScheduler->addFramePresentTimeForLayer(item.mTimestamp,
-                                                              item.mIsAutoTimestamp, mName.c_str());
-        }
+        mFlinger->mScheduler->addFramePresentTimeForLayer(item.mTimestamp, item.mIsAutoTimestamp,
+                                                          mName.c_str());
 
         Mutex::Autolock lock(mQueueItemLock);
         // Reset the frame number tracker when we receive the first buffer after

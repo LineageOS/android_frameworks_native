@@ -189,6 +189,49 @@ void Scheduler::disableHardwareVsync(bool makeUnavailable) {
     }
 }
 
+void Scheduler::resyncToHardwareVsync(bool makeAvailable, nsecs_t period) {
+    {
+        std::lock_guard<std::mutex> lock(mHWVsyncLock);
+        if (makeAvailable) {
+            mHWVsyncAvailable = makeAvailable;
+        } else if (!mHWVsyncAvailable) {
+            // Hardware vsync is not currently available, so abort the resync
+            // attempt for now
+            return;
+        }
+    }
+
+    if (period <= 0) {
+        return;
+    }
+
+    setVsyncPeriod(period);
+}
+
+ResyncCallback Scheduler::makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod) {
+    std::weak_ptr<VsyncState> ptr = mPrimaryVsyncState;
+    return [ptr, getVsyncPeriod = std::move(getVsyncPeriod)]() {
+        if (const auto vsync = ptr.lock()) {
+            vsync->resync(getVsyncPeriod);
+        }
+    };
+}
+
+void Scheduler::VsyncState::resync(const GetVsyncPeriod& getVsyncPeriod) {
+    static constexpr nsecs_t kIgnoreDelay = ms2ns(500);
+
+    const nsecs_t now = systemTime();
+    const nsecs_t last = lastResyncTime.exchange(now);
+
+    if (now - last > kIgnoreDelay) {
+        scheduler.resyncToHardwareVsync(false, getVsyncPeriod());
+    }
+}
+
+void Scheduler::setRefreshSkipCount(int count) {
+    mPrimaryDispSync->setRefreshSkipCount(count);
+}
+
 void Scheduler::setVsyncPeriod(const nsecs_t period) {
     std::lock_guard<std::mutex> lock(mHWVsyncLock);
     mPrimaryDispSync->reset();
@@ -227,16 +270,6 @@ void Scheduler::addPresentFence(const std::shared_ptr<FenceTime>& fenceTime) {
 
 void Scheduler::setIgnorePresentFences(bool ignore) {
     mPrimaryDispSync->setIgnorePresentFences(ignore);
-}
-
-void Scheduler::makeHWSyncAvailable(bool makeAvailable) {
-    std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    mHWVsyncAvailable = makeAvailable;
-}
-
-bool Scheduler::getHWSyncAvailable() {
-    std::lock_guard<std::mutex> lock(mHWVsyncLock);
-    return mHWVsyncAvailable;
 }
 
 nsecs_t Scheduler::expectedPresentTime() {

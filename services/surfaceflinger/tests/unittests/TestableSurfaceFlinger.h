@@ -299,7 +299,6 @@ public:
 
     const auto& getAnimFrameTracker() const { return mFlinger->mAnimFrameTracker; }
     const auto& getHasPoweredOff() const { return mFlinger->mHasPoweredOff; }
-    const auto& getHWVsyncAvailable() const { return mFlinger->mHWVsyncAvailable; }
     const auto& getVisibleRegionsDirty() const { return mFlinger->mVisibleRegionsDirty; }
     auto& getHwComposer() const {
         return static_cast<impl::HWComposer&>(mFlinger->getHwComposer());
@@ -320,18 +319,12 @@ public:
     auto& mutableDisplayColorSetting() { return mFlinger->mDisplayColorSetting; }
     auto& mutableDisplays() { return mFlinger->mDisplays; }
     auto& mutableDrawingState() { return mFlinger->mDrawingState; }
-    auto& mutableEventControlThread() { return mFlinger->mEventControlThread; }
     auto& mutableEventQueue() { return mFlinger->mEventQueue; }
-    auto& mutableEventThread() { return mFlinger->mEventThread; }
-    auto& mutableSFEventThread() { return mFlinger->mSFEventThread; }
     auto& mutableGeometryInvalid() { return mFlinger->mGeometryInvalid; }
-    auto& mutableHWVsyncAvailable() { return mFlinger->mHWVsyncAvailable; }
     auto& mutableInterceptor() { return mFlinger->mInterceptor; }
     auto& mutableMainThreadId() { return mFlinger->mMainThreadId; }
     auto& mutablePendingHotplugEvents() { return mFlinger->mPendingHotplugEvents; }
     auto& mutablePhysicalDisplayTokens() { return mFlinger->mPhysicalDisplayTokens; }
-    auto& mutablePrimaryDispSync() { return mFlinger->mPrimaryDispSync; }
-    auto& mutablePrimaryHWVsyncEnabled() { return mFlinger->mPrimaryHWVsyncEnabled; }
     auto& mutableTexturePool() { return mFlinger->mTexturePool; }
     auto& mutableTransactionFlags() { return mFlinger->mTransactionFlags; }
     auto& mutableUseHwcVirtualDisplays() { return mFlinger->mUseHwcVirtualDisplays; }
@@ -341,6 +334,9 @@ public:
     auto& mutableHwcPhysicalDisplayIdMap() { return getHwComposer().mPhysicalDisplayIdMap; }
     auto& mutableInternalHwcDisplayId() { return getHwComposer().mInternalHwcDisplayId; }
     auto& mutableExternalHwcDisplayId() { return getHwComposer().mExternalHwcDisplayId; }
+    auto& mutableScheduler() { return mFlinger->mScheduler; }
+    auto& mutableAppConnectionHandle() { return mFlinger->mAppConnectionHandle; }
+    auto& mutableSfConnectionHandle() { return mFlinger->mSfConnectionHandle; }
 
     ~TestableSurfaceFlinger() {
         // All these pointer and container clears help ensure that GMock does
@@ -348,12 +344,9 @@ public:
         // still be referenced by something despite our best efforts to destroy
         // it after each test is done.
         mutableDisplays().clear();
-        mutableEventControlThread().reset();
         mutableEventQueue().reset();
-        mutableEventThread().reset();
-        mutableSFEventThread().reset();
         mutableInterceptor().reset();
-        mutablePrimaryDispSync().reset();
+        mutableScheduler().reset();
         mFlinger->mCompositionEngine->setHwComposer(std::unique_ptr<HWComposer>());
         mFlinger->mCompositionEngine->setRenderEngine(
                 std::unique_ptr<renderengine::RenderEngine>());
