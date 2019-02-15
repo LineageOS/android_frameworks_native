@@ -6453,4 +6453,52 @@ TEST_F(MultiTouchInputMapperTest, VideoFrames_ReceivedByListener) {
     ASSERT_EQ(std::vector<TouchVideoFrame>(), motionArgs.videoFrames);
 }
 
+TEST_F(MultiTouchInputMapperTest, VideoFrames_AreRotated) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addMapperAndConfigure(mapper);
+    // Unrotated video frame
+    TouchVideoFrame frame(3, 2, {1, 2, 3, 4, 5, 6}, {1, 2});
+    NotifyMotionArgs motionArgs;
+
+    // Test all 4 orientations
+    for (int32_t orientation : {DISPLAY_ORIENTATION_0, DISPLAY_ORIENTATION_90,
+             DISPLAY_ORIENTATION_180, DISPLAY_ORIENTATION_270}) {
+        SCOPED_TRACE("Orientation " + StringPrintf("%i", orientation));
+        clearViewports();
+        prepareDisplay(orientation);
+        std::vector<TouchVideoFrame> frames{frame};
+        mFakeEventHub->setVideoFrames({{mDevice->getId(), frames}});
+        processPosition(mapper, 100, 200);
+        processSync(mapper);
+        ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+        frames[0].rotate(orientation);
+        ASSERT_EQ(frames, motionArgs.videoFrames);
+    }
+}
+
+TEST_F(MultiTouchInputMapperTest, VideoFrames_MultipleFramesAreRotated) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addMapperAndConfigure(mapper);
+    // Unrotated video frames. There's no rule that they must all have the same dimensions,
+    // so mix these.
+    TouchVideoFrame frame1(3, 2, {1, 2, 3, 4, 5, 6}, {1, 2});
+    TouchVideoFrame frame2(3, 3, {0, 1, 2, 3, 4, 5, 6, 7, 8}, {1, 3});
+    TouchVideoFrame frame3(2, 2, {10, 20, 10, 0}, {1, 4});
+    std::vector<TouchVideoFrame> frames{frame1, frame2, frame3};
+    NotifyMotionArgs motionArgs;
+
+    prepareDisplay(DISPLAY_ORIENTATION_90);
+    mFakeEventHub->setVideoFrames({{mDevice->getId(), frames}});
+    processPosition(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    std::for_each(frames.begin(), frames.end(),
+            [](TouchVideoFrame& frame) { frame.rotate(DISPLAY_ORIENTATION_90); });
+    ASSERT_EQ(frames, motionArgs.videoFrames);
+}
+
 } // namespace android
