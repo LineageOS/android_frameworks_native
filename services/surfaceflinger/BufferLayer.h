@@ -93,11 +93,7 @@ public:
     // the visible regions need to be recomputed (this is a fairly heavy
     // operation, so this should be set only if needed). Typically this is used
     // to figure out if the content or size of a surface has changed.
-    // If there was a GL composition step rendering the previous frame, then
-    // releaseFence will be populated with a native fence that fires when
-    // composition has completed.
-    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                     const sp<Fence>& releaseFence) override;
+    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
@@ -142,8 +138,7 @@ private:
     virtual void setFilteringEnabled(bool enabled) = 0;
 
     virtual status_t bindTextureImage() = 0;
-    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                                    const sp<Fence>& flushFence) = 0;
+    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
 
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;

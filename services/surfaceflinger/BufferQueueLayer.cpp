@@ -225,8 +225,7 @@ status_t BufferQueueLayer::bindTextureImage() {
     return mConsumer->bindTextureImage();
 }
 
-status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                                          const sp<Fence>& releaseFence) {
+status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) {
     // This boolean is used to make sure that SurfaceFlinger's shadow copy
     // of the buffer queue isn't modified when the buffer queue is returning
     // BufferItem's that weren't actually queued. This can happen in shared
@@ -264,9 +263,8 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     const uint64_t maxFrameNumberToAcquire =
             std::min(mLastFrameNumberReceived.load(), lastSignaledFrameNumber);
 
-    status_t updateResult =
-            mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh, &queuedBuffer,
-                                      maxFrameNumberToAcquire, releaseFence);
+    status_t updateResult = mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh,
+                                                      &queuedBuffer, maxFrameNumberToAcquire);
     if (updateResult == BufferQueue::PRESENT_LATER) {
         // Producer doesn't want buffer to be displayed yet.  Signal a
         // layer update so we check again at the next opportunity.
@@ -393,7 +391,7 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
 void BufferQueueLayer::fakeVsync() {
     mRefreshPending = false;
     bool ignored = false;
-    latchBuffer(ignored, systemTime(), Fence::NO_FENCE);
+    latchBuffer(ignored, systemTime());
     usleep(16000);
     releasePendingBuffer(systemTime());
 }
