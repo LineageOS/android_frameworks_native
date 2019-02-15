@@ -2042,26 +2042,26 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     }
 
     LayerProtoHelper::writeToProto(state.activeTransparentRegion_legacy,
-                                   layerInfo->mutable_transparent_region());
-    LayerProtoHelper::writeToProto(visibleRegion, layerInfo->mutable_visible_region());
-    LayerProtoHelper::writeToProto(surfaceDamageRegion, layerInfo->mutable_damage_region());
+                                   [&]() { return layerInfo->mutable_transparent_region(); });
+    LayerProtoHelper::writeToProto(visibleRegion,
+                                   [&]() { return layerInfo->mutable_visible_region(); });
+    LayerProtoHelper::writeToProto(surfaceDamageRegion,
+                                   [&]() { return layerInfo->mutable_damage_region(); });
 
     layerInfo->set_layer_stack(getLayerStack());
     layerInfo->set_z(state.z);
 
-    PositionProto* position = layerInfo->mutable_position();
-    position->set_x(transform.tx());
-    position->set_y(transform.ty());
+    LayerProtoHelper::writePositionToProto(transform.tx(), transform.ty(),
+                                           [&]() { return layerInfo->mutable_position(); });
 
-    PositionProto* requestedPosition = layerInfo->mutable_requested_position();
-    requestedPosition->set_x(requestedTransform.tx());
-    requestedPosition->set_y(requestedTransform.ty());
+    LayerProtoHelper::writePositionToProto(requestedTransform.tx(), requestedTransform.ty(), [&]() {
+        return layerInfo->mutable_requested_position();
+    });
 
-    SizeProto* size = layerInfo->mutable_size();
-    size->set_w(state.active_legacy.w);
-    size->set_h(state.active_legacy.h);
+    LayerProtoHelper::writeSizeToProto(state.active_legacy.w, state.active_legacy.h,
+                                       [&]() { return layerInfo->mutable_size(); });
 
-    LayerProtoHelper::writeToProto(state.crop_legacy, layerInfo->mutable_crop());
+    LayerProtoHelper::writeToProto(state.crop_legacy, [&]() { return layerInfo->mutable_crop(); });
     layerInfo->set_corner_radius(getRoundedCornerState().radius);
 
     layerInfo->set_is_opaque(isOpaque(state));
@@ -2071,8 +2071,9 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
     layerInfo->set_dataspace(dataspaceDetails(static_cast<android_dataspace>(mCurrentDataSpace)));
 
     layerInfo->set_pixel_format(decodePixelFormat(getPixelFormat()));
-    LayerProtoHelper::writeToProto(getColor(), layerInfo->mutable_color());
-    LayerProtoHelper::writeToProto(state.color, layerInfo->mutable_requested_color());
+    LayerProtoHelper::writeToProto(getColor(), [&]() { return layerInfo->mutable_color(); });
+    LayerProtoHelper::writeToProto(state.color,
+                                   [&]() { return layerInfo->mutable_requested_color(); });
     layerInfo->set_flags(state.flags);
 
     LayerProtoHelper::writeToProto(transform, layerInfo->mutable_transform());
@@ -2094,7 +2095,8 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
 
     auto buffer = mActiveBuffer;
     if (buffer != nullptr) {
-        LayerProtoHelper::writeToProto(buffer, layerInfo->mutable_active_buffer());
+        LayerProtoHelper::writeToProto(buffer,
+                                       [&]() { return layerInfo->mutable_active_buffer(); });
         LayerProtoHelper::writeToProto(ui::Transform(mCurrentTransform),
                                        layerInfo->mutable_buffer_transform());
     }
@@ -2118,9 +2120,11 @@ void Layer::writeToProto(LayerProto* layerInfo, LayerVector::StateSet stateSet) 
         (*protoMap)[entry.first] = std::string(entry.second.cbegin(), entry.second.cend());
     }
     LayerProtoHelper::writeToProto(mEffectiveTransform, layerInfo->mutable_effective_transform());
-    LayerProtoHelper::writeToProto(mSourceBounds, layerInfo->mutable_source_bounds());
-    LayerProtoHelper::writeToProto(mScreenBounds, layerInfo->mutable_screen_bounds());
-    LayerProtoHelper::writeToProto(mBounds, layerInfo->mutable_bounds());
+    LayerProtoHelper::writeToProto(mSourceBounds,
+                                   [&]() { return layerInfo->mutable_source_bounds(); });
+    LayerProtoHelper::writeToProto(mScreenBounds,
+                                   [&]() { return layerInfo->mutable_screen_bounds(); });
+    LayerProtoHelper::writeToProto(mBounds, [&]() { return layerInfo->mutable_bounds(); });
 }
 
 void Layer::writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& displayDevice) {
@@ -2134,10 +2138,10 @@ void Layer::writeToProto(LayerProto* layerInfo, const sp<DisplayDevice>& display
     const auto& compositionState = outputLayer->getState();
 
     const Rect& frame = compositionState.displayFrame;
-    LayerProtoHelper::writeToProto(frame, layerInfo->mutable_hwc_frame());
+    LayerProtoHelper::writeToProto(frame, [&]() { return layerInfo->mutable_hwc_frame(); });
 
     const FloatRect& crop = compositionState.sourceCrop;
-    LayerProtoHelper::writeToProto(crop, layerInfo->mutable_hwc_crop());
+    LayerProtoHelper::writeToProto(crop, [&]() { return layerInfo->mutable_hwc_crop(); });
 
     const int32_t transform =
             getCompositionLayer() ? static_cast<int32_t>(compositionState.bufferTransform) : 0;
