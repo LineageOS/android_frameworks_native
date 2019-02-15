@@ -157,10 +157,11 @@ void GraphicsEnv::setDriverPath(const std::string path) {
 }
 
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
-                              const std::string& driverVersionName,
-                              const uint64_t driverVersionCode, const std::string& appPackageName) {
+                              const std::string& driverVersionName, uint64_t driverVersionCode,
+                              const std::string& appPackageName) {
     ATRACE_CALL();
 
+    std::lock_guard<std::mutex> lock(mStatsLock);
     ALOGV("setGpuStats:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
@@ -169,15 +170,89 @@ void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
           driverPackageName.c_str(), driverVersionName.c_str(),
           (unsigned long long)driverVersionCode, appPackageName.c_str());
 
-    mGpuStats = {
-            .driverPackageName = driverPackageName,
-            .driverVersionName = driverVersionName,
-            .driverVersionCode = driverVersionCode,
-            .appPackageName = appPackageName,
-    };
+    mGpuStats.driverPackageName = driverPackageName;
+    mGpuStats.driverVersionName = driverVersionName;
+    mGpuStats.driverVersionCode = driverVersionCode;
+    mGpuStats.appPackageName = appPackageName;
 }
 
-void GraphicsEnv::sendGpuStats() {
+void GraphicsEnv::setDriverToLoad(GraphicsEnv::Driver driver) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    switch (driver) {
+        case GraphicsEnv::Driver::GL:
+        case GraphicsEnv::Driver::GL_UPDATED:
+        case GraphicsEnv::Driver::ANGLE: {
+            if (mGpuStats.glDriverToLoad == GraphicsEnv::Driver::NONE) {
+                mGpuStats.glDriverToLoad = driver;
+                break;
+            }
+
+            if (mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE) {
+                mGpuStats.glDriverFallback = driver;
+            }
+            break;
+        }
+        case Driver::VULKAN:
+        case Driver::VULKAN_UPDATED: {
+            if (mGpuStats.vkDriverToLoad == GraphicsEnv::Driver::NONE) {
+                mGpuStats.vkDriverToLoad = driver;
+                break;
+            }
+
+            if (mGpuStats.vkDriverFallback == GraphicsEnv::Driver::NONE) {
+                mGpuStats.vkDriverFallback = driver;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+void GraphicsEnv::setDriverLoaded(GraphicsEnv::Api api, bool isLoaded, int64_t driverLoadingTime) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    GraphicsEnv::Driver driver = GraphicsEnv::Driver::NONE;
+    bool isIntendedDriverLoaded = false;
+    if (api == GraphicsEnv::Api::API_GL) {
+        driver = mGpuStats.glDriverToLoad;
+        isIntendedDriverLoaded = isLoaded &&
+                ((mGpuStats.glDriverFallback == GraphicsEnv::Driver::NONE) ||
+                 (mGpuStats.glDriverToLoad == mGpuStats.glDriverFallback));
+    } else {
+        driver = mGpuStats.vkDriverToLoad;
+        isIntendedDriverLoaded =
+                isLoaded && (mGpuStats.vkDriverFallback == GraphicsEnv::Driver::NONE);
+    }
+
+    sendGpuStatsLocked(driver, isIntendedDriverLoaded, driverLoadingTime);
+}
+
+void GraphicsEnv::clearDriverLoadingInfo(GraphicsEnv::Api api) {
+    ATRACE_CALL();
+
+    std::lock_guard<std::mutex> lock(mStatsLock);
+    if (api == GraphicsEnv::Api::API_GL) {
+        mGpuStats.glDriverToLoad = GraphicsEnv::Driver::NONE;
+        mGpuStats.glDriverFallback = GraphicsEnv::Driver::NONE;
+    }
+}
+
+static sp<IGpuService> getGpuService() {
+    const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
+    if (!binder) {
+        ALOGE("Failed to get gpu service");
+        return nullptr;
+    }
+
+    return interface_cast<IGpuService>(binder);
+}
+
+void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Driver driver, bool isDriverLoaded,
+                                     int64_t driverLoadingTime) {
     ATRACE_CALL();
 
     // Do not sendGpuStats for those skipping the GraphicsEnvironment setup
@@ -187,20 +262,20 @@ void GraphicsEnv::sendGpuStats() {
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
           "\tdriverVersionCode[%llu]\n"
-          "\tappPackageName[%s]\n",
+          "\tappPackageName[%s]\n"
+          "\tdriver[%d]\n"
+          "\tisDriverLoaded[%d]\n"
+          "\tdriverLoadingTime[%lld]",
           mGpuStats.driverPackageName.c_str(), mGpuStats.driverVersionName.c_str(),
-          (unsigned long long)mGpuStats.driverVersionCode, mGpuStats.appPackageName.c_str());
+          (unsigned long long)mGpuStats.driverVersionCode, mGpuStats.appPackageName.c_str(),
+          static_cast<int32_t>(driver), isDriverLoaded, (long long)driverLoadingTime);
 
-    const sp<IBinder> binder = defaultServiceManager()->checkService(String16("gpu"));
-    if (!binder) {
-        ALOGE("Failed to get gpu service for [%s]", mGpuStats.appPackageName.c_str());
-        return;
+    const sp<IGpuService> gpuService = getGpuService();
+    if (gpuService) {
+        gpuService->setGpuStats(mGpuStats.driverPackageName, mGpuStats.driverVersionName,
+                                mGpuStats.driverVersionCode, mGpuStats.appPackageName, driver,
+                                isDriverLoaded, driverLoadingTime);
     }
-
-    interface_cast<IGpuService>(binder)->setGpuStats(mGpuStats.driverPackageName,
-                                                     mGpuStats.driverVersionName,
-                                                     mGpuStats.driverVersionCode,
-                                                     mGpuStats.appPackageName);
 }
 
 void* GraphicsEnv::loadLibrary(std::string name) {
