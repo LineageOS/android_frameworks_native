@@ -367,6 +367,7 @@ private:
     friend class BufferStateLayer;
     friend class MonitoredProducer;
     friend class RegionSamplingThread;
+    friend class SurfaceTracing;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -376,6 +377,7 @@ private:
     enum { LOG_FRAME_STATS_PERIOD =  30*60*60 };
 
     static const size_t MAX_LAYERS = 4096;
+    static const int MAX_TRACING_MEMORY = 100 * 1024 * 1024; // 100MB
 
     // We're reference counted, never destroy SurfaceFlinger directly
     virtual ~SurfaceFlinger();
@@ -580,7 +582,7 @@ private:
     uint32_t setTransactionFlags(uint32_t flags);
     uint32_t setTransactionFlags(uint32_t flags, Scheduler::TransactionStart transactionStart);
     void latchAndReleaseBuffer(const sp<Layer>& layer);
-    void commitTransaction();
+    void commitTransaction() REQUIRES(mStateLock);
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
@@ -774,7 +776,6 @@ private:
     void prepareFrame(const sp<DisplayDevice>& display);
     void doComposition(const sp<DisplayDevice>& display, bool repainEverything);
     void doDebugFlashRegions(const sp<DisplayDevice>& display, bool repaintEverything);
-    void doTracing(const char* where);
     void logLayerStats();
     void doDisplayComposition(const sp<DisplayDevice>& display, const Region& dirtyRegion);
 
@@ -891,6 +892,7 @@ private:
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
+    void withTracingLock(std::function<void()> operation) REQUIRES(mStateLock);
     LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 
     bool isLayerTripleBufferingDisabled() const {
@@ -931,6 +933,9 @@ private:
     bool mTransactionPending;
     bool mAnimTransactionPending;
     SortedVector< sp<Layer> > mLayersPendingRemoval;
+
+    // guards access to the mDrawing state if tracing is enabled.
+    mutable std::mutex mDrawingStateLock;
 
     // global color transform states
     Daltonizer mDaltonizer;
@@ -1010,6 +1015,8 @@ private:
     bool mPropagateBackpressure = true;
     std::unique_ptr<SurfaceInterceptor> mInterceptor{mFactory.createSurfaceInterceptor(this)};
     SurfaceTracing mTracing;
+    bool mTracingEnabled = false;
+    bool mTracingEnabledChanged GUARDED_BY(mStateLock) = false;
     LayerStats mLayerStats;
     std::shared_ptr<TimeStats> mTimeStats;
     bool mUseHwcVirtualDisplays = false;
