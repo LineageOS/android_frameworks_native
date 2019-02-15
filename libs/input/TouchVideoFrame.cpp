@@ -18,22 +18,22 @@
 
 namespace android {
 
-TouchVideoFrame::TouchVideoFrame(uint32_t width, uint32_t height, std::vector<int16_t> data,
+TouchVideoFrame::TouchVideoFrame(uint32_t height, uint32_t width, std::vector<int16_t> data,
         const struct timeval& timestamp) :
-        mWidth(width), mHeight(height), mData(std::move(data)), mTimestamp(timestamp) {
+         mHeight(height), mWidth(width),mData(std::move(data)), mTimestamp(timestamp) {
 }
 
 bool TouchVideoFrame::operator==(const TouchVideoFrame& rhs) const {
-    return mWidth == rhs.mWidth
-            && mHeight == rhs.mHeight
+    return mHeight == rhs.mHeight
+            && mWidth == rhs.mWidth
             && mData == rhs.mData
             && mTimestamp.tv_sec == rhs.mTimestamp.tv_sec
             && mTimestamp.tv_usec == rhs.mTimestamp.tv_usec;
 }
 
-uint32_t TouchVideoFrame::getWidth() const { return mWidth; }
-
 uint32_t TouchVideoFrame::getHeight() const { return mHeight; }
+
+uint32_t TouchVideoFrame::getWidth() const { return mWidth; }
 
 const std::vector<int16_t>& TouchVideoFrame::getData() const { return mData; }
 
