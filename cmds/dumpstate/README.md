@@ -23,7 +23,7 @@ mmm -j frameworks/native/cmds/dumpstate device/acme/secret_device/dumpstate/ har
 ## To build, deploy, and take a bugreport
 
 ```
-mmm -j frameworks/native/cmds/dumpstate && adb push ${OUT}/system/bin/dumpstate system/bin && adb shell am bug-report
+mmm -j frameworks/native/cmds/dumpstate && adb push ${OUT}/system/bin/dumpstate system/bin && adb push ${OUT}/system/lib64/*dumpstate*.so /system/lib64/ && adb shell am bug-report
 ```
 
 Make sure that the device is remounted before running the above command.
