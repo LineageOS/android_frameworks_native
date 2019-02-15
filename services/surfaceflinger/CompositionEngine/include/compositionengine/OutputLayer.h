@@ -93,6 +93,9 @@ public:
     // Applies a HWC device layer request
     virtual void applyDeviceLayerRequest(Hwc2::IComposerClient::LayerRequest request) = 0;
 
+    // Returns true if the composition settings scale pixels
+    virtual bool needsFiltering() const = 0;
+
     // Debugging
     virtual void dump(std::string& result) const = 0;
 };

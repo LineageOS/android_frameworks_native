@@ -59,7 +59,7 @@ public:
         const bool isSecure;
 
         // If set to true, the target buffer has protected content support.
-        const bool supportProtectedContent;
+        const bool supportsProtectedContent;
 
         // Modified by each call to prepareClientComposition to indicate the
         // region of the target buffer that should be cleared.

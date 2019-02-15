@@ -20,6 +20,7 @@
 #include <optional>
 
 #include "DisplayHardware/DisplayIdentification.h"
+#include "DisplayHardware/PowerAdvisor.h"
 
 namespace android::compositionengine {
 
@@ -37,6 +38,10 @@ struct DisplayCreationArgs {
 
     // Identifies the display to the HWC, if composition is supported by it
     std::optional<DisplayId> displayId;
+
+    // Optional pointer to the power advisor interface, if one is needed for
+    // this display.
+    Hwc2::PowerAdvisor* powerAdvisor = nullptr;
 };
 
 /**
@@ -66,6 +71,10 @@ public:
     }
     DisplayCreationArgsBuilder& setDisplayId(std::optional<DisplayId> displayId) {
         mArgs.displayId = displayId;
+        return *this;
+    }
+    DisplayCreationArgsBuilder& setPowerAdvisor(Hwc2::PowerAdvisor* powerAdvisor) {
+        mArgs.powerAdvisor = powerAdvisor;
         return *this;
     }
 
