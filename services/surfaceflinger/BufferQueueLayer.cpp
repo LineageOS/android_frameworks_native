@@ -237,9 +237,13 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
                     getProducerStickyTransform() != 0, mName.string(), mOverrideScalingMode,
                     getTransformToDisplayInverse(), mFreezeGeometryUpdates);
 
-    const nsecs_t expectedPresentTime = mFlinger->mUseScheduler
+    nsecs_t expectedPresentTime = mFlinger->mUseScheduler
             ? mFlinger->mScheduler->expectedPresentTime()
             : mFlinger->mPrimaryDispSync->expectedPresentTime();
+
+    if (isRemovedFromCurrentState()) {
+        expectedPresentTime = 0;
+    }
 
     // updateTexImage() below might drop the some buffers at the head of the queue if there is a
     // buffer behind them which is timely to be presented. However this buffer may not be signaled
@@ -259,6 +263,7 @@ status_t BufferQueueLayer::updateTexImage(bool& recomputeVisibleRegions, nsecs_t
     }
     const uint64_t maxFrameNumberToAcquire =
             std::min(mLastFrameNumberReceived.load(), lastSignaledFrameNumber);
+
     status_t updateResult =
             mConsumer->updateTexImage(&r, expectedPresentTime, &mAutoRefresh, &queuedBuffer,
                                       maxFrameNumberToAcquire, releaseFence);
