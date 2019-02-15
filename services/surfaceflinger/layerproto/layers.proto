@@ -117,7 +117,7 @@ message TransformProto {
 }
 
 message RegionProto {
-  uint64 id = 1;
+  reserved 1;  // Previously: uint64 id
   repeated RectProto rect = 2;
 }
 
