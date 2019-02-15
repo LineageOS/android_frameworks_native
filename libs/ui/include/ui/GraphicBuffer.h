@@ -22,6 +22,7 @@
 
 #include <string>
 
+#include <android/hardware_buffer.h>
 #include <ui/ANativeObjectBase.h>
 #include <ui/PixelFormat.h>
 #include <ui/Rect.h>
@@ -78,6 +79,10 @@ public:
 
     static sp<GraphicBuffer> from(ANativeWindowBuffer *);
 
+    static GraphicBuffer* fromAHardwareBuffer(AHardwareBuffer*);
+    static GraphicBuffer const* fromAHardwareBuffer(AHardwareBuffer const*);
+    AHardwareBuffer* toAHardwareBuffer();
+    AHardwareBuffer const* toAHardwareBuffer() const;
 
     // Create a GraphicBuffer to be unflatten'ed into or be reallocated.
     GraphicBuffer();

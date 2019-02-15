@@ -35,6 +35,7 @@
 
 #include <hidl/HybridInterface.h>
 #include <android/hardware/graphics/bufferqueue/1.0/IGraphicBufferProducer.h>
+#include <android/hardware/graphics/bufferqueue/2.0/IGraphicBufferProducer.h>
 
 namespace android {
 // ----------------------------------------------------------------------------
@@ -42,8 +43,6 @@ namespace android {
 class IProducerListener;
 class NativeHandle;
 class Surface;
-typedef ::android::hardware::graphics::bufferqueue::V1_0::IGraphicBufferProducer
-        HGraphicBufferProducer;
 
 /*
  * This class defines the Binder IPC interface for the producer side of
@@ -62,7 +61,16 @@ typedef ::android::hardware::graphics::bufferqueue::V1_0::IGraphicBufferProducer
 class IGraphicBufferProducer : public IInterface
 {
 public:
-    DECLARE_HYBRID_META_INTERFACE(GraphicBufferProducer, HGraphicBufferProducer)
+    using HGraphicBufferProducerV1_0 =
+            ::android::hardware::graphics::bufferqueue::V1_0::
+            IGraphicBufferProducer;
+    using HGraphicBufferProducerV2_0 =
+            ::android::hardware::graphics::bufferqueue::V2_0::
+            IGraphicBufferProducer;
+
+    DECLARE_HYBRID_META_INTERFACE(GraphicBufferProducer,
+                                  HGraphicBufferProducerV1_0,
+                                  HGraphicBufferProducerV2_0)
 
     enum {
         // A flag returned by dequeueBuffer when the client needs to call
@@ -366,7 +374,6 @@ public:
         const HdrMetadata& getHdrMetadata() const { return hdrMetadata; }
         void setHdrMetadata(const HdrMetadata& metadata) { hdrMetadata = metadata; }
 
-    private:
         int64_t timestamp{0};
         int isAutoTimestamp{0};
         android_dataspace dataSpace{HAL_DATASPACE_UNKNOWN};

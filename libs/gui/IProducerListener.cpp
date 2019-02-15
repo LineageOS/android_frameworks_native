@@ -15,7 +15,8 @@
  */
 
 #include <binder/Parcel.h>
-
+#include <gui/bufferqueue/1.0/H2BProducerListener.h>
+#include <gui/bufferqueue/2.0/H2BProducerListener.h>
 #include <gui/IProducerListener.h>
 
 namespace android {
@@ -61,7 +62,24 @@ public:
 // translation unit (see clang warning -Wweak-vtables)
 BpProducerListener::~BpProducerListener() {}
 
-IMPLEMENT_META_INTERFACE(ProducerListener, "android.gui.IProducerListener")
+class HpProducerListener : public HpInterface<
+        BpProducerListener,
+        hardware::graphics::bufferqueue::V1_0::utils::H2BProducerListener,
+        hardware::graphics::bufferqueue::V2_0::utils::H2BProducerListener> {
+public:
+    explicit HpProducerListener(const sp<IBinder>& base) : PBase{base} {}
+
+    virtual void onBufferReleased() override {
+        mBase->onBufferReleased();
+    }
+
+    virtual bool needsReleaseNotify() override {
+        return mBase->needsReleaseNotify();
+    }
+};
+
+IMPLEMENT_HYBRID_META_INTERFACE(ProducerListener,
+        "android.gui.IProducerListener")
 
 status_t BnProducerListener::onTransact(uint32_t code, const Parcel& data,
         Parcel* reply, uint32_t flags) {
