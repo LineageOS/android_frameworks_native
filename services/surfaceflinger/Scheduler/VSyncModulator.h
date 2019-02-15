@@ -54,6 +54,15 @@ public:
         mEarlyOffsets = early;
         mEarlyGlOffsets = earlyGl;
         mLateOffsets = late;
+
+        if (mSfConnectionHandle && late.sf != mOffsets.load().sf) {
+            mScheduler->setPhaseOffset(mSfConnectionHandle, late.sf);
+        }
+
+        if (mAppConnectionHandle && late.app != mOffsets.load().app) {
+            mScheduler->setPhaseOffset(mAppConnectionHandle, late.app);
+        }
+
         mOffsets = late;
     }
 
