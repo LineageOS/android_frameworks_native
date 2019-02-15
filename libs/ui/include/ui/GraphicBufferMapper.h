@@ -41,6 +41,10 @@ class Rect;
 class GraphicBufferMapper : public Singleton<GraphicBufferMapper>
 {
 public:
+    enum Version {
+        GRALLOC_2,
+        GRALLOC_3,
+    };
     static void preloadHal();
     static inline GraphicBufferMapper& get() { return getInstance(); }
 
@@ -85,12 +89,16 @@ public:
         return reinterpret_cast<const GrallocMapper&>(*mMapper);
     }
 
+    Version getMapperVersion() const { return mMapperVersion; }
+
 private:
     friend class Singleton<GraphicBufferMapper>;
 
     GraphicBufferMapper();
 
     std::unique_ptr<const GrallocMapper> mMapper;
+
+    Version mMapperVersion;
 };
 
 // ---------------------------------------------------------------------------

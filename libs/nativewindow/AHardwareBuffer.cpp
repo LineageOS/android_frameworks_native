@@ -93,8 +93,57 @@ void AHardwareBuffer_describe(const AHardwareBuffer* buffer,
     outDesc->rfu1 = 0;
 }
 
+int AHardwareBuffer_lockAndGetInfo(AHardwareBuffer* buffer, uint64_t usage,
+        int32_t fence, const ARect* rect, void** outVirtualAddress,
+        int32_t* outBytesPerPixel, int32_t* outBytesPerStride) {
+    if (!buffer) return BAD_VALUE;
+
+    if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
+                  AHARDWAREBUFFER_USAGE_CPU_WRITE_MASK)) {
+        ALOGE("Invalid usage flags passed to AHardwareBuffer_lock; only "
+                "AHARDWAREBUFFER_USAGE_CPU_* flags are allowed");
+        return BAD_VALUE;
+    }
+
+    usage = AHardwareBuffer_convertToGrallocUsageBits(usage);
+    GraphicBuffer* gbuffer = AHardwareBuffer_to_GraphicBuffer(buffer);
+
+    //Mapper implementations before 3.0 will not return bytes per pixel or
+    //bytes per stride information.
+    if (gbuffer->getBufferMapperVersion() == GraphicBufferMapper::Version::GRALLOC_2) {
+        ALOGE("Mapper versions before 3.0 cannot retrieve bytes per pixel and bytes per stride info");
+        return INVALID_OPERATION;
+    }
+
+    if (gbuffer->getLayerCount() > 1) {
+        ALOGE("Buffer with multiple layers passed to AHardwareBuffer_lock; "
+                "only buffers with one layer are allowed");
+        return INVALID_OPERATION;
+    }
+
+    Rect bounds;
+    if (!rect) {
+        bounds.set(Rect(gbuffer->getWidth(), gbuffer->getHeight()));
+    } else {
+        bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
+    }
+    int result = gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence, outBytesPerPixel, outBytesPerStride);
+
+    // if hardware returns -1 for bytes per pixel or bytes per stride, we fail
+    // and unlock the buffer
+    if (*outBytesPerPixel == -1 || *outBytesPerStride == -1) {
+        gbuffer->unlock();
+        return INVALID_OPERATION;
+    }
+
+    return result;
+}
+
 int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
-        int32_t fence, const ARect* rect, void** outVirtualAddress) {
+                         int32_t fence, const ARect* rect, void** outVirtualAddress) {
+    int32_t bytesPerPixel;
+    int32_t bytesPerStride;
+
     if (!buffer) return BAD_VALUE;
 
     if (usage & ~(AHARDWAREBUFFER_USAGE_CPU_READ_MASK |
@@ -119,7 +168,7 @@ int AHardwareBuffer_lock(AHardwareBuffer* buffer, uint64_t usage,
     } else {
         bounds.set(Rect(rect->left, rect->top, rect->right, rect->bottom));
     }
-    return gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence);
+    return gbuffer->lockAsync(usage, usage, bounds, outVirtualAddress, fence, &bytesPerPixel, &bytesPerStride);
 }
 
 int AHardwareBuffer_lockPlanes(AHardwareBuffer* buffer, uint64_t usage,
