@@ -39,8 +39,9 @@ GpuService::GpuService() = default;
 
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
-                             const std::string& appPackageName, GraphicsEnv::Driver driver,
-                             bool isDriverLoaded, int64_t driverLoadingTime) {
+                             const std::string& driverBuildDate, const std::string& appPackageName,
+                             GraphicsEnv::Driver driver, bool isDriverLoaded,
+                             int64_t driverLoadingTime) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStateLock);
@@ -48,12 +49,13 @@ void GpuService::setGpuStats(const std::string& driverPackageName,
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
           "\tdriverVersionCode[%llu]\n"
+          "\tdriverBuildDate[%s]\n"
           "\tappPackageName[%s]\n"
           "\tdriver[%d]\n"
           "\tisDriverLoaded[%d]\n"
           "\tdriverLoadingTime[%lld]",
           driverPackageName.c_str(), driverVersionName.c_str(),
-          (unsigned long long)driverVersionCode, appPackageName.c_str(),
+          (unsigned long long)driverVersionCode, driverBuildDate.c_str(), appPackageName.c_str(),
           static_cast<int32_t>(driver), isDriverLoaded, (long long)driverLoadingTime);
 }
 
