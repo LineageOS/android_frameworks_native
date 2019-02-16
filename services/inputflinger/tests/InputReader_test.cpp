@@ -335,6 +335,7 @@ class FakeEventHub : public EventHubInterface {
     KeyedVector<int32_t, Device*> mDevices;
     std::vector<std::string> mExcludedDevices;
     List<RawEvent> mEvents;
+    std::unordered_map<int32_t /*deviceId*/, std::vector<TouchVideoFrame>> mVideoFrames;
 
 protected:
     virtual ~FakeEventHub() {
@@ -499,6 +500,11 @@ public:
         }
     }
 
+    void setVideoFrames(std::unordered_map<int32_t /*deviceId*/,
+            std::vector<TouchVideoFrame>> videoFrames) {
+        mVideoFrames = std::move(videoFrames);
+    }
+
     void assertQueueIsEmpty() {
         ASSERT_EQ(size_t(0), mEvents.size())
                 << "Expected the event queue to be empty (fully consumed).";
@@ -614,6 +620,12 @@ private:
     }
 
     virtual std::vector<TouchVideoFrame> getVideoFrames(int32_t deviceId) {
+        auto it = mVideoFrames.find(deviceId);
+        if (it != mVideoFrames.end()) {
+            std::vector<TouchVideoFrame> frames = std::move(it->second);
+            mVideoFrames.erase(deviceId);
+            return frames;
+        }
         return {};
     }
 
@@ -6413,6 +6425,32 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
     iter = fakePointerController->getSpots().find(SECONDARY_DISPLAY_ID);
     ASSERT_TRUE(iter != fakePointerController->getSpots().end());
     ASSERT_EQ(size_t(2), iter->second.size());
+}
+
+TEST_F(MultiTouchInputMapperTest, VideoFrames_ReceivedByListener) {
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    prepareAxes(POSITION);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    prepareDisplay(DISPLAY_ORIENTATION_0);
+    addMapperAndConfigure(mapper);
+
+    NotifyMotionArgs motionArgs;
+    // Unrotated video frame
+    TouchVideoFrame frame(3, 2, {1, 2, 3, 4, 5, 6}, {1, 2});
+    std::vector<TouchVideoFrame> frames{frame};
+    mFakeEventHub->setVideoFrames({{mDevice->getId(), frames}});
+    processPosition(mapper, 100, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(frames, motionArgs.videoFrames);
+
+    // Subsequent touch events should not have any videoframes
+    // This is implemented separately in FakeEventHub,
+    // but that should match the behaviour of TouchVideoDevice.
+    processPosition(mapper, 200, 200);
+    processSync(mapper);
+    ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
+    ASSERT_EQ(std::vector<TouchVideoFrame>(), motionArgs.videoFrames);
 }
 
 } // namespace android
