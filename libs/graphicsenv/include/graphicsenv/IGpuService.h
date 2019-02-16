@@ -35,8 +35,9 @@ public:
     // set GPU stats from GraphicsEnvironment.
     virtual void setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
-                             const std::string& appPackageName, GraphicsEnv::Driver driver,
-                             bool isDriverLoaded, int64_t driverLoadingTime) = 0;
+                             const std::string& driverBuildDate, const std::string& appPackageName,
+                             GraphicsEnv::Driver driver, bool isDriverLoaded,
+                             int64_t driverLoadingTime) = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {
