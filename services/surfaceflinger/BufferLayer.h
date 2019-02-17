@@ -80,8 +80,8 @@ public:
 
     bool isHdrY410() const override;
 
-    void setPerFrameData(DisplayId displayId, const ui::Transform& transform, const Rect& viewport,
-                         int32_t supportedPerFrameMetadata) override;
+    void setPerFrameData(const sp<const DisplayDevice>& display, const ui::Transform& transform,
+                         const Rect& viewport, int32_t supportedPerFrameMetadata) override;
 
     bool onPreComposition(nsecs_t refreshStartTime) override;
     bool onPostComposition(const std::optional<DisplayId>& displayId,
@@ -93,11 +93,7 @@ public:
     // the visible regions need to be recomputed (this is a fairly heavy
     // operation, so this should be set only if needed). Typically this is used
     // to figure out if the content or size of a surface has changed.
-    // If there was a GL composition step rendering the previous frame, then
-    // releaseFence will be populated with a native fence that fires when
-    // composition has completed.
-    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                     const sp<Fence>& releaseFence) override;
+    bool latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
 
     bool isBufferLatched() const override { return mRefreshPending; }
 
@@ -142,13 +138,12 @@ private:
     virtual void setFilteringEnabled(bool enabled) = 0;
 
     virtual status_t bindTextureImage() = 0;
-    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                                    const sp<Fence>& flushFence) = 0;
+    virtual status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) = 0;
 
     virtual status_t updateActiveBuffer() = 0;
     virtual status_t updateFrameNumber(nsecs_t latchTime) = 0;
 
-    virtual void setHwcLayerBuffer(DisplayId displayId) = 0;
+    virtual void setHwcLayerBuffer(const sp<const DisplayDevice>& displayDevice) = 0;
 
 protected:
     // Loads the corresponding system property once per process
@@ -177,7 +172,7 @@ protected:
 
 private:
     // Returns true if this layer requires filtering
-    bool needsFiltering() const;
+    bool needsFiltering(const sp<const DisplayDevice>& displayDevice) const;
 
     uint64_t getHeadFrameNumber() const;
 

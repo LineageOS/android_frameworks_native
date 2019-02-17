@@ -30,42 +30,34 @@ namespace android {
  */
 class TouchVideoFrame {
 public:
-    TouchVideoFrame(uint32_t width, uint32_t height, std::vector<int16_t> data,
-            const struct timeval& timestamp) :
-            mWidth(width), mHeight(height), mData(std::move(data)), mTimestamp(timestamp) {
-    }
+    TouchVideoFrame(uint32_t height, uint32_t width, std::vector<int16_t> data,
+            const struct timeval& timestamp);
 
-    bool operator==(const TouchVideoFrame& rhs) const {
-        return mWidth == rhs.mWidth
-                && mHeight == rhs.mHeight
-                && mData == rhs.mData
-                && mTimestamp.tv_sec == rhs.mTimestamp.tv_sec
-                && mTimestamp.tv_usec == rhs.mTimestamp.tv_usec;
-    }
+    bool operator==(const TouchVideoFrame& rhs) const;
 
-    /**
-     * Width of the frame
-     */
-    uint32_t getWidth() const { return mWidth; }
     /**
      * Height of the frame
      */
-    uint32_t getHeight() const { return mHeight; }
+    uint32_t getHeight() const;
+    /**
+     * Width of the frame
+     */
+    uint32_t getWidth() const;
     /**
      * The touch strength data.
      * The array is a 2-D row-major matrix, with dimensions (height, width).
      * Total size of the array should equal getHeight() * getWidth().
      * Data is allowed to be negative.
      */
-    const std::vector<int16_t>& getData() const { return mData; }
+    const std::vector<int16_t>& getData() const;
     /**
      * Time at which the heatmap was taken.
      */
-    const struct timeval& getTimestamp() const { return mTimestamp; }
+    const struct timeval& getTimestamp() const;
 
 private:
-    uint32_t mWidth;
     uint32_t mHeight;
+    uint32_t mWidth;
     std::vector<int16_t> mData;
     struct timeval mTimestamp;
 };

@@ -20,13 +20,14 @@
 #define LOG_TAG "HWComposer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include <utils/Errors.h>
-#include <utils/Trace.h>
-
+#include <compositionengine/Output.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
+#include <log/log.h>
 #include <ui/DebugUtils.h>
 #include <ui/GraphicBuffer.h>
-
-#include <log/log.h>
+#include <utils/Errors.h>
+#include <utils/Trace.h>
 
 #include "HWComposer.h"
 #include "HWC2.h"
@@ -398,7 +399,7 @@ status_t HWComposer::setClientTarget(DisplayId displayId, uint32_t slot,
     return NO_ERROR;
 }
 
-status_t HWComposer::prepare(DisplayId displayId, std::vector<CompositionInfo>& compositionData) {
+status_t HWComposer::prepare(DisplayId displayId, const compositionengine::Output& output) {
     ATRACE_CALL();
 
     RETURN_IF_INVALID_DISPLAY(displayId, BAD_INDEX);
@@ -462,47 +463,42 @@ status_t HWComposer::prepare(DisplayId displayId, std::vector<CompositionInfo>& 
 
     displayData.hasClientComposition = false;
     displayData.hasDeviceComposition = false;
-    for (auto& compositionInfo : compositionData) {
-        auto hwcLayer = compositionInfo.hwc.hwcLayer;
+    for (auto& outputLayer : output.getOutputLayersOrderedByZ()) {
+        auto& state = outputLayer->editState();
+        LOG_FATAL_IF(!state.hwc.);
+        auto hwcLayer = (*state.hwc).hwcLayer;
 
-        if (changedTypes.count(&*hwcLayer) != 0) {
-            // We pass false so we only update our state and don't call back
-            // into the HWC device
-            validateChange(compositionInfo.compositionType,
-                    changedTypes[&*hwcLayer]);
-            compositionInfo.compositionType = changedTypes[&*hwcLayer];
-            compositionInfo.layer->mLayer->setCompositionType(displayId,
-                                                              compositionInfo.compositionType,
-                                                              false);
+        if (auto it = changedTypes.find(hwcLayer.get()); it != changedTypes.end()) {
+            auto newCompositionType = it->second;
+            validateChange(static_cast<HWC2::Composition>((*state.hwc).hwcCompositionType),
+                           newCompositionType);
+            (*state.hwc).hwcCompositionType =
+                    static_cast<Hwc2::IComposerClient::Composition>(newCompositionType);
         }
 
-        switch (compositionInfo.compositionType) {
-            case HWC2::Composition::Client:
+        switch ((*state.hwc).hwcCompositionType) {
+            case Hwc2::IComposerClient::Composition::CLIENT:
                 displayData.hasClientComposition = true;
                 break;
-            case HWC2::Composition::Device:
-            case HWC2::Composition::SolidColor:
-            case HWC2::Composition::Cursor:
-            case HWC2::Composition::Sideband:
+            case Hwc2::IComposerClient::Composition::DEVICE:
+            case Hwc2::IComposerClient::Composition::SOLID_COLOR:
+            case Hwc2::IComposerClient::Composition::CURSOR:
+            case Hwc2::IComposerClient::Composition::SIDEBAND:
                 displayData.hasDeviceComposition = true;
                 break;
             default:
                 break;
         }
 
-        if (layerRequests.count(&*hwcLayer) != 0 &&
-                layerRequests[&*hwcLayer] ==
-                        HWC2::LayerRequest::ClearClientTarget) {
-            compositionInfo.hwc.clearClientTarget = true;
-            compositionInfo.layer->mLayer->setClearClientTarget(displayId, true);
-        } else {
-            if (layerRequests.count(&*hwcLayer) != 0) {
+        state.clearClientTarget = false;
+        if (auto it = layerRequests.find(hwcLayer.get()); it != layerRequests.end()) {
+            auto request = it->second;
+            if (request == HWC2::LayerRequest::ClearClientTarget) {
+                state.clearClientTarget = true;
+            } else {
                 LOG_DISPLAY_ERROR(displayId,
-                                  ("Unknown layer request " + to_string(layerRequests[&*hwcLayer]))
-                                          .c_str());
+                                  ("Unknown layer request " + to_string(request)).c_str());
             }
-            compositionInfo.hwc.clearClientTarget = false;
-            compositionInfo.layer->mLayer->setClearClientTarget(displayId, false);
         }
     }
 

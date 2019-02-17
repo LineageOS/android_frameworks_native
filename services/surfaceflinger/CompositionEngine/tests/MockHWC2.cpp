@@ -1,6 +1,6 @@
 /*
  * Copyright 2019 The Android Open Source Project
- *
+
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,26 +14,19 @@
  * limitations under the License.
  */
 
-#pragma once
+#include "MockHWC2.h"
 
-#include <compositionengine/Layer.h>
-#include <compositionengine/LayerFE.h>
-#include <compositionengine/impl/LayerCompositionState.h>
-#include <gmock/gmock.h>
+namespace HWC2 {
 
-namespace android::compositionengine::mock {
+// This will go away once HWC2::Layer is moved into the "backend" library
+Layer::~Layer() = default;
 
-class Layer : public compositionengine::Layer {
-public:
-    Layer();
-    virtual ~Layer();
+namespace mock {
 
-    MOCK_CONST_METHOD0(getLayerFE, sp<LayerFE>());
+// The Google Mock documentation recommends explicit non-header instantiations
+// for better compile time performance.
+Layer::Layer() = default;
+Layer::~Layer() = default;
 
-    MOCK_CONST_METHOD0(getState, const CompositionState&());
-    MOCK_METHOD0(editState, CompositionState&());
-
-    MOCK_CONST_METHOD1(dump, void(std::string&));
-};
-
-} // namespace android::compositionengine::mock
+} // namespace mock
+} // namespace HWC2

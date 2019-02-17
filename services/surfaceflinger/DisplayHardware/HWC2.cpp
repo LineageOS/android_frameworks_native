@@ -308,8 +308,7 @@ Error Display::acceptChanges()
     return static_cast<Error>(intError);
 }
 
-Error Display::createLayer(Layer** outLayer)
-{
+Error Display::createLayer(HWC2::Layer** outLayer) {
     if (!outLayer) {
         return Error::BadParameter;
     }
@@ -320,15 +319,13 @@ Error Display::createLayer(Layer** outLayer)
         return error;
     }
 
-    auto layer = std::make_unique<Layer>(
-            mComposer, mCapabilities, mId, layerId);
+    auto layer = std::make_unique<impl::Layer>(mComposer, mCapabilities, mId, layerId);
     *outLayer = layer.get();
     mLayers.emplace(layerId, std::move(layer));
     return Error::None;
 }
 
-Error Display::destroyLayer(Layer* layer)
-{
+Error Display::destroyLayer(HWC2::Layer* layer) {
     if (!layer) {
         return Error::BadParameter;
     }
@@ -388,9 +385,7 @@ Error Display::getActiveConfigIndex(int* outIndex) const {
     return Error::None;
 }
 
-Error Display::getChangedCompositionTypes(
-        std::unordered_map<Layer*, Composition>* outTypes)
-{
+Error Display::getChangedCompositionTypes(std::unordered_map<HWC2::Layer*, Composition>* outTypes) {
     std::vector<Hwc2::Layer> layerIds;
     std::vector<Hwc2::IComposerClient::Composition> types;
     auto intError = mComposer.getChangedCompositionTypes(
@@ -492,8 +487,7 @@ Error Display::getName(std::string* outName) const
 }
 
 Error Display::getRequests(HWC2::DisplayRequest* outDisplayRequests,
-        std::unordered_map<Layer*, LayerRequest>* outLayerRequests)
-{
+                           std::unordered_map<HWC2::Layer*, LayerRequest>* outLayerRequests) {
     uint32_t intDisplayRequests;
     std::vector<Hwc2::Layer> layerIds;
     std::vector<uint32_t> layerRequests;
@@ -574,9 +568,7 @@ Error Display::getDisplayedContentSample(uint64_t maxFrames, uint64_t timestamp,
     return static_cast<Error>(intError);
 }
 
-Error Display::getReleaseFences(
-        std::unordered_map<Layer*, sp<Fence>>* outFences) const
-{
+Error Display::getReleaseFences(std::unordered_map<HWC2::Layer*, sp<Fence>>* outFences) const {
     std::vector<Hwc2::Layer> layerIds;
     std::vector<int> fenceFds;
     auto intError = mComposer.getReleaseFences(mId, &layerIds, &fenceFds);
@@ -586,7 +578,7 @@ Error Display::getReleaseFences(
         return error;
     }
 
-    std::unordered_map<Layer*, sp<Fence>> releaseFences;
+    std::unordered_map<HWC2::Layer*, sp<Fence>> releaseFences;
     releaseFences.reserve(numElements);
     for (uint32_t element = 0; element < numElements; ++element) {
         auto layer = getLayerById(layerIds[element]);
@@ -787,8 +779,7 @@ void Display::loadConfigs()
 
 // Other Display methods
 
-Layer* Display::getLayerById(hwc2_layer_t id) const
-{
+HWC2::Layer* Display::getLayerById(hwc2_layer_t id) const {
     if (mLayers.count(id) == 0) {
         return nullptr;
     }
@@ -798,6 +789,10 @@ Layer* Display::getLayerById(hwc2_layer_t id) const
 } // namespace impl
 
 // Layer methods
+
+Layer::~Layer() = default;
+
+namespace impl {
 
 Layer::Layer(android::Hwc2::Composer& composer, const std::unordered_set<Capability>& capabilities,
              hwc2_display_t displayId, hwc2_layer_t layerId)
@@ -817,15 +812,6 @@ Layer::~Layer()
     ALOGE_IF(error != Error::None, "destroyLayer(%" PRIu64 ", %" PRIu64 ")"
             " failed: %s (%d)", mDisplayId, mId, to_string(error).c_str(),
             intError);
-    if (mLayerDestroyedListener) {
-        mLayerDestroyedListener(this);
-    }
-}
-
-void Layer::setLayerDestroyedListener(std::function<void(Layer*)> listener) {
-    LOG_ALWAYS_FATAL_IF(mLayerDestroyedListener && listener,
-            "Attempt to set layer destroyed listener multiple times");
-    mLayerDestroyedListener = listener;
 }
 
 Error Layer::setCursorPosition(int32_t x, int32_t y)
@@ -1033,4 +1019,6 @@ Error Layer::setColorTransform(const android::mat4& matrix) {
     auto intError = mComposer.setLayerColorTransform(mDisplayId, mId, matrix.asArray());
     return static_cast<Error>(intError);
 }
+
+} // namespace impl
 } // namespace HWC2

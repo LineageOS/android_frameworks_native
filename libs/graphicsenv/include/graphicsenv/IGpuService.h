@@ -18,6 +18,7 @@
 
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
+#include <graphicsenv/GraphicsEnv.h>
 
 #include <vector>
 
@@ -29,12 +30,14 @@ namespace android {
  */
 class IGpuService : public IInterface {
 public:
-    DECLARE_META_INTERFACE(GpuService);
+    DECLARE_META_INTERFACE(GpuService)
 
     // set GPU stats from GraphicsEnvironment.
     virtual void setGpuStats(const std::string& driverPackageName,
-                             const std::string& driverVersionName, const uint64_t driverVersionCode,
-                             const std::string& appPackageName) = 0;
+                             const std::string& driverVersionName, uint64_t driverVersionCode,
+                             const std::string& driverBuildDate, const std::string& appPackageName,
+                             GraphicsEnv::Driver driver, bool isDriverLoaded,
+                             int64_t driverLoadingTime) = 0;
 };
 
 class BnGpuService : public BnInterface<IGpuService> {

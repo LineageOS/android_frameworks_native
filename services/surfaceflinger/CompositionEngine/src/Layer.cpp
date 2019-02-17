@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android-base/stringprintf.h>
 #include <compositionengine/CompositionEngine.h>
 #include <compositionengine/LayerCreationArgs.h>
 #include <compositionengine/LayerFE.h>
@@ -40,6 +41,19 @@ Layer::~Layer() = default;
 
 sp<LayerFE> Layer::getLayerFE() const {
     return mLayerFE.promote();
+}
+
+const LayerCompositionState& Layer::getState() const {
+    return mState;
+}
+
+LayerCompositionState& Layer::editState() {
+    return mState;
+}
+
+void Layer::dump(std::string& out) const {
+    android::base::StringAppendF(&out, "     Layer %p\n", this);
+    mState.dump(out);
 }
 
 } // namespace impl

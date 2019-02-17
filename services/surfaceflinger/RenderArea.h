@@ -7,6 +7,8 @@
 
 namespace android {
 
+class DisplayDevice;
+
 // RenderArea describes a rectangular area that layers can be rendered to.
 //
 // There is a logical render area and a physical render area.  When a layer is
@@ -75,6 +77,8 @@ public:
     // Returns the fill color of the physical render area.  Regions not
     // covered by any rendered layer should be filled with this color.
     CaptureFill getCaptureFill() const { return mCaptureFill; };
+
+    virtual const sp<const DisplayDevice> getDisplayDevice() const = 0;
 
 private:
     const uint32_t mReqWidth;

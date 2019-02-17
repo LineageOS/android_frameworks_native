@@ -266,6 +266,7 @@ public:
     int getHeight() const override { return mDevice->getHeight(); }
     int getWidth() const override { return mDevice->getWidth(); }
     bool isSecure() const override { return mDevice->isSecure(); }
+    const sp<const DisplayDevice> getDisplayDevice() const override { return mDevice; }
 
     bool needsFiltering() const override {
         // check if the projection from the logical display to the physical

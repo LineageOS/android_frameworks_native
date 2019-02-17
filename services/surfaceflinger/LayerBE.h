@@ -17,18 +17,12 @@
 #pragma once
 
 #include <stdint.h>
-#include <sys/types.h>
+#include <string.h>
 
-#include <compositionengine/impl/HwcBufferCache.h>
-
-#include <renderengine/Mesh.h>
-#include <renderengine/RenderEngine.h>
-#include <renderengine/Texture.h>
-#include <ui/Region.h>
+#include <ui/Fence.h>
+#include <utils/StrongPointer.h>
 
 #include "DisplayHardware/DisplayIdentification.h"
-#include "DisplayHardware/HWComposer.h"
-#include "SurfaceFlinger.h"
 
 namespace android {
 
@@ -36,48 +30,10 @@ class LayerBE;
 
 struct CompositionInfo {
     std::string layerName;
-    HWC2::Composition compositionType;
-    bool firstClear = false;
-    sp<GraphicBuffer> mBuffer = nullptr;
-    int mBufferSlot = BufferQueue::INVALID_BUFFER_SLOT;
     std::shared_ptr<LayerBE> layer;
     struct {
-        std::shared_ptr<HWC2::Layer> hwcLayer;
         DisplayId displayId;
-        sp<Fence> fence;
-        HWC2::BlendMode blendMode = HWC2::BlendMode::Invalid;
-        Rect displayFrame;
-        float alpha;
-        FloatRect sourceCrop;
-        HWC2::Transform transform = HWC2::Transform::None;
-        int z;
-        int type;
-        int appId;
-        Region visibleRegion;
-        Region surfaceDamage;
-        sp<NativeHandle> sidebandStream;
-        ui::Dataspace dataspace;
-        hwc_color_t color;
-        bool clearClientTarget = false;
-        bool supportedPerFrameMetadata = false;
-        HdrMetadata hdrMetadata;
-        mat4 colorTransform;
     } hwc;
-    struct {
-        bool blackoutLayer = false;
-        bool clearArea = false;
-        bool preMultipliedAlpha = false;
-        bool opaque = false;
-        bool disableTexture = false;
-        half4 color;
-        bool useIdentityTransform = false;
-        bool Y410BT2020 = false;
-    } re;
-
-    void dump(const char* tag) const;
-    void dump(std::string& result, const char* tag = nullptr) const;
-    void dumpHwc(std::string& result, const char* tag = nullptr) const;
-    void dumpRe(std::string& result, const char* tag = nullptr) const;
 };
 
 class LayerBE {
@@ -96,41 +52,10 @@ public:
     explicit LayerBE(const LayerBE& layer);
 
     void onLayerDisplayed(const sp<Fence>& releaseFence);
-    void clear(renderengine::RenderEngine& renderEngine);
-    renderengine::Mesh& getMesh() { return mMesh; }
 
     Layer*const mLayer;
+
 private:
-    // The mesh used to draw the layer in GLES composition mode
-    renderengine::Mesh mMesh;
-
-    // HWC items, accessed from the main thread
-    struct HWCInfo {
-        HWCInfo()
-              : hwc(nullptr),
-                layer(nullptr),
-                forceClientComposition(false),
-                compositionType(HWC2::Composition::Invalid),
-                clearClientTarget(false),
-                transform(HWC2::Transform::None) {}
-
-        HWComposer* hwc;
-        std::shared_ptr<HWC2::Layer> layer;
-        bool forceClientComposition;
-        HWC2::Composition compositionType;
-        bool clearClientTarget;
-        Rect displayFrame;
-        FloatRect sourceCrop;
-        compositionengine::impl::HwcBufferCache bufferCache;
-        HWC2::Transform transform;
-    };
-
-    // A layer can be attached to multiple displays when operating in mirror mode
-    // (a.k.a: when several displays are attached with equal layerStack). In this
-    // case we need to keep track. In non-mirror mode, a layer will have only one
-    // HWCInfo.
-    std::unordered_map<DisplayId, HWCInfo> mHwcLayers;
-
     CompositionInfo compositionInfo;
 };
 

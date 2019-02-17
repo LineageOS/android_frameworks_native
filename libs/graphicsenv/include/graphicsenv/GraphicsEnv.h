@@ -28,11 +28,43 @@ namespace android {
 struct NativeLoaderNamespace;
 
 class GraphicsEnv {
+public:
+    enum Api {
+        API_GL = 0,
+        API_VK = 1,
+    };
+
+    enum Driver {
+        NONE = 0,
+        GL = 1,
+        GL_UPDATED = 2,
+        VULKAN = 3,
+        VULKAN_UPDATED = 4,
+        ANGLE = 5,
+    };
+
+private:
     struct GpuStats {
         std::string driverPackageName;
         std::string driverVersionName;
         uint64_t driverVersionCode;
+        std::string driverBuildDate;
         std::string appPackageName;
+        Driver glDriverToLoad;
+        Driver glDriverFallback;
+        Driver vkDriverToLoad;
+        Driver vkDriverFallback;
+
+        GpuStats()
+              : driverPackageName(""),
+                driverVersionName(""),
+                driverVersionCode(0),
+                driverBuildDate(""),
+                appPackageName(""),
+                glDriverToLoad(Driver::NONE),
+                glDriverFallback(Driver::NONE),
+                vkDriverToLoad(Driver::NONE),
+                vkDriverFallback(Driver::NONE) {}
     };
 
 public:
@@ -48,8 +80,12 @@ public:
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
-                     const uint64_t versionCode, const std::string& appPackageName);
-    void sendGpuStats();
+                     uint64_t versionCode, const std::string& driverBuildDate,
+                     const std::string& appPackageName);
+    void setDriverToLoad(Driver driver);
+    void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
+    void clearDriverLoadingInfo(Api api);
+    void sendGpuStatsLocked(Driver driver, bool isDriverLoaded, int64_t driverLoadingTime);
 
     bool shouldUseAngle(std::string appName);
     bool shouldUseAngle();
@@ -82,6 +118,7 @@ private:
 
     GraphicsEnv() = default;
     std::string mDriverPath;
+    std::mutex mStatsLock;
     GpuStats mGpuStats;
     std::string mAnglePath;
     std::string mAngleAppName;

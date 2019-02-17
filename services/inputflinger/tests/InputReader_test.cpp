@@ -103,6 +103,10 @@ public:
         return mDisplayId;
     }
 
+    const std::map<int32_t, std::vector<int32_t>>& getSpots() {
+        return mSpotsByDisplay;
+    }
+
 private:
     virtual bool getBounds(float* outMinX, float* outMinY, float* outMaxX, float* outMaxY) const {
         *outMinX = mMinX;
@@ -130,11 +134,22 @@ private:
     virtual void setPresentation(Presentation) {
     }
 
-    virtual void setSpots(const PointerCoords*, const uint32_t*, BitSet32) {
+    virtual void setSpots(const PointerCoords*, const uint32_t*, BitSet32 spotIdBits,
+            int32_t displayId) {
+        std::vector<int32_t> newSpots;
+        // Add spots for fingers that are down.
+        for (BitSet32 idBits(spotIdBits); !idBits.isEmpty(); ) {
+            uint32_t id = idBits.clearFirstMarkedBit();
+            newSpots.push_back(id);
+        }
+
+        mSpotsByDisplay[displayId] = newSpots;
     }
 
     virtual void clearSpots() {
     }
+
+    std::map<int32_t, std::vector<int32_t>> mSpotsByDisplay;
 };
 
 
@@ -226,6 +241,10 @@ public:
 
     void setPointerCapture(bool enabled) {
         mConfig.pointerCapture = enabled;
+    }
+
+    void setShowTouches(bool enabled) {
+        mConfig.showTouches = enabled;
     }
 
 private:
@@ -6313,6 +6332,87 @@ TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShouldHandleDisplayId) {
     ASSERT_NO_FATAL_FAILURE(mFakeListener->assertNotifyMotionWasCalled(&motionArgs));
     ASSERT_EQ(AMOTION_EVENT_ACTION_HOVER_MOVE, motionArgs.action);
     ASSERT_EQ(SECONDARY_DISPLAY_ID, motionArgs.displayId);
+}
+
+TEST_F(MultiTouchInputMapperTest, Process_Pointer_ShowTouches) {
+    // Setup the first touch screen device.
+    MultiTouchInputMapper* mapper = new MultiTouchInputMapper(mDevice);
+    prepareAxes(POSITION | ID | SLOT);
+    addConfigurationProperty("touch.deviceType", "touchScreen");
+    addMapperAndConfigure(mapper);
+
+    // Create the second touch screen device, and enable multi fingers.
+    const std::string USB2 = "USB2";
+    const int32_t SECOND_DEVICE_ID = 2;
+    InputDeviceIdentifier identifier;
+    identifier.name = DEVICE_NAME;
+    identifier.location = USB2;
+    InputDevice* device2 = new InputDevice(mFakeContext, SECOND_DEVICE_ID, DEVICE_GENERATION,
+            DEVICE_CONTROLLER_NUMBER, identifier, DEVICE_CLASSES);
+    mFakeEventHub->addDevice(SECOND_DEVICE_ID, DEVICE_NAME, 0 /*classes*/);
+    mFakeEventHub->addAbsoluteAxis(SECOND_DEVICE_ID, ABS_MT_POSITION_X, RAW_X_MIN, RAW_X_MAX,
+            0 /*flat*/, 0 /*fuzz*/);
+    mFakeEventHub->addAbsoluteAxis(SECOND_DEVICE_ID, ABS_MT_POSITION_Y, RAW_Y_MIN, RAW_Y_MAX,
+            0 /*flat*/, 0 /*fuzz*/);
+    mFakeEventHub->addAbsoluteAxis(SECOND_DEVICE_ID, ABS_MT_TRACKING_ID, RAW_ID_MIN, RAW_ID_MAX,
+            0 /*flat*/, 0 /*fuzz*/);
+    mFakeEventHub->addAbsoluteAxis(SECOND_DEVICE_ID, ABS_MT_SLOT, RAW_SLOT_MIN, RAW_SLOT_MAX,
+            0 /*flat*/, 0 /*fuzz*/);
+    mFakeEventHub->setAbsoluteAxisValue(SECOND_DEVICE_ID, ABS_MT_SLOT, 0 /*value*/);
+    mFakeEventHub->addConfigurationProperty(SECOND_DEVICE_ID, String8("touch.deviceType"),
+            String8("touchScreen"));
+
+    // Setup the second touch screen device.
+    MultiTouchInputMapper* mapper2 = new MultiTouchInputMapper(device2);
+    device2->addMapper(mapper2);
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(), 0 /*changes*/);
+    device2->reset(ARBITRARY_TIME);
+
+    // Setup PointerController.
+    sp<FakePointerController> fakePointerController = new FakePointerController();
+    mFakePolicy->setPointerController(mDevice->getId(), fakePointerController);
+    mFakePolicy->setPointerController(SECOND_DEVICE_ID, fakePointerController);
+
+    // Setup policy for associated displays and show touches.
+    const uint8_t hdmi1 = 0;
+    const uint8_t hdmi2 = 1;
+    mFakePolicy->addInputPortAssociation(DEVICE_LOCATION, hdmi1);
+    mFakePolicy->addInputPortAssociation(USB2, hdmi2);
+    mFakePolicy->setShowTouches(true);
+
+    // Create displays.
+    prepareDisplay(DISPLAY_ORIENTATION_0, hdmi1);
+    prepareSecondaryDisplay(ViewportType::VIEWPORT_EXTERNAL, hdmi2);
+
+    // Default device will reconfigure above, need additional reconfiguration for another device.
+    device2->configure(ARBITRARY_TIME, mFakePolicy->getReaderConfiguration(),
+            InputReaderConfiguration::CHANGE_DISPLAY_INFO);
+
+    // Two fingers down at default display.
+    int32_t x1 = 100, y1 = 125, x2 = 300, y2 = 500;
+    processPosition(mapper, x1, y1);
+    processId(mapper, 1);
+    processSlot(mapper, 1);
+    processPosition(mapper, x2, y2);
+    processId(mapper, 2);
+    processSync(mapper);
+
+    std::map<int32_t, std::vector<int32_t>>::const_iterator iter =
+            fakePointerController->getSpots().find(DISPLAY_ID);
+    ASSERT_TRUE(iter != fakePointerController->getSpots().end());
+    ASSERT_EQ(size_t(2), iter->second.size());
+
+    // Two fingers down at second display.
+    processPosition(mapper2, x1, y1);
+    processId(mapper2, 1);
+    processSlot(mapper2, 1);
+    processPosition(mapper2, x2, y2);
+    processId(mapper2, 2);
+    processSync(mapper2);
+
+    iter = fakePointerController->getSpots().find(SECONDARY_DISPLAY_ID);
+    ASSERT_TRUE(iter != fakePointerController->getSpots().end());
+    ASSERT_EQ(size_t(2), iter->second.size());
 }
 
 } // namespace android

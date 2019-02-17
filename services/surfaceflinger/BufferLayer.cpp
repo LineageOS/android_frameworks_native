@@ -24,8 +24,12 @@
 #include <mutex>
 
 #include <compositionengine/CompositionEngine.h>
+#include <compositionengine/Display.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerCreationArgs.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <cutils/compiler.h>
 #include <cutils/native_handle.h>
 #include <cutils/properties.h>
@@ -66,11 +70,10 @@ BufferLayer::BufferLayer(const LayerCreationArgs& args)
 BufferLayer::~BufferLayer() {
     mFlinger->deleteTextureAsync(mTextureName);
 
-    if (!getBE().mHwcLayers.empty()) {
+    if (destroyAllHwcLayersPlusChildren()) {
         ALOGE("Found stale hardware composer layers when destroying "
               "surface flinger layer %s",
               mName.string());
-        destroyAllHwcLayersPlusChildren();
     }
 
     mFlinger->mTimeStats->onDestroy(getSequence());
@@ -91,7 +94,7 @@ void BufferLayer::useEmptyDamage() {
 bool BufferLayer::isOpaque(const Layer::State& s) const {
     // if we don't have a buffer or sidebandStream yet, we're translucent regardless of the
     // layer's opaque flag.
-    if ((getBE().compositionInfo.hwc.sidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
+    if ((mSidebandStream == nullptr) && (mActiveBuffer == nullptr)) {
         return false;
     }
 
@@ -102,7 +105,7 @@ bool BufferLayer::isOpaque(const Layer::State& s) const {
 
 bool BufferLayer::isVisible() const {
     return !(isHiddenByPolicy()) && getAlpha() > 0.0f &&
-            (mActiveBuffer != nullptr || getBE().compositionInfo.hwc.sidebandStream != nullptr);
+            (mActiveBuffer != nullptr || mSidebandStream != nullptr);
 }
 
 bool BufferLayer::isFixedSize() const {
@@ -171,7 +174,8 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
         layer.source.buffer.usePremultipliedAlpha = getPremultipledAlpha();
         layer.source.buffer.isY410BT2020 = isHdrY410();
         // TODO: we could be more subtle with isFixedSize()
-        const bool useFiltering = needsFiltering() || renderArea.needsFiltering() || isFixedSize();
+        const bool useFiltering = needsFiltering(renderArea.getDisplayDevice()) ||
+                renderArea.needsFiltering() || isFixedSize();
 
         // Query the texture matrix given our current filtering mode.
         float textureMatrix[16];
@@ -237,26 +241,31 @@ bool BufferLayer::isHdrY410() const {
     // pixel format is HDR Y410 masquerading as RGBA_1010102
     return (mCurrentDataSpace == ui::Dataspace::BT2020_ITU_PQ &&
             getDrawingApi() == NATIVE_WINDOW_API_MEDIA &&
-            getBE().compositionInfo.mBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
+            mActiveBuffer->getPixelFormat() == HAL_PIXEL_FORMAT_RGBA_1010102);
 }
 
-void BufferLayer::setPerFrameData(DisplayId displayId, const ui::Transform& transform,
-                                  const Rect& viewport, int32_t supportedPerFrameMetadata) {
-    RETURN_IF_NO_HWC_LAYER(displayId);
+void BufferLayer::setPerFrameData(const sp<const DisplayDevice>& displayDevice,
+                                  const ui::Transform& transform, const Rect& viewport,
+                                  int32_t supportedPerFrameMetadata) {
+    RETURN_IF_NO_HWC_LAYER(displayDevice);
 
     // Apply this display's projection's viewport to the visible region
     // before giving it to the HWC HAL.
     Region visible = transform.transform(visibleRegion.intersect(viewport));
 
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
+    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
+
+    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
     auto error = hwcLayer->setVisibleRegion(visible);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set visible region: %s (%d)", mName.string(),
               to_string(error).c_str(), static_cast<int32_t>(error));
         visible.dump(LOG_TAG);
     }
-    getBE().compositionInfo.hwc.visibleRegion = visible;
+    outputLayer->editState().visibleRegion = visible;
+
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
 
     error = hwcLayer->setSurfaceDamage(surfaceDamageRegion);
     if (error != HWC2::Error::None) {
@@ -264,29 +273,29 @@ void BufferLayer::setPerFrameData(DisplayId displayId, const ui::Transform& tran
               to_string(error).c_str(), static_cast<int32_t>(error));
         surfaceDamageRegion.dump(LOG_TAG);
     }
-    getBE().compositionInfo.hwc.surfaceDamage = surfaceDamageRegion;
+    layerCompositionState.surfaceDamage = surfaceDamageRegion;
 
     // Sideband layers
-    if (getBE().compositionInfo.hwc.sidebandStream.get()) {
-        setCompositionType(displayId, HWC2::Composition::Sideband);
+    if (layerCompositionState.sidebandStream.get()) {
+        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::SIDEBAND);
         ALOGV("[%s] Requesting Sideband composition", mName.string());
-        error = hwcLayer->setSidebandStream(getBE().compositionInfo.hwc.sidebandStream->handle());
+        error = hwcLayer->setSidebandStream(layerCompositionState.sidebandStream->handle());
         if (error != HWC2::Error::None) {
             ALOGE("[%s] Failed to set sideband stream %p: %s (%d)", mName.string(),
-                  getBE().compositionInfo.hwc.sidebandStream->handle(), to_string(error).c_str(),
+                  layerCompositionState.sidebandStream->handle(), to_string(error).c_str(),
                   static_cast<int32_t>(error));
         }
-        getBE().compositionInfo.compositionType = HWC2::Composition::Sideband;
+        layerCompositionState.compositionType = Hwc2::IComposerClient::Composition::SIDEBAND;
         return;
     }
 
     // Device or Cursor layers
     if (mPotentialCursor) {
         ALOGV("[%s] Requesting Cursor composition", mName.string());
-        setCompositionType(displayId, HWC2::Composition::Cursor);
+        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::CURSOR);
     } else {
         ALOGV("[%s] Requesting Device composition", mName.string());
-        setCompositionType(displayId, HWC2::Composition::Device);
+        setCompositionType(displayDevice, Hwc2::IComposerClient::Composition::DEVICE);
     }
 
     ALOGV("setPerFrameData: dataspace = %d", mCurrentDataSpace);
@@ -308,12 +317,11 @@ void BufferLayer::setPerFrameData(DisplayId displayId, const ui::Transform& tran
         ALOGE("[%s] Failed to setColorTransform: %s (%d)", mName.string(),
                 to_string(error).c_str(), static_cast<int32_t>(error));
     }
-    getBE().compositionInfo.hwc.dataspace = mCurrentDataSpace;
-    getBE().compositionInfo.hwc.hdrMetadata = getDrawingHdrMetadata();
-    getBE().compositionInfo.hwc.supportedPerFrameMetadata = supportedPerFrameMetadata;
-    getBE().compositionInfo.hwc.colorTransform = getColorTransform();
+    layerCompositionState.dataspace = mCurrentDataSpace;
+    layerCompositionState.colorTransform = getColorTransform();
+    layerCompositionState.hdrMetadata = metadata;
 
-    setHwcLayerBuffer(displayId);
+    setHwcLayerBuffer(displayDevice);
 }
 
 bool BufferLayer::onPreComposition(nsecs_t refreshStartTime) {
@@ -372,8 +380,7 @@ bool BufferLayer::onPostComposition(const std::optional<DisplayId>& displayId,
     return true;
 }
 
-bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                              const sp<Fence>& releaseFence) {
+bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime) {
     ATRACE_CALL();
 
     bool refreshRequired = latchSidebandStream(recomputeVisibleRegions);
@@ -412,7 +419,7 @@ bool BufferLayer::latchBuffer(bool& recomputeVisibleRegions, nsecs_t latchTime,
         return false;
     }
 
-    status_t err = updateTexImage(recomputeVisibleRegions, latchTime, releaseFence);
+    status_t err = updateTexImage(recomputeVisibleRegions, latchTime);
     if (err != NO_ERROR) {
         return false;
     }
@@ -605,9 +612,21 @@ bool BufferLayer::getOpacityForFormat(uint32_t format) {
     return true;
 }
 
-bool BufferLayer::needsFiltering() const {
-    const auto displayFrame = getBE().compositionInfo.hwc.displayFrame;
-    const auto sourceCrop = getBE().compositionInfo.hwc.sourceCrop;
+bool BufferLayer::needsFiltering(const sp<const DisplayDevice>& displayDevice) const {
+    // If we are not capturing based on the state of a known display device, we
+    // only return mNeedsFiltering
+    if (displayDevice == nullptr) {
+        return mNeedsFiltering;
+    }
+
+    const auto outputLayer = findOutputLayerForDisplay(displayDevice);
+    if (outputLayer == nullptr) {
+        return mNeedsFiltering;
+    }
+
+    const auto& compositionState = outputLayer->getState();
+    const auto displayFrame = compositionState.displayFrame;
+    const auto sourceCrop = compositionState.sourceCrop;
     return mNeedsFiltering || sourceCrop.getHeight() != displayFrame.getHeight() ||
             sourceCrop.getWidth() != displayFrame.getWidth();
 }

@@ -19,15 +19,19 @@
 #define LOG_TAG "BufferStateLayer"
 #define ATRACE_TAG ATRACE_TAG_GRAPHICS
 
-#include "BufferStateLayer.h"
-#include "ColorLayer.h"
+#include <limits>
 
-#include "TimeStats/TimeStats.h"
-
+#include <compositionengine/Display.h>
+#include <compositionengine/Layer.h>
+#include <compositionengine/OutputLayer.h>
+#include <compositionengine/impl/LayerCompositionState.h>
+#include <compositionengine/impl/OutputLayerCompositionState.h>
 #include <private/gui/SyncFeatures.h>
 #include <renderengine/Image.h>
 
-#include <limits>
+#include "BufferStateLayer.h"
+#include "ColorLayer.h"
+#include "TimeStats/TimeStats.h"
 
 namespace android {
 
@@ -438,9 +442,10 @@ bool BufferStateLayer::latchSidebandStream(bool& recomputeVisibleRegions) {
     if (mSidebandStreamChanged.exchange(false)) {
         const State& s(getDrawingState());
         // mSidebandStreamChanged was true
-        // replicated in LayerBE until FE/BE is ready to be synchronized
-        getBE().compositionInfo.hwc.sidebandStream = s.sidebandStream;
-        if (getBE().compositionInfo.hwc.sidebandStream != nullptr) {
+        LOG_ALWAYS_FATAL_IF(!getCompositionLayer());
+        mSidebandStream = s.sidebandStream;
+        getCompositionLayer()->editState().frontEnd.sidebandStream = mSidebandStream;
+        if (mSidebandStream != nullptr) {
             setTransactionFlags(eTransactionNeeded);
             mFlinger->setTransactionFlags(eTraversalNeeded);
         }
@@ -468,8 +473,7 @@ status_t BufferStateLayer::bindTextureImage() {
     return engine.bindExternalTextureBuffer(mTextureName, s.buffer, s.acquireFence, false);
 }
 
-status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime,
-                                          const sp<Fence>& releaseFence) {
+status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nsecs_t latchTime) {
     const State& s(getDrawingState());
 
     if (!s.buffer) {
@@ -511,59 +515,7 @@ status_t BufferStateLayer::updateTexImage(bool& /*recomputeVisibleRegions*/, nse
         handle->latchTime = latchTime;
     }
 
-    // Handle sync fences
-    if (SyncFeatures::getInstance().useNativeFenceSync() && releaseFence != Fence::NO_FENCE) {
-        // TODO(alecmouri): Fail somewhere upstream if the fence is invalid.
-        if (!releaseFence->isValid()) {
-            mFlinger->mTimeStats->onDestroy(layerID);
-            return UNKNOWN_ERROR;
-        }
-
-        // Check status of fences first because merging is expensive.
-        // Merging an invalid fence with any other fence results in an
-        // invalid fence.
-        auto currentStatus = s.acquireFence->getStatus();
-        if (currentStatus == Fence::Status::Invalid) {
-            ALOGE("Existing fence has invalid state");
-            mFlinger->mTimeStats->onDestroy(layerID);
-            return BAD_VALUE;
-        }
-
-        auto incomingStatus = releaseFence->getStatus();
-        if (incomingStatus == Fence::Status::Invalid) {
-            ALOGE("New fence has invalid state");
-            mDrawingState.acquireFence = releaseFence;
-            mFlinger->mTimeStats->onDestroy(layerID);
-            return BAD_VALUE;
-        }
-
-        // If both fences are signaled or both are unsignaled, we need to merge
-        // them to get an accurate timestamp.
-        if (currentStatus == incomingStatus) {
-            char fenceName[32] = {};
-            snprintf(fenceName, 32, "%.28s:%d", mName.string(), mFrameNumber);
-            sp<Fence> mergedFence =
-                    Fence::merge(fenceName, mDrawingState.acquireFence, releaseFence);
-            if (!mergedFence.get()) {
-                ALOGE("failed to merge release fences");
-                // synchronization is broken, the best we can do is hope fences
-                // signal in order so the new fence will act like a union
-                mDrawingState.acquireFence = releaseFence;
-                mFlinger->mTimeStats->onDestroy(layerID);
-                return BAD_VALUE;
-            }
-            mDrawingState.acquireFence = mergedFence;
-        } else if (incomingStatus == Fence::Status::Unsignaled) {
-            // If one fence has signaled and the other hasn't, the unsignaled
-            // fence will approximately correspond with the correct timestamp.
-            // There's a small race if both fences signal at about the same time
-            // and their statuses are retrieved with unfortunate timing. However,
-            // by this point, they will have both signaled and only the timestamp
-            // will be slightly off; any dependencies after this point will
-            // already have been met.
-            mDrawingState.acquireFence = releaseFence;
-        }
-    } else {
+    if (!SyncFeatures::getInstance().useNativeFenceSync()) {
         // Bind the new buffer to the GL texture.
         //
         // Older devices require the "implicit" synchronization provided
@@ -594,8 +546,9 @@ status_t BufferStateLayer::updateActiveBuffer() {
 
     mActiveBuffer = s.buffer;
     mActiveBufferFence = s.acquireFence;
-    getBE().compositionInfo.mBuffer = mActiveBuffer;
-    getBE().compositionInfo.mBufferSlot = 0;
+    auto& layerCompositionState = getCompositionLayer()->editState().frontEnd;
+    layerCompositionState.buffer = mActiveBuffer;
+    layerCompositionState.bufferSlot = 0;
 
     return NO_ERROR;
 }
@@ -611,9 +564,10 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
     return NO_ERROR;
 }
 
-void BufferStateLayer::setHwcLayerBuffer(DisplayId displayId) {
-    auto& hwcInfo = getBE().mHwcLayers[displayId];
-    auto& hwcLayer = hwcInfo.layer;
+void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
+    const auto outputLayer = findOutputLayerForDisplay(display);
+    LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
+    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
 
     const State& s(getDrawingState());
 

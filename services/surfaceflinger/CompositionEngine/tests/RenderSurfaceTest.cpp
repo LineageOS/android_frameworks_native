@@ -22,6 +22,7 @@
 #include <compositionengine/mock/CompositionEngine.h>
 #include <compositionengine/mock/Display.h>
 #include <compositionengine/mock/DisplaySurface.h>
+#include <compositionengine/mock/OutputLayer.h>
 #include <gtest/gtest.h>
 #include <renderengine/mock/RenderEngine.h>
 #include <system/window.h>
@@ -284,64 +285,66 @@ TEST_F(RenderSurfaceTest, beginFrameAppliesChange) {
  * RenderSurface::prepareFrame()
  */
 
-TEST_F(RenderSurfaceTest, prepareFrameTakesEarlyOutOnHwcError) {
-    std::vector<CompositionInfo> data;
-
-    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(data)))
+TEST_F(RenderSurfaceTest, prepareFramePassesOutputLayersToHwc) {
+    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(mDisplay)))
             .WillOnce(Return(INVALID_OPERATION));
 
-    EXPECT_EQ(INVALID_OPERATION, mSurface.prepareFrame(data));
+    EXPECT_EQ(INVALID_OPERATION, mSurface.prepareFrame());
+}
+
+TEST_F(RenderSurfaceTest, prepareFrameTakesEarlyOutOnHwcError) {
+    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(mDisplay)))
+            .WillOnce(Return(INVALID_OPERATION));
+
+    EXPECT_EQ(INVALID_OPERATION, mSurface.prepareFrame());
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesMixedComposition) {
-    std::vector<CompositionInfo> data;
-    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(data))).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(mDisplay)))
+            .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(mHwComposer, hasClientComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(true));
     EXPECT_CALL(mHwComposer, hasDeviceComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(true));
 
     EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_MIXED))
             .WillOnce(Return(INVALID_OPERATION));
 
-    EXPECT_EQ(INVALID_OPERATION, mSurface.prepareFrame(data));
+    EXPECT_EQ(INVALID_OPERATION, mSurface.prepareFrame());
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesOnlyGlesComposition) {
-    std::vector<CompositionInfo> data;
-
-    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(data))).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(mDisplay)))
+            .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(mHwComposer, hasClientComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(true));
     EXPECT_CALL(mHwComposer, hasDeviceComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(false));
 
     EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_GLES))
             .WillOnce(Return(NO_ERROR));
 
-    EXPECT_EQ(NO_ERROR, mSurface.prepareFrame(data));
+    EXPECT_EQ(NO_ERROR, mSurface.prepareFrame());
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesOnlyHwcComposition) {
-    std::vector<CompositionInfo> data;
-
-    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(data))).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(mDisplay)))
+            .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(mHwComposer, hasClientComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(false));
     EXPECT_CALL(mHwComposer, hasDeviceComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(true));
 
     EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_HWC))
             .WillOnce(Return(NO_ERROR));
 
-    EXPECT_EQ(NO_ERROR, mSurface.prepareFrame(data));
+    EXPECT_EQ(NO_ERROR, mSurface.prepareFrame());
 }
 
 TEST_F(RenderSurfaceTest, prepareFrameHandlesNoComposition) {
-    std::vector<CompositionInfo> data;
-
-    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(data))).WillOnce(Return(NO_ERROR));
+    EXPECT_CALL(mHwComposer, prepare(*DEFAULT_DISPLAY_ID, Ref(mDisplay)))
+            .WillOnce(Return(NO_ERROR));
     EXPECT_CALL(mHwComposer, hasClientComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(false));
     EXPECT_CALL(mHwComposer, hasDeviceComposition(DEFAULT_DISPLAY_ID)).WillOnce(Return(false));
 
     EXPECT_CALL(*mDisplaySurface, prepareFrame(DisplaySurface::COMPOSITION_HWC))
             .WillOnce(Return(NO_ERROR));
 
-    EXPECT_EQ(NO_ERROR, mSurface.prepareFrame(data));
+    EXPECT_EQ(NO_ERROR, mSurface.prepareFrame());
 }
 
 /* ------------------------------------------------------------------------

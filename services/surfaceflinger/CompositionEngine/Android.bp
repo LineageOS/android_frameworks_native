@@ -5,6 +5,7 @@ cc_defaults {
         "-DLOG_TAG=\"CompositionEngine\"",
     ],
     shared_libs: [
+        "android.frameworks.vr.composer@1.0",
         "android.hardware.graphics.allocator@2.0",
         "android.hardware.graphics.composer@2.1",
         "android.hardware.graphics.composer@2.2",
@@ -28,6 +29,9 @@ cc_defaults {
         "libtrace_proto",
     ],
     header_libs: [
+        "android.hardware.graphics.composer@2.1-command-buffer",
+        "android.hardware.graphics.composer@2.2-command-buffer",
+        "android.hardware.graphics.composer@2.3-command-buffer",
         "libsurfaceflinger_headers",
     ],
 }
@@ -43,9 +47,11 @@ cc_library {
         "src/DumpHelpers.cpp",
         "src/HwcBufferCache.cpp",
         "src/Layer.cpp",
+        "src/LayerCompositionState.cpp",
         "src/Output.cpp",
         "src/OutputCompositionState.cpp",
         "src/OutputLayer.cpp",
+        "src/OutputLayerCompositionState.cpp",
         "src/RenderSurface.cpp",
     ],
     local_include_dirs: ["include"],
@@ -85,6 +91,7 @@ cc_test {
         "tests/DisplayTest.cpp",
         "tests/HwcBufferCacheTest.cpp",
         "tests/LayerTest.cpp",
+        "tests/MockHWC2.cpp",
         "tests/MockHWComposer.cpp",
         "tests/OutputTest.cpp",
         "tests/OutputLayerTest.cpp",

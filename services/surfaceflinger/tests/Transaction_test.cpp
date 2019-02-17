@@ -5126,23 +5126,35 @@ public:
         SurfaceComposerClient::Transaction().show(mChild).apply(true);
     }
 
-    void verify() {
+    void verify(std::function<void()> verifyStartingState) {
+        // Verify starting state before a screenshot is taken.
+        verifyStartingState();
+
+        // Verify child layer does not inherit any of the properties of its
+        // parent when its screenshot is captured.
         auto fgHandle = mFGSurfaceControl->getHandle();
         ScreenCapture::captureChildLayers(&mCapture, fgHandle);
         mCapture->checkPixel(10, 10, 0, 0, 0);
         mCapture->expectChildColor(0, 0);
+
+        // Verify all assumptions are still true after the screenshot is taken.
+        verifyStartingState();
     }
 
     std::unique_ptr<ScreenCapture> mCapture;
     sp<SurfaceControl> mChild;
 };
 
+// Regression test b/76099859
 TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentVisibility) {
 
     SurfaceComposerClient::Transaction().hide(mFGSurfaceControl).apply(true);
 
     // Even though the parent is hidden we should still capture the child.
-    verify();
+
+    // Before and after reparenting, verify child is properly hidden
+    // when rendering full-screen.
+    verify([&] { screenshot()->expectBGColor(64, 64); });
 }
 
 TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentCrop) {
@@ -5151,25 +5163,19 @@ TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresParentCrop) {
             .apply(true);
 
     // Even though the parent is cropped out we should still capture the child.
-    verify();
+
+    // Before and after reparenting, verify child is cropped by parent.
+    verify([&] { screenshot()->expectBGColor(65, 65); });
 }
 
+// Regression test b/124372894
 TEST_F(ScreenCaptureChildOnlyTest, CaptureLayerIgnoresTransform) {
-
-    SurfaceComposerClient::Transaction().setMatrix(mFGSurfaceControl, 2, 0, 0, 2);
+    SurfaceComposerClient::Transaction().setMatrix(mFGSurfaceControl, 2, 0, 0, 2).apply(true);
 
     // We should not inherit the parent scaling.
-    verify();
-}
 
-TEST_F(ScreenCaptureChildOnlyTest, RegressionTest76099859) {
-    SurfaceComposerClient::Transaction().hide(mFGSurfaceControl).apply(true);
-
-    // Even though the parent is hidden we should still capture the child.
-    verify();
-
-    // Verify everything was properly hidden when rendering the full-screen.
-    screenshot()->expectBGColor(0,0);
+    // Before and after reparenting, verify child is properly scaled.
+    verify([&] { screenshot()->expectChildColor(80, 80); });
 }
 
 

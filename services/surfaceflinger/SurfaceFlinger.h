@@ -169,9 +169,6 @@ public:
     nsecs_t mTotalTime;
     std::atomic<nsecs_t> mLastSwapTime;
 
-    // Synchronization fence from a GL composition.
-    sp<Fence> flushFence = Fence::NO_FENCE;
-
     // Double- vs. triple-buffering stats
     struct BufferingStats {
         BufferingStats()
@@ -408,6 +405,7 @@ private:
      */
     status_t onTransact(uint32_t code, const Parcel& data, Parcel* reply, uint32_t flags) override;
     status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
+    bool callingThreadHasUnscopedSurfaceFlingerAccess() EXCLUDES(mStateLock);
 
     /* ------------------------------------------------------------------------
      * ISurfaceComposer interface
@@ -534,10 +532,11 @@ private:
     void handleMessageRefresh();
 
     void handleTransaction(uint32_t transactionFlags);
-    void handleTransactionLocked(uint32_t transactionFlags);
+    void handleTransactionLocked(uint32_t transactionFlags) REQUIRES(mStateLock);
 
     void updateInputFlinger();
     void updateInputWindowInfo();
+    void commitInputWindowCommands() REQUIRES(mStateLock);
     void executeInputWindowCommands();
     void updateCursorAsync();
 
@@ -552,7 +551,8 @@ private:
      */
     void applyTransactionState(const Vector<ComposerState>& state,
                                const Vector<DisplayState>& displays, uint32_t flags,
-                               const InputWindowCommands& inputWindowCommands) REQUIRES(mStateLock);
+                               const InputWindowCommands& inputWindowCommands,
+                               bool privileged) REQUIRES(mStateLock);
     bool flushTransactionQueues();
     uint32_t getTransactionFlags(uint32_t flags);
     uint32_t peekTransactionFlags();
@@ -564,9 +564,10 @@ private:
     bool containsAnyInvalidClientState(const Vector<ComposerState>& states);
     bool transactionIsReadyToBeApplied(int64_t desiredPresentTime,
                                        const Vector<ComposerState>& states);
-    uint32_t setClientStateLocked(const ComposerState& composerState);
+    uint32_t setClientStateLocked(const ComposerState& composerState, bool privileged);
     uint32_t setDisplayStateLocked(const DisplayState& s);
-    uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands);
+    uint32_t addInputWindowCommands(const InputWindowCommands& inputWindowCommands)
+            REQUIRES(mStateLock);
 
     /* ------------------------------------------------------------------------
      * Layer management
@@ -785,36 +786,10 @@ private:
      * VSync
      */
     nsecs_t getVsyncPeriod() const REQUIRES(mStateLock);
-    void enableHardwareVsync();
-    void resyncToHardwareVsync(bool makeAvailable, nsecs_t period);
-    void disableHardwareVsync(bool makeUnavailable);
 
     // Sets the refresh rate by switching active configs, if they are available for
     // the desired refresh rate.
     void setRefreshRateTo(scheduler::RefreshRateConfigs::RefreshRateType) REQUIRES(mStateLock);
-
-    using GetVsyncPeriod = std::function<nsecs_t()>;
-
-    // Stores per-display state about VSYNC.
-    struct VsyncState {
-        explicit VsyncState(SurfaceFlinger& flinger) : flinger(flinger) {}
-
-        void resync(const GetVsyncPeriod&);
-
-        SurfaceFlinger& flinger;
-        std::atomic<nsecs_t> lastResyncTime = 0;
-    };
-
-    const std::shared_ptr<VsyncState> mPrimaryVsyncState{std::make_shared<VsyncState>(*this)};
-
-    auto makeResyncCallback(GetVsyncPeriod&& getVsyncPeriod) {
-        std::weak_ptr<VsyncState> ptr = mPrimaryVsyncState;
-        return [ptr, getVsyncPeriod = std::move(getVsyncPeriod)]() {
-            if (const auto vsync = ptr.lock()) {
-                vsync->resync(getVsyncPeriod);
-            }
-        };
-    }
 
     /*
      * Display identification
@@ -893,9 +868,8 @@ private:
     void dumpBufferingStats(std::string& result) const;
     void dumpDisplayIdentificationData(std::string& result) const;
     void dumpWideColorInfo(std::string& result) const;
-    void dumpFrameCompositionInfo(std::string& result) const;
     LayersProto dumpProtoInfo(LayerVector::StateSet stateSet) const;
-    LayersProto dumpVisibleLayersProtoInfo(const DisplayDevice& display) const;
+    LayersProto dumpVisibleLayersProtoInfo(const sp<DisplayDevice>& display) const;
 
     bool isLayerTripleBufferingDisabled() const {
         return this->mLayerTripleBufferingDisabled;
@@ -954,11 +928,7 @@ private:
     // constant members (no synchronization needed for access)
     nsecs_t mBootTime;
     bool mGpuToCpuSupported;
-    std::unique_ptr<EventThread> mEventThread;
-    std::unique_ptr<EventThread> mSFEventThread;
     std::unique_ptr<EventThread> mInjectorEventThread;
-    std::unique_ptr<VSyncSource> mEventThreadSource;
-    std::unique_ptr<VSyncSource> mSfEventThreadSource;
     std::unique_ptr<InjectVSyncSource> mVSyncInjector;
     std::unique_ptr<EventControlThread> mEventControlThread;
 
@@ -1025,16 +995,11 @@ private:
     // these are thread safe
     mutable std::unique_ptr<MessageQueue> mEventQueue{mFactory.createMessageQueue()};
     FrameTracker mAnimFrameTracker;
-    std::unique_ptr<DispSync> mPrimaryDispSync;
 
     // protected by mDestroyedLayerLock;
     mutable Mutex mDestroyedLayerLock;
     Vector<Layer const *> mDestroyedLayers;
 
-    // protected by mHWVsyncLock
-    Mutex mHWVsyncLock;
-    bool mPrimaryHWVsyncEnabled;
-    bool mHWVsyncAvailable;
     nsecs_t mRefreshStartTime;
 
     std::atomic<bool> mRefreshPending{false};
@@ -1054,16 +1019,19 @@ private:
     struct TransactionState {
         TransactionState(const Vector<ComposerState>& composerStates,
                          const Vector<DisplayState>& displayStates, uint32_t transactionFlags,
-                         int64_t desiredPresentTime)
+                         int64_t desiredPresentTime,
+                         bool privileged)
               : states(composerStates),
                 displays(displayStates),
                 flags(transactionFlags),
-                time(desiredPresentTime) {}
+                time(desiredPresentTime),
+                privileged(privileged) {}
 
         Vector<ComposerState> states;
         Vector<DisplayState> displays;
         uint32_t flags;
         int64_t time;
+        bool privileged;
     };
     std::unordered_map<sp<IBinder>, std::queue<TransactionState>, IBinderHash> mTransactionQueues;
 
@@ -1107,7 +1075,7 @@ private:
     /* ------------------------------------------------------------------------
      * Scheduler
      */
-    bool mUseScheduler = false;
+    bool mUse90Hz = false;
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
@@ -1144,6 +1112,8 @@ private:
     /* ------------------------------------------------------------------------ */
     sp<IInputFlinger> mInputFlinger;
 
+    InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
+    // Should only be accessed by the main thread.
     InputWindowCommands mInputWindowCommands;
 
     ui::DisplayPrimaries mInternalDisplayPrimaries;

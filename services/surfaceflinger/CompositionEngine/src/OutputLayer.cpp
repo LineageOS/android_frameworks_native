@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <android-base/stringprintf.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
@@ -46,6 +47,21 @@ compositionengine::Layer& OutputLayer::getLayer() const {
 
 compositionengine::LayerFE& OutputLayer::getLayerFE() const {
     return *mLayerFE;
+}
+
+const OutputLayerCompositionState& OutputLayer::getState() const {
+    return mState;
+}
+
+OutputLayerCompositionState& OutputLayer::editState() {
+    return mState;
+}
+
+void OutputLayer::dump(std::string& out) const {
+    using android::base::StringAppendF;
+
+    StringAppendF(&out, "     Output Layer %p\n", this);
+    mState.dump(out);
 }
 
 } // namespace impl

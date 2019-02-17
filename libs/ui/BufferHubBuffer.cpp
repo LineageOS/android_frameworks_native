@@ -78,15 +78,14 @@ BufferHubBuffer::BufferHubBuffer(uint32_t width, uint32_t height, uint32_t layer
     BufferHubStatus ret;
     sp<IBufferClient> client;
     BufferTraits bufferTraits;
-    IBufferHub::allocateBuffer_cb alloc_cb = [&](const auto& status, const auto& outClient,
-                                                 const auto& outTraits) {
+    IBufferHub::allocateBuffer_cb allocCb = [&](const auto& status, const auto& outClient,
+                                                const auto& outTraits) {
         ret = status;
         client = std::move(outClient);
         bufferTraits = std::move(outTraits);
     };
 
-    if (!bufferhub->allocateBuffer(desc, static_cast<uint32_t>(userMetadataSize), alloc_cb)
-                 .isOk()) {
+    if (!bufferhub->allocateBuffer(desc, static_cast<uint32_t>(userMetadataSize), allocCb).isOk()) {
         ALOGE("%s: allocateBuffer transaction failed!", __FUNCTION__);
         return;
     } else if (ret != BufferHubStatus::NO_ERROR) {
@@ -115,8 +114,8 @@ BufferHubBuffer::BufferHubBuffer(const sp<NativeHandle>& token) {
     BufferHubStatus ret;
     sp<IBufferClient> client;
     BufferTraits bufferTraits;
-    IBufferHub::importBuffer_cb import_cb = [&](const auto& status, const auto& outClient,
-                                                const auto& outTraits) {
+    IBufferHub::importBuffer_cb importCb = [&](const auto& status, const auto& outClient,
+                                               const auto& outTraits) {
         ret = status;
         client = std::move(outClient);
         bufferTraits = std::move(outTraits);
@@ -124,7 +123,7 @@ BufferHubBuffer::BufferHubBuffer(const sp<NativeHandle>& token) {
 
     // hidl_handle(native_handle_t*) simply creates a raw pointer reference withouth ownership
     // transfer.
-    if (!bufferhub->importBuffer(hidl_handle(token.get()->handle()), import_cb).isOk()) {
+    if (!bufferhub->importBuffer(hidl_handle(token.get()->handle()), importCb).isOk()) {
         ALOGE("%s: importBuffer transaction failed!", __FUNCTION__);
         return;
     } else if (ret != BufferHubStatus::NO_ERROR) {
@@ -210,9 +209,9 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
 
     // Populate shortcuts to the atomics in metadata.
     auto metadataHeader = mMetadata.metadataHeader();
-    mBufferState = &metadataHeader->buffer_state;
-    mFenceState = &metadataHeader->fence_state;
-    mActiveClientsBitMask = &metadataHeader->active_clients_bit_mask;
+    mBufferState = &metadataHeader->bufferState;
+    mFenceState = &metadataHeader->fenceState;
+    mActiveClientsBitMask = &metadataHeader->activeClientsBitMask;
     // The C++ standard recommends (but does not require) that lock-free atomic operations are
     // also address-free, that is, suitable for communication between processes using shared
     // memory.
@@ -230,7 +229,7 @@ int BufferHubBuffer::initWithBufferTraits(const BufferTraits& bufferTraits) {
     mClientStateMask = clientBitMask;
 
     // TODO(b/112012161) Set up shared fences.
-    ALOGD("%s: id=%d, buffer_state=%" PRIx32 ".", __FUNCTION__, mId,
+    ALOGD("%s: id=%d, mBufferState=%" PRIx32 ".", __FUNCTION__, mId,
           mBufferState->load(std::memory_order_acquire));
     return 0;
 }
@@ -336,12 +335,12 @@ sp<NativeHandle> BufferHubBuffer::duplicate() {
 
     hidl_handle token;
     BufferHubStatus ret;
-    IBufferClient::duplicate_cb dup_cb = [&](const auto& outToken, const auto& status) {
+    IBufferClient::duplicate_cb dupCb = [&](const auto& outToken, const auto& status) {
         token = std::move(outToken);
         ret = status;
     };
 
-    if (!mBufferClient->duplicate(dup_cb).isOk()) {
+    if (!mBufferClient->duplicate(dupCb).isOk()) {
         ALOGE("%s: duplicate transaction failed!", __FUNCTION__);
         return nullptr;
     } else if (ret != BufferHubStatus::NO_ERROR) {

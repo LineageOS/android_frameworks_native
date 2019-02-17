@@ -91,13 +91,12 @@ private:
     void setFilteringEnabled(bool enabled) override;
 
     status_t bindTextureImage() override;
-    status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime,
-                            const sp<Fence>& releaseFence) override;
+    status_t updateTexImage(bool& recomputeVisibleRegions, nsecs_t latchTime) override;
 
     status_t updateActiveBuffer() override;
     status_t updateFrameNumber(nsecs_t latchTime) override;
 
-    void setHwcLayerBuffer(DisplayId displayId) override;
+    void setHwcLayerBuffer(const sp<const DisplayDevice>& displayDevice) override;
 
     // -----------------------------------------------------------------------
     // Interface implementation for BufferLayerConsumer::ContentsChangedListener

@@ -16,24 +16,32 @@
 
 #pragma once
 
-#include <compositionengine/Layer.h>
-#include <compositionengine/LayerFE.h>
-#include <compositionengine/impl/LayerCompositionState.h>
-#include <gmock/gmock.h>
+#include <cstdint>
+#include <string>
 
-namespace android::compositionengine::mock {
+#include <compositionengine/LayerFECompositionState.h>
+#include <renderengine/Mesh.h>
 
-class Layer : public compositionengine::Layer {
-public:
-    Layer();
-    virtual ~Layer();
+namespace android {
 
-    MOCK_CONST_METHOD0(getLayerFE, sp<LayerFE>());
+namespace compositionengine::impl {
 
-    MOCK_CONST_METHOD0(getState, const CompositionState&());
-    MOCK_METHOD0(editState, CompositionState&());
+struct LayerCompositionState {
+    /*
+     * State intended to be set by LayerFE::getCompositionState
+     */
 
-    MOCK_CONST_METHOD1(dump, void(std::string&));
+    LayerFECompositionState frontEnd;
+
+    /*
+     * RE state
+     */
+
+    renderengine::Mesh reMesh{renderengine::Mesh::TRIANGLE_FAN, 4, 2, 2};
+
+    // Debugging
+    void dump(std::string& result) const;
 };
 
-} // namespace android::compositionengine::mock
+} // namespace compositionengine::impl
+} // namespace android
