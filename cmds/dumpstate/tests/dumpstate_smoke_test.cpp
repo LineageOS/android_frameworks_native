@@ -109,7 +109,7 @@ class ZippedBugreportGenerationTest : public Test {
         ds.listener_name_ = "Smokey";
         ds.report_section_ = true;
         auto start = std::chrono::steady_clock::now();
-        run_main(ARRAY_SIZE(argv), argv);
+        ds.ParseCommandlineAndRun(ARRAY_SIZE(argv), argv);
         auto end = std::chrono::steady_clock::now();
         duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     }
