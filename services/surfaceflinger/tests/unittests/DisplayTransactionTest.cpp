@@ -1322,32 +1322,6 @@ TEST_F(GetDisplayNativePrimaries, nullDisplayToken) {
     EXPECT_EQ(BAD_VALUE, mFlinger.getDisplayNativePrimaries(nullptr, primaries));
 }
 
-TEST_F(GetDisplayNativePrimaries, internalDisplayWithDefaultPrimariesData) {
-    auto injector = SimplePrimaryDisplayCase::Display::makeFakeExistingDisplayInjector(this);
-    injector.inject();
-    auto internalDisplayToken = injector.token();
-    // A nullptr would trigger a different execution path than what's being tested here
-    EXPECT_NE(nullptr, internalDisplayToken.get());
-
-    mFlinger.initDefaultDisplayNativePrimaries();
-
-    ui::DisplayPrimaries primaries;
-    // Expecting sRGB primaries
-    EXPECT_EQ(NO_ERROR, mFlinger.getDisplayNativePrimaries(internalDisplayToken, primaries));
-    EXPECT_EQ(primaries.red.X, 0.4123f);
-    EXPECT_EQ(primaries.red.Y, 0.2126f);
-    EXPECT_EQ(primaries.red.Z, 0.0193f);
-    EXPECT_EQ(primaries.green.X, 0.3576f);
-    EXPECT_EQ(primaries.green.Y, 0.7152f);
-    EXPECT_EQ(primaries.green.Z, 0.1192f);
-    EXPECT_EQ(primaries.blue.X, 0.1805f);
-    EXPECT_EQ(primaries.blue.Y, 0.0722f);
-    EXPECT_EQ(primaries.blue.Z, 0.9506f);
-    EXPECT_EQ(primaries.white.X, 0.9505f);
-    EXPECT_EQ(primaries.white.Y, 1.0000f);
-    EXPECT_EQ(primaries.white.Z, 1.0891f);
-}
-
 TEST_F(GetDisplayNativePrimaries, internalDisplayWithPrimariesData) {
     auto injector = SimplePrimaryDisplayCase::Display::makeFakeExistingDisplayInjector(this);
     injector.inject();

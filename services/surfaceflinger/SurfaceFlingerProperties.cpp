@@ -7,6 +7,7 @@
 #include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
+#include <cstdlib>
 #include <tuple>
 
 #include "SurfaceFlingerProperties.h"
@@ -15,6 +16,7 @@ namespace android {
 namespace sysprop {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
+using ::android::hardware::configstore::V1_2::DisplayPrimaries;
 using ::android::hardware::graphics::common::V1_2::Dataspace;
 using ::android::hardware::graphics::common::V1_2::PixelFormat;
 
@@ -240,6 +242,48 @@ int32_t wcg_composition_pixel_format(PixelFormat defaultValue) {
         return static_cast<int32_t>(get<3>(getCompositionPreference(configsServiceV1_2)));
     }
     return static_cast<int32_t>(defaultValue);
+}
+
+#define DISPLAY_PRIMARY_SIZE 3
+
+constexpr float kSrgbRedX = 0.4123f;
+constexpr float kSrgbRedY = 0.2126f;
+constexpr float kSrgbRedZ = 0.0193f;
+constexpr float kSrgbGreenX = 0.3576f;
+constexpr float kSrgbGreenY = 0.7152f;
+constexpr float kSrgbGreenZ = 0.1192f;
+constexpr float kSrgbBlueX = 0.1805f;
+constexpr float kSrgbBlueY = 0.0722f;
+constexpr float kSrgbBlueZ = 0.9506f;
+constexpr float kSrgbWhiteX = 0.9505f;
+constexpr float kSrgbWhiteY = 1.0000f;
+constexpr float kSrgbWhiteZ = 1.0891f;
+
+DisplayPrimaries getDisplayNativePrimaries() {
+    auto mDisplay_primary_red = SurfaceFlingerProperties::display_primary_red();
+    auto mDisplay_primary_green = SurfaceFlingerProperties::display_primary_green();
+    auto mDisplay_primary_blue = SurfaceFlingerProperties::display_primary_blue();
+    auto mDisplay_primary_white = SurfaceFlingerProperties::display_primary_white();
+    // To avoid null point exception.
+    mDisplay_primary_red.resize(DISPLAY_PRIMARY_SIZE);
+    mDisplay_primary_green.resize(DISPLAY_PRIMARY_SIZE);
+    mDisplay_primary_blue.resize(DISPLAY_PRIMARY_SIZE);
+    mDisplay_primary_white.resize(DISPLAY_PRIMARY_SIZE);
+    DisplayPrimaries primaries =
+            {{static_cast<float>(mDisplay_primary_red[0].value_or(kSrgbRedX)),
+              static_cast<float>(mDisplay_primary_red[1].value_or(kSrgbRedY)),
+              static_cast<float>(mDisplay_primary_red[2].value_or(kSrgbRedZ))},
+             {static_cast<float>(mDisplay_primary_green[0].value_or(kSrgbGreenX)),
+              static_cast<float>(mDisplay_primary_green[1].value_or(kSrgbGreenY)),
+              static_cast<float>(mDisplay_primary_green[2].value_or(kSrgbGreenZ))},
+             {static_cast<float>(mDisplay_primary_blue[0].value_or(kSrgbBlueX)),
+              static_cast<float>(mDisplay_primary_blue[1].value_or(kSrgbBlueY)),
+              static_cast<float>(mDisplay_primary_blue[2].value_or(kSrgbBlueZ))},
+             {static_cast<float>(mDisplay_primary_white[0].value_or(kSrgbWhiteX)),
+              static_cast<float>(mDisplay_primary_white[1].value_or(kSrgbWhiteY)),
+              static_cast<float>(mDisplay_primary_white[2].value_or(kSrgbWhiteZ))}};
+
+    return primaries;
 }
 
 } // namespace sysprop
