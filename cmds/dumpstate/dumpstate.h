@@ -322,6 +322,8 @@ class Dumpstate {
     /* Main entry point for running a complete bugreport. */
     RunStatus Run(int32_t calling_uid, const std::string& calling_package);
 
+    RunStatus ParseCommandlineAndRun(int argc, char* argv[]);
+
     /* Sets runtime options. */
     void SetOptions(std::unique_ptr<DumpOptions> options);
 
