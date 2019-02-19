@@ -14,7 +14,8 @@ Then incremental ones:
 mmm -j frameworks/native/cmds/dumpstate
 ```
 
-If you're working on device-specific code, you might need to build them as well. Example:
+If you're working on device-specific code, you might need to build them as well.
+Example:
 
 ```
 mmm -j frameworks/native/cmds/dumpstate device/acme/secret_device/dumpstate/ hardware/interfaces/dumpstate
@@ -26,17 +27,20 @@ mmm -j frameworks/native/cmds/dumpstate device/acme/secret_device/dumpstate/ har
 mmm -j frameworks/native/cmds/dumpstate && adb push ${OUT}/system/bin/dumpstate system/bin && adb push ${OUT}/system/lib64/*dumpstate*.so /system/lib64/ && adb shell am bug-report
 ```
 
-Make sure that the device is remounted before running the above command.
-* If you're working with `userdebug` variant, you may need to run the following to remount your device:
+Make sure that the device is remounted before running the above command. * If
+you're working with `userdebug` variant, you may need to run the following to
+remount your device:
 
-  ```
+```
   adb root && adb remount -R && adb wait-for-device && adb root && adb remount
-  ```
-* If you're working with `eng` variant, you may need to run the following to remount your device:
+```
 
-  ```
-  adb root && adb remount
-  ```
+*   If you're working with `eng` variant, you may need to run the following to
+    remount your device:
+
+    ```
+    adb root && adb remount
+    ```
 
 ## To build, deploy, and run unit tests
 
@@ -82,7 +86,6 @@ Example:
 adb shell setprop dumpstate.version split-dumpsys && adb shell dumpstate -v
 ```
 
-
 Then to restore the default version:
 
 ```
@@ -91,8 +94,9 @@ adb shell setprop dumpstate.version default
 
 ## Code style and formatting
 
-Use the style defined at the [Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html)
-and make sure to run the following command prior to `repo upload`:
+Use the style defined at the
+[Google C++ Style Guide](https://google.github.io/styleguide/cppguide.html) and
+make sure to run the following command prior to `repo upload`:
 
 ```
 git clang-format --style=file HEAD~
