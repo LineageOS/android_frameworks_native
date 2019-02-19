@@ -1464,16 +1464,25 @@ status_t SurfaceComposerClient::isWideColorDisplay(const sp<IBinder>& display,
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   uint32_t rotation, sp<GraphicBuffer>* outBuffer) {
+                                   uint32_t rotation, bool captureSecureLayers, sp<GraphicBuffer>* outBuffer) {
     sp<ISurfaceComposer> s(ComposerService::getComposerService());
     if (s == nullptr) return NO_INIT;
     status_t ret = s->captureScreen(display, outBuffer, reqDataSpace, reqPixelFormat, sourceCrop,
-                                    reqWidth, reqHeight, useIdentityTransform,
-                                    static_cast<ISurfaceComposer::Rotation>(rotation));
+            reqWidth, reqHeight, useIdentityTransform,
+            static_cast<ISurfaceComposer::Rotation>(rotation),
+            captureSecureLayers);
     if (ret != NO_ERROR) {
         return ret;
     }
     return ret;
+}
+
+status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
+                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                                   uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
+                                   uint32_t rotation, sp<GraphicBuffer>* outBuffer) {
+    return capture(display, reqDataSpace, reqPixelFormat, sourceCrop, reqWidth,
+            reqHeight, useIdentityTransform, rotation, false, outBuffer);
 }
 
 status_t ScreenshotClient::captureLayers(const sp<IBinder>& layerHandle,

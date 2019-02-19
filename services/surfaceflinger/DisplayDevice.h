@@ -255,17 +255,18 @@ public:
                               device->getCompositionDataSpace(), rotation) {}
     DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqWidth,
                       uint32_t reqHeight, ui::Dataspace reqDataSpace,
-                      ui::Transform::orientation_flags rotation)
+                      ui::Transform::orientation_flags rotation, bool allowSecureLayers = true)
           : RenderArea(reqWidth, reqHeight, CaptureFill::OPAQUE, reqDataSpace,
                        getDisplayRotation(rotation, device->getInstallOrientation())),
             mDevice(device),
-            mSourceCrop(sourceCrop) {}
+            mSourceCrop(sourceCrop),
+            mAllowSecureLayers(allowSecureLayers) {}
 
     const ui::Transform& getTransform() const override { return mDevice->getTransform(); }
     Rect getBounds() const override { return mDevice->getBounds(); }
     int getHeight() const override { return mDevice->getHeight(); }
     int getWidth() const override { return mDevice->getWidth(); }
-    bool isSecure() const override { return mDevice->isSecure(); }
+    bool isSecure() const override { return mAllowSecureLayers && mDevice->isSecure(); }
     const sp<const DisplayDevice> getDisplayDevice() const override { return mDevice; }
 
     bool needsFiltering() const override {
@@ -356,6 +357,7 @@ private:
 
     const sp<const DisplayDevice> mDevice;
     const Rect mSourceCrop;
+    const bool mAllowSecureLayers;
 };
 
 }; // namespace android

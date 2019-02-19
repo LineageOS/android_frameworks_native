@@ -431,7 +431,8 @@ private:
     status_t captureScreen(const sp<IBinder>& displayToken, sp<GraphicBuffer>* outBuffer,
                            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
                            Rect sourceCrop, uint32_t reqWidth, uint32_t reqHeight,
-                           bool useIdentityTransform, ISurfaceComposer::Rotation rotation) override;
+                           bool useIdentityTransform, ISurfaceComposer::Rotation rotation,
+                           bool captureSecureLayers) override;
     status_t captureLayers(const sp<IBinder>& parentHandle, sp<GraphicBuffer>* outBuffer,
                            const ui::Dataspace reqDataspace, const ui::PixelFormat reqPixelFormat,
                            const Rect& sourceCrop, float frameScale, bool childrenOnly) override;

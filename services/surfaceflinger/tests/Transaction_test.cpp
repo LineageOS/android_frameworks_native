@@ -33,6 +33,7 @@
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
+#include <private/android_filesystem_config.h>
 
 #include <ui/ColorSpace.h>
 #include <ui/DisplayInfo.h>
@@ -41,6 +42,8 @@
 
 #include <math.h>
 #include <math/vec3.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #include "BufferGenerator.h"
 
@@ -1199,6 +1202,56 @@ TEST_P(LayerTypeTransactionTest, SetFlagsSecure) {
     Transaction().setFlags(layer, 0, layer_state_t::eLayerSecure).apply(true);
     ASSERT_EQ(NO_ERROR,
               composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+}
+
+/** RAII Wrapper around get/seteuid */
+class UIDFaker {
+    uid_t oldId;
+public:
+    UIDFaker(uid_t uid) {
+        oldId = geteuid();
+        seteuid(uid);
+    }
+    ~UIDFaker() {
+        seteuid(oldId);
+    }
+};
+
+TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    sp<GraphicBuffer> outBuffer;
+    Transaction()
+            .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply(true);
+    ASSERT_EQ(PERMISSION_DENIED,
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+
+    UIDFaker f(AID_SYSTEM);
+
+    // By default the system can capture screenshots with secure layers but they
+    // will be blacked out
+    ASSERT_EQ(NO_ERROR,
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, false));
+
+    {
+        SCOPED_TRACE("as system");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
+    // to receive them...we are expected to take care with the results.
+    ASSERT_EQ(NO_ERROR,
+              composer->captureScreen(mDisplay, &outBuffer,
+                      ui::Dataspace::V0_SRGB, ui::PixelFormat::RGBA_8888,
+                      Rect(), 0, 0, false,
+                      ISurfaceComposer::eRotateNone, true));
+    ScreenCapture sc(outBuffer);
+    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
 TEST_P(LayerRenderTypeTransactionTest, SetTransparentRegionHintBasic_BufferQueue) {
