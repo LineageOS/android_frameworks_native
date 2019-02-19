@@ -1464,6 +1464,19 @@ status_t SurfaceComposerClient::isWideColorDisplay(const sp<IBinder>& display,
                                                                      outIsWideColorDisplay);
 }
 
+status_t SurfaceComposerClient::addRegionSamplingListener(
+        const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
+        const sp<IRegionSamplingListener>& listener) {
+    return ComposerService::getComposerService()->addRegionSamplingListener(samplingArea,
+                                                                            stopLayerHandle,
+                                                                            listener);
+}
+
+status_t SurfaceComposerClient::removeRegionSamplingListener(
+        const sp<IRegionSamplingListener>& listener) {
+    return ComposerService::getComposerService()->removeRegionSamplingListener(listener);
+}
+
 // ----------------------------------------------------------------------------
 
 status_t ScreenshotClient::capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,

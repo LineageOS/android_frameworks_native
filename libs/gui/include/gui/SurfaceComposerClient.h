@@ -50,6 +50,7 @@ struct DisplayInfo;
 class HdrCapabilities;
 class ISurfaceComposerClient;
 class IGraphicBufferProducer;
+class IRegionSamplingListener;
 class Region;
 
 // ---------------------------------------------------------------------------
@@ -436,6 +437,10 @@ public:
 
     static status_t getDisplayedContentSample(const sp<IBinder>& display, uint64_t maxFrames,
                                               uint64_t timestamp, DisplayedFrameStats* outStats);
+    static status_t addRegionSamplingListener(const Rect& samplingArea,
+                                              const sp<IBinder>& stopLayerHandle,
+                                              const sp<IRegionSamplingListener>& listener);
+    static status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener);
 
 private:
     virtual void onFirstRef();
