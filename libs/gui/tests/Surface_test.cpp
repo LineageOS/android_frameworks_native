@@ -604,7 +604,8 @@ public:
             Rect /*sourceCrop*/, uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
             int32_t /*minLayerZ*/, int32_t /*maxLayerZ*/,
             bool /*useIdentityTransform*/,
-            Rotation /*rotation*/) override { return NO_ERROR; }
+            Rotation /*rotation*/,
+            bool /*captureSecureLayers*/) override { return NO_ERROR; }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,
                                    sp<GraphicBuffer>* /*outBuffer*/, const Rect& /*sourceCrop*/,
                                    float /*frameScale*/, bool /*childrenOnly*/) override {

@@ -315,6 +315,10 @@ public:
     static status_t capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
                             uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
                             bool useIdentityTransform, uint32_t rotation,
+                            bool captureSecureLayers, sp<GraphicBuffer>* outBuffer);
+    static status_t capture(const sp<IBinder>& display, Rect sourceCrop, uint32_t reqWidth,
+                            uint32_t reqHeight, int32_t minLayerZ, int32_t maxLayerZ,
+                            bool useIdentityTransform, uint32_t rotation,
                             sp<GraphicBuffer>* outBuffer);
     static status_t captureLayers(const sp<IBinder>& layerHandle, Rect sourceCrop, float frameScale,
                                   sp<GraphicBuffer>* outBuffer);
