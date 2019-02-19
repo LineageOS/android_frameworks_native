@@ -414,10 +414,13 @@ void InputWindowCommands::merge(const InputWindowCommands& other) {
             .insert(transferTouchFocusCommands.end(),
                     std::make_move_iterator(other.transferTouchFocusCommands.begin()),
                     std::make_move_iterator(other.transferTouchFocusCommands.end()));
+
+    syncInputWindows |= other.syncInputWindows;
 }
 
 void InputWindowCommands::clear() {
     transferTouchFocusCommands.clear();
+    syncInputWindows = false;
 }
 
 void InputWindowCommands::write(Parcel& output) const {
@@ -426,6 +429,8 @@ void InputWindowCommands::write(Parcel& output) const {
         output.writeStrongBinder(transferTouchFocusCommand.fromToken);
         output.writeStrongBinder(transferTouchFocusCommand.toToken);
     }
+
+    output.writeBool(syncInputWindows);
 }
 
 void InputWindowCommands::read(const Parcel& input) {
@@ -437,6 +442,8 @@ void InputWindowCommands::read(const Parcel& input) {
         transferTouchFocusCommand.toToken = input.readStrongBinder();
         transferTouchFocusCommands.emplace_back(transferTouchFocusCommand);
     }
+
+    syncInputWindows = input.readBool();
 }
 
 }; // namespace android

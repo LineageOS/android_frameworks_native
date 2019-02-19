@@ -3977,6 +3977,10 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
         flags |= eTraversalNeeded;
     }
 
+    if (inputWindowCommands.syncInputWindows) {
+        flags |= eTraversalNeeded;
+    }
+
     mPendingInputWindowCommands.merge(inputWindowCommands);
     return flags;
 }
