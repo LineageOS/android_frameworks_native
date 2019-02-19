@@ -892,6 +892,8 @@ bool validate_secondary_dex_path(const std::string& pkgname, const std::string& 
 static int validate_apk_path_internal(const std::string& path, int maxSubdirs) {
     if (validate_path(android_app_dir, path, maxSubdirs) == 0) {
         return 0;
+    } else if (validate_path(android_staging_dir, path, maxSubdirs) == 0) {
+        return 0;
     } else if (validate_path(android_app_private_dir, path, maxSubdirs) == 0) {
         return 0;
     } else if (validate_path(android_app_ephemeral_dir, path, maxSubdirs) == 0) {
