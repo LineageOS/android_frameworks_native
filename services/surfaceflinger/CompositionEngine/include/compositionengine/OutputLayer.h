@@ -16,14 +16,18 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 #include <utils/StrongPointer.h>
+
+#include "DisplayHardware/DisplayIdentification.h"
 
 namespace android {
 
 namespace compositionengine {
 
+class CompositionEngine;
 class Output;
 class Layer;
 class LayerFE;

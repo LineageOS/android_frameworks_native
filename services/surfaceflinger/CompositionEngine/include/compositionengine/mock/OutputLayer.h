@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>

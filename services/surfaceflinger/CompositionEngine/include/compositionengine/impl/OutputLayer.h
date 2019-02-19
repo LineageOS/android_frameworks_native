@@ -22,6 +22,8 @@
 #include <compositionengine/OutputLayer.h>
 #include <compositionengine/impl/OutputLayerCompositionState.h>
 
+#include "DisplayHardware/DisplayIdentification.h"
+
 namespace android::compositionengine::impl {
 
 class OutputLayer : public compositionengine::OutputLayer {
@@ -29,6 +31,8 @@ public:
     OutputLayer(const compositionengine::Output&, std::shared_ptr<compositionengine::Layer>,
                 sp<compositionengine::LayerFE>);
     ~OutputLayer() override;
+
+    void initialize(const CompositionEngine&, std::optional<DisplayId>);
 
     const compositionengine::Output& getOutput() const override;
     compositionengine::Layer& getLayer() const override;
@@ -48,7 +52,7 @@ private:
 };
 
 std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-        const compositionengine::Output&, std::shared_ptr<compositionengine::Layer>,
-        sp<compositionengine::LayerFE>);
+        const CompositionEngine&, std::optional<DisplayId>, const compositionengine::Output&,
+        std::shared_ptr<compositionengine::Layer>, sp<compositionengine::LayerFE>);
 
 } // namespace android::compositionengine::impl

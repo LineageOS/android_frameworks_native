@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <string>
 
 #include <math/mat4.h>
@@ -24,6 +25,8 @@
 #include <ui/Region.h>
 #include <ui/Transform.h>
 #include <utils/StrongPointer.h>
+
+#include "DisplayHardware/DisplayIdentification.h"
 
 namespace android::compositionengine {
 
@@ -117,7 +120,8 @@ public:
     // Gets the OutputLayer corresponding to the input Layer instance from the
     // current ordered set of output layers. If there is no such layer, a new
     // one is created and returned.
-    virtual std::unique_ptr<OutputLayer> getOrCreateOutputLayer(std::shared_ptr<Layer>,
+    virtual std::unique_ptr<OutputLayer> getOrCreateOutputLayer(std::optional<DisplayId>,
+                                                                std::shared_ptr<Layer>,
                                                                 sp<LayerFE>) = 0;
 
     // Sets the new ordered set of output layers for this output
