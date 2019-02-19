@@ -195,12 +195,15 @@ static void fillSurfaceRGBA8(const sp<SurfaceControl>& sc, uint8_t r, uint8_t g,
 class ScreenCapture : public RefBase {
 public:
     static void captureScreen(std::unique_ptr<ScreenCapture>* sc) {
+        captureScreen(sc, SurfaceComposerClient::getInternalDisplayToken());
+    }
+
+    static void captureScreen(std::unique_ptr<ScreenCapture>* sc, sp<IBinder> displayToken) {
         const auto sf = ComposerService::getComposerService();
-        const auto token = sf->getInternalDisplayToken();
         SurfaceComposerClient::Transaction().apply(true);
 
         sp<GraphicBuffer> outBuffer;
-        ASSERT_EQ(NO_ERROR, sf->captureScreen(token, &outBuffer, Rect(), 0, 0, false));
+        ASSERT_EQ(NO_ERROR, sf->captureScreen(displayToken, &outBuffer, Rect(), 0, 0, false));
         *sc = std::make_unique<ScreenCapture>(outBuffer);
     }
 
@@ -477,6 +480,12 @@ protected:
         std::unique_ptr<ScreenCapture> screenshot;
         ScreenCapture::captureScreen(&screenshot);
         return screenshot;
+    }
+
+    void asTransaction(const std::function<void(Transaction&)>& exec) {
+        Transaction t;
+        exec(t);
+        t.apply(true);
     }
 
     static status_t getBuffer(sp<GraphicBuffer>* outBuffer, sp<Fence>* outFence) {
@@ -4033,11 +4042,6 @@ protected:
         fillSurfaceRGBA8(mSyncSurfaceControl, 31, 31, 31);
     }
 
-    void asTransaction(const std::function<void(Transaction&)>& exec) {
-        Transaction t;
-        exec(t);
-        t.apply(true);
-    }
 
     sp<SurfaceControl> mBGSurfaceControl;
     sp<SurfaceControl> mFGSurfaceControl;
@@ -5366,6 +5370,104 @@ TEST_F(DereferenceSurfaceControlTest, LayerInTransaction) {
         auto shot = screenshot();
         shot->expectColor(Rect(0, 0, 20, 20), Color::BLUE);
     }
+}
+
+class MultiDisplayLayerBoundsTest : public LayerTransactionTest {
+protected:
+    virtual void SetUp() {
+        LayerTransactionTest::SetUp();
+        ASSERT_EQ(NO_ERROR, mClient->initCheck());
+
+        mMainDisplay = SurfaceComposerClient::getInternalDisplayToken();
+        SurfaceComposerClient::getDisplayInfo(mMainDisplay, &mMainDisplayInfo);
+
+        sp<IGraphicBufferConsumer> consumer;
+        BufferQueue::createBufferQueue(&mProducer, &consumer);
+        consumer->setConsumerName(String8("Virtual disp consumer"));
+        consumer->setDefaultBufferSize(mMainDisplayInfo.w, mMainDisplayInfo.h);
+    }
+
+    virtual void TearDown() {
+        SurfaceComposerClient::destroyDisplay(mVirtualDisplay);
+        LayerTransactionTest::TearDown();
+        mColorLayer = 0;
+    }
+
+    void createDisplay(const Rect& layerStackRect, uint32_t layerStack) {
+        mVirtualDisplay =
+                SurfaceComposerClient::createDisplay(String8("VirtualDisplay"), false /*secure*/);
+        asTransaction([&](Transaction& t) {
+            t.setDisplaySurface(mVirtualDisplay, mProducer);
+            t.setDisplayLayerStack(mVirtualDisplay, layerStack);
+            t.setDisplayProjection(mVirtualDisplay, mMainDisplayInfo.orientation, layerStackRect,
+                                   Rect(mMainDisplayInfo.w, mMainDisplayInfo.h));
+        });
+    }
+
+    void createColorLayer(uint32_t layerStack) {
+        mColorLayer =
+                createSurface(mClient, "ColorLayer", 0 /* buffer width */, 0 /* buffer height */,
+                              PIXEL_FORMAT_RGBA_8888, ISurfaceComposerClient::eFXSurfaceColor);
+        ASSERT_TRUE(mColorLayer != nullptr);
+        ASSERT_TRUE(mColorLayer->isValid());
+        asTransaction([&](Transaction& t) {
+            t.setLayerStack(mColorLayer, layerStack);
+            t.setCrop_legacy(mColorLayer, Rect(0, 0, 30, 40));
+            t.setLayer(mColorLayer, INT32_MAX - 2);
+            t.setColor(mColorLayer,
+                       half3{mExpectedColor.r / 255.0f, mExpectedColor.g / 255.0f,
+                             mExpectedColor.b / 255.0f});
+            t.show(mColorLayer);
+        });
+    }
+
+    DisplayInfo mMainDisplayInfo;
+    sp<IBinder> mMainDisplay;
+    sp<IBinder> mVirtualDisplay;
+    sp<IGraphicBufferProducer> mProducer;
+    sp<SurfaceControl> mColorLayer;
+    Color mExpectedColor = {63, 63, 195, 255};
+};
+
+TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInVirtualDisplay) {
+    createDisplay({mMainDisplayInfo.viewportW, mMainDisplayInfo.viewportH}, 1 /* layerStack */);
+    createColorLayer(1 /* layerStack */);
+
+    asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
+
+    // Verify color layer does not render on main display.
+    std::unique_ptr<ScreenCapture> sc;
+    ScreenCapture::captureScreen(&sc, mMainDisplay);
+    sc->expectColor(Rect(10, 10, 40, 50), {0, 0, 0, 255});
+    sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
+
+    // Verify color layer renders correctly on virtual display.
+    ScreenCapture::captureScreen(&sc, mVirtualDisplay);
+    sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
+    sc->expectColor(Rect(1, 1, 9, 9), {0, 0, 0, 0});
+}
+
+TEST_F(MultiDisplayLayerBoundsTest, RenderLayerInMirroredVirtualDisplay) {
+    // Create a display and set its layer stack to the main display's layer stack so
+    // the contents of the main display are mirrored on to the virtual display.
+
+    // Assumption here is that the new mirrored display has the same viewport as the
+    // primary display that it is mirroring.
+    createDisplay({mMainDisplayInfo.viewportW, mMainDisplayInfo.viewportH}, 0 /* layerStack */);
+    createColorLayer(0 /* layerStack */);
+
+    asTransaction([&](Transaction& t) { t.setPosition(mColorLayer, 10, 10); });
+
+    // Verify color layer renders correctly on main display and it is mirrored on the
+    // virtual display.
+    std::unique_ptr<ScreenCapture> sc;
+    ScreenCapture::captureScreen(&sc, mMainDisplay);
+    sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
+    sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
+
+    ScreenCapture::captureScreen(&sc, mVirtualDisplay);
+    sc->expectColor(Rect(10, 10, 40, 50), mExpectedColor);
+    sc->expectColor(Rect(0, 0, 9, 9), {0, 0, 0, 255});
 }
 
 } // namespace android
