@@ -341,21 +341,24 @@ public:
           : DisplayRenderArea(device, device->getBounds(), device->getHeight(), device->getWidth(),
                               rotation) {}
     DisplayRenderArea(const sp<const DisplayDevice> device, Rect sourceCrop, uint32_t reqHeight,
-                      uint32_t reqWidth, ISurfaceComposer::Rotation rotation)
+                      uint32_t reqWidth, ISurfaceComposer::Rotation rotation,
+                      bool allowSecureLayers = true)
           : RenderArea(reqHeight, reqWidth, CaptureFill::OPAQUE, rotation), mDevice(device),
-                              mSourceCrop(sourceCrop) {}
+                              mSourceCrop(sourceCrop),
+                              mAllowSecureLayers(allowSecureLayers) {}
 
     const Transform& getTransform() const override { return mDevice->getTransform(); }
     Rect getBounds() const override { return mDevice->getBounds(); }
     int getHeight() const override { return mDevice->getHeight(); }
     int getWidth() const override { return mDevice->getWidth(); }
-    bool isSecure() const override { return mDevice->isSecure(); }
+    bool isSecure() const override { return mAllowSecureLayers && mDevice->isSecure(); }
     bool needsFiltering() const override { return mDevice->needsFiltering(); }
     Rect getSourceCrop() const override { return mSourceCrop; }
 
 private:
     const sp<const DisplayDevice> mDevice;
     const Rect mSourceCrop;
+    const bool mAllowSecureLayers;
 };
 
 }; // namespace android

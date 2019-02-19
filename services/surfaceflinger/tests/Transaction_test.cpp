@@ -29,6 +29,7 @@
 #include <gui/Surface.h>
 #include <gui/SurfaceComposerClient.h>
 #include <private/gui/ComposerService.h>
+#include <private/android_filesystem_config.h>
 
 #include <ui/DisplayInfo.h>
 #include <ui/Rect.h>
@@ -36,6 +37,8 @@
 
 #include <math.h>
 #include <math/vec3.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 namespace android {
 
@@ -65,6 +68,30 @@ const Color Color::TRANSPARENT{0, 0, 0, 0};
 std::ostream& operator<<(std::ostream& os, const Color& color) {
     os << int(color.r) << ", " << int(color.g) << ", " << int(color.b) << ", " << int(color.a);
     return os;
+}
+
+// Fill a region with the specified color.
+void fillANativeWindowBufferColor(const ANativeWindow_Buffer& buffer, const Rect& rect,
+                                  const Color& color) {
+    Rect r(0, 0, buffer.width, buffer.height);
+    if (!r.intersect(rect, &r)) {
+        return;
+    }
+
+    int32_t width = r.right - r.left;
+    int32_t height = r.bottom - r.top;
+
+    for (int32_t row = 0; row < height; row++) {
+        uint8_t* dst =
+                static_cast<uint8_t*>(buffer.bits) + (buffer.stride * (r.top + row) + r.left) * 4;
+        for (int32_t column = 0; column < width; column++) {
+            dst[0] = color.r;
+            dst[1] = color.g;
+            dst[2] = color.b;
+            dst[3] = color.a;
+            dst += 4;
+        }
+    }
 }
 
 // Fill a region with the specified color.
@@ -319,6 +346,16 @@ protected:
         return layer;
     }
 
+    ANativeWindow_Buffer getBufferQueueLayerBuffer(const sp<SurfaceControl>& layer) {
+        // wait for previous transactions (such as setSize) to complete
+        Transaction().apply(true);
+
+        ANativeWindow_Buffer buffer = {};
+        EXPECT_EQ(NO_ERROR, layer->getSurface()->lock(&buffer, nullptr));
+
+        return buffer;
+    }
+
     ANativeWindow_Buffer getLayerBuffer(const sp<SurfaceControl>& layer) {
         // wait for previous transactions (such as setSize) to complete
         Transaction().apply(true);
@@ -334,6 +371,21 @@ protected:
 
         // wait for the newly posted buffer to be latched
         waitForLayerBuffers();
+    }
+
+    void postBufferQueueLayerBuffer(const sp<SurfaceControl>& layer) {
+        ASSERT_EQ(NO_ERROR, layer->getSurface()->unlockAndPost());
+
+        // wait for the newly posted buffer to be latched
+        waitForLayerBuffers();
+    }
+
+    virtual void fillBufferQueueLayerColor(const sp<SurfaceControl>& layer, const Color& color,
+                                           int32_t bufferWidth, int32_t bufferHeight) {
+        ANativeWindow_Buffer buffer;
+        ASSERT_NO_FATAL_FAILURE(buffer = getBufferQueueLayerBuffer(layer));
+        fillANativeWindowBufferColor(buffer, Rect(0, 0, bufferWidth, bufferHeight), color);
+        postBufferQueueLayerBuffer(layer);
     }
 
     void fillLayerColor(const sp<SurfaceControl>& layer, const Color& color) {
@@ -845,6 +897,55 @@ TEST_F(LayerTransactionTest, SetFlagsSecure) {
     ASSERT_EQ(NO_ERROR,
               composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, mLayerZBase, mLayerZBase,
                                       false));
+}
+
+/** RAII Wrapper around get/seteuid */
+class UIDFaker {
+    uid_t oldId;
+public:
+    UIDFaker(uid_t uid) {
+        oldId = geteuid();
+        seteuid(uid);
+    }
+    ~UIDFaker() {
+        seteuid(oldId);
+    }
+};
+
+TEST_F(LayerTransactionTest, SetFlagsSecureEUidSystem) {
+    sp<SurfaceControl> layer;
+    ASSERT_NO_FATAL_FAILURE(layer = createLayer("test", 32, 32));
+    ASSERT_NO_FATAL_FAILURE(fillBufferQueueLayerColor(layer, Color::RED, 32, 32));
+
+    sp<ISurfaceComposer> composer = ComposerService::getComposerService();
+    sp<GraphicBuffer> outBuffer;
+    Transaction()
+            .setFlags(layer, layer_state_t::eLayerSecure, layer_state_t::eLayerSecure)
+            .apply(true);
+
+    ASSERT_EQ(PERMISSION_DENIED,
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, 0, INT_MAX, false));
+
+    UIDFaker f(AID_SYSTEM);
+
+    // By default the system can capture screenshots with secure layers but they
+    // will be blacked out
+    ASSERT_EQ(NO_ERROR,
+              composer->captureScreen(mDisplay, &outBuffer, Rect(), 0, 0, 0, INT_MAX, false));
+
+    {
+        SCOPED_TRACE("as system");
+        auto shot = screenshot();
+        shot->expectColor(Rect(0, 0, 32, 32), Color::BLACK);
+    }
+
+    // Here we pass captureSecureLayers = true and since we are AID_SYSTEM we should be able
+    // to receive them...we are expected to take care with the results.
+    ASSERT_EQ(NO_ERROR,
+              composer->captureScreen(mDisplay, &outBuffer,
+                      Rect(), 0, 0, 0, INT_MAX, false, ISurfaceComposer::eRotateNone, true));
+    ScreenCapture sc(outBuffer);
+    sc.expectColor(Rect(0, 0, 32, 32), Color::RED);
 }
 
 TEST_F(LayerTransactionTest, SetTransparentRegionHintBasic) {
