@@ -127,7 +127,7 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
     if (ds_ != nullptr) {
         MYLOGE("Error! There is already a bugreport in progress. Returning.");
         if (listener != nullptr) {
-            listener->onError(IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
+            listener->onError(IDumpstateListener::BUGREPORT_ERROR_CONCURRENT_BUGREPORTS_FORBIDDEN);
         }
         return exception(binder::Status::EX_SERVICE_SPECIFIC,
                          "There is already a bugreport in progress");

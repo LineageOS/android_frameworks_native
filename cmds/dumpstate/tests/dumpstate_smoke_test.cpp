@@ -474,7 +474,8 @@ TEST_F(DumpstateBinderTest, SimultaneousBugreportsNotAllowed) {
                                        Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE, listener2);
     EXPECT_FALSE(status.isOk());
     WaitTillExecutionComplete(listener2.get());
-    EXPECT_EQ(listener2->getErrorCode(), IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
+    EXPECT_EQ(listener2->getErrorCode(),
+              IDumpstateListener::BUGREPORT_ERROR_CONCURRENT_BUGREPORTS_FORBIDDEN);
 
     // Meanwhile the first call works as expected. Service should not die in this case.
     WaitTillExecutionComplete(listener1.get());
