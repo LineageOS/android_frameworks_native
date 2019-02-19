@@ -715,15 +715,16 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    mScheduler->setExpiredIdleTimerCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        setRefreshRateTo(RefreshRateType::DEFAULT);
-    });
-    mScheduler->setResetIdleTimerCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        setRefreshRateTo(RefreshRateType::PERFORMANCE);
-    });
-
+    if (mUse90Hz) {
+        mScheduler->setExpiredIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::DEFAULT);
+        });
+        mScheduler->setResetIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE);
+        });
+    }
     mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
                                                                               *display->getId()),
                                                                       mTimeStats);
