@@ -154,8 +154,8 @@ cc_library_shared {
         "libbase",
         "libhidlbase",
         "libhidltransport",
-        "libnativebridge",
-        "libnativeloader",
+        "libnativebridge_lazy",
+        "libnativeloader_lazy",
         "libutils",
     ],
     static_libs: [
