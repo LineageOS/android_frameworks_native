@@ -39,4 +39,62 @@ const std::vector<int16_t>& TouchVideoFrame::getData() const { return mData; }
 
 const struct timeval& TouchVideoFrame::getTimestamp() const { return mTimestamp; }
 
+void TouchVideoFrame::rotate(int32_t orientation) {
+    switch (orientation) {
+        case DISPLAY_ORIENTATION_90:
+            rotateQuarterTurn(true /*clockwise*/);
+            break;
+        case DISPLAY_ORIENTATION_180:
+            rotate180();
+            break;
+        case DISPLAY_ORIENTATION_270:
+            rotateQuarterTurn(false /*clockwise*/);
+            break;
+    }
+}
+
+/**
+ * Rotate once clockwise by a quarter turn === rotate 90 degrees
+ * Rotate once counterclockwise by a quarter turn === rotate 270 degrees
+ * For a clockwise rotation:
+ *     An element at position (i, j) is rotated to (j, height - i - 1)
+ * For a counterclockwise rotation:
+ *     An element at position (i, j) is rotated to (width - j - 1, i)
+ */
+void TouchVideoFrame::rotateQuarterTurn(bool clockwise) {
+    std::vector<int16_t> rotated(mData.size());
+    for (size_t i = 0; i < mHeight; i++) {
+        for (size_t j = 0; j < mWidth; j++) {
+            size_t iRotated, jRotated;
+            if (clockwise) {
+                iRotated = j;
+                jRotated = mHeight - i - 1;
+            } else {
+                iRotated = mWidth - j - 1;
+                jRotated = i;
+            }
+            size_t indexRotated = iRotated * mHeight + jRotated;
+            rotated[indexRotated] = mData[i * mWidth + j];
+        }
+    }
+    mData = std::move(rotated);
+    std::swap(mHeight, mWidth);
+}
+
+/**
+ * An element at position (i, j) is rotated to (height - i - 1, width - j - 1)
+ * This is equivalent to moving element [i] to position [height * width - i - 1]
+ * Since element at [height * width - i - 1] would move to position [i],
+ * we can just swap elements [i] and [height * width - i - 1].
+ */
+void TouchVideoFrame::rotate180() {
+    if (mData.size() == 0) {
+        return;
+    }
+    // Just need to swap elements i and (height * width - 1 - i)
+    for (size_t i = 0; i < mData.size() / 2; i++) {
+        std::swap(mData[i], mData[mHeight * mWidth - 1 - i]);
+    }
+}
+
 } // namespace android
