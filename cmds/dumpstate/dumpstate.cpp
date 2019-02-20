@@ -1331,6 +1331,7 @@ static void dumpstate() {
     DumpFile("BINDER STATS", "/sys/kernel/debug/binder/stats");
     DumpFile("BINDER STATE", "/sys/kernel/debug/binder/state");
 
+    RunDumpsys("WINSCOPE TRACE", {"window", "trace"});
     /* Add window and surface trace files. */
     if (!PropertiesHelper::IsUserBuild()) {
         ds.AddDir(WMTRACE_DATA_DIR, false);

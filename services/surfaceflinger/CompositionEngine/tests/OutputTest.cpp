@@ -338,7 +338,7 @@ TEST_F(OutputTest, getOrCreateOutputLayerWorks) {
         // If there is no OutputLayer corresponding to the input layer, a
         // new OutputLayer is constructed and returned.
         EXPECT_CALL(*existingOutputLayer, getLayer()).WillOnce(ReturnRef(otherLayer));
-        auto result = mOutput.getOrCreateOutputLayer(layer, layerFE);
+        auto result = mOutput.getOrCreateOutputLayer(std::nullopt, layer, layerFE);
         EXPECT_NE(existingOutputLayer, result.get());
         EXPECT_TRUE(result.get() != nullptr);
         EXPECT_EQ(layer.get(), &result->getLayer());
@@ -354,7 +354,7 @@ TEST_F(OutputTest, getOrCreateOutputLayerWorks) {
         // If there is an existing OutputLayer for the requested layer, an owned
         // pointer is returned
         EXPECT_CALL(*existingOutputLayer, getLayer()).WillOnce(ReturnRef(*layer));
-        auto result = mOutput.getOrCreateOutputLayer(layer, layerFE);
+        auto result = mOutput.getOrCreateOutputLayer(std::nullopt, layer, layerFE);
         EXPECT_EQ(existingOutputLayer, result.get());
 
         // The corresponding entry in the ordered array should be cleared.

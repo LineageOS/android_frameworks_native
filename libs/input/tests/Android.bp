@@ -5,8 +5,9 @@ cc_test {
         "InputChannel_test.cpp",
         "InputEvent_test.cpp",
         "InputPublisherAndConsumer_test.cpp",
+        "InputWindow_test.cpp",
+        "TouchVideoFrame_test.cpp",
         "VelocityTracker_test.cpp",
-        "InputWindow_test.cpp"
     ],
     cflags: [
         "-Wall",

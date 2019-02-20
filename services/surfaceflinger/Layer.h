@@ -570,11 +570,6 @@ public:
 
     // -----------------------------------------------------------------------
 
-    bool createHwcLayer(HWComposer* hwc, const sp<DisplayDevice>& display);
-    bool destroyHwcLayer(const sp<DisplayDevice>& display);
-    bool destroyHwcLayersForAllDisplays();
-    bool destroyAllHwcLayersPlusChildren();
-
     bool hasHwcLayer(const sp<const DisplayDevice>& displayDevice);
     HWC2::Layer* getHwcLayer(const sp<const DisplayDevice>& displayDevice);
 

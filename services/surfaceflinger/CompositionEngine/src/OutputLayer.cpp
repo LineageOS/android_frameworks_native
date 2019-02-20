@@ -15,10 +15,13 @@
  */
 
 #include <android-base/stringprintf.h>
+#include <compositionengine/CompositionEngine.h>
 #include <compositionengine/Layer.h>
 #include <compositionengine/LayerFE.h>
 #include <compositionengine/Output.h>
 #include <compositionengine/impl/OutputLayer.h>
+
+#include "DisplayHardware/HWComposer.h"
 
 namespace android::compositionengine {
 
@@ -27,15 +30,32 @@ OutputLayer::~OutputLayer() = default;
 namespace impl {
 
 std::unique_ptr<compositionengine::OutputLayer> createOutputLayer(
-        const compositionengine::Output& display, std::shared_ptr<compositionengine::Layer> layer,
+        const CompositionEngine& compositionEngine, std::optional<DisplayId> displayId,
+        const compositionengine::Output& output, std::shared_ptr<compositionengine::Layer> layer,
         sp<compositionengine::LayerFE> layerFE) {
-    return std::make_unique<OutputLayer>(display, layer, layerFE);
+    auto result = std::make_unique<OutputLayer>(output, layer, layerFE);
+    result->initialize(compositionEngine, displayId);
+    return result;
 }
 
 OutputLayer::OutputLayer(const Output& output, std::shared_ptr<Layer> layer, sp<LayerFE> layerFE)
       : mOutput(output), mLayer(layer), mLayerFE(layerFE) {}
 
 OutputLayer::~OutputLayer() = default;
+
+void OutputLayer::initialize(const CompositionEngine& compositionEngine,
+                             std::optional<DisplayId> displayId) {
+    if (!displayId) {
+        return;
+    }
+
+    auto& hwc = compositionEngine.getHwComposer();
+
+    mState.hwc.emplace(std::shared_ptr<HWC2::Layer>(hwc.createLayer(*displayId),
+                                                    [&hwc, displayId](HWC2::Layer* layer) {
+                                                        hwc.destroyLayer(*displayId, layer);
+                                                    }));
+}
 
 const compositionengine::Output& OutputLayer::getOutput() const {
     return mOutput;

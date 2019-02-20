@@ -1509,7 +1509,18 @@ void SurfaceFlinger::updateVrFlinger() {
 
     sp<DisplayDevice> display = getDefaultDisplayDeviceLocked();
     LOG_ALWAYS_FATAL_IF(!display);
+
     const int currentDisplayPowerMode = display->getPowerMode();
+
+    // Clear out all the output layers from the composition engine for all
+    // displays before destroying the hardware composer interface. This ensures
+    // any HWC layers are destroyed through that interface before it becomes
+    // invalid.
+    for (const auto& [token, displayDevice] : mDisplays) {
+        displayDevice->getCompositionDisplay()->setOutputLayersOrderedByZ(
+                compositionengine::Output::OutputLayers());
+    }
+
     // This DisplayDevice will no longer be relevant once resetDisplayState() is
     // called below. Clear the reference now so we don't accidentally use it
     // later.
@@ -1705,10 +1716,8 @@ void SurfaceFlinger::calculateWorkingSet() {
                 const auto& layer = currentLayers[i];
 
                 if (!layer->hasHwcLayer(displayDevice)) {
-                    if (!layer->createHwcLayer(&getHwComposer(), displayDevice)) {
-                        layer->forceClientComposition(displayDevice);
-                        continue;
-                    }
+                    layer->forceClientComposition(displayDevice);
+                    continue;
                 }
 
                 layer->setGeometry(displayDevice, i);
@@ -2192,10 +2201,11 @@ void SurfaceFlinger::rebuildLayerStacks() {
                         return;
                     }
 
-                    bool hwcLayerDestroyed = false;
                     const auto displayId = displayDevice->getId();
                     sp<compositionengine::LayerFE> layerFE = compositionLayer->getLayerFE();
                     LOG_ALWAYS_FATAL_IF(layerFE.get() == nullptr);
+
+                    bool needsOutputLayer = false;
 
                     if (display->belongsInOutput(layer->getLayerStack(),
                                                  layer->getPrimaryDisplayOnly())) {
@@ -2203,31 +2213,30 @@ void SurfaceFlinger::rebuildLayerStacks() {
                                 layer->visibleNonTransparentRegion));
                         drawRegion.andSelf(bounds);
                         if (!drawRegion.isEmpty()) {
-                            layersSortedByZ.emplace_back(
-                                    display->getOrCreateOutputLayer(layer->getCompositionLayer(),
-                                                                    layerFE));
-
-                            deprecated_layersSortedByZ.add(layer);
-                        } else {
-                            // Clear out the HWC layer if this layer was
-                            // previously visible, but no longer is
-                            hwcLayerDestroyed = displayId && layer->destroyHwcLayer(displayDevice);
+                            needsOutputLayer = true;
                         }
-                    } else {
-                        // WM changes display->layerStack upon sleep/awake.
-                        // Here we make sure we delete the HWC layers even if
-                        // WM changed their layer stack.
-                        hwcLayerDestroyed = displayId && layer->destroyHwcLayer(displayDevice);
                     }
 
-                    // If a layer is not going to get a release fence because
-                    // it is invisible, but it is also going to release its
-                    // old buffer, add it to the list of layers needing
-                    // fences.
-                    if (hwcLayerDestroyed) {
-                        auto found = std::find(mLayersWithQueuedFrames.cbegin(),
-                                mLayersWithQueuedFrames.cend(), layer);
-                        if (found != mLayersWithQueuedFrames.cend()) {
+                    if (needsOutputLayer) {
+                        layersSortedByZ.emplace_back(
+                                display->getOrCreateOutputLayer(displayId, compositionLayer,
+                                                                layerFE));
+                        deprecated_layersSortedByZ.add(layer);
+
+                        auto& outputLayerState = layersSortedByZ.back()->editState();
+                        outputLayerState.visibleRegion =
+                                tr.transform(layer->visibleRegion.intersect(displayState.viewport));
+                    } else if (displayId) {
+                        // For layers that are being removed from a HWC display,
+                        // and that have queued frames, add them to a a list of
+                        // released layers so we can properly set a fence.
+                        bool hasExistingOutputLayer =
+                                display->getOutputLayerForLayer(compositionLayer.get()) != nullptr;
+                        bool hasQueuedFrames = std::find(mLayersWithQueuedFrames.cbegin(),
+                                                         mLayersWithQueuedFrames.cend(),
+                                                         layer) != mLayersWithQueuedFrames.cend();
+
+                        if (hasExistingOutputLayer && hasQueuedFrames) {
                             layersNeedingFences.add(layer);
                         }
                     }
@@ -2983,12 +2992,8 @@ void SurfaceFlinger::commitTransaction()
             recordBufferingStats(l->getName().string(),
                     l->getOccupancyHistory(true));
 
-            // We need to release the HWC layers when the Layer is removed
-            // from the current state otherwise the HWC layer just continues
-            // showing at its last configured state until we eventually
-            // abandon the buffer queue.
+            // Ensure any buffers set to display on any children are released.
             if (l->isRemovedFromCurrentState()) {
-                l->destroyHwcLayersForAllDisplays();
                 latchAndReleaseBuffer(l);
             }
         }
@@ -3972,6 +3977,10 @@ uint32_t SurfaceFlinger::addInputWindowCommands(const InputWindowCommands& input
         flags |= eTraversalNeeded;
     }
 
+    if (inputWindowCommands.syncInputWindows) {
+        flags |= eTraversalNeeded;
+    }
+
     mPendingInputWindowCommands.merge(inputWindowCommands);
     return flags;
 }
@@ -4892,7 +4901,8 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case IS_WIDE_COLOR_DISPLAY: {
+        case IS_WIDE_COLOR_DISPLAY:
+        case SET_INPUT_WINDOWS_FINISHED: {
             return OK;
         }
         case CAPTURE_LAYERS:
@@ -5617,6 +5627,8 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     renderScreenImplLocked(renderArea, traverseLayers, buffer, useIdentityTransform, outSyncFd);
     return NO_ERROR;
 }
+
+void SurfaceFlinger::setInputWindowsFinished() {}
 
 // ---------------------------------------------------------------------------
 
