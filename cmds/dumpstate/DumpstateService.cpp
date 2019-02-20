@@ -44,17 +44,18 @@ static binder::Status exception(uint32_t code, const std::string& msg) {
     return binder::Status::fromExceptionCode(code, String8(msg.c_str()));
 }
 
-static binder::Status error(uint32_t code, const std::string& msg) {
-    MYLOGE("%s (%d) ", msg.c_str(), code);
-    return binder::Status::fromServiceSpecificError(code, String8(msg.c_str()));
-}
-
-// Takes ownership of data.
-static void* callAndNotify(void* data) {
+// Creates a bugreport and exits, thus preserving the oneshot nature of the service.
+// Note: takes ownership of data.
+[[noreturn]] static void* dumpstate_thread_main(void* data) {
     std::unique_ptr<DumpstateInfo> ds_info(static_cast<DumpstateInfo*>(data));
     ds_info->ds->Run(ds_info->calling_uid, ds_info->calling_package);
-    MYLOGD("Finished Run()\n");
-    return nullptr;
+    MYLOGD("Finished taking a bugreport. Exiting.\n");
+    exit(0);
+}
+
+[[noreturn]] static void signalErrorAndExit(sp<IDumpstateListener> listener, int error_code) {
+    listener->onError(error_code);
+    exit(0);
 }
 
 class DumpstateToken : public BnDumpstateToken {};
@@ -120,6 +121,25 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
                                                 const sp<IDumpstateListener>& listener) {
     MYLOGI("startBugreport() with mode: %d\n", bugreport_mode);
 
+    // This is the bugreporting API flow, so ensure there is only one bugreport in progress at a
+    // time.
+    std::lock_guard<std::mutex> lock(lock_);
+    if (ds_ != nullptr) {
+        MYLOGE("Error! There is already a bugreport in progress. Returning.");
+        if (listener != nullptr) {
+            listener->onError(IDumpstateListener::BUGREPORT_ERROR_CONCURRENT_BUGREPORTS_FORBIDDEN);
+        }
+        return exception(binder::Status::EX_SERVICE_SPECIFIC,
+                         "There is already a bugreport in progress");
+    }
+
+    // From here on, all conditions that indicate we are done with this incoming request should
+    // result in exiting the service to free it up for next invocation.
+    if (listener == nullptr) {
+        MYLOGE("Invalid input: no listener");
+        exit(0);
+    }
+
     if (bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_FULL &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_INTERACTIVE &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_REMOTE &&
@@ -127,30 +147,23 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_TELEPHONY &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_WIFI &&
         bugreport_mode != Dumpstate::BugreportMode::BUGREPORT_DEFAULT) {
-        return exception(binder::Status::EX_ILLEGAL_ARGUMENT,
-                         StringPrintf("Invalid bugreport mode: %d", bugreport_mode));
+        MYLOGE("Invalid input: bad bugreport mode: %d", bugreport_mode);
+        signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
     }
 
     if (bugreport_fd.get() == -1 || screenshot_fd.get() == -1) {
-        return exception(binder::Status::EX_ILLEGAL_ARGUMENT, "Invalid file descriptor");
+        // TODO(b/111441001): screenshot fd should be optional
+        MYLOGE("Invalid filedescriptor");
+        signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_INVALID_INPUT);
     }
 
     std::unique_ptr<Dumpstate::DumpOptions> options = std::make_unique<Dumpstate::DumpOptions>();
     options->Initialize(static_cast<Dumpstate::BugreportMode>(bugreport_mode), bugreport_fd,
                         screenshot_fd);
 
-    // This is the bugreporting API flow, so ensure there is only one bugreport in progress at a
-    // time.
-    std::lock_guard<std::mutex> lock(lock_);
-    if (ds_ != nullptr) {
-        return exception(binder::Status::EX_SERVICE_SPECIFIC,
-                         "There is already a bugreport in progress");
-    }
     ds_ = &(Dumpstate::GetInstance());
     ds_->SetOptions(std::move(options));
-    if (listener != nullptr) {
-        ds_->listener_ = listener;
-    }
+    ds_->listener_ = listener;
 
     DumpstateInfo* ds_info = new DumpstateInfo();
     ds_info->ds = ds_;
@@ -158,11 +171,12 @@ binder::Status DumpstateService::startBugreport(int32_t calling_uid,
     ds_info->calling_package = calling_package;
 
     pthread_t thread;
-    status_t err = pthread_create(&thread, nullptr, callAndNotify, ds_info);
+    status_t err = pthread_create(&thread, nullptr, dumpstate_thread_main, ds_info);
     if (err != 0) {
         delete ds_info;
         ds_info = nullptr;
-        return error(err, "Could not create a background thread.");
+        MYLOGE("Could not create a thread");
+        signalErrorAndExit(listener, IDumpstateListener::BUGREPORT_ERROR_RUNTIME_ERROR);
     }
     return binder::Status::ok();
 }
