@@ -368,7 +368,7 @@ class RunDex2Oat : public ExecVHelper {
         std::string dex2oat_image_fd;
         std::string target_sdk_version_arg;
         if (target_sdk_version != 0) {
-            StringPrintf("-Xtarget-sdk-version:%d", target_sdk_version);
+            target_sdk_version_arg = StringPrintf("-Xtarget-sdk-version:%d", target_sdk_version);
         }
         std::string class_loader_context_arg;
         if (class_loader_context != nullptr) {
@@ -471,7 +471,7 @@ class RunDex2Oat : public ExecVHelper {
         if (disable_cdex) {
             AddArg(kDisableCompactDexFlag);
         }
-        AddArg(target_sdk_version_arg);
+        AddRuntimeArg(target_sdk_version_arg);
         if (enable_hidden_api_checks) {
             AddRuntimeArg("-Xhidden-api-checks");
         }
