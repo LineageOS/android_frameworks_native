@@ -576,9 +576,24 @@ void SurfaceFlinger::bootFinished()
     LOG_EVENT_LONG(LOGTAG_SF_STOP_BOOTANIM,
                    ns2ms(systemTime(SYSTEM_TIME_MONOTONIC)));
 
-    postMessageAsync(new LambdaMessage([this] {
+    postMessageAsync(new LambdaMessage([this]() NO_THREAD_SAFETY_ANALYSIS {
         readPersistentProperties();
         mBootStage = BootStage::FINISHED;
+
+        // TODO(b/122905403): Once the display policy is completely integrated, this flag should go
+        // away and it should be controlled by flipping the switch in setting. The switch in
+        // settings should only be available to P19 devices, if they are opted into 90Hz fishfood.
+        // The boot must be complete before we can set the active config.
+
+        if (mUse90Hz) {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE);
+        } else {
+            mPhaseOffsets->setRefreshRateType(
+                    scheduler::RefreshRateConfigs::RefreshRateType::DEFAULT);
+            setRefreshRateTo(RefreshRateType::DEFAULT);
+        }
     }));
 }
 
@@ -634,11 +649,6 @@ void SurfaceFlinger::init() {
     mEventQueue->setEventConnection(mScheduler->getEventConnection(mSfConnectionHandle));
     mVsyncModulator.setSchedulerAndHandles(mScheduler.get(), mAppConnectionHandle.get(),
                                            mSfConnectionHandle.get());
-
-    if (mUse90Hz) {
-        mPhaseOffsets->setRefreshRateType(
-                scheduler::RefreshRateConfigs::RefreshRateType::PERFORMANCE);
-    }
 
     // Get a RenderEngine for the given display / config (can't fail)
     int32_t renderEngineFeature = 0;
