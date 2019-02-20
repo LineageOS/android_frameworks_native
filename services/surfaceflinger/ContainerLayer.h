@@ -34,14 +34,6 @@ public:
     bool canReceiveInput() const override;
 
     bool isCreatedFromMainThread() const override { return true; }
-
-    bool onPreComposition(nsecs_t /*refreshStartTime*/) override { return false; }
-
-protected:
-    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                            bool useIdentityTransform, Region& clearRegion,
-                            const bool supportProtectedContent,
-                            renderengine::LayerSettings& layer) override;
 };
 
 } // namespace android

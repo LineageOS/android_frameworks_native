@@ -16,6 +16,9 @@
 
 #pragma once
 
+#include <optional>
+
+#include <renderengine/LayerSettings.h>
 #include <utils/RefBase.h>
 #include <utils/Timers.h>
 
@@ -39,6 +42,34 @@ public:
     // Latches the output-independent state. If includeGeometry is false, the
     // geometry state can be skipped.
     virtual void latchCompositionState(LayerFECompositionState&, bool includeGeometry) const = 0;
+
+    struct ClientCompositionTargetSettings {
+        // The clip region, or visible region that is being rendered to
+        const Region& clip;
+
+        // If true, the layer should use an identity transform for its position
+        // transform. Used only by the captureScreen API call.
+        const bool useIdentityTransform;
+
+        // If set to true, the layer should enable filtering when rendering.
+        const bool needsFiltering;
+
+        // If set to true, the buffer is being sent to a destination that is
+        // expected to treat the buffer contents as secure.
+        const bool isSecure;
+
+        // If set to true, the target buffer has protected content support.
+        const bool supportProtectedContent;
+
+        // Modified by each call to prepareClientComposition to indicate the
+        // region of the target buffer that should be cleared.
+        Region& clearRegion;
+    };
+
+    // Returns the LayerSettings to pass to RenderEngine::drawLayers, or
+    // nullopt_t if the layer does not render
+    virtual std::optional<renderengine::LayerSettings> prepareClientComposition(
+            ClientCompositionTargetSettings&) = 0;
 
     // Called after the layer is displayed to update the presentation fence
     virtual void onLayerDisplayed(const sp<Fence>&) = 0;
