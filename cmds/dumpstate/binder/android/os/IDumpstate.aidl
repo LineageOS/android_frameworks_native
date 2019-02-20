@@ -36,6 +36,9 @@ interface IDumpstate {
     IDumpstateToken setListener(@utf8InCpp String name, IDumpstateListener listener,
                                 boolean getSectionDetails);
 
+    // NOTE: If you add to or change these modes, please also change the corresponding enums
+    // in system server, in BugreportParams.java.
+
     // These modes encapsulate a set of run time options for generating bugreports.
     // Takes a bugreport without user interference.
     const int BUGREPORT_MODE_FULL = 0;
