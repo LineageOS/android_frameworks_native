@@ -304,10 +304,6 @@ public:
     // TODO: this should be made accessible only to MessageQueue
     void onMessageReceived(int32_t what);
 
-    // for debugging only
-    // TODO: this should be made accessible only to HWComposer
-    const Vector<sp<Layer>>& getLayerSortedByZForHwcDisplay(DisplayId displayId);
-
     renderengine::RenderEngine& getRenderEngine() const;
 
     bool authenticateSurfaceTextureLocked(
