@@ -73,6 +73,7 @@ public:
     MOCK_METHOD1(setReleasedLayers, void(ReleasedLayers&&));
     MOCK_METHOD0(takeReleasedLayers, ReleasedLayers());
 
+    MOCK_METHOD0(beginFrame, void());
     MOCK_METHOD0(prepareFrame, void());
     MOCK_METHOD0(chooseCompositionStrategy, void());
 

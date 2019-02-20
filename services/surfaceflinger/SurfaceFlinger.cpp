@@ -1790,11 +1790,12 @@ void SurfaceFlinger::handleMessageRefresh() {
     mCompositionEngine->preComposition(refreshArgs);
     rebuildLayerStacks();
     calculateWorkingSet();
-    for (const auto& [token, display] : mDisplays) {
-        beginFrame(display);
-        display->getCompositionDisplay()->prepareFrame();
-        doDebugFlashRegions(display, repaintEverything);
-        doComposition(display, repaintEverything);
+    for (const auto& [token, displayDevice] : mDisplays) {
+        auto display = displayDevice->getCompositionDisplay();
+        display->beginFrame();
+        display->prepareFrame();
+        doDebugFlashRegions(displayDevice, repaintEverything);
+        doComposition(displayDevice, repaintEverything);
     }
 
     logLayerStats();
@@ -2371,38 +2372,6 @@ void SurfaceFlinger::pickColorMode(const sp<DisplayDevice>& display, ColorMode* 
     }
 
     profile->getBestColorMode(bestDataSpace, intent, outDataSpace, outMode, outRenderIntent);
-}
-
-void SurfaceFlinger::beginFrame(const sp<DisplayDevice>& displayDevice) {
-    auto display = displayDevice->getCompositionDisplay();
-    const auto& displayState = display->getState();
-
-    bool dirty = !display->getDirtyRegion(false).isEmpty();
-    bool empty = displayDevice->getVisibleLayersSortedByZ().size() == 0;
-    bool wasEmpty = !displayState.lastCompositionHadVisibleLayers;
-
-    // If nothing has changed (!dirty), don't recompose.
-    // If something changed, but we don't currently have any visible layers,
-    //   and didn't when we last did a composition, then skip it this time.
-    // The second rule does two things:
-    // - When all layers are removed from a display, we'll emit one black
-    //   frame, then nothing more until we get new layers.
-    // - When a display is created with a private layer stack, we won't
-    //   emit any black frames until a layer is added to the layer stack.
-    bool mustRecompose = dirty && !(empty && wasEmpty);
-
-    const char flagPrefix[] = {'-', '+'};
-    static_cast<void>(flagPrefix);
-    ALOGV_IF(displayDevice->isVirtual(), "%s: %s composition for %s (%cdirty %cempty %cwasEmpty)",
-             __FUNCTION__, mustRecompose ? "doing" : "skipping",
-             displayDevice->getDebugName().c_str(), flagPrefix[dirty], flagPrefix[empty],
-             flagPrefix[wasEmpty]);
-
-    display->getRenderSurface()->beginFrame(mustRecompose);
-
-    if (mustRecompose) {
-        display->editState().lastCompositionHadVisibleLayers = !empty;
-    }
 }
 
 void SurfaceFlinger::doComposition(const sp<DisplayDevice>& displayDevice, bool repaintEverything) {
