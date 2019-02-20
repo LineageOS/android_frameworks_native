@@ -367,7 +367,7 @@ void BufferQueueLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display)
     uint32_t hwcSlot = 0;
     sp<GraphicBuffer> hwcBuffer;
     (*outputLayer->editState().hwc)
-            .hwcBufferCache.getHwcBuffer(mActiveBufferSlot, mActiveBuffer, &hwcSlot, &hwcBuffer);
+            .hwcBufferCache.getHwcBuffer(mActiveBuffer, &hwcSlot, &hwcBuffer);
 
     auto acquireFence = mConsumer->getCurrentFence();
     auto error = hwcLayer->setBuffer(hwcSlot, hwcBuffer, acquireFence);

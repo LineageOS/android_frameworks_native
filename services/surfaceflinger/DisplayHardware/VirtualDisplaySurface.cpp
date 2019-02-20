@@ -224,8 +224,7 @@ status_t VirtualDisplaySurface::advanceFrame() {
     if (fbBuffer != nullptr) {
         uint32_t hwcSlot = 0;
         sp<GraphicBuffer> hwcBuffer;
-        mHwcBufferCache.getHwcBuffer(mFbProducerSlot, fbBuffer,
-                &hwcSlot, &hwcBuffer);
+        mHwcBufferCache.getHwcBuffer(fbBuffer, &hwcSlot, &hwcBuffer);
 
         // TODO: Correctly propagate the dataspace from GL composition
         result = mHwc.setClientTarget(*mDisplayId, hwcSlot, mFbFence, hwcBuffer,

@@ -565,14 +565,17 @@ status_t BufferStateLayer::updateFrameNumber(nsecs_t /*latchTime*/) {
 void BufferStateLayer::setHwcLayerBuffer(const sp<const DisplayDevice>& display) {
     const auto outputLayer = findOutputLayerForDisplay(display);
     LOG_FATAL_IF(!outputLayer || !outputLayer->getState().hwc);
-    auto& hwcLayer = (*outputLayer->getState().hwc).hwcLayer;
+    auto& hwcInfo = *outputLayer->editState().hwc;
+    auto& hwcLayer = hwcInfo.hwcLayer;
 
     const State& s(getDrawingState());
 
-    // TODO(marissaw): support more than one slot
+    // obtain slot
     uint32_t hwcSlot = 0;
+    sp<GraphicBuffer> buffer;
+    hwcInfo.hwcBufferCache.getHwcBuffer(s.buffer, &hwcSlot, &buffer);
 
-    auto error = hwcLayer->setBuffer(hwcSlot, s.buffer, s.acquireFence);
+    auto error = hwcLayer->setBuffer(hwcSlot, buffer, s.acquireFence);
     if (error != HWC2::Error::None) {
         ALOGE("[%s] Failed to set buffer %p: %s (%d)", mName.string(),
               s.buffer->handle, to_string(error).c_str(), static_cast<int32_t>(error));
