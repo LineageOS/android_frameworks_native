@@ -1075,6 +1075,7 @@ private:
      * Scheduler
      */
     bool mUse90Hz = false;
+    bool mUseSmart90ForVideo = false;
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;

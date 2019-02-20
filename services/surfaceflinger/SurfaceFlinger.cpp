@@ -396,6 +396,9 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     property_get("debug.sf.use_90Hz", value, "0");
     mUse90Hz = atoi(value);
 
+    property_get("debug.sf.use_smart_90_for_video", value, "0");
+    mUseSmart90ForVideo = atoi(value);
+
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
 
@@ -1595,8 +1598,11 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 break;
             }
 
-            // This call is made each time SF wakes up and creates a new frame.
-            mScheduler->incrementFrameCounter();
+            if (mUse90Hz && mUseSmart90ForVideo) {
+                // This call is made each time SF wakes up and creates a new frame. It is part
+                // of video detection feature.
+                mScheduler->incrementFrameCounter();
+            }
 
             bool frameMissed = !mHadClientComposition && mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
@@ -4465,7 +4471,9 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    StringAppendF(&result, "Scheduler enabled. 90Hz feature: %s\n\n", mUse90Hz ? "on" : "off");
+    StringAppendF(&result, "Scheduler enabled. 90Hz feature: %s\n", mUse90Hz ? "on" : "off");
+    StringAppendF(&result, "+  Smart 90 for video detection: %s\n\n",
+                  mUseSmart90ForVideo ? "on" : "off");
     mScheduler->dump(mAppConnectionHandle, result);
 }
 
