@@ -39,7 +39,7 @@ GpuService::GpuService() = default;
 
 void GpuService::setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
-                             const std::string& driverBuildDate, const std::string& appPackageName,
+                             int64_t driverBuildTime, const std::string& appPackageName,
                              GraphicsEnv::Driver driver, bool isDriverLoaded,
                              int64_t driverLoadingTime) {
     ATRACE_CALL();
@@ -48,15 +48,14 @@ void GpuService::setGpuStats(const std::string& driverPackageName,
     ALOGV("Received:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
-          "\tdriverVersionCode[%llu]\n"
-          "\tdriverBuildDate[%s]\n"
+          "\tdriverVersionCode[%" PRIu64 "]\n"
+          "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n"
           "\tdriver[%d]\n"
           "\tisDriverLoaded[%d]\n"
-          "\tdriverLoadingTime[%lld]",
-          driverPackageName.c_str(), driverVersionName.c_str(),
-          (unsigned long long)driverVersionCode, driverBuildDate.c_str(), appPackageName.c_str(),
-          static_cast<int32_t>(driver), isDriverLoaded, (long long)driverLoadingTime);
+          "\tdriverLoadingTime[%" PRId64 "]",
+          driverPackageName.c_str(), driverVersionName.c_str(), driverVersionCode, driverBuildTime,
+          appPackageName.c_str(), static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
 }
 
 status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<String16>& args) {
