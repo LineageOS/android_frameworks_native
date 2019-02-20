@@ -32,16 +32,6 @@ namespace renderengine {
 
 // Metadata describing the input buffer to render from.
 struct Buffer {
-    // Hint for whether to use the Image cache or not.
-    // If NO_CACHE is specified, then upload the contents of the GraphicBuffer
-    // to the GPU, without checking against any implementation defined cache.
-    // If USE_CACHE is specified, then check against an implementation defined
-    // cache first. If there is an Image cached for the given GraphicBuffer id,
-    // then use that instead of the provided buffer contents. If there is no
-    // cached image or the RenderEngine implementation does not support caching,
-    // then use the GraphicBuffer contents.
-    enum class CachingHint { NO_CACHE, USE_CACHE };
-
     // Buffer containing the image that we will render.
     // If buffer == nullptr, then the rest of the fields in this struct will be
     // ignored.
@@ -49,9 +39,6 @@ struct Buffer {
 
     // Fence that will fire when the buffer is ready to be bound.
     sp<Fence> fence = nullptr;
-
-    // Caching hint to use when uploading buffer contents.
-    CachingHint cacheHint = CachingHint::NO_CACHE;
 
     // Texture identifier to bind the external texture to.
     // TODO(alecmouri): This is GL-specific...make the type backend-agnostic.

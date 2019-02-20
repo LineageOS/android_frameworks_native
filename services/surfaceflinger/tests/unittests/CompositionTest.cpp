@@ -592,8 +592,6 @@ struct BaseLayerProperties {
                     renderengine::LayerSettings layer = layerSettings.back();
                     EXPECT_THAT(layer.source.buffer.buffer, Not(IsNull()));
                     EXPECT_THAT(layer.source.buffer.fence, Not(IsNull()));
-                    EXPECT_EQ(renderengine::Buffer::CachingHint::NO_CACHE,
-                              layer.source.buffer.cacheHint);
                     EXPECT_EQ(DEFAULT_TEXTURE_ID, layer.source.buffer.textureName);
                     EXPECT_EQ(false, layer.source.buffer.isY410BT2020);
                     EXPECT_EQ(true, layer.source.buffer.usePremultipliedAlpha);
