@@ -66,6 +66,9 @@ public:
     virtual void setVSyncEnabled(bool enable) = 0;
     virtual void setCallback(Callback* callback) = 0;
     virtual void setPhaseOffset(nsecs_t phaseOffset) = 0;
+
+    // pause/resume vsync callback generation
+    virtual void pauseVsyncCallback(bool pause) = 0;
 };
 
 class EventThreadConnection : public BnDisplayEventConnection {
@@ -119,6 +122,8 @@ public:
     // Requests the next vsync. If resetIdleTimer is set to true, it resets the idle timer.
     virtual void requestNextVsync(const sp<EventThreadConnection>& connection,
                                   bool resetIdleTimer) = 0;
+
+    virtual void pauseVsyncCallback(bool pause) = 0;
 };
 
 namespace impl {
@@ -151,6 +156,8 @@ public:
     void dump(std::string& result) const override;
 
     void setPhaseOffset(nsecs_t phaseOffset) override;
+
+    void pauseVsyncCallback(bool pause) override;
 
 private:
     friend EventThreadTest;
