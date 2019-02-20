@@ -12,8 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+cc_defaults {
+    name: "inputflinger_defaults",
+    cflags: [
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wthread-safety",
+    ],
+}
+
 cc_library_shared {
     name: "libinputflinger",
+    defaults: ["inputflinger_defaults"],
 
     srcs: [
         "InputClassifier.cpp",
@@ -23,10 +35,10 @@ cc_library_shared {
 
     shared_libs: [
         "android.hardware.input.classifier@1.0",
+        "libbase",
         "libinputflinger_base",
         "libinputreporter",
         "libinputreader",
-        "libbase",
         "libbinder",
         "libcutils",
         "libhidlbase",
@@ -38,12 +50,6 @@ cc_library_shared {
     ],
 
     cflags: [
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-Wno-unused-parameter",
-        // TODO(b/123097103): annotate InputDispatcher and uncomment the following line
-        //"-Wthread-safety",
         // TODO(b/23084678): Move inputflinger to its own process and mark it hidden
         //-fvisibility=hidden
     ],
@@ -55,15 +61,14 @@ cc_library_shared {
 
 }
 
-
 cc_library_headers {
-   name: "libinputflinger_headers",
-
-   export_include_dirs: ["include"],
+    name: "libinputflinger_headers",
+    export_include_dirs: ["include"],
 }
 
 cc_library_shared {
     name: "libinputreader",
+    defaults: ["inputflinger_defaults"],
 
     srcs: [
         "EventHub.cpp",
@@ -73,17 +78,16 @@ cc_library_shared {
     ],
 
     shared_libs: [
-        "libinputflinger_base",
         "libbase",
+        "libinputflinger_base",
         "libcrypto",
         "libcutils",
         "libinput",
         "liblog",
-        "libutils",
         "libui",
+        "libutils",
         "libhardware_legacy",
         "libstatslog",
-        "libutils",
     ],
 
     header_libs: [
@@ -93,17 +97,11 @@ cc_library_shared {
     export_header_lib_headers: [
         "libinputflinger_headers",
     ],
-
-    cflags: [
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-Wno-unused-parameter",
-    ],
 }
 
 cc_library_shared {
     name: "libinputflinger_base",
+    defaults: ["inputflinger_defaults"],
 
     srcs: [
         "InputListener.cpp",
@@ -124,24 +122,17 @@ cc_library_shared {
     export_header_lib_headers: [
         "libinputflinger_headers",
     ],
-
-    cflags: [
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-Wno-unused-parameter",
-    ],
 }
 
 cc_library_shared {
     name: "libinputreporter",
+    defaults: ["inputflinger_defaults"],
 
     srcs: [
         "InputReporter.cpp",
     ],
 
     shared_libs: [
-        "libbase",
         "liblog",
         "libutils",
     ],
@@ -152,13 +143,6 @@ cc_library_shared {
 
     export_header_lib_headers: [
         "libinputflinger_headers",
-    ],
-
-    cflags: [
-        "-Wall",
-        "-Wextra",
-        "-Werror",
-        "-Wno-unused-parameter",
     ],
 }
 
