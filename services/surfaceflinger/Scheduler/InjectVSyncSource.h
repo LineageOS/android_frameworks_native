@@ -44,6 +44,7 @@ public:
 
     void setVSyncEnabled(bool) override {}
     void setPhaseOffset(nsecs_t) override {}
+    void pauseVsyncCallback(bool) {}
 
 private:
     std::mutex mCallbackMutex;

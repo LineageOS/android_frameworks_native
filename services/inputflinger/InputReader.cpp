@@ -6565,6 +6565,8 @@ void TouchInputMapper::dispatchMotion(nsecs_t when, uint32_t policyFlags, uint32
     const int32_t displayId = getAssociatedDisplay().value_or(ADISPLAY_ID_NONE);
     const int32_t deviceId = getDeviceId();
     std::vector<TouchVideoFrame> frames = mDevice->getEventHub()->getVideoFrames(deviceId);
+    std::for_each(frames.begin(), frames.end(),
+            [this](TouchVideoFrame& frame) { frame.rotate(this->mSurfaceOrientation); });
     NotifyMotionArgs args(mContext->getNextSequenceNum(), when, deviceId,
             source, displayId, policyFlags,
             action, actionButton, flags, metaState, buttonState, MotionClassification::NONE,

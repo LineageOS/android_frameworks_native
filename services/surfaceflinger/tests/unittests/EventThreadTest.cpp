@@ -44,6 +44,7 @@ public:
     MOCK_METHOD1(setVSyncEnabled, void(bool));
     MOCK_METHOD1(setCallback, void(VSyncSource::Callback*));
     MOCK_METHOD1(setPhaseOffset, void(nsecs_t));
+    MOCK_METHOD1(pauseVsyncCallback, void(bool));
 };
 
 } // namespace
@@ -71,6 +72,7 @@ protected:
 
     void expectVSyncSetEnabledCallReceived(bool expectedState);
     void expectVSyncSetPhaseOffsetCallReceived(nsecs_t expectedPhaseOffset);
+    void expectVSyncPauseVsyncCallbackCallReceived(bool expectedPause);
     VSyncSource::Callback* expectVSyncSetCallbackCallReceived();
     void expectInterceptCallReceived(nsecs_t expectedTimestamp);
     void expectVsyncEventReceivedByConnection(const char* name,
@@ -83,6 +85,7 @@ protected:
     AsyncCallRecorder<void (*)(bool)> mVSyncSetEnabledCallRecorder;
     AsyncCallRecorder<void (*)(VSyncSource::Callback*)> mVSyncSetCallbackCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t)> mVSyncSetPhaseOffsetCallRecorder;
+    AsyncCallRecorder<void (*)(bool)> mVSyncPauseVsyncCallbackCallRecorder;
     AsyncCallRecorder<void (*)()> mResyncCallRecorder;
     AsyncCallRecorder<void (*)()> mResetIdleTimerCallRecorder;
     AsyncCallRecorder<void (*)(nsecs_t)> mInterceptVSyncCallRecorder;
@@ -107,6 +110,9 @@ EventThreadTest::EventThreadTest() {
 
     EXPECT_CALL(mVSyncSource, setPhaseOffset(_))
             .WillRepeatedly(Invoke(mVSyncSetPhaseOffsetCallRecorder.getInvocable()));
+
+    EXPECT_CALL(mVSyncSource, pauseVsyncCallback(_))
+            .WillRepeatedly(Invoke(mVSyncPauseVsyncCallbackCallRecorder.getInvocable()));
 
     createThread();
     mConnection = createConnection(mConnectionEventCallRecorder);
@@ -155,6 +161,12 @@ void EventThreadTest::expectVSyncSetPhaseOffsetCallReceived(nsecs_t expectedPhas
     auto args = mVSyncSetPhaseOffsetCallRecorder.waitForCall();
     ASSERT_TRUE(args.has_value());
     EXPECT_EQ(expectedPhaseOffset, std::get<0>(args.value()));
+}
+
+void EventThreadTest::expectVSyncPauseVsyncCallbackCallReceived(bool expectedPause) {
+    auto args = mVSyncPauseVsyncCallbackCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    EXPECT_EQ(expectedPause, std::get<0>(args.value()));
 }
 
 VSyncSource::Callback* EventThreadTest::expectVSyncSetCallbackCallReceived() {
@@ -404,6 +416,16 @@ TEST_F(EventThreadTest, eventsDroppedIfNonfatalEventDeliveryError) {
 TEST_F(EventThreadTest, setPhaseOffsetForwardsToVSyncSource) {
     mThread->setPhaseOffset(321);
     expectVSyncSetPhaseOffsetCallReceived(321);
+}
+
+TEST_F(EventThreadTest, pauseVsyncCallbackForwardsToVSyncSource) {
+    mThread->pauseVsyncCallback(true);
+    expectVSyncPauseVsyncCallbackCallReceived(true);
+}
+
+TEST_F(EventThreadTest, resumeVsyncCallbackForwardsToVSyncSource) {
+    mThread->pauseVsyncCallback(false);
+    expectVSyncPauseVsyncCallbackCallReceived(false);
 }
 
 TEST_F(EventThreadTest, postHotplugInternalDisconnect) {

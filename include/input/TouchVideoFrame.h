@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 #include <sys/time.h>
+#include <ui/DisplayInfo.h>
 #include <vector>
 
 namespace android {
@@ -55,11 +56,23 @@ public:
      */
     const struct timeval& getTimestamp() const;
 
+    /**
+     * Rotate the video frame.
+     * The rotation value is an enum from ui/DisplayInfo.h
+     */
+    void rotate(int32_t orientation);
+
 private:
     uint32_t mHeight;
     uint32_t mWidth;
     std::vector<int16_t> mData;
     struct timeval mTimestamp;
+
+    /**
+     * Common method for 90 degree and 270 degree rotation
+     */
+    void rotateQuarterTurn(bool clockwise);
+    void rotate180();
 };
 
 } // namespace android

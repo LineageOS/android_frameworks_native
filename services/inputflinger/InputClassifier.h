@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_CLASSIFIER_H
 #define _UI_INPUT_CLASSIFIER_H
 
+#include <android-base/thread_annotations.h>
 #include <utils/RefBase.h>
 #include <unordered_map>
 #include <thread>
@@ -151,7 +152,7 @@ private:
      * getClassification / setClassification methods.
      */
     std::unordered_map<int32_t /*deviceId*/, MotionClassification>
-            mClassifications; //GUARDED_BY(mLock);
+            mClassifications GUARDED_BY(mLock);
     /**
      * Set the current classification for a given device.
      */
@@ -161,7 +162,7 @@ private:
      */
     MotionClassification getClassification(int32_t deviceId);
     void updateClassification(int32_t deviceId, nsecs_t eventTime,
-        MotionClassification classification);
+            MotionClassification classification);
     /**
      * Clear all current classifications
      */
@@ -172,8 +173,8 @@ private:
      *
      * Accessed indirectly by both InputClassifier thread and the thread that receives notifyMotion.
      */
-    std::unordered_map<int32_t /*deviceId*/, nsecs_t /*downTime*/>
-            mLastDownTimes; //GUARDED_BY(mLock);
+    std::unordered_map<int32_t /*deviceId*/, nsecs_t /*downTime*/> mLastDownTimes GUARDED_BY(mLock);
+
     void updateLastDownTime(int32_t deviceId, nsecs_t downTime);
 
     /**

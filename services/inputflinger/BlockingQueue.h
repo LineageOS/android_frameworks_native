@@ -17,6 +17,7 @@
 #ifndef _UI_INPUT_BLOCKING_QUEUE_H
 #define _UI_INPUT_BLOCKING_QUEUE_H
 
+#include "android-base/thread_annotations.h"
 #include <condition_variable>
 #include <mutex>
 #include <vector>
@@ -43,10 +44,14 @@ public:
      */
     T pop() {
         std::unique_lock<std::mutex> lock(mLock);
-        mHasElements.wait(lock, [this]{ return !this->mQueue.empty(); });
+        android::base::ScopedLockAssertion assumeLock(mLock);
+        mHasElements.wait(lock, [this]{
+                android::base::ScopedLockAssertion assumeLock(mLock);
+                return !this->mQueue.empty();
+        });
         T t = std::move(mQueue.front());
         mQueue.erase(mQueue.begin());
-        return std::move(t);
+        return t;
     };
 
     /**
@@ -56,17 +61,19 @@ public:
      * Return false if the queue is full.
      */
     bool push(T&& t) {
-        std::unique_lock<std::mutex> lock(mLock);
-        if (mQueue.size() == mCapacity) {
-            return false;
+        {
+            std::scoped_lock lock(mLock);
+            if (mQueue.size() == mCapacity) {
+                return false;
+            }
+            mQueue.push_back(std::move(t));
         }
-        mQueue.push_back(std::move(t));
         mHasElements.notify_one();
         return true;
     };
 
     void erase(const std::function<bool(const T&)>& lambda) {
-        std::unique_lock<std::mutex> lock(mLock);
+        std::scoped_lock lock(mLock);
         mQueue.erase(std::remove_if(mQueue.begin(), mQueue.end(),
                 [&lambda](const T& t) { return lambda(t); }), mQueue.end());
     }
@@ -91,7 +98,7 @@ public:
     }
 
 private:
-    size_t mCapacity;
+    const size_t mCapacity;
     /**
      * Used to signal that mQueue is non-empty.
      */
@@ -100,7 +107,7 @@ private:
      * Lock for accessing and waiting on elements.
      */
     std::mutex mLock;
-    std::vector<T> mQueue; //GUARDED_BY(mLock)
+    std::vector<T> mQueue GUARDED_BY(mLock);
 };
 
 

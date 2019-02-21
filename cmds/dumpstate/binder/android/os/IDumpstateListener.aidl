@@ -19,6 +19,11 @@ package android.os;
 /**
   * Listener for dumpstate events.
   *
+  * <p>When bugreport creation is complete one of {@code onError} or {@code onFinished} is called.
+  *
+  * <p>These methods are synchronous by design in order to make dumpstate's lifecycle simpler
+  * to handle.
+  *
   * {@hide}
   */
 interface IDumpstateListener {
@@ -27,7 +32,10 @@ interface IDumpstateListener {
      *
      * @param progress the progress in [0, 100]
      */
-    oneway void onProgress(int progress);
+    void onProgress(int progress);
+
+    // NOTE: If you add to or change these error codes, please also change the corresponding enums
+    // in system server, in BugreportManager.java.
 
     /* Options specified are invalid or incompatible */
     const int BUGREPORT_ERROR_INVALID_INPUT = 1;
@@ -41,15 +49,18 @@ interface IDumpstateListener {
     /* The request to get user consent timed out */
     const int BUGREPORT_ERROR_USER_CONSENT_TIMED_OUT = 4;
 
+    /* There is currently a bugreport running. The caller should try again later. */
+    const int BUGREPORT_ERROR_CONCURRENT_BUGREPORTS_FORBIDDEN = 5;
+
     /**
      * Called on an error condition with one of the error codes listed above.
      */
-    oneway void onError(int errorCode);
+    void onError(int errorCode);
 
     /**
      * Called when taking bugreport finishes successfully.
      */
-     oneway void onFinished();
+    void onFinished();
 
     // TODO(b/111441001): Remove old methods when not used anymore.
     void onProgressUpdated(int progress);
