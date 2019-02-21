@@ -61,14 +61,18 @@ std::string create_data_user_de_package_path(const char* volume_uuid,
 std::string create_data_user_ce_package_path_as_user_link(
         const char* volume_uuid, userid_t userid, const char* package_name);
 
-std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user);
-std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user);
+std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user);
+std::string create_data_misc_de_rollback_base_path(const char* volume_uuid, userid_t user);
+std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user,
+        int32_t snapshot_id);
+std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user,
+        int32_t snapshot_id);
 std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
-        userid_t user, const char* package_name);
+        userid_t user, int32_t snapshot_id, const char* package_name);
 std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
-        userid_t user, const char* package_name, ino_t ce_rollback_inode);
+        userid_t user, int32_t snapshot_id, const char* package_name, ino_t ce_rollback_inode);
 std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
-        userid_t user, const char* package_name);
+        userid_t user, int32_t snapshot_id, const char* package_name);
 
 std::string create_data_media_path(const char* volume_uuid, userid_t userid);
 std::string create_data_media_obb_path(const char* volume_uuid, const char* package_name);
@@ -108,6 +112,8 @@ int create_user_config_path(char path[PKG_PATH_MAX], userid_t userid);
 
 bool is_valid_filename(const std::string& name);
 bool is_valid_package_name(const std::string& packageName);
+
+int create_dir_if_needed(const std::string& pathname, mode_t mode);
 
 int delete_dir_contents(const std::string& pathname, bool ignore_if_missing = false);
 int delete_dir_contents_and_dir(const std::string& pathname, bool ignore_if_missing = false);
