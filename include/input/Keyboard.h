@@ -25,15 +25,6 @@
 
 namespace android {
 
-enum {
-    /* Device id of the built in keyboard. */
-    DEVICE_ID_BUILT_IN_KEYBOARD = 0,
-
-    /* Device id of a generic virtual keyboard with a full layout that can be used
-     * to synthesize key events. */
-    DEVICE_ID_VIRTUAL_KEYBOARD = -1,
-};
-
 class KeyLayoutMap;
 class KeyCharacterMap;
 
