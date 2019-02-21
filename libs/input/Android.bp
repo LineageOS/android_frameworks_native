@@ -47,6 +47,7 @@ cc_library {
                 "InputApplication.cpp",
                 "InputTransport.cpp",
                 "InputWindow.cpp",
+                "ISetInputWindowsListener.cpp",
                 "VelocityControl.cpp",
                 "VelocityTracker.cpp",
             ],
