@@ -1125,6 +1125,7 @@ private:
     ui::DisplayPrimaries mInternalDisplayPrimaries;
 
     sp<SetInputWindowsListener> mSetInputWindowsListener;
+    bool mPendingSyncInputWindows GUARDED_BY(mStateLock);
 };
 }; // namespace android
 
