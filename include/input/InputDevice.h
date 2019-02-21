@@ -51,6 +51,15 @@ struct InputDeviceIdentifier {
     // is intended to be a minimum way to distinguish from other active devices and may
     // reuse values that are not associated with an input anymore.
     uint16_t nonce;
+
+    /**
+     * Return InputDeviceIdentifier.name that has been adjusted as follows:
+     *     - all characters besides alphanumerics, dash,
+     *       and underscore have been replaced with underscores.
+     * This helps in situations where a file that matches the device name is needed,
+     * while conforming to the filename limitations.
+     */
+    std::string getCanonicalName() const;
 };
 
 /*
