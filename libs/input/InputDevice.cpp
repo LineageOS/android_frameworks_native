@@ -140,6 +140,18 @@ std::string getInputDeviceConfigurationFilePathByName(
     return "";
 }
 
+// --- InputDeviceIdentifier
+
+std::string InputDeviceIdentifier::getCanonicalName() const {
+    std::string replacedName = name;
+    for (char& ch : replacedName) {
+        if (!isValidNameChar(ch)) {
+            ch = '_';
+        }
+    }
+    return replacedName;
+}
+
 
 // --- InputDeviceInfo ---
 

@@ -1617,7 +1617,7 @@ bool EventHub::loadVirtualKeyMapLocked(Device* device) {
     // The virtual key map is supplied by the kernel as a system board property file.
     std::string path;
     path += "/sys/board_properties/virtualkeys.";
-    path += device->identifier.name;
+    path += device->identifier.getCanonicalName();
     if (access(path.c_str(), R_OK)) {
         return false;
     }
