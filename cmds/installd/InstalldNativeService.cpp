@@ -39,6 +39,7 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
+#include <android-base/file.h>
 #include <android-base/logging.h>
 #include <android-base/properties.h>
 #include <android-base/scopeguard.h>
@@ -79,6 +80,8 @@ namespace installd {
 
 // An uuid used in unit tests.
 static constexpr const char* kTestUuid = "TEST";
+
+static constexpr const mode_t kRollbackFolderMode = 0700;
 
 static constexpr const char* kCpPath = "/system/bin/cp";
 static constexpr const char* kXattrDefault = "user.default";
@@ -784,8 +787,8 @@ static int32_t copy_directory_recursive(const char* from, const char* to) {
 
 binder::Status InstalldNativeService::snapshotAppData(
         const std::unique_ptr<std::string>& volumeUuid,
-        const std::string& packageName, int32_t user, int32_t storageFlags,
-        int64_t* _aidl_return) {
+        const std::string& packageName, int32_t user, int32_t snapshotId,
+        int32_t storageFlags, int64_t* _aidl_return) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
@@ -802,16 +805,19 @@ binder::Status InstalldNativeService::snapshotAppData(
     bool clear_ce_on_exit = false;
     bool clear_de_on_exit = false;
 
-    auto deleter = [&clear_ce_on_exit, &clear_de_on_exit, &volume_uuid, &user, &package_name] {
+    auto deleter = [&clear_ce_on_exit, &clear_de_on_exit, &volume_uuid, &user, &package_name,
+            &snapshotId] {
         if (clear_de_on_exit) {
-            auto to = create_data_misc_de_rollback_package_path(volume_uuid, user, package_name);
+            auto to = create_data_misc_de_rollback_package_path(volume_uuid, user, snapshotId,
+                    package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to delete app data snapshot: " << to;
             }
         }
 
         if (clear_ce_on_exit) {
-            auto to = create_data_misc_ce_rollback_package_path(volume_uuid, user, package_name);
+            auto to = create_data_misc_ce_rollback_package_path(volume_uuid, user, snapshotId,
+                    package_name);
             if (delete_dir_contents(to.c_str(), 1, nullptr) != 0) {
                 LOG(WARNING) << "Failed to delete app data snapshot: " << to;
             }
@@ -847,15 +853,21 @@ binder::Status InstalldNativeService::snapshotAppData(
 
     if (storageFlags & FLAG_STORAGE_DE) {
         auto from = create_data_user_de_package_path(volume_uuid, user, package_name);
-        auto to = create_data_misc_de_rollback_path(volume_uuid, user);
+        auto to = create_data_misc_de_rollback_path(volume_uuid, user, snapshotId);
+        auto rollback_package_path = create_data_misc_de_rollback_package_path(volume_uuid, user,
+            snapshotId, package_name);
 
-        int rd = delete_dir_contents(to, true /* ignore_if_missing */);
-        if (rd != 0) {
-            res = error(rd, "Failed clearing existing snapshot " + to);
-            return res;
+        int rc = create_dir_if_needed(to.c_str(), kRollbackFolderMode);
+        if (rc != 0) {
+            return error(rc, "Failed to create folder " + to);
         }
 
-        int rc = copy_directory_recursive(from.c_str(), to.c_str());
+        rc = delete_dir_contents(rollback_package_path, true /* ignore_if_missing */);
+        if (rc != 0) {
+            return error(rc, "Failed clearing existing snapshot " + rollback_package_path);
+        }
+
+        rc = copy_directory_recursive(from.c_str(), to.c_str());
         if (rc != 0) {
             res = error(rc, "Failed copying " + from + " to " + to);
             clear_de_on_exit = true;
@@ -865,15 +877,21 @@ binder::Status InstalldNativeService::snapshotAppData(
 
     if (storageFlags & FLAG_STORAGE_CE) {
         auto from = create_data_user_ce_package_path(volume_uuid, user, package_name);
-        auto to = create_data_misc_ce_rollback_path(volume_uuid, user);
+        auto to = create_data_misc_ce_rollback_path(volume_uuid, user, snapshotId);
+        auto rollback_package_path = create_data_misc_ce_rollback_package_path(volume_uuid, user,
+            snapshotId, package_name);
 
-        int rd = delete_dir_contents(to, true /* ignore_if_missing */);
-        if (rd != 0) {
-            res = error(rd, "Failed clearing existing snapshot " + to);
-            return res;
+        int rc = create_dir_if_needed(to.c_str(), kRollbackFolderMode);
+        if (rc != 0) {
+            return error(rc, "Failed to create folder " + to);
         }
 
-        int rc = copy_directory_recursive(from.c_str(), to.c_str());
+        rc = delete_dir_contents(rollback_package_path, true /* ignore_if_missing */);
+        if (rc != 0) {
+            return error(rc, "Failed clearing existing snapshot " + rollback_package_path);
+        }
+
+        rc = copy_directory_recursive(from.c_str(), to.c_str());
         if (rc != 0) {
             res = error(rc, "Failed copying " + from + " to " + to);
             clear_ce_on_exit = true;
@@ -881,7 +899,7 @@ binder::Status InstalldNativeService::snapshotAppData(
         }
         if (_aidl_return != nullptr) {
             auto ce_snapshot_path = create_data_misc_ce_rollback_package_path(volume_uuid, user,
-                    package_name);
+                    snapshotId, package_name);
             rc = get_path_inode(ce_snapshot_path, reinterpret_cast<ino_t*>(_aidl_return));
             if (rc != 0) {
                 res = error(rc, "Failed to get_path_inode for " + ce_snapshot_path);
@@ -896,8 +914,8 @@ binder::Status InstalldNativeService::snapshotAppData(
 
 binder::Status InstalldNativeService::restoreAppDataSnapshot(
         const std::unique_ptr<std::string>& volumeUuid, const std::string& packageName,
-        const int32_t appId, const int64_t ceDataInode, const std::string& seInfo,
-        const int32_t user, int32_t storageFlags) {
+        const int32_t appId, const std::string& seInfo, const int32_t user,
+        const int32_t snapshotId, int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
@@ -907,9 +925,9 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
     const char* package_name = packageName.c_str();
 
     auto from_ce = create_data_misc_ce_rollback_package_path(volume_uuid,
-            user, package_name);
+            user, snapshotId, package_name);
     auto from_de = create_data_misc_de_rollback_package_path(volume_uuid,
-            user, package_name);
+            user, snapshotId, package_name);
 
     const bool needs_ce_rollback = (storageFlags & FLAG_STORAGE_CE) &&
         (access(from_ce.c_str(), F_OK) == 0);
@@ -926,7 +944,11 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
     // app with no data in those cases is arguably better than leaving the app
     // with mismatched / stale data.
     LOG(INFO) << "Clearing app data for " << packageName << " to restore snapshot.";
-    binder::Status res = clearAppData(volumeUuid, packageName, user, storageFlags, ceDataInode);
+    // It's fine to pass 0 as ceDataInode here, because restoreAppDataSnapshot
+    // can only be called when user unlocks the phone, meaning that CE user data
+    // is decrypted.
+    binder::Status res = clearAppData(volumeUuid, packageName, user, storageFlags,
+            0 /* ceDataInode */);
     if (!res.isOk()) {
         return res;
     }
@@ -962,7 +984,8 @@ binder::Status InstalldNativeService::restoreAppDataSnapshot(
 
 binder::Status InstalldNativeService::destroyAppDataSnapshot(
         const std::unique_ptr<std::string> &volumeUuid, const std::string& packageName,
-        const int32_t user, const int64_t ceSnapshotInode, int32_t storageFlags) {
+        const int32_t user, const int64_t ceSnapshotInode, const int32_t snapshotId,
+        int32_t storageFlags) {
     ENFORCE_UID(AID_SYSTEM);
     CHECK_ARGUMENT_UUID_IS_TEST_OR_NULL(volumeUuid);
     CHECK_ARGUMENT_PACKAGE_NAME(packageName);
@@ -973,7 +996,7 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
 
     if (storageFlags & FLAG_STORAGE_DE) {
         auto de_snapshot_path = create_data_misc_de_rollback_package_path(volume_uuid,
-                user, package_name);
+                user, snapshotId, package_name);
 
         int res = delete_dir_contents_and_dir(de_snapshot_path, true /* ignore_if_missing */);
         if (res != 0) {
@@ -983,7 +1006,7 @@ binder::Status InstalldNativeService::destroyAppDataSnapshot(
 
     if (storageFlags & FLAG_STORAGE_CE) {
         auto ce_snapshot_path = create_data_misc_ce_rollback_package_path(volume_uuid,
-                user, package_name, ceSnapshotInode);
+                user, snapshotId, package_name, ceSnapshotInode);
         int res = delete_dir_contents_and_dir(ce_snapshot_path, true /* ignore_if_missing */);
         if (res != 0) {
             return error(res, "Failed clearing snapshot " + ce_snapshot_path);

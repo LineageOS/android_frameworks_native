@@ -197,32 +197,44 @@ std::string create_data_user_de_path(const char* volume_uuid, userid_t userid) {
     return StringPrintf("%s/user_de/%u", data.c_str(), userid);
 }
 
-
-std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user) {
+std::string create_data_misc_ce_rollback_base_path(const char* volume_uuid, userid_t user) {
     return StringPrintf("%s/misc_ce/%u/rollback", create_data_path(volume_uuid).c_str(), user);
 }
 
-std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user) {
+std::string create_data_misc_de_rollback_base_path(const char* volume_uuid, userid_t user) {
     return StringPrintf("%s/misc_de/%u/rollback", create_data_path(volume_uuid).c_str(), user);
 }
 
-std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
-        userid_t user, const char* package_name) {
-    return StringPrintf("%s/%s",
-           create_data_misc_ce_rollback_path(volume_uuid, user).c_str(), package_name);
+std::string create_data_misc_ce_rollback_path(const char* volume_uuid, userid_t user,
+        int32_t snapshot_id) {
+    return StringPrintf("%s/%d", create_data_misc_ce_rollback_base_path(volume_uuid, user).c_str(),
+          snapshot_id);
+}
+
+std::string create_data_misc_de_rollback_path(const char* volume_uuid, userid_t user,
+        int32_t snapshot_id) {
+    return StringPrintf("%s/%d", create_data_misc_de_rollback_base_path(volume_uuid, user).c_str(),
+          snapshot_id);
 }
 
 std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
-        userid_t user, const char* package_name, ino_t ce_rollback_inode) {
-    auto fallback = create_data_misc_ce_rollback_package_path(volume_uuid, user, package_name);
-    auto user_path = create_data_misc_ce_rollback_path(volume_uuid, user);
+        userid_t user, int32_t snapshot_id, const char* package_name) {
+    return StringPrintf("%s/%s",
+           create_data_misc_ce_rollback_path(volume_uuid, user, snapshot_id).c_str(), package_name);
+}
+
+std::string create_data_misc_ce_rollback_package_path(const char* volume_uuid,
+        userid_t user, int32_t snapshot_id, const char* package_name, ino_t ce_rollback_inode) {
+    auto fallback = create_data_misc_ce_rollback_package_path(volume_uuid, user, snapshot_id,
+            package_name);
+    auto user_path = create_data_misc_ce_rollback_path(volume_uuid, user, snapshot_id);
     return resolve_ce_path_by_inode_or_fallback(user_path, ce_rollback_inode, fallback);
 }
 
 std::string create_data_misc_de_rollback_package_path(const char* volume_uuid,
-        userid_t user, const char* package_name) {
+        userid_t user, int32_t snapshot_id, const char* package_name) {
     return StringPrintf("%s/%s",
-           create_data_misc_de_rollback_path(volume_uuid, user).c_str(), package_name);
+           create_data_misc_de_rollback_path(volume_uuid, user, snapshot_id).c_str(), package_name);
 }
 
 /**
@@ -526,6 +538,30 @@ static int _delete_dir_contents(DIR *d,
     }
 
     return result;
+}
+
+int create_dir_if_needed(const std::string& pathname, mode_t perms) {
+    struct stat st;
+
+    int rc;
+    if ((rc = stat(pathname.c_str(), &st)) != 0) {
+        if (errno == ENOENT) {
+            return mkdir(pathname.c_str(), perms);
+        } else {
+            return rc;
+        }
+    } else if (!S_ISDIR(st.st_mode)) {
+        LOG(DEBUG) << pathname << " is not a folder";
+        return -1;
+    }
+
+    mode_t actual_perms = st.st_mode & ALLPERMS;
+    if (actual_perms != perms) {
+        LOG(WARNING) << pathname << " permissions " << actual_perms << " expected " << perms;
+        return -1;
+    }
+
+    return 0;
 }
 
 int delete_dir_contents(const std::string& pathname, bool ignore_if_missing) {
