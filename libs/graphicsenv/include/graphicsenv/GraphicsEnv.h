@@ -48,7 +48,7 @@ private:
         std::string driverPackageName;
         std::string driverVersionName;
         uint64_t driverVersionCode;
-        std::string driverBuildDate;
+        int64_t driverBuildTime;
         std::string appPackageName;
         Driver glDriverToLoad;
         Driver glDriverFallback;
@@ -59,7 +59,7 @@ private:
               : driverPackageName(""),
                 driverVersionName(""),
                 driverVersionCode(0),
-                driverBuildDate(""),
+                driverBuildTime(0),
                 appPackageName(""),
                 glDriverToLoad(Driver::NONE),
                 glDriverFallback(Driver::NONE),
@@ -80,7 +80,7 @@ public:
     void setDriverPath(const std::string path);
     android_namespace_t* getDriverNamespace();
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
-                     uint64_t versionCode, const std::string& driverBuildDate,
+                     uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName);
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);

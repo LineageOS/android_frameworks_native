@@ -29,7 +29,7 @@ public:
 
     virtual void setGpuStats(const std::string& driverPackageName,
                              const std::string& driverVersionName, uint64_t driverVersionCode,
-                             const std::string& driverBuildDate, const std::string& appPackageName,
+                             int64_t driverBuildTime, const std::string& appPackageName,
                              GraphicsEnv::Driver driver, bool isDriverLoaded,
                              int64_t driverLoadingTime) {
         Parcel data, reply;
@@ -38,7 +38,7 @@ public:
         data.writeUtf8AsUtf16(driverPackageName);
         data.writeUtf8AsUtf16(driverVersionName);
         data.writeUint64(driverVersionCode);
-        data.writeUtf8AsUtf16(driverBuildDate);
+        data.writeInt64(driverBuildTime);
         data.writeUtf8AsUtf16(appPackageName);
         data.writeInt32(static_cast<int32_t>(driver));
         data.writeBool(isDriverLoaded);
@@ -68,8 +68,8 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             uint64_t driverVersionCode;
             if ((status = data.readUint64(&driverVersionCode)) != OK) return status;
 
-            std::string driverBuildDate;
-            if ((status = data.readUtf8FromUtf16(&driverBuildDate)) != OK) return status;
+            int64_t driverBuildTime;
+            if ((status = data.readInt64(&driverBuildTime)) != OK) return status;
 
             std::string appPackageName;
             if ((status = data.readUtf8FromUtf16(&appPackageName)) != OK) return status;
@@ -83,7 +83,7 @@ status_t BnGpuService::onTransact(uint32_t code, const Parcel& data, Parcel* rep
             int64_t driverLoadingTime;
             if ((status = data.readInt64(&driverLoadingTime)) != OK) return status;
 
-            setGpuStats(driverPackageName, driverVersionName, driverVersionCode, driverBuildDate,
+            setGpuStats(driverPackageName, driverVersionName, driverVersionCode, driverBuildTime,
                         appPackageName, static_cast<GraphicsEnv::Driver>(driver), isDriverLoaded,
                         driverLoadingTime);
 

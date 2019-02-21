@@ -38,7 +38,7 @@ protected:
 private:
     // IGpuService interface
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
-                     uint64_t driverVersionCode, const std::string& driverBuildDate,
+                     uint64_t driverVersionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, GraphicsEnv::Driver driver,
                      bool isDriverLoaded, int64_t driverLoadingTime);
 

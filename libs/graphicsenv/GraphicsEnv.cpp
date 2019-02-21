@@ -158,24 +158,23 @@ void GraphicsEnv::setDriverPath(const std::string path) {
 
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
                               const std::string& driverVersionName, uint64_t driverVersionCode,
-                              const std::string& driverBuildDate,
-                              const std::string& appPackageName) {
+                              int64_t driverBuildTime, const std::string& appPackageName) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
     ALOGV("setGpuStats:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
-          "\tdriverVersionCode[%llu]\n"
-          "\tdriverBuildDate[%s]\n"
+          "\tdriverVersionCode[%" PRIu64 "]\n"
+          "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n",
-          driverPackageName.c_str(), driverVersionName.c_str(),
-          (unsigned long long)driverVersionCode, driverBuildDate.c_str(), appPackageName.c_str());
+          driverPackageName.c_str(), driverVersionName.c_str(), driverVersionCode, driverBuildTime,
+          appPackageName.c_str());
 
     mGpuStats.driverPackageName = driverPackageName;
     mGpuStats.driverVersionName = driverVersionName;
     mGpuStats.driverVersionCode = driverVersionCode;
-    mGpuStats.driverBuildDate = driverBuildDate;
+    mGpuStats.driverBuildTime = driverBuildTime;
     mGpuStats.appPackageName = appPackageName;
 }
 
@@ -264,21 +263,20 @@ void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Driver driver, bool isDriverLo
     ALOGV("sendGpuStats:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
-          "\tdriverVersionCode[%llu]\n"
-          "\tdriverBuildDate[%s]\n"
+          "\tdriverVersionCode[%" PRIu64 "]\n"
+          "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n"
           "\tdriver[%d]\n"
           "\tisDriverLoaded[%d]\n"
-          "\tdriverLoadingTime[%lld]",
+          "\tdriverLoadingTime[%" PRId64 "]",
           mGpuStats.driverPackageName.c_str(), mGpuStats.driverVersionName.c_str(),
-          (unsigned long long)mGpuStats.driverVersionCode, mGpuStats.driverBuildDate.c_str(),
-          mGpuStats.appPackageName.c_str(), static_cast<int32_t>(driver), isDriverLoaded,
-          (long long)driverLoadingTime);
+          mGpuStats.driverVersionCode, mGpuStats.driverBuildTime, mGpuStats.appPackageName.c_str(),
+          static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
 
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
         gpuService->setGpuStats(mGpuStats.driverPackageName, mGpuStats.driverVersionName,
-                                mGpuStats.driverVersionCode, mGpuStats.driverBuildDate,
+                                mGpuStats.driverVersionCode, mGpuStats.driverBuildTime,
                                 mGpuStats.appPackageName, driver, isDriverLoaded,
                                 driverLoadingTime);
     }
