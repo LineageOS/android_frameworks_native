@@ -59,6 +59,18 @@ static const nsecs_t RESAMPLE_MAX_DELTA = 20 * NANOS_PER_MS;
 // far into the future.  This time is further bounded by 50% of the last time delta.
 static const nsecs_t RESAMPLE_MAX_PREDICTION = 8 * NANOS_PER_MS;
 
+/**
+ * System property for enabling / disabling touch resampling.
+ * Resampling extrapolates / interpolates the reported touch event coordinates to better
+ * align them to the VSYNC signal, thus resulting in smoother scrolling performance.
+ * Resampling is not needed (and should be disabled) on hardware that already
+ * has touch events triggered by VSYNC.
+ * Set to "1" to enable resampling (default).
+ * Set to "0" to disable resampling.
+ * Resampling is enabled by default.
+ */
+static const char* PROPERTY_RESAMPLING_ENABLED = "ro.input.resampling";
+
 template<typename T>
 inline static T min(const T& a, const T& b) {
     return a < b ? a : b;
@@ -545,18 +557,7 @@ InputConsumer::~InputConsumer() {
 }
 
 bool InputConsumer::isTouchResamplingEnabled() {
-    char value[PROPERTY_VALUE_MAX];
-    int length = property_get("ro.input.noresample", value, nullptr);
-    if (length > 0) {
-        if (!strcmp("1", value)) {
-            return false;
-        }
-        if (strcmp("0", value)) {
-            ALOGD("Unrecognized property value for 'ro.input.noresample'.  "
-                    "Use '1' or '0'.");
-        }
-    }
-    return true;
+    return property_get_bool(PROPERTY_RESAMPLING_ENABLED, true);
 }
 
 status_t InputConsumer::consume(InputEventFactoryInterface* factory,
