@@ -50,7 +50,7 @@ interface IDumpstateListener {
     const int BUGREPORT_ERROR_USER_CONSENT_TIMED_OUT = 4;
 
     /* There is currently a bugreport running. The caller should try again later. */
-    const int BUGREPORT_ERROR_CONCURRENT_BUGREPORTS_FORBIDDEN = 5;
+    const int BUGREPORT_ERROR_ANOTHER_REPORT_IN_PROGRESS = 5;
 
     /**
      * Called on an error condition with one of the error codes listed above.
