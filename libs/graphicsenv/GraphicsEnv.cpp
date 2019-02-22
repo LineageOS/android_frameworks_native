@@ -146,14 +146,18 @@ int GraphicsEnv::getCanLoadSystemLibraries() {
     return 0;
 }
 
-void GraphicsEnv::setDriverPath(const std::string path) {
-    if (!mDriverPath.empty()) {
-        ALOGV("ignoring attempt to change driver path from '%s' to '%s'", mDriverPath.c_str(),
-              path.c_str());
+void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
+                                                 const std::string sphalLibraries) {
+    if (!mDriverPath.empty() || !mSphalLibraries.empty()) {
+        ALOGV("ignoring attempt to change driver path from '%s' to '%s' or change sphal libraries "
+              "from '%s' to '%s'",
+              mDriverPath.c_str(), path.c_str(), mSphalLibraries.c_str(), sphalLibraries.c_str());
         return;
     }
-    ALOGV("setting driver path to '%s'", path.c_str());
+    ALOGV("setting driver path to '%s' and sphal libraries to '%s'", path.c_str(),
+          sphalLibraries.c_str());
     mDriverPath = path;
+    mSphalLibraries = sphalLibraries;
 }
 
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
@@ -533,6 +537,23 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
         }
         if (!android_link_namespaces(mDriverNamespace, vndkNamespace, vndkspLibraries.c_str())) {
             ALOGE("Failed to link vndk namespace[%s]", dlerror());
+            mDriverNamespace = nullptr;
+            return;
+        }
+
+        if (mSphalLibraries.empty()) return;
+
+        // Make additional libraries in sphal to be accessible
+        auto sphalNamespace = android_get_exported_namespace("sphal");
+        if (!sphalNamespace) {
+            ALOGE("Depend on these libraries[%s] in sphal, but failed to get sphal namespace",
+                  mSphalLibraries.c_str());
+            mDriverNamespace = nullptr;
+            return;
+        }
+
+        if (!android_link_namespaces(mDriverNamespace, sphalNamespace, mSphalLibraries.c_str())) {
+            ALOGE("Failed to link sphal namespace[%s]", dlerror());
             mDriverNamespace = nullptr;
             return;
         }
