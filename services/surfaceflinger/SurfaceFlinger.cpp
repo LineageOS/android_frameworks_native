@@ -3333,12 +3333,12 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     renderengine::DisplaySettings clientCompositionDisplay;
     std::vector<renderengine::LayerSettings> clientCompositionLayers;
     sp<GraphicBuffer> buf;
+    base::unique_fd fd;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        buf = display->getRenderSurface()->dequeueBuffer();
-
+        buf = display->getRenderSurface()->dequeueBuffer(&fd);
         if (buf == nullptr) {
             ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
                   "client composition for this frame",
@@ -3359,7 +3359,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         m[3][0] = displayTransform[2][0];
         m[3][1] = displayTransform[2][1];
         m[3][3] = displayTransform[2][2];
-
         clientCompositionDisplay.globalTransform = m;
 
         const auto* profile = display->getDisplayColorProfile();
@@ -3459,7 +3458,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
             }
         }
         getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers,
-                                     buf->getNativeBuffer(), readyFence);
+                                     buf->getNativeBuffer(), std::move(fd), readyFence);
     }
     return true;
 }
@@ -5638,9 +5637,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     });
 
     clientCompositionDisplay.clearRegion = clearRegion;
+    // Use an empty fence for the buffer fence, since we just created the buffer so
+    // there is no need for synchronization with the GPU.
+    base::unique_fd bufferFence;
     base::unique_fd drawFence;
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
-                                 &drawFence);
+                                 std::move(bufferFence), &drawFence);
 
     *outSyncFd = drawFence.release();
 }

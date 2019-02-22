@@ -71,7 +71,7 @@ public:
     virtual status_t prepareFrame() = 0;
 
     // Allocates a buffer as scratch space for GPU composition
-    virtual sp<GraphicBuffer> dequeueBuffer() = 0;
+    virtual sp<GraphicBuffer> dequeueBuffer(base::unique_fd* bufferFence) = 0;
 
     // Queues the drawn buffer for consumption by HWC. readyFence is the fence
     // which will fire when the buffer is ready for consumption.

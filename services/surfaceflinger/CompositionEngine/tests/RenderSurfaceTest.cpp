@@ -358,7 +358,8 @@ TEST_F(RenderSurfaceTest, dequeueBufferObtainsABuffer) {
             .WillOnce(
                     DoAll(SetArgPointee<0>(buffer.get()), SetArgPointee<1>(-1), Return(NO_ERROR)));
 
-    EXPECT_EQ(buffer.get(), mSurface.dequeueBuffer().get());
+    base::unique_fd fence;
+    EXPECT_EQ(buffer.get(), mSurface.dequeueBuffer(&fence).get());
 
     EXPECT_EQ(buffer.get(), mSurface.mutableGraphicBufferForTest().get());
 }
