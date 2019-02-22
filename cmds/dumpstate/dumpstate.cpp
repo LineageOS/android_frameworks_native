@@ -1746,7 +1746,9 @@ bool Dumpstate::FinishZipFile() {
     }
     // TODO: Should truncate the existing file.
     // ... and re-open it for further logging.
-    redirect_to_existing_file(stderr, const_cast<char*>(ds.log_path_.c_str()));
+    if (!redirect_to_existing_file(stderr, const_cast<char*>(ds.log_path_.c_str()))) {
+        return false;
+    }
     fprintf(stderr, "\n");
 
     int32_t err = zip_writer_->Finish();
@@ -2366,12 +2368,17 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     // If we are going to use a socket, do it as early as possible
     // to avoid timeouts from bugreport.
     if (options_->use_socket) {
-        redirect_to_socket(stdout, "dumpstate");
+        if (!redirect_to_socket(stdout, "dumpstate")) {
+            return ERROR;
+        }
     }
 
     if (options_->use_control_socket) {
         MYLOGD("Opening control socket\n");
         control_socket_fd_ = open_socket("dumpstate");
+        if (control_socket_fd_ == -1) {
+            return ERROR;
+        }
         options_->do_progress_updates = 1;
     }
 
@@ -2430,7 +2437,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
     if (is_redirecting) {
         // Redirect stderr to log_path_ for debugging.
         TEMP_FAILURE_RETRY(dup_stderr_fd = dup(fileno(stderr)));
-        redirect_to_file(stderr, const_cast<char*>(log_path_.c_str()));
+        if (!redirect_to_file(stderr, const_cast<char*>(log_path_.c_str()))) {
+            return ERROR;
+        }
         if (chown(log_path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of dumpstate log file %s: %s\n", log_path_.c_str(),
                    strerror(errno));
@@ -2443,7 +2452,9 @@ Dumpstate::RunStatus Dumpstate::RunInternal(int32_t calling_uid,
         /* TODO: rather than generating a text file now and zipping it later,
            it would be more efficient to redirect stdout to the zip entry
            directly, but the libziparchive doesn't support that option yet. */
-        redirect_to_file(stdout, const_cast<char*>(tmp_path_.c_str()));
+        if (!redirect_to_file(stdout, const_cast<char*>(tmp_path_.c_str()))) {
+            return ERROR;
+        }
         if (chown(tmp_path_.c_str(), AID_SHELL, AID_SHELL)) {
             MYLOGE("Unable to change ownership of temporary bugreport file %s: %s\n",
                    tmp_path_.c_str(), strerror(errno));

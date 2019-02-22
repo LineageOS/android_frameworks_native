@@ -710,12 +710,12 @@ int open_socket(const char *service) {
     int s = android_get_control_socket(service);
     if (s < 0) {
         MYLOGE("android_get_control_socket(%s): %s\n", service, strerror(errno));
-        exit(1);
+        return -1;
     }
     fcntl(s, F_SETFD, FD_CLOEXEC);
     if (listen(s, 4) < 0) {
         MYLOGE("listen(control socket): %s\n", strerror(errno));
-        exit(1);
+        return -1;
     }
 
     struct sockaddr addr;
@@ -723,18 +723,23 @@ int open_socket(const char *service) {
     int fd = accept(s, &addr, &alen);
     if (fd < 0) {
         MYLOGE("accept(control socket): %s\n", strerror(errno));
-        exit(1);
+        return -1;
     }
 
     return fd;
 }
 
 /* redirect output to a service control socket */
-void redirect_to_socket(FILE *redirect, const char *service) {
+bool redirect_to_socket(FILE* redirect, const char* service) {
     int fd = open_socket(service);
+    if (fd == -1) {
+        return false;
+    }
     fflush(redirect);
-    dup2(fd, fileno(redirect));
+    // TODO: handle dup2 failure
+    TEMP_FAILURE_RETRY(dup2(fd, fileno(redirect)));
     close(fd);
+    return true;
 }
 
 // TODO: should call is_valid_output_file and/or be merged into it.
@@ -764,7 +769,7 @@ void create_parent_dirs(const char *path) {
     }
 }
 
-void _redirect_to_file(FILE *redirect, char *path, int truncate_flag) {
+bool _redirect_to_file(FILE* redirect, char* path, int truncate_flag) {
     create_parent_dirs(path);
 
     int fd = TEMP_FAILURE_RETRY(open(path,
@@ -772,19 +777,20 @@ void _redirect_to_file(FILE *redirect, char *path, int truncate_flag) {
                                      S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH));
     if (fd < 0) {
         MYLOGE("%s: %s\n", path, strerror(errno));
-        exit(1);
+        return false;
     }
 
     TEMP_FAILURE_RETRY(dup2(fd, fileno(redirect)));
     close(fd);
+    return true;
 }
 
-void redirect_to_file(FILE *redirect, char *path) {
-    _redirect_to_file(redirect, path, O_TRUNC);
+bool redirect_to_file(FILE* redirect, char* path) {
+    return _redirect_to_file(redirect, path, O_TRUNC);
 }
 
-void redirect_to_existing_file(FILE *redirect, char *path) {
-    _redirect_to_file(redirect, path, O_APPEND);
+bool redirect_to_existing_file(FILE* redirect, char* path) {
+    return _redirect_to_file(redirect, path, O_APPEND);
 }
 
 // Dump Dalvik and native stack traces, return the trace file location (nullptr if none).

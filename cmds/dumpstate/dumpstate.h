@@ -519,14 +519,26 @@ int dump_files(const std::string& title, const char* dir, bool (*skip)(const cha
 /** opens a socket and returns its file descriptor */
 int open_socket(const char *service);
 
-/* redirect output to a service control socket */
-void redirect_to_socket(FILE *redirect, const char *service);
+/*
+ * Redirects 'redirect' to a service control socket.
+ *
+ * Returns true if redirect succeeds.
+ */
+bool redirect_to_socket(FILE* redirect, const char* service);
 
-/* redirect output to a new file */
-void redirect_to_file(FILE *redirect, char *path);
+/*
+ * Redirects 'redirect' to a file indicated by 'path', truncating it.
+ *
+ * Returns true if redirect succeeds.
+ */
+bool redirect_to_file(FILE* redirect, char* path);
 
-/* redirect output to an existing file */
-void redirect_to_existing_file(FILE *redirect, char *path);
+/*
+ * Redirects 'redirect' to an existing file indicated by 'path', appending it.
+ *
+ * Returns true if redirect succeeds.
+ */
+bool redirect_to_existing_file(FILE* redirect, char* path);
 
 /* create leading directories, if necessary */
 void create_parent_dirs(const char *path);
