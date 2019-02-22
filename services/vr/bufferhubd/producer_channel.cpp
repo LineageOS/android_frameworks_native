@@ -392,8 +392,8 @@ Status<RemoteChannelHandle> ProducerChannel::OnNewConsumer(Message& message) {
 Status<void> ProducerChannel::OnProducerPost(Message&,
                                              LocalFence acquire_fence) {
   ATRACE_NAME("ProducerChannel::OnProducerPost");
-  ALOGD("ProducerChannel::OnProducerPost: buffer_id=%d, state=0x%x",
-        buffer_id(), buffer_state_->load(std::memory_order_acquire));
+  ALOGD_IF(TRACE, "%s: buffer_id=%d, state=0x%x", __FUNCTION__, buffer_id(),
+           buffer_state_->load(std::memory_order_acquire));
 
   epoll_event event;
   event.events = 0;
@@ -437,7 +437,7 @@ Status<void> ProducerChannel::OnProducerPost(Message&,
 
 Status<LocalFence> ProducerChannel::OnProducerGain(Message& /*message*/) {
   ATRACE_NAME("ProducerChannel::OnGain");
-  ALOGW("ProducerChannel::OnGain: buffer_id=%d", buffer_id());
+  ALOGD_IF(TRACE, "%s: buffer_id=%d", __FUNCTION__, buffer_id());
 
   ClearAvailable();
   post_fence_.close();
