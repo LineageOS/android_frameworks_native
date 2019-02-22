@@ -198,7 +198,6 @@ bool BufferStateLayer::setBuffer(const sp<GraphicBuffer>& buffer) {
         mReleasePreviousBuffer = true;
     }
 
-    mCurrentState.sequence++;
     mCurrentState.buffer = buffer;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
@@ -217,7 +216,6 @@ bool BufferStateLayer::setAcquireFence(const sp<Fence>& fence) {
 
 bool BufferStateLayer::setDataspace(ui::Dataspace dataspace) {
     if (mCurrentState.dataspace == dataspace) return false;
-    mCurrentState.sequence++;
     mCurrentState.dataspace = dataspace;
     mCurrentState.modified = true;
     setTransactionFlags(eTransactionNeeded);
