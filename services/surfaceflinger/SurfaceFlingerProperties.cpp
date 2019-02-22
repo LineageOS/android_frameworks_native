@@ -4,7 +4,6 @@
 #include <android/hardware/configstore/1.0/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
 #include <android/hardware/configstore/1.1/types.h>
-#include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
 #include <configstore/Utils.h>
 
 #include <cstdlib>
@@ -16,9 +15,9 @@ namespace android {
 namespace sysprop {
 using namespace android::hardware::configstore;
 using namespace android::hardware::configstore::V1_0;
-using ::android::hardware::configstore::V1_2::DisplayPrimaries;
-using ::android::hardware::graphics::common::V1_2::Dataspace;
-using ::android::hardware::graphics::common::V1_2::PixelFormat;
+using android::hardware::graphics::common::V1_2::Dataspace;
+using android::hardware::graphics::common::V1_2::PixelFormat;
+using android::ui::DisplayPrimaries;
 
 int64_t vsync_event_phase_offset_ns(int64_t defaultValue) {
     auto temp = SurfaceFlingerProperties::vsync_event_phase_offset_ns();
@@ -171,39 +170,13 @@ bool use_color_management(bool defaultValue) {
         tmpHasWideColorDisplay.has_value()) {
         return *tmpuseColorManagement || *tmpHasHDRDisplay || *tmpHasWideColorDisplay;
     }
-    auto surfaceFlingerConfigsServiceV1_2 = ISurfaceFlingerConfigs::getService();
-    if (surfaceFlingerConfigsServiceV1_2) {
-        return getBool<V1_2::ISurfaceFlingerConfigs,
-                       &V1_2::ISurfaceFlingerConfigs::useColorManagement>(defaultValue);
-    }
     return defaultValue;
-}
-
-auto getCompositionPreference(sp<V1_2::ISurfaceFlingerConfigs> configsServiceV1_2) {
-    Dataspace defaultCompositionDataspace = Dataspace::V0_SRGB;
-    PixelFormat defaultCompositionPixelFormat = PixelFormat::RGBA_8888;
-    Dataspace wideColorGamutCompositionDataspace = Dataspace::V0_SRGB;
-    PixelFormat wideColorGamutCompositionPixelFormat = PixelFormat::RGBA_8888;
-    configsServiceV1_2->getCompositionPreference(
-            [&](auto tmpDefaultDataspace, auto tmpDefaultPixelFormat,
-                auto tmpWideColorGamutDataspace, auto tmpWideColorGamutPixelFormat) {
-                defaultCompositionDataspace = tmpDefaultDataspace;
-                defaultCompositionPixelFormat = tmpDefaultPixelFormat;
-                wideColorGamutCompositionDataspace = tmpWideColorGamutDataspace;
-                wideColorGamutCompositionPixelFormat = tmpWideColorGamutPixelFormat;
-            });
-    return std::tuple(defaultCompositionDataspace, defaultCompositionPixelFormat,
-                      wideColorGamutCompositionDataspace, wideColorGamutCompositionPixelFormat);
 }
 
 int64_t default_composition_dataspace(Dataspace defaultValue) {
     auto temp = SurfaceFlingerProperties::default_composition_dataspace();
     if (temp.has_value()) {
         return *temp;
-    }
-    auto configsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (configsServiceV1_2) {
-        return static_cast<int64_t>(get<0>(getCompositionPreference(configsServiceV1_2)));
     }
     return static_cast<int64_t>(defaultValue);
 }
@@ -213,10 +186,6 @@ int32_t default_composition_pixel_format(PixelFormat defaultValue) {
     if (temp.has_value()) {
         return *temp;
     }
-    auto configsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (configsServiceV1_2) {
-        return static_cast<int32_t>(get<1>(getCompositionPreference(configsServiceV1_2)));
-    }
     return static_cast<int32_t>(defaultValue);
 }
 
@@ -225,10 +194,6 @@ int64_t wcg_composition_dataspace(Dataspace defaultValue) {
     if (temp.has_value()) {
         return *temp;
     }
-    auto configsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (configsServiceV1_2) {
-        return static_cast<int64_t>(get<2>(getCompositionPreference(configsServiceV1_2)));
-    }
     return static_cast<int64_t>(defaultValue);
 }
 
@@ -236,10 +201,6 @@ int32_t wcg_composition_pixel_format(PixelFormat defaultValue) {
     auto temp = SurfaceFlingerProperties::wcg_composition_pixel_format();
     if (temp.has_value()) {
         return *temp;
-    }
-    auto configsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (configsServiceV1_2) {
-        return static_cast<int32_t>(get<3>(getCompositionPreference(configsServiceV1_2)));
     }
     return static_cast<int32_t>(defaultValue);
 }

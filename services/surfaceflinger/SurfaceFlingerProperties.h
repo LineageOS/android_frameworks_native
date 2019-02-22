@@ -3,8 +3,9 @@
 #define SURFACEFLINGERPROPERTIES_H_
 
 #include <android/hardware/configstore/1.1/ISurfaceFlingerConfigs.h>
-#include <android/hardware/configstore/1.2/ISurfaceFlingerConfigs.h>
+#include <android/hardware/graphics/common/1.2/types.h>
 #include <sysprop/SurfaceFlingerProperties.sysprop.h>
+#include <ui/ConfigStoreTypes.h>
 
 #include <cstdint>
 #include <optional>
@@ -54,7 +55,7 @@ int64_t wcg_composition_dataspace(
 int32_t wcg_composition_pixel_format(
         android::hardware::graphics::common::V1_2::PixelFormat defaultValue);
 
-android::hardware::configstore::V1_2::DisplayPrimaries getDisplayNativePrimaries();
+android::ui::DisplayPrimaries getDisplayNativePrimaries();
 } // namespace sysprop
 } // namespace android
 #endif // SURFACEFLINGERPROPERTIES_H_

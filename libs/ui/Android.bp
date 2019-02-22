@@ -90,8 +90,6 @@ cc_library_shared {
         "android.hardware.graphics.mapper@2.0",
         "android.hardware.graphics.mapper@2.1",
         "android.hardware.graphics.mapper@3.0",
-        "android.hardware.configstore@1.2",
-        "android.hardware.configstore-utils",
         "libbase",
         "libcutils",
         "libhardware",
@@ -105,7 +103,6 @@ cc_library_shared {
     ],
 
     export_shared_lib_headers: [
-        "android.hardware.configstore@1.2",
         "android.hardware.graphics.common@1.2",
     ],
 
