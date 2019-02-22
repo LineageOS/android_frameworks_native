@@ -988,15 +988,6 @@ void SurfaceFlinger::setActiveConfigInternal() {
 
 bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
     ATRACE_CALL();
-    // we may be in the process of changing the active state
-    if (mWaitForNextInvalidate) {
-        mWaitForNextInvalidate = false;
-
-        repaintEverythingForHWC();
-        // We do not want to give another frame to HWC while we are transitioning.
-        return true;
-    }
-
     if (mCheckPendingFence) {
         if (mPreviousPresentFence != Fence::NO_FENCE &&
             (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled)) {
@@ -1048,7 +1039,6 @@ bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
     getHwComposer().setActiveConfig(*displayId, mUpcomingActiveConfig.configId);
 
     // we need to submit an empty frame to HWC to start the process
-    mWaitForNextInvalidate = true;
     mCheckPendingFence = true;
 
     return false;

@@ -1132,7 +1132,6 @@ private:
 
     // below flags are set by main thread only
     bool mDesiredActiveConfigChanged GUARDED_BY(mActiveConfigLock) = false;
-    bool mWaitForNextInvalidate = false;
     bool mCheckPendingFence = false;
 
     /* ------------------------------------------------------------------------ */
