@@ -293,6 +293,14 @@ class RunDex2Oat : public ExecVHelper {
                 : "dalvik.vm.boot-dex2oat-threads";
         std::string dex2oat_threads_arg = MapPropertyToArg(threads_property, "-j%s");
 
+        std::string bootclasspath;
+        char* dex2oat_bootclasspath = getenv("DEX2OATBOOTCLASSPATH");
+        if (dex2oat_bootclasspath != nullptr) {
+            bootclasspath = StringPrintf("-Xbootclasspath:%s", dex2oat_bootclasspath);
+        }
+        // If DEX2OATBOOTCLASSPATH is not in the environment, dex2oat is going to query
+        // BOOTCLASSPATH.
+
         const std::string dex2oat_isa_features_key =
                 StringPrintf("dalvik.vm.isa.%s.features", instruction_set);
         std::string instruction_set_features_arg =
@@ -440,6 +448,7 @@ class RunDex2Oat : public ExecVHelper {
         AddArg(instruction_set_features_arg);
 
         AddRuntimeArg(boot_image);
+        AddRuntimeArg(bootclasspath);
         AddRuntimeArg(dex2oat_Xms_arg);
         AddRuntimeArg(dex2oat_Xmx_arg);
 
@@ -1960,11 +1969,6 @@ int dexopt(const char* dex_path, uid_t uid, const char* pkgname, const char* ins
     if (pid == 0) {
         /* child -- drop privileges before continuing */
         drop_capabilities(uid);
-
-        // Clear BOOTCLASSPATH.
-        // Let dex2oat use the BCP from boot image, excluding updatable BCP
-        // modules for AOT to avoid app recompilation after their upgrades.
-        unsetenv("BOOTCLASSPATH");
 
         SetDex2OatScheduling(boot_complete);
         if (flock(out_oat_fd.get(), LOCK_EX | LOCK_NB) != 0) {
