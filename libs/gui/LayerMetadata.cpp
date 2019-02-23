@@ -31,10 +31,23 @@ LayerMetadata::LayerMetadata(const LayerMetadata& other) = default;
 
 LayerMetadata::LayerMetadata(LayerMetadata&& other) = default;
 
-void LayerMetadata::merge(const LayerMetadata& other) {
+bool LayerMetadata::merge(const LayerMetadata& other, bool eraseEmpty) {
+    bool changed = false;
     for (const auto& entry : other.mMap) {
-        mMap[entry.first] = entry.second;
+        auto it = mMap.find(entry.first);
+        if (it != mMap.cend() && it->second != entry.second) {
+            if (eraseEmpty && entry.second.empty()) {
+                mMap.erase(it);
+            } else {
+                it->second = entry.second;
+            }
+            changed = true;
+        } else if (it == mMap.cend() && !entry.second.empty()) {
+            mMap[entry.first] = entry.second;
+            changed = true;
+        }
     }
+    return changed;
 }
 
 status_t LayerMetadata::writeToParcel(Parcel* parcel) const {

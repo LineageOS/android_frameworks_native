@@ -34,7 +34,9 @@ struct LayerMetadata : public Parcelable {
     LayerMetadata& operator=(const LayerMetadata& other);
     LayerMetadata& operator=(LayerMetadata&& other);
 
-    void merge(const LayerMetadata& other);
+    // Merges other into this LayerMetadata. If eraseEmpty is true, any entries in
+    // in this whose keys are paired with empty values in other will be erased.
+    bool merge(const LayerMetadata& other, bool eraseEmpty = false);
 
     status_t writeToParcel(Parcel* parcel) const override;
     status_t readFromParcel(const Parcel* parcel) override;

@@ -4102,7 +4102,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
         }
     }
 
-    layer->setMetadata(std::move(metadata));
+    layer->setMetadata(metadata);
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
     result = addClientLayer(client, *handle, *gbp, layer, *parent,
