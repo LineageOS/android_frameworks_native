@@ -18,8 +18,12 @@
 
 #include "GpuService.h"
 
+#include <android-base/stringprintf.h>
+#include <binder/IPCThreadState.h>
 #include <binder/IResultReceiver.h>
 #include <binder/Parcel.h>
+#include <binder/PermissionCache.h>
+#include <private/android_filesystem_config.h>
 #include <utils/String8.h>
 #include <utils/Trace.h>
 
@@ -27,11 +31,14 @@
 
 namespace android {
 
+using base::StringAppendF;
 
 namespace {
-    status_t cmd_help(int out);
-    status_t cmd_vkjson(int out, int err);
-}
+status_t cmdHelp(int out);
+status_t cmdVkjson(int out, int err);
+} // namespace
+
+const String16 sDump("android.permission.DUMP");
 
 const char* const GpuService::SERVICE_NAME = "gpu";
 
@@ -66,28 +73,42 @@ status_t GpuService::shellCommand(int /*in*/, int out, int err, std::vector<Stri
         ALOGV("  arg[%zu]: '%s'", i, String8(args[i]).string());
 
     if (args.size() >= 1) {
-        if (args[0] == String16("vkjson"))
-            return cmd_vkjson(out, err);
-        if (args[0] == String16("help"))
-            return cmd_help(out);
+        if (args[0] == String16("vkjson")) return cmdVkjson(out, err);
+        if (args[0] == String16("help")) return cmdHelp(out);
     }
     // no command, or unrecognized command
-    cmd_help(err);
+    cmdHelp(err);
     return BAD_VALUE;
+}
+
+status_t GpuService::doDump(int fd, const Vector<String16>& /*args*/, bool /*asProto*/) {
+    std::string result;
+
+    IPCThreadState* ipc = IPCThreadState::self();
+    const int pid = ipc->getCallingPid();
+    const int uid = ipc->getCallingUid();
+
+    if ((uid != AID_SHELL) && !PermissionCache::checkPermission(sDump, pid, uid)) {
+        StringAppendF(&result, "Permission Denial: can't dump gpu from pid=%d, uid=%d\n", pid, uid);
+    } else {
+        result.append("Hello world from dumpsys gpu.\n");
+    }
+
+    write(fd, result.c_str(), result.size());
+    return NO_ERROR;
 }
 
 namespace {
 
-status_t cmd_help(int out) {
+status_t cmdHelp(int out) {
     FILE* outs = fdopen(out, "w");
     if (!outs) {
-        ALOGE("vkjson: failed to create out stream: %s (%d)", strerror(errno),
-            errno);
+        ALOGE("vkjson: failed to create out stream: %s (%d)", strerror(errno), errno);
         return BAD_VALUE;
     }
     fprintf(outs,
-        "GPU Service commands:\n"
-        "  vkjson   dump Vulkan properties as JSON\n");
+            "GPU Service commands:\n"
+            "  vkjson   dump Vulkan properties as JSON\n");
     fclose(outs);
     return NO_ERROR;
 }
@@ -98,7 +119,7 @@ void vkjsonPrint(FILE* out) {
     fputc('\n', out);
 }
 
-status_t cmd_vkjson(int out, int /*err*/) {
+status_t cmdVkjson(int out, int /*err*/) {
     FILE* outs = fdopen(out, "w");
     if (!outs) {
         int errnum = errno;
