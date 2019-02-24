@@ -24,6 +24,7 @@
 
 #include <cutils/compiler.h>
 #include <input/IInputFlinger.h>
+#include <input/ISetInputWindowsListener.h>
 #include <utils/String8.h>
 #include <utils/String16.h>
 #include <utils/StrongPointer.h>
@@ -39,7 +40,7 @@ public:
     InputFlinger() ANDROID_API;
 
     virtual status_t dump(int fd, const Vector<String16>& args);
-    void setInputWindows(const Vector<InputWindowInfo>&) {}
+    void setInputWindows(const Vector<InputWindowInfo>&, const sp<ISetInputWindowsListener>&) {}
     void transferTouchFocus(const sp<IBinder>&, const sp<IBinder>&) {}
     void registerInputChannel(const sp<InputChannel>&) {}
     void unregisterInputChannel(const sp<InputChannel>&) {}

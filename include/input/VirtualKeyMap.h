@@ -49,7 +49,7 @@ class VirtualKeyMap {
 public:
     ~VirtualKeyMap();
 
-    static status_t load(const std::string& filename, VirtualKeyMap** outMap);
+    static std::unique_ptr<VirtualKeyMap> load(const std::string& filename);
 
     inline const Vector<VirtualKeyDefinition>& getVirtualKeys() const {
         return mVirtualKeys;

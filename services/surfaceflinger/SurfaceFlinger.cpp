@@ -297,7 +297,9 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory,
         mNumLayers(0),
         mVrFlingerRequestsDisplay(false),
         mMainThreadId(std::this_thread::get_id()),
-        mCompositionEngine{getFactory().createCompositionEngine()} {}
+        mCompositionEngine{getFactory().createCompositionEngine()} {
+    mSetInputWindowsListener = new SetInputWindowsListener(this);
+}
 
 SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
       : SurfaceFlinger(factory, SkipInitialization) {
@@ -395,6 +397,12 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
 
     property_get("debug.sf.use_90Hz", value, "0");
     mUse90Hz = atoi(value);
+
+    property_get("debug.sf.use_smart_90_for_video", value, "0");
+    mUseSmart90ForVideo = atoi(value);
+
+    property_get("debug.sf.luma_sampling", value, "1");
+    mLumaSampling = atoi(value);
 
     const auto [early, gl, late] = mPhaseOffsets->getCurrentOffsets();
     mVsyncModulator.setPhaseOffsets(early, gl, late);
@@ -715,15 +723,16 @@ void SurfaceFlinger::init() {
         ALOGE("Run StartPropertySetThread failed!");
     }
 
-    mScheduler->setExpiredIdleTimerCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        setRefreshRateTo(RefreshRateType::DEFAULT);
-    });
-    mScheduler->setResetIdleTimerCallback([this] {
-        Mutex::Autolock lock(mStateLock);
-        setRefreshRateTo(RefreshRateType::PERFORMANCE);
-    });
-
+    if (mUse90Hz) {
+        mScheduler->setExpiredIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::DEFAULT);
+        });
+        mScheduler->setResetIdleTimerCallback([this] {
+            Mutex::Autolock lock(mStateLock);
+            setRefreshRateTo(RefreshRateType::PERFORMANCE);
+        });
+    }
     mRefreshRateStats = std::make_unique<scheduler::RefreshRateStats>(getHwComposer().getConfigs(
                                                                               *display->getId()),
                                                                       mTimeStats);
@@ -994,6 +1003,7 @@ void SurfaceFlinger::setActiveConfigInternal() {
 }
 
 bool SurfaceFlinger::performSetActiveConfig() NO_THREAD_SAFETY_ANALYSIS {
+    ATRACE_CALL();
     // we may be in the process of changing the active state
     if (mWaitForNextInvalidate) {
         mWaitForNextInvalidate = false;
@@ -1301,17 +1311,20 @@ status_t SurfaceFlinger::getCompositionPreference(
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::addRegionSamplingListener(
-        const Rect& /*samplingArea*/, const sp<IBinder>& /*stopLayerHandle*/,
-        const sp<IRegionSamplingListener>& /*listener*/) {
+status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
+                                                   const sp<IBinder>& stopLayerHandle,
+                                                   const sp<IRegionSamplingListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
+    mRegionSamplingThread->addListener(samplingArea, stopLayerHandle, listener);
     return NO_ERROR;
 }
 
-status_t SurfaceFlinger::removeRegionSamplingListener(
-        const sp<IRegionSamplingListener>& /*listener*/) {
+status_t SurfaceFlinger::removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) {
+    mRegionSamplingThread->removeListener(listener);
     return NO_ERROR;
 }
-
 // ----------------------------------------------------------------------------
 
 sp<IDisplayEventConnection> SurfaceFlinger::createDisplayEventConnection(
@@ -1506,6 +1519,7 @@ void SurfaceFlinger::resetDisplayState() {
 }
 
 void SurfaceFlinger::updateVrFlinger() {
+    ATRACE_CALL();
     if (!mVrFlinger)
         return;
     bool vrFlingerRequestsDisplay = mVrFlingerRequestsDisplay;
@@ -1595,15 +1609,21 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
                 break;
             }
 
-            // This call is made each time SF wakes up and creates a new frame.
-            mScheduler->incrementFrameCounter();
-
-            bool frameMissed = !mHadClientComposition && mPreviousPresentFence != Fence::NO_FENCE &&
+            if (mUse90Hz && mUseSmart90ForVideo) {
+                // This call is made each time SF wakes up and creates a new frame. It is part
+                // of video detection feature.
+                mScheduler->incrementFrameCounter();
+            }
+            bool frameMissed = mPreviousPresentFence != Fence::NO_FENCE &&
                     (mPreviousPresentFence->getStatus() == Fence::Status::Unsignaled);
-            mFrameMissedCount += frameMissed;
-            ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
+            bool hwcFrameMissed = !mHadClientComposition && frameMissed;
             if (frameMissed) {
+                ATRACE_INT("FrameMissed", static_cast<int>(frameMissed));
+                mFrameMissedCount++;
                 mTimeStats->incrementMissedFrames();
+            }
+            // For now, only propagate backpressure when missing a hwc frame.
+            if (hwcFrameMissed) {
                 if (mPropagateBackpressure) {
                     signalLayerUpdate();
                     break;
@@ -1638,6 +1658,7 @@ void SurfaceFlinger::onMessageReceived(int32_t what) {
 }
 
 bool SurfaceFlinger::handleMessageTransaction() {
+    ATRACE_CALL();
     uint32_t transactionFlags = peekTransactionFlags();
 
     // Apply any ready transactions in the queues if there are still transactions that have not been
@@ -2156,6 +2177,10 @@ void SurfaceFlinger::postComposition()
 
     mTransactionCompletedThread.addPresentFence(mPreviousPresentFence);
     mTransactionCompletedThread.sendCallbacks();
+
+    if (mLumaSampling) {
+        mRegionSamplingThread->sampleNow();
+    }
 
     ASSERT_ON_STACK_GUARD();
 }
@@ -2943,6 +2968,10 @@ void SurfaceFlinger::updateInputFlinger() {
     if (mVisibleRegionsDirty || mInputInfoChanged) {
         mInputInfoChanged = false;
         updateInputWindowInfo();
+    } else if (mInputWindowCommands.syncInputWindows) {
+        // If the caller requested to sync input windows, but there are no
+        // changes to input windows, notify immediately.
+        setInputWindowsFinished();
     }
 
     executeInputWindowCommands();
@@ -2958,7 +2987,10 @@ void SurfaceFlinger::updateInputWindowInfo() {
             inputHandles.add(layer->fillInputInfo());
         }
     });
-    mInputFlinger->setInputWindows(inputHandles);
+
+    mInputFlinger->setInputWindows(inputHandles,
+                                   mInputWindowCommands.syncInputWindows ? mSetInputWindowsListener
+                                                                         : nullptr);
 }
 
 void SurfaceFlinger::commitInputWindowCommands() {
@@ -3311,12 +3343,12 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
     renderengine::DisplaySettings clientCompositionDisplay;
     std::vector<renderengine::LayerSettings> clientCompositionLayers;
     sp<GraphicBuffer> buf;
+    base::unique_fd fd;
 
     if (hasClientComposition) {
         ALOGV("hasClientComposition");
 
-        buf = display->getRenderSurface()->dequeueBuffer();
-
+        buf = display->getRenderSurface()->dequeueBuffer(&fd);
         if (buf == nullptr) {
             ALOGW("Dequeuing buffer for display [%s] failed, bailing out of "
                   "client composition for this frame",
@@ -3337,7 +3369,6 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
         m[3][0] = displayTransform[2][0];
         m[3][1] = displayTransform[2][1];
         m[3][3] = displayTransform[2][2];
-
         clientCompositionDisplay.globalTransform = m;
 
         const auto* profile = display->getDisplayColorProfile();
@@ -3437,7 +3468,7 @@ bool SurfaceFlinger::doComposeSurfaces(const sp<DisplayDevice>& displayDevice,
             }
         }
         getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers,
-                                     buf->getNativeBuffer(), readyFence);
+                                     buf->getNativeBuffer(), std::move(fd), readyFence);
     }
     return true;
 }
@@ -3669,13 +3700,16 @@ void SurfaceFlinger::applyTransactionState(const Vector<ComposerState>& states,
         if (flags & eAnimation) {
             mAnimTransactionPending = true;
         }
-        while (mTransactionPending) {
+
+        mPendingSyncInputWindows = mPendingInputWindowCommands.syncInputWindows;
+        while (mTransactionPending || mPendingSyncInputWindows) {
             status_t err = mTransactionCV.waitRelative(mStateLock, s2ns(5));
             if (CC_UNLIKELY(err != NO_ERROR)) {
                 // just in case something goes wrong in SF, return to the
                 // called after a few seconds.
                 ALOGW_IF(err == TIMED_OUT, "setTransactionState timed out!");
                 mTransactionPending = false;
+                mPendingSyncInputWindows = false;
                 break;
             }
         }
@@ -4068,7 +4102,7 @@ status_t SurfaceFlinger::createLayer(const String8& name, const sp<Client>& clie
         }
     }
 
-    layer->setMetadata(std::move(metadata));
+    layer->setMetadata(metadata);
 
     bool addToCurrentState = callingThreadHasUnscopedSurfaceFlingerAccess();
     result = addClientLayer(client, *handle, *gbp, layer, *parent,
@@ -4465,7 +4499,9 @@ void SurfaceFlinger::dumpVSync(std::string& result) const {
                   "    present offset: %9" PRId64 " ns\t     VSYNC period: %9" PRId64 " ns\n\n",
                   dispSyncPresentTimeOffset, getVsyncPeriod());
 
-    StringAppendF(&result, "Scheduler enabled. 90Hz feature: %s\n\n", mUse90Hz ? "on" : "off");
+    StringAppendF(&result, "Scheduler enabled. 90Hz feature: %s\n", mUse90Hz ? "on" : "off");
+    StringAppendF(&result, "+  Smart 90 for video detection: %s\n\n",
+                  mUseSmart90ForVideo ? "on" : "off");
     mScheduler->dump(mAppConnectionHandle, result);
 }
 
@@ -4917,8 +4953,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_COLOR_MANAGEMENT:
         case GET_COMPOSITION_PREFERENCE:
         case GET_PROTECTED_CONTENT_SUPPORT:
-        case IS_WIDE_COLOR_DISPLAY:
-        case SET_INPUT_WINDOWS_FINISHED: {
+        case IS_WIDE_COLOR_DISPLAY: {
             return OK;
         }
         case CAPTURE_LAYERS:
@@ -5450,6 +5485,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              static_cast<android_pixel_format>(reqPixelFormat), 1,
                                              usage, "screenshot");
 
+    return captureScreenCore(renderArea, traverseLayers, *outBuffer, useIdentityTransform);
+}
+
+status_t SurfaceFlinger::captureScreenCore(RenderArea& renderArea,
+                                           TraverseLayersFunction traverseLayers,
+                                           const sp<GraphicBuffer>& buffer,
+                                           bool useIdentityTransform) {
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
     std::mutex captureMutex;
@@ -5477,7 +5519,7 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
         {
             Mutex::Autolock _l(mStateLock);
             renderArea.render([&] {
-                result = captureScreenImplLocked(renderArea, traverseLayers, (*outBuffer).get(),
+                result = captureScreenImplLocked(renderArea, traverseLayers, buffer.get(),
                                                  useIdentityTransform, forSystem, &fd);
             });
         }
@@ -5612,9 +5654,12 @@ void SurfaceFlinger::renderScreenImplLocked(const RenderArea& renderArea,
     });
 
     clientCompositionDisplay.clearRegion = clearRegion;
+    // Use an empty fence for the buffer fence, since we just created the buffer so
+    // there is no need for synchronization with the GPU.
+    base::unique_fd bufferFence;
     base::unique_fd drawFence;
     getRenderEngine().drawLayers(clientCompositionDisplay, clientCompositionLayers, buffer,
-                                 &drawFence);
+                                 std::move(bufferFence), &drawFence);
 
     *outSyncFd = drawFence.release();
 }
@@ -5644,7 +5689,12 @@ status_t SurfaceFlinger::captureScreenImplLocked(const RenderArea& renderArea,
     return NO_ERROR;
 }
 
-void SurfaceFlinger::setInputWindowsFinished() {}
+void SurfaceFlinger::setInputWindowsFinished() {
+    Mutex::Autolock _l(mStateLock);
+
+    mPendingSyncInputWindows = false;
+    mTransactionCV.broadcast();
+}
 
 // ---------------------------------------------------------------------------
 
@@ -5675,6 +5725,12 @@ void SurfaceFlinger::traverseLayersInDisplay(const sp<const DisplayDevice>& disp
             visitor(layer);
         });
     }
+}
+
+// ----------------------------------------------------------------------------
+
+void SetInputWindowsListener::onSetInputWindowsFinished() {
+    mFlinger->setInputWindowsFinished();
 }
 
 }; // namespace android

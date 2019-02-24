@@ -3072,7 +3072,7 @@ sp<InputChannel> InputDispatcher::getInputChannelLocked(const sp<IBinder>& token
  * For removed handle, check if need to send a cancel event if already in touch.
  */
 void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& inputWindowHandles,
-        int32_t displayId) {
+        int32_t displayId, const sp<ISetInputWindowsListener>& setInputWindowsListener) {
 #if DEBUG_FOCUS
     ALOGD("setInputWindows displayId=%" PRId32, displayId);
 #endif
@@ -3222,6 +3222,10 @@ void InputDispatcher::setInputWindows(const Vector<sp<InputWindowHandle>>& input
 
     // Wake up poll loop since it may need to make new input dispatching choices.
     mLooper->wake();
+
+    if (setInputWindowsListener) {
+        setInputWindowsListener->onSetInputWindowsFinished();
+    }
 }
 
 void InputDispatcher::setFocusedApplication(

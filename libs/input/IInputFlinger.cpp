@@ -30,7 +30,8 @@ public:
     explicit BpInputFlinger(const sp<IBinder>& impl) :
             BpInterface<IInputFlinger>(impl) { }
 
-    virtual void setInputWindows(const Vector<InputWindowInfo>& inputInfo) {
+    virtual void setInputWindows(const Vector<InputWindowInfo>& inputInfo,
+            const sp<ISetInputWindowsListener>& setInputWindowsListener) {
         Parcel data, reply;
         data.writeInterfaceToken(IInputFlinger::getInterfaceDescriptor());
 
@@ -38,6 +39,8 @@ public:
         for (const auto& info : inputInfo) {
             info.write(data);
         }
+        data.writeStrongBinder(IInterface::asBinder(setInputWindowsListener));
+
         remote()->transact(BnInputFlinger::SET_INPUT_WINDOWS_TRANSACTION, data, &reply,
                 IBinder::FLAG_ONEWAY);
     }
@@ -83,7 +86,9 @@ status_t BnInputFlinger::onTransact(
         for (size_t i = 0; i < count; i++) {
             handles.add(InputWindowInfo(data));
         }
-        setInputWindows(handles);
+        const sp<ISetInputWindowsListener> setInputWindowsListener =
+                ISetInputWindowsListener::asInterface(data.readStrongBinder());
+        setInputWindows(handles, setInputWindowsListener);
         break;
     }
     case REGISTER_INPUT_CHANNEL_TRANSACTION: {

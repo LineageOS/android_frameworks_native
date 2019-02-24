@@ -46,15 +46,9 @@ static bool isValidNameChar(char ch) {
 
 static void appendInputDeviceConfigurationFileRelativePath(std::string& path,
         const std::string& name, InputDeviceConfigurationFileType type) {
-    path.append(CONFIGURATION_FILE_DIR[type]);
-    for (size_t i = 0; i < name.length(); i++) {
-        char ch = name[i];
-        if (!isValidNameChar(ch)) {
-            ch = '_';
-        }
-        path.append(&ch, 1);
-    }
-    path.append(CONFIGURATION_FILE_EXTENSION[type]);
+    path += CONFIGURATION_FILE_DIR[type];
+    path += name;
+    path += CONFIGURATION_FILE_EXTENSION[type];
 }
 
 std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
@@ -84,7 +78,7 @@ std::string getInputDeviceConfigurationFilePathByDeviceIdentifier(
     }
 
     // Try device name.
-    return getInputDeviceConfigurationFilePathByName(deviceIdentifier.name, type);
+    return getInputDeviceConfigurationFilePathByName(deviceIdentifier.getCanonicalName(), type);
 }
 
 std::string getInputDeviceConfigurationFilePathByName(
@@ -138,6 +132,18 @@ std::string getInputDeviceConfigurationFilePathByName(
             name.c_str(), type);
 #endif
     return "";
+}
+
+// --- InputDeviceIdentifier
+
+std::string InputDeviceIdentifier::getCanonicalName() const {
+    std::string replacedName = name;
+    for (char& ch : replacedName) {
+        if (!isValidNameChar(ch)) {
+            ch = '_';
+        }
+    }
+    return replacedName;
 }
 
 

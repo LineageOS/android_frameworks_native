@@ -78,9 +78,9 @@ public:
     MOCK_CONST_METHOD0(isProtected, bool());
     MOCK_CONST_METHOD0(supportsProtectedContent, bool());
     MOCK_METHOD1(useProtectedContext, bool(bool));
-    MOCK_METHOD4(drawLayers,
+    MOCK_METHOD5(drawLayers,
                  status_t(const DisplaySettings&, const std::vector<LayerSettings>&,
-                          ANativeWindowBuffer*, base::unique_fd*));
+                          ANativeWindowBuffer*, base::unique_fd&&, base::unique_fd*));
 };
 
 } // namespace mock

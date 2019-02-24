@@ -87,3 +87,26 @@ cc_test {
         "libdvr_headers",
     ],
 }
+
+cc_test {
+    name: "SamplingDemo",
+
+    clang: true,
+    cflags: [
+        "-Wall",
+        "-Werror",
+    ],
+
+    srcs: [
+        "SamplingDemo.cpp",
+    ],
+
+    shared_libs: [
+        "libbinder",
+        "libcutils",
+        "libgui",
+        "liblog",
+        "libui",
+        "libutils",
+    ]
+}

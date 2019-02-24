@@ -48,7 +48,7 @@ private:
         std::string driverPackageName;
         std::string driverVersionName;
         uint64_t driverVersionCode;
-        std::string driverBuildDate;
+        int64_t driverBuildTime;
         std::string appPackageName;
         Driver glDriverToLoad;
         Driver glDriverFallback;
@@ -59,7 +59,7 @@ private:
               : driverPackageName(""),
                 driverVersionName(""),
                 driverVersionCode(0),
-                driverBuildDate(""),
+                driverBuildTime(0),
                 appPackageName(""),
                 glDriverToLoad(Driver::NONE),
                 glDriverFallback(Driver::NONE),
@@ -77,10 +77,13 @@ public:
     // (drivers must be stored uncompressed and page aligned); such elements
     // in the search path must have a '!' after the zip filename, e.g.
     //     /data/app/com.example.driver/base.apk!/lib/arm64-v8a
-    void setDriverPath(const std::string path);
+    // Also set additional required sphal libraries to the linker for loading
+    // graphics drivers. The string is a list of libraries separated by ':',
+    // which is required by android_link_namespaces.
+    void setDriverPathAndSphalLibraries(const std::string path, const std::string sphalLibraries);
     android_namespace_t* getDriverNamespace();
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
-                     uint64_t versionCode, const std::string& driverBuildDate,
+                     uint64_t versionCode, int64_t driverBuildTime,
                      const std::string& appPackageName);
     void setDriverToLoad(Driver driver);
     void setDriverLoaded(Api api, bool isDriverLoaded, int64_t driverLoadingTime);
@@ -118,6 +121,7 @@ private:
 
     GraphicsEnv() = default;
     std::string mDriverPath;
+    std::string mSphalLibraries;
     std::mutex mStatsLock;
     GpuStats mGpuStats;
     std::string mAnglePath;

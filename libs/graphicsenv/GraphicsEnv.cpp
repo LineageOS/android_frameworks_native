@@ -146,36 +146,39 @@ int GraphicsEnv::getCanLoadSystemLibraries() {
     return 0;
 }
 
-void GraphicsEnv::setDriverPath(const std::string path) {
-    if (!mDriverPath.empty()) {
-        ALOGV("ignoring attempt to change driver path from '%s' to '%s'", mDriverPath.c_str(),
-              path.c_str());
+void GraphicsEnv::setDriverPathAndSphalLibraries(const std::string path,
+                                                 const std::string sphalLibraries) {
+    if (!mDriverPath.empty() || !mSphalLibraries.empty()) {
+        ALOGV("ignoring attempt to change driver path from '%s' to '%s' or change sphal libraries "
+              "from '%s' to '%s'",
+              mDriverPath.c_str(), path.c_str(), mSphalLibraries.c_str(), sphalLibraries.c_str());
         return;
     }
-    ALOGV("setting driver path to '%s'", path.c_str());
+    ALOGV("setting driver path to '%s' and sphal libraries to '%s'", path.c_str(),
+          sphalLibraries.c_str());
     mDriverPath = path;
+    mSphalLibraries = sphalLibraries;
 }
 
 void GraphicsEnv::setGpuStats(const std::string& driverPackageName,
                               const std::string& driverVersionName, uint64_t driverVersionCode,
-                              const std::string& driverBuildDate,
-                              const std::string& appPackageName) {
+                              int64_t driverBuildTime, const std::string& appPackageName) {
     ATRACE_CALL();
 
     std::lock_guard<std::mutex> lock(mStatsLock);
     ALOGV("setGpuStats:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
-          "\tdriverVersionCode[%llu]\n"
-          "\tdriverBuildDate[%s]\n"
+          "\tdriverVersionCode[%" PRIu64 "]\n"
+          "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n",
-          driverPackageName.c_str(), driverVersionName.c_str(),
-          (unsigned long long)driverVersionCode, driverBuildDate.c_str(), appPackageName.c_str());
+          driverPackageName.c_str(), driverVersionName.c_str(), driverVersionCode, driverBuildTime,
+          appPackageName.c_str());
 
     mGpuStats.driverPackageName = driverPackageName;
     mGpuStats.driverVersionName = driverVersionName;
     mGpuStats.driverVersionCode = driverVersionCode;
-    mGpuStats.driverBuildDate = driverBuildDate;
+    mGpuStats.driverBuildTime = driverBuildTime;
     mGpuStats.appPackageName = appPackageName;
 }
 
@@ -264,21 +267,20 @@ void GraphicsEnv::sendGpuStatsLocked(GraphicsEnv::Driver driver, bool isDriverLo
     ALOGV("sendGpuStats:\n"
           "\tdriverPackageName[%s]\n"
           "\tdriverVersionName[%s]\n"
-          "\tdriverVersionCode[%llu]\n"
-          "\tdriverBuildDate[%s]\n"
+          "\tdriverVersionCode[%" PRIu64 "]\n"
+          "\tdriverBuildTime[%" PRId64 "]\n"
           "\tappPackageName[%s]\n"
           "\tdriver[%d]\n"
           "\tisDriverLoaded[%d]\n"
-          "\tdriverLoadingTime[%lld]",
+          "\tdriverLoadingTime[%" PRId64 "]",
           mGpuStats.driverPackageName.c_str(), mGpuStats.driverVersionName.c_str(),
-          (unsigned long long)mGpuStats.driverVersionCode, mGpuStats.driverBuildDate.c_str(),
-          mGpuStats.appPackageName.c_str(), static_cast<int32_t>(driver), isDriverLoaded,
-          (long long)driverLoadingTime);
+          mGpuStats.driverVersionCode, mGpuStats.driverBuildTime, mGpuStats.appPackageName.c_str(),
+          static_cast<int32_t>(driver), isDriverLoaded, driverLoadingTime);
 
     const sp<IGpuService> gpuService = getGpuService();
     if (gpuService) {
         gpuService->setGpuStats(mGpuStats.driverPackageName, mGpuStats.driverVersionName,
-                                mGpuStats.driverVersionCode, mGpuStats.driverBuildDate,
+                                mGpuStats.driverVersionCode, mGpuStats.driverBuildTime,
                                 mGpuStats.appPackageName, driver, isDriverLoaded,
                                 driverLoadingTime);
     }
@@ -535,6 +537,23 @@ android_namespace_t* GraphicsEnv::getDriverNamespace() {
         }
         if (!android_link_namespaces(mDriverNamespace, vndkNamespace, vndkspLibraries.c_str())) {
             ALOGE("Failed to link vndk namespace[%s]", dlerror());
+            mDriverNamespace = nullptr;
+            return;
+        }
+
+        if (mSphalLibraries.empty()) return;
+
+        // Make additional libraries in sphal to be accessible
+        auto sphalNamespace = android_get_exported_namespace("sphal");
+        if (!sphalNamespace) {
+            ALOGE("Depend on these libraries[%s] in sphal, but failed to get sphal namespace",
+                  mSphalLibraries.c_str());
+            mDriverNamespace = nullptr;
+            return;
+        }
+
+        if (!android_link_namespaces(mDriverNamespace, sphalNamespace, mSphalLibraries.c_str())) {
+            ALOGE("Failed to link sphal namespace[%s]", dlerror());
             mDriverNamespace = nullptr;
             return;
         }

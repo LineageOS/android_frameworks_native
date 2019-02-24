@@ -33,6 +33,7 @@
 #include <gui/LayerState.h>
 #include <gui/OccupancyTracker.h>
 #include <hardware/hwcomposer_defs.h>
+#include <input/ISetInputWindowsListener.h>
 #include <layerproto/LayerProtoHeader.h>
 #include <math/mat4.h>
 #include <serviceutils/PriorityDumper.h>
@@ -56,6 +57,7 @@
 #include "LayerBE.h"
 #include "LayerStats.h"
 #include "LayerVector.h"
+#include "RegionSamplingThread.h"
 #include "Scheduler/DispSync.h"
 #include "Scheduler/EventThread.h"
 #include "Scheduler/MessageQueue.h"
@@ -201,6 +203,14 @@ public:
     std::map<wp<IBinder>, std::vector<CompositionInfo>> mEndOfFrameCompositionInfo;
 };
 
+class SetInputWindowsListener : public BnSetInputWindowsListener {
+public:
+    SetInputWindowsListener(const sp<SurfaceFlinger>& flinger) : mFlinger(flinger) {}
+    void onSetInputWindowsFinished() override;
+
+private:
+    const sp<SurfaceFlinger> mFlinger;
+};
 
 class SurfaceFlinger : public BnSurfaceComposer,
                        public PriorityDumper,
@@ -348,6 +358,8 @@ public:
         return mTransactionCompletedThread;
     }
 
+    void setInputWindowsFinished();
+
 private:
     friend class Client;
     friend class DisplayEventConnection;
@@ -357,6 +369,7 @@ private:
     friend class BufferQueueLayer;
     friend class BufferStateLayer;
     friend class MonitoredProducer;
+    friend class RegionSamplingThread;
 
     // For unit tests
     friend class TestableSurfaceFlinger;
@@ -477,7 +490,6 @@ private:
     status_t addRegionSamplingListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                                        const sp<IRegionSamplingListener>& listener) override;
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
-    void setInputWindowsFinished() override;
     /* ------------------------------------------------------------------------
      * DeathRecipient interface
      */
@@ -623,6 +635,8 @@ private:
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
                                  bool useIdentityTransform);
+    status_t captureScreenCore(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
+                               const sp<GraphicBuffer>& buffer, bool useIdentityTransform);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,
@@ -988,6 +1002,9 @@ private:
 
     TransactionCompletedThread mTransactionCompletedThread;
 
+    bool mLumaSampling = true;
+    sp<RegionSamplingThread> mRegionSamplingThread = new RegionSamplingThread(*this);
+
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
 
@@ -1075,6 +1092,7 @@ private:
      * Scheduler
      */
     bool mUse90Hz = false;
+    bool mUseSmart90ForVideo = false;
     std::unique_ptr<Scheduler> mScheduler;
     sp<Scheduler::ConnectionHandle> mAppConnectionHandle;
     sp<Scheduler::ConnectionHandle> mSfConnectionHandle;
@@ -1112,6 +1130,9 @@ private:
     InputWindowCommands mInputWindowCommands;
 
     ui::DisplayPrimaries mInternalDisplayPrimaries;
+
+    sp<SetInputWindowsListener> mSetInputWindowsListener;
+    bool mPendingSyncInputWindows GUARDED_BY(mStateLock);
 };
 }; // namespace android
 

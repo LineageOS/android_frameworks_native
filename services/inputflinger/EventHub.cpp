@@ -202,7 +202,6 @@ EventHub::Device::Device(int fd, int32_t id, const std::string& path,
 EventHub::Device::~Device() {
     close();
     delete configuration;
-    delete virtualKeyMap;
 }
 
 void EventHub::Device::close() {
@@ -1364,8 +1363,8 @@ status_t EventHub::openDeviceLocked(const char* devicePath) {
     if ((device->classes & INPUT_DEVICE_CLASS_TOUCH)) {
         // Load the virtual keys for the touch screen, if any.
         // We do this now so that we can make sure to load the keymap if necessary.
-        status_t status = loadVirtualKeyMapLocked(device);
-        if (!status) {
+        bool success = loadVirtualKeyMapLocked(device);
+        if (success) {
             device->classes |= INPUT_DEVICE_CLASS_KEYBOARD;
         }
     }
@@ -1614,15 +1613,16 @@ void EventHub::loadConfigurationLocked(Device* device) {
     }
 }
 
-status_t EventHub::loadVirtualKeyMapLocked(Device* device) {
+bool EventHub::loadVirtualKeyMapLocked(Device* device) {
     // The virtual key map is supplied by the kernel as a system board property file.
     std::string path;
     path += "/sys/board_properties/virtualkeys.";
-    path += device->identifier.name;
+    path += device->identifier.getCanonicalName();
     if (access(path.c_str(), R_OK)) {
-        return NAME_NOT_FOUND;
+        return false;
     }
-    return VirtualKeyMap::load(path, &device->virtualKeyMap);
+    device->virtualKeyMap = VirtualKeyMap::load(path);
+    return device->virtualKeyMap != nullptr;
 }
 
 status_t EventHub::loadKeyMapLocked(Device* device) {
