@@ -34,6 +34,7 @@ cc_defaults {
         "libprocessgroup",
         "libselinux",
         "libutils",
+        "server_configurable_flags",
     ],
 
     product_variables: {
@@ -225,6 +226,7 @@ cc_binary {
         "libprocessgroup",
         "libselinux",
         "libutils",
+        "server_configurable_flags",
     ],
 }
 
