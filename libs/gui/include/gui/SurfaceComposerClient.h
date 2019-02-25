@@ -454,6 +454,10 @@ public:
     static status_t capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
                             const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                             uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
+                            uint32_t rotation, bool captureSecureLayers, sp<GraphicBuffer>* outBuffer);
+    static status_t capture(const sp<IBinder>& display, const ui::Dataspace reqDataSpace,
+                            const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
+                            uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
                             uint32_t rotation, sp<GraphicBuffer>* outBuffer);
     static status_t captureLayers(const sp<IBinder>& layerHandle, const ui::Dataspace reqDataSpace,
                                   const ui::PixelFormat reqPixelFormat, Rect sourceCrop,

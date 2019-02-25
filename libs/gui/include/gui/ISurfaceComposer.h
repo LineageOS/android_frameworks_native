@@ -209,7 +209,8 @@ public:
                                    const ui::Dataspace reqDataspace,
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   Rotation rotation = eRotateNone) = 0;
+                                   Rotation rotation = eRotateNone,
+                                   bool captureSecureLayers = false) = 0;
     /**
      * Capture the specified screen. This requires READ_FRAME_BUFFER
      * permission.  This function will fail if there is a secure window on
