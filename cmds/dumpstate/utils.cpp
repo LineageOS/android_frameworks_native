@@ -108,6 +108,8 @@ DurationReporter::~DurationReporter() {
         if (log_only_) {
             MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
         } else {
+            // TODO(124089395): Remove or rewrite when bugreport latency is fixed.
+            MYLOGD("Duration of '%s': %.3fs\n", title_.c_str(), (float)elapsed / NANOS_PER_SEC);
             // Use "Yoda grammar" to make it easier to grep|sort sections.
             printf("------ %.3fs was the duration of '%s' ------\n", (float)elapsed / NANOS_PER_SEC,
                    title_.c_str());
