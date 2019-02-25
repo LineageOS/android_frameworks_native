@@ -20,13 +20,14 @@
 #include <binder/IInterface.h>
 #include <cutils/compiler.h>
 #include <graphicsenv/IGpuService.h>
+#include <serviceutils/PriorityDumper.h>
 
 #include <mutex>
 #include <vector>
 
 namespace android {
 
-class GpuService : public BnGpuService {
+class GpuService : public BnGpuService, public PriorityDumper {
 public:
     static const char* const SERVICE_NAME ANDROID_API;
 
@@ -36,11 +37,35 @@ protected:
     status_t shellCommand(int in, int out, int err, std::vector<String16>& args) override;
 
 private:
-    // IGpuService interface
+    /*
+     * IGpuService interface
+     */
     void setGpuStats(const std::string& driverPackageName, const std::string& driverVersionName,
                      uint64_t driverVersionCode, int64_t driverBuildTime,
                      const std::string& appPackageName, GraphicsEnv::Driver driver,
                      bool isDriverLoaded, int64_t driverLoadingTime);
+
+    /*
+     * IBinder interface
+     */
+    status_t dump(int fd, const Vector<String16>& args) override { return priorityDump(fd, args); }
+
+    /*
+     * Debugging & dumpsys
+     */
+    status_t dumpCritical(int fd, const Vector<String16>& /*args*/, bool asProto) override {
+        return doDump(fd, Vector<String16>(), asProto);
+    }
+
+    status_t dumpAll(int fd, const Vector<String16>& args, bool asProto) override {
+        return doDump(fd, args, asProto);
+    }
+
+    status_t doDump(int fd, const Vector<String16>& args, bool asProto);
+
+    /*
+     * Attributes
+     */
 
     // GpuStats access must be protected by mStateLock
     std::mutex mStateLock;
