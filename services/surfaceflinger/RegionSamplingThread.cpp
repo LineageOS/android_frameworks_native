@@ -119,8 +119,9 @@ float sampleArea(const uint32_t* data, int32_t stride, const Rect& area) {
 }
 } // anonymous namespace
 
-std::vector<float> sampleBuffer(const sp<GraphicBuffer>& buffer, const Point& leftTop,
-                                const std::vector<RegionSamplingThread::Descriptor>& descriptors) {
+std::vector<float> RegionSamplingThread::sampleBuffer(
+        const sp<GraphicBuffer>& buffer, const Point& leftTop,
+        const std::vector<RegionSamplingThread::Descriptor>& descriptors) {
     void* data_raw = nullptr;
     buffer->lock(GRALLOC_USAGE_SW_READ_OFTEN, &data_raw);
     std::shared_ptr<uint32_t> data(reinterpret_cast<uint32_t*>(data_raw),
@@ -150,7 +151,7 @@ void RegionSamplingThread::captureSample() {
         descriptors.emplace_back(descriptor);
     }
 
-    Rect sampledArea = sampleRegion.bounds();
+    const Rect sampledArea = sampleRegion.bounds();
 
     sp<const DisplayDevice> device = mFlinger.getDefaultDisplayDevice();
     DisplayRenderArea renderArea(device, sampledArea, sampledArea.getWidth(),
@@ -174,8 +175,8 @@ void RegionSamplingThread::captureSample() {
             }
 
             // Compute the layer's position on the screen
-            Rect bounds = Rect(layer->getBounds());
-            ui::Transform transform = layer->getTransform();
+            const Rect bounds = Rect(layer->getBounds());
+            const ui::Transform transform = layer->getTransform();
             constexpr bool roundOutwards = true;
             Rect transformed = transform.transform(bounds, roundOutwards);
 
@@ -215,7 +216,7 @@ void RegionSamplingThread::captureSample() {
     //
     // To avoid this, we drop the mutex while we call into SF.
     mMutex.unlock();
-    mFlinger.captureScreenCore(renderArea, traverseLayers, buffer, false);
+    mFlinger.captureScreenCommon(renderArea, traverseLayers, buffer, false);
     mMutex.lock();
 
     std::vector<Descriptor> activeDescriptors;
@@ -229,6 +230,8 @@ void RegionSamplingThread::captureSample() {
     std::vector<float> lumas = sampleBuffer(buffer, sampledArea.leftTop(), activeDescriptors);
 
     if (lumas.size() != activeDescriptors.size()) {
+        ALOGW("collected %zu median luma values for %zu descriptors", lumas.size(),
+              activeDescriptors.size());
         return;
     }
 
