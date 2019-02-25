@@ -17,6 +17,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 
 #include <ui/DisplayStatInfo.h>
@@ -103,6 +104,9 @@ public:
 
     // Getter methods.
     EventThread* getEventThread(const sp<ConnectionHandle>& handle);
+
+    // Provides access to the DispSync object for the primary display.
+    void withPrimaryDispSync(std::function<void(DispSync&)> const& fn);
 
     sp<EventThreadConnection> getEventConnection(const sp<ConnectionHandle>& handle);
 

@@ -304,6 +304,10 @@ void Scheduler::addNativeWindowApi(int apiId) {
     mApiHistoryCounter = mApiHistoryCounter % scheduler::ARRAY_SIZE;
 }
 
+void Scheduler::withPrimaryDispSync(std::function<void(DispSync&)> const& fn) {
+    fn(*mPrimaryDispSync);
+}
+
 void Scheduler::updateFpsBasedOnNativeWindowApi() {
     int mode;
     {

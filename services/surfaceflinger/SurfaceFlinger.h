@@ -1011,9 +1011,6 @@ private:
 
     TransactionCompletedThread mTransactionCompletedThread;
 
-    bool mLumaSampling = true;
-    sp<RegionSamplingThread> mRegionSamplingThread = new RegionSamplingThread(*this);
-
     // Restrict layers to use two buffers in their bufferqueues.
     bool mLayerTripleBufferingDisabled = false;
 
@@ -1139,6 +1136,9 @@ private:
     bool mCheckPendingFence = false;
 
     /* ------------------------------------------------------------------------ */
+    bool mLumaSampling = true;
+    sp<RegionSamplingThread> mRegionSamplingThread;
+
     sp<IInputFlinger> mInputFlinger;
 
     InputWindowCommands mPendingInputWindowCommands GUARDED_BY(mStateLock);
