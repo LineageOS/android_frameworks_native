@@ -27,6 +27,8 @@
 
 namespace android {
 
+class GpuStats;
+
 class GpuService : public BnGpuService, public PriorityDumper {
 public:
     static const char* const SERVICE_NAME ANDROID_API;
@@ -66,9 +68,7 @@ private:
     /*
      * Attributes
      */
-
-    // GpuStats access must be protected by mStateLock
-    std::mutex mStateLock;
+    std::unique_ptr<GpuStats> mGpuStats;
 };
 
 } // namespace android
