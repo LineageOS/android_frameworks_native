@@ -76,13 +76,13 @@ PhaseOffsets::PhaseOffsets() {
     mDefaultRefreshRateOffsets.late = {sfVsyncPhaseOffsetNs, vsyncPhaseOffsetNs};
 
     mHighRefreshRateOffsets.early = {highFpsEarlySfOffsetNs != -1 ? highFpsEarlySfOffsetNs
-                                                                  : highFpsLateAppOffsetNs,
+                                                                  : highFpsLateSfOffsetNs,
                                      highFpsEarlyAppOffsetNs != -1 ? highFpsEarlyAppOffsetNs
-                                                                   : highFpsLateSfOffsetNs};
+                                                                   : highFpsLateAppOffsetNs};
     mHighRefreshRateOffsets.earlyGl = {highFpsEarlyGlSfOffsetNs != -1 ? highFpsEarlyGlSfOffsetNs
-                                                                      : highFpsLateAppOffsetNs,
+                                                                      : highFpsLateSfOffsetNs,
                                        highFpsEarlyGlAppOffsetNs != -1 ? highFpsEarlyGlAppOffsetNs
-                                                                       : highFpsLateSfOffsetNs};
+                                                                       : highFpsLateAppOffsetNs};
     mHighRefreshRateOffsets.late = {highFpsLateSfOffsetNs, highFpsLateAppOffsetNs};
 }
 
