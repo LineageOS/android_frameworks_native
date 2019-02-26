@@ -44,6 +44,8 @@ static constexpr const char* PROFILES_SUBDIR = "misc/profiles"; // sub-directory
 static constexpr const char* PRIVATE_APP_SUBDIR = "app-private/"; // sub-directory under
                                                                   // ANDROID_DATA
 
+static constexpr const char* STAGING_SUBDIR = "pkg_staging/"; // sub-directory under ANDROID_DATA
+
 std::string android_app_dir;
 std::string android_app_ephemeral_dir;
 std::string android_app_lib_dir;
@@ -54,6 +56,7 @@ std::string android_media_dir;
 std::string android_mnt_expand_dir;
 std::string android_profiles_dir;
 std::string android_root_dir;
+std::string android_staging_dir;
 
 std::vector<std::string> android_system_dirs;
 
@@ -109,6 +112,9 @@ bool init_globals_from_data_and_root(const char* data, const char* root) {
 
     // Get the android profiles directory.
     android_profiles_dir = android_data_dir + PROFILES_SUBDIR;
+
+    // Get the android session staging directory.
+    android_staging_dir = android_data_dir + STAGING_SUBDIR;
 
     // Take note of the system and vendor directories.
     android_system_dirs.clear();

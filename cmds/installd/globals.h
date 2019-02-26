@@ -38,6 +38,7 @@ extern std::string android_media_dir;
 extern std::string android_mnt_expand_dir;
 extern std::string android_profiles_dir;
 extern std::string android_root_dir;
+extern std::string android_staging_dir;
 
 extern std::vector<std::string> android_system_dirs;
 
