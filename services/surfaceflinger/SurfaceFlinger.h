@@ -493,6 +493,8 @@ private:
     status_t removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) override;
     status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                       const std::vector<int32_t>& allowedConfigs) override;
+    status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                      std::vector<int32_t>* outAllowedConfigs) override;
 
     /* ------------------------------------------------------------------------
      * DeathRecipient interface

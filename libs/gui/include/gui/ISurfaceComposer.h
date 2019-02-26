@@ -367,6 +367,14 @@ public:
      */
     virtual status_t setAllowedDisplayConfigs(const sp<IBinder>& displayToken,
                                               const std::vector<int32_t>& allowedConfigs) = 0;
+
+    /*
+     * Returns the allowed display configurations currently set.
+     * The allowedConfigs in a vector of indexes corresponding to the configurations
+     * returned from getDisplayConfigs().
+     */
+    virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                              std::vector<int32_t>* outAllowedConfigs) = 0;
 };
 
 // ----------------------------------------------------------------------------
@@ -415,6 +423,7 @@ public:
         ADD_REGION_SAMPLING_LISTENER,
         REMOVE_REGION_SAMPLING_LISTENER,
         SET_ALLOWED_DISPLAY_CONFIGS,
+        GET_ALLOWED_DISPLAY_CONFIGS,
         // Always append new enum to the end.
     };
 

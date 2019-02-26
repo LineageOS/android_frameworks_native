@@ -832,6 +832,33 @@ public:
         }
         return reply.readInt32();
     }
+
+    virtual status_t getAllowedDisplayConfigs(const sp<IBinder>& displayToken,
+                                              std::vector<int32_t>* outAllowedConfigs) {
+        if (!outAllowedConfigs) return BAD_VALUE;
+        Parcel data, reply;
+        status_t result = data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to writeInterfaceToken: %d", result);
+            return result;
+        }
+        result = data.writeStrongBinder(displayToken);
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to writeStrongBinder: %d", result);
+            return result;
+        }
+        result = remote()->transact(BnSurfaceComposer::GET_ALLOWED_DISPLAY_CONFIGS, data, &reply);
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to transact: %d", result);
+            return result;
+        }
+        result = reply.readInt32Vector(outAllowedConfigs);
+        if (result != NO_ERROR) {
+            ALOGE("getAllowedDisplayConfigs failed to readInt32Vector: %d", result);
+            return result;
+        }
+        return reply.readInt32();
+    }
 };
 
 // Out-of-line virtual method definition to trigger vtable emission in this
@@ -1349,6 +1376,15 @@ status_t BnSurfaceComposer::onTransact(
             std::vector<int32_t> allowedConfigs;
             data.readInt32Vector(&allowedConfigs);
             status_t result = setAllowedDisplayConfigs(displayToken, allowedConfigs);
+            reply->writeInt32(result);
+            return result;
+        }
+        case GET_ALLOWED_DISPLAY_CONFIGS: {
+            CHECK_INTERFACE(ISurfaceComposer, data, reply);
+            sp<IBinder> displayToken = data.readStrongBinder();
+            std::vector<int32_t> allowedConfigs;
+            status_t result = getAllowedDisplayConfigs(displayToken, &allowedConfigs);
+            reply->writeInt32Vector(allowedConfigs);
             reply->writeInt32(result);
             return result;
         }

@@ -4939,6 +4939,7 @@ status_t SurfaceFlinger::CheckTransactCodeCredentials(uint32_t code) {
         case GET_HDR_CAPABILITIES:
         case SET_ACTIVE_CONFIG:
         case SET_ALLOWED_DISPLAY_CONFIGS:
+        case GET_ALLOWED_DISPLAY_CONFIGS:
         case SET_ACTIVE_COLOR_MODE:
         case INJECT_VSYNC:
         case SET_POWER_MODE:
@@ -5825,6 +5826,36 @@ status_t SurfaceFlinger::setAllowedDisplayConfigs(const android::sp<android::IBi
     postMessageSync(new LambdaMessage([&]() NO_THREAD_SAFETY_ANALYSIS {
         setAllowedDisplayConfigsInternal(displayToken, std::move(allowedDisplayConfigs));
     }));
+    return NO_ERROR;
+}
+
+status_t SurfaceFlinger::getAllowedDisplayConfigs(const android::sp<android::IBinder>& displayToken,
+                                                  std::vector<int32_t>* outAllowedConfigs) {
+    ATRACE_CALL();
+
+    if (!displayToken) {
+        ALOGE("getAllowedDisplayConfigs: displayToken is null");
+        return BAD_VALUE;
+    }
+
+    if (!outAllowedConfigs) {
+        ALOGE("getAllowedDisplayConfigs: outAllowedConfigs is null");
+        return BAD_VALUE;
+    }
+
+    ConditionalLock stateLock(mStateLock, std::this_thread::get_id() != mMainThreadId);
+    const auto displayId = getPhysicalDisplayIdLocked(displayToken);
+    if (!displayId) {
+        ALOGE("getAllowedDisplayConfigs: display not found");
+        return NAME_NOT_FOUND;
+    }
+
+    std::lock_guard allowedConfigLock(mAllowedConfigsLock);
+    auto allowedConfigIterator = mAllowedConfigs.find(displayId.value());
+    if (allowedConfigIterator != mAllowedConfigs.end()) {
+        allowedConfigIterator->second->getAllowedConfigs(outAllowedConfigs);
+    }
+
     return NO_ERROR;
 }
 

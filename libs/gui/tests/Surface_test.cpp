@@ -682,6 +682,10 @@ public:
                                       const std::vector<int32_t>& /*allowedConfigs*/) override {
         return NO_ERROR;
     }
+    status_t getAllowedDisplayConfigs(const sp<IBinder>& /*displayToken*/,
+                                      std::vector<int32_t>* /*outAllowedConfigs*/) override {
+        return NO_ERROR;
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
