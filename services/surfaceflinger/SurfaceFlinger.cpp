@@ -1309,7 +1309,7 @@ status_t SurfaceFlinger::getCompositionPreference(
 status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
                                                    const sp<IBinder>& stopLayerHandle,
                                                    const sp<IRegionSamplingListener>& listener) {
-    if (!listener) {
+    if (!listener || samplingArea == Rect::INVALID_RECT) {
         return BAD_VALUE;
     }
     mRegionSamplingThread->addListener(samplingArea, stopLayerHandle, listener);
@@ -1317,6 +1317,9 @@ status_t SurfaceFlinger::addRegionSamplingListener(const Rect& samplingArea,
 }
 
 status_t SurfaceFlinger::removeRegionSamplingListener(const sp<IRegionSamplingListener>& listener) {
+    if (!listener) {
+        return BAD_VALUE;
+    }
     mRegionSamplingThread->removeListener(listener);
     return NO_ERROR;
 }
