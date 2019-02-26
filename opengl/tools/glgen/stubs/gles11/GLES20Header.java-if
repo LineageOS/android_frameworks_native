@@ -19,6 +19,8 @@
 
 package android.opengl;
 
+import android.annotation.UnsupportedAppUsage;
+
 /** OpenGL ES 2.0
  */
 public class GLES20 {
