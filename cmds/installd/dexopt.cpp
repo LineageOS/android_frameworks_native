@@ -45,6 +45,7 @@
 #include <private/android_filesystem_config.h>
 #include <processgroup/sched_policy.h>
 #include <selinux/android.h>
+#include <server_configurable_flags/get_flags.h>
 #include <system/thread_defs.h>
 
 #include "dexopt.h"
@@ -260,6 +261,13 @@ static std::string MapPropertyToArg(const std::string& property,
   return "";
 }
 
+// Namespace for Android Runtime flags applied during boot time.
+static const char* RUNTIME_NATIVE_BOOT_NAMESPACE = "runtime_native_boot";
+// Feature flag name for running the JIT in Zygote experiment, b/119800099.
+static const char* ENABLE_APEX_IMAGE = "enable_apex_image";
+// Location of the apex image.
+static const char* kApexImage = "/system/framework/apex.art";
+
 class RunDex2Oat : public ExecVHelper {
   public:
     RunDex2Oat(int zip_fd,
@@ -352,7 +360,16 @@ class RunDex2Oat : public ExecVHelper {
         bool generate_minidebug_info = kEnableMinidebugInfo &&
                 GetBoolProperty(kMinidebugInfoSystemProperty, kMinidebugInfoSystemPropertyDefault);
 
-        std::string boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+        std::string boot_image;
+        std::string use_apex_image =
+            server_configurable_flags::GetServerConfigurableFlag(RUNTIME_NATIVE_BOOT_NAMESPACE,
+                                                                 ENABLE_APEX_IMAGE,
+                                                                 /*default_value=*/ "");
+        if (use_apex_image == "true") {
+          boot_image = StringPrintf("-Ximage:%s", kApexImage);
+        } else {
+          boot_image = MapPropertyToArg("dalvik.vm.boot-image", "-Ximage:%s");
+        }
 
         // clang FORTIFY doesn't let us use strlen in constant array bounds, so we
         // use arraysize instead.
