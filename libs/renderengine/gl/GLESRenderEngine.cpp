@@ -37,6 +37,7 @@
 #include <sync/sync.h>
 #include <ui/ColorSpace.h>
 #include <ui/DebugUtils.h>
+#include <ui/GraphicBuffer.h>
 #include <ui/Rect.h>
 #include <ui/Region.h>
 #include <utils/KeyedVector.h>
@@ -225,7 +226,8 @@ static status_t selectEGLConfig(EGLDisplay display, EGLint format, EGLint render
     return err;
 }
 
-std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32_t featureFlags) {
+std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32_t featureFlags,
+                                                           uint32_t imageCacheSize) {
     // initialize EGL for the default display
     EGLDisplay display = eglGetDisplay(EGL_DEFAULT_DISPLAY);
     if (!eglInitialize(display, nullptr, nullptr)) {
@@ -295,7 +297,8 @@ std::unique_ptr<GLESRenderEngine> GLESRenderEngine::create(int hwcFormat, uint32
         case GLES_VERSION_2_0:
         case GLES_VERSION_3_0:
             engine = std::make_unique<GLESRenderEngine>(featureFlags, display, config, ctxt, dummy,
-                                                        protectedContext, protectedDummy);
+                                                        protectedContext, protectedDummy,
+                                                        imageCacheSize);
             break;
     }
 
@@ -351,7 +354,7 @@ EGLConfig GLESRenderEngine::chooseEglConfig(EGLDisplay display, int format, bool
 
 GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EGLConfig config,
                                    EGLContext ctxt, EGLSurface dummy, EGLContext protectedContext,
-                                   EGLSurface protectedDummy)
+                                   EGLSurface protectedDummy, uint32_t imageCacheSize)
       : renderengine::impl::RenderEngine(featureFlags),
         mEGLDisplay(display),
         mEGLConfig(config),
@@ -361,6 +364,7 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
         mProtectedDummySurface(protectedDummy),
         mVpWidth(0),
         mVpHeight(0),
+        mFramebufferImageCacheSize(imageCacheSize),
         mUseColorManagement(featureFlags & USE_COLOR_MANAGEMENT) {
     glGetIntegerv(GL_MAX_TEXTURE_SIZE, &mMaxTextureSize);
     glGetIntegerv(GL_MAX_VIEWPORT_DIMS, mMaxViewportDims);
@@ -428,6 +432,10 @@ GLESRenderEngine::GLESRenderEngine(uint32_t featureFlags, EGLDisplay display, EG
 }
 
 GLESRenderEngine::~GLESRenderEngine() {
+    for (const auto& image : mFramebufferImageCache) {
+        eglDestroyImageKHR(mEGLDisplay, image.second);
+    }
+    mFramebufferImageCache.clear();
     eglMakeCurrent(mEGLDisplay, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
     eglTerminate(mEGLDisplay);
 }
@@ -784,6 +792,32 @@ bool GLESRenderEngine::useProtectedContext(bool useProtectedContext) {
         mInProtectedContext = useProtectedContext;
     }
     return success;
+}
+EGLImageKHR GLESRenderEngine::createFramebufferImageIfNeeded(ANativeWindowBuffer* nativeBuffer,
+                                                             bool isProtected) {
+    sp<GraphicBuffer> graphicBuffer = GraphicBuffer::from(nativeBuffer);
+    uint32_t bufferId = graphicBuffer->getId();
+    for (const auto& image : mFramebufferImageCache) {
+        if (image.first == bufferId) {
+            return image.second;
+        }
+    }
+    EGLint attributes[] = {
+            isProtected ? EGL_PROTECTED_CONTENT_EXT : EGL_NONE,
+            isProtected ? EGL_TRUE : EGL_NONE,
+            EGL_NONE,
+    };
+    EGLImageKHR image = eglCreateImageKHR(mEGLDisplay, EGL_NO_CONTEXT, EGL_NATIVE_BUFFER_ANDROID,
+                                          nativeBuffer, attributes);
+    if (image != EGL_NO_IMAGE_KHR) {
+        if (mFramebufferImageCache.size() >= mFramebufferImageCacheSize) {
+            EGLImageKHR expired = mFramebufferImageCache.front().second;
+            mFramebufferImageCache.pop_front();
+            eglDestroyImageKHR(mEGLDisplay, expired);
+        }
+        mFramebufferImageCache.push_back({bufferId, image});
+    }
+    return image;
 }
 
 status_t GLESRenderEngine::drawLayers(const DisplaySettings& display,
