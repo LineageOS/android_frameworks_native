@@ -33,6 +33,15 @@ __BEGIN_DECLS
  */
 
 /**
+ * HDR metadata standards that are supported by Android.
+ */
+enum AHdrMetadataType : uint32_t {
+    HDR10_SMPTE2086 = 1,
+    HDR10_CTA861_3 = 2,
+    HDR10PLUS_SEI = 3,
+};
+
+/**
  * Color is defined in CIE XYZ coordinates.
  */
 struct AColor_xy {
