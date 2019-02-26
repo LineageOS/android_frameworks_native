@@ -5300,7 +5300,8 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
                                        const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                        uint32_t reqWidth, uint32_t reqHeight,
                                        bool useIdentityTransform,
-                                       ISurfaceComposer::Rotation rotation) {
+                                       ISurfaceComposer::Rotation rotation,
+                                       bool captureSecureLayers) {
     ATRACE_CALL();
 
     if (!displayToken) return BAD_VALUE;
@@ -5323,7 +5324,7 @@ status_t SurfaceFlinger::captureScreen(const sp<IBinder>& displayToken,
     }
 
     DisplayRenderArea renderArea(display, sourceCrop, reqWidth, reqHeight, reqDataspace,
-                                 renderAreaRotation);
+                                 renderAreaRotation, captureSecureLayers);
 
     auto traverseLayers = std::bind(&SurfaceFlinger::traverseLayersInDisplay, this, display,
                                     std::placeholders::_1);

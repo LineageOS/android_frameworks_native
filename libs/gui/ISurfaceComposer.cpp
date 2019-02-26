@@ -100,7 +100,7 @@ public:
                                    const ui::Dataspace reqDataspace,
                                    const ui::PixelFormat reqPixelFormat, Rect sourceCrop,
                                    uint32_t reqWidth, uint32_t reqHeight, bool useIdentityTransform,
-                                   ISurfaceComposer::Rotation rotation) {
+                                   ISurfaceComposer::Rotation rotation, bool captureSecureLayers) {
         Parcel data, reply;
         data.writeInterfaceToken(ISurfaceComposer::getInterfaceDescriptor());
         data.writeStrongBinder(display);
@@ -111,6 +111,7 @@ public:
         data.writeUint32(reqHeight);
         data.writeInt32(static_cast<int32_t>(useIdentityTransform));
         data.writeInt32(static_cast<int32_t>(rotation));
+        data.writeInt32(static_cast<int32_t>(captureSecureLayers));
         status_t result = remote()->transact(BnSurfaceComposer::CAPTURE_SCREEN, data, &reply);
         if (result != NO_ERROR) {
             ALOGE("captureScreen failed to transact: %d", result);
@@ -884,10 +885,11 @@ status_t BnSurfaceComposer::onTransact(
             uint32_t reqHeight = data.readUint32();
             bool useIdentityTransform = static_cast<bool>(data.readInt32());
             int32_t rotation = data.readInt32();
+            bool captureSecureLayers = static_cast<bool>(data.readInt32());
 
             status_t res = captureScreen(display, &outBuffer, reqDataspace, reqPixelFormat,
                                          sourceCrop, reqWidth, reqHeight, useIdentityTransform,
-                                         static_cast<ISurfaceComposer::Rotation>(rotation));
+                                         static_cast<ISurfaceComposer::Rotation>(rotation), captureSecureLayers);
             reply->writeInt32(res);
             if (res == NO_ERROR) {
                 reply->write(*outBuffer);

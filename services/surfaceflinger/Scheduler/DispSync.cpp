@@ -78,6 +78,11 @@ public:
         mPeriod = period;
         mPhase = phase;
         mReferenceTime = referenceTime;
+        if (mTraceDetailedInfo) {
+            ATRACE_INT64("DispSync:Period", mPeriod);
+            ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
+            ATRACE_INT64("DispSync:Reference Time", mReferenceTime);
+        }
         ALOGV("[%s] updateModel: mPeriod = %" PRId64 ", mPhase = %" PRId64
               " mReferenceTime = %" PRId64,
               mName, ns2us(mPeriod), ns2us(mPhase), ns2us(mReferenceTime));
@@ -578,11 +583,6 @@ void DispSync::updateModelLocked() {
         if (mPhase < -(mPeriod / 2)) {
             mPhase += mPeriod;
             ALOGV("[%s] Adjusting mPhase -> %" PRId64, mName, ns2us(mPhase));
-        }
-
-        if (mTraceDetailedInfo) {
-            ATRACE_INT64("DispSync:Period", mPeriod);
-            ATRACE_INT64("DispSync:Phase", mPhase + mPeriod / 2);
         }
 
         // Artificially inflate the period if requested.

@@ -615,7 +615,8 @@ public:
                            const ui::Dataspace /*reqDataspace*/,
                            const ui::PixelFormat /*reqPixelFormat*/, Rect /*sourceCrop*/,
                            uint32_t /*reqWidth*/, uint32_t /*reqHeight*/,
-                           bool /*useIdentityTransform*/, Rotation /*rotation*/) override {
+                           bool /*useIdentityTransform*/, Rotation /*rotation*/,
+                           bool /*captureSecureLayers*/) override {
         return NO_ERROR;
     }
     virtual status_t captureLayers(const sp<IBinder>& /*parentHandle*/,

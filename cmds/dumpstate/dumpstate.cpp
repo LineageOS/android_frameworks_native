@@ -766,6 +766,17 @@ status_t Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd,
                ZipWriter::ErrorCodeString(err));
         return UNKNOWN_ERROR;
     }
+    bool finished_entry = false;
+    auto finish_entry = [this, &finished_entry] {
+        if (!finished_entry) {
+            // This should only be called when we're going to return an earlier error,
+            // which would've been logged. This may imply the file is already corrupt
+            // and any further logging from FinishEntry is more likely to mislead than
+            // not.
+            this->zip_writer_->FinishEntry();
+        }
+    };
+    auto scope_guard = android::base::make_scope_guard(finish_entry);
     auto start = std::chrono::steady_clock::now();
     auto end = start + timeout;
     struct pollfd pfd = {fd, POLLIN};
@@ -782,11 +793,11 @@ status_t Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd,
 
             int rc = TEMP_FAILURE_RETRY(poll(&pfd, 1, time_left_ms()));
             if (rc < 0) {
-                MYLOGE("Error in poll while adding from fd to zip entry %s:%s", entry_name.c_str(),
-                       strerror(errno));
+                MYLOGE("Error in poll while adding from fd to zip entry %s:%s\n",
+                       entry_name.c_str(), strerror(errno));
                 return -errno;
             } else if (rc == 0) {
-                MYLOGE("Timed out adding from fd to zip entry %s:%s Timeout:%lldms",
+                MYLOGE("Timed out adding from fd to zip entry %s:%s Timeout:%lldms\n",
                        entry_name.c_str(), strerror(errno), timeout.count());
                 return TIMED_OUT;
             }
@@ -807,6 +818,7 @@ status_t Dumpstate::AddZipEntryFromFd(const std::string& entry_name, int fd,
     }
 
     err = zip_writer_->FinishEntry();
+    finished_entry = true;
     if (err != 0) {
         MYLOGE("zip_writer_->FinishEntry(): %s\n", ZipWriter::ErrorCodeString(err));
         return UNKNOWN_ERROR;
