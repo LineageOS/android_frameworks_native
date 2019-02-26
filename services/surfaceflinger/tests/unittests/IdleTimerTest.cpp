@@ -140,7 +140,7 @@ TEST_F(IdleTimerTest, startNotCalledTest) {
                                                         mExpiredTimerCallback.getInvocable());
     // The start hasn't happened, so the callback does not happen.
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1us).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
     mIdleTimer->stop();
     // Final quick check that no more callback were observed.
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(0ms).has_value());
@@ -159,7 +159,7 @@ TEST_F(IdleTimerTest, idleTimerIdlesTest) {
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
     // Once reset, it should generate another
     mIdleTimer->reset();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall(1ms).has_value());
+    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
     EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
     mIdleTimer->stop();
     // Final quick check that no more callback were observed.
@@ -171,7 +171,7 @@ TEST_F(IdleTimerTest, timeoutCallbackExecutionTest) {
     mIdleTimer = std::make_unique<scheduler::IdleTimer>(3ms, mResetTimerCallback.getInvocable(),
                                                         mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall(1us).has_value());
+    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
     EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
     mIdleTimer->stop();
 }
@@ -180,21 +180,21 @@ TEST_F(IdleTimerTest, noCallbacksAfterStopAndResetTest) {
     mIdleTimer = std::make_unique<scheduler::IdleTimer>(3ms, mResetTimerCallback.getInvocable(),
                                                         mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall(1ms).has_value());
+    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
     EXPECT_TRUE(mExpiredTimerCallback.waitForCall(waitTimeForExpected3msCallback).has_value());
 
     mIdleTimer->stop();
     clearPendingCallbacks();
     mIdleTimer->reset();
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
 }
 
 TEST_F(IdleTimerTest, noCallbacksAfterStopTest) {
     mIdleTimer = std::make_unique<scheduler::IdleTimer>(3ms, mResetTimerCallback.getInvocable(),
                                                         mExpiredTimerCallback.getInvocable());
     mIdleTimer->start();
-    EXPECT_TRUE(mResetTimerCallback.waitForCall(1ms).has_value());
+    EXPECT_TRUE(mResetTimerCallback.waitForCall().has_value());
 
     mIdleTimer->stop();
     clearPendingCallbacks();
@@ -202,7 +202,7 @@ TEST_F(IdleTimerTest, noCallbacksAfterStopTest) {
 
     // No more idle events should be observed
     EXPECT_FALSE(mExpiredTimerCallback.waitForCall(waitTimeForUnexpected3msCallback).has_value());
-    EXPECT_FALSE(mResetTimerCallback.waitForCall(1ms).has_value());
+    EXPECT_FALSE(mResetTimerCallback.waitForCall().has_value());
 }
 
 } // namespace
