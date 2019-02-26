@@ -31,6 +31,7 @@ cc_test {
         "libprocessgroup",
         "libselinux",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
         "libdiskusage",
@@ -54,6 +55,7 @@ cc_test {
         "libprocessgroup",
         "libselinux",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
         "libdiskusage",
@@ -77,6 +79,7 @@ cc_test {
         "libprocessgroup",
         "libselinux",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
         "libdiskusage",
@@ -96,6 +99,7 @@ cc_test {
         "libbase",
         "libcutils",
         "libutils",
+        "server_configurable_flags",
     ],
     static_libs: [
         "liblog",
