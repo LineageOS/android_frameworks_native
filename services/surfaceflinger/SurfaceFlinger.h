@@ -700,10 +700,6 @@ private:
     // region of all screens presenting this layer stack.
     void invalidateLayerStack(const sp<const Layer>& layer, const Region& dirty);
 
-    // Initialize structures containing information about the internal
-    // display's native color coordinates using default data
-    void initDefaultDisplayNativePrimaries();
-
     /* ------------------------------------------------------------------------
      * H/W composer
      */

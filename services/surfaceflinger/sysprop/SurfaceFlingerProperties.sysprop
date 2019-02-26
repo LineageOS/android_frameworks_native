@@ -250,3 +250,39 @@ prop {
     access: Readonly
     prop_name: "ro.surface_flinger.wcg_composition_pixel_format"
 }
+
+# Return the native panel primary data. The data includes red, green,
+# blue and white. The primary format is CIE 1931 XYZ color space.
+# If unspecified, the primaries is sRGB gamut by default.
+
+prop {
+    api_name: "display_primary_red"
+    type: DoubleList
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.surface_flinger.display_primary_red"
+}
+
+prop {
+    api_name: "display_primary_green"
+    type: DoubleList
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.surface_flinger.display_primary_green"
+}
+
+prop {
+    api_name: "display_primary_blue"
+    type: DoubleList
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.surface_flinger.display_primary_blue"
+}
+
+prop {
+    api_name: "display_primary_white"
+    type: DoubleList
+    scope: Internal
+    access: Readonly
+    prop_name: "ro.surface_flinger.display_primary_white"
+}

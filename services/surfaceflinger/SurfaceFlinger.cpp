@@ -203,19 +203,6 @@ const String16 sAccessSurfaceFlinger("android.permission.ACCESS_SURFACE_FLINGER"
 const String16 sReadFramebuffer("android.permission.READ_FRAME_BUFFER");
 const String16 sDump("android.permission.DUMP");
 
-constexpr float kSrgbRedX = 0.4123f;
-constexpr float kSrgbRedY = 0.2126f;
-constexpr float kSrgbRedZ = 0.0193f;
-constexpr float kSrgbGreenX = 0.3576f;
-constexpr float kSrgbGreenY = 0.7152f;
-constexpr float kSrgbGreenZ = 0.1192f;
-constexpr float kSrgbBlueX = 0.1805f;
-constexpr float kSrgbBlueY = 0.0722f;
-constexpr float kSrgbBlueZ = 0.9506f;
-constexpr float kSrgbWhiteX = 0.9505f;
-constexpr float kSrgbWhiteY = 1.0000f;
-constexpr float kSrgbWhiteZ = 1.0891f;
-
 constexpr float kDefaultRefreshRate = 60.f;
 constexpr float kPerformanceRefreshRate = 90.f;
 
@@ -353,15 +340,7 @@ SurfaceFlinger::SurfaceFlinger(surfaceflinger::Factory& factory)
     }
     ALOGV("Primary Display Orientation is set to %2d.", SurfaceFlinger::primaryDisplayOrientation);
 
-    auto surfaceFlingerConfigsServiceV1_2 = V1_2::ISurfaceFlingerConfigs::getService();
-    if (surfaceFlingerConfigsServiceV1_2) {
-        surfaceFlingerConfigsServiceV1_2->getDisplayNativePrimaries(
-                [&](auto tmpPrimaries) {
-                    memcpy(&mInternalDisplayPrimaries, &tmpPrimaries, sizeof(ui::DisplayPrimaries));
-                });
-    } else {
-        initDefaultDisplayNativePrimaries();
-    }
+    mInternalDisplayPrimaries = sysprop::getDisplayNativePrimaries();
 
     // debugging stuff...
     char value[PROPERTY_VALUE_MAX];
@@ -3212,21 +3191,6 @@ void SurfaceFlinger::invalidateLayerStack(const sp<const Layer>& layer, const Re
             display->editState().dirtyRegion.orSelf(dirty);
         }
     }
-}
-
-void SurfaceFlinger::initDefaultDisplayNativePrimaries() {
-    mInternalDisplayPrimaries.red.X = kSrgbRedX;
-    mInternalDisplayPrimaries.red.Y = kSrgbRedY;
-    mInternalDisplayPrimaries.red.Z = kSrgbRedZ;
-    mInternalDisplayPrimaries.green.X = kSrgbGreenX;
-    mInternalDisplayPrimaries.green.Y = kSrgbGreenY;
-    mInternalDisplayPrimaries.green.Z = kSrgbGreenZ;
-    mInternalDisplayPrimaries.blue.X = kSrgbBlueX;
-    mInternalDisplayPrimaries.blue.Y = kSrgbBlueY;
-    mInternalDisplayPrimaries.blue.Z = kSrgbBlueZ;
-    mInternalDisplayPrimaries.white.X = kSrgbWhiteX;
-    mInternalDisplayPrimaries.white.Y = kSrgbWhiteY;
-    mInternalDisplayPrimaries.white.Z = kSrgbWhiteZ;
 }
 
 bool SurfaceFlinger::handlePageFlip()

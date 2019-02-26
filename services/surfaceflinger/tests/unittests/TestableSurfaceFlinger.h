@@ -289,10 +289,6 @@ public:
         return mFlinger->SurfaceFlinger::getDisplayNativePrimaries(displayToken, primaries);
     }
 
-    void initDefaultDisplayNativePrimaries() {
-        mFlinger->SurfaceFlinger::initDefaultDisplayNativePrimaries();
-    }
-
     /* ------------------------------------------------------------------------
      * Read-only access to private data to assert post-conditions.
      */
