@@ -44,7 +44,7 @@ static constexpr const char* PROFILES_SUBDIR = "misc/profiles"; // sub-directory
 static constexpr const char* PRIVATE_APP_SUBDIR = "app-private/"; // sub-directory under
                                                                   // ANDROID_DATA
 
-static constexpr const char* STAGING_SUBDIR = "pkg_staging/"; // sub-directory under ANDROID_DATA
+static constexpr const char* STAGING_SUBDIR = "app-staging/"; // sub-directory under ANDROID_DATA
 
 std::string android_app_dir;
 std::string android_app_ephemeral_dir;
