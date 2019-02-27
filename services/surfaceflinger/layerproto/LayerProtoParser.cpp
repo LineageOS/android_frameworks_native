@@ -132,7 +132,6 @@ LayerProtoParser::Layer LayerProtoParser::generateLayer(const LayerProto& layerP
 
 LayerProtoParser::Region LayerProtoParser::generateRegion(const RegionProto& regionProto) {
     LayerProtoParser::Region region;
-    region.id = regionProto.id();
     for (int i = 0; i < regionProto.rect_size(); i++) {
         const RectProto& rectProto = regionProto.rect(i);
         region.rects.push_back(generateRect(rectProto));

@@ -49,8 +49,6 @@ void LayerProtoHelper::writeToProto(const Region& region,
     Region::const_iterator const tail = region.end();
     // Use a lambda do avoid writing the object header when the object is empty
     RegionProto* regionProto = getRegionProto();
-    uint64_t address = reinterpret_cast<uint64_t>(&region);
-    regionProto->set_id(address);
     while (head != tail) {
         std::function<RectProto*()> getProtoRect = [&]() { return regionProto->add_rect(); };
         writeToProto(*head, getProtoRect);
