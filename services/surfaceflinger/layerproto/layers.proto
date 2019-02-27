@@ -113,6 +113,7 @@ message TransformProto {
   float dtdx = 2;
   float dsdy = 3;
   float dtdy = 4;
+  int32 type = 5;
 }
 
 message RegionProto {
