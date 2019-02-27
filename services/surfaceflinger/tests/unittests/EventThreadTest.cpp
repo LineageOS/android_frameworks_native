@@ -81,6 +81,8 @@ protected:
     void expectVsyncEventReceivedByConnection(nsecs_t expectedTimestamp, unsigned expectedCount);
     void expectHotplugEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
                                                 bool expectedConnected);
+    void expectConfigChangedEventReceivedByConnection(PhysicalDisplayId expectedDisplayId,
+                                                      int32_t expectedConfigId);
 
     AsyncCallRecorder<void (*)(bool)> mVSyncSetEnabledCallRecorder;
     AsyncCallRecorder<void (*)(VSyncSource::Callback*)> mVSyncSetCallbackCallRecorder;
@@ -210,6 +212,16 @@ void EventThreadTest::expectHotplugEventReceivedByConnection(PhysicalDisplayId e
     EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_HOTPLUG, event.header.type);
     EXPECT_EQ(expectedDisplayId, event.header.displayId);
     EXPECT_EQ(expectedConnected, event.hotplug.connected);
+}
+
+void EventThreadTest::expectConfigChangedEventReceivedByConnection(
+        PhysicalDisplayId expectedDisplayId, int32_t expectedConfigId) {
+    auto args = mConnectionEventCallRecorder.waitForCall();
+    ASSERT_TRUE(args.has_value());
+    const auto& event = std::get<0>(args.value());
+    EXPECT_EQ(DisplayEventReceiver::DISPLAY_EVENT_CONFIG_CHANGED, event.header.type);
+    EXPECT_EQ(expectedDisplayId, event.header.displayId);
+    EXPECT_EQ(expectedConfigId, event.config.configId);
 }
 
 namespace {
@@ -446,6 +458,16 @@ TEST_F(EventThreadTest, postHotplugExternalDisconnect) {
 TEST_F(EventThreadTest, postHotplugExternalConnect) {
     mThread->onHotplugReceived(EXTERNAL_DISPLAY_ID, true);
     expectHotplugEventReceivedByConnection(EXTERNAL_DISPLAY_ID, true);
+}
+
+TEST_F(EventThreadTest, postConfigChangedPrimary) {
+    mThread->onConfigChanged(INTERNAL_DISPLAY_ID, 7);
+    expectConfigChangedEventReceivedByConnection(INTERNAL_DISPLAY_ID, 7);
+}
+
+TEST_F(EventThreadTest, postConfigChangedExternal) {
+    mThread->onConfigChanged(EXTERNAL_DISPLAY_ID, 5);
+    expectConfigChangedEventReceivedByConnection(EXTERNAL_DISPLAY_ID, 5);
 }
 
 } // namespace

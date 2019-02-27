@@ -679,6 +679,10 @@ public:
             const sp<IRegionSamplingListener>& /*listener*/) override {
         return NO_ERROR;
     }
+    status_t setAllowedDisplayConfigs(const sp<IBinder>& /*displayToken*/,
+                                      const std::vector<int32_t>& /*allowedConfigs*/) override {
+        return NO_ERROR;
+    }
 
 protected:
     IBinder* onAsBinder() override { return nullptr; }
