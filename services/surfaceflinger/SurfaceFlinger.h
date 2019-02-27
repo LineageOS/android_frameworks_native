@@ -970,7 +970,12 @@ private:
     // Tracks layers that need to update a display's dirty region.
     std::vector<sp<Layer>> mLayersPendingRefresh;
     sp<Fence> mPreviousPresentFence = Fence::NO_FENCE;
+    // True if in the previous frame at least one layer was composed via the GPU.
     bool mHadClientComposition = false;
+    // True if in the previous frame at least one layer was composed via HW Composer.
+    // Note that it is possible for a frame to be composed via both client and device
+    // composition, for example in the case of overlays.
+    bool mHadDeviceComposition = false;
 
     enum class BootStage {
         BOOTLOADER,
