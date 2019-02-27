@@ -43,6 +43,7 @@ using std::min;
 namespace android {
 
 DispSync::~DispSync() = default;
+DispSync::Callback::~Callback() = default;
 
 namespace impl {
 
