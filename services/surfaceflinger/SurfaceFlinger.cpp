@@ -5495,13 +5495,13 @@ status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
                                              static_cast<android_pixel_format>(reqPixelFormat), 1,
                                              usage, "screenshot");
 
-    return captureScreenCore(renderArea, traverseLayers, *outBuffer, useIdentityTransform);
+    return captureScreenCommon(renderArea, traverseLayers, *outBuffer, useIdentityTransform);
 }
 
-status_t SurfaceFlinger::captureScreenCore(RenderArea& renderArea,
-                                           TraverseLayersFunction traverseLayers,
-                                           const sp<GraphicBuffer>& buffer,
-                                           bool useIdentityTransform) {
+status_t SurfaceFlinger::captureScreenCommon(RenderArea& renderArea,
+                                             TraverseLayersFunction traverseLayers,
+                                             const sp<GraphicBuffer>& buffer,
+                                             bool useIdentityTransform) {
     // This mutex protects syncFd and captureResult for communication of the return values from the
     // main thread back to this Binder thread
     std::mutex captureMutex;

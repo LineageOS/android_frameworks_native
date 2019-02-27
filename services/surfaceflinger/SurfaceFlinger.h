@@ -643,8 +643,8 @@ private:
     status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
                                  sp<GraphicBuffer>* outBuffer, const ui::PixelFormat reqPixelFormat,
                                  bool useIdentityTransform);
-    status_t captureScreenCore(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
-                               const sp<GraphicBuffer>& buffer, bool useIdentityTransform);
+    status_t captureScreenCommon(RenderArea& renderArea, TraverseLayersFunction traverseLayers,
+                                 const sp<GraphicBuffer>& buffer, bool useIdentityTransform);
     status_t captureScreenImplLocked(const RenderArea& renderArea,
                                      TraverseLayersFunction traverseLayers,
                                      ANativeWindowBuffer* buffer, bool useIdentityTransform,

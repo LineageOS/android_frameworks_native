@@ -38,11 +38,16 @@ public:
     explicit RegionSamplingThread(SurfaceFlinger& flinger);
     ~RegionSamplingThread();
 
+    // Add a listener to receive luma notifications. The luma reported via listener will
+    // report the median luma for the layers under the stopLayerHandle, in the samplingArea region.
     void addListener(const Rect& samplingArea, const sp<IBinder>& stopLayerHandle,
                      const sp<IRegionSamplingListener>& listener);
+    // Remove the listener to stop receiving median luma notifications.
     void removeListener(const sp<IRegionSamplingListener>& listener);
+    // Instruct the thread to perform a median luma sampling on the layers.
     void sampleNow();
 
+private:
     struct Descriptor {
         Rect area = Rect::EMPTY_RECT;
         wp<Layer> stopLayer;
@@ -54,8 +59,10 @@ public:
             return std::hash<IBinder*>()(p.unsafe_get());
         }
     };
+    std::vector<float> sampleBuffer(
+            const sp<GraphicBuffer>& buffer, const Point& leftTop,
+            const std::vector<RegionSamplingThread::Descriptor>& descriptors);
 
-private:
     void binderDied(const wp<IBinder>& who) override;
 
     void captureSample() REQUIRES(mMutex);
