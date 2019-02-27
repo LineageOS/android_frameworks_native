@@ -125,9 +125,11 @@ static constexpr mat4 inverseOrientation(uint32_t transform) {
 
 bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
                                      bool useIdentityTransform, Region& clearRegion,
+                                     const bool supportProtectedContent,
                                      renderengine::LayerSettings& layer) {
     ATRACE_CALL();
-    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion, layer);
+    Layer::prepareClientLayer(renderArea, clip, useIdentityTransform, clearRegion,
+                              supportProtectedContent, layer);
     if (CC_UNLIKELY(mActiveBuffer == 0)) {
         // the texture has not been created yet, this Layer has
         // in fact never been drawn into. This happens frequently with
@@ -154,7 +156,8 @@ bool BufferLayer::prepareClientLayer(const RenderArea& renderArea, const Region&
         }
         return false;
     }
-    bool blackOutLayer = isProtected() || (isSecure() && !renderArea.isSecure());
+    bool blackOutLayer =
+            (isProtected() && !supportProtectedContent) || (isSecure() && !renderArea.isSecure());
     const State& s(getDrawingState());
     if (!blackOutLayer) {
         layer.source.buffer.buffer = mActiveBuffer;

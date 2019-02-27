@@ -42,9 +42,10 @@ public:
 
 protected:
     FloatRect computeCrop(const sp<const DisplayDevice>& /*display*/) const override { return {}; }
-    virtual bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                                    bool useIdentityTransform, Region& clearRegion,
-                                    renderengine::LayerSettings& layer);
+    bool prepareClientLayer(const RenderArea& renderArea, const Region& clip,
+                            bool useIdentityTransform, Region& clearRegion,
+                            const bool supportProtectedContent,
+                            renderengine::LayerSettings& layer) override;
 
 private:
     std::shared_ptr<compositionengine::Layer> mCompositionLayer;

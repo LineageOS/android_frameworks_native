@@ -680,18 +680,21 @@ void Layer::updateCursorPosition(const sp<const DisplayDevice>& display) {
 // ---------------------------------------------------------------------------
 
 bool Layer::prepareClientLayer(const RenderArea& renderArea, const Region& clip,
-                               Region& clearRegion, renderengine::LayerSettings& layer) {
-    return prepareClientLayer(renderArea, clip, false, clearRegion, layer);
+                               Region& clearRegion, const bool supportProtectedContent,
+                               renderengine::LayerSettings& layer) {
+    return prepareClientLayer(renderArea, clip, false, clearRegion, supportProtectedContent, layer);
 }
 
 bool Layer::prepareClientLayer(const RenderArea& renderArea, bool useIdentityTransform,
-                               Region& clearRegion, renderengine::LayerSettings& layer) {
+                               Region& clearRegion, const bool supportProtectedContent,
+                               renderengine::LayerSettings& layer) {
     return prepareClientLayer(renderArea, Region(renderArea.getBounds()), useIdentityTransform,
-                              clearRegion, layer);
+                              clearRegion, supportProtectedContent, layer);
 }
 
 bool Layer::prepareClientLayer(const RenderArea& /*renderArea*/, const Region& /*clip*/,
                                bool useIdentityTransform, Region& /*clearRegion*/,
+                               const bool /*supportProtectedContent*/,
                                renderengine::LayerSettings& layer) {
     FloatRect bounds = getBounds();
     half alpha = getAlpha();
